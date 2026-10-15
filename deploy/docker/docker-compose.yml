@@ -1,0 +1,214 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+    ports:
+      - "1433:1433"
+    volumes:
+      - aierp-sql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  platform-api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Platform.Api.Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
+      Database__ApplyMigrationsOnStartup: "true"
+      Bootstrap__Email: ${BOOTSTRAP_EMAIL:-}
+      Bootstrap__Password: ${BOOTSTRAP_PASSWORD:-}
+      Bootstrap__DisplayName: ${BOOTSTRAP_DISPLAY_NAME:-Platform Admin}
+      Bootstrap__TenantName: ${BOOTSTRAP_TENANT_NAME:-Nexora Demo}
+      Frontend__Origins__0: http://localhost:5173
+      Frontend__Origins__1: http://localhost:5174
+      Frontend__Origins__2: http://localhost:5175
+    ports:
+      - "5080:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  ai-service:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/AIService.Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
+      Frontend__Origins__0: http://localhost:5173
+      Frontend__Origins__1: http://localhost:5174
+      Frontend__Origins__2: http://localhost:5175
+      WorkspaceRunner__BaseUrl: http://workspace-runner:8080
+      ReleaseDeployer__BaseUrl: http://release-deployer:8080
+      AI__OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      AI__OpenAI__Model: ${OPENAI_MODEL:-gpt-6-astra}
+      GitHub__AppId: ${GITHUB_APP_ID:-}
+      GitHub__PrivateKeyPem: ${GITHUB_APP_PRIVATE_KEY_PEM:-}
+      GitHub__InstallationId: ${GITHUB_APP_INSTALLATION_ID:-}
+    ports:
+      - "5081:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      platform-api:
+        condition: service_started
+      workspace-runner:
+        condition: service_started
+      release-deployer:
+        condition: service_healthy
+    networks:
+      - default
+      - studio-internal
+
+  development-studio:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/DevelopmentStudio.Dockerfile
+    ports:
+      - "5174:80"
+    depends_on:
+      platform-api:
+        condition: service_started
+      ai-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  workspace-runner:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/WorkspaceRunner.Dockerfile
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
+      Authentication__Issuer: AIERP
+      Authentication__Audience: AIERP.WorkspaceRunner
+      Workspace__RootPath: /workspaces
+      Workspace__AllowedGitHosts__0: ${WORKSPACE_ALLOWED_GIT_HOST:-github.com}
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /home/app:rw,noexec,nosuid,size=16m,uid=1654,gid=1654,mode=0700
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 2.0
+    volumes:
+      - aierp-workspaces:/workspaces
+      - aierp-test-jobs:/test-jobs
+      - aierp-release-packages:/release-packages
+    networks:
+      - studio-internal
+
+  release-deployer:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/ReleaseDeployer.Dockerfile
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
+      Authentication__Issuer: AIERP
+      Authentication__Audience: AIERP.ReleaseDeployer
+      ReleaseDeployer__PackageRoot: /release-packages
+      ReleaseDeployer__ReleaseRoot: /staging-releases
+      ReleaseDeployer__ProductionRoot: /production-releases
+      ReleaseDeployer__MaxActiveStagingProjects: "2"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 1.0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - aierp-release-packages:/release-packages:ro
+      - aierp-staging-releases:/staging-releases
+      - aierp-production-releases:/production-releases
+      - aierp-production-backups:/production-backups
+    networks:
+      - studio-internal
+
+  workspace-sandbox:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/WorkspaceSandbox.Dockerfile
+    environment:
+      WorkspaceSandbox__JobRoot: /test-jobs
+      WorkspaceSandbox__TempRoot: /tmp/test-jobs
+    depends_on:
+      workspace-runner:
+        condition: service_started
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp/test-jobs:rw,exec,nosuid,nodev,size=2g
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - KILL
+      - CHOWN
+      - SETPCAP
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    volumes:
+      - aierp-test-jobs:/test-jobs
+    restart: unless-stopped
+
+volumes:
+  aierp-sql-data:
+  aierp-workspaces:
+  aierp-test-jobs:
+  aierp-release-packages:
+  aierp-staging-releases:
+  aierp-production-releases:
+  aierp-production-backups:
+    name: aierp-production-backups
+
+networks:
+  studio-internal:

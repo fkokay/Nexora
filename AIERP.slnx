@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/AI/">
+    <Project Path="src/AI/AIERP.AIService/AIERP.AIService.csproj" />
+    <Project Path="src/AI/AIERP.ReleaseDeployer/AIERP.ReleaseDeployer.csproj" />
+    <Project Path="src/AI/AIERP.WorkspaceSandbox/AIERP.WorkspaceSandbox.csproj" />
+    <Project Path="src/AI/AIERP.WorkspaceRunner/AIERP.WorkspaceRunner.csproj" />
+  </Folder>
+  <Folder Name="/src/Hosts/">
+    <Project Path="src/Hosts/AIERP.Api/AIERP.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Platform/">
+    <Project Path="src/Platform/AIERP.Platform.Application/AIERP.Platform.Application.csproj" />
+    <Project Path="src/Platform/AIERP.Platform.Domain/AIERP.Platform.Domain.csproj" />
+    <Project Path="src/Platform/AIERP.Platform.Infrastructure/AIERP.Platform.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/UnitTests/">
+    <Project Path="tests/UnitTests/AIERP.Platform.UnitTests/AIERP.Platform.UnitTests.csproj" />
+  </Folder>
+</Solution>
