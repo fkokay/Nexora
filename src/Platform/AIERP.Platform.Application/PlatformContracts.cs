@@ -4,8 +4,10 @@ using AIERP.Platform.Domain;
 
 public sealed record TenantSummary(Guid Id, string Name, string Slug, string Role);
 public sealed record DashboardSummary(string TenantName, int OpenDevelopmentRequests, string PlatformStatus);
-public sealed record AuditEventView(long Id, string Action, string Resource, Guid? UserId, string? UserDisplayName, string? UserEmail, DateTimeOffset OccurredAt);
+public sealed record AuditEventView(long Id, string Action, string Resource, Guid? UserId, string? UserDisplayName, DateTimeOffset OccurredAt);
 public sealed record AuditEventPage(IReadOnlyList<AuditEventView> Items, int Page, int PageSize, int TotalCount);
+public sealed record AuditRetentionPolicyView(int RetentionDays, int MinimumRetentionDays, int MaximumRetentionDays, DateTimeOffset? LastPurgeAt);
+public sealed record AuditRetentionPolicyWriteRequest(int RetentionDays);
 public sealed record CreateDevelopmentRequest(string Title, string Description);
 public sealed record CustomerView(Guid Id, string Code, string Name, CounterpartyType Type, string? TaxNumber,
     bool IsActive, DateTimeOffset CreatedAt, byte[] RowVersion, Guid? GroupId = null, string? GroupName = null,
@@ -42,7 +44,11 @@ public sealed record CustomerCustomFieldRestoreRequest(int Version, bool Confirm
 public sealed record CustomerCustomFieldValuesWriteRequest(IReadOnlyDictionary<string, string?>? Values);
 public sealed record CustomerCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record StockItemView(Guid Id, string Code, string Name, string? Barcode, string UnitCode, string? Category,
-    decimal MinimumStock, bool IsActive, DateTimeOffset CreatedAt, byte[] RowVersion);
+    decimal MinimumStock, bool IsActive, DateTimeOffset CreatedAt, byte[] RowVersion, InventoryTrackingMode TrackingMode = InventoryTrackingMode.None);
+public sealed record InventoryTrackingAllocationRequest(string TrackingCode, decimal Quantity, DateOnly? ExpiryDate = null);
+public sealed record InventoryTrackingAllocationView(string TrackingCode, decimal Quantity, DateOnly? ExpiryDate);
+public sealed record StockItemUnitConversionView(Guid Id, string UnitCode, decimal FactorToBase, bool IsActive);
+public sealed record StockItemUnitConversionWriteRequest(string UnitCode, decimal FactorToBase);
 public sealed record StockCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record StockCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -54,35 +60,69 @@ public sealed record StockCustomFieldRestoreRequest(int Version, bool Confirmati
 public sealed record StockCustomFieldValuesWriteRequest(IReadOnlyDictionary<string, string?>? Values);
 public sealed record StockCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record StockItemWriteRequest(string Code, string Name, string? Barcode, string UnitCode = "EA",
-    string? Category = null, decimal MinimumStock = 0, bool IsActive = true, IReadOnlyDictionary<string, string?>? CustomFields = null);
-public sealed record StockItemUpdateRequest(string Code, string Name, string? Barcode, string UnitCode, string? Category, decimal MinimumStock, byte[]? RowVersion);
+    string? Category = null, decimal MinimumStock = 0, bool IsActive = true, IReadOnlyDictionary<string, string?>? CustomFields = null,
+    InventoryTrackingMode TrackingMode = InventoryTrackingMode.None);
+public sealed record StockItemUpdateRequest(string Code, string Name, string? Barcode, string UnitCode, string? Category, decimal MinimumStock, byte[]? RowVersion,
+    InventoryTrackingMode? TrackingMode = null);
 public sealed record StockItemStateChangeRequest(byte[]? RowVersion, bool Confirmation);
 public sealed record WarehouseView(Guid Id, string Code, string Name, bool IsActive, byte[] RowVersion);
-public sealed record WarehouseWriteRequest(string Code, string Name);
+public sealed record WarehouseCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
+public sealed record WarehouseCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
+    CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record WarehouseCustomFieldValueView(Guid DefinitionId, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int DefinitionVersion, bool IsRequired, string Value);
+public sealed record WarehouseCustomFieldValueRevisionView(Guid Id, Guid DefinitionId, string Code, string Label, string? PreviousValue, string? NewValue, int DefinitionVersion, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record WarehouseCustomFieldCreateRequest(string? Code, string? Label, CustomFieldDataType DataType, int MaxLength = 200, bool IsRequired = false);
+public sealed record WarehouseCustomFieldUpdateRequest(string? Label, int MaxLength, bool? IsRequired = null);
+public sealed record WarehouseCustomFieldRestoreRequest(int Version, bool Confirmation);
+public sealed record WarehouseCustomFieldValuesWriteRequest(IReadOnlyDictionary<string, string?>? Values);
+public sealed record WarehouseCustomFieldValueRestoreRequest(bool Confirmation);
+public sealed record WarehouseWriteRequest(string Code, string Name, IReadOnlyDictionary<string, string?>? CustomFields = null);
 public sealed record WarehouseUpdateRequest(string Code, string Name, byte[]? RowVersion);
 public sealed record WarehouseStateChangeRequest(bool IsActive, bool Confirmation);
 public sealed record InventoryBalanceView(Guid StockItemId, string Code, string Name, string UnitCode,
     decimal MinimumStock, decimal QuantityOnHand, bool BelowMinimum, decimal ReservedQuantity, decimal AvailableQuantity,
     decimal ValuationAmountBase = 0, decimal UnvaluedQuantity = 0, string BaseCurrencyCode = "TRY");
 public sealed record InventoryTransactionView(Guid Id, DateOnly EntryDate, InventoryDirection Direction,
-    decimal Quantity, string Description, Guid? ReversalOfId, bool IsReversal, bool HasReversal, decimal? UnitCostBase = null);
+    decimal Quantity, string Description, Guid? ReversalOfId, bool IsReversal, bool HasReversal, decimal? UnitCostBase = null,
+    decimal? EnteredQuantity = null, string? EnteredUnitCode = null, IReadOnlyList<InventoryTrackingAllocationView>? Tracking = null);
 public sealed record InventoryTransactionWriteRequest(DateOnly EntryDate, InventoryDirection Direction,
-    decimal Quantity, string Description, decimal? UnitCostBase = null);
+    decimal Quantity, string Description, decimal? UnitCostBase = null, string? UnitCode = null,
+    IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null);
+public sealed record InventoryCostRevaluationRequest(DateOnly EntryDate, decimal AmountBase, string Reason);
+public sealed record InventoryCostAdjustmentLineView(Guid Id, Guid StockItemId, string StockCode, string StockName,
+    Guid WarehouseId, string WarehouseCode, decimal QuantitySnapshot, decimal? UnitCostSnapshotBase, decimal AmountBase,
+    Guid? PurchaseReceiptLineId);
+public sealed record InventoryCostAdjustmentView(Guid Id, string Code, DateOnly EntryDate, InventoryCostAdjustmentKind Kind,
+    Guid? PurchaseReceiptId, string Description, Guid? ReversalOfId, DateTimeOffset CreatedAt, decimal TotalAmountBase,
+    IReadOnlyList<InventoryCostAdjustmentLineView> Lines);
+public sealed record LandedCostWriteRequest(DateOnly EntryDate, decimal AmountBase, string AllocationMethod, string Description);
 public sealed record InventoryReverseRequest(string Reason);
-public sealed record InventoryTransferLineWriteRequest(Guid StockItemId, decimal Quantity);
+public sealed record InventoryTransferLineWriteRequest(Guid StockItemId, decimal Quantity, string? UnitCode = null);
 public sealed record InventoryTransferWriteRequest(Guid RequestId, Guid FromWarehouseId, Guid ToWarehouseId, DateOnly TransferDate,
     IReadOnlyList<InventoryTransferLineWriteRequest> Lines);
 public sealed record InventoryTransferVoidRequest(string Reason, bool Confirmation);
 public sealed record InventoryTransferSummary(Guid Id, string Code, Guid FromWarehouseId, string FromWarehouseName,
     Guid ToWarehouseId, string ToWarehouseName, DateOnly TransferDate, InventoryTransferStatus Status,
     int LineCount, DateTimeOffset CreatedAt);
-public sealed record InventoryTransferLineView(Guid StockItemId, string Code, string Name, string UnitCode, decimal Quantity);
+public sealed record InventoryTransferLineView(Guid StockItemId, string Code, string Name, string UnitCode, decimal Quantity,
+    decimal? EnteredQuantity = null, string? EnteredUnitCode = null);
 public sealed record InventoryTransferDetailView(InventoryTransferSummary Transfer, IReadOnlyList<InventoryTransferLineView> Lines);
 public sealed record StockItemPage(IReadOnlyList<StockItemView> Items, int Page, int PageSize, int TotalCount);
 public sealed record InventoryTransactionPage(IReadOnlyList<InventoryTransactionView> Items, int Page, int PageSize, int TotalCount);
 public sealed record SalesQuoteLineWriteRequest(Guid StockItemId, decimal Quantity, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20);
 public sealed record SalesQuoteWriteRequest(string Code, Guid CustomerId, DateOnly QuoteDate, DateOnly ValidUntil,
-    string CurrencyCode, string? Notes, IReadOnlyList<SalesQuoteLineWriteRequest> Lines);
+    string CurrencyCode, string? Notes, IReadOnlyList<SalesQuoteLineWriteRequest> Lines,
+    IReadOnlyDictionary<string, string?>? CustomFields = null);
+public sealed record SalesQuoteCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
+public sealed record SalesQuoteCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
+    CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record SalesQuoteCustomFieldValueView(Guid DefinitionId, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int DefinitionVersion, bool IsRequired, string Value);
+public sealed record SalesQuoteCustomFieldValueRevisionView(Guid Id, Guid DefinitionId, string Code, string Label, string? PreviousValue, string? NewValue, int DefinitionVersion, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record SalesQuoteCustomFieldCreateRequest(string? Code, string? Label, CustomFieldDataType DataType, int MaxLength = 200, bool IsRequired = false);
+public sealed record SalesQuoteCustomFieldUpdateRequest(string? Label, int MaxLength, bool? IsRequired = null);
+public sealed record SalesQuoteCustomFieldRestoreRequest(int Version, bool Confirmation);
+public sealed record SalesQuoteCustomFieldValuesWriteRequest(IReadOnlyDictionary<string, string?>? Values);
+public sealed record SalesQuoteCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record SalesQuoteLineAmounts(decimal LineSubtotal, decimal DiscountAmount, decimal TaxAmount, decimal LineTotal);
 public sealed record SalesQuoteTotals(decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal);
 public sealed record SalesQuoteLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName, string UnitCode,
@@ -91,7 +131,7 @@ public sealed record SalesQuoteLineView(int LineNumber, Guid StockItemId, string
 public sealed record SalesQuoteView(Guid Id, string Code, Guid CustomerId, string CustomerName, DateOnly QuoteDate,
     DateOnly ValidUntil, string CurrencyCode, SalesQuoteStatus Status, string? Notes, decimal Subtotal,
     decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt, IReadOnlyList<SalesQuoteLineView> Lines,
-    bool HasSalesOrder = false);
+    bool HasSalesOrder = false, IReadOnlyList<SalesQuoteCustomFieldValueView>? CustomFields = null);
 public sealed record SalesQuoteSummary(Guid Id, string Code, Guid CustomerId, string CustomerName, DateOnly QuoteDate,
     DateOnly ValidUntil, string CurrencyCode, SalesQuoteStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
     bool HasSalesOrder = false);
@@ -99,10 +139,20 @@ public sealed record SalesQuotePage(IReadOnlyList<SalesQuoteSummary> Items, int 
 public sealed record SalesOrderSummary(Guid Id, string Code, Guid QuoteId, string QuoteCode, Guid CustomerId,
     string CustomerName, DateOnly OrderDate, string CurrencyCode, SalesOrderStatus Status, decimal GrandTotal,
     int LineCount, DateTimeOffset CreatedAt);
+public sealed record SalesOrderCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
+public sealed record SalesOrderCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
+    CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record SalesOrderCustomFieldValueView(Guid DefinitionId, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int DefinitionVersion, bool IsRequired, string Value);
+public sealed record SalesOrderCustomFieldValueRevisionView(Guid Id, Guid DefinitionId, string Code, string Label, string? PreviousValue, string? NewValue, int DefinitionVersion, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record SalesOrderCustomFieldCreateRequest(string? Code, string? Label, CustomFieldDataType DataType, int MaxLength = 200, bool IsRequired = false);
+public sealed record SalesOrderCustomFieldUpdateRequest(string? Label, int MaxLength, bool? IsRequired = null);
+public sealed record SalesOrderCustomFieldRestoreRequest(int Version, bool Confirmation);
+public sealed record SalesOrderCustomFieldValuesWriteRequest(IReadOnlyDictionary<string, string?>? Values);
+public sealed record SalesOrderCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record SalesOrderView(Guid Id, string Code, Guid QuoteId, string QuoteCode, Guid CustomerId,
     string CustomerName, DateOnly OrderDate, string CurrencyCode, SalesOrderStatus Status, decimal Subtotal,
     decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt,
-    IReadOnlyList<SalesOrderLineView> Lines);
+    IReadOnlyList<SalesOrderLineView> Lines, IReadOnlyList<SalesOrderCustomFieldValueView>? CustomFields = null);
 public sealed record SalesOrderLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, decimal DeliveredQuantity, decimal RemainingQuantity,
@@ -113,10 +163,10 @@ public sealed record SalesOrderReservationReleaseRequest(string Reason, bool Con
 public sealed record SalesOrderReservationSummary(Guid Id, Guid OrderId, int OrderLineNumber, Guid WarehouseId,
     string WarehouseName, Guid StockItemId, string StockCode, decimal ReservedQuantity, decimal FulfilledQuantity,
     decimal RemainingReservedQuantity, SalesOrderReservationStatus Status, DateTimeOffset CreatedAt, DateTimeOffset? ReleasedAt);
-public sealed record SalesDeliveryLineWriteRequest(int OrderLineNumber, decimal Quantity);
+public sealed record SalesDeliveryLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null);
 public sealed record SalesDeliveryWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly DeliveryDate, IReadOnlyList<SalesDeliveryLineWriteRequest> Lines);
 public sealed record SalesDeliveryLineView(int OrderLineNumber, Guid StockItemId, string StockCode, string StockName,
-    string UnitCode, decimal Quantity);
+    string UnitCode, decimal Quantity, decimal? EnteredQuantity = null, string? EnteredUnitCode = null);
 public sealed record SalesDeliverySummary(Guid Id, string Code, Guid OrderId, string OrderCode, Guid WarehouseId,
     string WarehouseName, DateOnly DeliveryDate, SalesDeliveryStatus Status, int LineCount, DateTimeOffset CreatedAt,
     bool HasSalesInvoice = false, SalesInvoiceStatus? InvoiceStatus = null, Guid? InvoiceId = null);
@@ -127,6 +177,16 @@ public sealed record SalesDeliveryPage(IReadOnlyList<SalesDeliverySummary> Items
 public sealed record SalesInvoiceSummary(Guid Id, string Code, Guid DeliveryId, string DeliveryCode, Guid OrderId,
     string OrderCode, Guid CustomerId, string CustomerName, DateOnly InvoiceDate, string CurrencyCode,
     SalesInvoiceStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt);
+public sealed record SalesInvoiceCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
+public sealed record SalesInvoiceCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
+    CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record SalesInvoiceCustomFieldValueView(Guid DefinitionId, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int DefinitionVersion, bool IsRequired, string Value);
+public sealed record SalesInvoiceCustomFieldValueRevisionView(Guid Id, Guid DefinitionId, string Code, string Label, string? PreviousValue, string? NewValue, int DefinitionVersion, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record SalesInvoiceCustomFieldCreateRequest(string? Code, string? Label, CustomFieldDataType DataType, int MaxLength = 200, bool IsRequired = false);
+public sealed record SalesInvoiceCustomFieldUpdateRequest(string? Label, int MaxLength, bool? IsRequired = null);
+public sealed record SalesInvoiceCustomFieldRestoreRequest(int Version, bool Confirmation);
+public sealed record SalesInvoiceCustomFieldValuesWriteRequest(IReadOnlyDictionary<string, string?>? Values);
+public sealed record SalesInvoiceCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record SalesInvoiceLineView(Guid Id, int OrderLineNumber, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal);
@@ -135,14 +195,15 @@ public sealed record SalesInvoiceView(Guid Id, string Code, Guid DeliveryId, str
     SalesInvoiceStatus Status, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal,
     Guid? LedgerEntryId, DateTimeOffset CreatedAt, IReadOnlyList<SalesInvoiceLineView> Lines,
     decimal PaidAmount = 0, decimal ReturnedAmount = 0, decimal OutstandingAmount = 0,
-    IReadOnlyList<CustomerCollectionSummary>? Collections = null, IReadOnlyList<SalesReturnSummary>? Returns = null);
+    IReadOnlyList<CustomerCollectionSummary>? Collections = null, IReadOnlyList<SalesReturnSummary>? Returns = null,
+    IReadOnlyList<SalesInvoiceCustomFieldValueView>? CustomFields = null);
 public sealed record SalesInvoicePage(IReadOnlyList<SalesInvoiceSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record CustomerCollectionWriteRequest(Guid RequestId, DateOnly CollectionDate, decimal Amount, string PaymentMethod, string? Reference = null, Guid? FinancialAccountId = null);
 public sealed record CustomerCollectionSummary(Guid Id, string Code, Guid CustomerId, string CustomerName,
     Guid SalesInvoiceId, string InvoiceCode, DateOnly CollectionDate, decimal Amount, string CurrencyCode,
     string PaymentMethod, string? Reference, CustomerCollectionStatus Status, DateTimeOffset CreatedAt,
     Guid? FinancialAccountId = null, string? FinancialAccountName = null);
-public sealed record SalesReturnLineWriteRequest(Guid SalesInvoiceLineId, decimal Quantity);
+public sealed record SalesReturnLineWriteRequest(Guid SalesInvoiceLineId, decimal Quantity, string? UnitCode = null);
 public sealed record SalesReturnWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly ReturnDate, IReadOnlyList<SalesReturnLineWriteRequest> Lines);
 public sealed record SalesReturnLineView(Guid SalesInvoiceLineId, int OrderLineNumber, string StockCode, string StockName,
     string UnitCode, decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent,
@@ -151,7 +212,7 @@ public sealed record SalesReturnSummary(Guid Id, string Code, Guid SalesInvoiceI
     string WarehouseName, DateOnly ReturnDate, SalesReturnStatus Status, decimal GrandTotal, int LineCount,
     DateTimeOffset CreatedAt, IReadOnlyList<SalesReturnLineView> Lines);
 public sealed record PurchaseOrderWriteRequest(string Code, Guid SupplierId, DateOnly OrderDate, string CurrencyCode,
-    string? Notes, IReadOnlyList<SalesQuoteLineWriteRequest> Lines);
+    string? Notes, IReadOnlyList<SalesQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
 public sealed record PurchaseRequestLineWriteRequest(Guid StockItemId, decimal Quantity);
 public sealed record PurchaseRequestWriteRequest(string Code, DateOnly RequestDate, DateOnly? NeededByDate,
     string Description, IReadOnlyList<PurchaseRequestLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
@@ -167,7 +228,17 @@ public sealed record PurchaseRequestCustomFieldValueRestoreRequest(bool Confirma
 public sealed record PurchaseRequestDecisionRequest(bool Approved, string? Note);
 public sealed record PurchaseSupplierQuoteLineWriteRequest(int RequestLineNumber, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent = 20);
 public sealed record PurchaseSupplierQuoteWriteRequest(string Code, Guid SupplierId, DateOnly QuoteDate, DateOnly? ValidUntil,
-    string? Notes, IReadOnlyList<PurchaseSupplierQuoteLineWriteRequest> Lines);
+    string? Notes, IReadOnlyList<PurchaseSupplierQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
+public sealed record PurchaseSupplierQuoteCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
+public sealed record PurchaseSupplierQuoteCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
+    CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record PurchaseSupplierQuoteCustomFieldValueView(Guid DefinitionId, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int DefinitionVersion, bool IsRequired, string Value);
+public sealed record PurchaseSupplierQuoteCustomFieldValueRevisionView(Guid Id, Guid DefinitionId, string Code, string Label, string? PreviousValue, string? NewValue, int DefinitionVersion, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record PurchaseSupplierQuoteCustomFieldCreateRequest(string? Code, string? Label, CustomFieldDataType DataType, int MaxLength = 200, bool IsRequired = false);
+public sealed record PurchaseSupplierQuoteCustomFieldUpdateRequest(string? Label, int MaxLength, bool? IsRequired = null);
+public sealed record PurchaseSupplierQuoteCustomFieldRestoreRequest(int Version, bool Confirmation);
+public sealed record PurchaseSupplierQuoteCustomFieldValuesWriteRequest(IReadOnlyDictionary<string, string?>? Values);
+public sealed record PurchaseSupplierQuoteCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record PurchaseSupplierQuoteLineView(int RequestLineNumber, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal);
@@ -178,7 +249,8 @@ public sealed record PurchaseSupplierQuoteView(Guid Id, Guid PurchaseRequestId, 
     string SupplierName, DateOnly QuoteDate, DateOnly? ValidUntil, string CurrencyCode, PurchaseSupplierQuoteStatus Status,
     decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, string? Notes, DateTimeOffset CreatedAt,
     IReadOnlyList<PurchaseSupplierQuoteLineView> Lines, string BaseCurrencyCode = "TRY", decimal? ComparableGrandTotal = null,
-    decimal? AppliedExchangeRate = null, DateOnly? AppliedRateDate = null);
+    decimal? AppliedExchangeRate = null, DateOnly? AppliedRateDate = null,
+    IReadOnlyList<PurchaseSupplierQuoteCustomFieldValueView>? CustomFields = null);
 public sealed record TenantCurrencySettingsView(string BaseCurrencyCode);
 public sealed record TenantCurrencySettingsWriteRequest(string BaseCurrencyCode);
 public sealed record TenantExchangeRateWriteRequest(string CurrencyCode, DateOnly RateDate, decimal Rate, string? Source = null);
@@ -191,9 +263,17 @@ public sealed record FxExposureCurrencySummary(string Direction, string Currency
     decimal? HistoricalBaseAmount, decimal? CurrentBaseAmount, decimal? EstimatedChangeBase, int UnconvertedInvoiceCount);
 public sealed record FxExposureReport(string BaseCurrencyCode, DateOnly AsOfDate, IReadOnlyList<FxExposureCurrencySummary> Summaries,
     IReadOnlyList<FxExposureLineView> Invoices);
+public sealed record FxRevaluationCreateRequest(DateOnly AsOfDate);
+public sealed record FxRevaluationVoucherLineView(Guid Id, FxRevaluationDirection Direction, Guid InvoiceId, string InvoiceCode,
+    string CounterpartyName, string CurrencyCode, decimal OutstandingAmount, decimal InvoiceDateRate, decimal ClosingRate,
+    decimal PreviousAdjustmentBase, decimal TargetAdjustmentBase, decimal AdjustmentBase, string DebitAccount,
+    string CreditAccount, decimal DebitBaseAmount, decimal CreditBaseAmount);
+public sealed record FxRevaluationVoucherView(Guid Id, string Code, DateOnly AsOfDate, string BaseCurrencyCode,
+    DateTimeOffset CreatedAt, Guid? CreatedByUserId, decimal TotalDebit, decimal TotalCredit,
+    IReadOnlyList<FxRevaluationVoucherLineView> Lines);
 public sealed record PurchaseRequestOrderLineRequest(int LineNumber, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent = 20);
 public sealed record PurchaseRequestOrderWriteRequest(string Code, Guid SupplierId, DateOnly OrderDate, string? Notes,
-    IReadOnlyList<PurchaseRequestOrderLineRequest> Lines, Guid? SupplierQuoteId = null);
+    IReadOnlyList<PurchaseRequestOrderLineRequest> Lines, Guid? SupplierQuoteId = null, IReadOnlyDictionary<string, string?>? CustomFields = null);
 public sealed record PurchaseRequestLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName,
     string UnitCode, decimal Quantity);
 public sealed record PurchaseRequestSummary(Guid Id, string Code, DateOnly RequestDate, DateOnly? NeededByDate,
@@ -211,19 +291,38 @@ public sealed record PurchaseOrderLineView(int LineNumber, Guid StockItemId, str
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, decimal ReceivedQuantity, decimal RemainingQuantity);
 public sealed record PurchaseOrderSummary(Guid Id, string Code, Guid SupplierId, string SupplierName, DateOnly OrderDate,
     string CurrencyCode, PurchaseOrderStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt);
+public sealed record PurchaseOrderCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
+public sealed record PurchaseOrderCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
+    CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record PurchaseOrderCustomFieldValueView(Guid DefinitionId, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int DefinitionVersion, bool IsRequired, string Value);
+public sealed record PurchaseOrderCustomFieldValueRevisionView(Guid Id, Guid DefinitionId, string Code, string Label, string? PreviousValue, string? NewValue, int DefinitionVersion, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record PurchaseOrderCustomFieldCreateRequest(string? Code, string? Label, CustomFieldDataType DataType, int MaxLength = 200, bool IsRequired = false);
+public sealed record PurchaseOrderCustomFieldUpdateRequest(string? Label, int MaxLength, bool? IsRequired = null);
+public sealed record PurchaseOrderCustomFieldRestoreRequest(int Version, bool Confirmation);
+public sealed record PurchaseOrderCustomFieldValuesWriteRequest(IReadOnlyDictionary<string, string?>? Values);
+public sealed record PurchaseOrderCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record PurchaseOrderView(Guid Id, string Code, Guid SupplierId, string SupplierName, DateOnly OrderDate,
     string CurrencyCode, PurchaseOrderStatus Status, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal,
     string? Notes, DateTimeOffset CreatedAt, IReadOnlyList<PurchaseOrderLineView> Lines,
-    IReadOnlyList<PurchaseReceiptSummary> Receipts);
+    IReadOnlyList<PurchaseReceiptSummary> Receipts, IReadOnlyList<PurchaseOrderCustomFieldValueView>? CustomFields = null);
 public sealed record PurchaseOrderPage(IReadOnlyList<PurchaseOrderSummary> Items, int Page, int PageSize, int TotalCount);
-public sealed record PurchaseReceiptLineWriteRequest(int OrderLineNumber, decimal Quantity);
+public sealed record PurchaseReceiptLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null,
+    IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null);
 public sealed record PurchaseReceiptWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly ReceiptDate,
-    IReadOnlyList<PurchaseReceiptLineWriteRequest> Lines);
+    IReadOnlyList<PurchaseReceiptLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
+public sealed record PurchaseReceiptCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
+public sealed record PurchaseReceiptCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
+    CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
+public sealed record PurchaseReceiptCustomFieldValueView(Guid DefinitionId, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int DefinitionVersion, bool IsRequired, string Value);
+public sealed record PurchaseReceiptCustomFieldCreateRequest(string? Code, string? Label, CustomFieldDataType DataType, int MaxLength = 200, bool IsRequired = false);
+public sealed record PurchaseReceiptCustomFieldUpdateRequest(string? Label, int MaxLength, bool? IsRequired = null);
 public sealed record PurchaseReceiptLineView(int OrderLineNumber, Guid StockItemId, string StockCode, string StockName,
-    string UnitCode, decimal Quantity);
+    string UnitCode, decimal Quantity, IReadOnlyList<InventoryTrackingAllocationView>? Tracking = null);
 public sealed record PurchaseReceiptSummary(Guid Id, string Code, Guid PurchaseOrderId, string PurchaseOrderCode,
     Guid WarehouseId, string WarehouseName, DateOnly ReceiptDate, PurchaseReceiptStatus Status, int LineCount,
-    DateTimeOffset CreatedAt, IReadOnlyList<PurchaseReceiptLineView>? Lines = null, PurchaseInvoiceSummary? Invoice = null);
+    DateTimeOffset CreatedAt, IReadOnlyList<PurchaseReceiptLineView>? Lines = null, PurchaseInvoiceSummary? Invoice = null,
+    IReadOnlyList<PurchaseReceiptCustomFieldValueView>? CustomFields = null);
+public sealed record PurchaseReceiptPage(IReadOnlyList<PurchaseReceiptSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record PurchaseInvoiceCreateRequest(string Code, DateOnly InvoiceDate);
 public sealed record PurchaseInvoiceLineView(Guid Id, Guid PurchaseReceiptLineId, int OrderLineNumber, string StockCode,
     string StockName, string UnitCode, decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent,
@@ -231,7 +330,7 @@ public sealed record PurchaseInvoiceLineView(Guid Id, Guid PurchaseReceiptLineId
 public sealed record SupplierPaymentSummary(Guid Id, string Code, Guid PurchaseInvoiceId, string InvoiceCode,
     DateOnly PaymentDate, decimal Amount, string CurrencyCode, string PaymentMethod, string? Reference,
     SupplierPaymentStatus Status, DateTimeOffset CreatedAt, Guid? FinancialAccountId = null, string? FinancialAccountName = null);
-public sealed record SupplierReturnLineWriteRequest(Guid PurchaseInvoiceLineId, decimal Quantity);
+public sealed record SupplierReturnLineWriteRequest(Guid PurchaseInvoiceLineId, decimal Quantity, string? UnitCode = null);
 public sealed record SupplierReturnWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly ReturnDate,
     IReadOnlyList<SupplierReturnLineWriteRequest> Lines);
 public sealed record SupplierReturnLineView(Guid PurchaseInvoiceLineId, int OrderLineNumber, string StockCode, string StockName,
@@ -445,6 +544,7 @@ public static class InventoryValidation
         if (request.Barcode?.Trim().Length > 64) errors["barcode"] = ["Barkod en fazla 64 karakter olabilir."];
         if (string.IsNullOrWhiteSpace(request.UnitCode) || request.UnitCode.Trim().Length > 8) errors["unitCode"] = ["Birim kodu zorunludur ve en fazla 8 karakter olabilir."];
         if (request.Category?.Trim().Length > 120) errors["category"] = ["Kategori en fazla 120 karakter olabilir."];
+        if (!Enum.IsDefined(request.TrackingMode)) errors["trackingMode"] = ["Takip modu None, Lot veya Serial olmalıdır."];
         if (request.MinimumStock < 0 || request.MinimumStock > 99999999999999.9999m || request.MinimumStock != decimal.Round(request.MinimumStock, 4)) errors["minimumStock"] = ["Minimum stok negatif olamaz; en fazla 4 ondalık basamak kullanılabilir."];
         return errors.Count == 0 ? null : errors;
     }
@@ -475,6 +575,7 @@ public static class InventoryValidation
         var errors = new Dictionary<string, string[]>();
         if (!Enum.IsDefined(request.Direction)) errors["direction"] = ["Hareket yönü Receipt veya Issue olmalıdır."];
         if (request.Quantity <= 0 || request.Quantity > 99999999999999.9999m || request.Quantity != decimal.Round(request.Quantity, 4)) errors["quantity"] = ["Miktar 0'dan büyük olmalı ve en fazla 4 ondalık basamak içermelidir."];
+        if (request.UnitCode is { } unitCode && (string.IsNullOrWhiteSpace(unitCode) || unitCode.Trim().Length > 8)) errors["unitCode"] = ["Birim kodu en fazla 8 karakter olabilir."];
         if (string.IsNullOrWhiteSpace(request.Description) || request.Description.Trim().Length > 240) errors["description"] = ["Açıklama zorunludur ve en fazla 240 karakter olabilir."];
         if (request.UnitCostBase is < 0 or > 9999999999.99999999m || request.UnitCostBase is { } cost && cost != decimal.Round(cost, 8)) errors["unitCostBase"] = ["Birim maliyet negatif olamaz ve decimal(18,8) sınırında en fazla sekiz ondalık basamak içermelidir."];
         if (request.Direction == InventoryDirection.Issue && request.UnitCostBase is not null) errors["unitCostBase"] = ["Çıkış maliyeti sistem tarafından mevcut ağırlıklı ortalama maliyetten belirlenir."];

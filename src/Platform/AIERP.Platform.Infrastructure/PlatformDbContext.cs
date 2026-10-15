@@ -1,14 +1,26 @@
+using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace AIERP.Platform.Infrastructure;
 
-public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> options) : DbContext(options)
+public abstract class PlatformDbContextBase<TContext> : DbContext where TContext : DbContext
 {
+    protected readonly IAuditExecutionContext? auditExecutionContext;
+
+    protected PlatformDbContextBase(DbContextOptions<TContext> options, IAuditExecutionContext? auditExecutionContext = null)
+        : base(options) => this.auditExecutionContext = auditExecutionContext;
+
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TenantDatabaseCatalogEntry> TenantDatabaseCatalog => Set<TenantDatabaseCatalogEntry>();
+    public DbSet<DatabaseSeparationComponentState> DatabaseSeparationComponentStates => Set<DatabaseSeparationComponentState>();
     public DbSet<TenantMembership> TenantMemberships => Set<TenantMembership>();
+    public DbSet<PermissionDefinition> PermissionDefinitions => Set<PermissionDefinition>();
+    public DbSet<TenantPermissionRule> TenantPermissionRules => Set<TenantPermissionRule>();
     public DbSet<TenantExchangeRate> TenantExchangeRates => Set<TenantExchangeRate>();
+    public DbSet<FxRevaluationVoucher> FxRevaluationVouchers => Set<FxRevaluationVoucher>();
+    public DbSet<FxRevaluationVoucherLine> FxRevaluationVoucherLines => Set<FxRevaluationVoucherLine>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<DevelopmentRequest> DevelopmentRequests => Set<DevelopmentRequest>();
     public DbSet<DevelopmentProject> DevelopmentProjects => Set<DevelopmentProject>();
@@ -34,27 +46,51 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<CustomerLedgerEntry> CustomerLedgerEntries => Set<CustomerLedgerEntry>();
     public DbSet<StockItem> StockItems => Set<StockItem>();
+    public DbSet<StockItemUnitConversion> StockItemUnitConversions => Set<StockItemUnitConversion>();
     public DbSet<StockItemCustomFieldDefinition> StockItemCustomFieldDefinitions => Set<StockItemCustomFieldDefinition>();
     public DbSet<StockItemCustomFieldDefinitionRevision> StockItemCustomFieldDefinitionRevisions => Set<StockItemCustomFieldDefinitionRevision>();
     public DbSet<StockItemCustomFieldValue> StockItemCustomFieldValues => Set<StockItemCustomFieldValue>();
     public DbSet<StockItemCustomFieldValueRevision> StockItemCustomFieldValueRevisions => Set<StockItemCustomFieldValueRevision>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<WarehouseCustomFieldDefinition> WarehouseCustomFieldDefinitions => Set<WarehouseCustomFieldDefinition>();
+    public DbSet<WarehouseCustomFieldDefinitionRevision> WarehouseCustomFieldDefinitionRevisions => Set<WarehouseCustomFieldDefinitionRevision>();
+    public DbSet<WarehouseCustomFieldValue> WarehouseCustomFieldValues => Set<WarehouseCustomFieldValue>();
+    public DbSet<WarehouseCustomFieldValueRevision> WarehouseCustomFieldValueRevisions => Set<WarehouseCustomFieldValueRevision>();
     public DbSet<InventoryTransfer> InventoryTransfers => Set<InventoryTransfer>();
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
+    public DbSet<InventoryTransactionTrace> InventoryTransactionTraces => Set<InventoryTransactionTrace>();
+    public DbSet<InventoryCostAdjustment> InventoryCostAdjustments => Set<InventoryCostAdjustment>();
+    public DbSet<InventoryCostAdjustmentLine> InventoryCostAdjustmentLines => Set<InventoryCostAdjustmentLine>();
     public DbSet<SalesQuote> SalesQuotes => Set<SalesQuote>();
     public DbSet<SalesQuoteLine> SalesQuoteLines => Set<SalesQuoteLine>();
+    public DbSet<SalesQuoteCustomFieldDefinition> SalesQuoteCustomFieldDefinitions => Set<SalesQuoteCustomFieldDefinition>();
+    public DbSet<SalesQuoteCustomFieldDefinitionRevision> SalesQuoteCustomFieldDefinitionRevisions => Set<SalesQuoteCustomFieldDefinitionRevision>();
+    public DbSet<SalesQuoteCustomFieldValue> SalesQuoteCustomFieldValues => Set<SalesQuoteCustomFieldValue>();
+    public DbSet<SalesQuoteCustomFieldValueRevision> SalesQuoteCustomFieldValueRevisions => Set<SalesQuoteCustomFieldValueRevision>();
     public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
+    public DbSet<SalesOrderCustomFieldDefinition> SalesOrderCustomFieldDefinitions => Set<SalesOrderCustomFieldDefinition>();
+    public DbSet<SalesOrderCustomFieldDefinitionRevision> SalesOrderCustomFieldDefinitionRevisions => Set<SalesOrderCustomFieldDefinitionRevision>();
+    public DbSet<SalesOrderCustomFieldValue> SalesOrderCustomFieldValues => Set<SalesOrderCustomFieldValue>();
+    public DbSet<SalesOrderCustomFieldValueRevision> SalesOrderCustomFieldValueRevisions => Set<SalesOrderCustomFieldValueRevision>();
     public DbSet<SalesOrderLine> SalesOrderLines => Set<SalesOrderLine>();
     public DbSet<SalesOrderReservation> SalesOrderReservations => Set<SalesOrderReservation>();
     public DbSet<SalesDelivery> SalesDeliveries => Set<SalesDelivery>();
     public DbSet<SalesDeliveryLine> SalesDeliveryLines => Set<SalesDeliveryLine>();
     public DbSet<SalesInvoice> SalesInvoices => Set<SalesInvoice>();
+    public DbSet<SalesInvoiceCustomFieldDefinition> SalesInvoiceCustomFieldDefinitions => Set<SalesInvoiceCustomFieldDefinition>();
+    public DbSet<SalesInvoiceCustomFieldDefinitionRevision> SalesInvoiceCustomFieldDefinitionRevisions => Set<SalesInvoiceCustomFieldDefinitionRevision>();
+    public DbSet<SalesInvoiceCustomFieldValue> SalesInvoiceCustomFieldValues => Set<SalesInvoiceCustomFieldValue>();
+    public DbSet<SalesInvoiceCustomFieldValueRevision> SalesInvoiceCustomFieldValueRevisions => Set<SalesInvoiceCustomFieldValueRevision>();
     public DbSet<SalesInvoiceLine> SalesInvoiceLines => Set<SalesInvoiceLine>();
     public DbSet<CustomerCollection> CustomerCollections => Set<CustomerCollection>();
     public DbSet<CustomerCollectionAllocation> CustomerCollectionAllocations => Set<CustomerCollectionAllocation>();
     public DbSet<SalesReturn> SalesReturns => Set<SalesReturn>();
     public DbSet<SalesReturnLine> SalesReturnLines => Set<SalesReturnLine>();
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+    public DbSet<PurchaseOrderCustomFieldDefinition> PurchaseOrderCustomFieldDefinitions => Set<PurchaseOrderCustomFieldDefinition>();
+    public DbSet<PurchaseOrderCustomFieldDefinitionRevision> PurchaseOrderCustomFieldDefinitionRevisions => Set<PurchaseOrderCustomFieldDefinitionRevision>();
+    public DbSet<PurchaseOrderCustomFieldValue> PurchaseOrderCustomFieldValues => Set<PurchaseOrderCustomFieldValue>();
+    public DbSet<PurchaseOrderCustomFieldValueRevision> PurchaseOrderCustomFieldValueRevisions => Set<PurchaseOrderCustomFieldValueRevision>();
     public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
     public DbSet<PurchaseRequest> PurchaseRequests => Set<PurchaseRequest>();
     public DbSet<PurchaseRequestLine> PurchaseRequestLines => Set<PurchaseRequestLine>();
@@ -64,8 +100,16 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
     public DbSet<PurchaseRequestCustomFieldValueRevision> PurchaseRequestCustomFieldValueRevisions => Set<PurchaseRequestCustomFieldValueRevision>();
     public DbSet<PurchaseSupplierQuote> PurchaseSupplierQuotes => Set<PurchaseSupplierQuote>();
     public DbSet<PurchaseSupplierQuoteLine> PurchaseSupplierQuoteLines => Set<PurchaseSupplierQuoteLine>();
+    public DbSet<PurchaseSupplierQuoteCustomFieldDefinition> PurchaseSupplierQuoteCustomFieldDefinitions => Set<PurchaseSupplierQuoteCustomFieldDefinition>();
+    public DbSet<PurchaseSupplierQuoteCustomFieldDefinitionRevision> PurchaseSupplierQuoteCustomFieldDefinitionRevisions => Set<PurchaseSupplierQuoteCustomFieldDefinitionRevision>();
+    public DbSet<PurchaseSupplierQuoteCustomFieldValue> PurchaseSupplierQuoteCustomFieldValues => Set<PurchaseSupplierQuoteCustomFieldValue>();
+    public DbSet<PurchaseSupplierQuoteCustomFieldValueRevision> PurchaseSupplierQuoteCustomFieldValueRevisions => Set<PurchaseSupplierQuoteCustomFieldValueRevision>();
     public DbSet<PurchaseReceipt> PurchaseReceipts => Set<PurchaseReceipt>();
     public DbSet<PurchaseReceiptLine> PurchaseReceiptLines => Set<PurchaseReceiptLine>();
+    public DbSet<PurchaseReceiptCustomFieldDefinition> PurchaseReceiptCustomFieldDefinitions => Set<PurchaseReceiptCustomFieldDefinition>();
+    public DbSet<PurchaseReceiptCustomFieldDefinitionRevision> PurchaseReceiptCustomFieldDefinitionRevisions => Set<PurchaseReceiptCustomFieldDefinitionRevision>();
+    public DbSet<PurchaseReceiptCustomFieldValue> PurchaseReceiptCustomFieldValues => Set<PurchaseReceiptCustomFieldValue>();
+    public DbSet<PurchaseReceiptCustomFieldValueRevision> PurchaseReceiptCustomFieldValueRevisions => Set<PurchaseReceiptCustomFieldValueRevision>();
     public DbSet<PurchaseInvoice> PurchaseInvoices => Set<PurchaseInvoice>();
     public DbSet<PurchaseInvoiceLine> PurchaseInvoiceLines => Set<PurchaseInvoiceLine>();
     public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
@@ -76,6 +120,60 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
     public DbSet<FinancialAccountTransfer> FinancialAccountTransfers => Set<FinancialAccountTransfer>();
     public DbSet<BankStatement> BankStatements => Set<BankStatement>();
     public DbSet<BankStatementLine> BankStatementLines => Set<BankStatementLine>();
+
+    public override int SaveChanges() => SaveChanges(true);
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        AddFallbackMutationAuditEvents();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+        SaveChangesAsync(true, cancellationToken);
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        AddFallbackMutationAuditEvents();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void AddFallbackMutationAuditEvents()
+    {
+        foreach (var auditEvent in AuditEvents.Local.Where(x => Entry(x).State == EntityState.Added))
+        {
+            auditEvent.Action = AuditResourceSanitizer.Sanitize(auditEvent.Action, 120);
+            auditEvent.Resource = AuditResourceSanitizer.Sanitize(auditEvent.Resource);
+        }
+        var changes = ChangeTracker.Entries()
+            .Where(x => x.Entity is not AuditEvent && x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Select(entry => new { Entry = entry, TenantProperty = entry.Metadata.FindProperty("TenantId") })
+            .Where(x => x.TenantProperty is not null)
+            .Select(x => new
+            {
+                x.Entry,
+                TenantId = x.Entry.Property("TenantId").CurrentValue as Guid? ??
+                    (x.Entry.Property("TenantId").CurrentValue is Guid id ? id : (Guid?)null)
+            })
+            .Where(x => x.TenantId is not null)
+            .ToList();
+        if (changes.Count == 0) return;
+
+        foreach (var group in changes.GroupBy(x => x.TenantId!.Value))
+        {
+            if (AuditEvents.Local.Any(x => x.TenantId == group.Key)) continue;
+            var entityTypes = group.Select(x => x.Entry.Metadata.ClrType.Name).Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal).ToArray();
+            var resource = $"entities={string.Join(',', entityTypes)};count={group.Count()}";
+            AuditEvents.Add(new AuditEvent
+            {
+                TenantId = group.Key,
+                UserId = auditExecutionContext?.UserId,
+                Action = AuditResourceSanitizer.Sanitize($"{auditExecutionContext?.Source ?? "platform"}.mutation", 120),
+                Resource = AuditResourceSanitizer.Sanitize(resource)
+            });
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -94,6 +192,25 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.Slug).HasMaxLength(100);
             e.Property(x => x.BaseCurrencyCode).HasMaxLength(3).IsFixedLength().HasDefaultValue("TRY");
+            e.Property(x => x.AuditRetentionDays).HasDefaultValue(365);
+            e.ToTable(t => t.HasCheckConstraint("CK_Tenants_AuditRetentionDays", "[AuditRetentionDays] >= 30 AND [AuditRetentionDays] <= 3650"));
+        });
+        modelBuilder.Entity<TenantDatabaseCatalogEntry>(e =>
+        {
+            e.HasKey(x => x.TenantId);
+            e.HasIndex(x => x.DatabaseName).IsUnique();
+            e.Property(x => x.DatabaseName).HasMaxLength(128);
+            e.Property(x => x.State).HasConversion<int>();
+            e.Property(x => x.LastError).HasMaxLength(2000);
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<DatabaseSeparationComponentState>(e =>
+        {
+            e.HasKey(x => x.Component);
+            e.Property(x => x.Component).HasMaxLength(64);
+            e.Property(x => x.DatabaseName).HasMaxLength(128);
+            e.Property(x => x.State).HasConversion<int>();
+            e.Property(x => x.LastError).HasMaxLength(2000);
         });
         modelBuilder.Entity<TenantExchangeRate>(e =>
         {
@@ -105,12 +222,89 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.Property(x => x.Source).HasMaxLength(160);
             e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         });
+        modelBuilder.Entity<FxRevaluationVoucher>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.AsOfDate }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40);
+            e.Property(x => x.BaseCurrencyCode).HasMaxLength(3).IsFixedLength();
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<FxRevaluationVoucherLine>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.VoucherId, x.InvoiceId }).IsUnique();
+            e.Property(x => x.InvoiceCode).HasMaxLength(64);
+            e.Property(x => x.CounterpartyName).HasMaxLength(200);
+            e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength();
+            e.Property(x => x.OutstandingAmount).HasPrecision(18, 2);
+            e.Property(x => x.InvoiceDateRate).HasPrecision(18, 8);
+            e.Property(x => x.ClosingRate).HasPrecision(18, 8);
+            e.Property(x => x.PreviousAdjustmentBase).HasPrecision(18, 2);
+            e.Property(x => x.TargetAdjustmentBase).HasPrecision(18, 2);
+            e.Property(x => x.AdjustmentBase).HasPrecision(18, 2);
+            e.Property(x => x.DebitAccount).HasMaxLength(120);
+            e.Property(x => x.CreditAccount).HasMaxLength(120);
+            e.Property(x => x.DebitBaseAmount).HasPrecision(18, 2);
+            e.Property(x => x.CreditBaseAmount).HasPrecision(18, 2);
+            e.HasOne(x => x.Voucher).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.VoucherId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_FxRevaluationVoucherLines_AmountsNonNegative", "[OutstandingAmount] >= 0 AND [DebitBaseAmount] >= 0 AND [CreditBaseAmount] >= 0");
+                t.HasCheckConstraint("CK_FxRevaluationVoucherLines_Balanced", "[DebitBaseAmount] = [CreditBaseAmount]");
+            });
+        });
         modelBuilder.Entity<TenantMembership>(e =>
         {
             e.HasKey(x => new { x.UserId, x.TenantId });
             e.Property(x => x.Role).HasMaxLength(64);
             e.HasOne(x => x.User).WithMany(x => x.Memberships).HasForeignKey(x => x.UserId);
             e.HasOne(x => x.Tenant).WithMany(x => x.Memberships).HasForeignKey(x => x.TenantId);
+        });
+        modelBuilder.Entity<PermissionDefinition>(e =>
+        {
+            e.HasKey(x => x.Code);
+            e.Property(x => x.Code).HasMaxLength(120).IsUnicode(false);
+            e.Property(x => x.ResourceType).HasMaxLength(80).IsUnicode(false);
+            e.Property(x => x.Action).HasMaxLength(32).IsUnicode(false);
+            e.Property(x => x.Description).HasMaxLength(240);
+            e.HasData(PlatformPermissionCatalog.Definitions.Select(x => new PermissionDefinition
+            {
+                Code = x.Code,
+                ResourceType = x.ResourceType,
+                Action = x.Action,
+                Description = x.Description
+            }));
+        });
+        modelBuilder.Entity<TenantPermissionRule>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.PermissionCode, x.IsActive });
+            e.HasIndex(x => new { x.TenantId, x.SubjectRole, x.PermissionCode, x.IsActive });
+            e.HasIndex(x => new { x.TenantId, x.SubjectUserId, x.PermissionCode, x.IsActive });
+            e.Property(x => x.SubjectRole).HasMaxLength(64).IsUnicode(false);
+            e.Property(x => x.PermissionCode).HasMaxLength(120).IsUnicode(false);
+            e.Property(x => x.ResourceType).HasMaxLength(80).IsUnicode(false);
+            e.Property(x => x.AttributeName).HasMaxLength(120).IsUnicode(false);
+            e.Property(x => x.AttributeValue).HasMaxLength(500);
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionCode)
+                .HasPrincipalKey(x => x.Code).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<TenantMembership>().WithMany().HasForeignKey(x => new { x.TenantId, x.SubjectUserId })
+                .HasPrincipalKey(x => new { x.TenantId, x.UserId }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<TenantMembership>().WithMany().HasForeignKey(x => new { x.TenantId, x.CreatedByUserId })
+                .HasPrincipalKey(x => new { x.TenantId, x.UserId }).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_TenantPermissionRules_Subject", "([SubjectType] = 1 AND [SubjectRole] IS NOT NULL AND [SubjectUserId] IS NULL) OR ([SubjectType] = 2 AND [SubjectRole] IS NULL AND [SubjectUserId] IS NOT NULL)");
+                t.HasCheckConstraint("CK_TenantPermissionRules_Attribute", "([AttributeName] IS NULL AND [AttributeOperator] IS NULL AND [AttributeValue] IS NULL) OR ([AttributeName] IS NOT NULL AND [AttributeOperator] IS NOT NULL AND [AttributeValue] IS NOT NULL)");
+            });
         });
         modelBuilder.Entity<AuditEvent>(e =>
         {
@@ -474,9 +668,21 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.Property(x => x.UnitCode).HasMaxLength(8);
             e.Property(x => x.Category).HasMaxLength(120);
             e.Property(x => x.MinimumStock).HasPrecision(18, 4);
+            e.Property(x => x.TrackingMode).HasConversion<string>().HasMaxLength(16).HasDefaultValue(InventoryTrackingMode.None);
             e.Property(x => x.RowVersion).IsRowVersion();
             e.ToTable(t => t.HasCheckConstraint("CK_StockItems_MinimumStockNonNegative", "[MinimumStock] >= 0"));
             e.HasOne(x => x.Tenant).WithMany(x => x.StockItems).HasForeignKey(x => x.TenantId);
+        });
+        modelBuilder.Entity<StockItemUnitConversion>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.StockItemId, x.UnitCode }).IsUnique();
+            e.Property(x => x.UnitCode).HasMaxLength(8);
+            e.Property(x => x.FactorToBase).HasPrecision(18, 8);
+            e.HasOne<StockItem>().WithMany(x => x.UnitConversions).HasForeignKey(x => new { x.TenantId, x.StockItemId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t => t.HasCheckConstraint("CK_StockItemUnitConversions_FactorPositive", "[FactorToBase] > 0"));
         });
         modelBuilder.Entity<StockItemCustomFieldDefinition>(e =>
         {
@@ -532,6 +738,50 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.Property(x => x.RowVersion).IsRowVersion();
             e.HasOne(x => x.Tenant).WithMany(x => x.Warehouses).HasForeignKey(x => x.TenantId);
         });
+        modelBuilder.Entity<WarehouseCustomFieldDefinition>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40);
+            e.Property(x => x.Label).HasMaxLength(120);
+            e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<WarehouseCustomFieldDefinitionRevision>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.DefinitionId, x.Version }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40);
+            e.Property(x => x.Label).HasMaxLength(120);
+            e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.ChangeKind).HasMaxLength(24);
+            e.HasOne<WarehouseCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<WarehouseCustomFieldValue>(e =>
+        {
+            e.HasKey(x => new { x.TenantId, x.WarehouseId, x.DefinitionId });
+            e.Property(x => x.Value).HasMaxLength(500);
+            e.HasOne<Warehouse>().WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<WarehouseCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<WarehouseCustomFieldValueRevision>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.WarehouseId, x.DefinitionId, x.CreatedAt });
+            e.Property(x => x.PreviousValue).HasMaxLength(500);
+            e.Property(x => x.NewValue).HasMaxLength(500);
+            e.HasOne<Warehouse>().WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<WarehouseCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<InventoryTransfer>(e =>
         {
             e.HasKey(x => x.Id);
@@ -555,6 +805,8 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.HasIndex(x => new { x.TenantId, x.SupplierReturnLineId });
             e.HasIndex(x => new { x.TenantId, x.InventoryTransferId, x.WarehouseId, x.StockItemId }).IsUnique().HasFilter("[InventoryTransferId] IS NOT NULL");
             e.Property(x => x.Quantity).HasPrecision(18, 4);
+            e.Property(x => x.EnteredQuantity).HasPrecision(18, 4);
+            e.Property(x => x.EnteredUnitCode).HasMaxLength(8);
             e.Property(x => x.UnitCostBase).HasPrecision(18, 8);
             e.Property(x => x.Description).HasMaxLength(240);
             e.ToTable(t => { t.HasCheckConstraint("CK_InventoryTransactions_QuantityPositive", "[Quantity] > 0"); });
@@ -566,6 +818,57 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.HasOne(x => x.PurchaseReceiptLine).WithMany(x => x.InventoryTransactions).HasForeignKey(x => new { x.TenantId, x.PurchaseReceiptLineId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.SupplierReturnLine).WithMany(x => x.InventoryTransactions).HasForeignKey(x => new { x.TenantId, x.SupplierReturnLineId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.InventoryTransfer).WithMany().HasForeignKey(x => new { x.TenantId, x.InventoryTransferId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<InventoryTransactionTrace>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.StockItemId, x.TrackingCode });
+            e.HasIndex(x => new { x.TenantId, x.InventoryTransactionId });
+            e.Property(x => x.TrackingCode).HasMaxLength(80);
+            e.Property(x => x.TrackingMode).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Quantity).HasPrecision(18, 4);
+            e.HasOne(x => x.InventoryTransaction).WithMany(x => x.Tracking)
+                .HasForeignKey(x => new { x.TenantId, x.InventoryTransactionId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t => t.HasCheckConstraint("CK_InventoryTransactionTraces_QuantityPositive", "[Quantity] > 0"));
+        });
+        modelBuilder.Entity<InventoryCostAdjustment>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.EntryDate, x.CreatedAt });
+            e.HasIndex(x => new { x.TenantId, x.PurchaseReceiptId });
+            e.HasIndex(x => new { x.TenantId, x.ReversalOfId }).IsUnique().HasFilter("[ReversalOfId] IS NOT NULL");
+            e.Property(x => x.Code).HasMaxLength(48);
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(24);
+            e.Property(x => x.Description).HasMaxLength(240);
+            e.HasOne<PurchaseReceipt>().WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseReceiptId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<InventoryCostAdjustment>().WithMany().HasForeignKey(x => new { x.TenantId, x.ReversalOfId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<InventoryCostAdjustmentLine>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.AdjustmentId, x.WarehouseId, x.StockItemId });
+            e.HasIndex(x => new { x.TenantId, x.PurchaseReceiptLineId });
+            e.Property(x => x.QuantitySnapshot).HasPrecision(18, 4);
+            e.Property(x => x.UnitCostSnapshotBase).HasPrecision(18, 8);
+            e.Property(x => x.AmountBase).HasPrecision(18, 2);
+            e.HasOne(x => x.Adjustment).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.AdjustmentId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Warehouse>().WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<PurchaseReceiptLine>().WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseReceiptLineId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t => t.HasCheckConstraint("CK_InventoryCostAdjustmentLines_AmountNonZero", "[AmountBase] <> 0"));
         });
         modelBuilder.Entity<SalesQuote>(e =>
         {
@@ -583,6 +886,42 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.ToTable(t => t.HasCheckConstraint("CK_SalesQuotes_ValidDateRange", "[ValidUntil] >= [QuoteDate]"));
             e.HasOne(x => x.Tenant).WithMany(x => x.SalesQuotes).HasForeignKey(x => x.TenantId);
             e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => new { x.TenantId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesQuoteCustomFieldDefinition>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120);
+            e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesQuoteCustomFieldDefinitionRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.DefinitionId, x.Version }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120);
+            e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16); e.Property(x => x.ChangeKind).HasMaxLength(24);
+            e.HasOne<SalesQuoteCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesQuoteCustomFieldValue>(e =>
+        {
+            e.HasKey(x => new { x.TenantId, x.QuoteId, x.DefinitionId }); e.Property(x => x.Value).HasMaxLength(500);
+            e.HasOne<SalesQuote>().WithMany().HasForeignKey(x => new { x.TenantId, x.QuoteId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<SalesQuoteCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesQuoteCustomFieldValueRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasIndex(x => new { x.TenantId, x.QuoteId, x.DefinitionId, x.CreatedAt });
+            e.Property(x => x.PreviousValue).HasMaxLength(500); e.Property(x => x.NewValue).HasMaxLength(500);
+            e.HasOne<SalesQuote>().WithMany().HasForeignKey(x => new { x.TenantId, x.QuoteId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<SalesQuoteCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<SalesQuoteLine>(e =>
         {
@@ -624,6 +963,33 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.HasOne(x => x.Tenant).WithMany(x => x.SalesOrders).HasForeignKey(x => x.TenantId);
             e.HasOne(x => x.Quote).WithOne(x => x.Order).HasForeignKey<SalesOrder>(x => new { x.TenantId, x.QuoteId }).HasPrincipalKey<SalesQuote>(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => new { x.TenantId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesOrderCustomFieldDefinition>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id }); e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120); e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesOrderCustomFieldDefinitionRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id }); e.HasIndex(x => new { x.TenantId, x.DefinitionId, x.Version }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120); e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16); e.Property(x => x.ChangeKind).HasMaxLength(24);
+            e.HasOne<SalesOrderCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesOrderCustomFieldValue>(e =>
+        {
+            e.HasKey(x => new { x.TenantId, x.OrderId, x.DefinitionId }); e.Property(x => x.Value).HasMaxLength(500);
+            e.HasOne<SalesOrder>().WithMany().HasForeignKey(x => new { x.TenantId, x.OrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<SalesOrderCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesOrderCustomFieldValueRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasIndex(x => new { x.TenantId, x.OrderId, x.DefinitionId, x.CreatedAt });
+            e.Property(x => x.PreviousValue).HasMaxLength(500); e.Property(x => x.NewValue).HasMaxLength(500);
+            e.HasOne<SalesOrder>().WithMany().HasForeignKey(x => new { x.TenantId, x.OrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<SalesOrderCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<SalesOrderLine>(e =>
         {
@@ -719,6 +1085,33 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.HasOne(x => x.Delivery).WithOne(x => x.Invoice).HasForeignKey<SalesInvoice>(x => new { x.TenantId, x.DeliveryId }).HasPrincipalKey<SalesDelivery>(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Order).WithMany().HasForeignKey(x => new { x.TenantId, x.OrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => new { x.TenantId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesInvoiceCustomFieldDefinition>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id }); e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120); e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesInvoiceCustomFieldDefinitionRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id }); e.HasIndex(x => new { x.TenantId, x.DefinitionId, x.Version }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120); e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16); e.Property(x => x.ChangeKind).HasMaxLength(24);
+            e.HasOne<SalesInvoiceCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesInvoiceCustomFieldValue>(e =>
+        {
+            e.HasKey(x => new { x.TenantId, x.InvoiceId, x.DefinitionId }); e.Property(x => x.Value).HasMaxLength(500);
+            e.HasOne<SalesInvoice>().WithMany(x => x.CustomFieldValues).HasForeignKey(x => new { x.TenantId, x.InvoiceId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<SalesInvoiceCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesInvoiceCustomFieldValueRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasIndex(x => new { x.TenantId, x.InvoiceId, x.DefinitionId, x.CreatedAt });
+            e.Property(x => x.PreviousValue).HasMaxLength(500); e.Property(x => x.NewValue).HasMaxLength(500);
+            e.HasOne<SalesInvoice>().WithMany(x => x.CustomFieldValueRevisions).HasForeignKey(x => new { x.TenantId, x.InvoiceId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<SalesInvoiceCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<SalesInvoiceLine>(e =>
         {
@@ -863,7 +1256,7 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
         {
             e.HasKey(x => new { x.TenantId, x.PurchaseRequestId, x.DefinitionId });
             e.Property(x => x.Value).HasMaxLength(500);
-            e.HasOne<PurchaseRequest>().WithMany(x => x.CustomFieldValues).HasForeignKey(x => new { x.TenantId, x.PurchaseRequestId })
+            e.HasOne<PurchaseRequest>().WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseRequestId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<PurchaseRequestCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -913,6 +1306,33 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Supplier).WithMany().HasForeignKey(x => new { x.TenantId, x.SupplierId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseSupplierQuoteCustomFieldDefinition>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id }); e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120); e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseSupplierQuoteCustomFieldDefinitionRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id }); e.HasIndex(x => new { x.TenantId, x.DefinitionId, x.Version }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120); e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16); e.Property(x => x.ChangeKind).HasMaxLength(24);
+            e.HasOne<PurchaseSupplierQuoteCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseSupplierQuoteCustomFieldValue>(e =>
+        {
+            e.HasKey(x => new { x.TenantId, x.QuoteId, x.DefinitionId }); e.Property(x => x.Value).HasMaxLength(500);
+            e.HasOne(x => x.Quote).WithMany(x => x.CustomFieldValues).HasForeignKey(x => new { x.TenantId, x.QuoteId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<PurchaseSupplierQuoteCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseSupplierQuoteCustomFieldValueRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasIndex(x => new { x.TenantId, x.QuoteId, x.DefinitionId, x.CreatedAt });
+            e.Property(x => x.PreviousValue).HasMaxLength(500); e.Property(x => x.NewValue).HasMaxLength(500);
+            e.HasOne(x => x.Quote).WithMany(x => x.CustomFieldValueRevisions).HasForeignKey(x => new { x.TenantId, x.QuoteId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<PurchaseSupplierQuoteCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<PurchaseSupplierQuoteLine>(e =>
         {
@@ -965,6 +1385,33 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
                 .HasPrincipalKey<PurchaseSupplierQuote>(x => new { x.TenantId, x.Id, x.PurchaseRequestId }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => new { x.TenantId, x.SourceSupplierQuoteId }).IsUnique().HasFilter("[SourceSupplierQuoteId] IS NOT NULL");
         });
+        modelBuilder.Entity<PurchaseOrderCustomFieldDefinition>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id }); e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120); e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseOrderCustomFieldDefinitionRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id }); e.HasIndex(x => new { x.TenantId, x.DefinitionId, x.Version }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120); e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16); e.Property(x => x.ChangeKind).HasMaxLength(24);
+            e.HasOne<PurchaseOrderCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseOrderCustomFieldValue>(e =>
+        {
+            e.HasKey(x => new { x.TenantId, x.PurchaseOrderId, x.DefinitionId }); e.Property(x => x.Value).HasMaxLength(500);
+            e.HasOne(x => x.PurchaseOrder).WithMany(x => x.CustomFieldValues).HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<PurchaseOrderCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseOrderCustomFieldValueRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasIndex(x => new { x.TenantId, x.PurchaseOrderId, x.DefinitionId, x.CreatedAt });
+            e.Property(x => x.PreviousValue).HasMaxLength(500); e.Property(x => x.NewValue).HasMaxLength(500);
+            e.HasOne(x => x.PurchaseOrder).WithMany(x => x.CustomFieldValueRevisions).HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<PurchaseOrderCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<PurchaseOrderLine>(e =>
         {
             e.HasKey(x => new { x.TenantId, x.PurchaseOrderId, x.LineNumber });
@@ -1001,6 +1448,33 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.HasOne(x => x.Tenant).WithMany(x => x.PurchaseReceipts).HasForeignKey(x => x.TenantId);
             e.HasOne(x => x.PurchaseOrder).WithMany(x => x.Receipts).HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseReceiptCustomFieldDefinition>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id }); e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120); e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseReceiptCustomFieldDefinitionRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id }); e.HasIndex(x => new { x.TenantId, x.DefinitionId, x.Version }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Label).HasMaxLength(120); e.Property(x => x.DataType).HasConversion<string>().HasMaxLength(16); e.Property(x => x.ChangeKind).HasMaxLength(24);
+            e.HasOne<PurchaseReceiptCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseReceiptCustomFieldValue>(e =>
+        {
+            e.HasKey(x => new { x.TenantId, x.ReceiptId, x.DefinitionId }); e.Property(x => x.Value).HasMaxLength(500);
+            e.HasOne(x => x.Receipt).WithMany(x => x.CustomFieldValues).HasForeignKey(x => new { x.TenantId, x.ReceiptId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<PurchaseReceiptCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseReceiptCustomFieldValueRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasIndex(x => new { x.TenantId, x.ReceiptId, x.DefinitionId, x.CreatedAt });
+            e.Property(x => x.PreviousValue).HasMaxLength(500); e.Property(x => x.NewValue).HasMaxLength(500);
+            e.HasOne(x => x.Receipt).WithMany(x => x.CustomFieldValueRevisions).HasForeignKey(x => new { x.TenantId, x.ReceiptId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<PurchaseReceiptCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<PurchaseReceiptLine>(e =>
         {
@@ -1209,3 +1683,6 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
         });
     }
 }
+
+public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> options, IAuditExecutionContext? auditExecutionContext = null)
+    : PlatformDbContextBase<PlatformDbContext>(options, auditExecutionContext);

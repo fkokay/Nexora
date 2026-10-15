@@ -6,7 +6,7 @@ services:
       MSSQL_PID: Developer
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
     ports:
-      - "1433:1433"
+      - "127.0.0.1:1433:1433"
     volumes:
       - aierp-sql-data:/var/opt/mssql
     healthcheck:
@@ -24,6 +24,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       Database__ApplyMigrationsOnStartup: "true"
       Bootstrap__Email: ${BOOTSTRAP_EMAIL:-}
@@ -33,8 +34,9 @@ services:
       Frontend__Origins__0: http://localhost:5173
       Frontend__Origins__1: http://localhost:5174
       Frontend__Origins__2: http://localhost:5175
+      Frontend__Origins__3: ${PUBLIC_INGRESS_ORIGIN:-http://localhost:5174}
     ports:
-      - "5080:8080"
+      - "127.0.0.1:5080:8080"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -47,19 +49,23 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       Frontend__Origins__0: http://localhost:5173
       Frontend__Origins__1: http://localhost:5174
       Frontend__Origins__2: http://localhost:5175
+      Frontend__Origins__3: ${PUBLIC_INGRESS_ORIGIN:-http://localhost:5174}
       WorkspaceRunner__BaseUrl: http://workspace-runner:8080
       ReleaseDeployer__BaseUrl: http://release-deployer:8080
       AI__OpenAI__ApiKey: ${OPENAI_API_KEY:-}
       AI__OpenAI__Model: ${OPENAI_MODEL:-gpt-6-astra}
       GitHub__AppId: ${GITHUB_APP_ID:-}
       GitHub__PrivateKeyPem: ${GITHUB_APP_PRIVATE_KEY_PEM:-}
-      GitHub__InstallationId: ${GITHUB_APP_INSTALLATION_ID:-}
+      GitHub__AppSlug: ${GITHUB_APP_SLUG:-}
+      GitHub__SetupCallbackUrl: ${GITHUB_APP_SETUP_CALLBACK_URL:-http://localhost:5081/studio/github/setup-callback}
+      GitHub__StudioRedirectUrl: ${GITHUB_STUDIO_REDIRECT_URL:-http://localhost:5174/?app=studio}
     ports:
-      - "5081:8080"
+      - "127.0.0.1:5081:8080"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -78,7 +84,10 @@ services:
       context: ../..
       dockerfile: deploy/docker/DevelopmentStudio.Dockerfile
     ports:
-      - "5174:80"
+      - "127.0.0.1:5174:80"
+    networks:
+      - default
+      - public-ingress
     depends_on:
       platform-api:
         condition: service_started
@@ -90,6 +99,69 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+
+  public-ingress:
+    image: caddy:2.11.7-alpine
+    profiles: [public-ingress]
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      development-studio:
+        condition: service_healthy
+    networks:
+      - public-ingress
+    restart: unless-stopped
+
+  offsite-backup:
+    image: rclone/rclone:1.75.2
+    profiles: [offsite-backup]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        set -eu;
+        test -n "$${RCLONE_CONFIG_OFFSITE_BUCKET}";
+        test -n "$${RCLONE_CONFIG_OFFSITE_ENDPOINT}";
+        test -n "$${RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID}";
+        test -n "$${RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY}";
+        test -n "$${RCLONE_CONFIG_OFFSITE_CRYPT_PASSWORD}";
+        while :; do
+          rclone copy /production-backups crypt: --config /dev/null --log-level INFO || true;
+          sleep "$${BACKUP_SYNC_INTERVAL_SECONDS:-900}";
+        done
+    environment:
+      RCLONE_CONFIG_REMOTE_TYPE: s3
+      RCLONE_CONFIG_REMOTE_PROVIDER: ${OFFSITE_BACKUP_PROVIDER:-Other}
+      RCLONE_CONFIG_REMOTE_ENDPOINT: ${OFFSITE_BACKUP_ENDPOINT:-}
+      RCLONE_CONFIG_REMOTE_REGION: ${OFFSITE_BACKUP_REGION:-us-east-1}
+      RCLONE_CONFIG_REMOTE_ENV_AUTH: "false"
+      RCLONE_CONFIG_REMOTE_ACCESS_KEY_ID: ${OFFSITE_BACKUP_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY: ${OFFSITE_BACKUP_SECRET_ACCESS_KEY:-}
+      RCLONE_CONFIG_CRYPT_TYPE: crypt
+      RCLONE_CONFIG_CRYPT_REMOTE: remote:${OFFSITE_BACKUP_BUCKET:-}/${OFFSITE_BACKUP_PREFIX:-nexora}
+      RCLONE_CONFIG_CRYPT_PASSWORD: ${OFFSITE_BACKUP_CRYPT_PASSWORD_OBSCURED:-}
+      BACKUP_SYNC_INTERVAL_SECONDS: ${OFFSITE_BACKUP_SYNC_INTERVAL_SECONDS:-900}
+    volumes:
+      - aierp-production-backups:/production-backups:ro
+    networks:
+      - offsite-egress
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
 
   workspace-runner:
     build:
@@ -209,6 +281,11 @@ volumes:
   aierp-production-releases:
   aierp-production-backups:
     name: aierp-production-backups
+  caddy-data:
+  caddy-config:
 
 networks:
+  default: {}
   studio-internal:
+  public-ingress: {}
+  offsite-egress: {}

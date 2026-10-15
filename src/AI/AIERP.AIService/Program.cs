@@ -5,12 +5,15 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using AIERP.AIService.AI;
+using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -18,7 +21,23 @@ var builder = WebApplication.CreateBuilder(args);
 var jwtKey = builder.Configuration["Authentication:SigningKey"];
 if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32) throw new InvalidOperationException("Authentication:SigningKey must be configured with at least 32 bytes.");
 var connectionString = builder.Configuration.GetConnectionString("Platform") ?? throw new InvalidOperationException("ConnectionStrings:Platform is required.");
+var separationEnabled = builder.Configuration.GetValue<bool>("Database:SeparationEnabled");
+var studioConnection = separationEnabled ? builder.Configuration.GetConnectionString("AIStudio") ?? connectionString : connectionString;
 builder.Services.AddDbContext<PlatformDbContext>(o => o.UseSqlServer(connectionString));
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddDbContext<AIStudioDbContext>((services, options) =>
+{
+    var http = services.GetRequiredService<IHttpContextAccessor>().HttpContext;
+    options.UseSqlServer(TenantDatabaseRouting.ResolveStudio(http, studioConnection, separationEnabled));
+});
+builder.Services.AddScoped<IAuditExecutionContext>(services =>
+{
+    var user = services.GetRequiredService<IHttpContextAccessor>().HttpContext?.User;
+    return new AuditExecutionContext(
+        Guid.TryParse(user?.FindFirstValue("tenant_id"), out var tenantId) ? tenantId : null,
+        Guid.TryParse(user?.FindFirstValue("sub"), out var userId) ? userId : null,
+        "studio-api");
+});
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
 {
     o.MapInboundClaims = false;
@@ -30,7 +49,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     ValidateLifetime = true, ClockSkew = TimeSpan.FromSeconds(30), NameClaimType = "name", RoleClaimType = "role"
     };
 });
-builder.Services.AddAuthorization();
+builder.Services.AddScoped<IPlatformPermissionAuthorizer, PlatformPermissionAuthorizer>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddAuthorization(options => options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser().AddRequirements(new PermissionRequirement()).Build());
 builder.Services.AddHttpClient("workspace-runner", client => client.Timeout = TimeSpan.FromMinutes(4));
 builder.Services.AddHttpClient("release-deployer", client => client.Timeout = TimeSpan.FromMinutes(25));
 builder.Services.AddHttpClient<GitHubAppInstallationTokenProvider>(client => client.Timeout = TimeSpan.FromSeconds(20));
@@ -67,7 +89,25 @@ builder.Services.AddRateLimiter(options =>
 });
 var frontendOrigins = builder.Configuration.GetSection("Frontend:Origins").Get<string[]>() ?? [builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173"];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod()));
-var app = builder.Build(); app.UseCors(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
+var app = builder.Build(); app.UseCors(); app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    await TenantDatabaseRouting.ResolveAIStudioRequestAsync(context, app.Services, studioConnection, separationEnabled);
+    if (context.Items.ContainsKey(TenantDatabaseRouting.LegacyModeUnavailableKey))
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(new { error = "database_mode_mismatch", message = "AIStudio is provisioned separately; enable Database:SeparationEnabled before serving Studio data." });
+        return;
+    }
+    if (context.Items.ContainsKey("AIERP.AIStudioDatabaseUnavailable"))
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(new { error = "studio_database_not_ready", message = "AIStudio database provisioning has not completed." });
+        return;
+    }
+    await next();
+});
+app.UseAuthorization(); app.UseRateLimiter();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "ai-development-service", mode = "request-intake-project-registry-and-project-explorer" }));
 app.MapGet("/studio/capabilities", (ClaimsPrincipal user, IConfiguration configuration) =>
 {
@@ -75,7 +115,7 @@ app.MapGet("/studio/capabilities", (ClaimsPrincipal user, IConfiguration configu
     return Results.Ok(new { aiConfigured = !string.IsNullOrWhiteSpace(configuration["AI:OpenAI:ApiKey"]) });
 }).RequireAuthorization();
 var studio = app.MapGroup("/studio/requests").RequireAuthorization();
-studio.MapGet("/", async (Guid? projectId, ClaimsPrincipal user, PlatformDbContext db) =>
+studio.MapGet("/", async (Guid? projectId, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var isTenantAdmin = user.IsInRole("TenantAdmin");
@@ -86,7 +126,7 @@ studio.MapGet("/", async (Guid? projectId, ClaimsPrincipal user, PlatformDbConte
         .Select(x => new RequestView(x.Id, x.Title, x.Description, x.Status, x.CreatedAt, x.ProjectId, x.Project == null ? null : x.Project.Name)).ToListAsync();
     return Results.Ok(requests);
 });
-studio.MapPost("/", async (CreateRequest body, ClaimsPrincipal user, PlatformDbContext db) =>
+studio.MapPost("/", async (CreateRequest body, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var title = body.Title?.Trim(); var description = body.Description?.Trim();
@@ -109,7 +149,7 @@ studio.MapPost("/", async (CreateRequest body, ClaimsPrincipal user, PlatformDbC
         request.Status, request.CreatedAt, request.ProjectId, project?.Name));
 });
 var projects = app.MapGroup("/studio/projects").RequireAuthorization();
-projects.MapGet("/", async (ClaimsPrincipal user, PlatformDbContext db) =>
+projects.MapGet("/", async (ClaimsPrincipal user, AIStudioDbContext db) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var isTenantAdmin = user.IsInRole("TenantAdmin");
@@ -122,9 +162,9 @@ projects.MapGet("/", async (ClaimsPrincipal user, PlatformDbContext db) =>
             accessLevel = isTenantAdmin ? "TenantAdmin" : x.AccessGrants.Where(a => a.UserId == userId).Select(a => a.AccessLevel).FirstOrDefault()
         }).ToListAsync();
     return Results.Ok(rows.Select(x => new ProjectView(x.project.Id, x.project.Name, x.project.RepositoryUrl,
-        x.project.DefaultBranch, x.accessLevel ?? "Viewer", x.project.CreatedAt)));
+        x.project.DefaultBranch, x.accessLevel ?? "Viewer", x.project.CreatedAt, x.project.GitHubInstallationId is not null)));
 });
-projects.MapGet("/{id:guid}/branches", async (Guid id, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider githubTokens, IConfiguration configuration, CancellationToken cancellationToken) =>
+projects.MapGet("/{id:guid}/branches", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider githubTokens, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -163,7 +203,85 @@ projects.MapGet("/{id:guid}/branches", async (Guid id, ClaimsPrincipal user, Pla
     catch (TaskCanceledException) { return Results.Problem("Depo dal listesi isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz dal listesi döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-projects.MapPost("/", async (CreateProject body, ClaimsPrincipal user, PlatformDbContext db) =>
+projects.MapPost("/{id:guid}/github/authorization", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db, IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var slug = configuration["GitHub:AppSlug"]?.Trim();
+    var callback = configuration["GitHub:SetupCallbackUrl"]?.Trim();
+    if (string.IsNullOrWhiteSpace(slug) || slug.Length > 100 || slug.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-') ||
+        !Uri.TryCreate(callback, UriKind.Absolute, out var callbackUri) ||
+        (callbackUri.Scheme != Uri.UriSchemeHttps && !(callbackUri.Scheme == Uri.UriSchemeHttp && callbackUri.IsLoopback)))
+        return Results.Problem("GitHub App bağlantısı yönetici tarafından bir kez yapılandırılmalıdır.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    var randomState = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
+        .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    var stateHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(randomState)));
+    var now = DateTimeOffset.UtcNow;
+    await db.GitHubInstallationAuthorizationStates.Where(x => x.ExpiresAt <= now || x.ConsumedAt != null).ExecuteDeleteAsync(cancellationToken);
+    db.GitHubInstallationAuthorizationStates.Add(new GitHubInstallationAuthorizationState
+    {
+        TenantId = tenantId, ProjectId = id, UserId = userId, StateHash = stateHash, ExpiresAt = now.AddMinutes(10)
+    });
+    await db.SaveChangesAsync(cancellationToken);
+    var authorizationUrl = QueryHelpers.AddQueryString($"https://github.com/apps/{Uri.EscapeDataString(slug)}/installations/new", "state", randomState);
+    return Results.Ok(new { authorizationUrl, expiresAt = now.AddMinutes(10) });
+}).RequireAuthorization().RequireRateLimiting("workspace-write");
+projects.MapDelete("/{id:guid}/github/authorization", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var project = await db.DevelopmentProjects.Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    project.GitHubInstallationId = null;
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.project.github.authorization.revoked", Resource = id.ToString() });
+    await db.SaveChangesAsync(cancellationToken);
+    return Results.NoContent();
+}).RequireAuthorization().RequireRateLimiting("workspace-write");
+app.MapGet("/studio/github/setup-callback", async (long? installation_id, string? setup_action, string? state,
+    AIStudioDbContext db, PlatformDbContext platformDb, GitHubAppInstallationTokenProvider tokenProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    var studioUrl = configuration["GitHub:StudioRedirectUrl"] ?? "http://localhost:5174/?app=studio";
+    string Return(string outcome, Guid? projectId = null) => QueryHelpers.AddQueryString(studioUrl,
+        new Dictionary<string, string?> { ["github"] = outcome, ["projectId"] = projectId?.ToString("D") });
+    if (installation_id is null or <= 0 || setup_action is not ("install" or "update") || string.IsNullOrWhiteSpace(state) || state.Length > 200)
+        return Results.Redirect(Return("invalid"));
+    var stateHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(state)));
+    var now = DateTimeOffset.UtcNow;
+    var authorization = await db.GitHubInstallationAuthorizationStates.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.StateHash == stateHash && x.ExpiresAt > now && x.ConsumedAt == null, cancellationToken);
+    if (authorization is null) return Results.Redirect(Return("expired"));
+    var project = await db.DevelopmentProjects.Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == authorization.TenantId && x.Id == authorization.ProjectId && x.IsActive, cancellationToken);
+    var membership = await platformDb.TenantMemberships.Include(x => x.User)
+        .SingleOrDefaultAsync(x => x.TenantId == authorization.TenantId && x.UserId == authorization.UserId, cancellationToken);
+    if (project is null || membership?.User.IsActive != true ||
+        (membership.Role != "TenantAdmin" && !project.AccessGrants.Any(x => x.UserId == authorization.UserId && x.AccessLevel == "Maintainer")))
+        return Results.Redirect(Return("not-authorized", authorization.ProjectId));
+    try
+    {
+        var repository = GetGitHubRepositoryIdentifier(project.RepositoryUrl);
+        if (repository is null) return Results.Redirect(Return("unsupported", project.Id));
+        _ = await tokenProvider.CreateRepositoryReadTokenAsync(installation_id.Value, repository, cancellationToken);
+    }
+    catch (GitHubAppConfigurationException) { return Results.Redirect(Return("not-configured", project.Id)); }
+    catch (GitHubIntegrationException) { return Results.Redirect(Return("repository-access-denied", project.Id)); }
+    catch (HttpRequestException) { return Results.Redirect(Return("repository-access-denied", project.Id)); }
+    catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Redirect(Return("repository-access-denied", project.Id)); }
+    await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+    var consumed = await db.GitHubInstallationAuthorizationStates.Where(x => x.Id == authorization.Id && x.ExpiresAt > now && x.ConsumedAt == null)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.ConsumedAt, now), cancellationToken);
+    if (consumed != 1) return Results.Redirect(Return("expired", project.Id));
+    project.GitHubInstallationId = installation_id.Value;
+    db.AuditEvents.Add(new AuditEvent { TenantId = authorization.TenantId, UserId = authorization.UserId, Action = "studio.project.github.authorization.connected", Resource = project.Id.ToString() });
+    await db.SaveChangesAsync(cancellationToken);
+    await transaction.CommitAsync(cancellationToken);
+    return Results.Redirect(Return("connected", project.Id));
+}).AllowAnonymous();
+projects.MapPost("/", async (CreateProject body, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!user.IsInRole("TenantAdmin")) return Results.Forbid();
@@ -182,22 +300,21 @@ projects.MapPost("/", async (CreateProject body, ClaimsPrincipal user, PlatformD
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Proje adı eşzamanlı olarak başka bir kayıtta kullanıldı." }); }
     return Results.Created($"/studio/projects/{project.Id}", new ProjectView(project.Id, project.Name, project.RepositoryUrl,
-        project.DefaultBranch, "Maintainer", project.CreatedAt));
+        project.DefaultBranch, "Maintainer", project.CreatedAt, false));
 });
-projects.MapGet("/{id:guid}/members", async (Guid id, ClaimsPrincipal user, PlatformDbContext db) =>
+projects.MapGet("/{id:guid}/members", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.IsActive);
     if (project is null) return Results.NotFound();
     if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
-    var grants = await db.DevelopmentProjectAccesses.AsNoTracking().Where(x => x.TenantId == tenantId && x.ProjectId == id)
-        .Join(db.Users.AsNoTracking(), x => x.UserId, x => x.Id, (x, person) => new { x.UserId, person.Email, x.AccessLevel, x.GrantedAt })
-        .OrderBy(x => x.Email)
-        .Select(x => new ProjectMemberView(x.UserId, x.Email, x.AccessLevel, x.GrantedAt)).ToListAsync();
-    return Results.Ok(grants);
+    var grants = await db.DevelopmentProjectAccesses.AsNoTracking().Where(x => x.TenantId == tenantId && x.ProjectId == id).ToListAsync();
+    var memberIds = grants.Select(x => x.UserId).Distinct().ToArray();
+    var users = await platformDb.Users.AsNoTracking().Where(x => memberIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Email);
+    return Results.Ok(grants.Where(x => users.ContainsKey(x.UserId)).Select(x => new ProjectMemberView(x.UserId, users[x.UserId], x.AccessLevel, x.GrantedAt)).OrderBy(x => x.Email));
 });
-projects.MapPost("/{id:guid}/members", async (Guid id, GrantProjectAccess body, ClaimsPrincipal user, PlatformDbContext db) =>
+projects.MapPost("/{id:guid}/members", async (Guid id, GrantProjectAccess body, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var accessLevel = body.AccessLevel?.Trim();
@@ -209,7 +326,7 @@ projects.MapPost("/{id:guid}/members", async (Guid id, GrantProjectAccess body, 
     if (project is null) return Results.NotFound();
     var currentGrants = await db.DevelopmentProjectAccesses.Where(x => x.TenantId == tenantId && x.ProjectId == id).ToListAsync();
     if (!CanManageProject(user, currentGrants, userId)) return Results.Forbid();
-    var target = await db.TenantMemberships.Where(x => x.TenantId == tenantId && x.Tenant.IsActive && x.User.IsActive && x.User.Email == email)
+    var target = await platformDb.TenantMemberships.Where(x => x.TenantId == tenantId && x.Tenant.IsActive && x.User.IsActive && x.User.Email == email)
         .Select(x => new { x.UserId, x.User.Email }).SingleOrDefaultAsync();
     if (target is null) return Results.NotFound(new { error = "Bu e-posta etkin bir firma üyesine ait değil." });
     var grant = currentGrants.SingleOrDefault(x => x.UserId == target.UserId);
@@ -220,7 +337,7 @@ projects.MapPost("/{id:guid}/members", async (Guid id, GrantProjectAccess body, 
     await db.SaveChangesAsync();
     return Results.Ok(new ProjectMemberView(target.UserId, target.Email, accessLevel, DateTimeOffset.UtcNow));
 });
-projects.MapDelete("/{id:guid}/members/{memberId:guid}", async (Guid id, Guid memberId, ClaimsPrincipal user, PlatformDbContext db) =>
+projects.MapDelete("/{id:guid}/members/{memberId:guid}", async (Guid id, Guid memberId, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.FromSqlInterpolated($"SELECT * FROM [dbo].[DevelopmentProjects] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id} AND [IsActive] = 1").SingleOrDefaultAsync();
@@ -236,7 +353,7 @@ projects.MapDelete("/{id:guid}/members/{memberId:guid}", async (Guid id, Guid me
     await db.SaveChangesAsync();
     return Results.NoContent();
 });
-projects.MapGet("/{id:guid}/workspace-requests", async (Guid id, ClaimsPrincipal user, PlatformDbContext db) =>
+projects.MapGet("/{id:guid}/workspace-requests", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -257,7 +374,7 @@ projects.MapGet("/{id:guid}/workspace-requests", async (Guid id, ClaimsPrincipal
         x.Status == "PendingApproval" && (x.RequestedByUserId == userId || canManage),
         x.DevelopmentRequestId, x.DevelopmentRequestTitle, x.DevelopmentRequestDescription, x.WorkspaceBranchName)));
 });
-app.MapGet("/studio/workspace-requests/pending", async (int? offset, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/workspace-requests/pending", async (int? offset, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var start = offset ?? 0;
@@ -267,22 +384,25 @@ app.MapGet("/studio/workspace-requests/pending", async (int? offset, ClaimsPrinc
         from request in db.DevelopmentWorkspaceRequests.AsNoTracking()
         join project in db.DevelopmentProjects.AsNoTracking()
             on new { request.TenantId, request.ProjectId } equals new { project.TenantId, ProjectId = project.Id }
-        join requester in db.Users.AsNoTracking() on request.RequestedByUserId equals requester.Id
         where request.TenantId == tenantId && request.Status == "PendingApproval" &&
             (request.RequestedByUserId != userId || isTenantAdmin) && project.IsActive &&
             (isTenantAdmin || db.DevelopmentProjectAccesses.Any(access => access.TenantId == tenantId && access.ProjectId == request.ProjectId &&
                 access.UserId == userId && access.AccessLevel == "Maintainer"))
         orderby request.CreatedAt, request.Id
-        select new PendingWorkspaceApprovalView(request.Id, request.ProjectId, project.Name, request.RequestedByUserId,
-            requester.Email, request.BranchName, request.CreatedAt, request.ReviewNote,
-            request.DevelopmentRequest == null ? null : request.DevelopmentRequest.Title,
-            request.DevelopmentRequest == null ? null : request.DevelopmentRequest.Description)
+        select new { request.Id, request.ProjectId, project.Name, request.RequestedByUserId,
+            request.BranchName, request.CreatedAt, request.ReviewNote,
+            Title = request.DevelopmentRequest == null ? null : request.DevelopmentRequest.Title,
+            Description = request.DevelopmentRequest == null ? null : request.DevelopmentRequest.Description }
     ).Skip(start).Take(101).ToListAsync(cancellationToken);
+    var requesterIds = pending.Select(x => x.RequestedByUserId).Distinct().ToArray();
+    var requesterEmails = await platformDb.Users.AsNoTracking().Where(x => requesterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Email, cancellationToken);
     var nextOffset = pending.Count > 100 ? start + 100 : (int?)null;
     if (pending.Count > 100) pending.RemoveAt(pending.Count - 1);
-    return Results.Ok(new PendingWorkspaceApprovalsPage(pending, nextOffset));
+    return Results.Ok(new PendingWorkspaceApprovalsPage(pending.Select(x => new PendingWorkspaceApprovalView(x.Id, x.ProjectId, x.Name,
+        x.RequestedByUserId, requesterEmails.GetValueOrDefault(x.RequestedByUserId) ?? string.Empty, x.BranchName, x.CreatedAt,
+        x.ReviewNote, x.Title, x.Description)).ToList(), nextOffset));
 }).RequireAuthorization();
-projects.MapPost("/{id:guid}/workspace-requests", async (Guid id, CreateWorkspaceRequest body, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+projects.MapPost("/{id:guid}/workspace-requests", async (Guid id, CreateWorkspaceRequest body, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -308,7 +428,7 @@ projects.MapPost("/{id:guid}/workspace-requests", async (Guid id, CreateWorkspac
         branch, request.Status, request.CreatedAt, null, null, null, false, null, null, null, true,
         developmentRequest?.Id, developmentRequest?.Title, developmentRequest?.Description));
 });
-app.MapPost("/studio/workspace-requests/{id:guid}/cancel", async (Guid id, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapPost("/studio/workspace-requests/{id:guid}/cancel", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var request = await db.DevelopmentWorkspaceRequests.FromSqlInterpolated($"SELECT * FROM [dbo].[DevelopmentWorkspaceRequests] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}")
@@ -324,7 +444,7 @@ app.MapPost("/studio/workspace-requests/{id:guid}/cancel", async (Guid id, Claim
     await db.SaveChangesAsync(cancellationToken);
     return Results.Ok(ToWorkspaceView(request, false));
 }).RequireAuthorization();
-app.MapPost("/studio/workspace-requests/{id:guid}/review", async (Guid id, ReviewWorkspaceRequest body, ClaimsPrincipal user, PlatformDbContext db) =>
+app.MapPost("/studio/workspace-requests/{id:guid}/review", async (Guid id, ReviewWorkspaceRequest body, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var outcome = body.Outcome?.Trim(); var note = body.Note?.Trim();
@@ -346,7 +466,7 @@ app.MapPost("/studio/workspace-requests/{id:guid}/review", async (Guid id, Revie
         request.Status, request.CreatedAt, request.ReviewedByUserId, request.ReviewedAt, request.ReviewNote, false,
         request.CommitSha, request.ProvisioningError, request.ProvisionedAt));
 });
-app.MapPost("/studio/workspace-requests/{id:guid}/provision", async (Guid id, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider githubTokens, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/workspace-requests/{id:guid}/provision", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider githubTokens, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var request = await db.DevelopmentWorkspaceRequests.FromSqlInterpolated($"SELECT * FROM [dbo].[DevelopmentWorkspaceRequests] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync(cancellationToken);
@@ -420,7 +540,7 @@ app.MapPost("/studio/workspace-requests/{id:guid}/provision", async (Guid id, Cl
         statusCode: request.ProvisioningError?.Contains("yetkilendirme", StringComparison.OrdinalIgnoreCase) == true
             ? StatusCodes.Status403Forbidden : StatusCodes.Status502BadGateway);
 });
-app.MapPost("/studio/workspace-requests/{id:guid}/working-branch", async (Guid id, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/workspace-requests/{id:guid}/working-branch", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var request = await db.DevelopmentWorkspaceRequests.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, cancellationToken);
@@ -457,7 +577,7 @@ app.MapPost("/studio/workspace-requests/{id:guid}/working-branch", async (Guid i
     catch (TaskCanceledException) { return Results.Problem("Çalışma dalı oluşturma zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/files", async (Guid projectId, Guid requestId, string? path, int? offset, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/files", async (Guid projectId, Guid requestId, string? path, int? offset, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -494,7 +614,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) { return Results.Problem("Dosya listesi isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization();
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/file-content", async (Guid projectId, Guid requestId, string? path, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/file-content", async (Guid projectId, Guid requestId, string? path, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -536,7 +656,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) { return Results.Problem("Dosya önizlemesi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization();
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/analysis", async (Guid projectId, Guid requestId, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/analysis", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -573,7 +693,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) { return Results.Problem("Proje envanteri isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization();
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-discovery", async (Guid projectId, Guid requestId, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-discovery", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -602,7 +722,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) { return Results.Problem("Test hedefleri taraması zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization();
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-runs", async (Guid projectId, Guid requestId, [FromBody] CreateWorkspaceTestRun body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-runs", async (Guid projectId, Guid requestId, [FromBody] CreateWorkspaceTestRun body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.ExecutionConfirmed) return Results.BadRequest(new { error = "Proje kodunu yalıtılmış sandbox içinde çalıştırmak için açık onay gerekli." });
@@ -645,7 +765,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Sandbox test işi kuyruğa alınırken zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-runs/{jobId:guid}", async (Guid projectId, Guid requestId, Guid jobId, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-runs/{jobId:guid}", async (Guid projectId, Guid requestId, Guid jobId, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -682,7 +802,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Sandbox test durumu isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/build-runs", async (Guid projectId, Guid requestId, CreateWorkspaceTestRun body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/build-runs", async (Guid projectId, Guid requestId, CreateWorkspaceTestRun body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.ExecutionConfirmed) return Results.BadRequest(new { error = "Proje kodunu sandbox içinde build etmek için açık onay gerekli." });
@@ -716,7 +836,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Sandbox build işi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/build-runs/{jobId:guid}", async (Guid projectId, Guid requestId, Guid jobId, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/build-runs/{jobId:guid}", async (Guid projectId, Guid requestId, Guid jobId, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
@@ -751,7 +871,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Sandbox build durumu zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz build yanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/sandbox-error-analysis/{jobId:guid}", async (Guid projectId, Guid requestId, Guid jobId, CreateSandboxErrorAnalysis body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/sandbox-error-analysis/{jobId:guid}", async (Guid projectId, Guid requestId, Guid jobId, CreateSandboxErrorAnalysis body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "Sandbox çıktısını maskeleyip OpenAI’ye göndermek için açık onay gerekli." });
@@ -797,7 +917,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("Runner veya AI sağlayıcısı geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Sandbox hata analizi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("ai-tester");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates", async (Guid projectId, Guid requestId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -825,7 +945,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
             user.IsInRole("TenantAdmin") && candidate.CreatedByUserId != userId && review is null);
     }));
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-versions", async (Guid projectId, Guid requestId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-versions", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -842,7 +962,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
         .ToListAsync(cancellationToken);
     return Results.Ok(versions);
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-packages", async (Guid projectId, Guid requestId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-packages", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -862,7 +982,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
         .ToListAsync(cancellationToken);
     return Results.Ok(packages);
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-versions/{versionId:guid}/package", async (Guid projectId, Guid requestId, Guid versionId, ConfirmReleasePackage body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-versions/{versionId:guid}/package", async (Guid projectId, Guid requestId, Guid versionId, ConfirmReleasePackage body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.Confirmation) return Results.BadRequest(new { error = "Sürüm paketi oluşturmak için açık onay gerekli." });
@@ -930,7 +1050,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (DbUpdateException) { return Results.Conflict(new { error = "Bu sürüm için paket zaten oluşturulmuş." }); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-packages/{packageId:guid}/deployments/staging", async (Guid projectId, Guid requestId, Guid packageId, CreateStagingDeployment body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-packages/{packageId:guid}/deployments/staging", async (Guid projectId, Guid requestId, Guid packageId, CreateStagingDeployment body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.Confirmation || body.IdempotencyKey == Guid.Empty) return Results.BadRequest(new { error = "Açık staging onayı ve idempotency anahtarı gerekli." });
@@ -1044,7 +1164,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         return Results.Problem("Staging deployer geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway);
     }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-deployments", async (Guid projectId, Guid requestId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-deployments", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -1062,7 +1182,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
         select new { Deployment = deployment, Version = version.Version }).Take(100).ToListAsync(cancellationToken);
     return Results.Ok(deployments.Select(item => ToReleaseDeploymentView(item.Deployment) with { Version = item.Version }));
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapPost("/studio/projects/{projectId:guid}/release-deployments/{deploymentId:guid}/production-approval", async (Guid projectId, Guid deploymentId, CreateProductionApproval body, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/release-deployments/{deploymentId:guid}/production-approval", async (Guid projectId, Guid deploymentId, CreateProductionApproval body, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var note = body.Note?.Trim();
@@ -1106,7 +1226,7 @@ app.MapPost("/studio/projects/{projectId:guid}/release-deployments/{deploymentId
     }
     return Results.Ok(ToProductionApprovalView(approval, staging));
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapGet("/studio/projects/{projectId:guid}/production-approvals", async (Guid projectId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/production-approvals", async (Guid projectId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -1136,7 +1256,7 @@ app.MapGet("/studio/projects/{projectId:guid}/production-approvals", async (Guid
         };
     }));
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapGet("/studio/projects/{projectId:guid}/production-deployments", async (Guid projectId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/production-deployments", async (Guid projectId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -1161,7 +1281,7 @@ app.MapGet("/studio/projects/{projectId:guid}/production-deployments", async (Gu
                 (item.Deployment.RollbackTargetDeploymentId == active?.Id || item.Deployment.RollbackOfDeploymentId == active?.Id))
     }));
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapPost("/studio/projects/{projectId:guid}/production-approvals/{approvalId:guid}/review", async (Guid projectId, Guid approvalId, ReviewProductionApproval body, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/production-approvals/{approvalId:guid}/review", async (Guid projectId, Guid approvalId, ReviewProductionApproval body, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!user.IsInRole("TenantAdmin")) return Results.Forbid();
@@ -1199,7 +1319,7 @@ app.MapPost("/studio/projects/{projectId:guid}/production-approvals/{approvalId:
         where package.TenantId == tenantId && package.Id == approval.ReleasePackageId select version.Version).SingleAsync(cancellationToken);
     return Results.Ok(ToProductionApprovalView(reviewedApproval, staging, versionName));
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapPost("/studio/projects/{projectId:guid}/production-approvals/{approvalId:guid}/deploy", async (Guid projectId, Guid approvalId, CreateProductionDeployment body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/production-approvals/{approvalId:guid}/deploy", async (Guid projectId, Guid approvalId, CreateProductionDeployment body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!user.IsInRole("TenantAdmin")) return Results.Forbid();
@@ -1280,7 +1400,7 @@ app.MapPost("/studio/projects/{projectId:guid}/production-approvals/{approvalId:
     catch (HttpRequestException) { existing.Status = StudioReleaseDeploymentRules.Failed; existing.FailureCode = "DeployerUnavailable"; existing.CompletedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(CancellationToken.None); return Results.Problem("Production deployer bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) { existing.Status = StudioReleaseDeploymentRules.Failed; existing.FailureCode = "DeploymentTimeout"; existing.CompletedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(CancellationToken.None); return Results.Problem("Production dağıtımı zaman aşımına uğradı; aynı talep güvenle yeniden denenebilir.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapPost("/studio/projects/{projectId:guid}/production-deployments/restore", async (Guid projectId, RestoreProductionDatabase body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/production-deployments/restore", async (Guid projectId, RestoreProductionDatabase body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!user.IsInRole("TenantAdmin")) return Results.Forbid();
@@ -1370,7 +1490,7 @@ app.MapPost("/studio/projects/{projectId:guid}/production-deployments/restore", 
     catch (TaskCanceledException) { restore.Status = StudioReleaseDeploymentRules.Failed; restore.FailureCode = "RestoreTimeout"; restore.CompletedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(CancellationToken.None); return Results.Problem("Production geri yüklemesi zaman aşımına uğradı; canlı veriyi doğrulayın.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { restore.Status = StudioReleaseDeploymentRules.Failed; restore.FailureCode = "InvalidDeployerResponse"; restore.CompletedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(CancellationToken.None); return Results.Problem("Production geri yükleme sonucu okunamadı.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapDelete("/studio/projects/{projectId:guid}/release-deployments/{deploymentId:guid}/staging", async (Guid projectId, Guid deploymentId, [FromBody] ConfirmReleasePackage body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapDelete("/studio/projects/{projectId:guid}/release-deployments/{deploymentId:guid}/staging", async (Guid projectId, Guid deploymentId, [FromBody] ConfirmReleasePackage body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.Confirmation) return Results.BadRequest(new { error = "Staging verisini ve servislerini silmek için açık onay gerekli." });
@@ -1401,7 +1521,7 @@ app.MapDelete("/studio/projects/{projectId:guid}/release-deployments/{deployment
     catch (HttpRequestException) { return Results.Problem("Staging deployer bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) { return Results.Problem("Staging temizleme zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-packages/{packageId:guid}/download", async (Guid projectId, Guid requestId, Guid packageId, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-packages/{packageId:guid}/download", async (Guid projectId, Guid requestId, Guid packageId, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
@@ -1440,7 +1560,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     }
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/version", async (Guid projectId, Guid requestId, Guid candidateId, AssignReleaseVersion body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/version", async (Guid projectId, Guid requestId, Guid candidateId, AssignReleaseVersion body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.Confirmation || !StudioReleaseVersionRules.IsValid(body.Version?.Trim()))
@@ -1496,7 +1616,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (DbUpdateException) { return Results.Conflict(new { error = "Bu SemVer numarası proje içinde kullanılıyor veya adaya zaten sürüm atanmış." }); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates", async (Guid projectId, Guid requestId, CreateReleaseCandidate body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates", async (Guid projectId, Guid requestId, CreateReleaseCandidate body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (body.TestJobId == Guid.Empty) return Results.BadRequest(new { error = "Başarılı sandbox test işi gereklidir." });
@@ -1556,7 +1676,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz doğrulama yanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (DbUpdateException) { return Results.Conflict(new { error = "Bu test işi için sürüm adayı daha önce kaydedilmiş." }); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/pull-request-draft", async (Guid projectId, Guid requestId, Guid candidateId, CreateReleaseCandidateDraft body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/pull-request-draft", async (Guid projectId, Guid requestId, Guid candidateId, CreateReleaseCandidateDraft body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "Özet ve sürüm metadata'sını OpenAI'ye göndermek için açık onay gerekli." });
@@ -1617,10 +1737,10 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner veya AI sağlayıcısı geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("PR taslağı hazırlama zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("ai-tester");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/publish-pull-request", async (Guid projectId, Guid requestId, Guid candidateId, PublishStudioPullRequest body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider tokenProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/publish-pull-request", async (Guid projectId, Guid requestId, Guid candidateId, PublishStudioPullRequest body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider tokenProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
-    if (!body.Confirmation || body.GitHubInstallationId <= 0) return Results.BadRequest(new { error = "GitHub kurulum kimliği ve açık push/PR onayı gerekli." });
+    if (!body.Confirmation) return Results.BadRequest(new { error = "Açık push/PR onayı gerekli." });
     var title = body.Title?.Trim();
     var description = body.Body?.Trim();
     if (string.IsNullOrWhiteSpace(title) || title.Length > 120 || title.Any(char.IsControl) || string.IsNullOrWhiteSpace(description) || description.Length > 5000 || description.Any(c => char.IsControl(c) && c is not ('\r' or '\n' or '\t')))
@@ -1629,6 +1749,8 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
     if (project is null) return Results.NotFound();
     if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var githubInstallationId = project.GitHubInstallationId ?? body.GitHubInstallationId;
+    if (githubInstallationId <= 0) return Results.Problem("Önce Studio’da bu proje için GitHub yetkilendirmesi yapın.", statusCode: StatusCodes.Status403Forbidden);
     var candidate = await db.ReleaseCandidateRecords.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId && x.Id == candidateId, cancellationToken);
     if (candidate is null) return Results.NotFound();
@@ -1670,7 +1792,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         if (test is null || test.Status != "Passed" || test.Success != true || test.CompletedAt is null || test.HasUncommittedChanges ||
             !string.Equals(test.CommitSha, candidate.CommitSha, StringComparison.OrdinalIgnoreCase) || !string.Equals(test.SnapshotSha256, candidate.TestSnapshotSha256, StringComparison.OrdinalIgnoreCase) || test.TargetPath != candidate.TestTargetPath)
             return Results.Conflict(new { error = "Aynı commit için başarılı sandbox test kanıtı doğrulanamadı." });
-        var installationToken = await tokenProvider.CreateRepositoryTokenAsync(body.GitHubInstallationId, repository, cancellationToken);
+        var installationToken = await tokenProvider.CreateRepositoryTokenAsync(githubInstallationId, repository, cancellationToken);
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.release.pull-request.requested", Resource = $"{requestId:D}:{candidateId:D}" });
         await db.SaveChangesAsync(cancellationToken);
         using var push = new HttpRequestMessage(HttpMethod.Post, $"/internal/workspaces/{workspaceRequest.Id:D}/push-approved-branch");
@@ -1711,7 +1833,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("Runner veya GitHub geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Uzak PR işlemi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/review", async (Guid projectId, Guid requestId, Guid candidateId, ReviewReleaseCandidate body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/review", async (Guid projectId, Guid requestId, Guid candidateId, ReviewReleaseCandidate body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!user.IsInRole("TenantAdmin")) return Results.Forbid();
@@ -1774,7 +1896,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz inceleme yanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (DbUpdateException) { return Results.Conflict(new { error = "Bu sürüm adayına ait inceleme kararı zaten kaydedilmiş." }); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/search", async (Guid projectId, Guid requestId, string? query, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/search", async (Guid projectId, Guid requestId, string? query, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (string.IsNullOrWhiteSpace(query) || query.Trim().Length > 120 || query.Any(char.IsControl))
@@ -1807,7 +1929,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (TaskCanceledException) { return Results.Problem("Kod araması zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Runner geçersiz arama yanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/source-analysis", async (Guid projectId, Guid requestId, AnalyzeSelectedSource body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/source-analysis", async (Guid projectId, Guid requestId, AnalyzeSelectedSource body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "Seçilen kaynak kodu AI’ye göndermek için açık onay gerekli." });
@@ -1859,7 +1981,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("AI sağlayıcısı geçersiz bir yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Kaynak analizi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("ai-tester");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-plan", async (Guid projectId, Guid requestId, CreateTestPlan body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-plan", async (Guid projectId, Guid requestId, CreateTestPlan body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "AI paylaşımı için açık kullanıcı onayı gerekli." });
@@ -1900,7 +2022,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (TaskCanceledException) { return Results.Problem("Test planı isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("AI sağlayıcısı geçersiz bir yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("ai-tester");
-app.MapGet("/studio/projects/{projectId:guid}/test-plans", async (Guid projectId, Guid? workspaceRequestId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/test-plans", async (Guid projectId, Guid? workspaceRequestId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -1915,7 +2037,7 @@ app.MapGet("/studio/projects/{projectId:guid}/test-plans", async (Guid projectId
         .ToListAsync(cancellationToken);
     return Results.Ok(rows);
 }).RequireAuthorization();
-app.MapGet("/studio/projects/{projectId:guid}/test-plans/{planId:guid}", async (Guid projectId, Guid planId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/test-plans/{planId:guid}", async (Guid projectId, Guid planId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -1932,7 +2054,7 @@ app.MapGet("/studio/projects/{projectId:guid}/test-plans/{planId:guid}", async (
     return Results.Ok(new SavedAITestPlanDetail(new SavedAITestPlanView(record.Id, record.WorkspaceRequestId,
         record.BranchName, record.CommitSha, record.Summary, record.CreatedAt, record.CreatedByUserId, canManage || record.CreatedByUserId == userId), plan));
 }).RequireAuthorization();
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-plans", async (Guid projectId, Guid requestId, SaveAITestPlan body, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-plans", async (Guid projectId, Guid requestId, SaveAITestPlan body, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -1954,7 +2076,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     return Results.Created($"/studio/projects/{projectId}/test-plans/{record.Id}",
         new SavedAITestPlanView(record.Id, record.WorkspaceRequestId, record.BranchName, record.CommitSha, record.Summary, record.CreatedAt, record.CreatedByUserId, true));
 }).RequireAuthorization();
-app.MapDelete("/studio/projects/{projectId:guid}/test-plans/{planId:guid}", async (Guid projectId, Guid planId, [FromBody] DeleteSavedStudioPlan body, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapDelete("/studio/projects/{projectId:guid}/test-plans/{planId:guid}", async (Guid projectId, Guid planId, [FromBody] DeleteSavedStudioPlan body, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.Confirm) return Results.BadRequest(new { error = "Planı silmek için açık onay gerekli." });
@@ -1970,7 +2092,7 @@ app.MapDelete("/studio/projects/{projectId:guid}/test-plans/{planId:guid}", asyn
     await db.SaveChangesAsync(cancellationToken);
     return Results.NoContent();
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/code-suggestion", async (Guid projectId, Guid requestId, CreateCodeSuggestion body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/code-suggestion", async (Guid projectId, Guid requestId, CreateCodeSuggestion body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (string.IsNullOrWhiteSpace(body.Request) || body.Request.Trim().Length > 2000 || !body.SourceSharingConfirmed ||
@@ -2039,7 +2161,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (TaskCanceledException) { return Results.Problem("Kod önerisi isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("AI sağlayıcısı geçersiz bir yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("ai-developer");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/multi-file-code-suggestion", async (Guid projectId, Guid requestId, CreateMultiFileCodeSuggestion body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/multi-file-code-suggestion", async (Guid projectId, Guid requestId, CreateMultiFileCodeSuggestion body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var paths = body.FilePaths?.Select(x => x?.Trim()).ToArray();
@@ -2109,7 +2231,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (TaskCanceledException) { return Results.Problem("Çoklu dosya önerisi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("AI sağlayıcısı geçersiz bir yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("ai-developer");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/apply-code-suggestion", async (Guid projectId, Guid requestId, ApplyCodeSuggestion body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/apply-code-suggestion", async (Guid projectId, Guid requestId, ApplyCodeSuggestion body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var expectedSha256 = body.CreateNewFile ? GetEmptyFileSha256() : body.ExpectedSha256;
@@ -2127,7 +2249,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     if (!Uri.TryCreate(configuration["WorkspaceRunner:BaseUrl"], UriKind.Absolute, out var runnerUri) || runnerUri.Scheme != Uri.UriSchemeHttp)
         return Results.Problem("Workspace Runner yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.ai-developer.change.approved", Resource = WorkspaceAuditResource(request.Id, body.FilePath!) });
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = body.ManualEdit ? "studio.workspace.manual-code.approved" : "studio.ai-developer.change.approved", Resource = WorkspaceAuditResource(request.Id, body.FilePath!) });
     await db.SaveChangesAsync(cancellationToken);
     try
     {
@@ -2149,7 +2271,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         if (!response.IsSuccessStatusCode) return Results.Problem("Workspace Runner değişikliği uygulayamadı.", statusCode: StatusCodes.Status502BadGateway);
         var applied = await response.Content.ReadFromJsonAsync<RunnerApplyFileResponse>(cancellationToken: cancellationToken);
         if (applied is null) return Results.Problem("Workspace Runner geçersiz uygulama yanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway);
-        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.ai-developer.change.applied", Resource = WorkspaceAuditResource(request.Id, applied.Path) });
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = body.ManualEdit ? "studio.workspace.manual-code.applied" : "studio.ai-developer.change.applied", Resource = WorkspaceAuditResource(request.Id, applied.Path) });
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(new AppliedCodeSuggestion(applied.ChangeId, applied.Path, applied.Sha256, applied.AppliedAt));
     }
@@ -2157,7 +2279,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (TaskCanceledException) { return Results.Problem("Değişiklik uygulama isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/changes", async (Guid projectId, Guid requestId, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/changes", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
@@ -2185,7 +2307,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (TaskCanceledException) { return Results.Problem("Değişiklik geçmişi isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization();
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/commit-approved-changes", async (Guid projectId, Guid requestId, CommitWorkspaceChanges body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/commit-approved-changes", async (Guid projectId, Guid requestId, CommitWorkspaceChanges body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.ApprovalConfirmed || !IsCommitSha(body.ExpectedHeadCommitSha) || body.ChangeIds is null || body.ChangeIds.Length is 0 or > 100 ||
@@ -2252,7 +2374,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz commit yanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Git commit isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/git-status", async (Guid projectId, Guid requestId, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/git-status", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -2285,7 +2407,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (TaskCanceledException) { return Results.Problem("Git durumu isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/git-diff", async (Guid projectId, Guid requestId, string? path, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/git-diff", async (Guid projectId, Guid requestId, string? path, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -2322,7 +2444,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (TaskCanceledException) { return Results.Problem("Git diff isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/code-review", async (Guid projectId, Guid requestId, ReviewStudioDiff body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/code-review", async (Guid projectId, Guid requestId, ReviewStudioDiff body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "Seçilen dosya diff’ini AI’ye göndermek için açık onay gerekli." });
@@ -2368,7 +2490,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("AI sağlayıcısı geçersiz bir yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("AI kod incelemesi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("ai-tester");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations", async (Guid projectId, Guid requestId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -2385,7 +2507,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
         .Select(x => new StudioConversationView(x.Id, x.Title, x.WorkspaceRequestId, x.CreatedAt, x.UpdatedAt, x.CreatedByUserId, canManage || x.CreatedByUserId == userId)).ToListAsync(cancellationToken);
     return Results.Ok(rows);
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations", async (Guid projectId, Guid requestId, CreateStudioConversation body, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations", async (Guid projectId, Guid requestId, CreateStudioConversation body, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -2406,7 +2528,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     return Results.Created($"/studio/projects/{projectId}/workspace-requests/{requestId}/conversations/{conversation.Id}",
         new StudioConversationView(conversation.Id, conversation.Title, conversation.WorkspaceRequestId, conversation.CreatedAt, conversation.UpdatedAt, conversation.CreatedByUserId, true));
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapDelete("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations/{conversationId:guid}", async (Guid projectId, Guid requestId, Guid conversationId, [FromBody] DeleteStudioConversation body, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapDelete("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations/{conversationId:guid}", async (Guid projectId, Guid requestId, Guid conversationId, [FromBody] DeleteStudioConversation body, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.Confirm) return Results.ValidationProblem(new Dictionary<string, string[]> { ["confirm"] = ["Sohbeti silmek için açık onay gerekli."] });
@@ -2423,7 +2545,7 @@ app.MapDelete("/studio/projects/{projectId:guid}/workspace-requests/{requestId:g
     await db.SaveChangesAsync(cancellationToken);
     return Results.NoContent();
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations/{conversationId:guid}/messages", async (Guid projectId, Guid requestId, Guid conversationId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations/{conversationId:guid}/messages", async (Guid projectId, Guid requestId, Guid conversationId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -2441,7 +2563,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     var result = messages.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Select(x => new StudioConversationMessageView(x.Id, x.Role, x.Content, x.CreatedAt)).ToList();
     return Results.Ok(result);
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations/{conversationId:guid}/messages", async (Guid projectId, Guid requestId, Guid conversationId, SendStudioChatMessage body, ClaimsPrincipal user, PlatformDbContext db, IAIModelProvider aiProvider, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations/{conversationId:guid}/messages", async (Guid projectId, Guid requestId, Guid conversationId, SendStudioChatMessage body, ClaimsPrincipal user, AIStudioDbContext db, IAIModelProvider aiProvider, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "AI paylaşımı için açık kullanıcı onayı gerekli." });
@@ -2496,7 +2618,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         return Results.Problem("AI sohbet isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout);
     }
 }).RequireAuthorization().RequireRateLimiting("ai-chat");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/changes/{changeId:guid}", async (Guid projectId, Guid requestId, Guid changeId, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/changes/{changeId:guid}", async (Guid projectId, Guid requestId, Guid changeId, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
@@ -2525,7 +2647,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (TaskCanceledException) { return Results.Problem("Diff isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization();
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/changes/{changeId:guid}/restore", async (Guid projectId, Guid requestId, Guid changeId, RestoreCodeChange body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/changes/{changeId:guid}/restore", async (Guid projectId, Guid requestId, Guid changeId, RestoreCodeChange body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.ApprovalConfirmed || !IsSha256(body.ExpectedSha256))
@@ -2563,7 +2685,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (TaskCanceledException) { return Results.Problem("Geri alma isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/architecture-plan", async (Guid projectId, Guid requestId, CreateArchitecturePlan body, ClaimsPrincipal user, PlatformDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/architecture-plan", async (Guid projectId, Guid requestId, CreateArchitecturePlan body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (string.IsNullOrWhiteSpace(body.Request) || body.Request.Trim().Length > 2000)
@@ -2606,7 +2728,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (TaskCanceledException) { return Results.Problem("Mimari plan isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("AI sağlayıcısı geçersiz bir yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("ai-architect");
-app.MapGet("/studio/projects/{projectId:guid}/architecture-plans", async (Guid projectId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/architecture-plans", async (Guid projectId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -2620,7 +2742,7 @@ app.MapGet("/studio/projects/{projectId:guid}/architecture-plans", async (Guid p
         .ToListAsync(cancellationToken);
     return Results.Ok(rows);
 }).RequireAuthorization();
-app.MapGet("/studio/projects/{projectId:guid}/architecture-plans/{planId:guid}", async (Guid projectId, Guid planId, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/architecture-plans/{planId:guid}", async (Guid projectId, Guid planId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -2636,7 +2758,7 @@ app.MapGet("/studio/projects/{projectId:guid}/architecture-plans/{planId:guid}",
     return Results.Ok(new SavedArchitecturePlanDetail(new SavedArchitecturePlanView(record.Id, record.WorkspaceRequestId,
         record.BranchName, record.CommitSha, record.Summary, record.CreatedAt, record.CreatedByUserId, canManage || record.CreatedByUserId == userId), plan));
 }).RequireAuthorization();
-app.MapPost("/studio/projects/{projectId:guid}/architecture-plans", async (Guid projectId, SaveArchitecturePlan body, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/architecture-plans", async (Guid projectId, SaveArchitecturePlan body, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -2658,7 +2780,7 @@ app.MapPost("/studio/projects/{projectId:guid}/architecture-plans", async (Guid 
     return Results.Created($"/studio/projects/{projectId}/architecture-plans/{record.Id}",
         new SavedArchitecturePlanView(record.Id, record.WorkspaceRequestId, record.BranchName, record.CommitSha, record.Summary, record.CreatedAt, record.CreatedByUserId, true));
 }).RequireAuthorization();
-app.MapDelete("/studio/projects/{projectId:guid}/architecture-plans/{planId:guid}", async (Guid projectId, Guid planId, [FromBody] DeleteSavedStudioPlan body, ClaimsPrincipal user, PlatformDbContext db, CancellationToken cancellationToken) =>
+app.MapDelete("/studio/projects/{projectId:guid}/architecture-plans/{planId:guid}", async (Guid projectId, Guid planId, [FromBody] DeleteSavedStudioPlan body, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.Confirm) return Results.BadRequest(new { error = "Planı silmek için açık onay gerekli." });
@@ -2739,24 +2861,28 @@ static bool TryRepositoryUrl(string? value, out Uri? uri)
     return true;
 }
 
-static async Task<string?> CreateGitHubReadTokenAsync(string repositoryUrl, GitHubAppInstallationTokenProvider tokenProvider,
-    IConfiguration configuration, CancellationToken cancellationToken)
+static async Task<string?> CreateGitHubReadTokenAsync(string repositoryUrl, long? installationId,
+    GitHubAppInstallationTokenProvider tokenProvider, CancellationToken cancellationToken)
 {
     if (!TryRepositoryUrl(repositoryUrl, out var uri) || !string.Equals(uri!.Host, "github.com", StringComparison.OrdinalIgnoreCase)) return null;
-    var installationSetting = configuration["GitHub:InstallationId"];
-    if (string.IsNullOrWhiteSpace(installationSetting)) return null;
-    if (!long.TryParse(installationSetting, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var installationId) || installationId <= 0)
-        throw new GitHubAppConfigurationException();
+    if (installationId is null) return null;
+    var repository = GetGitHubRepositoryIdentifier(repositoryUrl);
+    if (repository is null) throw new GitHubIntegrationException("GitHub repository URL is invalid.");
+    return await tokenProvider.CreateRepositoryReadTokenAsync(installationId.Value, repository, cancellationToken);
+}
+
+static string? GetGitHubRepositoryIdentifier(string repositoryUrl)
+{
+    if (!TryRepositoryUrl(repositoryUrl, out var uri) || !string.Equals(uri!.Host, "github.com", StringComparison.OrdinalIgnoreCase)) return null;
     var parts = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-    if (parts.Length != 2) throw new GitHubIntegrationException("GitHub repository URL is invalid.");
+    if (parts.Length != 2) return null;
     var owner = Uri.UnescapeDataString(parts[0]);
     var name = Uri.UnescapeDataString(parts[1]);
     if (name.EndsWith(".git", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
     if (owner.Length is < 1 or > 100 || name.Length is < 1 or > 100 ||
         owner.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-') ||
-        name.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_' or '.')))
-        throw new GitHubIntegrationException("GitHub repository URL is invalid.");
-    return await tokenProvider.CreateRepositoryReadTokenAsync(installationId, $"{owner}/{name}", cancellationToken);
+        name.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_' or '.'))) return null;
+    return $"{owner}/{name}";
 }
 
 static string NormalizeRepositoryUrl(string value)
@@ -2844,7 +2970,7 @@ internal sealed record CreateRequest(string? Title, string? Description, Guid? P
 internal sealed record RequestView(Guid Id, string Title, string Description, string Status, DateTimeOffset CreatedAt, Guid? ProjectId, string? ProjectName);
 internal sealed record CreateProject(string? Name, string? RepositoryUrl, string? DefaultBranch);
 internal sealed record GrantProjectAccess(string? Email, string? AccessLevel);
-internal sealed record ProjectView(Guid Id, string Name, string RepositoryUrl, string DefaultBranch, string AccessLevel, DateTimeOffset CreatedAt);
+internal sealed record ProjectView(Guid Id, string Name, string RepositoryUrl, string DefaultBranch, string AccessLevel, DateTimeOffset CreatedAt, bool GitHubAuthorized = false);
 internal sealed record ProjectBranchesView(string DefaultBranch, IReadOnlyList<string> Branches);
 internal sealed record RunnerProjectBranchesRequest(Guid ProjectId, string RepositoryUrl);
 internal sealed record RunnerProjectBranchesResponse(IReadOnlyList<string> Branches);
@@ -2871,7 +2997,7 @@ internal sealed record StudioConversationMessageView(Guid Id, string Role, strin
 internal sealed record StudioChatReplyView(StudioConversationMessageView UserMessage, StudioConversationMessageView AssistantMessage);
 internal sealed record CreateCodeSuggestion(string? Request, string? FilePath, bool SourceSharingConfirmed, bool CreateNewFile = false);
 internal sealed record CreateMultiFileCodeSuggestion(string? Request, IReadOnlyList<string>? FilePaths, bool SourceSharingConfirmed);
-internal sealed record ApplyCodeSuggestion(string? FilePath, string? ExpectedSha256, string? ProposedContent, bool ApprovalConfirmed, bool CreateNewFile = false);
+internal sealed record ApplyCodeSuggestion(string? FilePath, string? ExpectedSha256, string? ProposedContent, bool ApprovalConfirmed, bool CreateNewFile = false, bool ManualEdit = false);
 internal sealed record RestoreCodeChange(string? ExpectedSha256, bool ApprovalConfirmed);
 internal sealed record CommitWorkspaceChanges(Guid[]? ChangeIds, string? ExpectedHeadCommitSha, string? Message, bool ApprovalConfirmed);
 internal sealed record CodeSuggestionPreview(string FilePath, string SourceSha256, string OriginalContent, string Summary, string ProposedContent, IReadOnlyList<string> Notes, bool CreateNewFile = false);

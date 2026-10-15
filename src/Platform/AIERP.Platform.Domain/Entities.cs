@@ -17,6 +17,8 @@ public sealed class Tenant
     public string Slug { get; set; } = "";
     public bool IsActive { get; set; } = true;
     public string BaseCurrencyCode { get; set; } = "TRY";
+    public int AuditRetentionDays { get; set; } = 365;
+    public DateTimeOffset? AuditLastPurgeAt { get; set; }
     public ICollection<TenantMembership> Memberships { get; set; } = new List<TenantMembership>();
     public ICollection<CustomerAccount> Customers { get; set; } = new List<CustomerAccount>();
     public ICollection<CustomerGroup> CustomerGroups { get; set; } = new List<CustomerGroup>();
@@ -36,6 +38,39 @@ public sealed class Tenant
     public ICollection<FinancialAccount> FinancialAccounts { get; set; } = new List<FinancialAccount>();
 }
 
+public enum TenantDatabaseProvisioningState { Provisioning = 1, Copying = 2, Ready = 3, Failed = 4 }
+
+public sealed class TenantDatabaseCatalogEntry
+{
+    public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public string DatabaseName { get; set; } = "";
+    public TenantDatabaseProvisioningState State { get; set; } = TenantDatabaseProvisioningState.Provisioning;
+    public string? LastError { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ReadyAt { get; set; }
+}
+
+public sealed class DatabaseSeparationComponentState
+{
+    public string Component { get; set; } = "";
+    public string DatabaseName { get; set; } = "";
+    public TenantDatabaseProvisioningState State { get; set; } = TenantDatabaseProvisioningState.Provisioning;
+    public string? LastError { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ReadyAt { get; set; }
+}
+
+public interface IAuditExecutionContext
+{
+    Guid? TenantId { get; }
+    Guid? UserId { get; }
+    string Source { get; }
+}
+
+public sealed record AuditExecutionContext(Guid? TenantId, Guid? UserId, string Source) : IAuditExecutionContext;
+
 public sealed class TenantExchangeRate
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -49,6 +84,44 @@ public sealed class TenantExchangeRate
     public string? Source { get; set; }
     public Guid? CreatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public enum FxRevaluationDirection { Receivable = 1, Payable = 2 }
+
+public sealed class FxRevaluationVoucher
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public string Code { get; set; } = "";
+    public DateOnly AsOfDate { get; set; }
+    public string BaseCurrencyCode { get; set; } = "TRY";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? CreatedByUserId { get; set; }
+    public ICollection<FxRevaluationVoucherLine> Lines { get; set; } = new List<FxRevaluationVoucherLine>();
+}
+
+public sealed class FxRevaluationVoucherLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid VoucherId { get; set; }
+    public FxRevaluationVoucher Voucher { get; set; } = null!;
+    public FxRevaluationDirection Direction { get; set; }
+    public Guid InvoiceId { get; set; }
+    public string InvoiceCode { get; set; } = "";
+    public string CounterpartyName { get; set; } = "";
+    public string CurrencyCode { get; set; } = "";
+    public decimal OutstandingAmount { get; set; }
+    public decimal InvoiceDateRate { get; set; }
+    public decimal ClosingRate { get; set; }
+    public decimal PreviousAdjustmentBase { get; set; }
+    public decimal TargetAdjustmentBase { get; set; }
+    public decimal AdjustmentBase { get; set; }
+    public string DebitAccount { get; set; } = "";
+    public string CreditAccount { get; set; } = "";
+    public decimal DebitBaseAmount { get; set; }
+    public decimal CreditBaseAmount { get; set; }
 }
 
 public enum CounterpartyType { Customer = 1, Supplier = 2, Both = 3 }
@@ -199,9 +272,24 @@ public sealed class StockItem
     public string UnitCode { get; set; } = "EA";
     public string? Category { get; set; }
     public decimal MinimumStock { get; set; }
+    public InventoryTrackingMode TrackingMode { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public byte[] RowVersion { get; set; } = [];
+    public ICollection<StockItemUnitConversion> UnitConversions { get; set; } = new List<StockItemUnitConversion>();
+}
+
+public enum InventoryTrackingMode { None = 0, Lot = 1, Serial = 2 }
+
+public sealed class StockItemUnitConversion
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid StockItemId { get; set; }
+    public string UnitCode { get; set; } = "";
+    public decimal FactorToBase { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public enum CustomFieldDataType { Text = 1, Decimal = 2, Date = 3, Boolean = 4 }
@@ -271,8 +359,63 @@ public sealed class Warehouse
     public byte[] RowVersion { get; set; } = [];
 }
 
+public sealed class WarehouseCustomFieldDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; } = 200;
+    public int Version { get; set; } = 1;
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class WarehouseCustomFieldDefinitionRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public int Version { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; }
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; }
+    public string ChangeKind { get; set; } = "";
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class WarehouseCustomFieldValue
+{
+    public Guid TenantId { get; set; }
+    public Guid WarehouseId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public string Value { get; set; } = "";
+    public int DefinitionVersion { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class WarehouseCustomFieldValueRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid WarehouseId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public string? PreviousValue { get; set; }
+    public string? NewValue { get; set; }
+    public int DefinitionVersion { get; set; }
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public enum InventoryDirection { Receipt = 1, Issue = 2 }
 public enum InventoryTransferStatus { Posted = 1, Voided = 2 }
+public enum InventoryCostAdjustmentKind { Revaluation = 1, LandedCost = 2, Reversal = 3 }
 
 public sealed class InventoryTransfer
 {
@@ -298,6 +441,8 @@ public sealed class InventoryTransaction
     public DateOnly EntryDate { get; set; }
     public InventoryDirection Direction { get; set; }
     public decimal Quantity { get; set; }
+    public decimal? EnteredQuantity { get; set; }
+    public string? EnteredUnitCode { get; set; }
     // Nullable for legacy movements and explicitly uncosted manual receipts.
     public decimal? UnitCostBase { get; set; }
     public string Description { get; set; } = "";
@@ -315,6 +460,49 @@ public sealed class InventoryTransaction
     public SupplierReturnLine? SupplierReturnLine { get; set; }
     public Guid? InventoryTransferId { get; set; }
     public InventoryTransfer? InventoryTransfer { get; set; }
+    public ICollection<InventoryTransactionTrace> Tracking { get; set; } = new List<InventoryTransactionTrace>();
+}
+
+public sealed class InventoryTransactionTrace
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid InventoryTransactionId { get; set; }
+    public InventoryTransaction InventoryTransaction { get; set; } = null!;
+    public Guid StockItemId { get; set; }
+    public InventoryTrackingMode TrackingMode { get; set; }
+    public string TrackingCode { get; set; } = "";
+    public decimal Quantity { get; set; }
+    public DateOnly? ExpiryDate { get; set; }
+}
+
+public sealed class InventoryCostAdjustment
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public DateOnly EntryDate { get; set; }
+    public InventoryCostAdjustmentKind Kind { get; set; }
+    public Guid? PurchaseReceiptId { get; set; }
+    public string Description { get; set; } = "";
+    public Guid? ReversalOfId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? CreatedByUserId { get; set; }
+    public ICollection<InventoryCostAdjustmentLine> Lines { get; set; } = new List<InventoryCostAdjustmentLine>();
+}
+
+public sealed class InventoryCostAdjustmentLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid AdjustmentId { get; set; }
+    public InventoryCostAdjustment Adjustment { get; set; } = null!;
+    public Guid WarehouseId { get; set; }
+    public Guid StockItemId { get; set; }
+    public Guid? PurchaseReceiptLineId { get; set; }
+    public decimal QuantitySnapshot { get; set; }
+    public decimal? UnitCostSnapshotBase { get; set; }
+    public decimal AmountBase { get; set; }
 }
 
 public enum PurchaseOrderStatus { Open = 1, PartiallyReceived = 2, Received = 3, Cancelled = 4 }
@@ -432,7 +620,65 @@ public sealed class PurchaseSupplierQuote
     public string? Notes { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<PurchaseSupplierQuoteLine> Lines { get; set; } = new List<PurchaseSupplierQuoteLine>();
+    public ICollection<PurchaseSupplierQuoteCustomFieldValue> CustomFieldValues { get; set; } = new List<PurchaseSupplierQuoteCustomFieldValue>();
+    public ICollection<PurchaseSupplierQuoteCustomFieldValueRevision> CustomFieldValueRevisions { get; set; } = new List<PurchaseSupplierQuoteCustomFieldValueRevision>();
     public PurchaseOrder? PurchaseOrder { get; set; }
+}
+
+public sealed class PurchaseSupplierQuoteCustomFieldDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; } = 200;
+    public int Version { get; set; } = 1;
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PurchaseSupplierQuoteCustomFieldDefinitionRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public int Version { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; }
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; }
+    public string ChangeKind { get; set; } = "";
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PurchaseSupplierQuoteCustomFieldValue
+{
+    public Guid TenantId { get; set; }
+    public Guid QuoteId { get; set; }
+    public PurchaseSupplierQuote Quote { get; set; } = null!;
+    public Guid DefinitionId { get; set; }
+    public string Value { get; set; } = "";
+    public int DefinitionVersion { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PurchaseSupplierQuoteCustomFieldValueRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid QuoteId { get; set; }
+    public PurchaseSupplierQuote Quote { get; set; } = null!;
+    public Guid DefinitionId { get; set; }
+    public string? PreviousValue { get; set; }
+    public string? NewValue { get; set; }
+    public int DefinitionVersion { get; set; }
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class PurchaseSupplierQuoteLine
@@ -479,6 +725,64 @@ public sealed class PurchaseOrder
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<PurchaseOrderLine> Lines { get; set; } = new List<PurchaseOrderLine>();
     public ICollection<PurchaseReceipt> Receipts { get; set; } = new List<PurchaseReceipt>();
+    public ICollection<PurchaseOrderCustomFieldValue> CustomFieldValues { get; set; } = new List<PurchaseOrderCustomFieldValue>();
+    public ICollection<PurchaseOrderCustomFieldValueRevision> CustomFieldValueRevisions { get; set; } = new List<PurchaseOrderCustomFieldValueRevision>();
+}
+
+public sealed class PurchaseOrderCustomFieldDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; } = 200;
+    public int Version { get; set; } = 1;
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PurchaseOrderCustomFieldDefinitionRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public int Version { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; }
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; }
+    public string ChangeKind { get; set; } = "";
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PurchaseOrderCustomFieldValue
+{
+    public Guid TenantId { get; set; }
+    public Guid PurchaseOrderId { get; set; }
+    public PurchaseOrder PurchaseOrder { get; set; } = null!;
+    public Guid DefinitionId { get; set; }
+    public string Value { get; set; } = "";
+    public int DefinitionVersion { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PurchaseOrderCustomFieldValueRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid PurchaseOrderId { get; set; }
+    public PurchaseOrder PurchaseOrder { get; set; } = null!;
+    public Guid DefinitionId { get; set; }
+    public string? PreviousValue { get; set; }
+    public string? NewValue { get; set; }
+    public int DefinitionVersion { get; set; }
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class PurchaseOrderLine
@@ -520,6 +824,63 @@ public sealed class PurchaseReceipt
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<PurchaseReceiptLine> Lines { get; set; } = new List<PurchaseReceiptLine>();
     public ICollection<PurchaseInvoice> Invoices { get; set; } = new List<PurchaseInvoice>();
+    public ICollection<PurchaseReceiptCustomFieldValue> CustomFieldValues { get; set; } = new List<PurchaseReceiptCustomFieldValue>();
+    public ICollection<PurchaseReceiptCustomFieldValueRevision> CustomFieldValueRevisions { get; set; } = new List<PurchaseReceiptCustomFieldValueRevision>();
+}
+
+public sealed class PurchaseReceiptCustomFieldDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; } = 200;
+    public int Version { get; set; } = 1;
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PurchaseReceiptCustomFieldDefinitionRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public int Version { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; }
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; }
+    public string ChangeKind { get; set; } = "";
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PurchaseReceiptCustomFieldValue
+{
+    public Guid TenantId { get; set; }
+    public Guid ReceiptId { get; set; }
+    public PurchaseReceipt Receipt { get; set; } = null!;
+    public Guid DefinitionId { get; set; }
+    public string Value { get; set; } = "";
+    public int DefinitionVersion { get; set; }
+}
+
+public sealed class PurchaseReceiptCustomFieldValueRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ReceiptId { get; set; }
+    public PurchaseReceipt Receipt { get; set; } = null!;
+    public Guid DefinitionId { get; set; }
+    public string? PreviousValue { get; set; }
+    public string? NewValue { get; set; }
+    public int DefinitionVersion { get; set; }
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class PurchaseReceiptLine
@@ -536,6 +897,8 @@ public sealed class PurchaseReceiptLine
     public string StockName { get; set; } = "";
     public string UnitCode { get; set; } = "EA";
     public decimal Quantity { get; set; }
+    public decimal? EnteredQuantity { get; set; }
+    public string? EnteredUnitCode { get; set; }
     public ICollection<InventoryTransaction> InventoryTransactions { get; set; } = new List<InventoryTransaction>();
 }
 
@@ -633,6 +996,8 @@ public sealed class SupplierReturnLine
     public string StockName { get; set; } = "";
     public string UnitCode { get; set; } = "EA";
     public decimal Quantity { get; set; }
+    public decimal? EnteredQuantity { get; set; }
+    public string? EnteredUnitCode { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal DiscountPercent { get; set; }
     public decimal VatPercent { get; set; }
@@ -714,6 +1079,60 @@ public sealed class SalesQuoteLine
     public decimal LineTotal { get; set; }
 }
 
+public sealed class SalesQuoteCustomFieldDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; } = 200;
+    public int Version { get; set; } = 1;
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SalesQuoteCustomFieldDefinitionRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public int Version { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; }
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; }
+    public string ChangeKind { get; set; } = "";
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SalesQuoteCustomFieldValue
+{
+    public Guid TenantId { get; set; }
+    public Guid QuoteId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public string Value { get; set; } = "";
+    public int DefinitionVersion { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SalesQuoteCustomFieldValueRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid QuoteId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public string? PreviousValue { get; set; }
+    public string? NewValue { get; set; }
+    public int DefinitionVersion { get; set; }
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public enum SalesOrderStatus { Open = 1, Fulfilled = 2, Cancelled = 3 }
 
 public sealed class SalesOrder
@@ -737,6 +1156,114 @@ public sealed class SalesOrder
     public ICollection<SalesOrderLine> Lines { get; set; } = new List<SalesOrderLine>();
     public ICollection<SalesOrderReservation> Reservations { get; set; } = new List<SalesOrderReservation>();
     public ICollection<SalesDelivery> Deliveries { get; set; } = new List<SalesDelivery>();
+}
+
+public sealed class SalesOrderCustomFieldDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; } = 200;
+    public int Version { get; set; } = 1;
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SalesOrderCustomFieldDefinitionRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public int Version { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; }
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; }
+    public string ChangeKind { get; set; } = "";
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SalesOrderCustomFieldValue
+{
+    public Guid TenantId { get; set; }
+    public Guid OrderId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public string Value { get; set; } = "";
+    public int DefinitionVersion { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SalesOrderCustomFieldValueRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid OrderId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public string? PreviousValue { get; set; }
+    public string? NewValue { get; set; }
+    public int DefinitionVersion { get; set; }
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SalesInvoiceCustomFieldDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; } = 200;
+    public int Version { get; set; } = 1;
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SalesInvoiceCustomFieldDefinitionRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public int Version { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public CustomFieldDataType DataType { get; set; }
+    public int MaxLength { get; set; }
+    public bool IsRequired { get; set; }
+    public bool IsActive { get; set; }
+    public string ChangeKind { get; set; } = "";
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SalesInvoiceCustomFieldValue
+{
+    public Guid TenantId { get; set; }
+    public Guid InvoiceId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public string Value { get; set; } = "";
+    public int DefinitionVersion { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SalesInvoiceCustomFieldValueRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid InvoiceId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public string? PreviousValue { get; set; }
+    public string? NewValue { get; set; }
+    public int DefinitionVersion { get; set; }
+    public Guid? ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class SalesOrderLine
@@ -817,6 +1344,8 @@ public sealed class SalesDeliveryLine
     public string StockName { get; set; } = "";
     public string UnitCode { get; set; } = "EA";
     public decimal Quantity { get; set; }
+    public decimal? EnteredQuantity { get; set; }
+    public string? EnteredUnitCode { get; set; }
     public ICollection<InventoryTransaction> InventoryTransactions { get; set; } = new List<InventoryTransaction>();
     public SalesInvoiceLine? InvoiceLine { get; set; }
 }
@@ -844,6 +1373,8 @@ public sealed class SalesInvoice
     public decimal GrandTotal { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<SalesInvoiceLine> Lines { get; set; } = new List<SalesInvoiceLine>();
+    public ICollection<SalesInvoiceCustomFieldValue> CustomFieldValues { get; set; } = new List<SalesInvoiceCustomFieldValue>();
+    public ICollection<SalesInvoiceCustomFieldValueRevision> CustomFieldValueRevisions { get; set; } = new List<SalesInvoiceCustomFieldValueRevision>();
     public ICollection<CustomerLedgerEntry> LedgerEntries { get; set; } = new List<CustomerLedgerEntry>();
     public ICollection<SalesReturn> Returns { get; set; } = new List<SalesReturn>();
 }
@@ -1055,6 +1586,8 @@ public sealed class SalesReturnLine
     public string StockName { get; set; } = "";
     public string UnitCode { get; set; } = "EA";
     public decimal Quantity { get; set; }
+    public decimal? EnteredQuantity { get; set; }
+    public string? EnteredUnitCode { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal DiscountPercent { get; set; }
     public decimal VatPercent { get; set; }
@@ -1072,6 +1605,38 @@ public sealed class TenantMembership
     public Guid TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
     public string Role { get; set; } = "TenantUser";
+}
+
+public enum TenantPermissionSubjectType { Role = 1, User = 2 }
+public enum TenantPermissionEffect { Allow = 1, Deny = 2 }
+public enum TenantPermissionConditionOperator { Equals = 1, NotEquals = 2, In = 3 }
+
+public sealed class PermissionDefinition
+{
+    public string Code { get; set; } = "";
+    public string ResourceType { get; set; } = "";
+    public string Action { get; set; } = "";
+    public string Description { get; set; } = "";
+}
+
+public sealed class TenantPermissionRule
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public TenantPermissionSubjectType SubjectType { get; set; }
+    public string? SubjectRole { get; set; }
+    public Guid? SubjectUserId { get; set; }
+    public string PermissionCode { get; set; } = "";
+    public PermissionDefinition Permission { get; set; } = null!;
+    public TenantPermissionEffect Effect { get; set; }
+    public string? ResourceType { get; set; }
+    public string? AttributeName { get; set; }
+    public TenantPermissionConditionOperator? AttributeOperator { get; set; }
+    public string? AttributeValue { get; set; }
+    public bool IsActive { get; set; } = true;
+    public Guid? CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class AuditEvent

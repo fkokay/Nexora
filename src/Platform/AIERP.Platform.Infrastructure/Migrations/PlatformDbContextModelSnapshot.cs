@@ -856,6 +856,35 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.DatabaseSeparationComponentState", b =>
+                {
+                    b.Property<string>("Component")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("DatabaseName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTimeOffset?>("ReadyAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("State")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Component");
+
+                    b.ToTable("DatabaseSeparationComponentStates");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.DevelopmentProject", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1277,6 +1306,137 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.FxRevaluationVoucher", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("AsOfDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("BaseCurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nchar(3)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AsOfDate")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("FxRevaluationVouchers");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.FxRevaluationVoucherLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AdjustmentBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ClosingRate")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("decimal(18,8)");
+
+                    b.Property<string>("CounterpartyName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CreditAccount")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<decimal>("CreditBaseAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nchar(3)")
+                        .IsFixedLength();
+
+                    b.Property<string>("DebitAccount")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<decimal>("DebitBaseAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("int");
+
+                    b.Property<string>("InvoiceCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<decimal>("InvoiceDateRate")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("decimal(18,8)");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("OutstandingAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PreviousAdjustmentBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TargetAdjustmentBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("VoucherId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "VoucherId", "InvoiceId")
+                        .IsUnique();
+
+                    b.ToTable("FxRevaluationVoucherLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_FxRevaluationVoucherLines_AmountsNonNegative", "[OutstandingAmount] >= 0 AND [DebitBaseAmount] >= 0 AND [CreditBaseAmount] >= 0");
+
+                            t.HasCheckConstraint("CK_FxRevaluationVoucherLines_Balanced", "[DebitBaseAmount] = [CreditBaseAmount]");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.GitHubInstallationAuthorizationState", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1318,6 +1478,112 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("GitHubInstallationAuthorizationStates");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.InventoryCostAdjustment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("nvarchar(240)");
+
+                    b.Property<DateOnly>("EntryDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("PurchaseReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ReversalOfId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "PurchaseReceiptId");
+
+                    b.HasIndex("TenantId", "ReversalOfId")
+                        .IsUnique()
+                        .HasFilter("[ReversalOfId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "EntryDate", "CreatedAt");
+
+                    b.ToTable("InventoryCostAdjustments");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.InventoryCostAdjustmentLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AdjustmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AmountBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("PurchaseReceiptLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("QuantitySnapshot")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("StockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("UnitCostSnapshotBase")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("decimal(18,8)");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "PurchaseReceiptLineId");
+
+                    b.HasIndex("TenantId", "StockItemId");
+
+                    b.HasIndex("TenantId", "WarehouseId");
+
+                    b.HasIndex("TenantId", "AdjustmentId", "WarehouseId", "StockItemId");
+
+                    b.ToTable("InventoryCostAdjustmentLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryCostAdjustmentLines_AmountNonZero", "[AmountBase] <> 0");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.InventoryTransaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1334,6 +1600,14 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.Property<int>("Direction")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("EnteredQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("EnteredUnitCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
 
                     b.Property<DateOnly>("EntryDate")
                         .HasColumnType("date");
@@ -1401,6 +1675,50 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.InventoryTransactionTrace", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly?>("ExpiryDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("InventoryTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("StockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TrackingCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("TrackingMode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "InventoryTransactionId");
+
+                    b.HasIndex("TenantId", "StockItemId", "TrackingCode");
+
+                    b.ToTable("InventoryTransactionTraces", t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryTransactionTraces_QuantityPositive", "[Quantity] > 0");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.InventoryTransfer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1448,6 +1766,1647 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("TenantId", "TransferDate", "CreatedAt");
 
                     b.ToTable("InventoryTransfers");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PermissionDefinition", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(120)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(120)");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("nvarchar(240)");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(80)");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("PermissionDefinitions");
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "system.session.read",
+                            Action = "read",
+                            Description = "read · User session information",
+                            ResourceType = "system.session"
+                        },
+                        new
+                        {
+                            Code = "system.session.create",
+                            Action = "create",
+                            Description = "create · User session information",
+                            ResourceType = "system.session"
+                        },
+                        new
+                        {
+                            Code = "system.session.update",
+                            Action = "update",
+                            Description = "update · User session information",
+                            ResourceType = "system.session"
+                        },
+                        new
+                        {
+                            Code = "system.session.delete",
+                            Action = "delete",
+                            Description = "delete · User session information",
+                            ResourceType = "system.session"
+                        },
+                        new
+                        {
+                            Code = "system.session.execute",
+                            Action = "execute",
+                            Description = "execute · User session information",
+                            ResourceType = "system.session"
+                        },
+                        new
+                        {
+                            Code = "erp.dashboard.read",
+                            Action = "read",
+                            Description = "read · ERP dashboard",
+                            ResourceType = "erp.dashboard"
+                        },
+                        new
+                        {
+                            Code = "erp.dashboard.create",
+                            Action = "create",
+                            Description = "create · ERP dashboard",
+                            ResourceType = "erp.dashboard"
+                        },
+                        new
+                        {
+                            Code = "erp.dashboard.update",
+                            Action = "update",
+                            Description = "update · ERP dashboard",
+                            ResourceType = "erp.dashboard"
+                        },
+                        new
+                        {
+                            Code = "erp.dashboard.delete",
+                            Action = "delete",
+                            Description = "delete · ERP dashboard",
+                            ResourceType = "erp.dashboard"
+                        },
+                        new
+                        {
+                            Code = "erp.dashboard.execute",
+                            Action = "execute",
+                            Description = "execute · ERP dashboard",
+                            ResourceType = "erp.dashboard"
+                        },
+                        new
+                        {
+                            Code = "erp.audit-events.read",
+                            Action = "read",
+                            Description = "read · Tenant audit history",
+                            ResourceType = "erp.audit-events"
+                        },
+                        new
+                        {
+                            Code = "erp.audit-events.create",
+                            Action = "create",
+                            Description = "create · Tenant audit history",
+                            ResourceType = "erp.audit-events"
+                        },
+                        new
+                        {
+                            Code = "erp.audit-events.update",
+                            Action = "update",
+                            Description = "update · Tenant audit history",
+                            ResourceType = "erp.audit-events"
+                        },
+                        new
+                        {
+                            Code = "erp.audit-events.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant audit history",
+                            ResourceType = "erp.audit-events"
+                        },
+                        new
+                        {
+                            Code = "erp.audit-events.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant audit history",
+                            ResourceType = "erp.audit-events"
+                        },
+                        new
+                        {
+                            Code = "erp.audit-retention.read",
+                            Action = "read",
+                            Description = "read · Tenant audit retention policy",
+                            ResourceType = "erp.audit-retention"
+                        },
+                        new
+                        {
+                            Code = "erp.audit-retention.create",
+                            Action = "create",
+                            Description = "create · Tenant audit retention policy",
+                            ResourceType = "erp.audit-retention"
+                        },
+                        new
+                        {
+                            Code = "erp.audit-retention.update",
+                            Action = "update",
+                            Description = "update · Tenant audit retention policy",
+                            ResourceType = "erp.audit-retention"
+                        },
+                        new
+                        {
+                            Code = "erp.audit-retention.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant audit retention policy",
+                            ResourceType = "erp.audit-retention"
+                        },
+                        new
+                        {
+                            Code = "erp.audit-retention.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant audit retention policy",
+                            ResourceType = "erp.audit-retention"
+                        },
+                        new
+                        {
+                            Code = "erp.access-control.read",
+                            Action = "read",
+                            Description = "read · Tenant permissions and policies",
+                            ResourceType = "erp.access-control"
+                        },
+                        new
+                        {
+                            Code = "erp.access-control.create",
+                            Action = "create",
+                            Description = "create · Tenant permissions and policies",
+                            ResourceType = "erp.access-control"
+                        },
+                        new
+                        {
+                            Code = "erp.access-control.update",
+                            Action = "update",
+                            Description = "update · Tenant permissions and policies",
+                            ResourceType = "erp.access-control"
+                        },
+                        new
+                        {
+                            Code = "erp.access-control.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant permissions and policies",
+                            ResourceType = "erp.access-control"
+                        },
+                        new
+                        {
+                            Code = "erp.access-control.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant permissions and policies",
+                            ResourceType = "erp.access-control"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-groups.read",
+                            Action = "read",
+                            Description = "read · Customer groups",
+                            ResourceType = "erp.customer-groups"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-groups.create",
+                            Action = "create",
+                            Description = "create · Customer groups",
+                            ResourceType = "erp.customer-groups"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-groups.update",
+                            Action = "update",
+                            Description = "update · Customer groups",
+                            ResourceType = "erp.customer-groups"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-groups.delete",
+                            Action = "delete",
+                            Description = "delete · Customer groups",
+                            ResourceType = "erp.customer-groups"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-groups.execute",
+                            Action = "execute",
+                            Description = "execute · Customer groups",
+                            ResourceType = "erp.customer-groups"
+                        },
+                        new
+                        {
+                            Code = "erp.customers.read",
+                            Action = "read",
+                            Description = "read · Customer and supplier accounts",
+                            ResourceType = "erp.customers"
+                        },
+                        new
+                        {
+                            Code = "erp.customers.create",
+                            Action = "create",
+                            Description = "create · Customer and supplier accounts",
+                            ResourceType = "erp.customers"
+                        },
+                        new
+                        {
+                            Code = "erp.customers.update",
+                            Action = "update",
+                            Description = "update · Customer and supplier accounts",
+                            ResourceType = "erp.customers"
+                        },
+                        new
+                        {
+                            Code = "erp.customers.delete",
+                            Action = "delete",
+                            Description = "delete · Customer and supplier accounts",
+                            ResourceType = "erp.customers"
+                        },
+                        new
+                        {
+                            Code = "erp.customers.execute",
+                            Action = "execute",
+                            Description = "execute · Customer and supplier accounts",
+                            ResourceType = "erp.customers"
+                        },
+                        new
+                        {
+                            Code = "erp.stock-items.read",
+                            Action = "read",
+                            Description = "read · Stock cards and units",
+                            ResourceType = "erp.stock-items"
+                        },
+                        new
+                        {
+                            Code = "erp.stock-items.create",
+                            Action = "create",
+                            Description = "create · Stock cards and units",
+                            ResourceType = "erp.stock-items"
+                        },
+                        new
+                        {
+                            Code = "erp.stock-items.update",
+                            Action = "update",
+                            Description = "update · Stock cards and units",
+                            ResourceType = "erp.stock-items"
+                        },
+                        new
+                        {
+                            Code = "erp.stock-items.delete",
+                            Action = "delete",
+                            Description = "delete · Stock cards and units",
+                            ResourceType = "erp.stock-items"
+                        },
+                        new
+                        {
+                            Code = "erp.stock-items.execute",
+                            Action = "execute",
+                            Description = "execute · Stock cards and units",
+                            ResourceType = "erp.stock-items"
+                        },
+                        new
+                        {
+                            Code = "erp.warehouses.read",
+                            Action = "read",
+                            Description = "read · Warehouses and stock balances",
+                            ResourceType = "erp.warehouses"
+                        },
+                        new
+                        {
+                            Code = "erp.warehouses.create",
+                            Action = "create",
+                            Description = "create · Warehouses and stock balances",
+                            ResourceType = "erp.warehouses"
+                        },
+                        new
+                        {
+                            Code = "erp.warehouses.update",
+                            Action = "update",
+                            Description = "update · Warehouses and stock balances",
+                            ResourceType = "erp.warehouses"
+                        },
+                        new
+                        {
+                            Code = "erp.warehouses.delete",
+                            Action = "delete",
+                            Description = "delete · Warehouses and stock balances",
+                            ResourceType = "erp.warehouses"
+                        },
+                        new
+                        {
+                            Code = "erp.warehouses.execute",
+                            Action = "execute",
+                            Description = "execute · Warehouses and stock balances",
+                            ResourceType = "erp.warehouses"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-transfers.read",
+                            Action = "read",
+                            Description = "read · Warehouse transfers",
+                            ResourceType = "erp.inventory-transfers"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-transfers.create",
+                            Action = "create",
+                            Description = "create · Warehouse transfers",
+                            ResourceType = "erp.inventory-transfers"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-transfers.update",
+                            Action = "update",
+                            Description = "update · Warehouse transfers",
+                            ResourceType = "erp.inventory-transfers"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-transfers.delete",
+                            Action = "delete",
+                            Description = "delete · Warehouse transfers",
+                            ResourceType = "erp.inventory-transfers"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-transfers.execute",
+                            Action = "execute",
+                            Description = "execute · Warehouse transfers",
+                            ResourceType = "erp.inventory-transfers"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-cost-adjustments.read",
+                            Action = "read",
+                            Description = "read · Inventory landed costs and revaluation",
+                            ResourceType = "erp.inventory-cost-adjustments"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-cost-adjustments.create",
+                            Action = "create",
+                            Description = "create · Inventory landed costs and revaluation",
+                            ResourceType = "erp.inventory-cost-adjustments"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-cost-adjustments.update",
+                            Action = "update",
+                            Description = "update · Inventory landed costs and revaluation",
+                            ResourceType = "erp.inventory-cost-adjustments"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-cost-adjustments.delete",
+                            Action = "delete",
+                            Description = "delete · Inventory landed costs and revaluation",
+                            ResourceType = "erp.inventory-cost-adjustments"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-cost-adjustments.execute",
+                            Action = "execute",
+                            Description = "execute · Inventory landed costs and revaluation",
+                            ResourceType = "erp.inventory-cost-adjustments"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-quotes.read",
+                            Action = "read",
+                            Description = "read · Sales quotes",
+                            ResourceType = "erp.sales-quotes"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-quotes.create",
+                            Action = "create",
+                            Description = "create · Sales quotes",
+                            ResourceType = "erp.sales-quotes"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-quotes.update",
+                            Action = "update",
+                            Description = "update · Sales quotes",
+                            ResourceType = "erp.sales-quotes"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-quotes.delete",
+                            Action = "delete",
+                            Description = "delete · Sales quotes",
+                            ResourceType = "erp.sales-quotes"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-quotes.execute",
+                            Action = "execute",
+                            Description = "execute · Sales quotes",
+                            ResourceType = "erp.sales-quotes"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-orders.read",
+                            Action = "read",
+                            Description = "read · Sales orders and reservations",
+                            ResourceType = "erp.sales-orders"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-orders.create",
+                            Action = "create",
+                            Description = "create · Sales orders and reservations",
+                            ResourceType = "erp.sales-orders"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-orders.update",
+                            Action = "update",
+                            Description = "update · Sales orders and reservations",
+                            ResourceType = "erp.sales-orders"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-orders.delete",
+                            Action = "delete",
+                            Description = "delete · Sales orders and reservations",
+                            ResourceType = "erp.sales-orders"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-orders.execute",
+                            Action = "execute",
+                            Description = "execute · Sales orders and reservations",
+                            ResourceType = "erp.sales-orders"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-deliveries.read",
+                            Action = "read",
+                            Description = "read · Sales deliveries",
+                            ResourceType = "erp.sales-deliveries"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-deliveries.create",
+                            Action = "create",
+                            Description = "create · Sales deliveries",
+                            ResourceType = "erp.sales-deliveries"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-deliveries.update",
+                            Action = "update",
+                            Description = "update · Sales deliveries",
+                            ResourceType = "erp.sales-deliveries"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-deliveries.delete",
+                            Action = "delete",
+                            Description = "delete · Sales deliveries",
+                            ResourceType = "erp.sales-deliveries"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-deliveries.execute",
+                            Action = "execute",
+                            Description = "execute · Sales deliveries",
+                            ResourceType = "erp.sales-deliveries"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-invoices.read",
+                            Action = "read",
+                            Description = "read · Sales invoices",
+                            ResourceType = "erp.sales-invoices"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-invoices.create",
+                            Action = "create",
+                            Description = "create · Sales invoices",
+                            ResourceType = "erp.sales-invoices"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-invoices.update",
+                            Action = "update",
+                            Description = "update · Sales invoices",
+                            ResourceType = "erp.sales-invoices"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-invoices.delete",
+                            Action = "delete",
+                            Description = "delete · Sales invoices",
+                            ResourceType = "erp.sales-invoices"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-invoices.execute",
+                            Action = "execute",
+                            Description = "execute · Sales invoices",
+                            ResourceType = "erp.sales-invoices"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-collections.read",
+                            Action = "read",
+                            Description = "read · Customer collections",
+                            ResourceType = "erp.customer-collections"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-collections.create",
+                            Action = "create",
+                            Description = "create · Customer collections",
+                            ResourceType = "erp.customer-collections"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-collections.update",
+                            Action = "update",
+                            Description = "update · Customer collections",
+                            ResourceType = "erp.customer-collections"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-collections.delete",
+                            Action = "delete",
+                            Description = "delete · Customer collections",
+                            ResourceType = "erp.customer-collections"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-collections.execute",
+                            Action = "execute",
+                            Description = "execute · Customer collections",
+                            ResourceType = "erp.customer-collections"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-returns.read",
+                            Action = "read",
+                            Description = "read · Sales returns",
+                            ResourceType = "erp.sales-returns"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-returns.create",
+                            Action = "create",
+                            Description = "create · Sales returns",
+                            ResourceType = "erp.sales-returns"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-returns.update",
+                            Action = "update",
+                            Description = "update · Sales returns",
+                            ResourceType = "erp.sales-returns"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-returns.delete",
+                            Action = "delete",
+                            Description = "delete · Sales returns",
+                            ResourceType = "erp.sales-returns"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-returns.execute",
+                            Action = "execute",
+                            Description = "execute · Sales returns",
+                            ResourceType = "erp.sales-returns"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-requests.read",
+                            Action = "read",
+                            Description = "read · Purchase requests",
+                            ResourceType = "erp.purchase-requests"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-requests.create",
+                            Action = "create",
+                            Description = "create · Purchase requests",
+                            ResourceType = "erp.purchase-requests"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-requests.update",
+                            Action = "update",
+                            Description = "update · Purchase requests",
+                            ResourceType = "erp.purchase-requests"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-requests.delete",
+                            Action = "delete",
+                            Description = "delete · Purchase requests",
+                            ResourceType = "erp.purchase-requests"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-requests.execute",
+                            Action = "execute",
+                            Description = "execute · Purchase requests",
+                            ResourceType = "erp.purchase-requests"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-quotes.read",
+                            Action = "read",
+                            Description = "read · Supplier quotes",
+                            ResourceType = "erp.supplier-quotes"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-quotes.create",
+                            Action = "create",
+                            Description = "create · Supplier quotes",
+                            ResourceType = "erp.supplier-quotes"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-quotes.update",
+                            Action = "update",
+                            Description = "update · Supplier quotes",
+                            ResourceType = "erp.supplier-quotes"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-quotes.delete",
+                            Action = "delete",
+                            Description = "delete · Supplier quotes",
+                            ResourceType = "erp.supplier-quotes"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-quotes.execute",
+                            Action = "execute",
+                            Description = "execute · Supplier quotes",
+                            ResourceType = "erp.supplier-quotes"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-orders.read",
+                            Action = "read",
+                            Description = "read · Purchase orders",
+                            ResourceType = "erp.purchase-orders"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-orders.create",
+                            Action = "create",
+                            Description = "create · Purchase orders",
+                            ResourceType = "erp.purchase-orders"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-orders.update",
+                            Action = "update",
+                            Description = "update · Purchase orders",
+                            ResourceType = "erp.purchase-orders"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-orders.delete",
+                            Action = "delete",
+                            Description = "delete · Purchase orders",
+                            ResourceType = "erp.purchase-orders"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-orders.execute",
+                            Action = "execute",
+                            Description = "execute · Purchase orders",
+                            ResourceType = "erp.purchase-orders"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-receipts.read",
+                            Action = "read",
+                            Description = "read · Purchase receipts and landed costs",
+                            ResourceType = "erp.purchase-receipts"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-receipts.create",
+                            Action = "create",
+                            Description = "create · Purchase receipts and landed costs",
+                            ResourceType = "erp.purchase-receipts"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-receipts.update",
+                            Action = "update",
+                            Description = "update · Purchase receipts and landed costs",
+                            ResourceType = "erp.purchase-receipts"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-receipts.delete",
+                            Action = "delete",
+                            Description = "delete · Purchase receipts and landed costs",
+                            ResourceType = "erp.purchase-receipts"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-receipts.execute",
+                            Action = "execute",
+                            Description = "execute · Purchase receipts and landed costs",
+                            ResourceType = "erp.purchase-receipts"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-invoices.read",
+                            Action = "read",
+                            Description = "read · Purchase invoices",
+                            ResourceType = "erp.purchase-invoices"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-invoices.create",
+                            Action = "create",
+                            Description = "create · Purchase invoices",
+                            ResourceType = "erp.purchase-invoices"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-invoices.update",
+                            Action = "update",
+                            Description = "update · Purchase invoices",
+                            ResourceType = "erp.purchase-invoices"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-invoices.delete",
+                            Action = "delete",
+                            Description = "delete · Purchase invoices",
+                            ResourceType = "erp.purchase-invoices"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-invoices.execute",
+                            Action = "execute",
+                            Description = "execute · Purchase invoices",
+                            ResourceType = "erp.purchase-invoices"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-returns.read",
+                            Action = "read",
+                            Description = "read · Supplier returns",
+                            ResourceType = "erp.supplier-returns"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-returns.create",
+                            Action = "create",
+                            Description = "create · Supplier returns",
+                            ResourceType = "erp.supplier-returns"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-returns.update",
+                            Action = "update",
+                            Description = "update · Supplier returns",
+                            ResourceType = "erp.supplier-returns"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-returns.delete",
+                            Action = "delete",
+                            Description = "delete · Supplier returns",
+                            ResourceType = "erp.supplier-returns"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-returns.execute",
+                            Action = "execute",
+                            Description = "execute · Supplier returns",
+                            ResourceType = "erp.supplier-returns"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-payments.read",
+                            Action = "read",
+                            Description = "read · Supplier payments",
+                            ResourceType = "erp.supplier-payments"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-payments.create",
+                            Action = "create",
+                            Description = "create · Supplier payments",
+                            ResourceType = "erp.supplier-payments"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-payments.update",
+                            Action = "update",
+                            Description = "update · Supplier payments",
+                            ResourceType = "erp.supplier-payments"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-payments.delete",
+                            Action = "delete",
+                            Description = "delete · Supplier payments",
+                            ResourceType = "erp.supplier-payments"
+                        },
+                        new
+                        {
+                            Code = "erp.supplier-payments.execute",
+                            Action = "execute",
+                            Description = "execute · Supplier payments",
+                            ResourceType = "erp.supplier-payments"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-currency.read",
+                            Action = "read",
+                            Description = "read · Tenant base currency",
+                            ResourceType = "erp.finance-currency"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-currency.create",
+                            Action = "create",
+                            Description = "create · Tenant base currency",
+                            ResourceType = "erp.finance-currency"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-currency.update",
+                            Action = "update",
+                            Description = "update · Tenant base currency",
+                            ResourceType = "erp.finance-currency"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-currency.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant base currency",
+                            ResourceType = "erp.finance-currency"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-currency.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant base currency",
+                            ResourceType = "erp.finance-currency"
+                        },
+                        new
+                        {
+                            Code = "erp.exchange-rates.read",
+                            Action = "read",
+                            Description = "read · Tenant exchange rates",
+                            ResourceType = "erp.exchange-rates"
+                        },
+                        new
+                        {
+                            Code = "erp.exchange-rates.create",
+                            Action = "create",
+                            Description = "create · Tenant exchange rates",
+                            ResourceType = "erp.exchange-rates"
+                        },
+                        new
+                        {
+                            Code = "erp.exchange-rates.update",
+                            Action = "update",
+                            Description = "update · Tenant exchange rates",
+                            ResourceType = "erp.exchange-rates"
+                        },
+                        new
+                        {
+                            Code = "erp.exchange-rates.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant exchange rates",
+                            ResourceType = "erp.exchange-rates"
+                        },
+                        new
+                        {
+                            Code = "erp.exchange-rates.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant exchange rates",
+                            ResourceType = "erp.exchange-rates"
+                        },
+                        new
+                        {
+                            Code = "erp.fx-exposure.read",
+                            Action = "read",
+                            Description = "read · Foreign currency exposure",
+                            ResourceType = "erp.fx-exposure"
+                        },
+                        new
+                        {
+                            Code = "erp.fx-exposure.create",
+                            Action = "create",
+                            Description = "create · Foreign currency exposure",
+                            ResourceType = "erp.fx-exposure"
+                        },
+                        new
+                        {
+                            Code = "erp.fx-exposure.update",
+                            Action = "update",
+                            Description = "update · Foreign currency exposure",
+                            ResourceType = "erp.fx-exposure"
+                        },
+                        new
+                        {
+                            Code = "erp.fx-exposure.delete",
+                            Action = "delete",
+                            Description = "delete · Foreign currency exposure",
+                            ResourceType = "erp.fx-exposure"
+                        },
+                        new
+                        {
+                            Code = "erp.fx-exposure.execute",
+                            Action = "execute",
+                            Description = "execute · Foreign currency exposure",
+                            ResourceType = "erp.fx-exposure"
+                        },
+                        new
+                        {
+                            Code = "erp.fx-revaluations.read",
+                            Action = "read",
+                            Description = "read · Period-end FX revaluation vouchers",
+                            ResourceType = "erp.fx-revaluations"
+                        },
+                        new
+                        {
+                            Code = "erp.fx-revaluations.create",
+                            Action = "create",
+                            Description = "create · Period-end FX revaluation vouchers",
+                            ResourceType = "erp.fx-revaluations"
+                        },
+                        new
+                        {
+                            Code = "erp.fx-revaluations.update",
+                            Action = "update",
+                            Description = "update · Period-end FX revaluation vouchers",
+                            ResourceType = "erp.fx-revaluations"
+                        },
+                        new
+                        {
+                            Code = "erp.fx-revaluations.delete",
+                            Action = "delete",
+                            Description = "delete · Period-end FX revaluation vouchers",
+                            ResourceType = "erp.fx-revaluations"
+                        },
+                        new
+                        {
+                            Code = "erp.fx-revaluations.execute",
+                            Action = "execute",
+                            Description = "execute · Period-end FX revaluation vouchers",
+                            ResourceType = "erp.fx-revaluations"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-accounts.read",
+                            Action = "read",
+                            Description = "read · Cash and bank accounts",
+                            ResourceType = "erp.finance-accounts"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-accounts.create",
+                            Action = "create",
+                            Description = "create · Cash and bank accounts",
+                            ResourceType = "erp.finance-accounts"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-accounts.update",
+                            Action = "update",
+                            Description = "update · Cash and bank accounts",
+                            ResourceType = "erp.finance-accounts"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-accounts.delete",
+                            Action = "delete",
+                            Description = "delete · Cash and bank accounts",
+                            ResourceType = "erp.finance-accounts"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-accounts.execute",
+                            Action = "execute",
+                            Description = "execute · Cash and bank accounts",
+                            ResourceType = "erp.finance-accounts"
+                        },
+                        new
+                        {
+                            Code = "erp.financial-transfers.read",
+                            Action = "read",
+                            Description = "read · Financial account transfers",
+                            ResourceType = "erp.financial-transfers"
+                        },
+                        new
+                        {
+                            Code = "erp.financial-transfers.create",
+                            Action = "create",
+                            Description = "create · Financial account transfers",
+                            ResourceType = "erp.financial-transfers"
+                        },
+                        new
+                        {
+                            Code = "erp.financial-transfers.update",
+                            Action = "update",
+                            Description = "update · Financial account transfers",
+                            ResourceType = "erp.financial-transfers"
+                        },
+                        new
+                        {
+                            Code = "erp.financial-transfers.delete",
+                            Action = "delete",
+                            Description = "delete · Financial account transfers",
+                            ResourceType = "erp.financial-transfers"
+                        },
+                        new
+                        {
+                            Code = "erp.financial-transfers.execute",
+                            Action = "execute",
+                            Description = "execute · Financial account transfers",
+                            ResourceType = "erp.financial-transfers"
+                        },
+                        new
+                        {
+                            Code = "erp.bank-statements.read",
+                            Action = "read",
+                            Description = "read · Bank statements and reconciliation",
+                            ResourceType = "erp.bank-statements"
+                        },
+                        new
+                        {
+                            Code = "erp.bank-statements.create",
+                            Action = "create",
+                            Description = "create · Bank statements and reconciliation",
+                            ResourceType = "erp.bank-statements"
+                        },
+                        new
+                        {
+                            Code = "erp.bank-statements.update",
+                            Action = "update",
+                            Description = "update · Bank statements and reconciliation",
+                            ResourceType = "erp.bank-statements"
+                        },
+                        new
+                        {
+                            Code = "erp.bank-statements.delete",
+                            Action = "delete",
+                            Description = "delete · Bank statements and reconciliation",
+                            ResourceType = "erp.bank-statements"
+                        },
+                        new
+                        {
+                            Code = "erp.bank-statements.execute",
+                            Action = "execute",
+                            Description = "execute · Bank statements and reconciliation",
+                            ResourceType = "erp.bank-statements"
+                        },
+                        new
+                        {
+                            Code = "erp.maturities.read",
+                            Action = "read",
+                            Description = "read · Receivable and payable maturities",
+                            ResourceType = "erp.maturities"
+                        },
+                        new
+                        {
+                            Code = "erp.maturities.create",
+                            Action = "create",
+                            Description = "create · Receivable and payable maturities",
+                            ResourceType = "erp.maturities"
+                        },
+                        new
+                        {
+                            Code = "erp.maturities.update",
+                            Action = "update",
+                            Description = "update · Receivable and payable maturities",
+                            ResourceType = "erp.maturities"
+                        },
+                        new
+                        {
+                            Code = "erp.maturities.delete",
+                            Action = "delete",
+                            Description = "delete · Receivable and payable maturities",
+                            ResourceType = "erp.maturities"
+                        },
+                        new
+                        {
+                            Code = "erp.maturities.execute",
+                            Action = "execute",
+                            Description = "execute · Receivable and payable maturities",
+                            ResourceType = "erp.maturities"
+                        },
+                        new
+                        {
+                            Code = "studio.capabilities.read",
+                            Action = "read",
+                            Description = "read · Studio capabilities",
+                            ResourceType = "studio.capabilities"
+                        },
+                        new
+                        {
+                            Code = "studio.capabilities.create",
+                            Action = "create",
+                            Description = "create · Studio capabilities",
+                            ResourceType = "studio.capabilities"
+                        },
+                        new
+                        {
+                            Code = "studio.capabilities.update",
+                            Action = "update",
+                            Description = "update · Studio capabilities",
+                            ResourceType = "studio.capabilities"
+                        },
+                        new
+                        {
+                            Code = "studio.capabilities.delete",
+                            Action = "delete",
+                            Description = "delete · Studio capabilities",
+                            ResourceType = "studio.capabilities"
+                        },
+                        new
+                        {
+                            Code = "studio.capabilities.execute",
+                            Action = "execute",
+                            Description = "execute · Studio capabilities",
+                            ResourceType = "studio.capabilities"
+                        },
+                        new
+                        {
+                            Code = "studio.requests.read",
+                            Action = "read",
+                            Description = "read · Development requests",
+                            ResourceType = "studio.requests"
+                        },
+                        new
+                        {
+                            Code = "studio.requests.create",
+                            Action = "create",
+                            Description = "create · Development requests",
+                            ResourceType = "studio.requests"
+                        },
+                        new
+                        {
+                            Code = "studio.requests.update",
+                            Action = "update",
+                            Description = "update · Development requests",
+                            ResourceType = "studio.requests"
+                        },
+                        new
+                        {
+                            Code = "studio.requests.delete",
+                            Action = "delete",
+                            Description = "delete · Development requests",
+                            ResourceType = "studio.requests"
+                        },
+                        new
+                        {
+                            Code = "studio.requests.execute",
+                            Action = "execute",
+                            Description = "execute · Development requests",
+                            ResourceType = "studio.requests"
+                        },
+                        new
+                        {
+                            Code = "studio.projects.read",
+                            Action = "read",
+                            Description = "read · Development projects and members",
+                            ResourceType = "studio.projects"
+                        },
+                        new
+                        {
+                            Code = "studio.projects.create",
+                            Action = "create",
+                            Description = "create · Development projects and members",
+                            ResourceType = "studio.projects"
+                        },
+                        new
+                        {
+                            Code = "studio.projects.update",
+                            Action = "update",
+                            Description = "update · Development projects and members",
+                            ResourceType = "studio.projects"
+                        },
+                        new
+                        {
+                            Code = "studio.projects.delete",
+                            Action = "delete",
+                            Description = "delete · Development projects and members",
+                            ResourceType = "studio.projects"
+                        },
+                        new
+                        {
+                            Code = "studio.projects.execute",
+                            Action = "execute",
+                            Description = "execute · Development projects and members",
+                            ResourceType = "studio.projects"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-requests.read",
+                            Action = "read",
+                            Description = "read · Project workspace requests",
+                            ResourceType = "studio.workspace-requests"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-requests.create",
+                            Action = "create",
+                            Description = "create · Project workspace requests",
+                            ResourceType = "studio.workspace-requests"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-requests.update",
+                            Action = "update",
+                            Description = "update · Project workspace requests",
+                            ResourceType = "studio.workspace-requests"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-requests.delete",
+                            Action = "delete",
+                            Description = "delete · Project workspace requests",
+                            ResourceType = "studio.workspace-requests"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-requests.execute",
+                            Action = "execute",
+                            Description = "execute · Project workspace requests",
+                            ResourceType = "studio.workspace-requests"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-files.read",
+                            Action = "read",
+                            Description = "read · Project workspace files and source",
+                            ResourceType = "studio.workspace-files"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-files.create",
+                            Action = "create",
+                            Description = "create · Project workspace files and source",
+                            ResourceType = "studio.workspace-files"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-files.update",
+                            Action = "update",
+                            Description = "update · Project workspace files and source",
+                            ResourceType = "studio.workspace-files"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-files.delete",
+                            Action = "delete",
+                            Description = "delete · Project workspace files and source",
+                            ResourceType = "studio.workspace-files"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-files.execute",
+                            Action = "execute",
+                            Description = "execute · Project workspace files and source",
+                            ResourceType = "studio.workspace-files"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-tests.read",
+                            Action = "read",
+                            Description = "read · Workspace tests and builds",
+                            ResourceType = "studio.workspace-tests"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-tests.create",
+                            Action = "create",
+                            Description = "create · Workspace tests and builds",
+                            ResourceType = "studio.workspace-tests"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-tests.update",
+                            Action = "update",
+                            Description = "update · Workspace tests and builds",
+                            ResourceType = "studio.workspace-tests"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-tests.delete",
+                            Action = "delete",
+                            Description = "delete · Workspace tests and builds",
+                            ResourceType = "studio.workspace-tests"
+                        },
+                        new
+                        {
+                            Code = "studio.workspace-tests.execute",
+                            Action = "execute",
+                            Description = "execute · Workspace tests and builds",
+                            ResourceType = "studio.workspace-tests"
+                        },
+                        new
+                        {
+                            Code = "studio.release-candidates.read",
+                            Action = "read",
+                            Description = "read · Release candidates and versions",
+                            ResourceType = "studio.release-candidates"
+                        },
+                        new
+                        {
+                            Code = "studio.release-candidates.create",
+                            Action = "create",
+                            Description = "create · Release candidates and versions",
+                            ResourceType = "studio.release-candidates"
+                        },
+                        new
+                        {
+                            Code = "studio.release-candidates.update",
+                            Action = "update",
+                            Description = "update · Release candidates and versions",
+                            ResourceType = "studio.release-candidates"
+                        },
+                        new
+                        {
+                            Code = "studio.release-candidates.delete",
+                            Action = "delete",
+                            Description = "delete · Release candidates and versions",
+                            ResourceType = "studio.release-candidates"
+                        },
+                        new
+                        {
+                            Code = "studio.release-candidates.execute",
+                            Action = "execute",
+                            Description = "execute · Release candidates and versions",
+                            ResourceType = "studio.release-candidates"
+                        },
+                        new
+                        {
+                            Code = "studio.release-packages.read",
+                            Action = "read",
+                            Description = "read · Release packages",
+                            ResourceType = "studio.release-packages"
+                        },
+                        new
+                        {
+                            Code = "studio.release-packages.create",
+                            Action = "create",
+                            Description = "create · Release packages",
+                            ResourceType = "studio.release-packages"
+                        },
+                        new
+                        {
+                            Code = "studio.release-packages.update",
+                            Action = "update",
+                            Description = "update · Release packages",
+                            ResourceType = "studio.release-packages"
+                        },
+                        new
+                        {
+                            Code = "studio.release-packages.delete",
+                            Action = "delete",
+                            Description = "delete · Release packages",
+                            ResourceType = "studio.release-packages"
+                        },
+                        new
+                        {
+                            Code = "studio.release-packages.execute",
+                            Action = "execute",
+                            Description = "execute · Release packages",
+                            ResourceType = "studio.release-packages"
+                        },
+                        new
+                        {
+                            Code = "studio.deployments.read",
+                            Action = "read",
+                            Description = "read · Staging and production deployments",
+                            ResourceType = "studio.deployments"
+                        },
+                        new
+                        {
+                            Code = "studio.deployments.create",
+                            Action = "create",
+                            Description = "create · Staging and production deployments",
+                            ResourceType = "studio.deployments"
+                        },
+                        new
+                        {
+                            Code = "studio.deployments.update",
+                            Action = "update",
+                            Description = "update · Staging and production deployments",
+                            ResourceType = "studio.deployments"
+                        },
+                        new
+                        {
+                            Code = "studio.deployments.delete",
+                            Action = "delete",
+                            Description = "delete · Staging and production deployments",
+                            ResourceType = "studio.deployments"
+                        },
+                        new
+                        {
+                            Code = "studio.deployments.execute",
+                            Action = "execute",
+                            Description = "execute · Staging and production deployments",
+                            ResourceType = "studio.deployments"
+                        },
+                        new
+                        {
+                            Code = "studio.production-approvals.read",
+                            Action = "read",
+                            Description = "read · Production promotion approvals",
+                            ResourceType = "studio.production-approvals"
+                        },
+                        new
+                        {
+                            Code = "studio.production-approvals.create",
+                            Action = "create",
+                            Description = "create · Production promotion approvals",
+                            ResourceType = "studio.production-approvals"
+                        },
+                        new
+                        {
+                            Code = "studio.production-approvals.update",
+                            Action = "update",
+                            Description = "update · Production promotion approvals",
+                            ResourceType = "studio.production-approvals"
+                        },
+                        new
+                        {
+                            Code = "studio.production-approvals.delete",
+                            Action = "delete",
+                            Description = "delete · Production promotion approvals",
+                            ResourceType = "studio.production-approvals"
+                        },
+                        new
+                        {
+                            Code = "studio.production-approvals.execute",
+                            Action = "execute",
+                            Description = "execute · Production promotion approvals",
+                            ResourceType = "studio.production-approvals"
+                        },
+                        new
+                        {
+                            Code = "studio.ai-analysis.read",
+                            Action = "read",
+                            Description = "read · AI source and test analysis",
+                            ResourceType = "studio.ai-analysis"
+                        },
+                        new
+                        {
+                            Code = "studio.ai-analysis.create",
+                            Action = "create",
+                            Description = "create · AI source and test analysis",
+                            ResourceType = "studio.ai-analysis"
+                        },
+                        new
+                        {
+                            Code = "studio.ai-analysis.update",
+                            Action = "update",
+                            Description = "update · AI source and test analysis",
+                            ResourceType = "studio.ai-analysis"
+                        },
+                        new
+                        {
+                            Code = "studio.ai-analysis.delete",
+                            Action = "delete",
+                            Description = "delete · AI source and test analysis",
+                            ResourceType = "studio.ai-analysis"
+                        },
+                        new
+                        {
+                            Code = "studio.ai-analysis.execute",
+                            Action = "execute",
+                            Description = "execute · AI source and test analysis",
+                            ResourceType = "studio.ai-analysis"
+                        },
+                        new
+                        {
+                            Code = "studio.ai-plans.read",
+                            Action = "read",
+                            Description = "read · AI test and architecture plans",
+                            ResourceType = "studio.ai-plans"
+                        },
+                        new
+                        {
+                            Code = "studio.ai-plans.create",
+                            Action = "create",
+                            Description = "create · AI test and architecture plans",
+                            ResourceType = "studio.ai-plans"
+                        },
+                        new
+                        {
+                            Code = "studio.ai-plans.update",
+                            Action = "update",
+                            Description = "update · AI test and architecture plans",
+                            ResourceType = "studio.ai-plans"
+                        },
+                        new
+                        {
+                            Code = "studio.ai-plans.delete",
+                            Action = "delete",
+                            Description = "delete · AI test and architecture plans",
+                            ResourceType = "studio.ai-plans"
+                        },
+                        new
+                        {
+                            Code = "studio.ai-plans.execute",
+                            Action = "execute",
+                            Description = "execute · AI test and architecture plans",
+                            ResourceType = "studio.ai-plans"
+                        },
+                        new
+                        {
+                            Code = "studio.conversations.read",
+                            Action = "read",
+                            Description = "read · Studio conversations",
+                            ResourceType = "studio.conversations"
+                        },
+                        new
+                        {
+                            Code = "studio.conversations.create",
+                            Action = "create",
+                            Description = "create · Studio conversations",
+                            ResourceType = "studio.conversations"
+                        },
+                        new
+                        {
+                            Code = "studio.conversations.update",
+                            Action = "update",
+                            Description = "update · Studio conversations",
+                            ResourceType = "studio.conversations"
+                        },
+                        new
+                        {
+                            Code = "studio.conversations.delete",
+                            Action = "delete",
+                            Description = "delete · Studio conversations",
+                            ResourceType = "studio.conversations"
+                        },
+                        new
+                        {
+                            Code = "studio.conversations.execute",
+                            Action = "execute",
+                            Description = "execute · Studio conversations",
+                            ResourceType = "studio.conversations"
+                        },
+                        new
+                        {
+                            Code = "studio.code-suggestions.read",
+                            Action = "read",
+                            Description = "read · AI code suggestions and changes",
+                            ResourceType = "studio.code-suggestions"
+                        },
+                        new
+                        {
+                            Code = "studio.code-suggestions.create",
+                            Action = "create",
+                            Description = "create · AI code suggestions and changes",
+                            ResourceType = "studio.code-suggestions"
+                        },
+                        new
+                        {
+                            Code = "studio.code-suggestions.update",
+                            Action = "update",
+                            Description = "update · AI code suggestions and changes",
+                            ResourceType = "studio.code-suggestions"
+                        },
+                        new
+                        {
+                            Code = "studio.code-suggestions.delete",
+                            Action = "delete",
+                            Description = "delete · AI code suggestions and changes",
+                            ResourceType = "studio.code-suggestions"
+                        },
+                        new
+                        {
+                            Code = "studio.code-suggestions.execute",
+                            Action = "execute",
+                            Description = "execute · AI code suggestions and changes",
+                            ResourceType = "studio.code-suggestions"
+                        });
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseInvoice", b =>
@@ -1695,6 +3654,183 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("PurchaseOrders");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseOrderCustomFieldDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("PurchaseOrderCustomFieldDefinitions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseOrderCustomFieldDefinitionRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangeKind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "DefinitionId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PurchaseOrderCustomFieldDefinitionRevisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseOrderCustomFieldValue", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PurchaseOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("TenantId", "PurchaseOrderId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.ToTable("PurchaseOrderCustomFieldValues");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseOrderCustomFieldValueRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PreviousValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("PurchaseOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "PurchaseOrderId", "DefinitionId", "CreatedAt");
+
+                    b.ToTable("PurchaseOrderCustomFieldValueRevisions");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseOrderLine", b =>
                 {
                     b.Property<Guid>("TenantId")
@@ -1804,8 +3940,6 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasAlternateKey("TenantId", "Id");
-
                     b.HasIndex("TenantId", "Code")
                         .IsUnique();
 
@@ -1819,11 +3953,191 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("PurchaseReceipts");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseReceiptCustomFieldDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("PurchaseReceiptCustomFieldDefinitions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseReceiptCustomFieldDefinitionRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangeKind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "DefinitionId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PurchaseReceiptCustomFieldDefinitionRevisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseReceiptCustomFieldValue", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("TenantId", "ReceiptId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.ToTable("PurchaseReceiptCustomFieldValues");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseReceiptCustomFieldValueRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PreviousValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("ReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "ReceiptId", "DefinitionId", "CreatedAt");
+
+                    b.ToTable("PurchaseReceiptCustomFieldValueRevisions");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseReceiptLine", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("EnteredQuantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("EnteredUnitCode")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("OrderLineNumber")
                         .HasColumnType("int");
@@ -2065,6 +4379,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.HasKey("TenantId", "PurchaseRequestId", "DefinitionId");
 
+                    b.HasIndex("PurchaseRequestId");
+
                     b.HasIndex("TenantId", "DefinitionId");
 
                     b.ToTable("PurchaseRequestCustomFieldValues");
@@ -2216,14 +4532,189 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasAlternateKey("TenantId", "Id");
-
                     b.HasIndex("TenantId", "SupplierId", "Code")
                         .IsUnique();
 
                     b.HasIndex("TenantId", "PurchaseRequestId", "Status", "CreatedAt");
 
                     b.ToTable("PurchaseSupplierQuotes");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuoteCustomFieldDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("PurchaseSupplierQuoteCustomFieldDefinitions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuoteCustomFieldDefinitionRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangeKind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "DefinitionId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PurchaseSupplierQuoteCustomFieldDefinitionRevisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuoteCustomFieldValue", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("QuoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("TenantId", "QuoteId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.ToTable("PurchaseSupplierQuoteCustomFieldValues");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuoteCustomFieldValueRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PreviousValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("QuoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "QuoteId", "DefinitionId", "CreatedAt");
+
+                    b.ToTable("PurchaseSupplierQuoteCustomFieldValueRevisions");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuoteLine", b =>
@@ -2468,6 +4959,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<Guid>("DeliveryId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("EnteredQuantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("EnteredUnitCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2588,6 +5085,183 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("TenantId", "InvoiceDate", "CreatedAt");
 
                     b.ToTable("SalesInvoices");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesInvoiceCustomFieldDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("SalesInvoiceCustomFieldDefinitions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesInvoiceCustomFieldDefinitionRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangeKind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "DefinitionId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("SalesInvoiceCustomFieldDefinitionRevisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesInvoiceCustomFieldValue", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("TenantId", "InvoiceId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.ToTable("SalesInvoiceCustomFieldValues");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesInvoiceCustomFieldValueRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PreviousValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "InvoiceId", "DefinitionId", "CreatedAt");
+
+                    b.ToTable("SalesInvoiceCustomFieldValueRevisions");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.SalesInvoiceLine", b =>
@@ -2741,6 +5415,183 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("TenantId", "OrderDate", "CreatedAt");
 
                     b.ToTable("SalesOrders");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesOrderCustomFieldDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("SalesOrderCustomFieldDefinitions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesOrderCustomFieldDefinitionRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangeKind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "DefinitionId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("SalesOrderCustomFieldDefinitionRevisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesOrderCustomFieldValue", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("TenantId", "OrderId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.ToTable("SalesOrderCustomFieldValues");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesOrderCustomFieldValueRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PreviousValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "OrderId", "DefinitionId", "CreatedAt");
+
+                    b.ToTable("SalesOrderCustomFieldValueRevisions");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.SalesOrderLine", b =>
@@ -2949,6 +5800,183 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesQuoteCustomFieldDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("SalesQuoteCustomFieldDefinitions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesQuoteCustomFieldDefinitionRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangeKind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "DefinitionId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("SalesQuoteCustomFieldDefinitionRevisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesQuoteCustomFieldValue", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("QuoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("TenantId", "QuoteId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.ToTable("SalesQuoteCustomFieldValues");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesQuoteCustomFieldValueRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PreviousValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("QuoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "QuoteId", "DefinitionId", "CreatedAt");
+
+                    b.ToTable("SalesQuoteCustomFieldValueRevisions");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.SalesQuoteLine", b =>
                 {
                     b.Property<Guid>("TenantId")
@@ -3109,6 +6137,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
+                    b.Property<decimal?>("EnteredQuantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("EnteredUnitCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<decimal>("LineSubtotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -3223,6 +6257,13 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TrackingMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasDefaultValue("None");
 
                     b.Property<string>("UnitCode")
                         .IsRequired()
@@ -3421,6 +6462,46 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("TenantId", "StockItemId", "DefinitionId", "CreatedAt");
 
                     b.ToTable("StockItemCustomFieldValueRevisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StockItemUnitConversion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("FactorToBase")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("decimal(18,8)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("StockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UnitCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "StockItemId", "UnitCode")
+                        .IsUnique();
+
+                    b.ToTable("StockItemUnitConversions", t =>
+                        {
+                            t.HasCheckConstraint("CK_StockItemUnitConversions_FactorPositive", "[FactorToBase] > 0");
+                        });
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.StudioConversation", b =>
@@ -3920,6 +7001,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
+                    b.Property<decimal?>("EnteredQuantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("EnteredUnitCode")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<decimal>("LineSubtotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -3997,6 +7084,14 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTimeOffset?>("AuditLastPurgeAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("AuditRetentionDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(365);
+
                     b.Property<string>("BaseCurrencyCode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -4023,7 +7118,44 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("Tenants");
+                    b.ToTable("Tenants", t =>
+                        {
+                            t.HasCheckConstraint("CK_Tenants_AuditRetentionDays", "[AuditRetentionDays] >= 30 AND [AuditRetentionDays] <= 3650");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantDatabaseCatalogEntry", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DatabaseName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTimeOffset?>("ReadyAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("State")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("TenantId");
+
+                    b.HasIndex("DatabaseName")
+                        .IsUnique();
+
+                    b.ToTable("TenantDatabaseCatalog");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.TenantExchangeRate", b =>
@@ -4089,6 +7221,83 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("TenantMemberships");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantPermissionRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AttributeName")
+                        .HasMaxLength(120)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(120)");
+
+                    b.Property<int?>("AttributeOperator")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AttributeValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Effect")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PermissionCode")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(120)");
+
+                    b.Property<string>("ResourceType")
+                        .HasMaxLength(80)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<string>("SubjectRole")
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<int>("SubjectType")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("SubjectUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("PermissionCode");
+
+                    b.HasIndex("TenantId", "CreatedByUserId");
+
+                    b.HasIndex("TenantId", "PermissionCode", "IsActive");
+
+                    b.HasIndex("TenantId", "SubjectRole", "PermissionCode", "IsActive");
+
+                    b.HasIndex("TenantId", "SubjectUserId", "PermissionCode", "IsActive");
+
+                    b.ToTable("TenantPermissionRules", t =>
+                        {
+                            t.HasCheckConstraint("CK_TenantPermissionRules_Attribute", "([AttributeName] IS NULL AND [AttributeOperator] IS NULL AND [AttributeValue] IS NULL) OR ([AttributeName] IS NOT NULL AND [AttributeOperator] IS NOT NULL AND [AttributeValue] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_TenantPermissionRules_Subject", "([SubjectType] = 1 AND [SubjectRole] IS NOT NULL AND [SubjectUserId] IS NULL) OR ([SubjectType] = 2 AND [SubjectRole] IS NULL AND [SubjectUserId] IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.Warehouse", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4123,6 +7332,183 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Warehouses");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.WarehouseCustomFieldDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("WarehouseCustomFieldDefinitions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.WarehouseCustomFieldDefinitionRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangeKind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("MaxLength")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "DefinitionId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("WarehouseCustomFieldDefinitionRevisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.WarehouseCustomFieldValue", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("TenantId", "WarehouseId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.ToTable("WarehouseCustomFieldValues");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.WarehouseCustomFieldValueRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PreviousValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.HasIndex("TenantId", "WarehouseId", "DefinitionId", "CreatedAt");
+
+                    b.ToTable("WarehouseCustomFieldValueRevisions");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.AITestPlanRecord", b =>
@@ -4598,6 +7984,35 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.FxRevaluationVoucher", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.FxRevaluationVoucherLine", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.FxRevaluationVoucher", "Voucher")
+                        .WithMany("Lines")
+                        .HasForeignKey("TenantId", "VoucherId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Voucher");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.GitHubInstallationAuthorizationState", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.DevelopmentProject", null)
@@ -4613,6 +8028,59 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrincipalKey("TenantId", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.InventoryCostAdjustment", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseReceipt", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PurchaseReceiptId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.InventoryCostAdjustment", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReversalOfId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.InventoryCostAdjustmentLine", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.InventoryCostAdjustment", "Adjustment")
+                        .WithMany("Lines")
+                        .HasForeignKey("TenantId", "AdjustmentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseReceiptLine", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PurchaseReceiptLineId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.StockItem", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StockItemId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WarehouseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Adjustment");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.InventoryTransaction", b =>
@@ -4681,6 +8149,25 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("SupplierReturnLine");
 
                     b.Navigation("Warehouse");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.InventoryTransactionTrace", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.InventoryTransaction", "InventoryTransaction")
+                        .WithMany("Tracking")
+                        .HasForeignKey("TenantId", "InventoryTransactionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.StockItem", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StockItemId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("InventoryTransaction");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.InventoryTransfer", b =>
@@ -4795,6 +8282,75 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseOrderCustomFieldDefinition", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseOrderCustomFieldDefinitionRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseOrderCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseOrderCustomFieldValue", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.PurchaseOrderCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseOrder", "PurchaseOrder")
+                        .WithMany("CustomFieldValues")
+                        .HasForeignKey("TenantId", "PurchaseOrderId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PurchaseOrder");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseOrderCustomFieldValueRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseOrderCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseOrder", "PurchaseOrder")
+                        .WithMany("CustomFieldValueRevisions")
+                        .HasForeignKey("TenantId", "PurchaseOrderId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PurchaseOrder");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseOrderLine", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.PurchaseOrder", "PurchaseOrder")
@@ -4843,6 +8399,75 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Tenant");
 
                     b.Navigation("Warehouse");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseReceiptCustomFieldDefinition", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseReceiptCustomFieldDefinitionRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseReceiptCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseReceiptCustomFieldValue", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.PurchaseReceiptCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseReceipt", "Receipt")
+                        .WithMany("CustomFieldValues")
+                        .HasForeignKey("TenantId", "ReceiptId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Receipt");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseReceiptCustomFieldValueRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseReceiptCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseReceipt", "Receipt")
+                        .WithMany("CustomFieldValueRevisions")
+                        .HasForeignKey("TenantId", "ReceiptId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Receipt");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseReceiptLine", b =>
@@ -4918,6 +8543,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseRequestCustomFieldValue", b =>
                 {
+                    b.HasOne("AIERP.Platform.Domain.PurchaseRequest", null)
+                        .WithMany("CustomFieldValues")
+                        .HasForeignKey("PurchaseRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("AIERP.Platform.Domain.PurchaseRequestCustomFieldDefinition", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "DefinitionId")
@@ -4926,7 +8557,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired();
 
                     b.HasOne("AIERP.Platform.Domain.PurchaseRequest", null)
-                        .WithMany("CustomFieldValues")
+                        .WithMany()
                         .HasForeignKey("TenantId", "PurchaseRequestId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -4996,6 +8627,75 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("PurchaseRequest");
 
                     b.Navigation("Supplier");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuoteCustomFieldDefinition", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuoteCustomFieldDefinitionRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseSupplierQuoteCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuoteCustomFieldValue", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.PurchaseSupplierQuoteCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseSupplierQuote", "Quote")
+                        .WithMany("CustomFieldValues")
+                        .HasForeignKey("TenantId", "QuoteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Quote");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuoteCustomFieldValueRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseSupplierQuoteCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseSupplierQuote", "Quote")
+                        .WithMany("CustomFieldValueRevisions")
+                        .HasForeignKey("TenantId", "QuoteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Quote");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuoteLine", b =>
@@ -5168,6 +8868,71 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesInvoiceCustomFieldDefinition", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesInvoiceCustomFieldDefinitionRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesInvoiceCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesInvoiceCustomFieldValue", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.SalesInvoiceCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesInvoice", null)
+                        .WithMany("CustomFieldValues")
+                        .HasForeignKey("TenantId", "InvoiceId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesInvoiceCustomFieldValueRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesInvoiceCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesInvoice", null)
+                        .WithMany("CustomFieldValueRevisions")
+                        .HasForeignKey("TenantId", "InvoiceId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.SalesInvoiceLine", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.SalesDeliveryLine", "DeliveryLine")
@@ -5223,6 +8988,71 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Quote");
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesOrderCustomFieldDefinition", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesOrderCustomFieldDefinitionRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesOrderCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesOrderCustomFieldValue", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.SalesOrderCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesOrder", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "OrderId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesOrderCustomFieldValueRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesOrderCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesOrder", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "OrderId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.SalesOrderLine", b =>
@@ -5301,6 +9131,71 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Customer");
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesQuoteCustomFieldDefinition", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesQuoteCustomFieldDefinitionRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesQuoteCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesQuoteCustomFieldValue", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.SalesQuoteCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesQuote", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "QuoteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesQuoteCustomFieldValueRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesQuoteCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesQuote", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "QuoteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.SalesQuoteLine", b =>
@@ -5460,6 +9355,16 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.HasOne("AIERP.Platform.Domain.StockItem", null)
                         .WithMany()
+                        .HasForeignKey("TenantId", "StockItemId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StockItemUnitConversion", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.StockItem", null)
+                        .WithMany("UnitConversions")
                         .HasForeignKey("TenantId", "StockItemId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -5717,6 +9622,17 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("SupplierReturn");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantDatabaseCatalogEntry", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantExchangeRate", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
@@ -5747,6 +9663,37 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantPermissionRule", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.PermissionDefinition", "Permission")
+                        .WithMany()
+                        .HasForeignKey("PermissionCode")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.TenantMembership", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CreatedByUserId")
+                        .HasPrincipalKey("TenantId", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.TenantMembership", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SubjectUserId")
+                        .HasPrincipalKey("TenantId", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.Warehouse", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
@@ -5756,6 +9703,71 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.WarehouseCustomFieldDefinition", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.WarehouseCustomFieldDefinitionRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.WarehouseCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.WarehouseCustomFieldValue", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.WarehouseCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WarehouseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.WarehouseCustomFieldValueRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.WarehouseCustomFieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DefinitionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WarehouseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.AppUser", b =>
@@ -5818,9 +9830,21 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Transactions");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.FxRevaluationVoucher", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.InventoryCostAdjustment", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.InventoryTransaction", b =>
                 {
                     b.Navigation("ReversalEntry");
+
+                    b.Navigation("Tracking");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseInvoice", b =>
@@ -5836,6 +9860,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseOrder", b =>
                 {
+                    b.Navigation("CustomFieldValueRevisions");
+
+                    b.Navigation("CustomFieldValues");
+
                     b.Navigation("Lines");
 
                     b.Navigation("Receipts");
@@ -5843,6 +9871,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseReceipt", b =>
                 {
+                    b.Navigation("CustomFieldValueRevisions");
+
+                    b.Navigation("CustomFieldValues");
+
                     b.Navigation("Invoices");
 
                     b.Navigation("Lines");
@@ -5866,6 +9898,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuote", b =>
                 {
+                    b.Navigation("CustomFieldValueRevisions");
+
+                    b.Navigation("CustomFieldValues");
+
                     b.Navigation("Lines");
 
                     b.Navigation("PurchaseOrder");
@@ -5887,6 +9923,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
             modelBuilder.Entity("AIERP.Platform.Domain.SalesInvoice", b =>
                 {
+                    b.Navigation("CustomFieldValueRevisions");
+
+                    b.Navigation("CustomFieldValues");
+
                     b.Navigation("LedgerEntries");
 
                     b.Navigation("Lines");
@@ -5920,6 +9960,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
             modelBuilder.Entity("AIERP.Platform.Domain.SalesReturnLine", b =>
                 {
                     b.Navigation("InventoryTransactions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StockItem", b =>
+                {
+                    b.Navigation("UnitConversions");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.SupplierPayment", b =>

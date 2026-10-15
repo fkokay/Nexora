@@ -25,7 +25,7 @@ public sealed class GitHubAppInstallationTokenProviderTests
             Assert.True(issuedAt > 0);
             Assert.InRange(expiresAt - issuedAt, 1, 9 * 60);
             using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
-            Assert.Equal("Acme/Inventory", json.RootElement.GetProperty("repositories")[0].GetString());
+            Assert.Equal("Inventory", json.RootElement.GetProperty("repositories")[0].GetString());
             var permissions = json.RootElement.GetProperty("permissions");
             Assert.Equal("write", permissions.GetProperty("contents").GetString());
             Assert.Equal("write", permissions.GetProperty("pull_requests").GetString());

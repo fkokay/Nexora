@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\AIERP.Platform.Domain\AIERP.Platform.Domain.csproj" />
     <ProjectReference Include="..\AIERP.Platform.Application\AIERP.Platform.Application.csproj" />
   </ItemGroup>

@@ -6,6 +6,7 @@ using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.SqlClient;
@@ -17,7 +18,24 @@ var jwtKey = builder.Configuration["Authentication:SigningKey"];
 if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32)
     throw new InvalidOperationException("Authentication:SigningKey must be configured with at least 32 bytes.");
 var connectionString = builder.Configuration.GetConnectionString("Platform") ?? throw new InvalidOperationException("ConnectionStrings:Platform is required.");
+var tenantConnectionString = builder.Configuration.GetConnectionString("Tenant") ?? connectionString;
 builder.Services.AddDbContext<PlatformDbContext>(o => o.UseSqlServer(connectionString));
+builder.Services.AddHttpContextAccessor();
+var separatedDatabases = builder.Configuration.GetValue<bool>("Database:SeparationEnabled");
+builder.Services.AddDbContext<TenantDbContext>((services, options) =>
+{
+    var http = services.GetRequiredService<IHttpContextAccessor>().HttpContext;
+    options.UseSqlServer(TenantDatabaseRouting.Resolve(http, separatedDatabases ? tenantConnectionString : connectionString, separatedDatabases));
+});
+builder.Services.AddScoped<IAuditExecutionContext>(services =>
+{
+    var user = services.GetRequiredService<IHttpContextAccessor>().HttpContext?.User;
+    return new AuditExecutionContext(
+        Guid.TryParse(user?.FindFirstValue("tenant_id"), out var tenantId) ? tenantId : null,
+        Guid.TryParse(user?.FindFirstValue(JwtRegisteredClaimNames.Sub), out var userId) ? userId : null,
+        "erp-api");
+});
+builder.Services.AddHostedService<AuditRetentionWorker>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
 {
     o.MapInboundClaims = false;
@@ -29,7 +47,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     ValidateLifetime = true, ClockSkew = TimeSpan.FromSeconds(30), NameClaimType = "name", RoleClaimType = "role"
     };
 });
-builder.Services.AddAuthorization();
+builder.Services.AddScoped<IPlatformPermissionAuthorizer, PlatformPermissionAuthorizer>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddAuthorization(options => options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser().AddRequirements(new PermissionRequirement()).Build());
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddRateLimiter(o => o.AddFixedWindowLimiter("login", x => { x.PermitLimit = 10; x.Window = TimeSpan.FromMinutes(1); x.QueueLimit = 0; }));
 var frontendOrigins = builder.Configuration.GetSection("Frontend:Origins").Get<string[]>() ?? [builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173"];
@@ -43,10 +64,41 @@ if (args.Contains("--migrate-only", StringComparer.Ordinal))
     await BaselineEnsureCreatedDatabaseAsync(db);
     await db.Database.MigrateAsync();
     await SeedBootstrapUserAsync(db, builder.Configuration);
+    if (!string.IsNullOrWhiteSpace(builder.Configuration["Database:PlatformRuntimeLogin"]))
+        await TenantDatabaseProvisioner.GrantDatabaseRuntimeAccessAsync(connectionString, "AIERPPlatform", builder.Configuration["Database:PlatformRuntimeLogin"]!, cancellationToken: CancellationToken.None);
+    if (separatedDatabases) await ProvisionAllTenantDatabasesAsync(connectionString, builder.Configuration["Database:DataRuntimeLogin"] ?? "aierp_data_runtime");
+    return;
+}
+var provisionArgument = args.FirstOrDefault(x => x.StartsWith("--provision-tenant=", StringComparison.Ordinal));
+if (provisionArgument is not null)
+{
+    if (!Guid.TryParse(provisionArgument["--provision-tenant=".Length..], out var provisionTenantId))
+        throw new ArgumentException("Use --provision-tenant=<tenant-guid>.");
+    if (!separatedDatabases) throw new InvalidOperationException("Tenant provisioning requires Database:SeparationEnabled=true.");
+    await new TenantDatabaseProvisioner(connectionString).ProvisionAsync(provisionTenantId);
     return;
 }
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
-app.UseCors(); app.UseRateLimiter(); app.UseAuthentication(); app.UseAuthorization();
+app.UseCors(); app.UseRateLimiter(); app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    await TenantDatabaseRouting.ResolveRequestAsync(context, app.Services, tenantConnectionString, separatedDatabases);
+    if (context.Items.ContainsKey(TenantDatabaseRouting.LegacyModeUnavailableKey))
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(new { error = "database_mode_mismatch", message = "Separated databases are provisioned; enable Database:SeparationEnabled before serving tenant data." });
+        return;
+    }
+    if (context.Items.ContainsKey("AIERP.TenantDatabaseUnavailable"))
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(new { error = "tenant_database_not_ready", message = "Tenant database provisioning has not completed." });
+        return;
+    }
+    await next();
+});
+app.UseAuthorization();
+app.MapAccessControlEndpoints();
 
 if (app.Environment.IsDevelopment() && builder.Configuration.GetValue("Database:ApplyMigrationsOnStartup", true))
 {
@@ -55,6 +107,7 @@ if (app.Environment.IsDevelopment() && builder.Configuration.GetValue("Database:
     await BaselineEnsureCreatedDatabaseAsync(db);
     await db.Database.MigrateAsync();
     await SeedBootstrapUserAsync(db, builder.Configuration);
+    if (separatedDatabases) await ProvisionAllTenantDatabasesAsync(connectionString, builder.Configuration["Database:DataRuntimeLogin"] ?? "aierp_data_runtime");
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "platform-api" }));
@@ -64,7 +117,12 @@ auth.MapPost("/login", async (LoginRequest request, PlatformDbContext db, IConfi
     if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password)) return Results.BadRequest(new { error = "Email and password are required." });
     var email = request.Email.Trim().ToLowerInvariant();
     var user = await db.Users.Include(x => x.Memberships).ThenInclude(x => x.Tenant).SingleOrDefaultAsync(x => x.Email == email && x.IsActive);
-    if (user is null || !PasswordHashing.Verify(request.Password, user.PasswordHash)) return Results.Unauthorized();
+    if (user is null || !PasswordHashing.Verify(request.Password, user.PasswordHash))
+    {
+        db.AuditEvents.Add(new AuditEvent { Action = "auth.login.failed", Resource = "credentials-rejected" });
+        await db.SaveChangesAsync();
+        return Results.Unauthorized();
+    }
     var claims = new[] { new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()), new Claim("name", user.DisplayName),
         new Claim("email", user.Email), new Claim("session", "tenant-selection") };
     var token = TokenIssuer.Issue(claims, config);
@@ -78,7 +136,12 @@ auth.MapPost("/select-tenant", async (SelectTenantRequest request, ClaimsPrincip
 {
     if (!Guid.TryParse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub), out var userId)) return Results.Unauthorized();
     var membership = await db.TenantMemberships.Include(m => m.Tenant).SingleOrDefaultAsync(m => m.UserId == userId && m.TenantId == request.TenantId && m.Tenant.IsActive);
-    if (membership is null) return Results.Forbid();
+    if (membership is null)
+    {
+        db.AuditEvents.Add(new AuditEvent { UserId = userId, Action = "auth.tenant-selection.failed", Resource = "membership-rejected" });
+        await db.SaveChangesAsync();
+        return Results.Forbid();
+    }
     var claims = new[] { new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()), new Claim("name", principal.Identity?.Name ?? ""),
         new Claim("email", principal.FindFirstValue("email") ?? ""), new Claim("tenant_id", membership.TenantId.ToString()), new Claim("role", membership.Role) };
     var token = TokenIssuer.Issue(claims, config);
@@ -110,24 +173,56 @@ app.MapGet("/api/audit-events", async (ClaimsPrincipal principal, PlatformDbCont
     if (to is { } end) query = query.Where(x => x.OccurredAt <= new DateTimeOffset(end.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc)));
     if (q is not null) query = query.Where(x => x.Action.Contains(q) || x.Resource.Contains(q));
     var total = await query.CountAsync();
-    var items = await query.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
+    var rows = await query.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
         .Skip((page - 1) * pageSize).Take(pageSize)
-        .Select(x => new AuditEventView(x.Id, x.Action, x.Resource, x.UserId,
-            db.Users.Where(user => user.Id == x.UserId).Select(user => user.DisplayName).FirstOrDefault(),
-            db.Users.Where(user => user.Id == x.UserId).Select(user => user.Email).FirstOrDefault(), x.OccurredAt)).ToListAsync();
+        .Select(x => new
+        {
+            x.Id, x.Action, x.Resource, x.UserId, x.OccurredAt,
+            DisplayName = db.Users.Where(user => user.Id == x.UserId).Select(user => user.DisplayName).FirstOrDefault()
+        }).ToListAsync();
+    var items = rows.Select(x => new AuditEventView(x.Id, x.Action, AuditResourceSanitizer.Sanitize(x.Resource), x.UserId,
+        x.DisplayName, x.OccurredAt)).ToList();
     return Results.Ok(new AuditEventPage(items, page, pageSize, total));
 }).RequireAuthorization();
 
+var auditRetention = app.MapGroup("/api/audit-retention").RequireAuthorization();
+auditRetention.MapGet("/", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var settings = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId)
+        .Select(x => new AuditRetentionPolicyView(x.AuditRetentionDays, 30, 3650, x.AuditLastPurgeAt)).SingleOrDefaultAsync();
+    return settings is null ? Results.NotFound() : Results.Ok(settings);
+});
+auditRetention.MapPut("/", async (AuditRetentionPolicyWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (request.RetentionDays is < 30 or > 3650)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["retentionDays"] = ["Saklama süresi 30 ile 3650 gün arasında olmalıdır."] });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var tenant = await db.Tenants.FromSqlInterpolated($"SELECT * FROM [dbo].[Tenants] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {tenantId}").SingleOrDefaultAsync();
+    if (tenant is null) return Results.NotFound();
+    var previous = tenant.AuditRetentionDays;
+    if (previous != request.RetentionDays)
+    {
+        tenant.AuditRetentionDays = request.RetentionDays;
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal),
+            Action = "audit.retention.updated", Resource = $"days={previous}->{request.RetentionDays}" });
+        await db.SaveChangesAsync();
+    }
+    await transaction.CommitAsync();
+    return Results.Ok(new AuditRetentionPolicyView(tenant.AuditRetentionDays, 30, 3650, tenant.AuditLastPurgeAt));
+});
+
 var customers = app.MapGroup("/api/customers").WithTags("Cari Yönetimi").RequireAuthorization();
 var customerGroups = app.MapGroup("/api/customer-groups").WithTags("Cari Grupları").RequireAuthorization();
-customers.MapGet("/custom-fields", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var fields = await db.CustomerCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
         .OrderBy(x => x.Label).Select(x => new CustomerCustomFieldDefinitionView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, x.IsActive)).ToListAsync();
     return Results.Ok(fields);
 });
-customers.MapPost("/custom-fields", async (CustomerCustomFieldCreateRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapPost("/custom-fields", async (CustomerCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -150,7 +245,7 @@ customers.MapPost("/custom-fields", async (CustomerCustomFieldCreateRequest body
     await transaction.CommitAsync();
     return Results.Created($"/api/customers/custom-fields/{definition.Id}", new CustomerCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
 });
-customers.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, CustomerCustomFieldUpdateRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, CustomerCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -175,7 +270,7 @@ customers.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId,
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new CustomerCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
 });
-customers.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.CustomerCustomFieldDefinitions.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
@@ -184,7 +279,7 @@ customers.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid defin
         .Select(x => new CustomerCustomFieldDefinitionRevisionView(x.Id, x.DefinitionId, x.Version, x.Code, x.Label, x.DataType, x.MaxLength, x.IsRequired, x.IsActive, x.ChangeKind, x.ChangedByUserId, x.CreatedAt)).ToListAsync();
     return Results.Ok(history);
 });
-customers.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid definitionId, CustomerCustomFieldRestoreRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid definitionId, CustomerCustomFieldRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -207,7 +302,7 @@ customers.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid defi
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new CustomerCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
 });
-customers.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -222,7 +317,7 @@ customers.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definition
     await transaction.CommitAsync();
     return Results.NoContent();
 });
-customers.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.CustomerAccounts.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
@@ -232,7 +327,7 @@ customers.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal pri
         values.TryGetValue(x.Id, out var value) && value.DefinitionVersion > 0 ? value.DefinitionVersion : x.Version, x.IsRequired,
         values.GetValueOrDefault(x.Id)?.Value ?? "")).ToArray());
 });
-customers.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async (Guid id, Guid definitionId, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async (Guid id, Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.CustomerAccounts.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
@@ -243,7 +338,7 @@ customers.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async (
         .Select(x => new CustomerCustomFieldValueRevisionView(x.Id, x.DefinitionId, definition.Code, definition.Label, x.PreviousValue, x.NewValue, x.DefinitionVersion, x.ChangedByUserId, x.CreatedAt)).ToListAsync();
     return Results.Ok(history);
 });
-customers.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisionId:guid}/restore", async (Guid id, Guid definitionId, Guid revisionId, CustomerCustomFieldValueRestoreRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisionId:guid}/restore", async (Guid id, Guid definitionId, Guid revisionId, CustomerCustomFieldValueRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!body.Confirmation) return Results.BadRequest(new { error = "Değer geri yükleme için açık onay gerekir." });
@@ -273,7 +368,7 @@ customers.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisio
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new CustomerCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, targetValue));
 });
-customers.MapPut("/{id:guid}/custom-fields", async (Guid id, CustomerCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapPut("/{id:guid}/custom-fields", async (Guid id, CustomerCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (body.Values is null || body.Values.Count > 40) return Results.ValidationProblem(new Dictionary<string, string[]> { ["values"] = ["En fazla 40 özel alan değeri gönderilebilir."] });
@@ -313,14 +408,14 @@ customers.MapPut("/{id:guid}/custom-fields", async (Guid id, CustomerCustomField
     await transaction.CommitAsync();
     return Results.Ok(definitions.Select(x => new CustomerCustomFieldValueView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, normalized.GetValueOrDefault(x.Id).Value ?? "")).ToArray());
 });
-customerGroups.MapGet("/", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+customerGroups.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var items = await db.CustomerGroups.AsNoTracking().Where(x => x.TenantId == tenantId)
         .OrderBy(x => x.Name).Select(x => new CustomerGroupView(x.Id, x.Code, x.Name, x.IsActive)).ToListAsync();
     return Results.Ok(items);
 });
-customerGroups.MapPost("/", async (CustomerGroupWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+customerGroups.MapPost("/", async (CustomerGroupWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var code = request.Code?.Trim().ToUpperInvariant() ?? ""; var name = request.Name?.Trim() ?? "";
@@ -336,7 +431,7 @@ customerGroups.MapPost("/", async (CustomerGroupWriteRequest request, ClaimsPrin
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu grup kodu bu firmada zaten kullanılıyor." }); }
     return Results.Created($"/api/customer-groups/{group.Id}", new CustomerGroupView(group.Id, group.Code, group.Name, group.IsActive));
 });
-customers.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 25) =>
+customers.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -352,7 +447,7 @@ customers.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformDbCon
             x.GroupId, x.Group == null ? null : x.Group.Name, x.CurrencyCode, x.RiskLimit, x.PaymentTermDays)).ToListAsync();
     return Results.Ok(new CustomerPage(items, page, pageSize, total));
 });
-customers.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var customer = await db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
@@ -360,7 +455,7 @@ customers.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Platfo
             x.GroupId, x.Group == null ? null : x.Group.Name, x.CurrencyCode, x.RiskLimit, x.PaymentTermDays)).SingleOrDefaultAsync();
     return customer is null ? Results.NotFound() : Results.Ok(customer);
 });
-customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var validation = CustomerValidation.Validate(request);
@@ -403,7 +498,7 @@ customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal prin
         customer.RowVersion, customer.GroupId, null, customer.CurrencyCode, customer.RiskLimit, customer.PaymentTermDays);
     return Results.Created($"/api/customers/{customer.Id}", view);
 });
-customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var validation = CustomerValidation.Validate(request);
@@ -428,7 +523,7 @@ customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, Cla
     return Results.Ok(new CustomerView(customer.Id, customer.Code, customer.Name, customer.Type, customer.TaxNumber, customer.IsActive, customer.CreatedAt,
         customer.RowVersion, customer.GroupId, null, customer.CurrencyCode, customer.RiskLimit, customer.PaymentTermDays));
 });
-customers.MapGet("/{id:guid}/addresses", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapGet("/{id:guid}/addresses", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
@@ -437,7 +532,7 @@ customers.MapGet("/{id:guid}/addresses", async (Guid id, ClaimsPrincipal princip
         .Select(x => new CustomerAddressView(x.Id, x.Kind, x.Label, x.AddressLine, x.City, x.District, x.PostalCode, x.CountryCode, x.IsDefault, x.IsActive)).ToListAsync();
     return Results.Ok(addresses);
 });
-customers.MapPost("/{id:guid}/addresses", async (Guid id, CustomerAddressWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapPost("/{id:guid}/addresses", async (Guid id, CustomerAddressWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
@@ -457,7 +552,7 @@ customers.MapPost("/{id:guid}/addresses", async (Guid id, CustomerAddressWriteRe
     await db.SaveChangesAsync();
     return Results.Created($"/api/customers/{id}/addresses/{address.Id}", ToAddressView(address));
 });
-customers.MapPut("/{id:guid}/addresses/{addressId:guid}", async (Guid id, Guid addressId, CustomerAddressWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapPut("/{id:guid}/addresses/{addressId:guid}", async (Guid id, Guid addressId, CustomerAddressWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var address = await db.CustomerAddresses.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.CustomerId == id && x.Id == addressId);
@@ -477,7 +572,7 @@ customers.MapPut("/{id:guid}/addresses/{addressId:guid}", async (Guid id, Guid a
     await db.SaveChangesAsync();
     return Results.Ok(ToAddressView(address));
 });
-customers.MapGet("/{id:guid}/balance", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapGet("/{id:guid}/balance", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var customer = await db.CustomerAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
@@ -487,7 +582,7 @@ customers.MapGet("/{id:guid}/balance", async (Guid id, ClaimsPrincipal principal
     var credit = await entries.Where(x => x.Direction == CustomerLedgerDirection.Credit).SumAsync(x => (decimal?)x.Amount) ?? 0m;
     return Results.Ok(CustomerLedgerBalanceCalculator.Calculate(customer.CurrencyCode, debit, credit, customer.RiskLimit));
 });
-customers.MapGet("/{id:guid}/statement", async (Guid id, DateOnly from, DateOnly to, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapGet("/{id:guid}/statement", async (Guid id, DateOnly from, DateOnly to, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (to < from) return Results.ValidationProblem(new Dictionary<string, string[]> { ["to"] = ["Bitiş tarihi başlangıç tarihinden önce olamaz."] });
@@ -514,7 +609,7 @@ customers.MapGet("/{id:guid}/statement", async (Guid id, DateOnly from, DateOnly
     return Results.Ok(new CustomerStatementView(customer.Id, customer.Code, customer.Name, customer.CurrencyCode,
         from, to, openingBalance, debitTotal, creditTotal, runningBalance, items));
 });
-customers.MapGet("/{id:guid}/ledger", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db, DateOnly? from, DateOnly? to, int page = 1, int pageSize = 50) =>
+customers.MapGet("/{id:guid}/ledger", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, DateOnly? from, DateOnly? to, int page = 1, int pageSize = 50) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
@@ -528,7 +623,7 @@ customers.MapGet("/{id:guid}/ledger", async (Guid id, ClaimsPrincipal principal,
             x.ReversalOfId, x.ReversalOfId != null, db.CustomerLedgerEntries.Any(y => y.TenantId == x.TenantId && y.ReversalOfId == x.Id))).ToListAsync();
     return Results.Ok(new CustomerLedgerPage(items, page, pageSize, total));
 });
-customers.MapPost("/{id:guid}/ledger", async (Guid id, CustomerLedgerWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapPost("/{id:guid}/ledger", async (Guid id, CustomerLedgerWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = CustomerLedgerValidation.Validate(request);
@@ -554,7 +649,7 @@ customers.MapPost("/{id:guid}/ledger", async (Guid id, CustomerLedgerWriteReques
     await transaction.CommitAsync();
     return Results.Created($"/api/customers/{id}/ledger/{entry.Id}", new CustomerLedgerView(entry.Id, entry.EntryDate, entry.Direction, entry.Amount, entry.CurrencyCode, entry.Description, null, false, false));
 });
-customers.MapPost("/{id:guid}/ledger/{entryId:guid}/reverse", async (Guid id, Guid entryId, CustomerLedgerReverseRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+customers.MapPost("/{id:guid}/ledger/{entryId:guid}/reverse", async (Guid id, Guid entryId, CustomerLedgerReverseRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = CustomerLedgerValidation.ValidateReversal(request);
@@ -584,7 +679,7 @@ customers.MapPost("/{id:guid}/ledger/{entryId:guid}/reverse", async (Guid id, Gu
 });
 
 var stockItems = app.MapGroup("/api/stock/items").RequireAuthorization();
-stockItems.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 50) =>
+stockItems.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -592,10 +687,10 @@ stockItems.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformDbCo
     if (!string.IsNullOrWhiteSpace(q)) { var term = q.Trim(); query = query.Where(x => x.Code.Contains(term) || x.Name.Contains(term) || (x.Barcode != null && x.Barcode.Contains(term))); }
     var total = await query.CountAsync();
     var items = await query.OrderBy(x => x.Name).ThenBy(x => x.Code).Skip((page - 1) * pageSize).Take(pageSize)
-        .Select(x => new StockItemView(x.Id, x.Code, x.Name, x.Barcode, x.UnitCode, x.Category, x.MinimumStock, x.IsActive, x.CreatedAt, x.RowVersion)).ToListAsync();
+        .Select(x => new StockItemView(x.Id, x.Code, x.Name, x.Barcode, x.UnitCode, x.Category, x.MinimumStock, x.IsActive, x.CreatedAt, x.RowVersion, x.TrackingMode)).ToListAsync();
     return Results.Ok(new StockItemPage(items, page, pageSize, total));
 });
-stockItems.MapPost("/", async (StockItemWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapPost("/", async (StockItemWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = InventoryValidation.Validate(request);
@@ -623,7 +718,7 @@ stockItems.MapPost("/", async (StockItemWriteRequest request, ClaimsPrincipal pr
     if (missingRequired is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"customFields.{missingRequired.Code}"] = [$"'{missingRequired.Label}' alanı zorunludur."] });
     var item = new StockItem { TenantId = tenantId, Code = code, Name = request.Name.Trim(), Barcode = barcode,
         UnitCode = request.UnitCode.Trim().ToUpperInvariant(), Category = string.IsNullOrWhiteSpace(request.Category) ? null : request.Category.Trim(),
-        MinimumStock = request.MinimumStock, IsActive = request.IsActive };
+        MinimumStock = request.MinimumStock, IsActive = request.IsActive, TrackingMode = request.TrackingMode };
     db.StockItems.Add(item);
     foreach (var (definitionId, entry) in normalizedValues)
     {
@@ -634,12 +729,12 @@ stockItems.MapPost("/", async (StockItemWriteRequest request, ClaimsPrincipal pr
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Stok kodu veya barkod başka bir kayıtta kullanılıyor." }); }
     await transaction.CommitAsync();
-    return Results.Created($"/api/stock/items/{item.Id}", new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion));
+    return Results.Created($"/api/stock/items/{item.Id}", new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode));
 });
-stockItems.MapPut("/{id:guid}", async (Guid id, StockItemUpdateRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapPut("/{id:guid}", async (Guid id, StockItemUpdateRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var errors = InventoryValidation.Validate(new StockItemWriteRequest(request.Code, request.Name, request.Barcode, request.UnitCode, request.Category, request.MinimumStock));
+    var errors = InventoryValidation.Validate(new StockItemWriteRequest(request.Code, request.Name, request.Barcode, request.UnitCode, request.Category, request.MinimumStock, TrackingMode: request.TrackingMode ?? InventoryTrackingMode.None));
     if (errors is not null) return Results.ValidationProblem(errors);
     if (request.RowVersion is null || request.RowVersion.Length == 0) return Results.BadRequest(new { error = "RowVersion alanı zorunludur; güncel olmayan düzenlemeler reddedilir." });
     var code = request.Code.Trim().ToUpperInvariant();
@@ -649,17 +744,20 @@ stockItems.MapPut("/{id:guid}", async (Guid id, StockItemUpdateRequest request, 
     if (item is null) return Results.NotFound();
     if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(item.RowVersion, request.RowVersion))
         return Results.Conflict(new { error = "Stok kartı başka bir kullanıcı tarafından güncellendi. Güncel kaydı yeniden açın." });
+    if (request.TrackingMode is { } mode && mode != item.TrackingMode && await db.InventoryTransactions.AnyAsync(x => x.TenantId == tenantId && x.StockItemId == id))
+        return Results.Conflict(new { error = "Hareket geçmişi olan stok kartının lot/seri takip modu değiştirilemez." });
     if (await db.StockItems.AnyAsync(x => x.TenantId == tenantId && x.Id != id && x.Code == code)) return Results.Conflict(new { error = "Bu stok kodu bu firmada zaten kullanılıyor." });
     if (barcode is not null && await db.StockItems.AnyAsync(x => x.TenantId == tenantId && x.Id != id && x.Barcode == barcode)) return Results.Conflict(new { error = "Bu barkod bu firmada zaten kullanılıyor." });
     item.Code = code; item.Name = request.Name.Trim(); item.Barcode = barcode; item.UnitCode = request.UnitCode.Trim().ToUpperInvariant();
     item.Category = string.IsNullOrWhiteSpace(request.Category) ? null : request.Category.Trim(); item.MinimumStock = request.MinimumStock;
+    if (request.TrackingMode is { } trackingMode) item.TrackingMode = trackingMode;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-item.updated", Resource = code });
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Stok kodu veya barkod başka bir kayıtta kullanılıyor." }); }
     await transaction.CommitAsync();
-    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion));
+    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode));
 });
-stockItems.MapPost("/{id:guid}/deactivate", async (Guid id, StockItemStateChangeRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapPost("/{id:guid}/deactivate", async (Guid id, StockItemStateChangeRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!request.Confirmation) return Results.BadRequest(new { error = "Stok kartını devre dışı bırakmak için açık onay gerekir." });
@@ -680,9 +778,9 @@ stockItems.MapPost("/{id:guid}/deactivate", async (Guid id, StockItemStateChange
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-item.deactivated", Resource = item.Code });
     await db.SaveChangesAsync();
     await transaction.CommitAsync();
-    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion));
+    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode));
 });
-stockItems.MapPost("/{id:guid}/activate", async (Guid id, StockItemStateChangeRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapPost("/{id:guid}/activate", async (Guid id, StockItemStateChangeRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!request.Confirmation) return Results.BadRequest(new { error = "Stok kartını etkinleştirmek için açık onay gerekir." });
@@ -696,16 +794,16 @@ stockItems.MapPost("/{id:guid}/activate", async (Guid id, StockItemStateChangeRe
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-item.activated", Resource = item.Code });
     await db.SaveChangesAsync();
     await transaction.CommitAsync();
-    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion));
+    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode));
 });
-stockItems.MapGet("/custom-fields", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var fields = await db.StockItemCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
         .OrderBy(x => x.Label).Select(x => new StockCustomFieldDefinitionView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, x.IsActive)).ToListAsync();
     return Results.Ok(fields);
 });
-stockItems.MapPost("/custom-fields", async (StockCustomFieldCreateRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapPost("/custom-fields", async (StockCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -731,7 +829,7 @@ stockItems.MapPost("/custom-fields", async (StockCustomFieldCreateRequest body, 
     await transaction.CommitAsync();
     return Results.Created($"/api/stock/items/custom-fields/{definition.Id}", new StockCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
 });
-stockItems.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -747,7 +845,7 @@ stockItems.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitio
     await transaction.CommitAsync();
     return Results.NoContent();
 });
-stockItems.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, StockCustomFieldUpdateRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, StockCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -778,7 +876,7 @@ stockItems.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId
     await transaction.CommitAsync();
     return Results.Ok(new StockCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
 });
-stockItems.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.StockItemCustomFieldDefinitions.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
@@ -787,7 +885,7 @@ stockItems.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid defi
         .Select(x => new StockCustomFieldDefinitionRevisionView(x.Id, x.DefinitionId, x.Version, x.Code, x.Label, x.DataType, x.MaxLength, x.IsRequired, x.IsActive, x.ChangeKind, x.ChangedByUserId, x.CreatedAt)).ToListAsync();
     return Results.Ok(history);
 });
-stockItems.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid definitionId, StockCustomFieldRestoreRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid definitionId, StockCustomFieldRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -815,7 +913,7 @@ stockItems.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid def
     await transaction.CommitAsync();
     return Results.Ok(new StockCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
 });
-stockItems.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var item = await db.StockItems.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == id);
@@ -824,7 +922,7 @@ stockItems.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal pr
     var values = await db.StockItemCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == id).ToDictionaryAsync(x => x.DefinitionId, x => x.Value);
     return Results.Ok(definitions.Select(x => new StockCustomFieldValueView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, values.GetValueOrDefault(x.Id) ?? "")).ToArray());
 });
-stockItems.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async (Guid id, Guid definitionId, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async (Guid id, Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.StockItems.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
@@ -839,7 +937,7 @@ stockItems.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async 
         .Take(50).ToListAsync();
     return Results.Ok(history);
 });
-stockItems.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisionId:guid}/restore", async (Guid id, Guid definitionId, Guid revisionId, StockCustomFieldValueRestoreRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisionId:guid}/restore", async (Guid id, Guid definitionId, Guid revisionId, StockCustomFieldValueRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!body.Confirmation) return Results.BadRequest(new { error = "Özel alan değerini geri yüklemek için açık onay gerekir." });
@@ -883,7 +981,7 @@ stockItems.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisi
     await transaction.CommitAsync();
     return Results.Ok(new StockCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, targetValue));
 });
-stockItems.MapPut("/{id:guid}/custom-fields", async (Guid id, StockCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+stockItems.MapPut("/{id:guid}/custom-fields", async (Guid id, StockCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (body.Values is null || body.Values.Count > 40) return Results.ValidationProblem(new Dictionary<string, string[]> { ["values"] = ["En fazla 40 özel alan değeri gönderilebilir."] });
@@ -934,29 +1032,277 @@ stockItems.MapPut("/{id:guid}/custom-fields", async (Guid id, StockCustomFieldVa
     return Results.Ok(result);
 });
 
+stockItems.MapGet("/{id:guid}/units", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var item = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+        .Select(x => new { x.UnitCode }).SingleOrDefaultAsync();
+    if (item is null) return Results.NotFound();
+    var conversions = await db.StockItemUnitConversions.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.StockItemId == id && x.IsActive)
+        .OrderBy(x => x.UnitCode)
+        .Select(x => new StockItemUnitConversionView(x.Id, x.UnitCode, x.FactorToBase, x.IsActive)).ToListAsync();
+    return Results.Ok(new { baseUnitCode = item.UnitCode, conversions });
+});
+stockItems.MapPost("/{id:guid}/units", async (Guid id, StockItemUnitConversionWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var code = request.UnitCode?.Trim().ToUpperInvariant();
+    if (string.IsNullOrWhiteSpace(code) || code.Length > 8 || request.FactorToBase <= 0m || request.FactorToBase > 9999999999.99999999m || request.FactorToBase != decimal.Round(request.FactorToBase, 8))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["unit"] = ["Birim kodu en fazla 8 karakter olmalı; dönüşüm katsayısı pozitif ve en fazla 8 ondalık basamak içermelidir."] });
+    var item = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id).Select(x => new { x.Id, x.UnitCode }).SingleOrDefaultAsync();
+    if (item is null) return Results.NotFound();
+    if (string.Equals(code, item.UnitCode, StringComparison.OrdinalIgnoreCase)) return Results.Conflict(new { error = "Temel birim için ayrıca dönüşüm tanımlanamaz." });
+    if (await db.StockItemUnitConversions.AnyAsync(x => x.TenantId == tenantId && x.StockItemId == id && x.UnitCode == code))
+        return Results.Conflict(new { error = "Bu stok kartında birim kodu daha önce tanımlanmış." });
+    var conversion = new StockItemUnitConversion { TenantId = tenantId, StockItemId = id, UnitCode = code, FactorToBase = request.FactorToBase };
+    db.StockItemUnitConversions.Add(conversion);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-unit-conversion.created", Resource = $"{item.Id:D}:{code}" });
+    try { await db.SaveChangesAsync(); }
+    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu stok kartında birim kodu daha önce tanımlanmış." }); }
+    return Results.Created($"/api/stock/items/{id}/units/{conversion.Id}", new StockItemUnitConversionView(conversion.Id, conversion.UnitCode, conversion.FactorToBase, conversion.IsActive));
+});
+stockItems.MapPut("/{id:guid}/units/{conversionId:guid}", async (Guid id, Guid conversionId, StockItemUnitConversionWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var code = request.UnitCode?.Trim().ToUpperInvariant();
+    if (string.IsNullOrWhiteSpace(code) || code.Length > 8 || request.FactorToBase <= 0m || request.FactorToBase > 9999999999.99999999m || request.FactorToBase != decimal.Round(request.FactorToBase, 8))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["unit"] = ["Birim kodu en fazla 8 karakter olmalı; dönüşüm katsayısı pozitif ve en fazla 8 ondalık basamak içermelidir."] });
+    var item = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id).Select(x => new { x.Id, x.UnitCode }).SingleOrDefaultAsync();
+    if (item is null) return Results.NotFound();
+    if (string.Equals(code, item.UnitCode, StringComparison.OrdinalIgnoreCase)) return Results.Conflict(new { error = "Temel birim için ayrıca dönüşüm tanımlanamaz." });
+    var conversion = await db.StockItemUnitConversions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.StockItemId == id && x.Id == conversionId);
+    if (conversion is null) return Results.NotFound();
+    if (conversion.UnitCode != code && await db.StockItemUnitConversions.AnyAsync(x => x.TenantId == tenantId && x.StockItemId == id && x.UnitCode == code))
+        return Results.Conflict(new { error = "Bu stok kartında birim kodu daha önce tanımlanmış." });
+    conversion.UnitCode = code; conversion.FactorToBase = request.FactorToBase; conversion.IsActive = true;
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-unit-conversion.updated", Resource = $"{item.Id:D}:{code}" });
+    try { await db.SaveChangesAsync(); }
+    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu stok kartında birim kodu daha önce tanımlanmış." }); }
+    return Results.Ok(new StockItemUnitConversionView(conversion.Id, conversion.UnitCode, conversion.FactorToBase, conversion.IsActive));
+});
+stockItems.MapDelete("/{id:guid}/units/{conversionId:guid}", async (Guid id, Guid conversionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var conversion = await db.StockItemUnitConversions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.StockItemId == id && x.Id == conversionId);
+    if (conversion is null) return Results.NotFound();
+    if (!conversion.IsActive) return Results.NoContent();
+    conversion.IsActive = false;
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-unit-conversion.deactivated", Resource = $"{id:D}:{conversion.UnitCode}" });
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
+
 var warehouses = app.MapGroup("/api/warehouses").RequireAuthorization();
-warehouses.MapGet("/", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+warehouses.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var fields = await db.WarehouseCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        .OrderBy(x => x.Label).Select(x => new WarehouseCustomFieldDefinitionView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, x.IsActive)).ToListAsync();
+    return Results.Ok(fields);
+});
+warehouses.MapPost("/custom-fields", async (WarehouseCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
+    if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") ||
+        string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) ||
+        (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve metin uzunluğu geçerli olmalıdır."] });
+    if (await db.WarehouseCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code))
+        return Results.Conflict(new { error = "Bu tenant için özel alan kodu daha önce kullanılmış." });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var definition = new WarehouseCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType,
+        MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    if (definition.IsRequired && await db.Warehouses.AnyAsync(x => x.TenantId == tenantId))
+        return Results.Conflict(new { error = "Mevcut depolar doldurulmadan yeni alan zorunlu yapılamaz. Önce isteğe bağlı oluşturun." });
+    db.WarehouseCustomFieldDefinitions.Add(definition);
+    db.WarehouseCustomFieldDefinitionRevisions.Add(ToWarehouseCustomFieldRevision(definition, GetUserId(principal), "Created"));
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "warehouse-custom-field.created", Resource = code });
+    try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu tenant için özel alan kodu daha önce kullanılmış." }); }
+    await transaction.CommitAsync();
+    return Results.Created($"/api/warehouses/custom-fields/{definition.Id}", new WarehouseCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+warehouses.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, WarehouseCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var label = body.Label?.Trim();
+    if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket ve uzunluk sınırları geçerli olmalıdır."] });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var definition = await db.WarehouseCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[WarehouseCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound();
+    var required = body.IsRequired ?? definition.IsRequired; var maxLength = definition.DataType == CustomFieldDataType.Text ? body.MaxLength : 0;
+    if (definition.DataType == CustomFieldDataType.Text && maxLength < 1) return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxLength"] = ["Metin alanı uzunluğu 1–500 olmalıdır."] });
+    if (maxLength < definition.MaxLength && await db.WarehouseCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > maxLength)) return Results.Conflict(new { error = "Yeni uzunluk mevcut depo değerlerini geçersiz kılıyor." });
+    if (required && await db.Warehouses.AnyAsync(w => w.TenantId == tenantId && !db.WarehouseCustomFieldValues.Any(v => v.TenantId == tenantId && v.WarehouseId == w.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Alan zorunlu yapılmadan önce tüm mevcut depolara değer girin." });
+    if (definition.Label == label && definition.MaxLength == maxLength && definition.IsRequired == required) return Results.Ok(new WarehouseCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+    definition.Label = label; definition.MaxLength = maxLength; definition.IsRequired = required; definition.Version++;
+    db.WarehouseCustomFieldDefinitionRevisions.Add(ToWarehouseCustomFieldRevision(definition, GetUserId(principal), "Updated"));
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "warehouse-custom-field.updated", Resource = definition.Code });
+    await db.SaveChangesAsync(); await transaction.CommitAsync();
+    return Results.Ok(new WarehouseCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+warehouses.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var definition = await db.WarehouseCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[WarehouseCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); if (!definition.IsActive) return Results.Conflict(new { error = "Özel alan zaten devre dışı." });
+    definition.IsActive = false; definition.Version++;
+    db.WarehouseCustomFieldDefinitionRevisions.Add(ToWarehouseCustomFieldRevision(definition, GetUserId(principal), "Deactivated"));
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "warehouse-custom-field.deactivated", Resource = definition.Code });
+    await db.SaveChangesAsync(); await transaction.CommitAsync(); return Results.NoContent();
+});
+warehouses.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.WarehouseCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
+    var history = await db.WarehouseCustomFieldDefinitionRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.DefinitionId == definitionId).OrderByDescending(x => x.Version).Take(50)
+        .Select(x => new WarehouseCustomFieldDefinitionRevisionView(x.Id, x.DefinitionId, x.Version, x.Code, x.Label, x.DataType, x.MaxLength, x.IsRequired, x.IsActive, x.ChangeKind, x.ChangedByUserId, x.CreatedAt)).ToListAsync();
+    return Results.Ok(history);
+});
+warehouses.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid definitionId, WarehouseCustomFieldRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!body.Confirmation) return Results.BadRequest(new { error = "Tanımı geri yüklemek için açık onay gerekir." });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var definition = await db.WarehouseCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[WarehouseCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound();
+    var revision = await db.WarehouseCustomFieldDefinitionRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Version == body.Version);
+    if (revision is null) return Results.NotFound();
+    if (revision.DataType != definition.DataType) return Results.Conflict(new { error = "Alan veri türü değiştirilemez." });
+    if (revision.DataType == CustomFieldDataType.Text && await db.WarehouseCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > revision.MaxLength)) return Results.Conflict(new { error = "Bu sürüm mevcut değerleri geçersiz kılıyor." });
+    if (revision.IsRequired && await db.Warehouses.AnyAsync(w => w.TenantId == tenantId && !db.WarehouseCustomFieldValues.Any(v => v.TenantId == tenantId && v.WarehouseId == w.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı geri yüklemek için tüm depolarda değer olmalıdır." });
+    definition.Label = revision.Label; definition.MaxLength = revision.MaxLength; definition.IsRequired = revision.IsRequired; definition.IsActive = revision.IsActive; definition.Version++;
+    db.WarehouseCustomFieldDefinitionRevisions.Add(ToWarehouseCustomFieldRevision(definition, GetUserId(principal), "Restored"));
+    await db.SaveChangesAsync(); await transaction.CommitAsync();
+    return Results.Ok(new WarehouseCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+warehouses.MapGet("/{warehouseId:guid}/custom-fields", async (Guid warehouseId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId)) return Results.NotFound();
+    var values = await (from definition in db.WarehouseCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.WarehouseCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId)
+            on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty()
+        orderby definition.Label
+        select new WarehouseCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
+    return Results.Ok(values);
+});
+warehouses.MapPut("/{warehouseId:guid}/custom-fields", async (Guid warehouseId, WarehouseCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (body.Values is { Count: > 40 }) return Results.ValidationProblem(new Dictionary<string, string[]> { ["values"] = ["En fazla 40 özel alan gönderilebilir."] });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {warehouseId}").SingleOrDefaultAsync();
+    if (warehouse is null) return Results.NotFound(); if (!warehouse.IsActive) return Results.Conflict(new { error = "Devre dışı depoların özel alanları değiştirilemez." });
+    var definitions = await db.WarehouseCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[WarehouseCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var byCode = definitions.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase); var errors = new Dictionary<string, string[]>(); var normalized = new Dictionary<Guid, (WarehouseCustomFieldDefinition Definition, string Value)>();
+    if (body.Values is not null) foreach (var pair in body.Values)
+    {
+        if (!byCode.TryGetValue(pair.Key, out var definition)) { errors[$"values.{pair.Key}"] = ["Alan kodu bu tenant içinde etkin değil."]; continue; }
+        if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, pair.Value, out var value)) { errors[$"values.{pair.Key}"] = [$"'{definition.Label}' alanı veri türü veya uzunluk sınırına uymuyor."]; continue; }
+        if (value.Length > 0) normalized[definition.Id] = (definition, value);
+    }
+    var missing = definitions.FirstOrDefault(x => x.IsRequired && !normalized.ContainsKey(x.Id));
+    if (missing is not null) errors[$"values.{missing.Code}"] = [$"'{missing.Label}' alanı zorunludur."];
+    if (errors.Count > 0) return Results.ValidationProblem(errors);
+    var existing = await db.WarehouseCustomFieldValues.Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && definitions.Select(d => d.Id).Contains(x.DefinitionId)).ToDictionaryAsync(x => x.DefinitionId);
+    foreach (var definition in definitions)
+    {
+        var newValue = normalized.GetValueOrDefault(definition.Id).Value;
+        existing.TryGetValue(definition.Id, out var current); var oldValue = current?.Value;
+        if (string.Equals(oldValue ?? "", newValue ?? "", StringComparison.Ordinal) && (current is null || current.DefinitionVersion == definition.Version)) continue;
+        if (string.IsNullOrEmpty(newValue)) { if (current is not null) db.WarehouseCustomFieldValues.Remove(current); }
+        else if (current is null) db.WarehouseCustomFieldValues.Add(new WarehouseCustomFieldValue { TenantId = tenantId, WarehouseId = warehouseId, DefinitionId = definition.Id, Value = newValue, DefinitionVersion = definition.Version });
+        else { current.Value = newValue; current.DefinitionVersion = definition.Version; current.UpdatedAt = DateTimeOffset.UtcNow; }
+        db.WarehouseCustomFieldValueRevisions.Add(new WarehouseCustomFieldValueRevision { TenantId = tenantId, WarehouseId = warehouseId, DefinitionId = definition.Id, PreviousValue = oldValue, NewValue = newValue, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    }
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "warehouse-custom-fields.updated", Resource = warehouse.Code });
+    await db.SaveChangesAsync(); await transaction.CommitAsync();
+    var result = await (from definition in db.WarehouseCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.WarehouseCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new WarehouseCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
+    return Results.Ok(result);
+});
+warehouses.MapGet("/{warehouseId:guid}/custom-fields/{definitionId:guid}/history", async (Guid warehouseId, Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId) || !await db.WarehouseCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
+    var history = await (from revision in db.WarehouseCustomFieldValueRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.DefinitionId == definitionId)
+        join definition in db.WarehouseCustomFieldDefinitions.AsNoTracking() on new { revision.TenantId, revision.DefinitionId } equals new { definition.TenantId, DefinitionId = definition.Id }
+        orderby revision.CreatedAt descending select new WarehouseCustomFieldValueRevisionView(revision.Id, revision.DefinitionId, definition.Code, definition.Label, revision.PreviousValue, revision.NewValue, revision.DefinitionVersion, revision.ChangedByUserId, revision.CreatedAt)).Take(50).ToListAsync();
+    return Results.Ok(history);
+});
+warehouses.MapPost("/{warehouseId:guid}/custom-fields/{definitionId:guid}/history/{revisionId:guid}/restore", async (Guid warehouseId, Guid definitionId, Guid revisionId, WarehouseCustomFieldValueRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!body.Confirmation) return Results.BadRequest(new { error = "Değeri geri yüklemek için açık onay gerekir." });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {warehouseId}").SingleOrDefaultAsync();
+    if (warehouse is null) return Results.NotFound(); if (!warehouse.IsActive) return Results.Conflict(new { error = "Devre dışı depoların özel alanları değiştirilemez." });
+    var definition = await db.WarehouseCustomFieldDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == definitionId && x.IsActive);
+    var revision = await db.WarehouseCustomFieldValueRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.DefinitionId == definitionId && x.Id == revisionId);
+    if (definition is null || revision is null) return Results.NotFound();
+    var target = revision.PreviousValue ?? "";
+    if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, target, out target) || (definition.IsRequired && target.Length == 0)) return Results.Conflict(new { error = "Önceki değer mevcut tanım veya zorunlulukla uyumlu değil." });
+    var current = await db.WarehouseCustomFieldValues.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.DefinitionId == definitionId); var old = current?.Value;
+    if (target.Length == 0) { if (current is not null) db.WarehouseCustomFieldValues.Remove(current); }
+    else if (current is null) db.WarehouseCustomFieldValues.Add(new WarehouseCustomFieldValue { TenantId = tenantId, WarehouseId = warehouseId, DefinitionId = definitionId, Value = target, DefinitionVersion = definition.Version });
+    else { current.Value = target; current.DefinitionVersion = definition.Version; current.UpdatedAt = DateTimeOffset.UtcNow; }
+    db.WarehouseCustomFieldValueRevisions.Add(new WarehouseCustomFieldValueRevision { TenantId = tenantId, WarehouseId = warehouseId, DefinitionId = definitionId, PreviousValue = old, NewValue = target.Length == 0 ? null : target, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    await db.SaveChangesAsync(); await transaction.CommitAsync();
+    return Results.Ok(new WarehouseCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, target));
+});
+warehouses.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var items = await db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId).OrderBy(x => x.Name)
         .Select(x => new WarehouseView(x.Id, x.Code, x.Name, x.IsActive, x.RowVersion)).ToListAsync();
     return Results.Ok(items);
 });
-warehouses.MapPost("/", async (WarehouseWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+warehouses.MapPost("/", async (WarehouseWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = InventoryValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     var code = request.Code.Trim().ToUpperInvariant();
     if (await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu depo kodu bu firmada zaten kullanılıyor." });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var definitions = await db.WarehouseCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[WarehouseCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var normalized = new Dictionary<Guid, (WarehouseCustomFieldDefinition Definition, string Value)>(); var customFieldErrors = new Dictionary<string, string[]>();
+    if (request.CustomFields is { Count: > 40 }) customFieldErrors["customFields"] = ["En fazla 40 özel alan gönderilebilir."];
+    if (request.CustomFields is not null) foreach (var pair in request.CustomFields)
+    {
+        var definition = definitions.FirstOrDefault(x => string.Equals(x.Code, pair.Key, StringComparison.OrdinalIgnoreCase));
+        if (definition is null) { customFieldErrors[$"customFields.{pair.Key}"] = ["Alan kodu bu tenant içinde etkin değil."]; continue; }
+        if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, pair.Value, out var value)) { customFieldErrors[$"customFields.{pair.Key}"] = [$"'{definition.Label}' alanı veri türü veya uzunluk sınırına uymuyor."]; continue; }
+        if (value.Length > 0) normalized[definition.Id] = (definition, value);
+    }
+    var missing = definitions.FirstOrDefault(x => x.IsRequired && !normalized.ContainsKey(x.Id));
+    if (missing is not null) customFieldErrors[$"customFields.{missing.Code}"] = [$"'{missing.Label}' alanı zorunludur."];
+    if (customFieldErrors.Count > 0) return Results.ValidationProblem(customFieldErrors);
     var warehouse = new Warehouse { TenantId = tenantId, Code = code, Name = request.Name.Trim() };
     db.Warehouses.Add(warehouse);
+    foreach (var field in normalized.Values)
+    {
+        db.WarehouseCustomFieldValues.Add(new WarehouseCustomFieldValue { TenantId = tenantId, WarehouseId = warehouse.Id, DefinitionId = field.Definition.Id, Value = field.Value, DefinitionVersion = field.Definition.Version });
+        db.WarehouseCustomFieldValueRevisions.Add(new WarehouseCustomFieldValueRevision { TenantId = tenantId, WarehouseId = warehouse.Id, DefinitionId = field.Definition.Id, NewValue = field.Value, DefinitionVersion = field.Definition.Version, ChangedByUserId = GetUserId(principal) });
+    }
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "warehouse.created", Resource = code });
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu depo kodu bu firmada zaten kullanılıyor." }); }
+    await transaction.CommitAsync();
     return Results.Created($"/api/warehouses/{warehouse.Id}", new WarehouseView(warehouse.Id, warehouse.Code, warehouse.Name, warehouse.IsActive, warehouse.RowVersion));
 });
-warehouses.MapPut("/{warehouseId:guid}", async (Guid warehouseId, WarehouseUpdateRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+warehouses.MapPut("/{warehouseId:guid}", async (Guid warehouseId, WarehouseUpdateRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = InventoryValidation.Validate(request);
@@ -977,7 +1323,7 @@ warehouses.MapPut("/{warehouseId:guid}", async (Guid warehouseId, WarehouseUpdat
     await transaction.CommitAsync();
     return Results.Ok(new WarehouseView(warehouse.Id, warehouse.Code, warehouse.Name, warehouse.IsActive, warehouse.RowVersion));
 });
-warehouses.MapPost("/{warehouseId:guid}/status", async (Guid warehouseId, WarehouseStateChangeRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+warehouses.MapPost("/{warehouseId:guid}/status", async (Guid warehouseId, WarehouseStateChangeRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = InventoryValidation.Validate(request);
@@ -1003,7 +1349,7 @@ warehouses.MapPost("/{warehouseId:guid}/status", async (Guid warehouseId, Wareho
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new WarehouseView(warehouse.Id, warehouse.Code, warehouse.Name, warehouse.IsActive, warehouse.RowVersion));
 });
-warehouses.MapGet("/transfers", async (ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 50) =>
+warehouses.MapGet("/transfers", async (ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -1019,7 +1365,7 @@ warehouses.MapGet("/transfers", async (ClaimsPrincipal principal, PlatformDbCont
         .ToListAsync();
     return Results.Ok(new { items = transfers, page, pageSize, totalCount });
 });
-warehouses.MapGet("/transfers/{transferId:guid}", async (Guid transferId, ClaimsPrincipal principal, PlatformDbContext db) =>
+warehouses.MapGet("/transfers/{transferId:guid}", async (Guid transferId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var transferRecord = await db.InventoryTransfers.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == transferId);
@@ -1033,7 +1379,7 @@ warehouses.MapGet("/transfers/{transferId:guid}", async (Guid transferId, Claims
         .OrderBy(x => x.StockItem.Code).Select(x => new InventoryTransferLineView(x.StockItemId, x.StockItem.Code, x.StockItem.Name, x.StockItem.UnitCode, x.Quantity)).ToListAsync();
     return Results.Ok(new InventoryTransferDetailView(summary, lines));
 });
-warehouses.MapPost("/transfers", async (InventoryTransferWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+warehouses.MapPost("/transfers", async (InventoryTransferWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = InventoryValidation.Validate(request);
@@ -1093,11 +1439,16 @@ warehouses.MapPost("/transfers", async (InventoryTransferWriteRequest request, C
     {
         var item = stockItems[line.StockItemId];
         var unitCostBase = await GetWeightedAverageUnitCostBaseAsync(db, tenantId, item.Id, request.TransferDate);
+        var tracking = await AllocateAvailableTrackingAsync(db, tenantId, fromWarehouse.Id, item, line.Quantity);
+        if (tracking is null) return Results.Conflict(new { error = $"{item.Code} için lot/seri bazında kaynak stok yetersiz." });
+        var outgoing = new InventoryTransaction { TenantId = tenantId, WarehouseId = fromWarehouse.Id, StockItemId = item.Id, InventoryTransfer = transferRecord,
+            EntryDate = request.TransferDate, Direction = InventoryDirection.Issue, Quantity = line.Quantity, UnitCostBase = unitCostBase, Description = $"Depo transferi {code} · kaynak" };
+        var incoming = new InventoryTransaction { TenantId = tenantId, WarehouseId = toWarehouse.Id, StockItemId = item.Id, InventoryTransfer = transferRecord,
+            EntryDate = request.TransferDate, Direction = InventoryDirection.Receipt, Quantity = line.Quantity, UnitCostBase = unitCostBase, Description = $"Depo transferi {code} · hedef" };
+        outgoing.Tracking = ToTraceEntities(tenantId, item, tracking);
+        incoming.Tracking = ToTraceEntities(tenantId, item, tracking);
         db.InventoryTransactions.AddRange(
-            new InventoryTransaction { TenantId = tenantId, WarehouseId = fromWarehouse.Id, StockItemId = item.Id, InventoryTransfer = transferRecord,
-                EntryDate = request.TransferDate, Direction = InventoryDirection.Issue, Quantity = line.Quantity, UnitCostBase = unitCostBase, Description = $"Depo transferi {code} · kaynak" },
-            new InventoryTransaction { TenantId = tenantId, WarehouseId = toWarehouse.Id, StockItemId = item.Id, InventoryTransfer = transferRecord,
-                EntryDate = request.TransferDate, Direction = InventoryDirection.Receipt, Quantity = line.Quantity, UnitCostBase = unitCostBase, Description = $"Depo transferi {code} · hedef" });
+            outgoing, incoming);
     }
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "inventory-transfer.posted", Resource = code });
     try { await db.SaveChangesAsync(); }
@@ -1106,7 +1457,7 @@ warehouses.MapPost("/transfers", async (InventoryTransferWriteRequest request, C
     return Results.Created($"/api/warehouses/transfers/{transferRecord.Id}", new InventoryTransferSummary(transferRecord.Id, code, fromWarehouse.Id,
         fromWarehouse.Name, toWarehouse.Id, toWarehouse.Name, transferRecord.TransferDate, transferRecord.Status, request.Lines.Count, transferRecord.CreatedAt));
 });
-warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, InventoryTransferVoidRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, InventoryTransferVoidRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = InventoryValidation.Validate(request);
@@ -1136,16 +1487,22 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
         if (original.Quantity > current - reserved)
             return Results.Conflict(new { error = "Transfer iptali hedef depodaki rezervasyonları karşılayamaz; önce stok kullanımını veya rezervasyonları düzenleyin.", stockItemId = original.StockItemId, currentBalance = current, reservedQuantity = reserved, transferQuantity = original.Quantity });
     }
+    var transferTraceRows = await db.InventoryTransactionTraces.AsNoTracking().Where(x => x.TenantId == tenantId && originals.Select(y => y.Id).Contains(x.InventoryTransactionId)).ToListAsync();
     foreach (var original in originals)
-        db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = original.WarehouseId, StockItemId = original.StockItemId,
+    {
+        var reversal = new InventoryTransaction { TenantId = tenantId, WarehouseId = original.WarehouseId, StockItemId = original.StockItemId,
             EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = original.Direction == InventoryDirection.Receipt ? InventoryDirection.Issue : InventoryDirection.Receipt,
-            Quantity = original.Quantity, UnitCostBase = original.UnitCostBase, Description = $"Transfer iptali {transferRecord.Code} · {request.Reason.Trim()}", ReversalOfId = original.Id });
+            Quantity = original.Quantity, UnitCostBase = original.UnitCostBase, Description = $"Transfer iptali {transferRecord.Code} · {request.Reason.Trim()}", ReversalOfId = original.Id };
+        reversal.Tracking = transferTraceRows.Where(x => x.InventoryTransactionId == original.Id).Select(x => new InventoryTransactionTrace { TenantId = tenantId,
+            StockItemId = original.StockItemId, TrackingMode = x.TrackingMode, TrackingCode = x.TrackingCode, Quantity = x.Quantity, ExpiryDate = x.ExpiryDate }).ToList();
+        db.InventoryTransactions.Add(reversal);
+    }
     transferRecord.Status = InventoryTransferStatus.Voided;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "inventory-transfer.voided", Resource = transferRecord.Code });
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new { transferRecord.Id, transferRecord.Code, transferRecord.Status });
 });
-warehouses.MapGet("/{warehouseId:guid}/balances", async (Guid warehouseId, ClaimsPrincipal principal, PlatformDbContext db) =>
+warehouses.MapGet("/{warehouseId:guid}/balances", async (Guid warehouseId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId)) return Results.NotFound();
@@ -1158,28 +1515,37 @@ warehouses.MapGet("/{warehouseId:guid}/balances", async (Guid warehouseId, Claim
             Valuation = g.Sum(x => (decimal?)(x.UnitCostBase == null ? 0m : (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) * x.UnitCostBase.Value)) ?? 0m,
             Unvalued = g.Sum(x => (decimal?)(x.UnitCostBase == null ? (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) : 0m)) ?? 0m })
         .ToDictionaryAsync(x => x.StockItemId);
+    var valueAdjustments = await db.InventoryCostAdjustmentLines.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId)
+        .GroupBy(x => x.StockItemId).Select(g => new { StockItemId = g.Key, Amount = g.Sum(x => x.AmountBase) })
+        .ToDictionaryAsync(x => x.StockItemId, x => x.Amount);
     var reserved = await db.SalesOrderReservations.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.Status == SalesOrderReservationStatus.Active)
         .GroupBy(x => x.OrderLine.StockItemId).Select(g => new { StockItemId = g.Key, Quantity = g.Sum(x => x.Quantity - x.FulfilledQuantity) }).ToDictionaryAsync(x => x.StockItemId, x => x.Quantity);
     return Results.Ok(items.Select(x =>
     {
         var total = totals.GetValueOrDefault(x.Id); var quantity = total?.Quantity ?? 0m; var reservedQuantity = reserved.GetValueOrDefault(x.Id);
         return new InventoryBalanceView(x.Id, x.Code, x.Name, x.UnitCode, x.MinimumStock, quantity, quantity < x.MinimumStock,
-            reservedQuantity, Math.Max(0m, quantity - reservedQuantity), total?.Valuation ?? 0m, Math.Max(0m, total?.Unvalued ?? 0m), baseCurrency);
+            reservedQuantity, Math.Max(0m, quantity - reservedQuantity), (total?.Valuation ?? 0m) + valueAdjustments.GetValueOrDefault(x.Id), Math.Max(0m, total?.Unvalued ?? 0m), baseCurrency);
     }));
 });
-warehouses.MapGet("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions", async (Guid warehouseId, Guid stockItemId, ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 50) =>
+warehouses.MapGet("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions", async (Guid warehouseId, Guid stockItemId, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId) || !await db.StockItems.AnyAsync(x => x.TenantId == tenantId && x.Id == stockItemId)) return Results.NotFound();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
     var query = db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.StockItemId == stockItemId);
     var total = await query.CountAsync();
-    var rows = await query.OrderByDescending(x => x.EntryDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
-        .Select(x => new InventoryTransactionView(x.Id, x.EntryDate, x.Direction, x.Quantity, x.Description, x.ReversalOfId, x.ReversalOfId != null,
-            db.InventoryTransactions.Any(y => y.TenantId == x.TenantId && y.ReversalOfId == x.Id), x.UnitCostBase)).ToListAsync();
+    var movements = await query.OrderByDescending(x => x.EntryDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+    var ids = movements.Select(x => x.Id).ToArray();
+    var allocations = await db.InventoryTransactionTraces.AsNoTracking().Where(x => x.TenantId == tenantId && ids.Contains(x.InventoryTransactionId))
+        .GroupBy(x => x.InventoryTransactionId).ToDictionaryAsync(g => g.Key, g => (IReadOnlyList<InventoryTrackingAllocationView>)g
+            .Select(x => new InventoryTrackingAllocationView(x.TrackingCode, x.Quantity, x.ExpiryDate)).ToList());
+    var rows = movements.Select(x => new InventoryTransactionView(x.Id, x.EntryDate, x.Direction, x.Quantity, x.Description, x.ReversalOfId, x.ReversalOfId != null,
+        db.InventoryTransactions.Any(y => y.TenantId == x.TenantId && y.ReversalOfId == x.Id), x.UnitCostBase, x.EnteredQuantity, x.EnteredUnitCode,
+        allocations.GetValueOrDefault(x.Id))).ToList();
     return Results.Ok(new InventoryTransactionPage(rows, page, pageSize, total));
 });
-warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions", async (Guid warehouseId, Guid stockItemId, InventoryTransactionWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions", async (Guid warehouseId, Guid stockItemId, InventoryTransactionWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = InventoryValidation.Validate(request);
@@ -1190,6 +1556,44 @@ warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions", 
     var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {warehouseId}").SingleOrDefaultAsync();
     if (warehouse is null) return Results.NotFound();
     if (!warehouse.IsActive || !item.IsActive) return Results.Conflict(new { error = "Pasif depo veya stok kartına hareket eklenemez." });
+    var enteredUnitCode = string.IsNullOrWhiteSpace(request.UnitCode) ? item.UnitCode : request.UnitCode.Trim().ToUpperInvariant();
+    var conversionFactor = 1m;
+    if (!string.Equals(enteredUnitCode, item.UnitCode, StringComparison.OrdinalIgnoreCase))
+    {
+        var conversion = await db.StockItemUnitConversions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId
+            && x.StockItemId == item.Id && x.UnitCode == enteredUnitCode && x.IsActive);
+        if (conversion is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["unitCode"] = ["Seçilen birim bu stok kartı için tanımlı değil."] });
+        conversionFactor = conversion.FactorToBase;
+    }
+    if (conversionFactor > 99999999999999.9999m / request.Quantity)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["quantity"] = ["Temel birime çevrilen miktar sınırı aşar."] });
+    var baseQuantity = decimal.Round(request.Quantity * conversionFactor, 4, MidpointRounding.AwayFromZero);
+    if (baseQuantity <= 0m || baseQuantity > 99999999999999.9999m)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["quantity"] = ["Temel birime çevrilen miktar sınır dışında."] });
+    var trackingError = ValidateTrackingAllocations(item.TrackingMode, request.Tracking, baseQuantity);
+    if (trackingError is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["tracking"] = [trackingError] });
+    if (item.TrackingMode != InventoryTrackingMode.None)
+    {
+        foreach (var trace in request.Tracking ?? [])
+        {
+            var matches = await db.InventoryTransactionTraces.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == item.Id && x.TrackingCode == trace.TrackingCode.Trim()).ToListAsync();
+            if (item.TrackingMode == InventoryTrackingMode.Lot && matches.Any(x => x.ExpiryDate != trace.ExpiryDate))
+                return Results.Conflict(new { error = $"Lot {trace.TrackingCode} için son kullanma tarihi değiştirilemez." });
+            if (request.Direction == InventoryDirection.Issue)
+            {
+                var availableTrace = await (from t in db.InventoryTransactionTraces.AsNoTracking()
+                    join m in db.InventoryTransactions.AsNoTracking() on new { t.TenantId, t.InventoryTransactionId } equals new { m.TenantId, InventoryTransactionId = m.Id }
+                    where t.TenantId == tenantId && t.StockItemId == item.Id && t.TrackingCode == trace.TrackingCode.Trim()
+                        && t.ExpiryDate == trace.ExpiryDate && m.WarehouseId == warehouseId
+                    select m.Direction == InventoryDirection.Receipt ? t.Quantity : -t.Quantity).SumAsync();
+                if (trace.Quantity > availableTrace) return Results.Conflict(new { error = $"{trace.TrackingCode} için izlenen miktar bu depoda yetersiz.", availableQuantity = availableTrace });
+            }
+            if (request.Direction == InventoryDirection.Receipt && item.TrackingMode == InventoryTrackingMode.Serial)
+            {
+                if (matches.Count > 0) return Results.Conflict(new { error = $"Seri numarası {trace.TrackingCode} daha önce kullanılmış." });
+            }
+        }
+    }
     var current = await db.InventoryTransactions.Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.StockItemId == stockItemId)
         .SumAsync(x => (decimal?)(x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity)) ?? 0m;
     var reservedQuantity = request.Direction == InventoryDirection.Issue
@@ -1197,19 +1601,23 @@ warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions", 
                 && x.Status == SalesOrderReservationStatus.Active && x.OrderLine.StockItemId == stockItemId)
             .SumAsync(x => (decimal?)(x.Quantity - x.FulfilledQuantity)) ?? 0m
         : 0m;
-    if (request.Direction == InventoryDirection.Issue && request.Quantity > current - reservedQuantity)
-        return Results.Conflict(new { error = "Çıkış miktarı rezervasyonlar düşüldükten sonra kullanılabilir stoktan fazla olamaz.", currentBalance = current, reservedQuantity, availableQuantity = current - reservedQuantity, requestedQuantity = request.Quantity });
+    if (request.Direction == InventoryDirection.Issue && baseQuantity > current - reservedQuantity)
+        return Results.Conflict(new { error = "Çıkış miktarı rezervasyonlar düşüldükten sonra kullanılabilir stoktan fazla olamaz.", currentBalance = current, reservedQuantity, availableQuantity = current - reservedQuantity, requestedQuantity = baseQuantity });
     var unitCostBase = request.Direction == InventoryDirection.Receipt ? request.UnitCostBase
         : await GetWeightedAverageUnitCostBaseAsync(db, tenantId, stockItemId, request.EntryDate);
     var movement = new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouseId, StockItemId = stockItemId,
-        EntryDate = request.EntryDate, Direction = request.Direction, Quantity = request.Quantity, UnitCostBase = unitCostBase, Description = request.Description.Trim() };
+        EntryDate = request.EntryDate, Direction = request.Direction, Quantity = baseQuantity, EnteredQuantity = request.Quantity,
+        EnteredUnitCode = enteredUnitCode, UnitCostBase = unitCostBase, Description = request.Description.Trim() };
+    movement.Tracking = (request.Tracking ?? []).Select(x => new InventoryTransactionTrace { TenantId = tenantId, StockItemId = item.Id,
+        TrackingMode = item.TrackingMode, TrackingCode = x.TrackingCode.Trim(), Quantity = x.Quantity, ExpiryDate = x.ExpiryDate }).ToList();
     db.InventoryTransactions.Add(movement);
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "inventory-transaction.created", Resource = movement.Id.ToString() });
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Created($"/api/warehouses/{warehouseId}/stock/{stockItemId}/transactions/{movement.Id}",
-        new InventoryTransactionView(movement.Id, movement.EntryDate, movement.Direction, movement.Quantity, movement.Description, null, false, false, movement.UnitCostBase));
+        new InventoryTransactionView(movement.Id, movement.EntryDate, movement.Direction, movement.Quantity, movement.Description, null, false, false,
+            movement.UnitCostBase, movement.EnteredQuantity, movement.EnteredUnitCode));
 });
-warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions/{entryId:guid}/reverse", async (Guid warehouseId, Guid stockItemId, Guid entryId, InventoryReverseRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions/{entryId:guid}/reverse", async (Guid warehouseId, Guid stockItemId, Guid entryId, InventoryReverseRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = InventoryValidation.Validate(request);
@@ -1238,18 +1646,237 @@ warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions/{e
         return Results.Conflict(new { error = "Ters kayıt kullanılabilir bakiyeyi negatife düşüreceği için uygulanamadı.", currentBalance = current, reservedQuantity, reversalQuantity = original.Quantity });
     var reversal = new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouseId, StockItemId = stockItemId,
         EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = reverseDirection, Quantity = original.Quantity,
+        EnteredQuantity = original.EnteredQuantity, EnteredUnitCode = original.EnteredUnitCode,
         UnitCostBase = original.UnitCostBase, Description = $"Ters kayıt: {request.Reason.Trim()}", ReversalOfId = original.Id };
+    var originalTracking = await db.InventoryTransactionTraces.AsNoTracking().Where(x => x.TenantId == tenantId && x.InventoryTransactionId == original.Id).ToListAsync();
+    reversal.Tracking = originalTracking.Select(x => new InventoryTransactionTrace { TenantId = tenantId, StockItemId = stockItemId,
+        TrackingMode = x.TrackingMode, TrackingCode = x.TrackingCode, Quantity = x.Quantity, ExpiryDate = x.ExpiryDate }).ToList();
     db.InventoryTransactions.Add(reversal);
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "inventory-transaction.reversed", Resource = original.Id.ToString() });
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu hareket daha önce ters kayıtla iptal edildi." }); }
     await transaction.CommitAsync();
     return Results.Created($"/api/warehouses/{warehouseId}/stock/{stockItemId}/transactions/{reversal.Id}",
-        new InventoryTransactionView(reversal.Id, reversal.EntryDate, reversal.Direction, reversal.Quantity, reversal.Description, reversal.ReversalOfId, true, false, reversal.UnitCostBase));
+        new InventoryTransactionView(reversal.Id, reversal.EntryDate, reversal.Direction, reversal.Quantity, reversal.Description, reversal.ReversalOfId, true, false,
+            reversal.UnitCostBase, reversal.EnteredQuantity, reversal.EnteredUnitCode));
+});
+
+warehouses.MapGet("/{warehouseId:guid}/stock/{stockItemId:guid}/cost-adjustments", async (Guid warehouseId, Guid stockItemId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId) || !await db.StockItems.AnyAsync(x => x.TenantId == tenantId && x.Id == stockItemId)) return Results.NotFound();
+    var headers = await db.InventoryCostAdjustments.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.Lines.Any(line => line.WarehouseId == warehouseId && line.StockItemId == stockItemId))
+        .OrderByDescending(x => x.EntryDate).ThenByDescending(x => x.CreatedAt).Take(100).ToListAsync();
+    var results = new List<InventoryCostAdjustmentView>();
+    foreach (var header in headers) results.Add(await BuildInventoryCostAdjustmentViewAsync(db, tenantId, header));
+    return Results.Ok(results);
+});
+warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/revaluations", async (Guid warehouseId, Guid stockItemId, InventoryCostRevaluationRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (request.AmountBase == 0m || request.AmountBase < -9999999999999999.99m || request.AmountBase > 9999999999999999.99m || request.AmountBase != decimal.Round(request.AmountBase, 2) || string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 240)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["adjustment"] = ["Değerleme tutarı sıfır olamaz, en fazla iki ondalık basamak içermeli ve açıklama 240 karakteri aşmamalıdır."] });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {warehouseId}").SingleOrDefaultAsync();
+    if (warehouse is null) return Results.NotFound();
+    var item = await db.StockItems.FromSqlInterpolated($"SELECT * FROM [dbo].[StockItems] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {stockItemId}").SingleOrDefaultAsync();
+    if (item is null) return Results.NotFound();
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    var latestMovementDate = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.StockItemId == stockItemId)
+        .Select(x => (DateOnly?)x.EntryDate).MaxAsync();
+    var latestAdjustmentDate = await db.InventoryCostAdjustmentLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.StockItemId == stockItemId)
+        .Select(x => (DateOnly?)x.Adjustment.EntryDate).MaxAsync();
+    var latestCostDate = latestMovementDate is null ? latestAdjustmentDate : latestAdjustmentDate is null ? latestMovementDate : (latestMovementDate > latestAdjustmentDate ? latestMovementDate : latestAdjustmentDate);
+    if (request.EntryDate > today || latestCostDate is { } lastDate && request.EntryDate < lastDate)
+        return Results.Conflict(new { error = "Yeniden değerleme tarihi bugünden ileri veya bu stok bakiyesinin son hareket/değerleme tarihinden önce olamaz.", latestDate = latestCostDate });
+    var rows = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.StockItemId == stockItemId && x.EntryDate <= request.EntryDate)
+        .GroupBy(_ => 1).Select(g => new
+        {
+            Quantity = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity),
+            Unvalued = g.Sum(x => x.UnitCostBase == null ? (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) : 0m),
+            Value = g.Sum(x => x.UnitCostBase == null ? 0m : (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) * x.UnitCostBase.Value)
+        }).SingleOrDefaultAsync();
+    if (rows is null || rows.Quantity <= 0m) return Results.Conflict(new { error = "Yalnızca pozitif bakiyesi olan stok için maliyet yeniden değerlenebilir." });
+    if (rows.Unvalued > 0m) return Results.Conflict(new { error = "Maliyetsiz miktar varken yeniden değerleme yapılamaz; önce stok giriş maliyetini tamamlayın.", unvaluedQuantity = rows.Unvalued });
+    var priorAdjustments = await db.InventoryCostAdjustmentLines.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.StockItemId == stockItemId && x.Adjustment.EntryDate <= request.EntryDate)
+        .SumAsync(x => (decimal?)x.AmountBase) ?? 0m;
+    if (rows.Value + priorAdjustments + request.AmountBase < 0m)
+        return Results.Conflict(new { error = "Yeniden değerleme stok değerini negatife düşüremez.", currentValueBase = rows.Value + priorAdjustments });
+    var record = new InventoryCostAdjustment { TenantId = tenantId, Code = $"RV-{Guid.NewGuid():N}".ToUpperInvariant(),
+        EntryDate = request.EntryDate, Kind = InventoryCostAdjustmentKind.Revaluation, Description = request.Reason.Trim(), CreatedByUserId = GetUserId(principal) };
+    record.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = record, WarehouseId = warehouseId, StockItemId = stockItemId,
+        QuantitySnapshot = rows.Quantity, UnitCostSnapshotBase = decimal.Round((rows.Value + priorAdjustments) / rows.Quantity, 8, MidpointRounding.AwayFromZero), AmountBase = request.AmountBase });
+    db.InventoryCostAdjustments.Add(record);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "inventory-cost.revalued", Resource = record.Code });
+    await db.SaveChangesAsync(); await transaction.CommitAsync();
+    return Results.Created($"/api/warehouses/{warehouseId}/stock/{stockItemId}/cost-adjustments/{record.Id}", await BuildInventoryCostAdjustmentViewAsync(db, tenantId, record));
+});
+warehouses.MapPost("/cost-adjustments/{id:guid}/reverse", async (Guid id, InventoryReverseRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var errors = InventoryValidation.Validate(request);
+    if (errors is not null) return Results.ValidationProblem(errors);
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var original = await db.InventoryCostAdjustments.FromSqlInterpolated($"SELECT * FROM [dbo].[InventoryCostAdjustments] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    if (original is null || original.Kind != InventoryCostAdjustmentKind.Revaluation || original.ReversalOfId is not null) return Results.NotFound();
+    if (await db.InventoryCostAdjustments.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == original.Id)) return Results.Conflict(new { error = "Bu yeniden değerleme daha önce ters kayıtla iptal edilmiştir." });
+    var lines = await db.InventoryCostAdjustmentLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.AdjustmentId == original.Id).ToListAsync();
+    var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = $"RVX-{Guid.NewGuid():N}".ToUpperInvariant(),
+        EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Kind = InventoryCostAdjustmentKind.Reversal,
+        Description = $"{original.Code} ters kayıt · {request.Reason.Trim()}", ReversalOfId = original.Id, CreatedByUserId = GetUserId(principal) };
+    foreach (var line in lines) reversal.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = reversal,
+        WarehouseId = line.WarehouseId, StockItemId = line.StockItemId, QuantitySnapshot = line.QuantitySnapshot,
+        UnitCostSnapshotBase = line.UnitCostSnapshotBase, AmountBase = -line.AmountBase });
+    db.InventoryCostAdjustments.Add(reversal);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "inventory-cost-revaluation.reversed", Resource = original.Code });
+    try { await db.SaveChangesAsync(); }
+    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu yeniden değerleme daha önce ters kayıtla iptal edilmiştir." }); }
+    await transaction.CommitAsync();
+    return Results.Created($"/api/warehouses/cost-adjustments/{reversal.Id}", await BuildInventoryCostAdjustmentViewAsync(db, tenantId, reversal));
 });
 
 var salesQuotes = app.MapGroup("/api/sales/quotes").RequireAuthorization();
-salesQuotes.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 25) =>
+salesQuotes.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var fields = await db.SalesQuoteCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Label)
+        .Select(x => new SalesQuoteCustomFieldDefinitionView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, x.IsActive)).ToListAsync();
+    return Results.Ok(fields);
+});
+salesQuotes.MapPost("/custom-fields", async (SalesQuoteCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
+    if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve metin uzunluğu geçerli olmalıdır."] });
+    if (await db.SalesQuoteCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." });
+    if (body.IsRequired && await db.SalesQuotes.AnyAsync(x => x.TenantId == tenantId && x.Status == SalesQuoteStatus.Draft)) return Results.Conflict(new { error = "Mevcut taslak tekliflere değer girilmeden alan zorunlu açılamaz. Önce isteğe bağlı oluşturun." });
+    var definition = new SalesQuoteCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    db.SalesQuoteCustomFieldDefinitions.Add(definition); db.SalesQuoteCustomFieldDefinitionRevisions.Add(ToSalesQuoteCustomFieldRevision(definition, GetUserId(principal), "Created"));
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-quote-custom-field.created", Resource = code });
+    try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." }); }
+    return Results.Created($"/api/sales/quotes/custom-fields/{definition.Id}", new SalesQuoteCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+salesQuotes.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, SalesQuoteCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya metin uzunluğu geçersiz."] });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.SalesQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound();
+    var required = body.IsRequired ?? definition.IsRequired; var maxLength = definition.DataType == CustomFieldDataType.Text ? body.MaxLength : 0;
+    if (definition.DataType == CustomFieldDataType.Text && maxLength < 1) return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxLength"] = ["Metin uzunluğu 1–500 olmalıdır."] });
+    if (definition.DataType == CustomFieldDataType.Text && await db.SalesQuoteCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > maxLength)) return Results.Conflict(new { error = "Yeni uzunluk mevcut teklif değerlerini geçersiz kılıyor." });
+    if (required && await db.SalesQuotes.AnyAsync(q => q.TenantId == tenantId && q.Status == SalesQuoteStatus.Draft && !db.SalesQuoteCustomFieldValues.Any(v => v.TenantId == tenantId && v.QuoteId == q.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı etkinleştirmek için tüm taslak tekliflerde değer olmalıdır." });
+    if (definition.Label == label && definition.MaxLength == maxLength && definition.IsRequired == required) return Results.Ok(new SalesQuoteCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+    definition.Label = label; definition.MaxLength = maxLength; definition.IsRequired = required; definition.Version++;
+    db.SalesQuoteCustomFieldDefinitionRevisions.Add(ToSalesQuoteCustomFieldRevision(definition, GetUserId(principal), "Updated"));
+    await db.SaveChangesAsync(); await tx.CommitAsync(); return Results.Ok(new SalesQuoteCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+salesQuotes.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.SalesQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); if (!definition.IsActive) return Results.Conflict(new { error = "Alan zaten devre dışı." });
+    definition.IsActive = false; definition.Version++; db.SalesQuoteCustomFieldDefinitionRevisions.Add(ToSalesQuoteCustomFieldRevision(definition, GetUserId(principal), "Deactivated"));
+    await db.SaveChangesAsync(); await tx.CommitAsync(); return Results.NoContent();
+});
+salesQuotes.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.SalesQuoteCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
+    var rows = await db.SalesQuoteCustomFieldDefinitionRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.DefinitionId == definitionId).OrderByDescending(x => x.Version).Take(50)
+        .Select(x => new SalesQuoteCustomFieldDefinitionRevisionView(x.Id, x.DefinitionId, x.Version, x.Code, x.Label, x.DataType, x.MaxLength, x.IsRequired, x.IsActive, x.ChangeKind, x.ChangedByUserId, x.CreatedAt)).ToListAsync();
+    return Results.Ok(rows);
+});
+salesQuotes.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid definitionId, SalesQuoteCustomFieldRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid(); if (!body.Confirmation) return Results.BadRequest(new { error = "Tanımı geri yüklemek için açık onay gerekir." });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.SalesQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound();
+    var revision = await db.SalesQuoteCustomFieldDefinitionRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Version == body.Version);
+    if (revision is null) return Results.NotFound(); if (revision.DataType != definition.DataType) return Results.Conflict(new { error = "Alan veri türü değiştirilemez." });
+    if (revision.DataType == CustomFieldDataType.Text && await db.SalesQuoteCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > revision.MaxLength)) return Results.Conflict(new { error = "Bu sürüm mevcut değerleri geçersiz kılıyor." });
+    if (revision.IsRequired && await db.SalesQuotes.AnyAsync(q => q.TenantId == tenantId && q.Status == SalesQuoteStatus.Draft && !db.SalesQuoteCustomFieldValues.Any(v => v.TenantId == tenantId && v.QuoteId == q.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı geri yüklemek için tüm taslak tekliflerde değer olmalıdır." });
+    definition.Label = revision.Label; definition.MaxLength = revision.MaxLength; definition.IsRequired = revision.IsRequired; definition.IsActive = revision.IsActive; definition.Version++;
+    db.SalesQuoteCustomFieldDefinitionRevisions.Add(ToSalesQuoteCustomFieldRevision(definition, GetUserId(principal), "Restored"));
+    await db.SaveChangesAsync(); await tx.CommitAsync(); return Results.Ok(new SalesQuoteCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+salesQuotes.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.SalesQuotes.AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
+    var rows = await (from definition in db.SalesQuoteCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.SalesQuoteCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesQuoteCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
+    return Results.Ok(rows);
+});
+salesQuotes.MapPut("/{id:guid}/custom-fields", async (Guid id, SalesQuoteCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (body.Values is { Count: > 40 }) return Results.ValidationProblem(new Dictionary<string, string[]> { ["values"] = ["En fazla 40 özel alan gönderilebilir."] });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var quote = await db.SalesQuotes.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuotes] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    if (quote is null) return Results.NotFound(); if (quote.Status != SalesQuoteStatus.Draft) return Results.Conflict(new { error = "Yalnızca taslak teklif özel alanları değiştirilebilir." });
+    var definitions = await db.SalesQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var errors = new Dictionary<string, string[]>(); var normalized = new Dictionary<Guid, (SalesQuoteCustomFieldDefinition Definition, string Value)>();
+    if (body.Values is not null) foreach (var pair in body.Values)
+    {
+        var definition = definitions.FirstOrDefault(x => string.Equals(x.Code, pair.Key, StringComparison.OrdinalIgnoreCase));
+        if (definition is null) { errors[$"values.{pair.Key}"] = ["Alan kodu bu tenant içinde etkin değil."]; continue; }
+        if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, pair.Value, out var value)) { errors[$"values.{pair.Key}"] = [$"'{definition.Label}' alanı veri türü veya uzunluk sınırına uymuyor."]; continue; }
+        if (value.Length > 0) normalized[definition.Id] = (definition, value);
+    }
+    var missing = definitions.FirstOrDefault(x => x.IsRequired && !normalized.ContainsKey(x.Id)); if (missing is not null) errors[$"values.{missing.Code}"] = [$"'{missing.Label}' alanı zorunludur."];
+    if (errors.Count > 0) return Results.ValidationProblem(errors);
+    var existing = await db.SalesQuoteCustomFieldValues.Where(x => x.TenantId == tenantId && x.QuoteId == id && definitions.Select(d => d.Id).Contains(x.DefinitionId)).ToDictionaryAsync(x => x.DefinitionId);
+    foreach (var definition in definitions)
+    {
+        var newValue = normalized.GetValueOrDefault(definition.Id).Value; existing.TryGetValue(definition.Id, out var current); var oldValue = current?.Value;
+        if (string.Equals(oldValue ?? "", newValue ?? "", StringComparison.Ordinal) && (current is null || current.DefinitionVersion == definition.Version)) continue;
+        if (string.IsNullOrEmpty(newValue)) { if (current is not null) db.SalesQuoteCustomFieldValues.Remove(current); }
+        else if (current is null) db.SalesQuoteCustomFieldValues.Add(new SalesQuoteCustomFieldValue { TenantId = tenantId, QuoteId = id, DefinitionId = definition.Id, Value = newValue, DefinitionVersion = definition.Version });
+        else { current.Value = newValue; current.DefinitionVersion = definition.Version; current.UpdatedAt = DateTimeOffset.UtcNow; }
+        db.SalesQuoteCustomFieldValueRevisions.Add(new SalesQuoteCustomFieldValueRevision { TenantId = tenantId, QuoteId = id, DefinitionId = definition.Id, PreviousValue = oldValue, NewValue = newValue, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    }
+    await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(await (from definition in db.SalesQuoteCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.SalesQuoteCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesQuoteCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync());
+});
+salesQuotes.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async (Guid id, Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.SalesQuotes.AnyAsync(x => x.TenantId == tenantId && x.Id == id) || !await db.SalesQuoteCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
+    var history = await (from revision in db.SalesQuoteCustomFieldValueRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == id && x.DefinitionId == definitionId)
+        join definition in db.SalesQuoteCustomFieldDefinitions.AsNoTracking() on new { revision.TenantId, revision.DefinitionId } equals new { definition.TenantId, DefinitionId = definition.Id }
+        orderby revision.CreatedAt descending select new SalesQuoteCustomFieldValueRevisionView(revision.Id, revision.DefinitionId, definition.Code, definition.Label, revision.PreviousValue, revision.NewValue, revision.DefinitionVersion, revision.ChangedByUserId, revision.CreatedAt)).Take(50).ToListAsync();
+    return Results.Ok(history);
+});
+salesQuotes.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisionId:guid}/restore", async (Guid id, Guid definitionId, Guid revisionId, SalesQuoteCustomFieldValueRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!body.Confirmation) return Results.BadRequest(new { error = "Değeri geri yüklemek için açık onay gerekir." });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var quote = await db.SalesQuotes.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuotes] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    if (quote is null) return Results.NotFound(); if (quote.Status != SalesQuoteStatus.Draft) return Results.Conflict(new { error = "Yalnızca taslak teklif alanları geri yüklenebilir." });
+    var definition = await db.SalesQuoteCustomFieldDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == definitionId && x.IsActive);
+    var revision = await db.SalesQuoteCustomFieldValueRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.QuoteId == id && x.DefinitionId == definitionId && x.Id == revisionId);
+    if (definition is null || revision is null) return Results.NotFound(); var target = revision.PreviousValue ?? "";
+    if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, target, out target) || (definition.IsRequired && target.Length == 0)) return Results.Conflict(new { error = "Önceki değer güncel tanım veya zorunlulukla uyumlu değil." });
+    var current = await db.SalesQuoteCustomFieldValues.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.QuoteId == id && x.DefinitionId == definitionId); var oldValue = current?.Value;
+    if (target.Length == 0) { if (current is not null) db.SalesQuoteCustomFieldValues.Remove(current); }
+    else if (current is null) db.SalesQuoteCustomFieldValues.Add(new SalesQuoteCustomFieldValue { TenantId = tenantId, QuoteId = id, DefinitionId = definitionId, Value = target, DefinitionVersion = definition.Version });
+    else { current.Value = target; current.DefinitionVersion = definition.Version; current.UpdatedAt = DateTimeOffset.UtcNow; }
+    db.SalesQuoteCustomFieldValueRevisions.Add(new SalesQuoteCustomFieldValueRevision { TenantId = tenantId, QuoteId = id, DefinitionId = definitionId, PreviousValue = oldValue, NewValue = target.Length == 0 ? null : target, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(new SalesQuoteCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, target));
+});
+salesQuotes.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -1262,7 +1889,7 @@ salesQuotes.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformDbC
             db.SalesOrders.Any(y => y.TenantId == x.TenantId && y.QuoteId == x.Id))).ToListAsync();
     return Results.Ok(new SalesQuotePage(rows, page, pageSize, total));
 });
-salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var quote = await db.SalesQuotes.AsNoTracking().Include(x => x.Customer).Include(x => x.Lines).Include(x => x.Order)
@@ -1271,11 +1898,14 @@ salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Plat
     var lines = quote.Lines.OrderBy(x => x.LineNumber).Select(x => new SalesQuoteLineView(x.LineNumber, x.StockItemId,
         x.StockCode, x.StockName, x.UnitCode, x.Quantity, x.UnitPrice, x.DiscountPercent, x.VatPercent,
         x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal)).ToList();
+    var customFields = await (from definition in db.SalesQuoteCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.SalesQuoteCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesQuoteCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
     return Results.Ok(new SalesQuoteView(quote.Id, quote.Code, quote.CustomerId, quote.Customer.Name, quote.QuoteDate,
         quote.ValidUntil, quote.CurrencyCode, quote.Status, quote.Notes, quote.Subtotal, quote.DiscountTotal,
-        quote.TaxTotal, quote.GrandTotal, quote.CreatedAt, lines, quote.Order is not null));
+        quote.TaxTotal, quote.GrandTotal, quote.CreatedAt, lines, quote.Order is not null, customFields));
 });
-salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = SalesQuoteValidation.Validate(request);
@@ -1288,6 +1918,20 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
     var currencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
     if (currencyCode != customer.CurrencyCode)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["currencyCode"] = [$"Teklif dövizi seçilen carinin döviziyle ({customer.CurrencyCode}) aynı olmalıdır."] });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var customDefinitions = await db.SalesQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var customFieldErrors = new Dictionary<string, string[]>(); var normalizedCustomFields = new Dictionary<Guid, (SalesQuoteCustomFieldDefinition Definition, string Value)>();
+    if (request.CustomFields is { Count: > 40 }) customFieldErrors["customFields"] = ["En fazla 40 özel alan gönderilebilir."];
+    if (request.CustomFields is not null) foreach (var pair in request.CustomFields)
+    {
+        var definition = customDefinitions.FirstOrDefault(x => string.Equals(x.Code, pair.Key, StringComparison.OrdinalIgnoreCase));
+        if (definition is null) { customFieldErrors[$"customFields.{pair.Key}"] = ["Alan kodu bu tenant içinde etkin değil."]; continue; }
+        if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, pair.Value, out var value)) { customFieldErrors[$"customFields.{pair.Key}"] = [$"'{definition.Label}' alanı veri türü veya uzunluk sınırına uymuyor."]; continue; }
+        if (value.Length > 0) normalizedCustomFields[definition.Id] = (definition, value);
+    }
+    var missingCustomField = customDefinitions.FirstOrDefault(x => x.IsRequired && !normalizedCustomFields.ContainsKey(x.Id));
+    if (missingCustomField is not null) customFieldErrors[$"customFields.{missingCustomField.Code}"] = [$"'{missingCustomField.Label}' alanı zorunludur."];
+    if (customFieldErrors.Count > 0) return Results.ValidationProblem(customFieldErrors);
     var requestedItemIds = request.Lines.Select(x => x.StockItemId).Distinct().ToArray();
     var stockItemsById = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && requestedItemIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
     if (stockItemsById.Count != requestedItemIds.Length)
@@ -1307,14 +1951,20 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
             DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal });
     }
     db.SalesQuotes.Add(quote);
+    foreach (var field in normalizedCustomFields.Values)
+    {
+        db.SalesQuoteCustomFieldValues.Add(new SalesQuoteCustomFieldValue { TenantId = tenantId, QuoteId = quote.Id, DefinitionId = field.Definition.Id, Value = field.Value, DefinitionVersion = field.Definition.Version });
+        db.SalesQuoteCustomFieldValueRevisions.Add(new SalesQuoteCustomFieldValueRevision { TenantId = tenantId, QuoteId = quote.Id, DefinitionId = field.Definition.Id, NewValue = field.Value, DefinitionVersion = field.Definition.Version, ChangedByUserId = GetUserId(principal) });
+    }
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-quote.created", Resource = code });
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu teklif numarası bu firmada zaten kullanılıyor." }); }
+    await transaction.CommitAsync();
     var summary = new SalesQuoteSummary(quote.Id, quote.Code, customer.Id, customer.Name, quote.QuoteDate, quote.ValidUntil,
         quote.CurrencyCode, quote.Status, quote.GrandTotal, quote.Lines.Count, quote.CreatedAt);
     return Results.Created($"/api/sales/quotes/{quote.Id}", summary);
 });
-salesQuotes.MapPost("/{id:guid}/send", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesQuotes.MapPost("/{id:guid}/send", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -1330,11 +1980,11 @@ salesQuotes.MapPost("/{id:guid}/send", async (Guid id, ClaimsPrincipal principal
     return Results.Ok(new SalesQuoteSummary(quote.Id, quote.Code, quote.CustomerId, customerName, quote.QuoteDate, quote.ValidUntil,
         quote.CurrencyCode, quote.Status, quote.GrandTotal, lineCount, quote.CreatedAt));
 });
-salesQuotes.MapPost("/{id:guid}/accept", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesQuotes.MapPost("/{id:guid}/accept", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
     await UpdateSalesQuoteStatusAsync(id, SalesQuoteStatus.Accepted, principal, db));
-salesQuotes.MapPost("/{id:guid}/reject", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesQuotes.MapPost("/{id:guid}/reject", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
     await UpdateSalesQuoteStatusAsync(id, SalesQuoteStatus.Rejected, principal, db));
-salesQuotes.MapPost("/{id:guid}/convert-to-order", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesQuotes.MapPost("/{id:guid}/convert-to-order", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -1343,6 +1993,23 @@ salesQuotes.MapPost("/{id:guid}/convert-to-order", async (Guid id, ClaimsPrincip
     var alreadyConverted = await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.QuoteId == id);
     if (!SalesQuoteWorkflow.CanConvertToOrder(quote.Status, alreadyConverted))
         return alreadyConverted ? Results.Conflict(new { error = "Bu teklif daha önce satış siparişine dönüştürüldü." }) : Results.Conflict(new { error = "Yalnızca kabul edilmiş teklif siparişe dönüştürülebilir." });
+    var orderFieldDefinitions = await db.SalesOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var quoteFieldValues = await (from value in db.SalesQuoteCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == id)
+        join definition in db.SalesQuoteCustomFieldDefinitions.AsNoTracking() on new { value.TenantId, value.DefinitionId } equals new { definition.TenantId, DefinitionId = definition.Id }
+        select new { definition.Code, value.Value }).ToListAsync();
+    var quoteValuesByCode = quoteFieldValues.ToDictionary(x => x.Code, x => x.Value, StringComparer.OrdinalIgnoreCase);
+    var copiedOrderFields = new Dictionary<Guid, (SalesOrderCustomFieldDefinition Definition, string Value)>();
+    foreach (var definition in orderFieldDefinitions)
+    {
+        if (!quoteValuesByCode.TryGetValue(definition.Code, out var sourceValue))
+        {
+            if (definition.IsRequired) return Results.Conflict(new { error = $"'{definition.Label}' alanı zorunludur. Önce kabul edilen teklife bu alanı ve değeri ekleyin." });
+            continue;
+        }
+        if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, sourceValue, out var normalizedValue))
+            return Results.Conflict(new { error = $"Teklifteki '{definition.Code}' değeri sipariş alanının veri türü veya uzunluk sınırıyla uyumlu değil." });
+        copiedOrderFields[definition.Id] = (definition, normalizedValue);
+    }
     var sourceLines = await db.SalesQuoteLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == id).OrderBy(x => x.LineNumber).ToListAsync();
     if (sourceLines.Count == 0) return Results.Conflict(new { error = "Satır içermeyen teklif siparişe dönüştürülemez." });
     var orderCode = $"SO-{quote.Id:N}".ToUpperInvariant();
@@ -1354,6 +2021,11 @@ salesQuotes.MapPost("/{id:guid}/convert-to-order", async (Guid id, ClaimsPrincip
             StockItemId = source.StockItemId, StockCode = source.StockCode, StockName = source.StockName, UnitCode = source.UnitCode,
             Quantity = source.Quantity, UnitPrice = source.UnitPrice, DiscountPercent = source.DiscountPercent, VatPercent = source.VatPercent,
             LineSubtotal = source.LineSubtotal, DiscountAmount = source.DiscountAmount, TaxAmount = source.TaxAmount, LineTotal = source.LineTotal });
+    foreach (var field in copiedOrderFields.Values)
+    {
+        db.SalesOrderCustomFieldValues.Add(new SalesOrderCustomFieldValue { TenantId = tenantId, OrderId = order.Id, DefinitionId = field.Definition.Id, Value = field.Value, DefinitionVersion = field.Definition.Version });
+        db.SalesOrderCustomFieldValueRevisions.Add(new SalesOrderCustomFieldValueRevision { TenantId = tenantId, OrderId = order.Id, DefinitionId = field.Definition.Id, NewValue = field.Value, DefinitionVersion = field.Definition.Version, ChangedByUserId = GetUserId(principal) });
+    }
     db.SalesOrders.Add(order);
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-order.created-from-quote", Resource = orderCode });
     try { await db.SaveChangesAsync(); }
@@ -1364,7 +2036,135 @@ salesQuotes.MapPost("/{id:guid}/convert-to-order", async (Guid id, ClaimsPrincip
         order.CustomerId, customerName, order.OrderDate, order.CurrencyCode, order.Status, order.GrandTotal, order.Lines.Count, order.CreatedAt));
 });
 var salesOrders = app.MapGroup("/api/sales/orders").RequireAuthorization();
-salesOrders.MapPost("/{id:guid}/reservations", async (Guid id, SalesOrderReservationWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesOrders.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    return Results.Ok(await db.SalesOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Label)
+        .Select(x => new SalesOrderCustomFieldDefinitionView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, x.IsActive)).ToListAsync());
+});
+salesOrders.MapPost("/custom-fields", async (SalesOrderCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
+    if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve metin uzunluğu geçerli olmalıdır."] });
+    if (await db.SalesOrderCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." });
+    if (body.IsRequired && await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.Status == SalesOrderStatus.Open)) return Results.Conflict(new { error = "Açık siparişler doldurulmadan zorunlu alan açılamaz." });
+    if (body.IsRequired && await db.SalesQuotes.AnyAsync(q => q.TenantId == tenantId && q.Status == SalesQuoteStatus.Accepted && !db.SalesOrders.Any(o => o.TenantId == tenantId && o.QuoteId == q.Id) &&
+        !db.SalesQuoteCustomFieldValues.Any(v => v.TenantId == tenantId && v.QuoteId == q.Id && v.Value != "" && db.SalesQuoteCustomFieldDefinitions.Any(d => d.TenantId == tenantId && d.Id == v.DefinitionId && d.Code == code))))
+        return Results.Conflict(new { error = "Siparişe dönüşmemiş kabul edilmiş teklifler bu kod için değer taşımalıdır. Önce teklif alanını oluşturup değeri teklifte saklayın." });
+    var definition = new SalesOrderCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    db.SalesOrderCustomFieldDefinitions.Add(definition); db.SalesOrderCustomFieldDefinitionRevisions.Add(ToSalesOrderCustomFieldRevision(definition, GetUserId(principal), "Created"));
+    try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." }); }
+    return Results.Created($"/api/sales/orders/custom-fields/{definition.Id}", new SalesOrderCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+salesOrders.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, SalesOrderCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya metin uzunluğu geçersiz."] });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.SalesOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); var maxLength = definition.DataType == CustomFieldDataType.Text ? body.MaxLength : 0; var required = body.IsRequired ?? definition.IsRequired;
+    if (definition.DataType == CustomFieldDataType.Text && maxLength < 1) return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxLength"] = ["Metin uzunluğu 1–500 olmalıdır."] });
+    if (definition.DataType == CustomFieldDataType.Text && await db.SalesOrderCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > maxLength)) return Results.Conflict(new { error = "Yeni uzunluk mevcut sipariş değerlerini geçersiz kılıyor." });
+    if (required && await db.SalesOrders.AnyAsync(o => o.TenantId == tenantId && o.Status == SalesOrderStatus.Open && !db.SalesOrderCustomFieldValues.Any(v => v.TenantId == tenantId && v.OrderId == o.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı etkinleştirmek için tüm açık siparişlerde değer olmalıdır." });
+    definition.Label = label; definition.MaxLength = maxLength; definition.IsRequired = required; definition.Version++;
+    db.SalesOrderCustomFieldDefinitionRevisions.Add(ToSalesOrderCustomFieldRevision(definition, GetUserId(principal), "Updated")); await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(new SalesOrderCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+salesOrders.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.SalesOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); if (!definition.IsActive) return Results.Conflict(new { error = "Alan zaten devre dışı." });
+    definition.IsActive = false; definition.Version++; db.SalesOrderCustomFieldDefinitionRevisions.Add(ToSalesOrderCustomFieldRevision(definition, GetUserId(principal), "Deactivated")); await db.SaveChangesAsync(); await tx.CommitAsync(); return Results.NoContent();
+});
+salesOrders.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!await db.SalesOrderCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
+    return Results.Ok(await db.SalesOrderCustomFieldDefinitionRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.DefinitionId == definitionId).OrderByDescending(x => x.Version).Take(50)
+        .Select(x => new SalesOrderCustomFieldDefinitionRevisionView(x.Id, x.DefinitionId, x.Version, x.Code, x.Label, x.DataType, x.MaxLength, x.IsRequired, x.IsActive, x.ChangeKind, x.ChangedByUserId, x.CreatedAt)).ToListAsync());
+});
+salesOrders.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid definitionId, SalesOrderCustomFieldRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid(); if (!body.Confirmation) return Results.BadRequest(new { error = "Tanımı geri yüklemek için açık onay gerekir." });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.SalesOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); var revision = await db.SalesOrderCustomFieldDefinitionRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Version == body.Version);
+    if (revision is null) return Results.NotFound(); if (revision.DataType != definition.DataType) return Results.Conflict(new { error = "Alan veri türü değiştirilemez." });
+    if (revision.DataType == CustomFieldDataType.Text && await db.SalesOrderCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > revision.MaxLength)) return Results.Conflict(new { error = "Bu sürüm mevcut değerleri geçersiz kılıyor." });
+    if (revision.IsRequired && await db.SalesOrders.AnyAsync(o => o.TenantId == tenantId && o.Status == SalesOrderStatus.Open && !db.SalesOrderCustomFieldValues.Any(v => v.TenantId == tenantId && v.OrderId == o.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı geri yüklemek için tüm açık siparişlerde değer olmalıdır." });
+    definition.Label = revision.Label; definition.MaxLength = revision.MaxLength; definition.IsRequired = revision.IsRequired; definition.IsActive = revision.IsActive; definition.Version++;
+    db.SalesOrderCustomFieldDefinitionRevisions.Add(ToSalesOrderCustomFieldRevision(definition, GetUserId(principal), "Restored")); await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(new SalesOrderCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+salesOrders.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
+    var rows = await (from definition in db.SalesOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.SalesOrderCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
+    return Results.Ok(rows);
+});
+salesOrders.MapPut("/{id:guid}/custom-fields", async (Guid id, SalesOrderCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (body.Values is { Count: > 40 }) return Results.ValidationProblem(new Dictionary<string, string[]> { ["values"] = ["En fazla 40 alan gönderilebilir."] });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var order = await db.SalesOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    if (order is null) return Results.NotFound(); if (order.Status != SalesOrderStatus.Open) return Results.Conflict(new { error = "Yalnızca açık sipariş özel alanları değiştirilebilir." });
+    var definitions = await db.SalesOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var errors = new Dictionary<string, string[]>(); var normalized = new Dictionary<Guid, (SalesOrderCustomFieldDefinition Definition, string Value)>();
+    if (body.Values is not null) foreach (var pair in body.Values)
+    {
+        var definition = definitions.FirstOrDefault(x => string.Equals(x.Code, pair.Key, StringComparison.OrdinalIgnoreCase));
+        if (definition is null) { errors[$"values.{pair.Key}"] = ["Alan kodu tenant içinde etkin değil."]; continue; }
+        if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, pair.Value, out var value)) { errors[$"values.{pair.Key}"] = [$"'{definition.Label}' alanı veri türü veya uzunluk sınırına uymuyor."]; continue; }
+        if (value.Length > 0) normalized[definition.Id] = (definition, value);
+    }
+    var missing = definitions.FirstOrDefault(x => x.IsRequired && !normalized.ContainsKey(x.Id)); if (missing is not null) errors[$"values.{missing.Code}"] = [$"'{missing.Label}' alanı zorunludur."];
+    if (errors.Count > 0) return Results.ValidationProblem(errors);
+    var existing = await db.SalesOrderCustomFieldValues.Where(x => x.TenantId == tenantId && x.OrderId == id && definitions.Select(d => d.Id).Contains(x.DefinitionId)).ToDictionaryAsync(x => x.DefinitionId);
+    foreach (var definition in definitions)
+    {
+        var next = normalized.GetValueOrDefault(definition.Id).Value; existing.TryGetValue(definition.Id, out var current); var previous = current?.Value;
+        if (string.Equals(previous ?? "", next ?? "", StringComparison.Ordinal) && (current is null || current.DefinitionVersion == definition.Version)) continue;
+        if (string.IsNullOrEmpty(next)) { if (current is not null) db.SalesOrderCustomFieldValues.Remove(current); }
+        else if (current is null) db.SalesOrderCustomFieldValues.Add(new SalesOrderCustomFieldValue { TenantId = tenantId, OrderId = id, DefinitionId = definition.Id, Value = next, DefinitionVersion = definition.Version });
+        else { current.Value = next; current.DefinitionVersion = definition.Version; current.UpdatedAt = DateTimeOffset.UtcNow; }
+        db.SalesOrderCustomFieldValueRevisions.Add(new SalesOrderCustomFieldValueRevision { TenantId = tenantId, OrderId = id, DefinitionId = definition.Id, PreviousValue = previous, NewValue = next, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    }
+    await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(await (from definition in db.SalesOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.SalesOrderCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync());
+});
+salesOrders.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async (Guid id, Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
+    var history = await (from revision in db.SalesOrderCustomFieldValueRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == id && x.DefinitionId == definitionId)
+        join definition in db.SalesOrderCustomFieldDefinitions.AsNoTracking() on new { revision.TenantId, revision.DefinitionId } equals new { definition.TenantId, DefinitionId = definition.Id }
+        orderby revision.CreatedAt descending select new SalesOrderCustomFieldValueRevisionView(revision.Id, revision.DefinitionId, definition.Code, definition.Label, revision.PreviousValue, revision.NewValue, revision.DefinitionVersion, revision.ChangedByUserId, revision.CreatedAt)).Take(50).ToListAsync();
+    return Results.Ok(history);
+});
+salesOrders.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisionId:guid}/restore", async (Guid id, Guid definitionId, Guid revisionId, SalesOrderCustomFieldValueRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!body.Confirmation) return Results.BadRequest(new { error = "Değeri geri yüklemek için açık onay gerekir." });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var order = await db.SalesOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    if (order is null) return Results.NotFound(); if (order.Status != SalesOrderStatus.Open) return Results.Conflict(new { error = "Yalnızca açık sipariş değerleri geri yüklenebilir." });
+    var definition = await db.SalesOrderCustomFieldDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == definitionId && x.IsActive);
+    var revision = await db.SalesOrderCustomFieldValueRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.OrderId == id && x.DefinitionId == definitionId && x.Id == revisionId);
+    if (definition is null || revision is null) return Results.NotFound(); var target = revision.PreviousValue ?? "";
+    if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, target, out target) || (definition.IsRequired && target.Length == 0)) return Results.Conflict(new { error = "Önceki değer güncel alan tanımıyla uyumlu değil." });
+    var current = await db.SalesOrderCustomFieldValues.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.OrderId == id && x.DefinitionId == definitionId); var previous = current?.Value;
+    if (target.Length == 0) { if (current is not null) db.SalesOrderCustomFieldValues.Remove(current); }
+    else if (current is null) db.SalesOrderCustomFieldValues.Add(new SalesOrderCustomFieldValue { TenantId = tenantId, OrderId = id, DefinitionId = definitionId, Value = target, DefinitionVersion = definition.Version });
+    else { current.Value = target; current.DefinitionVersion = definition.Version; current.UpdatedAt = DateTimeOffset.UtcNow; }
+    db.SalesOrderCustomFieldValueRevisions.Add(new SalesOrderCustomFieldValueRevision { TenantId = tenantId, OrderId = id, DefinitionId = definitionId, PreviousValue = previous, NewValue = target.Length == 0 ? null : target, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    await db.SaveChangesAsync(); await tx.CommitAsync(); return Results.Ok(new SalesOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, target));
+});
+salesOrders.MapPost("/{id:guid}/reservations", async (Guid id, SalesOrderReservationWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = SalesOrderReservationValidation.Validate(request);
@@ -1425,7 +2225,7 @@ salesOrders.MapPost("/{id:guid}/reservations", async (Guid id, SalesOrderReserva
         x.OrderLineNumber, warehouse.Id, warehouse.Name, toReserve.Single(y => y.Line.LineNumber == x.OrderLineNumber).Line.StockItemId,
         toReserve.Single(y => y.Line.LineNumber == x.OrderLineNumber).Line.StockCode, x.Quantity, 0m, x.Quantity, x.Status, x.CreatedAt, null)));
 });
-salesOrders.MapPost("/{id:guid}/reservations/release", async (Guid id, SalesOrderReservationReleaseRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesOrders.MapPost("/{id:guid}/reservations/release", async (Guid id, SalesOrderReservationReleaseRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -1444,7 +2244,7 @@ salesOrders.MapPost("/{id:guid}/reservations/release", async (Guid id, SalesOrde
     await transaction.CommitAsync();
     return Results.Ok(new { order.Id, order.Code, releasedCount = reservations.Count });
 });
-salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = SalesDeliveryValidation.Validate(request);
@@ -1511,9 +2311,14 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
         if (reservation is not null) reservation.FulfilledQuantity += input.Quantity;
         delivery.Lines.Add(line);
         var unitCostBase = await GetWeightedAverageUnitCostBaseAsync(db, tenantId, orderLine.StockItemId, request.DeliveryDate);
-        db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = orderLine.StockItemId,
+        var item = stockItems[orderLine.StockItemId];
+        var tracking = await AllocateAvailableTrackingAsync(db, tenantId, warehouse.Id, item, input.Quantity);
+        if (tracking is null) return Results.Conflict(new { error = $"{item.Code} için lot/seri bazında sevk edilebilir miktar yok." });
+        var movement = new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = orderLine.StockItemId,
             EntryDate = request.DeliveryDate, Direction = InventoryDirection.Issue, Quantity = input.Quantity,
-            UnitCostBase = unitCostBase, Description = $"Satış irsaliyesi {code}", SalesDeliveryLine = line });
+            UnitCostBase = unitCostBase, Description = $"Satış irsaliyesi {code}", SalesDeliveryLine = line };
+        movement.Tracking = ToTraceEntities(tenantId, item, tracking);
+        db.InventoryTransactions.Add(movement);
     }
     db.SalesDeliveries.Add(delivery);
     var deliveredAfter = new Dictionary<int, decimal>(delivered);
@@ -1525,7 +2330,7 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
     return Results.Created($"/api/sales/deliveries/{delivery.Id}", new SalesDeliverySummary(delivery.Id, delivery.Code, order.Id, order.Code,
         warehouse.Id, warehouse.Name, delivery.DeliveryDate, delivery.Status, delivery.Lines.Count, delivery.CreatedAt));
 });
-salesOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 25) =>
+salesOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -1537,7 +2342,7 @@ salesOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformDbC
             x.OrderDate, x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt)).ToListAsync();
     return Results.Ok(new SalesOrderPage(rows, page, pageSize, total));
 });
-salesOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var order = await db.SalesOrders.AsNoTracking().Include(x => x.Quote).Include(x => x.Customer).Include(x => x.Lines)
@@ -1557,11 +2362,14 @@ salesOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Plat
             deliveredQuantity, Math.Max(0m, x.Quantity - deliveredQuantity), reservation?.Id, reservation?.WarehouseId,
             reservation?.Warehouse.Name, reservation is null ? 0m : reservation.Quantity - reservation.FulfilledQuantity);
     }).ToList();
+    var customFields = await (from definition in db.SalesOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.SalesOrderCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
     return Results.Ok(new SalesOrderView(order.Id, order.Code, order.QuoteId, order.Quote.Code, order.CustomerId, order.Customer.Name,
-        order.OrderDate, order.CurrencyCode, order.Status, order.Subtotal, order.DiscountTotal, order.TaxTotal, order.GrandTotal, order.CreatedAt, lines));
+        order.OrderDate, order.CurrencyCode, order.Status, order.Subtotal, order.DiscountTotal, order.TaxTotal, order.GrandTotal, order.CreatedAt, lines, customFields));
 });
 var salesDeliveries = app.MapGroup("/api/sales/deliveries").RequireAuthorization();
-salesDeliveries.MapGet("/", async (Guid? orderId, ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 25) =>
+salesDeliveries.MapGet("/", async (Guid? orderId, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -1575,7 +2383,7 @@ salesDeliveries.MapGet("/", async (Guid? orderId, ClaimsPrincipal principal, Pla
             db.SalesInvoices.Where(y => y.TenantId == x.TenantId && y.DeliveryId == x.Id).Select(y => (Guid?)y.Id).FirstOrDefault())).ToListAsync();
     return Results.Ok(new SalesDeliveryPage(rows, page, pageSize, total));
 });
-salesDeliveries.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesDeliveries.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var delivery = await db.SalesDeliveries.AsNoTracking().Include(x => x.Order).Include(x => x.Warehouse).Include(x => x.Lines).Include(x => x.Invoice)
@@ -1586,7 +2394,7 @@ salesDeliveries.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, 
     return Results.Ok(new SalesDeliveryView(delivery.Id, delivery.Code, delivery.OrderId, delivery.Order.Code, delivery.WarehouseId,
         delivery.Warehouse.Name, delivery.DeliveryDate, delivery.Status, delivery.CreatedAt, lines, delivery.Invoice is not null, delivery.Invoice?.Status, delivery.Invoice?.Id));
 });
-salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var identity = await db.SalesDeliveries.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
@@ -1619,7 +2427,8 @@ salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princ
                 return Results.Conflict(new { error = "İrsaliye hareketlerinden biri zaten ters kayıtla geri alınmış." });
             db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = movement.StockItemId,
                 EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = InventoryDirection.Receipt, Quantity = movement.Quantity,
-                UnitCostBase = movement.UnitCostBase, Description = $"İrsaliye iptali {delivery.Code}", ReversalOfId = movement.Id, SalesDeliveryLineId = line.Id });
+                UnitCostBase = movement.UnitCostBase, Description = $"İrsaliye iptali {delivery.Code}", ReversalOfId = movement.Id, SalesDeliveryLineId = line.Id,
+                Tracking = await CopyTrackingAsync(db, tenantId, movement) });
         }
     }
     delivery.Status = SalesDeliveryStatus.Voided;
@@ -1635,7 +2444,7 @@ salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princ
     await transaction.CommitAsync();
     return Results.Ok(new { delivery.Id, delivery.Code, deliveryStatus = delivery.Status, orderStatus = order.Status });
 });
-salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -1695,8 +2504,135 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
         delivery.Code, invoice.OrderId, order.Code, invoice.CustomerId, customer.Name, invoice.InvoiceDate, invoice.CurrencyCode,
         invoice.Status, invoice.GrandTotal, invoice.Lines.Count, invoice.CreatedAt));
 });
+var salesInvoiceCustomFields = app.MapGroup("/api/sales/invoices").RequireAuthorization();
+salesInvoiceCustomFields.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    return Results.Ok(await db.SalesInvoiceCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Label)
+        .Select(x => new SalesInvoiceCustomFieldDefinitionView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, x.IsActive)).ToListAsync());
+});
+salesInvoiceCustomFields.MapPost("/custom-fields", async (SalesInvoiceCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
+    if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve metin uzunluğu geçerli olmalıdır."] });
+    if (await db.SalesInvoiceCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." });
+    if (body.IsRequired && await db.SalesInvoices.AnyAsync(x => x.TenantId == tenantId && x.Status == SalesInvoiceStatus.Posted)) return Results.Conflict(new { error = "Açık faturalarda doldurulmadan zorunlu alan açılamaz." });
+    var definition = new SalesInvoiceCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    db.SalesInvoiceCustomFieldDefinitions.Add(definition); db.SalesInvoiceCustomFieldDefinitionRevisions.Add(ToSalesInvoiceCustomFieldRevision(definition, GetUserId(principal), "Created"));
+    try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." }); }
+    return Results.Created($"/api/sales/invoices/custom-fields/{definition.Id}", new SalesInvoiceCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+salesInvoiceCustomFields.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, SalesInvoiceCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya metin uzunluğu geçersiz."] });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.SalesInvoiceCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesInvoiceCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); var maxLength = definition.DataType == CustomFieldDataType.Text ? body.MaxLength : 0; var required = body.IsRequired ?? definition.IsRequired;
+    if (definition.DataType == CustomFieldDataType.Text && maxLength < 1) return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxLength"] = ["Metin uzunluğu 1–500 olmalıdır."] });
+    if (definition.DataType == CustomFieldDataType.Text && await db.SalesInvoiceCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > maxLength)) return Results.Conflict(new { error = "Yeni uzunluk mevcut fatura değerlerini geçersiz kılıyor." });
+    if (required && await db.SalesInvoices.AnyAsync(o => o.TenantId == tenantId && o.Status == SalesInvoiceStatus.Posted && !db.SalesInvoiceCustomFieldValues.Any(v => v.TenantId == tenantId && v.InvoiceId == o.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı etkinleştirmek için tüm açık faturalardade değer olmalıdır." });
+    definition.Label = label; definition.MaxLength = maxLength; definition.IsRequired = required; definition.Version++;
+    db.SalesInvoiceCustomFieldDefinitionRevisions.Add(ToSalesInvoiceCustomFieldRevision(definition, GetUserId(principal), "Updated")); await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(new SalesInvoiceCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+salesInvoiceCustomFields.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.SalesInvoiceCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesInvoiceCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); if (!definition.IsActive) return Results.Conflict(new { error = "Alan zaten devre dışı." });
+    definition.IsActive = false; definition.Version++; db.SalesInvoiceCustomFieldDefinitionRevisions.Add(ToSalesInvoiceCustomFieldRevision(definition, GetUserId(principal), "Deactivated")); await db.SaveChangesAsync(); await tx.CommitAsync(); return Results.NoContent();
+});
+salesInvoiceCustomFields.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!await db.SalesInvoiceCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
+    return Results.Ok(await db.SalesInvoiceCustomFieldDefinitionRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.DefinitionId == definitionId).OrderByDescending(x => x.Version).Take(50)
+        .Select(x => new SalesInvoiceCustomFieldDefinitionRevisionView(x.Id, x.DefinitionId, x.Version, x.Code, x.Label, x.DataType, x.MaxLength, x.IsRequired, x.IsActive, x.ChangeKind, x.ChangedByUserId, x.CreatedAt)).ToListAsync());
+});
+salesInvoiceCustomFields.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid definitionId, SalesInvoiceCustomFieldRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid(); if (!body.Confirmation) return Results.BadRequest(new { error = "Tanımı geri yüklemek için açık onay gerekir." });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.SalesInvoiceCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesInvoiceCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); var revision = await db.SalesInvoiceCustomFieldDefinitionRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Version == body.Version);
+    if (revision is null) return Results.NotFound(); if (revision.DataType != definition.DataType) return Results.Conflict(new { error = "Alan veri türü değiştirilemez." });
+    if (revision.DataType == CustomFieldDataType.Text && await db.SalesInvoiceCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > revision.MaxLength)) return Results.Conflict(new { error = "Bu sürüm mevcut değerleri geçersiz kılıyor." });
+    if (revision.IsRequired && await db.SalesInvoices.AnyAsync(o => o.TenantId == tenantId && o.Status == SalesInvoiceStatus.Posted && !db.SalesInvoiceCustomFieldValues.Any(v => v.TenantId == tenantId && v.InvoiceId == o.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı geri yüklemek için tüm açık faturalardade değer olmalıdır." });
+    definition.Label = revision.Label; definition.MaxLength = revision.MaxLength; definition.IsRequired = revision.IsRequired; definition.IsActive = revision.IsActive; definition.Version++;
+    db.SalesInvoiceCustomFieldDefinitionRevisions.Add(ToSalesInvoiceCustomFieldRevision(definition, GetUserId(principal), "Restored")); await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(new SalesInvoiceCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+salesInvoiceCustomFields.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!await db.SalesInvoices.AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
+    var rows = await (from definition in db.SalesInvoiceCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.SalesInvoiceCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.InvoiceId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesInvoiceCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
+    return Results.Ok(rows);
+});
+salesInvoiceCustomFields.MapPut("/{id:guid}/custom-fields", async (Guid id, SalesInvoiceCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (body.Values is { Count: > 40 }) return Results.ValidationProblem(new Dictionary<string, string[]> { ["values"] = ["En fazla 40 alan gönderilebilir."] });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var invoice = await db.SalesInvoices.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesInvoices] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    if (invoice is null) return Results.NotFound(); if (invoice.Status != SalesInvoiceStatus.Posted) return Results.Conflict(new { error = "Yalnızca açık fatura özel alanları değiştirilebilir." });
+    var definitions = await db.SalesInvoiceCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesInvoiceCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var errors = new Dictionary<string, string[]>(); var normalized = new Dictionary<Guid, (SalesInvoiceCustomFieldDefinition Definition, string Value)>();
+    if (body.Values is not null) foreach (var pair in body.Values)
+    {
+        var definition = definitions.FirstOrDefault(x => string.Equals(x.Code, pair.Key, StringComparison.OrdinalIgnoreCase));
+        if (definition is null) { errors[$"values.{pair.Key}"] = ["Alan kodu tenant içinde etkin değil."]; continue; }
+        if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, pair.Value, out var value)) { errors[$"values.{pair.Key}"] = [$"'{definition.Label}' alanı veri türü veya uzunluk sınırına uymuyor."]; continue; }
+        if (value.Length > 0) normalized[definition.Id] = (definition, value);
+    }
+    var missing = definitions.FirstOrDefault(x => x.IsRequired && !normalized.ContainsKey(x.Id)); if (missing is not null) errors[$"values.{missing.Code}"] = [$"'{missing.Label}' alanı zorunludur."];
+    if (errors.Count > 0) return Results.ValidationProblem(errors);
+    var existing = await db.SalesInvoiceCustomFieldValues.Where(x => x.TenantId == tenantId && x.InvoiceId == id && definitions.Select(d => d.Id).Contains(x.DefinitionId)).ToDictionaryAsync(x => x.DefinitionId);
+    foreach (var definition in definitions)
+    {
+        var next = normalized.GetValueOrDefault(definition.Id).Value; existing.TryGetValue(definition.Id, out var current); var previous = current?.Value;
+        if (string.Equals(previous ?? "", next ?? "", StringComparison.Ordinal) && (current is null || current.DefinitionVersion == definition.Version)) continue;
+        if (string.IsNullOrEmpty(next)) { if (current is not null) db.SalesInvoiceCustomFieldValues.Remove(current); }
+        else if (current is null) db.SalesInvoiceCustomFieldValues.Add(new SalesInvoiceCustomFieldValue { TenantId = tenantId, InvoiceId = id, DefinitionId = definition.Id, Value = next, DefinitionVersion = definition.Version });
+        else { current.Value = next; current.DefinitionVersion = definition.Version; current.UpdatedAt = DateTimeOffset.UtcNow; }
+        db.SalesInvoiceCustomFieldValueRevisions.Add(new SalesInvoiceCustomFieldValueRevision { TenantId = tenantId, InvoiceId = id, DefinitionId = definition.Id, PreviousValue = previous, NewValue = next, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    }
+    await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(await (from definition in db.SalesInvoiceCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.SalesInvoiceCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.InvoiceId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesInvoiceCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync());
+});
+salesInvoiceCustomFields.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async (Guid id, Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!await db.SalesInvoices.AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
+    var history = await (from revision in db.SalesInvoiceCustomFieldValueRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.InvoiceId == id && x.DefinitionId == definitionId)
+        join definition in db.SalesInvoiceCustomFieldDefinitions.AsNoTracking() on new { revision.TenantId, revision.DefinitionId } equals new { definition.TenantId, DefinitionId = definition.Id }
+        orderby revision.CreatedAt descending select new SalesInvoiceCustomFieldValueRevisionView(revision.Id, revision.DefinitionId, definition.Code, definition.Label, revision.PreviousValue, revision.NewValue, revision.DefinitionVersion, revision.ChangedByUserId, revision.CreatedAt)).Take(50).ToListAsync();
+    return Results.Ok(history);
+});
+salesInvoiceCustomFields.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisionId:guid}/restore", async (Guid id, Guid definitionId, Guid revisionId, SalesInvoiceCustomFieldValueRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!body.Confirmation) return Results.BadRequest(new { error = "Değeri geri yüklemek için açık onay gerekir." });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var invoice = await db.SalesInvoices.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesInvoices] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    if (invoice is null) return Results.NotFound(); if (invoice.Status != SalesInvoiceStatus.Posted) return Results.Conflict(new { error = "Yalnızca açık fatura değerleri geri yüklenebilir." });
+    var definition = await db.SalesInvoiceCustomFieldDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == definitionId && x.IsActive);
+    var revision = await db.SalesInvoiceCustomFieldValueRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.InvoiceId == id && x.DefinitionId == definitionId && x.Id == revisionId);
+    if (definition is null || revision is null) return Results.NotFound(); var target = revision.PreviousValue ?? "";
+    if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, target, out target) || (definition.IsRequired && target.Length == 0)) return Results.Conflict(new { error = "Önceki değer güncel alan tanımıyla uyumlu değil." });
+    var current = await db.SalesInvoiceCustomFieldValues.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.InvoiceId == id && x.DefinitionId == definitionId); var previous = current?.Value;
+    if (target.Length == 0) { if (current is not null) db.SalesInvoiceCustomFieldValues.Remove(current); }
+    else if (current is null) db.SalesInvoiceCustomFieldValues.Add(new SalesInvoiceCustomFieldValue { TenantId = tenantId, InvoiceId = id, DefinitionId = definitionId, Value = target, DefinitionVersion = definition.Version });
+    else { current.Value = target; current.DefinitionVersion = definition.Version; current.UpdatedAt = DateTimeOffset.UtcNow; }
+    db.SalesInvoiceCustomFieldValueRevisions.Add(new SalesInvoiceCustomFieldValueRevision { TenantId = tenantId, InvoiceId = id, DefinitionId = definitionId, PreviousValue = previous, NewValue = target.Length == 0 ? null : target, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    await db.SaveChangesAsync(); await tx.CommitAsync(); return Results.Ok(new SalesInvoiceCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, target));
+});
+
 var salesInvoices = app.MapGroup("/api/sales/invoices").RequireAuthorization();
-salesInvoices.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 25) =>
+salesInvoices.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -1708,12 +2644,15 @@ salesInvoices.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformD
             x.Customer.Name, x.InvoiceDate, x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt)).ToListAsync();
     return Results.Ok(new SalesInvoicePage(rows, page, pageSize, total));
 });
-salesInvoices.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesInvoices.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var invoice = await db.SalesInvoices.AsNoTracking().Include(x => x.Delivery).Include(x => x.Order).Include(x => x.Customer)
         .Include(x => x.Lines).Include(x => x.LedgerEntries).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
     if (invoice is null) return Results.NotFound();
+    var customFields = await (from definition in db.SalesInvoiceCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.SalesInvoiceCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.InvoiceId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesInvoiceCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
     var lines = invoice.Lines.OrderBy(x => x.OrderLineNumber).Select(x => new SalesInvoiceLineView(x.Id, x.OrderLineNumber,
         x.StockCode, x.StockName, x.UnitCode, x.Quantity, x.UnitPrice, x.DiscountPercent, x.VatPercent,
         x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal)).ToList();
@@ -1739,9 +2678,9 @@ salesInvoices.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Pl
     return Results.Ok(new SalesInvoiceView(invoice.Id, invoice.Code, invoice.DeliveryId, invoice.Delivery.Code, invoice.OrderId,
         invoice.Order.Code, invoice.CustomerId, invoice.Customer.Name, invoice.InvoiceDate, invoice.CurrencyCode, invoice.Status,
         invoice.Subtotal, invoice.DiscountTotal, invoice.TaxTotal, invoice.GrandTotal, ledgerEntryId, invoice.CreatedAt, lines,
-        paidAmount, returnedAmount, Math.Max(0, invoice.GrandTotal - paidAmount - returnedAmount), collections, returns));
+        paidAmount, returnedAmount, Math.Max(0, invoice.GrandTotal - paidAmount - returnedAmount), collections, returns, customFields));
 });
-salesInvoices.MapPost("/{id:guid}/collections", async (Guid id, CustomerCollectionWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesInvoices.MapPost("/{id:guid}/collections", async (Guid id, CustomerCollectionWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = new Dictionary<string, string[]>();
@@ -1808,7 +2747,7 @@ salesInvoices.MapPost("/{id:guid}/collections", async (Guid id, CustomerCollecti
         collection.CurrencyCode, collection.PaymentMethod, collection.Reference, collection.Status, collection.CreatedAt,
         financialAccount?.Id, financialAccount?.Name));
 });
-salesInvoices.MapPost("/{id:guid}/returns", async (Guid id, SalesReturnWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesInvoices.MapPost("/{id:guid}/returns", async (Guid id, SalesReturnWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = new Dictionary<string, string[]>();
@@ -1882,9 +2821,37 @@ salesInvoices.MapPost("/{id:guid}/returns", async (Guid id, SalesReturnWriteRequ
         salesReturn.Lines.Add(line);
         var unitCostBase = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId
             && x.SalesDeliveryLineId == invoiceLine.DeliveryLineId && x.ReversalOfId == null).Select(x => x.UnitCostBase).SingleOrDefaultAsync();
-        db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id,
+        var stockItem = await db.StockItems.AsNoTracking().SingleAsync(x => x.TenantId == tenantId && x.Id == invoiceLine.StockItemId);
+        IReadOnlyList<InventoryTrackingAllocationRequest> returnTracking = [];
+        if (stockItem.TrackingMode != InventoryTrackingMode.None)
+        {
+            var deliveredMovement = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.SalesDeliveryLineId == invoiceLine.DeliveryLineId && x.ReversalOfId == null).SingleOrDefaultAsync();
+            if (deliveredMovement is null) return Results.Conflict(new { error = $"{invoiceLine.StockCode} için kaynak sevkiyat hareketi bulunamadı." });
+            var originalTraces = await db.InventoryTransactionTraces.AsNoTracking().Where(x => x.TenantId == tenantId && x.InventoryTransactionId == deliveredMovement.Id).ToListAsync();
+            var alreadyReturned = await (from trace in db.InventoryTransactionTraces.AsNoTracking()
+                join movement in db.InventoryTransactions.AsNoTracking() on new { trace.TenantId, trace.InventoryTransactionId } equals new { movement.TenantId, InventoryTransactionId = movement.Id }
+                where trace.TenantId == tenantId && movement.SalesReturnLine != null && movement.SalesReturnLine.SalesInvoiceLineId == invoiceLine.Id
+                    && movement.Direction == InventoryDirection.Receipt && movement.ReversalOfId == null && movement.SalesReturnLine.SalesReturn.Status == SalesReturnStatus.Posted
+                group trace by trace.TrackingCode into g select new { Code = g.Key, Quantity = g.Sum(x => x.Quantity) }).ToDictionaryAsync(x => x.Code, x => x.Quantity);
+            var left = row.Quantity;
+            var selected = new List<InventoryTrackingAllocationRequest>();
+            foreach (var trace in originalTraces.OrderBy(x => x.ExpiryDate).ThenBy(x => x.TrackingCode))
+            {
+                var remainingTrace = trace.Quantity - alreadyReturned.GetValueOrDefault(trace.TrackingCode);
+                var take = Math.Min(left, remainingTrace);
+                if (take <= 0m) continue;
+                selected.Add(new InventoryTrackingAllocationRequest(trace.TrackingCode, take, trace.ExpiryDate));
+                left -= take;
+                if (left == 0m) break;
+            }
+            if (left != 0m) return Results.Conflict(new { error = $"{invoiceLine.StockCode} iadesi için orijinal lot/seri kaydı yetersiz." });
+            returnTracking = selected;
+        }
+        var returnMovement = new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id,
             StockItemId = invoiceLine.StockItemId, EntryDate = request.ReturnDate, Direction = InventoryDirection.Receipt,
-            Quantity = row.Quantity, UnitCostBase = unitCostBase, Description = $"Satış iadesi {returnCode}", SalesReturnLine = line });
+            Quantity = row.Quantity, UnitCostBase = unitCostBase, Description = $"Satış iadesi {returnCode}", SalesReturnLine = line };
+        returnMovement.Tracking = ToTraceEntities(tenantId, stockItem, returnTracking);
+        db.InventoryTransactions.Add(returnMovement);
     }
     db.SalesReturns.Add(salesReturn);
     db.CustomerLedgerEntries.Add(new CustomerLedgerEntry { TenantId = tenantId, CustomerId = customer.Id, SalesReturn = salesReturn,
@@ -1900,7 +2867,7 @@ salesInvoices.MapPost("/{id:guid}/returns", async (Guid id, SalesReturnWriteRequ
         invoice.Id, invoice.Code, warehouse.Id, warehouse.Name, salesReturn.ReturnDate, salesReturn.Status, salesReturn.GrandTotal,
         salesReturn.Lines.Count, salesReturn.CreatedAt, returnLines));
 });
-salesInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -1929,7 +2896,7 @@ salesInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princip
     return Results.Ok(new { invoice.Id, invoice.Code, invoice.Status });
 });
 var customerCollections = app.MapGroup("/api/customer-collections").RequireAuthorization();
-customerCollections.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+customerCollections.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var context = await db.CustomerCollections.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
@@ -1979,7 +2946,7 @@ customerCollections.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal p
     return Results.Ok(new { collection.Id, collection.Code, collection.Status });
 });
 var salesReturns = app.MapGroup("/api/sales/returns").RequireAuthorization();
-salesReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+salesReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var invoiceId = await db.SalesReturns.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id).Select(x => (Guid?)x.SalesInvoiceId).SingleOrDefaultAsync();
@@ -2021,7 +2988,8 @@ salesReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principa
     foreach (var movement in movements)
         db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = movement.StockItemId,
             EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = InventoryDirection.Issue, Quantity = movement.Quantity,
-            UnitCostBase = movement.UnitCostBase, Description = $"Satış iadesi iptali {salesReturn.Code}", ReversalOfId = movement.Id, SalesReturnLineId = movement.SalesReturnLineId });
+            UnitCostBase = movement.UnitCostBase, Description = $"Satış iadesi iptali {salesReturn.Code}", ReversalOfId = movement.Id, SalesReturnLineId = movement.SalesReturnLineId,
+            Tracking = await CopyTrackingAsync(db, tenantId, movement) });
     db.CustomerLedgerEntries.Add(new CustomerLedgerEntry { TenantId = tenantId, CustomerId = customer.Id, SalesReturnId = salesReturn.Id,
         EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = CustomerLedgerDirection.Debit, Amount = originalLedger.Amount,
         CurrencyCode = originalLedger.CurrencyCode, Description = $"Satış iadesi iptali {salesReturn.Code}", ReversalOfId = originalLedger.Id });
@@ -2032,14 +3000,14 @@ salesReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principa
     return Results.Ok(new { salesReturn.Id, salesReturn.Code, salesReturn.Status });
 });
 var purchaseRequests = app.MapGroup("/api/purchasing/requests").RequireAuthorization();
-purchaseRequests.MapGet("/custom-fields", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var definitions = await db.PurchaseRequestCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
         .OrderBy(x => x.Label).Select(x => new PurchaseRequestCustomFieldDefinitionView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, x.IsActive)).ToListAsync();
     return Results.Ok(definitions);
 });
-purchaseRequests.MapPost("/custom-fields", async (PurchaseRequestCustomFieldCreateRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapPost("/custom-fields", async (PurchaseRequestCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -2060,7 +3028,7 @@ purchaseRequests.MapPost("/custom-fields", async (PurchaseRequestCustomFieldCrea
     await db.SaveChangesAsync();
     return Results.Created($"/api/purchasing/requests/custom-fields/{definition.Id}", new PurchaseRequestCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
 });
-purchaseRequests.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, PurchaseRequestCustomFieldUpdateRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, PurchaseRequestCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -2084,7 +3052,7 @@ purchaseRequests.MapPut("/custom-fields/{definitionId:guid}", async (Guid defini
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new PurchaseRequestCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
 });
-purchaseRequests.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -2096,7 +3064,7 @@ purchaseRequests.MapDelete("/custom-fields/{definitionId:guid}", async (Guid def
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "purchase-request-custom-field.deactivated", Resource = definition.Code });
     await db.SaveChangesAsync(); return Results.NoContent();
 });
-purchaseRequests.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.PurchaseRequestCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
@@ -2104,7 +3072,7 @@ purchaseRequests.MapGet("/custom-fields/{definitionId:guid}/history", async (Gui
         .OrderByDescending(x => x.Version).Take(50).Select(x => new PurchaseRequestCustomFieldDefinitionRevisionView(x.Id, x.DefinitionId, x.Version, x.Code, x.Label, x.DataType, x.MaxLength, x.IsRequired, x.IsActive, x.ChangeKind, x.ChangedByUserId, x.CreatedAt)).ToListAsync();
     return Results.Ok(history);
 });
-purchaseRequests.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid definitionId, PurchaseRequestCustomFieldRestoreRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid definitionId, PurchaseRequestCustomFieldRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -2127,7 +3095,7 @@ purchaseRequests.MapPost("/custom-fields/{definitionId:guid}/restore", async (Gu
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new PurchaseRequestCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
 });
-purchaseRequests.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.PurchaseRequests.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
@@ -2135,7 +3103,7 @@ purchaseRequests.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrinci
     var values = await db.PurchaseRequestCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseRequestId == id).ToDictionaryAsync(x => x.DefinitionId, x => x.Value);
     return Results.Ok(definitions.Select(x => new PurchaseRequestCustomFieldValueView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, values.GetValueOrDefault(x.Id) ?? "")).ToArray());
 });
-purchaseRequests.MapPut("/{id:guid}/custom-fields", async (Guid id, PurchaseRequestCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapPut("/{id:guid}/custom-fields", async (Guid id, PurchaseRequestCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (body.Values is null || body.Values.Count > 40) return Results.ValidationProblem(new Dictionary<string, string[]> { ["values"] = ["En fazla 40 özel alan değeri gönderilebilir."] });
@@ -2178,7 +3146,7 @@ purchaseRequests.MapPut("/{id:guid}/custom-fields", async (Guid id, PurchaseRequ
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(definitions.Select(x => new PurchaseRequestCustomFieldValueView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, normalized.GetValueOrDefault(x.Id).Value ?? "")).ToArray());
 });
-purchaseRequests.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async (Guid id, Guid definitionId, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async (Guid id, Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.PurchaseRequests.AnyAsync(x => x.TenantId == tenantId && x.Id == id) || !await db.PurchaseRequestCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
@@ -2189,7 +3157,7 @@ purchaseRequests.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", 
                          select new PurchaseRequestCustomFieldValueRevisionView(value.Id, value.DefinitionId, definition.Code, definition.Label, value.PreviousValue, value.NewValue, value.DefinitionVersion, value.ChangedByUserId, value.CreatedAt)).Take(50).ToListAsync();
     return Results.Ok(history);
 });
-purchaseRequests.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisionId:guid}/restore", async (Guid id, Guid definitionId, Guid revisionId, PurchaseRequestCustomFieldValueRestoreRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisionId:guid}/restore", async (Guid id, Guid definitionId, Guid revisionId, PurchaseRequestCustomFieldValueRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!body.Confirmation) return Results.BadRequest(new { error = "Geçmiş değeri geri yüklemek için açık onay gerekir." });
@@ -2216,7 +3184,7 @@ purchaseRequests.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new PurchaseRequestCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, target));
 });
-purchaseRequests.MapGet("/", async (ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 25) =>
+purchaseRequests.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -2230,7 +3198,7 @@ purchaseRequests.MapGet("/", async (ClaimsPrincipal principal, PlatformDbContext
         .ToListAsync();
     return Results.Ok(new PurchaseRequestPage(rows, page, pageSize, total));
 });
-purchaseRequests.MapPost("/", async (PurchaseRequestWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapPost("/", async (PurchaseRequestWriteRequest request, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = PurchaseRequestValidation.Validate(request);
@@ -2245,7 +3213,7 @@ purchaseRequests.MapPost("/", async (PurchaseRequestWriteRequest request, Claims
     var items = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && itemIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
     if (items.Count != itemIds.Length || items.Values.Any(x => !x.IsActive))
         return Results.Conflict(new { error = "Talep satırlarından en az bir stok kartı bulunamadı veya pasif." });
-    var requesterName = await db.Users.Where(x => x.Id == userId).Select(x => x.DisplayName).SingleAsync();
+    var requesterName = await platformDb.Users.Where(x => x.Id == userId).Select(x => x.DisplayName).SingleAsync();
     var purchaseRequest = new PurchaseRequest { TenantId = tenantId, RequestedByUserId = userId.Value,
         Code = request.Code.Trim(), RequestDate = request.RequestDate, NeededByDate = request.NeededByDate,
         Description = request.Description.Trim(), Status = PurchaseRequestStatus.Submitted };
@@ -2274,7 +3242,7 @@ purchaseRequests.MapPost("/", async (PurchaseRequestWriteRequest request, Claims
         null, null, null, purchaseRequest.CreatedAt, null, purchaseRequest.Lines.Count, null, null);
     return Results.Created($"/api/purchasing/requests/{purchaseRequest.Id}", summary);
 });
-purchaseRequests.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var request = await db.PurchaseRequests.AsNoTracking().Include(x => x.PurchaseOrder).Include(x => x.RequestedBy).ThenInclude(x => x.User)
@@ -2292,16 +3260,105 @@ purchaseRequests.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal,
         request.ReviewedByUserId, request.ReviewedBy?.User.DisplayName, request.ReviewNote, request.CreatedAt,
         request.ReviewedAt, lines, request.PurchaseOrder?.Id, request.PurchaseOrder?.Code, customFields));
 });
-purchaseRequests.MapGet("/{id:guid}/supplier-quotes", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+var purchaseSupplierQuotes = app.MapGroup("/api/purchasing/supplier-quotes").RequireAuthorization();
+purchaseSupplierQuotes.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    return Results.Ok(await db.PurchaseSupplierQuoteCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Label)
+        .Select(x => new PurchaseSupplierQuoteCustomFieldDefinitionView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, x.IsActive)).ToListAsync());
+});
+purchaseSupplierQuotes.MapPost("/custom-fields", async (PurchaseSupplierQuoteCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
+    if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, türü ve uzunluğu geçerli olmalıdır."] });
+    if (await db.PurchaseSupplierQuoteCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Alan kodu tenant içinde zaten kullanılmış." });
+    if (body.IsRequired && await db.PurchaseSupplierQuotes.AnyAsync(x => x.TenantId == tenantId && x.Status == PurchaseSupplierQuoteStatus.Submitted)) return Results.Conflict(new { error = "Mevcut teklifler doldurulmadan zorunlu alan açılamaz." });
+    var definition = new PurchaseSupplierQuoteCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    db.PurchaseSupplierQuoteCustomFieldDefinitions.Add(definition); db.PurchaseSupplierQuoteCustomFieldDefinitionRevisions.Add(ToPurchaseSupplierQuoteCustomFieldRevision(definition, GetUserId(principal), "Created"));
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "purchase-supplier-quote-custom-field.created", Resource = code });
+    try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Alan kodu tenant içinde zaten kullanılmış." }); }
+    return Results.Created($"/api/purchasing/supplier-quotes/custom-fields/{definition.Id}", new PurchaseSupplierQuoteCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+purchaseSupplierQuotes.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, PurchaseSupplierQuoteCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya metin uzunluğu geçersiz."] });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.PurchaseSupplierQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseSupplierQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); var maxLength = definition.DataType == CustomFieldDataType.Text ? body.MaxLength : 0; var required = body.IsRequired ?? definition.IsRequired;
+    if (definition.DataType == CustomFieldDataType.Text && maxLength < 1) return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxLength"] = ["Metin uzunluğu 1–500 olmalıdır."] });
+    if (definition.DataType == CustomFieldDataType.Text && await db.PurchaseSupplierQuoteCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > maxLength)) return Results.Conflict(new { error = "Yeni uzunluk mevcut teklif değerlerini geçersiz kılıyor." });
+    if (required && await db.PurchaseSupplierQuotes.AnyAsync(q => q.TenantId == tenantId && q.Status == PurchaseSupplierQuoteStatus.Submitted && !db.PurchaseSupplierQuoteCustomFieldValues.Any(v => v.TenantId == tenantId && v.QuoteId == q.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alan için tüm değerlendirmedeki tekliflere değer girilmelidir." });
+    if (definition.Label != label || definition.MaxLength != maxLength || definition.IsRequired != required)
+    {
+        definition.Label = label; definition.MaxLength = maxLength; definition.IsRequired = required; definition.Version++;
+        db.PurchaseSupplierQuoteCustomFieldDefinitionRevisions.Add(ToPurchaseSupplierQuoteCustomFieldRevision(definition, GetUserId(principal), "Updated"));
+        await db.SaveChangesAsync();
+    }
+    await tx.CommitAsync(); return Results.Ok(new PurchaseSupplierQuoteCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+purchaseSupplierQuotes.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.PurchaseSupplierQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseSupplierQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); if (!definition.IsActive) return Results.Conflict(new { error = "Alan zaten devre dışı." });
+    definition.IsActive = false; definition.Version++; db.PurchaseSupplierQuoteCustomFieldDefinitionRevisions.Add(ToPurchaseSupplierQuoteCustomFieldRevision(definition, GetUserId(principal), "Deactivated"));
+    await db.SaveChangesAsync(); await tx.CommitAsync(); return Results.NoContent();
+});
+purchaseSupplierQuotes.MapGet("/{quoteId:guid}/custom-fields", async (Guid quoteId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!await db.PurchaseSupplierQuotes.AnyAsync(x => x.TenantId == tenantId && x.Id == quoteId)) return Results.NotFound();
+    return Results.Ok(await (from definition in db.PurchaseSupplierQuoteCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.PurchaseSupplierQuoteCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == quoteId) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new PurchaseSupplierQuoteCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync());
+});
+purchaseSupplierQuotes.MapPut("/{quoteId:guid}/custom-fields", async (Guid quoteId, PurchaseSupplierQuoteCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (body.Values is { Count: > 40 }) return Results.ValidationProblem(new Dictionary<string, string[]> { ["values"] = ["En fazla 40 alan gönderilebilir."] });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var quote = await db.PurchaseSupplierQuotes.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseSupplierQuotes] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {quoteId}").SingleOrDefaultAsync();
+    if (quote is null) return Results.NotFound(); if (quote.Status != PurchaseSupplierQuoteStatus.Submitted) return Results.Conflict(new { error = "Yalnızca değerlendirmedeki teklifler düzenlenebilir." });
+    var definitions = await db.PurchaseSupplierQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseSupplierQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var errors = new Dictionary<string, string[]>(); var normalized = new Dictionary<Guid, string>();
+    if (body.Values is not null) foreach (var pair in body.Values)
+    {
+        var definition = definitions.FirstOrDefault(x => string.Equals(x.Code, pair.Key, StringComparison.OrdinalIgnoreCase));
+        if (definition is null) { errors[$"values.{pair.Key}"] = ["Alan kodu etkin değil."]; continue; }
+        if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, pair.Value, out var value)) { errors[$"values.{pair.Key}"] = [$"'{definition.Label}' alanı geçersiz."]; continue; }
+        if (value.Length > 0) normalized[definition.Id] = value;
+    }
+    var missing = definitions.FirstOrDefault(x => x.IsRequired && !normalized.ContainsKey(x.Id)); if (missing is not null) errors[$"values.{missing.Code}"] = [$"'{missing.Label}' alanı zorunludur."];
+    if (errors.Count > 0) return Results.ValidationProblem(errors);
+    var existing = await db.PurchaseSupplierQuoteCustomFieldValues.Where(x => x.TenantId == tenantId && x.QuoteId == quoteId && definitions.Select(d => d.Id).Contains(x.DefinitionId)).ToDictionaryAsync(x => x.DefinitionId);
+    foreach (var definition in definitions)
+    {
+        existing.TryGetValue(definition.Id, out var current); var previous = current?.Value; var next = normalized.GetValueOrDefault(definition.Id) ?? "";
+        if (string.Equals(previous ?? "", next, StringComparison.Ordinal) && (current is null || current.DefinitionVersion == definition.Version)) continue;
+        if (next.Length == 0) { if (current is not null) db.PurchaseSupplierQuoteCustomFieldValues.Remove(current); }
+        else if (current is null) db.PurchaseSupplierQuoteCustomFieldValues.Add(new PurchaseSupplierQuoteCustomFieldValue { TenantId = tenantId, QuoteId = quoteId, DefinitionId = definition.Id, Value = next, DefinitionVersion = definition.Version });
+        else { current.Value = next; current.DefinitionVersion = definition.Version; current.UpdatedAt = DateTimeOffset.UtcNow; }
+        db.PurchaseSupplierQuoteCustomFieldValueRevisions.Add(new PurchaseSupplierQuoteCustomFieldValueRevision { TenantId = tenantId, QuoteId = quoteId, DefinitionId = definition.Id, PreviousValue = previous, NewValue = next.Length == 0 ? null : next, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    }
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "purchase-supplier-quote-custom-fields.updated", Resource = quote.Code });
+    await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(await (from definition in db.PurchaseSupplierQuoteCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.PurchaseSupplierQuoteCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == quoteId) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new PurchaseSupplierQuoteCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync());
+});
+purchaseRequests.MapGet("/{id:guid}/supplier-quotes", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var request = await db.PurchaseRequests.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
         .Select(x => new { x.Id, x.Code }).SingleOrDefaultAsync();
     if (request is null) return Results.NotFound();
     var tenant = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId).Select(x => new { x.BaseCurrencyCode }).SingleAsync();
-    var quotes = await db.PurchaseSupplierQuotes.AsNoTracking().Include(x => x.Supplier).Include(x => x.Lines)
+    var quotes = await db.PurchaseSupplierQuotes.AsNoTracking().Include(x => x.Supplier).Include(x => x.Lines).Include(x => x.CustomFieldValues)
         .Where(x => x.TenantId == tenantId && x.PurchaseRequestId == id)
         .OrderBy(x => x.CreatedAt).ToListAsync();
+    var customFieldDefinitions = await db.PurchaseSupplierQuoteCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Label).ToListAsync();
     var currencies = quotes.Select(x => x.CurrencyCode).Where(x => x != tenant.BaseCurrencyCode).Distinct().ToArray();
     var rates = await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && currencies.Contains(x.CurrencyCode))
         .OrderBy(x => x.RateDate).ThenBy(x => x.Revision).ToListAsync();
@@ -2317,12 +3374,14 @@ purchaseRequests.MapGet("/{id:guid}/supplier-quotes", async (Guid id, ClaimsPrin
             x.TaxTotal, x.GrandTotal, x.Notes, x.CreatedAt, x.Lines.OrderBy(l => l.RequestLineNumber)
                 .Select(l => new PurchaseSupplierQuoteLineView(l.RequestLineNumber, l.StockCode, l.StockName, l.UnitCode,
                     l.Quantity, l.UnitPrice, l.DiscountPercent, l.VatPercent, l.LineSubtotal, l.DiscountAmount, l.TaxAmount, l.LineTotal)).ToList(),
-            tenant.BaseCurrencyCode, comparable, conversion, applied?.RateDate);
+            tenant.BaseCurrencyCode, comparable, conversion, applied?.RateDate,
+            customFieldDefinitions.Select(field => new PurchaseSupplierQuoteCustomFieldValueView(field.Id, field.Code, field.Label, field.DataType, field.MaxLength, field.Version, field.IsRequired,
+                x.CustomFieldValues.FirstOrDefault(value => value.DefinitionId == field.Id)?.Value ?? "")).ToList());
     }).ToList();
     quoteViews = quoteViews.OrderBy(x => x.ComparableGrandTotal is null ? 1 : 0).ThenBy(x => x.ComparableGrandTotal ?? x.GrandTotal).ThenBy(x => x.CreatedAt).ToList();
     return Results.Ok(quoteViews);
 });
-purchaseRequests.MapPost("/{id:guid}/supplier-quotes", async (Guid id, PurchaseSupplierQuoteWriteRequest input, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapPost("/{id:guid}/supplier-quotes", async (Guid id, PurchaseSupplierQuoteWriteRequest input, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -2352,6 +3411,16 @@ purchaseRequests.MapPost("/{id:guid}/supplier-quotes", async (Guid id, PurchaseS
     SalesQuoteTotals totals;
     try { totals = SalesQuoteValidation.Sum(pricedLines.Select(SalesQuoteValidation.Calculate)); }
     catch (OverflowException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = [ex.Message] }); }
+    var customFieldDefinitions = await db.PurchaseSupplierQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseSupplierQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var customFieldErrors = new Dictionary<string, string[]>(); var customFieldValues = new Dictionary<Guid, string>();
+    foreach (var field in customFieldDefinitions)
+    {
+        string? rawValue = null; input.CustomFields?.TryGetValue(field.Code, out rawValue);
+        if (!StockCustomFieldValidation.TryNormalize(field.DataType, field.MaxLength, rawValue, out var normalized)) { customFieldErrors[$"customFields.{field.Code}"] = [$"'{field.Label}' alanı geçersiz."]; continue; }
+        if (normalized.Length > 0) customFieldValues[field.Id] = normalized;
+        else if (field.IsRequired) customFieldErrors[$"customFields.{field.Code}"] = [$"'{field.Label}' alanı zorunludur."];
+    }
+    if (customFieldErrors.Count > 0) return Results.ValidationProblem(customFieldErrors);
     var quote = new PurchaseSupplierQuote { TenantId = tenantId, PurchaseRequestId = id, SupplierId = supplier.Id,
         Code = input.Code.Trim(), QuoteDate = input.QuoteDate, ValidUntil = input.ValidUntil, CurrencyCode = supplier.CurrencyCode,
         Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(), Subtotal = totals.Subtotal,
@@ -2365,6 +3434,12 @@ purchaseRequests.MapPost("/{id:guid}/supplier-quotes", async (Guid id, PurchaseS
             VatPercent = price.VatPercent, LineSubtotal = amounts.LineSubtotal, DiscountAmount = amounts.DiscountAmount,
             TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal });
     }
+    foreach (var (definitionId, value) in customFieldValues)
+    {
+        var field = customFieldDefinitions.Single(x => x.Id == definitionId);
+        quote.CustomFieldValues.Add(new PurchaseSupplierQuoteCustomFieldValue { TenantId = tenantId, Quote = quote, DefinitionId = definitionId, Value = value, DefinitionVersion = field.Version });
+        quote.CustomFieldValueRevisions.Add(new PurchaseSupplierQuoteCustomFieldValueRevision { TenantId = tenantId, Quote = quote, DefinitionId = definitionId, NewValue = value, DefinitionVersion = field.Version, ChangedByUserId = userId });
+    }
     db.PurchaseSupplierQuotes.Add(quote);
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "purchase-supplier-quote.created", Resource = $"{quote.Code}:{request.Code}:{supplier.Name}" });
     try { await db.SaveChangesAsync(); }
@@ -2376,9 +3451,10 @@ purchaseRequests.MapPost("/{id:guid}/supplier-quotes", async (Guid id, PurchaseS
         quote.Status, quote.Subtotal, quote.DiscountTotal, quote.TaxTotal, quote.GrandTotal, quote.Notes, quote.CreatedAt,
         quote.Lines.OrderBy(x => x.RequestLineNumber).Select(x => new PurchaseSupplierQuoteLineView(x.RequestLineNumber,
             x.StockCode, x.StockName, x.UnitCode, x.Quantity, x.UnitPrice, x.DiscountPercent, x.VatPercent,
-            x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal)).ToList()));
+            x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal)).ToList(), CustomFields: customFieldDefinitions.Select(field => new PurchaseSupplierQuoteCustomFieldValueView(field.Id,
+                field.Code, field.Label, field.DataType, field.MaxLength, field.Version, field.IsRequired, customFieldValues.GetValueOrDefault(field.Id) ?? "")).ToList()));
 });
-purchaseRequests.MapPost("/{id:guid}/decision", async (Guid id, PurchaseRequestDecisionRequest decision, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapPost("/{id:guid}/decision", async (Guid id, PurchaseRequestDecisionRequest decision, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -2399,7 +3475,7 @@ purchaseRequests.MapPost("/{id:guid}/decision", async (Guid id, PurchaseRequestD
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new { request.Id, request.Code, request.Status, request.ReviewNote, request.ReviewedAt });
 });
-purchaseRequests.MapPost("/{id:guid}/order", async (Guid id, PurchaseRequestOrderWriteRequest input, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseRequests.MapPost("/{id:guid}/order", async (Guid id, PurchaseRequestOrderWriteRequest input, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -2455,6 +3531,26 @@ purchaseRequests.MapPost("/{id:guid}/order", async (Guid id, PurchaseRequestOrde
     SalesQuoteTotals totals;
     try { totals = SalesQuoteValidation.Sum(pricedLines.Select(SalesQuoteValidation.Calculate)); }
     catch (OverflowException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = [ex.Message] }); }
+    var orderFieldDefinitions = await db.PurchaseOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var requestFieldValues = await (from value in db.PurchaseRequestCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseRequestId == id)
+        join definition in db.PurchaseRequestCustomFieldDefinitions.AsNoTracking() on new { value.TenantId, value.DefinitionId } equals new { definition.TenantId, DefinitionId = definition.Id }
+        select new { definition.Code, value.Value }).ToDictionaryAsync(x => x.Code, x => x.Value, StringComparer.OrdinalIgnoreCase);
+    var supplierQuoteFieldValues = sourceQuote is null ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        : await (from value in db.PurchaseSupplierQuoteCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == sourceQuote.Id)
+            join definition in db.PurchaseSupplierQuoteCustomFieldDefinitions.AsNoTracking() on new { value.TenantId, value.DefinitionId } equals new { definition.TenantId, DefinitionId = definition.Id }
+            select new { definition.Code, value.Value }).ToDictionaryAsync(x => x.Code, x => x.Value, StringComparer.OrdinalIgnoreCase);
+    var orderValues = new Dictionary<Guid, string>(); var fieldErrors = new Dictionary<string, string[]>();
+    foreach (var field in orderFieldDefinitions)
+    {
+        var value = requestFieldValues.GetValueOrDefault(field.Code);
+        if (input.CustomFields?.TryGetValue(field.Code, out var supplied) == true && !string.IsNullOrWhiteSpace(supplied)) value = supplied;
+        if (supplierQuoteFieldValues.TryGetValue(field.Code, out var quoteValue) && !string.IsNullOrWhiteSpace(quoteValue)) value = quoteValue;
+        if (!StockCustomFieldValidation.TryNormalize(field.DataType, field.MaxLength, value, out var normalizedValue))
+        { fieldErrors[$"customFields.{field.Code}"] = [$"'{field.Label}' alanı tür veya uzunluk sınırına uymuyor."]; continue; }
+        if (normalizedValue.Length > 0) orderValues[field.Id] = normalizedValue;
+        else if (field.IsRequired) fieldErrors[$"customFields.{field.Code}"] = [$"'{field.Label}' alanı zorunludur; talep değerini girin veya siparişte tamamlayın."];
+    }
+    if (fieldErrors.Count > 0) return Results.ValidationProblem(fieldErrors);
     var order = new PurchaseOrder { TenantId = tenantId, SupplierId = supplier.Id, SourcePurchaseRequestId = request.Id,
         SourceSupplierQuoteId = sourceQuote?.Id,
         Code = input.Code.Trim(), OrderDate = input.OrderDate, CurrencyCode = supplier.CurrencyCode,
@@ -2468,6 +3564,12 @@ purchaseRequests.MapPost("/{id:guid}/order", async (Guid id, PurchaseRequestOrde
             StockItemId = item.Id, StockCode = item.Code, StockName = item.Name, UnitCode = item.UnitCode, Quantity = line.Quantity,
             UnitPrice = price.UnitPrice, DiscountPercent = price.DiscountPercent, VatPercent = price.VatPercent,
             LineSubtotal = amounts.LineSubtotal, DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal });
+    }
+    foreach (var (definitionId, value) in orderValues)
+    {
+        var definition = orderFieldDefinitions.Single(x => x.Id == definitionId);
+        order.CustomFieldValues.Add(new PurchaseOrderCustomFieldValue { TenantId = tenantId, PurchaseOrder = order, DefinitionId = definitionId, Value = value, DefinitionVersion = definition.Version });
+        order.CustomFieldValueRevisions.Add(new PurchaseOrderCustomFieldValueRevision { TenantId = tenantId, PurchaseOrder = order, DefinitionId = definitionId, NewValue = value, DefinitionVersion = definition.Version, ChangedByUserId = userId });
     }
     request.Status = PurchaseRequestStatus.Ordered;
     if (sourceQuote is not null)
@@ -2503,8 +3605,198 @@ purchaseRequests.MapPost("/{id:guid}/order", async (Guid id, PurchaseRequestOrde
         supplier.Name, order.OrderDate, order.CurrencyCode, order.Status, order.GrandTotal, order.Lines.Count, order.CreatedAt));
 });
 
+var purchaseReceiptFields = app.MapGroup("/api/purchasing/receipts").RequireAuthorization();
+purchaseReceiptFields.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    return Results.Ok(await db.PurchaseReceiptCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Label)
+        .Select(x => new PurchaseReceiptCustomFieldDefinitionView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, x.IsActive)).ToListAsync());
+});
+purchaseReceiptFields.MapPost("/custom-fields", async (PurchaseReceiptCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
+    if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve uzunluğu geçerli olmalıdır."] });
+    if (await db.PurchaseReceiptCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Alan kodu tenant içinde zaten kullanılmış." });
+    var definition = new PurchaseReceiptCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    db.PurchaseReceiptCustomFieldDefinitions.Add(definition); db.PurchaseReceiptCustomFieldDefinitionRevisions.Add(ToPurchaseReceiptCustomFieldRevision(definition, GetUserId(principal), "Created"));
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "purchase-receipt-custom-field.created", Resource = code });
+    try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Alan kodu tenant içinde zaten kullanılmış." }); }
+    return Results.Created($"/api/purchasing/receipts/custom-fields/{definition.Id}", new PurchaseReceiptCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+purchaseReceiptFields.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, PurchaseReceiptCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya uzunluk geçersiz."] });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.PurchaseReceiptCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseReceiptCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); var maxLength = definition.DataType == CustomFieldDataType.Text ? body.MaxLength : 0; var required = body.IsRequired ?? definition.IsRequired;
+    if (definition.DataType == CustomFieldDataType.Text && maxLength < 1) return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxLength"] = ["Metin uzunluğu 1–500 olmalıdır."] });
+    if (definition.DataType == CustomFieldDataType.Text && await db.PurchaseReceiptCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > maxLength)) return Results.Conflict(new { error = "Yeni uzunluk mevcut değerleri geçersiz kılıyor." });
+    if (definition.Label != label || definition.MaxLength != maxLength || definition.IsRequired != required)
+    {
+        definition.Label = label; definition.MaxLength = maxLength; definition.IsRequired = required; definition.Version++;
+        db.PurchaseReceiptCustomFieldDefinitionRevisions.Add(ToPurchaseReceiptCustomFieldRevision(definition, GetUserId(principal), "Updated")); await db.SaveChangesAsync();
+    }
+    await tx.CommitAsync(); return Results.Ok(new PurchaseReceiptCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+purchaseReceiptFields.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.PurchaseReceiptCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseReceiptCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); if (!definition.IsActive) return Results.Conflict(new { error = "Alan zaten devre dışı." });
+    definition.IsActive = false; definition.Version++; db.PurchaseReceiptCustomFieldDefinitionRevisions.Add(ToPurchaseReceiptCustomFieldRevision(definition, GetUserId(principal), "Deactivated"));
+    await db.SaveChangesAsync(); await tx.CommitAsync(); return Results.NoContent();
+});
+purchaseReceiptFields.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!await db.PurchaseReceiptCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
+    return Results.Ok(await db.PurchaseReceiptCustomFieldDefinitionRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.DefinitionId == definitionId).OrderByDescending(x => x.Version).Take(50)
+        .Select(x => new PurchaseReceiptCustomFieldDefinitionRevisionView(x.Id, x.DefinitionId, x.Version, x.Code, x.Label, x.DataType, x.MaxLength, x.IsRequired, x.IsActive, x.ChangeKind, x.ChangedByUserId, x.CreatedAt)).ToListAsync());
+});
+
 var purchaseOrders = app.MapGroup("/api/purchasing/orders").RequireAuthorization();
-purchaseOrders.MapPost("/", async (PurchaseOrderWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseOrders.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    return Results.Ok(await db.PurchaseOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Label)
+        .Select(x => new PurchaseOrderCustomFieldDefinitionView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version, x.IsRequired, x.IsActive)).ToListAsync());
+});
+purchaseOrders.MapPost("/custom-fields", async (PurchaseOrderCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
+    if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve metin uzunluğu geçerli olmalıdır."] });
+    if (await db.PurchaseOrderCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." });
+    if (body.IsRequired && await db.PurchaseOrders.AnyAsync(x => x.TenantId == tenantId && (x.Status == PurchaseOrderStatus.Open || x.Status == PurchaseOrderStatus.PartiallyReceived))) return Results.Conflict(new { error = "Açık siparişler doldurulmadan zorunlu alan açılamaz." });
+    var definition = new PurchaseOrderCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    db.PurchaseOrderCustomFieldDefinitions.Add(definition); db.PurchaseOrderCustomFieldDefinitionRevisions.Add(ToPurchaseOrderCustomFieldRevision(definition, GetUserId(principal), "Created"));
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "purchase-order-custom-field.created", Resource = code });
+    try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." }); }
+    return Results.Created($"/api/purchasing/orders/custom-fields/{definition.Id}", new PurchaseOrderCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+purchaseOrders.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, PurchaseOrderCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya uzunluk sınırı geçersiz."] });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.PurchaseOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); var maxLength = definition.DataType == CustomFieldDataType.Text ? body.MaxLength : 0; var required = body.IsRequired ?? definition.IsRequired;
+    if (definition.DataType == CustomFieldDataType.Text && maxLength < 1) return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxLength"] = ["Metin uzunluğu 1–500 olmalıdır."] });
+    if (definition.DataType == CustomFieldDataType.Text && await db.PurchaseOrderCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > maxLength)) return Results.Conflict(new { error = "Yeni uzunluk mevcut sipariş değerlerini geçersiz kılıyor." });
+    if (required && await db.PurchaseOrders.AnyAsync(o => o.TenantId == tenantId && (o.Status == PurchaseOrderStatus.Open || o.Status == PurchaseOrderStatus.PartiallyReceived) && !db.PurchaseOrderCustomFieldValues.Any(v => v.TenantId == tenantId && v.PurchaseOrderId == o.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı etkinleştirmek için tüm açık siparişlerde değer olmalıdır." });
+    definition.Label = label; definition.MaxLength = maxLength; definition.IsRequired = required; definition.Version++;
+    db.PurchaseOrderCustomFieldDefinitionRevisions.Add(ToPurchaseOrderCustomFieldRevision(definition, GetUserId(principal), "Updated"));
+    await db.SaveChangesAsync(); await tx.CommitAsync(); return Results.Ok(new PurchaseOrderCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+purchaseOrders.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    await using var tx = await db.Database.BeginTransactionAsync(); var definition = await db.PurchaseOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound(); if (!definition.IsActive) return Results.Conflict(new { error = "Alan zaten devre dışı." });
+    definition.IsActive = false; definition.Version++; db.PurchaseOrderCustomFieldDefinitionRevisions.Add(ToPurchaseOrderCustomFieldRevision(definition, GetUserId(principal), "Deactivated")); await db.SaveChangesAsync(); await tx.CommitAsync(); return Results.NoContent();
+});
+purchaseOrders.MapGet("/custom-fields/{definitionId:guid}/history", async (Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.PurchaseOrderCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == definitionId)) return Results.NotFound();
+    return Results.Ok(await db.PurchaseOrderCustomFieldDefinitionRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.DefinitionId == definitionId)
+        .OrderByDescending(x => x.Version).Take(50).Select(x => new PurchaseOrderCustomFieldDefinitionRevisionView(x.Id, x.DefinitionId, x.Version, x.Code,
+            x.Label, x.DataType, x.MaxLength, x.IsRequired, x.IsActive, x.ChangeKind, x.ChangedByUserId, x.CreatedAt)).ToListAsync());
+});
+purchaseOrders.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid definitionId, PurchaseOrderCustomFieldRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!body.Confirmation) return Results.BadRequest(new { error = "Tanımı geri yüklemek için açık onay gerekir." });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var definition = await db.PurchaseOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
+    if (definition is null) return Results.NotFound();
+    var revision = await db.PurchaseOrderCustomFieldDefinitionRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Version == body.Version);
+    if (revision is null) return Results.NotFound();
+    if (revision.DataType != definition.DataType) return Results.Conflict(new { error = "Alan veri türü değiştirilemez." });
+    if (revision.DataType == CustomFieldDataType.Text && await db.PurchaseOrderCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > revision.MaxLength))
+        return Results.Conflict(new { error = "Bu sürüm mevcut değerleri geçersiz kılıyor." });
+    if (revision.IsRequired && await db.PurchaseOrders.AnyAsync(o => o.TenantId == tenantId && (o.Status == PurchaseOrderStatus.Open || o.Status == PurchaseOrderStatus.PartiallyReceived)
+        && !db.PurchaseOrderCustomFieldValues.Any(v => v.TenantId == tenantId && v.PurchaseOrderId == o.Id && v.DefinitionId == definitionId && v.Value != "")))
+        return Results.Conflict(new { error = "Zorunlu alanı geri yüklemek için tüm açık siparişlerde değer olmalıdır." });
+    definition.Label = revision.Label; definition.MaxLength = revision.MaxLength; definition.IsRequired = revision.IsRequired; definition.IsActive = revision.IsActive; definition.Version++;
+    db.PurchaseOrderCustomFieldDefinitionRevisions.Add(ToPurchaseOrderCustomFieldRevision(definition, GetUserId(principal), "Restored"));
+    await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(new PurchaseOrderCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
+});
+purchaseOrders.MapGet("/{id:guid}/custom-fields", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!await db.PurchaseOrders.AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
+    return Results.Ok(await (from definition in db.PurchaseOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.PurchaseOrderCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new PurchaseOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync());
+});
+purchaseOrders.MapPut("/{id:guid}/custom-fields", async (Guid id, PurchaseOrderCustomFieldValuesWriteRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (body.Values is { Count: > 40 }) return Results.ValidationProblem(new Dictionary<string, string[]> { ["values"] = ["En fazla 40 özel alan gönderilebilir."] });
+    await using var tx = await db.Database.BeginTransactionAsync(); var order = await db.PurchaseOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    if (order is null) return Results.NotFound(); if (order.Status is PurchaseOrderStatus.Received or PurchaseOrderStatus.Cancelled) return Results.Conflict(new { error = "Yalnızca açık veya kısmi mal kabul durumundaki sipariş alanları değiştirilebilir." });
+    var definitions = await db.PurchaseOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var errors = new Dictionary<string, string[]>(); var normalized = new Dictionary<Guid, (PurchaseOrderCustomFieldDefinition Definition, string Value)>();
+    if (body.Values is not null) foreach (var pair in body.Values)
+    {
+        var definition = definitions.FirstOrDefault(x => string.Equals(x.Code, pair.Key, StringComparison.OrdinalIgnoreCase)); if (definition is null) { errors[$"values.{pair.Key}"] = ["Alan kodu tenant içinde etkin değil."]; continue; }
+        if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, pair.Value, out var value)) { errors[$"values.{pair.Key}"] = [$"'{definition.Label}' alanı tür veya uzunluk sınırına uymuyor."]; continue; }
+        if (value.Length > 0) normalized[definition.Id] = (definition, value);
+    }
+    var missing = definitions.FirstOrDefault(x => x.IsRequired && !normalized.ContainsKey(x.Id)); if (missing is not null) errors[$"values.{missing.Code}"] = [$"'{missing.Label}' alanı zorunludur."];
+    if (errors.Count > 0) return Results.ValidationProblem(errors);
+    var existing = await db.PurchaseOrderCustomFieldValues.Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id && definitions.Select(d => d.Id).Contains(x.DefinitionId)).ToDictionaryAsync(x => x.DefinitionId);
+    foreach (var definition in definitions)
+    {
+        var next = normalized.GetValueOrDefault(definition.Id).Value; existing.TryGetValue(definition.Id, out var current); var previous = current?.Value;
+        if (string.Equals(previous ?? "", next ?? "", StringComparison.Ordinal) && (current is null || current.DefinitionVersion == definition.Version)) continue;
+        if (string.IsNullOrEmpty(next)) { if (current is not null) db.PurchaseOrderCustomFieldValues.Remove(current); }
+        else if (current is null) db.PurchaseOrderCustomFieldValues.Add(new PurchaseOrderCustomFieldValue { TenantId = tenantId, PurchaseOrderId = id, DefinitionId = definition.Id, Value = next, DefinitionVersion = definition.Version });
+        else { current.Value = next; current.DefinitionVersion = definition.Version; current.UpdatedAt = DateTimeOffset.UtcNow; }
+        db.PurchaseOrderCustomFieldValueRevisions.Add(new PurchaseOrderCustomFieldValueRevision { TenantId = tenantId, PurchaseOrderId = id, DefinitionId = definition.Id, PreviousValue = previous, NewValue = next, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    }
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "purchase-order-custom-fields.updated", Resource = order.Code }); await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(await (from definition in db.PurchaseOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.PurchaseOrderCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new PurchaseOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync());
+});
+purchaseOrders.MapGet("/{id:guid}/custom-fields/{definitionId:guid}/history", async (Guid id, Guid definitionId, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!await db.PurchaseOrders.AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
+    return Results.Ok(await (from revision in db.PurchaseOrderCustomFieldValueRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id && x.DefinitionId == definitionId)
+        join definition in db.PurchaseOrderCustomFieldDefinitions.AsNoTracking() on new { revision.TenantId, revision.DefinitionId } equals new { definition.TenantId, DefinitionId = definition.Id }
+        orderby revision.CreatedAt descending select new PurchaseOrderCustomFieldValueRevisionView(revision.Id, revision.DefinitionId, definition.Code, definition.Label, revision.PreviousValue, revision.NewValue, revision.DefinitionVersion, revision.ChangedByUserId, revision.CreatedAt)).Take(50).ToListAsync());
+});
+purchaseOrders.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revisionId:guid}/restore", async (Guid id, Guid definitionId, Guid revisionId, PurchaseOrderCustomFieldValueRestoreRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!body.Confirmation) return Results.BadRequest(new { error = "Değeri geri yüklemek için açık onay gerekir." });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var order = await db.PurchaseOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    if (order is null) return Results.NotFound();
+    if (order.Status is PurchaseOrderStatus.Received or PurchaseOrderStatus.Cancelled) return Results.Conflict(new { error = "Yalnızca açık veya kısmi mal kabul siparişleri değiştirilebilir." });
+    var definition = await db.PurchaseOrderCustomFieldDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == definitionId && x.IsActive);
+    var revision = await db.PurchaseOrderCustomFieldValueRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.PurchaseOrderId == id && x.DefinitionId == definitionId && x.Id == revisionId);
+    if (definition is null || revision is null) return Results.NotFound();
+    var target = revision.PreviousValue ?? "";
+    if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, target, out target) || (definition.IsRequired && target.Length == 0))
+        return Results.Conflict(new { error = "Önceki değer güncel alan tanımıyla uyumlu değil." });
+    var current = await db.PurchaseOrderCustomFieldValues.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.PurchaseOrderId == id && x.DefinitionId == definitionId);
+    var previous = current?.Value;
+    if (target.Length == 0) { if (current is not null) db.PurchaseOrderCustomFieldValues.Remove(current); }
+    else if (current is null) db.PurchaseOrderCustomFieldValues.Add(new PurchaseOrderCustomFieldValue { TenantId = tenantId, PurchaseOrderId = id, DefinitionId = definitionId, Value = target, DefinitionVersion = definition.Version });
+    else { current.Value = target; current.DefinitionVersion = definition.Version; current.UpdatedAt = DateTimeOffset.UtcNow; }
+    db.PurchaseOrderCustomFieldValueRevisions.Add(new PurchaseOrderCustomFieldValueRevision { TenantId = tenantId, PurchaseOrderId = id, DefinitionId = definitionId,
+        PreviousValue = previous, NewValue = target.Length == 0 ? null : target, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Ok(new PurchaseOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, target));
+});
+purchaseOrders.MapPost("/", async (PurchaseOrderWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = PurchaseOrderValidation.Validate(request);
@@ -2515,6 +3807,17 @@ purchaseOrders.MapPost("/", async (PurchaseOrderWriteRequest request, ClaimsPrin
         return Results.Conflict(new { error = "Aktif bir tedarikçi seçilmelidir." });
     var currency = request.CurrencyCode.Trim().ToUpperInvariant();
     if (currency != supplier.CurrencyCode) return Results.ValidationProblem(new Dictionary<string, string[]> { ["currencyCode"] = [$"Tedarikçi para birimi {supplier.CurrencyCode} olmalıdır."] });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var fieldDefinitions = await db.PurchaseOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var fieldErrors = new Dictionary<string, string[]>(); var fieldValues = new Dictionary<Guid, string>();
+    foreach (var field in fieldDefinitions)
+    {
+        string? input = null; request.CustomFields?.TryGetValue(field.Code, out input);
+        if (!StockCustomFieldValidation.TryNormalize(field.DataType, field.MaxLength, input, out var value)) { fieldErrors[$"customFields.{field.Code}"] = [$"'{field.Label}' alanı tür veya uzunluk sınırına uymuyor."]; continue; }
+        if (value.Length > 0) fieldValues[field.Id] = value;
+        else if (field.IsRequired) fieldErrors[$"customFields.{field.Code}"] = [$"'{field.Label}' alanı zorunludur."];
+    }
+    if (fieldErrors.Count > 0) return Results.ValidationProblem(fieldErrors);
     var stockIds = request.Lines.Select(x => x.StockItemId).Distinct().ToArray();
     var items = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && stockIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
     if (items.Count != stockIds.Length || items.Values.Any(x => !x.IsActive))
@@ -2533,14 +3836,21 @@ purchaseOrders.MapPost("/", async (PurchaseOrderWriteRequest request, ClaimsPrin
             UnitPrice = input.UnitPrice, DiscountPercent = input.DiscountPercent, VatPercent = input.VatPercent,
             LineSubtotal = amounts.LineSubtotal, DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal });
     }
+    foreach (var (definitionId, value) in fieldValues)
+    {
+        var field = fieldDefinitions.Single(x => x.Id == definitionId);
+        order.CustomFieldValues.Add(new PurchaseOrderCustomFieldValue { TenantId = tenantId, PurchaseOrder = order, DefinitionId = definitionId, Value = value, DefinitionVersion = field.Version });
+        order.CustomFieldValueRevisions.Add(new PurchaseOrderCustomFieldValueRevision { TenantId = tenantId, PurchaseOrder = order, DefinitionId = definitionId, NewValue = value, DefinitionVersion = field.Version, ChangedByUserId = GetUserId(principal) });
+    }
     db.PurchaseOrders.Add(order);
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "purchase-order.created", Resource = order.Code });
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu satın alma sipariş numarası bu firmada zaten kullanılıyor." }); }
+    await transaction.CommitAsync();
     return Results.Created($"/api/purchasing/orders/{order.Id}", new PurchaseOrderSummary(order.Id, order.Code, supplier.Id, supplier.Name,
         order.OrderDate, order.CurrencyCode, order.Status, order.GrandTotal, order.Lines.Count, order.CreatedAt));
 });
-purchaseOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 25) =>
+purchaseOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -2552,7 +3862,7 @@ purchaseOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, Platform
             x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt)).ToListAsync();
     return Results.Ok(new PurchaseOrderPage(rows, page, pageSize, total));
 });
-purchaseOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var order = await db.PurchaseOrders.AsNoTracking().Include(x => x.Supplier).Include(x => x.Lines)
@@ -2574,6 +3884,9 @@ purchaseOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, P
         .Select(x => new PurchaseReceiptSummary(x.Id, x.Code, x.PurchaseOrderId, x.PurchaseOrder.Code, x.WarehouseId, x.Warehouse.Name,
             x.ReceiptDate, x.Status, x.Lines.Count, x.CreatedAt,
             x.Lines.OrderBy(l => l.OrderLineNumber).Select(l => new PurchaseReceiptLineView(l.OrderLineNumber, l.StockItemId, l.StockCode, l.StockName, l.UnitCode, l.Quantity)).ToList())).ToListAsync();
+    var receiptFieldDefinitions = await db.PurchaseReceiptCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Label).ToListAsync();
+    var receiptFieldValues = await db.PurchaseReceiptCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.Receipt.PurchaseOrderId == id)
+        .ToDictionaryAsync(x => (x.ReceiptId, x.DefinitionId), x => x.Value);
     receipts = receipts.Select(r =>
     {
         var invoice = activeInvoices.SingleOrDefault(x => x.PurchaseReceiptId == r.Id);
@@ -2581,13 +3894,18 @@ purchaseOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, P
             invoice.ReceiptCode, invoice.PurchaseOrderId, invoice.OrderCode, invoice.SupplierId, invoice.SupplierName,
             invoice.InvoiceDate, invoice.DueDate, invoice.CurrencyCode, invoice.Status, invoice.GrandTotal, invoice.Paid,
             PurchaseInvoiceWorkflow.Outstanding(invoice.GrandTotal, invoice.Paid, invoice.Returned), invoice.LineCount, invoice.CreatedAt);
-        return r with { Invoice = summary };
+        var fields = receiptFieldDefinitions.Select(field => new PurchaseReceiptCustomFieldValueView(field.Id, field.Code, field.Label, field.DataType, field.MaxLength, field.Version, field.IsRequired,
+            receiptFieldValues.GetValueOrDefault((r.Id, field.Id)) ?? "")).ToList();
+        return r with { Invoice = summary, CustomFields = fields };
     }).ToList();
+    var customFields = await (from definition in db.PurchaseOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+        join value in db.PurchaseOrderCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
+        from value in grouped.DefaultIfEmpty() orderby definition.Label select new PurchaseOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
     return Results.Ok(new PurchaseOrderView(order.Id, order.Code, order.SupplierId, order.Supplier.Name, order.OrderDate,
         order.CurrencyCode, order.Status, order.Subtotal, order.DiscountTotal, order.TaxTotal, order.GrandTotal, order.Notes,
-        order.CreatedAt, lines, receipts));
+        order.CreatedAt, lines, receipts, customFields));
 });
-purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = PurchaseReceiptValidation.Validate(request);
@@ -2603,6 +3921,21 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
             prior.Warehouse.Name, prior.ReceiptDate, prior.Status, await db.PurchaseReceiptLines.CountAsync(x => x.TenantId == tenantId && x.ReceiptId == prior.Id), prior.CreatedAt));
     }
     if (order.Status is PurchaseOrderStatus.Received or PurchaseOrderStatus.Cancelled) return Results.Conflict(new { error = "Bu sipariş için yeni mal kabul yapılamaz." });
+    var receiptFieldDefinitions = await db.PurchaseReceiptCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseReceiptCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var receiptFieldErrors = new Dictionary<string, string[]>(); var receiptFieldValues = new Dictionary<Guid, string>();
+    var orderFieldValues = await (from value in db.PurchaseOrderCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id)
+        join definition in db.PurchaseOrderCustomFieldDefinitions.AsNoTracking() on new { value.TenantId, value.DefinitionId } equals new { definition.TenantId, DefinitionId = definition.Id }
+        select new { definition.Code, value.Value }).ToDictionaryAsync(x => x.Code, x => x.Value, StringComparer.OrdinalIgnoreCase);
+    foreach (var field in receiptFieldDefinitions)
+    {
+        string? raw = null;
+        if (request.CustomFields?.TryGetValue(field.Code, out var supplied) == true) raw = supplied;
+        else orderFieldValues.TryGetValue(field.Code, out raw);
+        if (!StockCustomFieldValidation.TryNormalize(field.DataType, field.MaxLength, raw, out var normalized)) { receiptFieldErrors[$"customFields.{field.Code}"] = [$"'{field.Label}' alanı geçersiz."]; continue; }
+        if (normalized.Length > 0) receiptFieldValues[field.Id] = normalized;
+        else if (field.IsRequired) receiptFieldErrors[$"customFields.{field.Code}"] = [$"'{field.Label}' alanı zorunludur."];
+    }
+    if (receiptFieldErrors.Count > 0) return Results.ValidationProblem(receiptFieldErrors);
     var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {request.WarehouseId}").SingleOrDefaultAsync();
     if (warehouse is null) return Results.NotFound();
     if (!warehouse.IsActive) return Results.Conflict(new { error = "Pasif depoya mal kabul yapılamaz." });
@@ -2624,6 +3957,12 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
     if (purchaseRate is null) return Results.Conflict(new { error = $"{order.CurrencyCode} için {request.ReceiptDate:yyyy-MM-dd} tarihinde veya öncesinde tenant baz para birimine çevrilebilen kur yok. Önce Finans ekranından kuru kaydedin." });
     var code = $"GR-{Guid.NewGuid():N}".ToUpperInvariant();
     var receipt = new PurchaseReceipt { TenantId = tenantId, RequestId = request.RequestId, PurchaseOrderId = id, WarehouseId = warehouse.Id, Code = code, ReceiptDate = request.ReceiptDate };
+    foreach (var (definitionId, value) in receiptFieldValues)
+    {
+        var field = receiptFieldDefinitions.Single(x => x.Id == definitionId);
+        receipt.CustomFieldValues.Add(new PurchaseReceiptCustomFieldValue { TenantId = tenantId, Receipt = receipt, DefinitionId = definitionId, Value = value, DefinitionVersion = field.Version });
+        receipt.CustomFieldValueRevisions.Add(new PurchaseReceiptCustomFieldValueRevision { TenantId = tenantId, Receipt = receipt, DefinitionId = definitionId, NewValue = value, DefinitionVersion = field.Version, ChangedByUserId = GetUserId(principal) });
+    }
     foreach (var input in request.Lines.OrderBy(x => x.OrderLineNumber))
     {
         var line = linesByNumber[input.OrderLineNumber];
@@ -2632,9 +3971,22 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
         receipt.Lines.Add(receiptLine);
         decimal? unitCostBase = purchaseRate is null ? null : decimal.Round(line.UnitPrice * (1m - line.DiscountPercent / 100m) * purchaseRate.Value, 8, MidpointRounding.AwayFromZero);
         if (unitCostBase > 9999999999.99999999m) return Results.Conflict(new { error = $"Sipariş satırı {line.LineNumber} maliyeti decimal(18,8) sınırını aşıyor." });
-        db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = line.StockItemId,
+        var item = stockItems[line.StockItemId];
+        var trackingError = ValidateTrackingAllocations(item.TrackingMode, input.Tracking, input.Quantity);
+        if (trackingError is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{input.OrderLineNumber}].tracking"] = [trackingError] });
+        foreach (var trace in input.Tracking ?? [])
+        {
+            var priorTrace = await db.InventoryTransactionTraces.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == item.Id && x.TrackingCode == trace.TrackingCode.Trim()).ToListAsync();
+            if (item.TrackingMode == InventoryTrackingMode.Lot && priorTrace.Any(x => x.ExpiryDate != trace.ExpiryDate))
+                return Results.Conflict(new { error = $"Lot {trace.TrackingCode} için son kullanma tarihi değiştirilemez." });
+            if (item.TrackingMode == InventoryTrackingMode.Serial && priorTrace.Count > 0)
+                return Results.Conflict(new { error = $"Seri numarası {trace.TrackingCode} daha önce kullanılmış." });
+        }
+        var stockMovement = new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = line.StockItemId,
             EntryDate = request.ReceiptDate, Direction = InventoryDirection.Receipt, Quantity = input.Quantity,
-            UnitCostBase = unitCostBase, Description = $"Satın alma mal kabul {code}", PurchaseReceiptLine = receiptLine });
+            UnitCostBase = unitCostBase, Description = $"Satın alma mal kabul {code}", PurchaseReceiptLine = receiptLine };
+        stockMovement.Tracking = ToTraceEntities(tenantId, item, input.Tracking ?? []);
+        db.InventoryTransactions.Add(stockMovement);
     }
     db.PurchaseReceipts.Add(receipt);
     var receivedAfter = new Dictionary<int, decimal>(received);
@@ -2645,10 +3997,120 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Mal kabul istek anahtarı veya belge numarası daha önce kullanıldı." }); }
     await transaction.CommitAsync();
     return Results.Created($"/api/purchasing/receipts/{receipt.Id}", new PurchaseReceiptSummary(receipt.Id, receipt.Code, order.Id, order.Code,
-        warehouse.Id, warehouse.Name, receipt.ReceiptDate, receipt.Status, receipt.Lines.Count, receipt.CreatedAt));
+        warehouse.Id, warehouse.Name, receipt.ReceiptDate, receipt.Status, receipt.Lines.Count, receipt.CreatedAt, CustomFields: receiptFieldDefinitions.Select(field => new PurchaseReceiptCustomFieldValueView(field.Id,
+            field.Code, field.Label, field.DataType, field.MaxLength, field.Version, field.IsRequired, receiptFieldValues.GetValueOrDefault(field.Id) ?? "")).ToList()));
 });
 var purchaseReceipts = app.MapGroup("/api/purchasing/receipts").RequireAuthorization();
-purchaseReceipts.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseReceipts.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
+    var query = db.PurchaseReceipts.AsNoTracking().Where(x => x.TenantId == tenantId);
+    var total = await query.CountAsync();
+    var rows = await query.OrderByDescending(x => x.ReceiptDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
+        .Select(x => new PurchaseReceiptSummary(x.Id, x.Code, x.PurchaseOrderId, x.PurchaseOrder.Code, x.WarehouseId, x.Warehouse.Name,
+            x.ReceiptDate, x.Status, x.Lines.Count, x.CreatedAt))
+        .ToListAsync();
+    return Results.Ok(new PurchaseReceiptPage(rows, page, pageSize, total));
+});
+purchaseReceipts.MapGet("/{id:guid}/landed-costs", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.PurchaseReceipts.AnyAsync(x => x.TenantId == tenantId && x.Id == id)) return Results.NotFound();
+    var headers = await db.InventoryCostAdjustments.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseReceiptId == id)
+        .OrderBy(x => x.CreatedAt).ToListAsync();
+    var results = new List<InventoryCostAdjustmentView>();
+    foreach (var header in headers) results.Add(await BuildInventoryCostAdjustmentViewAsync(db, tenantId, header));
+    return Results.Ok(results);
+});
+purchaseReceipts.MapPost("/{id:guid}/landed-costs", async (Guid id, LandedCostWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var method = request.AllocationMethod?.Trim().ToUpperInvariant();
+    if (request.AmountBase <= 0m || request.AmountBase > 9999999999999999.99m || request.AmountBase != decimal.Round(request.AmountBase, 2) ||
+        method is not ("VALUE" or "QUANTITY" or "EQUAL") || string.IsNullOrWhiteSpace(request.Description) || request.Description.Trim().Length > 240)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["landedCost"] = ["Tutar pozitif ve iki ondalık basamaklı olmalı; dağıtım yöntemi Value, Quantity veya Equal olmalı; açıklama en fazla 240 karakter olmalıdır."] });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var receipt = await db.PurchaseReceipts.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseReceipts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    if (receipt is null) return Results.NotFound();
+    if (receipt.Status != PurchaseReceiptStatus.Posted) return Results.Conflict(new { error = "Yalnızca işlenmiş mal kabullere ek maliyet dağıtılabilir." });
+    if (request.EntryDate < receipt.ReceiptDate || request.EntryDate > DateOnly.FromDateTime(DateTime.UtcNow))
+        return Results.Conflict(new { error = "Ek maliyet tarihi mal kabul tarihinden önce veya bugünden ileri olamaz." });
+    var sourceLines = await db.PurchaseReceiptLines.AsNoTracking().Include(x => x.OrderLine)
+        .Where(x => x.TenantId == tenantId && x.ReceiptId == id).OrderBy(x => x.OrderLineNumber).ToListAsync();
+    if (sourceLines.Count == 0) return Results.Conflict(new { error = "Satırı olmayan mal kabule ek maliyet dağıtılamaz." });
+    var lineIds = sourceLines.Select(x => x.Id).ToArray();
+    var movements = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseReceiptLineId != null && lineIds.Contains(x.PurchaseReceiptLineId.Value) && x.ReversalOfId == null)
+        .ToDictionaryAsync(x => x.PurchaseReceiptLineId!.Value);
+    if (movements.Count != sourceLines.Count || movements.Values.Any(x => x.UnitCostBase is null))
+        return Results.Conflict(new { error = "Ek maliyet dağıtımı için her mal kabul satırının etkin ve değerlenmiş stok girişi bulunmalıdır." });
+    if (sourceLines.Any(line => db.InventoryTransactions.Any(x => x.TenantId == tenantId && x.ReversalOfId == movements[line.Id].Id)))
+        return Results.Conflict(new { error = "Ters kaydı olan mal kabul satırına ek maliyet dağıtılamaz." });
+    var itemIds = sourceLines.Select(x => x.StockItemId).Distinct().ToArray();
+    var receiptCreatedAt = movements.Values.Max(x => x.CreatedAt);
+    if (await db.InventoryTransactions.AnyAsync(x => x.TenantId == tenantId && x.WarehouseId == receipt.WarehouseId && itemIds.Contains(x.StockItemId)
+        && x.Direction == InventoryDirection.Issue && x.CreatedAt > receiptCreatedAt))
+        return Results.Conflict(new { error = "Bu mal kabulden sonra stok çıkışı yapılmış; tüketilen miktara ilişkin maliyet ayrıştırması olmadan ek maliyet dağıtılamaz." });
+    var weights = sourceLines.Select(line => method switch
+    {
+        "QUANTITY" => line.Quantity,
+        "VALUE" => line.Quantity * movements[line.Id].UnitCostBase!.Value,
+        _ => 1m
+    }).ToArray();
+    var totalWeight = weights.Sum();
+    if (totalWeight <= 0m) return Results.Conflict(new { error = "Maliyet dağıtımı için pozitif bir ağırlık toplamı bulunamadı." });
+    var record = new InventoryCostAdjustment { TenantId = tenantId, Code = $"LC-{Guid.NewGuid():N}".ToUpperInvariant(),
+        EntryDate = request.EntryDate, Kind = InventoryCostAdjustmentKind.LandedCost, PurchaseReceiptId = id,
+        Description = request.Description.Trim(), CreatedByUserId = GetUserId(principal) };
+    var assigned = 0m;
+    for (var index = 0; index < sourceLines.Count; index++)
+    {
+        var source = sourceLines[index];
+        var amount = index == sourceLines.Count - 1
+            ? request.AmountBase - assigned
+            : decimal.Round(request.AmountBase * weights[index] / totalWeight, 2, MidpointRounding.AwayFromZero);
+        assigned += amount;
+        if (amount == 0m) continue;
+        var movement = movements[source.Id];
+        record.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = record,
+            WarehouseId = receipt.WarehouseId, StockItemId = source.StockItemId, PurchaseReceiptLineId = source.Id,
+            QuantitySnapshot = source.Quantity, UnitCostSnapshotBase = movement.UnitCostBase, AmountBase = amount });
+    }
+    if (record.Lines.Count == 0) return Results.Conflict(new { error = "Dağıtılan tutar satır hassasiyetinde sıfıra yuvarlandı." });
+    db.InventoryCostAdjustments.Add(record);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "inventory-landed-cost.posted", Resource = record.Code });
+    await db.SaveChangesAsync(); await transaction.CommitAsync();
+    return Results.Created($"/api/purchasing/receipts/{id}/landed-costs/{record.Id}", await BuildInventoryCostAdjustmentViewAsync(db, tenantId, record));
+});
+purchaseReceipts.MapPost("/{id:guid}/landed-costs/{adjustmentId:guid}/reverse", async (Guid id, Guid adjustmentId, InventoryReverseRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var errors = InventoryValidation.Validate(request);
+    if (errors is not null) return Results.ValidationProblem(errors);
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var receipt = await db.PurchaseReceipts.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseReceipts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    if (receipt is null) return Results.NotFound();
+    var original = await db.InventoryCostAdjustments.FromSqlInterpolated($"SELECT * FROM [dbo].[InventoryCostAdjustments] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {adjustmentId}").SingleOrDefaultAsync();
+    if (original is null || original.PurchaseReceiptId != id || original.Kind != InventoryCostAdjustmentKind.LandedCost || original.ReversalOfId is not null) return Results.NotFound();
+    if (await db.InventoryCostAdjustments.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == original.Id)) return Results.Conflict(new { error = "Bu ek maliyet daha önce ters kayıtla iptal edilmiştir." });
+    var lines = await db.InventoryCostAdjustmentLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.AdjustmentId == original.Id).ToListAsync();
+    if (lines.Count == 0) return Results.Conflict(new { error = "Ek maliyet dağıtım satırları bulunamadı." });
+    var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = $"LCV-{Guid.NewGuid():N}".ToUpperInvariant(),
+        EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Kind = InventoryCostAdjustmentKind.Reversal,
+        PurchaseReceiptId = id, ReversalOfId = original.Id, Description = $"{original.Code} ters kayıt · {request.Reason.Trim()}", CreatedByUserId = GetUserId(principal) };
+    foreach (var line in lines) reversal.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = reversal,
+        WarehouseId = line.WarehouseId, StockItemId = line.StockItemId, PurchaseReceiptLineId = line.PurchaseReceiptLineId,
+        QuantitySnapshot = line.QuantitySnapshot, UnitCostSnapshotBase = line.UnitCostSnapshotBase, AmountBase = -line.AmountBase });
+    db.InventoryCostAdjustments.Add(reversal);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "inventory-landed-cost.reversed", Resource = original.Code });
+    try { await db.SaveChangesAsync(); }
+    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu ek maliyet daha önce ters kayıtla iptal edilmiştir." }); }
+    await transaction.CommitAsync();
+    return Results.Created($"/api/purchasing/receipts/{id}/landed-costs/{reversal.Id}", await BuildInventoryCostAdjustmentViewAsync(db, tenantId, reversal));
+});
+purchaseReceipts.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var identity = await db.PurchaseReceipts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
@@ -2664,6 +4126,9 @@ purchaseReceipts.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal prin
     if (receipt.Status != PurchaseReceiptStatus.Posted) return Results.Conflict(new { error = "Mal kabul daha önce iptal edildi." });
     if (await db.PurchaseInvoices.AnyAsync(x => x.TenantId == tenantId && x.PurchaseReceiptId == receipt.Id && x.Status == PurchaseInvoiceStatus.Posted))
         return Results.Conflict(new { error = "Mal kabul önce bağlı alış faturası iptal edilerek kapatılmalıdır." });
+    if (await db.InventoryCostAdjustments.AnyAsync(x => x.TenantId == tenantId && x.PurchaseReceiptId == receipt.Id && x.Kind == InventoryCostAdjustmentKind.LandedCost
+        && !db.InventoryCostAdjustments.Any(reversal => reversal.TenantId == tenantId && reversal.ReversalOfId == x.Id)))
+        return Results.Conflict(new { error = "Mal kabul önce bağlı ek maliyetler ters kayıtla iptal edilmelidir." });
     var lines = await db.PurchaseReceiptLines.Where(x => x.TenantId == tenantId && x.ReceiptId == id).OrderBy(x => x.Id).ToListAsync();
     var movements = new List<InventoryTransaction>();
     foreach (var line in lines)
@@ -2686,7 +4151,8 @@ purchaseReceipts.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal prin
     foreach (var movement in movements)
         db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = movement.StockItemId,
             EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = InventoryDirection.Issue, Quantity = movement.Quantity,
-            UnitCostBase = movement.UnitCostBase, Description = $"Mal kabul iptali {receipt.Code}", ReversalOfId = movement.Id, PurchaseReceiptLineId = movement.PurchaseReceiptLineId });
+            UnitCostBase = movement.UnitCostBase, Description = $"Mal kabul iptali {receipt.Code}", ReversalOfId = movement.Id, PurchaseReceiptLineId = movement.PurchaseReceiptLineId,
+            Tracking = await CopyTrackingAsync(db, tenantId, movement) });
     receipt.Status = PurchaseReceiptStatus.Voided;
     var orderLines = await db.PurchaseOrderLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == order.Id).ToListAsync();
     var received = await db.PurchaseReceiptLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == order.Id && x.Receipt.Status == PurchaseReceiptStatus.Posted && x.ReceiptId != receipt.Id)
@@ -2697,7 +4163,7 @@ purchaseReceipts.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal prin
     return Results.Ok(new { receipt.Id, receipt.Code, receipt.Status, orderStatus = order.Status });
 });
 
-purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCreateRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCreateRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = PurchaseInvoiceValidation.Validate(request);
@@ -2763,7 +4229,7 @@ purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCr
 });
 
 var purchaseInvoices = app.MapGroup("/api/purchasing/invoices").RequireAuthorization();
-purchaseInvoices.MapGet("/", async (string? q, ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 25) =>
+purchaseInvoices.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -2779,7 +4245,7 @@ purchaseInvoices.MapGet("/", async (string? q, ClaimsPrincipal principal, Platfo
             x.Lines.Count, x.CreatedAt)).ToListAsync();
     return Results.Ok(new PurchaseInvoicePage(rows, page, pageSize, total));
 });
-purchaseInvoices.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseInvoices.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var invoice = await db.PurchaseInvoices.AsNoTracking().Include(x => x.PurchaseReceipt).ThenInclude(x => x.PurchaseOrder)
@@ -2806,7 +4272,7 @@ purchaseInvoices.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal,
         invoice.InvoiceDate, invoice.DueDate, invoice.CurrencyCode, invoice.Status, invoice.Subtotal, invoice.DiscountTotal, invoice.TaxTotal,
         invoice.GrandTotal, paid, PurchaseInvoiceWorkflow.Outstanding(invoice.GrandTotal, paid, returned), invoice.CreatedAt, lines, payments, returnSummaries));
 });
-purchaseInvoices.MapPost("/{id:guid}/payments", async (Guid id, SupplierPaymentWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseInvoices.MapPost("/{id:guid}/payments", async (Guid id, SupplierPaymentWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = SupplierPaymentValidation.Validate(request);
@@ -2865,7 +4331,7 @@ purchaseInvoices.MapPost("/{id:guid}/payments", async (Guid id, SupplierPaymentW
         invoice.Id, invoice.Code, payment.PaymentDate, payment.Amount, payment.CurrencyCode, payment.PaymentMethod,
         payment.Reference, payment.Status, payment.CreatedAt, financialAccount?.Id, financialAccount?.Name));
 });
-purchaseInvoices.MapPost("/{id:guid}/returns", async (Guid id, SupplierReturnWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseInvoices.MapPost("/{id:guid}/returns", async (Guid id, SupplierReturnWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = new Dictionary<string, string[]>();
@@ -2945,9 +4411,14 @@ purchaseInvoices.MapPost("/{id:guid}/returns", async (Guid id, SupplierReturnWri
         supplierReturn.Lines.Add(line);
         var unitCostBase = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId
             && x.PurchaseReceiptLineId == source.PurchaseReceiptLineId && x.ReversalOfId == null).Select(x => x.UnitCostBase).SingleOrDefaultAsync();
-        db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id,
+        var stockItem = await db.StockItems.AsNoTracking().SingleAsync(x => x.TenantId == tenantId && x.Id == source.StockItemId);
+        var tracking = await AllocateAvailableTrackingAsync(db, tenantId, warehouse.Id, stockItem, row.Quantity);
+        if (tracking is null) return Results.Conflict(new { error = $"{source.StockCode} için lot/seri bazında alış iadesi stoğu yetersiz." });
+        var issueMovement = new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id,
             StockItemId = source.StockItemId, EntryDate = request.ReturnDate, Direction = InventoryDirection.Issue,
-            Quantity = row.Quantity, UnitCostBase = unitCostBase, Description = $"Alış iadesi {code}", SupplierReturnLine = line });
+            Quantity = row.Quantity, UnitCostBase = unitCostBase, Description = $"Alış iadesi {code}", SupplierReturnLine = line };
+        issueMovement.Tracking = ToTraceEntities(tenantId, stockItem, tracking);
+        db.InventoryTransactions.Add(issueMovement);
     }
     SalesQuoteTotals totals;
     try { totals = SalesQuoteValidation.Sum(amountsList); }
@@ -2970,7 +4441,7 @@ purchaseInvoices.MapPost("/{id:guid}/returns", async (Guid id, SupplierReturnWri
         invoice.Id, invoice.Code, warehouse.Id, warehouse.Name, supplierReturn.ReturnDate, supplierReturn.Status,
         supplierReturn.GrandTotal, supplierReturn.Lines.Count, supplierReturn.CreatedAt, returnLines));
 });
-purchaseInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+purchaseInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var identity = await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
@@ -3005,7 +4476,7 @@ purchaseInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal prin
     return Results.Ok(new { invoice.Id, invoice.Code, invoice.Status });
 });
 var supplierReturns = app.MapGroup("/api/purchasing/returns").RequireAuthorization();
-supplierReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+supplierReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var identity = await db.SupplierReturns.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
@@ -3038,7 +4509,8 @@ supplierReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princ
     foreach (var movement in movements)
         db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = movement.StockItemId,
             EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = InventoryDirection.Receipt, Quantity = movement.Quantity,
-            UnitCostBase = movement.UnitCostBase, Description = $"Alış iadesi iptali {supplierReturn.Code}", ReversalOfId = movement.Id, SupplierReturnLineId = movement.SupplierReturnLineId });
+            UnitCostBase = movement.UnitCostBase, Description = $"Alış iadesi iptali {supplierReturn.Code}", ReversalOfId = movement.Id, SupplierReturnLineId = movement.SupplierReturnLineId,
+            Tracking = await CopyTrackingAsync(db, tenantId, movement) });
     db.CustomerLedgerEntries.Add(new CustomerLedgerEntry { TenantId = tenantId, CustomerId = supplier.Id, SupplierReturnId = supplierReturn.Id,
         EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = CustomerLedgerDirection.Credit, Amount = originalLedger.Amount,
         CurrencyCode = originalLedger.CurrencyCode, Description = $"Alış iadesi iptali {supplierReturn.Code}", ReversalOfId = originalLedger.Id });
@@ -3048,7 +4520,7 @@ supplierReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princ
     return Results.Ok(new { supplierReturn.Id, supplierReturn.Code, supplierReturn.Status });
 });
 var supplierPayments = app.MapGroup("/api/purchasing/payments").RequireAuthorization();
-supplierPayments.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+supplierPayments.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var identity = await db.SupplierPayments.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
@@ -3088,13 +4560,13 @@ supplierPayments.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal prin
     return Results.Ok(new { payment.Id, payment.Code, payment.Status });
 });
 
-app.MapGet("/api/finance/currency", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+app.MapGet("/api/finance/currency", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var currency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.BaseCurrencyCode).SingleOrDefaultAsync();
     return currency is null ? Results.NotFound() : Results.Ok(new TenantCurrencySettingsView(currency));
 }).RequireAuthorization();
-app.MapPut("/api/finance/currency", async (TenantCurrencySettingsWriteRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+app.MapPut("/api/finance/currency", async (TenantCurrencySettingsWriteRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -3121,7 +4593,7 @@ app.MapPut("/api/finance/currency", async (TenantCurrencySettingsWriteRequest bo
     await transaction.CommitAsync();
     return Results.Ok(new TenantCurrencySettingsView(tenant.BaseCurrencyCode));
 }).RequireAuthorization();
-app.MapGet("/api/finance/exchange-rates", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+app.MapGet("/api/finance/exchange-rates", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var rates = await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId)
@@ -3129,7 +4601,7 @@ app.MapGet("/api/finance/exchange-rates", async (ClaimsPrincipal principal, Plat
         .Select(x => new TenantExchangeRateView(x.Id, x.CurrencyCode, x.RateDate, x.Revision, x.Rate, x.Source, x.CreatedAt)).ToListAsync();
     return Results.Ok(rates);
 }).RequireAuthorization();
-app.MapPost("/api/finance/exchange-rates", async (TenantExchangeRateWriteRequest body, ClaimsPrincipal principal, PlatformDbContext db) =>
+app.MapPost("/api/finance/exchange-rates", async (TenantExchangeRateWriteRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -3153,7 +4625,7 @@ app.MapPost("/api/finance/exchange-rates", async (TenantExchangeRateWriteRequest
     return Results.Created($"/api/finance/exchange-rates/{rate.Id}", new TenantExchangeRateView(rate.Id, rate.CurrencyCode, rate.RateDate, rate.Revision, rate.Rate, rate.Source, rate.CreatedAt));
 }).RequireAuthorization();
 
-app.MapGet("/api/finance/fx-exposure", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+app.MapGet("/api/finance/fx-exposure", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var baseCurrency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId)
@@ -3207,8 +4679,123 @@ app.MapGet("/api/finance/fx-exposure", async (ClaimsPrincipal principal, Platfor
     return Results.Ok(new FxExposureReport(baseCurrency, asOf, summaries, orderedLines));
 }).RequireAuthorization();
 
+var fxRevaluations = app.MapGroup("/api/finance/fx-revaluations").RequireAuthorization();
+fxRevaluations.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var vouchers = await db.FxRevaluationVouchers.AsNoTracking().Where(x => x.TenantId == tenantId)
+        .OrderByDescending(x => x.AsOfDate).Select(x => new { x.Id, x.Code, x.AsOfDate, x.BaseCurrencyCode, x.CreatedAt,
+            LineCount = x.Lines.Count, TotalDebit = x.Lines.Sum(line => (decimal?)line.DebitBaseAmount) ?? 0m,
+            TotalCredit = x.Lines.Sum(line => (decimal?)line.CreditBaseAmount) ?? 0m }).ToListAsync();
+    return Results.Ok(vouchers);
+});
+fxRevaluations.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var voucher = await db.FxRevaluationVouchers.AsNoTracking().Include(x => x.Lines)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
+    if (voucher is null) return Results.NotFound();
+    var lines = voucher.Lines.OrderBy(x => x.Direction).ThenBy(x => x.CurrencyCode).ThenBy(x => x.InvoiceCode)
+        .Select(x => new FxRevaluationVoucherLineView(x.Id, x.Direction, x.InvoiceId, x.InvoiceCode, x.CounterpartyName,
+            x.CurrencyCode, x.OutstandingAmount, x.InvoiceDateRate, x.ClosingRate, x.PreviousAdjustmentBase,
+            x.TargetAdjustmentBase, x.AdjustmentBase, x.DebitAccount, x.CreditAccount, x.DebitBaseAmount, x.CreditBaseAmount)).ToList();
+    return Results.Ok(new FxRevaluationVoucherView(voucher.Id, voucher.Code, voucher.AsOfDate, voucher.BaseCurrencyCode,
+        voucher.CreatedAt, voucher.CreatedByUserId, lines.Sum(x => x.DebitBaseAmount), lines.Sum(x => x.CreditBaseAmount), lines));
+});
+fxRevaluations.MapPost("/", async (FxRevaluationCreateRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    if (request.AsOfDate > today)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["asOfDate"] = ["Değerleme tarihi bugün veya geçmiş bir tarih olmalıdır."] });
+
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    // Serialize tenant valuation runs so the prior-period snapshot cannot change during calculation.
+    var tenant = await db.Tenants.FromSqlInterpolated($"SELECT * FROM [dbo].[Tenants] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {tenantId}").SingleOrDefaultAsync();
+    if (tenant is null) return Results.NotFound();
+    if (await db.FxRevaluationVouchers.AnyAsync(x => x.TenantId == tenantId && x.AsOfDate == request.AsOfDate))
+        return Results.Conflict(new { error = "Bu dönem tarihi için değerleme fişi zaten oluşturulmuş. Fişler değiştirilemez." });
+    if (await db.FxRevaluationVouchers.AnyAsync(x => x.TenantId == tenantId && x.AsOfDate > request.AsOfDate))
+        return Results.Conflict(new { error = "Değerleme fişleri dönem sonu tarihine göre kronolojik oluşturulmalıdır." });
+
+    var sales = await db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SalesInvoiceStatus.Posted)
+        .Select(x => new { x.Id, x.Code, Counterparty = x.Customer.Name, x.InvoiceDate, x.CurrencyCode, x.GrandTotal }).ToListAsync();
+    var collected = await db.CustomerCollectionAllocations.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.CustomerCollection.Status == CustomerCollectionStatus.Posted)
+        .GroupBy(x => x.SalesInvoiceId).Select(g => new { Id = g.Key, Amount = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Id, x => x.Amount);
+    var salesReturns = await db.SalesReturns.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SalesReturnStatus.Posted)
+        .GroupBy(x => x.SalesInvoiceId).Select(g => new { Id = g.Key, Amount = g.Sum(x => x.GrandTotal) }).ToDictionaryAsync(x => x.Id, x => x.Amount);
+    var purchases = await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == PurchaseInvoiceStatus.Posted)
+        .Select(x => new { x.Id, x.Code, Counterparty = x.Supplier.Name, x.InvoiceDate, x.CurrencyCode, x.GrandTotal }).ToListAsync();
+    var paid = await db.SupplierPayments.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SupplierPaymentStatus.Posted)
+        .GroupBy(x => x.PurchaseInvoiceId).Select(g => new { Id = g.Key, Amount = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Id, x => x.Amount);
+    var purchaseReturns = await db.SupplierReturns.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SupplierReturnStatus.Posted)
+        .GroupBy(x => x.PurchaseInvoiceId).Select(g => new { Id = g.Key, Amount = g.Sum(x => x.GrandTotal) }).ToDictionaryAsync(x => x.Id, x => x.Amount);
+    var openInvoices = sales.Select(x => (Direction: FxRevaluationDirection.Receivable, x.Id, x.Code, x.Counterparty,
+            x.InvoiceDate, x.CurrencyCode, Outstanding: Math.Max(0m, x.GrandTotal - collected.GetValueOrDefault(x.Id) - salesReturns.GetValueOrDefault(x.Id))))
+        .Concat(purchases.Select(x => (Direction: FxRevaluationDirection.Payable, x.Id, x.Code, x.Counterparty,
+            x.InvoiceDate, x.CurrencyCode, Outstanding: Math.Max(0m, x.GrandTotal - paid.GetValueOrDefault(x.Id) - purchaseReturns.GetValueOrDefault(x.Id)))))
+        .Where(x => x.Outstanding > 0 && x.CurrencyCode != tenant.BaseCurrencyCode).ToList();
+
+    var rates = await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.RateDate <= request.AsOfDate)
+        .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision)
+        .Select(x => new { x.CurrencyCode, x.RateDate, x.Rate }).ToListAsync();
+    decimal? RateAt(string currency, DateOnly date) => currency == tenant.BaseCurrencyCode ? 1m
+        : rates.FirstOrDefault(x => x.CurrencyCode == currency && x.RateDate <= date)?.Rate;
+    var missing = openInvoices.Where(x => RateAt(x.CurrencyCode, x.InvoiceDate) is null || RateAt(x.CurrencyCode, request.AsOfDate) is null)
+        .Select(x => $"{x.Code} ({x.CurrencyCode})").Distinct().Order().ToList();
+    if (missing.Count > 0)
+        return Results.Conflict(new { error = "Değerleme yapılamadı; fatura tarihi veya dönem sonu kuru eksik.", invoices = missing });
+
+    var priorLines = await db.FxRevaluationVoucherLines.AsNoTracking().Include(x => x.Voucher)
+        .Where(x => x.TenantId == tenantId && x.Voucher.AsOfDate < request.AsOfDate)
+        .OrderByDescending(x => x.Voucher.AsOfDate).ThenByDescending(x => x.Voucher.CreatedAt).ToListAsync();
+    var priorByInvoice = priorLines.GroupBy(x => (x.Direction, x.InvoiceId)).ToDictionary(x => x.Key, x => x.First());
+    var currentByInvoice = openInvoices.ToDictionary(x => (x.Direction, InvoiceId: x.Id));
+    if (currentByInvoice.Count == 0 && priorByInvoice.Count == 0)
+        return Results.Conflict(new { error = "Bu tarih için değerleme gerektiren açık döviz faturası veya önceki değerleme bakiyesi yok." });
+    var voucher = new FxRevaluationVoucher { TenantId = tenantId, Code = $"DVK-{request.AsOfDate:yyyyMMdd}",
+        AsOfDate = request.AsOfDate, BaseCurrencyCode = tenant.BaseCurrencyCode, CreatedByUserId = GetUserId(principal) };
+    var keys = currentByInvoice.Keys.Union(priorByInvoice.Keys).ToList();
+    foreach (var key in keys)
+    {
+        currentByInvoice.TryGetValue(key, out var invoice);
+        priorByInvoice.TryGetValue(key, out var prior);
+        var outstanding = invoice.Outstanding;
+        var invoiceRate = invoice.Id == Guid.Empty ? prior!.InvoiceDateRate : RateAt(invoice.CurrencyCode, invoice.InvoiceDate)!.Value;
+        var closingRate = invoice.Id == Guid.Empty ? prior!.ClosingRate : RateAt(invoice.CurrencyCode, request.AsOfDate)!.Value;
+        var previousAdjustment = prior?.TargetAdjustmentBase ?? 0m;
+        var target = FxRevaluationCalculator.TargetAdjustment(key.Direction, outstanding, invoiceRate, closingRate);
+        var adjustment = target - previousAdjustment;
+        var controlAccount = key.Direction == FxRevaluationDirection.Receivable ? "Dövizli Ticari Alacaklar" : "Dövizli Ticari Borçlar";
+        var debitAccount = adjustment >= 0 ? controlAccount : "Kur Farkı Gideri";
+        var creditAccount = adjustment >= 0 ? "Kur Farkı Geliri" : controlAccount;
+        var amount = Math.Abs(adjustment);
+        voucher.Lines.Add(new FxRevaluationVoucherLine { TenantId = tenantId, Voucher = voucher, Direction = key.Direction,
+            InvoiceId = key.Item2, InvoiceCode = invoice.Id == Guid.Empty ? prior!.InvoiceCode : invoice.Code,
+            CounterpartyName = invoice.Id == Guid.Empty ? prior!.CounterpartyName : invoice.Counterparty,
+            CurrencyCode = invoice.Id == Guid.Empty ? prior!.CurrencyCode : invoice.CurrencyCode,
+            OutstandingAmount = outstanding, InvoiceDateRate = invoiceRate, ClosingRate = closingRate,
+            PreviousAdjustmentBase = previousAdjustment, TargetAdjustmentBase = target, AdjustmentBase = adjustment,
+            DebitAccount = debitAccount, CreditAccount = creditAccount, DebitBaseAmount = amount, CreditBaseAmount = amount });
+    }
+    db.FxRevaluationVouchers.Add(voucher);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.fx-revaluation.created",
+        Resource = $"{voucher.Code}:{voucher.Lines.Count}:debit={voucher.Lines.Sum(x => x.DebitBaseAmount):0.00}" });
+    await db.SaveChangesAsync();
+    await transaction.CommitAsync();
+    var responseLines = voucher.Lines.OrderBy(x => x.Direction).ThenBy(x => x.CurrencyCode).ThenBy(x => x.InvoiceCode)
+        .Select(x => new FxRevaluationVoucherLineView(x.Id, x.Direction, x.InvoiceId, x.InvoiceCode, x.CounterpartyName,
+            x.CurrencyCode, x.OutstandingAmount, x.InvoiceDateRate, x.ClosingRate, x.PreviousAdjustmentBase,
+            x.TargetAdjustmentBase, x.AdjustmentBase, x.DebitAccount, x.CreditAccount, x.DebitBaseAmount, x.CreditBaseAmount)).ToList();
+    return Results.Created($"/api/finance/fx-revaluations/{voucher.Id}", new FxRevaluationVoucherView(voucher.Id, voucher.Code,
+        voucher.AsOfDate, voucher.BaseCurrencyCode, voucher.CreatedAt, voucher.CreatedByUserId,
+        responseLines.Sum(x => x.DebitBaseAmount), responseLines.Sum(x => x.CreditBaseAmount), responseLines));
+});
+
 var financeAccounts = app.MapGroup("/api/finance/accounts").RequireAuthorization();
-app.MapGet("/api/finance/maturities", async (DateOnly? asOfDate, ClaimsPrincipal principal, PlatformDbContext db) =>
+app.MapGet("/api/finance/maturities", async (DateOnly? asOfDate, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var asOf = asOfDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -3259,7 +4846,7 @@ app.MapGet("/api/finance/maturities", async (DateOnly? asOfDate, ClaimsPrincipal
     }).OrderBy(x => x.direction).ThenBy(x => x.currencyCode).ToList();
     return Results.Ok(new { asOfDate = asOf, summaries, items = rows });
 });
-financeAccounts.MapGet("/", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+financeAccounts.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var accounts = await db.FinancialAccounts.AsNoTracking().Where(x => x.TenantId == tenantId)
@@ -3269,7 +4856,7 @@ financeAccounts.MapGet("/", async (ClaimsPrincipal principal, PlatformDbContext 
             x.Transactions.Count, x.CreatedAt)).ToListAsync();
     return Results.Ok(accounts);
 });
-financeAccounts.MapPost("/", async (FinancialAccountWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+financeAccounts.MapPost("/", async (FinancialAccountWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = FinancialAccountValidation.Validate(request);
@@ -3292,7 +4879,7 @@ financeAccounts.MapPost("/", async (FinancialAccountWriteRequest request, Claims
         account.Name, account.Type, account.CurrencyCode, account.IsActive, request.OpeningBalance,
         request.OpeningBalance == 0 ? 0 : 1, account.CreatedAt));
 });
-financeAccounts.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+financeAccounts.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var account = await db.FinancialAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
@@ -3306,7 +4893,7 @@ financeAccounts.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, 
     return Results.Ok(new FinancialAccountDetail(account.Id, account.Code, account.Name, account.Type, account.CurrencyCode,
         account.IsActive, balance, account.CreatedAt, transactions));
 });
-financeAccounts.MapPost("/{id:guid}/movements", async (Guid id, FinancialAccountMovementWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+financeAccounts.MapPost("/{id:guid}/movements", async (Guid id, FinancialAccountMovementWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = FinancialMovementValidation.Validate(request);
@@ -3343,7 +4930,7 @@ financeAccounts.MapPost("/{id:guid}/movements", async (Guid id, FinancialAccount
         movement.TransactionDate, movement.Direction, movement.Amount, movement.CurrencyCode, movement.Description, movement.Reference,
         "Manuel hareket", null, null, movement.CreatedAt));
 });
-financeAccounts.MapPost("/{id:guid}/transactions/{transactionId:guid}/void", async (Guid id, Guid transactionId, ClaimsPrincipal principal, PlatformDbContext db) =>
+financeAccounts.MapPost("/{id:guid}/transactions/{transactionId:guid}/void", async (Guid id, Guid transactionId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -3369,7 +4956,7 @@ financeAccounts.MapPost("/{id:guid}/transactions/{transactionId:guid}/void", asy
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new { original.Id, status = "Voided" });
 });
-financeAccounts.MapPost("/{id:guid}/status", async (Guid id, bool isActive, ClaimsPrincipal principal, PlatformDbContext db) =>
+financeAccounts.MapPost("/{id:guid}/status", async (Guid id, bool isActive, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var account = await db.FinancialAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[FinancialAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
@@ -3382,7 +4969,7 @@ financeAccounts.MapPost("/{id:guid}/status", async (Guid id, bool isActive, Clai
 });
 
 var financialTransfers = app.MapGroup("/api/finance/transfers").RequireAuthorization();
-financialTransfers.MapGet("/", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+financialTransfers.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var rows = await db.FinancialAccountTransfers.AsNoTracking().Where(x => x.TenantId == tenantId)
@@ -3394,7 +4981,7 @@ financialTransfers.MapGet("/", async (ClaimsPrincipal principal, PlatformDbConte
         x.ToAccountId, names[x.ToAccountId], x.CurrencyCode, x.TransferDate, x.Amount, x.Reference, x.Description, x.Status, x.CreatedAt,
         x.ToCurrencyCode, x.DestinationAmount, x.ExchangeRate)));
 });
-financialTransfers.MapPost("/", async (FinancialAccountTransferWriteRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+financialTransfers.MapPost("/", async (FinancialAccountTransferWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = FinancialMovementValidation.Validate(request);
@@ -3456,7 +5043,7 @@ financialTransfers.MapPost("/", async (FinancialAccountTransferWriteRequest requ
         transfer.Amount, transfer.Reference, transfer.Description, transfer.Status, transfer.CreatedAt,
         transfer.ToCurrencyCode, transfer.DestinationAmount, transfer.ExchangeRate));
 });
-financialTransfers.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+financialTransfers.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -3495,7 +5082,7 @@ financialTransfers.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal pr
 });
 
 var bankStatements = app.MapGroup("/api/finance/statements").RequireAuthorization();
-bankStatements.MapGet("/", async (ClaimsPrincipal principal, PlatformDbContext db) =>
+bankStatements.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var statements = await db.BankStatements.AsNoTracking().Include(x => x.Account).Where(x => x.TenantId == tenantId)
@@ -3504,7 +5091,7 @@ bankStatements.MapGet("/", async (ClaimsPrincipal principal, PlatformDbContext d
             x.OpeningBalance, x.ClosingBalance, x.Lines.Count, x.Lines.Count(l => l.FinancialAccountTransactionId != null), x.Status, x.CreatedAt)).ToListAsync();
     return Results.Ok(statements);
 });
-bankStatements.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+bankStatements.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var statement = await db.BankStatements.AsNoTracking().Include(x => x.Account).Include(x => x.Lines)
@@ -3516,7 +5103,7 @@ bankStatements.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, P
         statement.CurrencyCode, statement.StartDate, statement.EndDate, statement.OpeningBalance, statement.ClosingBalance,
         statement.Status, statement.CreatedAt, lines));
 });
-bankStatements.MapGet("/{id:guid}/unmatched-book-movements", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+bankStatements.MapGet("/{id:guid}/unmatched-book-movements", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var statement = await db.BankStatements.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
@@ -3529,7 +5116,7 @@ bankStatements.MapGet("/{id:guid}/unmatched-book-movements", async (Guid id, Cla
             x.CustomerCollection!.Code ?? x.SupplierPayment!.Code ?? x.Transfer!.Code)).ToListAsync();
     return Results.Ok(movements);
 });
-financeAccounts.MapPost("/{id:guid}/statements", async (Guid id, BankStatementImportRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+financeAccounts.MapPost("/{id:guid}/statements", async (Guid id, BankStatementImportRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = BankStatementValidation.Validate(request);
@@ -3580,7 +5167,7 @@ financeAccounts.MapPost("/{id:guid}/statements", async (Guid id, BankStatementIm
         account.Id, account.Name, account.CurrencyCode, statement.StartDate, statement.EndDate, statement.OpeningBalance,
         statement.ClosingBalance, statement.Lines.Count, 0, statement.Status, statement.CreatedAt));
 });
-bankStatements.MapPost("/{id:guid}/auto-match", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+bankStatements.MapPost("/{id:guid}/auto-match", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -3610,7 +5197,7 @@ bankStatements.MapPost("/{id:guid}/auto-match", async (Guid id, ClaimsPrincipal 
     var remaining = await db.BankStatementLines.CountAsync(x => x.TenantId == tenantId && x.StatementId == id && x.FinancialAccountTransactionId == null);
     return Results.Ok(new { matched, remaining, ambiguous });
 });
-bankStatements.MapPost("/{id:guid}/lines/{lineId:guid}/match", async (Guid id, Guid lineId, BankStatementMatchRequest request, ClaimsPrincipal principal, PlatformDbContext db) =>
+bankStatements.MapPost("/{id:guid}/lines/{lineId:guid}/match", async (Guid id, Guid lineId, BankStatementMatchRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -3632,7 +5219,7 @@ bankStatements.MapPost("/{id:guid}/lines/{lineId:guid}/match", async (Guid id, G
     await transaction.CommitAsync();
     return Results.Ok(new { line.Id, line.FinancialAccountTransactionId, line.MatchedAt });
 });
-bankStatements.MapPost("/{id:guid}/lines/{lineId:guid}/create-book-entry", async (Guid id, Guid lineId, ClaimsPrincipal principal, PlatformDbContext db) =>
+bankStatements.MapPost("/{id:guid}/lines/{lineId:guid}/create-book-entry", async (Guid id, Guid lineId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -3655,7 +5242,7 @@ bankStatements.MapPost("/{id:guid}/lines/{lineId:guid}/create-book-entry", async
     await transaction.CommitAsync();
     return Results.Created($"/api/finance/accounts/{account.Id}/transactions/{movement.Id}", new { LineId = line.Id, TransactionId = movement.Id, line.IsBookEntryCreated, line.MatchedAt });
 });
-bankStatements.MapPost("/{id:guid}/reconcile", async (Guid id, ClaimsPrincipal principal, PlatformDbContext db) =>
+bankStatements.MapPost("/{id:guid}/reconcile", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -3750,7 +5337,64 @@ static StockItemCustomFieldDefinitionRevision ToStockCustomFieldRevision(StockIt
     ChangedByUserId = userId
 };
 
-static async Task<IResult> UpdateSalesQuoteStatusAsync(Guid id, SalesQuoteStatus target, ClaimsPrincipal principal, PlatformDbContext db)
+static WarehouseCustomFieldDefinitionRevision ToWarehouseCustomFieldRevision(WarehouseCustomFieldDefinition definition, Guid? userId, string changeKind) => new()
+{
+    TenantId = definition.TenantId,
+    DefinitionId = definition.Id,
+    Version = definition.Version,
+    Code = definition.Code,
+    Label = definition.Label,
+    DataType = definition.DataType,
+    MaxLength = definition.MaxLength,
+    IsRequired = definition.IsRequired,
+    IsActive = definition.IsActive,
+    ChangeKind = changeKind,
+    ChangedByUserId = userId
+};
+
+static SalesQuoteCustomFieldDefinitionRevision ToSalesQuoteCustomFieldRevision(SalesQuoteCustomFieldDefinition definition, Guid? userId, string changeKind) => new()
+{
+    TenantId = definition.TenantId, DefinitionId = definition.Id, Version = definition.Version, Code = definition.Code,
+    Label = definition.Label, DataType = definition.DataType, MaxLength = definition.MaxLength, IsRequired = definition.IsRequired,
+    IsActive = definition.IsActive, ChangeKind = changeKind, ChangedByUserId = userId
+};
+
+static PurchaseSupplierQuoteCustomFieldDefinitionRevision ToPurchaseSupplierQuoteCustomFieldRevision(PurchaseSupplierQuoteCustomFieldDefinition definition, Guid? userId, string changeKind) => new()
+{
+    TenantId = definition.TenantId, DefinitionId = definition.Id, Version = definition.Version, Code = definition.Code,
+    Label = definition.Label, DataType = definition.DataType, MaxLength = definition.MaxLength, IsRequired = definition.IsRequired,
+    IsActive = definition.IsActive, ChangeKind = changeKind, ChangedByUserId = userId
+};
+
+static PurchaseReceiptCustomFieldDefinitionRevision ToPurchaseReceiptCustomFieldRevision(PurchaseReceiptCustomFieldDefinition definition, Guid? userId, string changeKind) => new()
+{
+    TenantId = definition.TenantId, DefinitionId = definition.Id, Version = definition.Version, Code = definition.Code,
+    Label = definition.Label, DataType = definition.DataType, MaxLength = definition.MaxLength, IsRequired = definition.IsRequired,
+    IsActive = definition.IsActive, ChangeKind = changeKind, ChangedByUserId = userId
+};
+
+static SalesOrderCustomFieldDefinitionRevision ToSalesOrderCustomFieldRevision(SalesOrderCustomFieldDefinition definition, Guid? userId, string changeKind) => new()
+{
+    TenantId = definition.TenantId, DefinitionId = definition.Id, Version = definition.Version, Code = definition.Code,
+    Label = definition.Label, DataType = definition.DataType, MaxLength = definition.MaxLength, IsRequired = definition.IsRequired,
+    IsActive = definition.IsActive, ChangeKind = changeKind, ChangedByUserId = userId
+};
+
+static SalesInvoiceCustomFieldDefinitionRevision ToSalesInvoiceCustomFieldRevision(SalesInvoiceCustomFieldDefinition definition, Guid? userId, string changeKind) => new()
+{
+    TenantId = definition.TenantId, DefinitionId = definition.Id, Version = definition.Version, Code = definition.Code,
+    Label = definition.Label, DataType = definition.DataType, MaxLength = definition.MaxLength, IsRequired = definition.IsRequired,
+    IsActive = definition.IsActive, ChangeKind = changeKind, ChangedByUserId = userId
+};
+
+static PurchaseOrderCustomFieldDefinitionRevision ToPurchaseOrderCustomFieldRevision(PurchaseOrderCustomFieldDefinition definition, Guid? userId, string changeKind) => new()
+{
+    TenantId = definition.TenantId, DefinitionId = definition.Id, Version = definition.Version, Code = definition.Code,
+    Label = definition.Label, DataType = definition.DataType, MaxLength = definition.MaxLength, IsRequired = definition.IsRequired,
+    IsActive = definition.IsActive, ChangeKind = changeKind, ChangedByUserId = userId
+};
+
+static async Task<IResult> UpdateSalesQuoteStatusAsync(Guid id, SalesQuoteStatus target, ClaimsPrincipal principal, TenantDbContext db)
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -3776,6 +5420,16 @@ static async Task SeedBootstrapUserAsync(PlatformDbContext db, IConfiguration c)
     var tenant = new Tenant { Name = c["Bootstrap:TenantName"] ?? "Nexora Demo", Slug = "nexora-demo" };
     var user = new AppUser { Email = email, DisplayName = c["Bootstrap:DisplayName"] ?? "Platform Admin", PasswordHash = PasswordHashing.Hash(password) };
     db.AddRange(tenant, user); db.TenantMemberships.Add(new TenantMembership { User = user, Tenant = tenant, Role = "TenantAdmin" }); await db.SaveChangesAsync();
+    await TenantPermissionDefaults.AddTenantUserBaselineAsync(db, tenant.Id, user.Id);
+    await db.SaveChangesAsync();
+}
+static async Task ProvisionAllTenantDatabasesAsync(string platformConnection, string dataRuntimeLogin)
+{
+    await using var db = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options);
+    var tenantIds = await db.Tenants.AsNoTracking().Select(x => x.Id).ToListAsync();
+    var provisioner = new TenantDatabaseProvisioner(platformConnection, dataRuntimeLogin);
+    foreach (var tenantId in tenantIds) await provisioner.ProvisionAsync(tenantId);
+    await provisioner.ProvisionAIStudioAsync();
 }
 static async Task BaselineEnsureCreatedDatabaseAsync(PlatformDbContext db)
 {
@@ -3803,7 +5457,7 @@ static async Task BaselineEnsureCreatedDatabaseAsync(PlatformDbContext db)
 }
 static bool TryGetTenantId(ClaimsPrincipal principal, out Guid tenantId) => Guid.TryParse(principal.FindFirstValue("tenant_id"), out tenantId);
 static Guid? GetUserId(ClaimsPrincipal principal) => Guid.TryParse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub), out var id) ? id : null;
-static async Task<decimal?> GetWeightedAverageUnitCostBaseAsync(PlatformDbContext db, Guid tenantId, Guid stockItemId, DateOnly asOfDate)
+static async Task<decimal?> GetWeightedAverageUnitCostBaseAsync(TenantDbContext db, Guid tenantId, Guid stockItemId, DateOnly asOfDate)
 {
     var totals = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == stockItemId && x.EntryDate <= asOfDate)
         .GroupBy(_ => 1).Select(g => new
@@ -3813,14 +5467,71 @@ static async Task<decimal?> GetWeightedAverageUnitCostBaseAsync(PlatformDbContex
             Value = g.Sum(x => (decimal?)(x.UnitCostBase == null ? 0m : (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) * x.UnitCostBase.Value)) ?? 0m
         }).SingleOrDefaultAsync();
     if (totals is null || totals.OnHand <= 0m || totals.Unvalued > 0m) return null;
-    return decimal.Round(totals.Value / totals.OnHand, 8, MidpointRounding.AwayFromZero);
+    var costAdjustments = await db.InventoryCostAdjustmentLines.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.StockItemId == stockItemId && x.Adjustment.EntryDate <= asOfDate)
+        .SumAsync(x => (decimal?)x.AmountBase) ?? 0m;
+    return decimal.Round((totals.Value + costAdjustments) / totals.OnHand, 8, MidpointRounding.AwayFromZero);
 }
-static async Task<decimal?> GetTenantRateAsync(PlatformDbContext db, Guid tenantId, string currencyCode, DateOnly rateDate)
+static async Task<InventoryCostAdjustmentView> BuildInventoryCostAdjustmentViewAsync(TenantDbContext db, Guid tenantId, InventoryCostAdjustment header)
+{
+    var lines = await (from line in db.InventoryCostAdjustmentLines.AsNoTracking()
+                       join item in db.StockItems.AsNoTracking() on new { line.TenantId, line.StockItemId } equals new { item.TenantId, StockItemId = item.Id }
+                       join warehouse in db.Warehouses.AsNoTracking() on new { line.TenantId, line.WarehouseId } equals new { warehouse.TenantId, WarehouseId = warehouse.Id }
+                       where line.TenantId == tenantId && line.AdjustmentId == header.Id
+                       orderby item.Code, warehouse.Code
+                       select new InventoryCostAdjustmentLineView(line.Id, item.Id, item.Code, item.Name, warehouse.Id, warehouse.Code,
+                           line.QuantitySnapshot, line.UnitCostSnapshotBase, line.AmountBase, line.PurchaseReceiptLineId)).ToListAsync();
+    return new InventoryCostAdjustmentView(header.Id, header.Code, header.EntryDate, header.Kind, header.PurchaseReceiptId,
+        header.Description, header.ReversalOfId, header.CreatedAt, lines.Sum(x => x.AmountBase), lines);
+}
+static async Task<decimal?> GetTenantRateAsync(TenantDbContext db, Guid tenantId, string currencyCode, DateOnly rateDate)
 {
     var baseCurrency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.BaseCurrencyCode).SingleAsync();
     if (currencyCode == baseCurrency) return 1m;
     return await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.CurrencyCode == currencyCode && x.RateDate <= rateDate)
         .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision).Select(x => (decimal?)x.Rate).FirstOrDefaultAsync();
+}
+static string? ValidateTrackingAllocations(InventoryTrackingMode mode, IReadOnlyList<InventoryTrackingAllocationRequest>? allocations, decimal quantity)
+{
+    allocations ??= [];
+    if (allocations.Count == 0) return mode == InventoryTrackingMode.None ? null : "Lot veya seri takibi açıkken izleme kodları zorunludur.";
+    if (mode == InventoryTrackingMode.None) return "Takip modu kapalı stok kartı için lot/seri kodu gönderilemez.";
+    if (allocations.Any(x => string.IsNullOrWhiteSpace(x.TrackingCode) || x.TrackingCode.Trim().Length > 80 || x.Quantity <= 0m)) return "Takip kodu ve miktar geçerli olmalıdır.";
+    if (allocations.GroupBy(x => x.TrackingCode.Trim(), StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1)) return "Aynı harekette takip kodu tekrarlanamaz.";
+    if (mode == InventoryTrackingMode.Serial && allocations.Any(x => x.Quantity != 1m || x.ExpiryDate is not null)) return "Her seri numarası 1 adet olmalı ve son kullanma tarihi taşımamalıdır.";
+    if (mode == InventoryTrackingMode.Lot && allocations.Any(x => x.ExpiryDate is null)) return "Lot hareketlerinde son kullanma tarihi belirtilmelidir.";
+    if (allocations.Sum(x => x.Quantity) != quantity) return "Takip satırlarının toplamı hareket miktarına eşit olmalıdır.";
+    return null;
+}
+static List<InventoryTransactionTrace> ToTraceEntities(Guid tenantId, StockItem item, IReadOnlyList<InventoryTrackingAllocationRequest> allocations) =>
+    allocations.Select(x => new InventoryTransactionTrace { TenantId = tenantId, StockItemId = item.Id, TrackingMode = item.TrackingMode,
+        TrackingCode = x.TrackingCode, Quantity = x.Quantity, ExpiryDate = x.ExpiryDate }).ToList();
+static async Task<List<InventoryTransactionTrace>> CopyTrackingAsync(TenantDbContext db, Guid tenantId, InventoryTransaction original) =>
+    (await db.InventoryTransactionTraces.AsNoTracking().Where(x => x.TenantId == tenantId && x.InventoryTransactionId == original.Id).ToListAsync())
+        .Select(x => new InventoryTransactionTrace { TenantId = tenantId, StockItemId = original.StockItemId, TrackingMode = x.TrackingMode,
+            TrackingCode = x.TrackingCode, Quantity = x.Quantity, ExpiryDate = x.ExpiryDate }).ToList();
+static async Task<List<InventoryTrackingAllocationRequest>?> AllocateAvailableTrackingAsync(TenantDbContext db, Guid tenantId, Guid warehouseId, StockItem item, decimal quantity)
+{
+    if (item.TrackingMode == InventoryTrackingMode.None) return [];
+    var stock = await (from trace in db.InventoryTransactionTraces.AsNoTracking()
+        join movement in db.InventoryTransactions.AsNoTracking() on new { trace.TenantId, trace.InventoryTransactionId } equals new { movement.TenantId, InventoryTransactionId = movement.Id }
+        where trace.TenantId == tenantId && movement.WarehouseId == warehouseId && trace.StockItemId == item.Id
+        group new { trace, movement } by new { trace.TrackingCode, trace.ExpiryDate } into groupRows
+        select new { groupRows.Key.TrackingCode, groupRows.Key.ExpiryDate,
+            Quantity = groupRows.Sum(x => x.movement.Direction == InventoryDirection.Receipt ? x.trace.Quantity : -x.trace.Quantity) })
+        .Where(x => x.Quantity > 0m).OrderBy(x => x.ExpiryDate).ThenBy(x => x.TrackingCode).ToListAsync();
+    var allocations = new List<InventoryTrackingAllocationRequest>();
+    var remaining = quantity;
+    foreach (var row in stock)
+    {
+        var take = item.TrackingMode == InventoryTrackingMode.Serial ? Math.Min(1m, row.Quantity) : Math.Min(remaining, row.Quantity);
+        if (take <= 0m) continue;
+        if (item.TrackingMode == InventoryTrackingMode.Serial && take != 1m) return null;
+        allocations.Add(new InventoryTrackingAllocationRequest(row.TrackingCode, take, row.ExpiryDate));
+        remaining -= take;
+        if (remaining <= 0m) break;
+    }
+    return remaining == 0m ? allocations : null;
 }
 static string? NormalizeTaxNumber(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 static CustomerAddressView ToAddressView(CustomerAddress x) => new(x.Id, x.Kind, x.Label, x.AddressLine, x.City, x.District, x.PostalCode, x.CountryCode, x.IsDefault, x.IsActive);

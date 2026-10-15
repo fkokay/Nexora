@@ -77,6 +77,18 @@ services:
     cpus: 1.5
     pids_limit: 512
     restart: unless-stopped
+  sql-runtime-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    entrypoint: ["/bin/bash", "-c"]
+    command: ["until /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' >/dev/null 2>&1; do sleep 2; done; /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -b -Q \"IF SUSER_ID(N'aierp_platform_runtime') IS NULL CREATE LOGIN [aierp_platform_runtime] WITH PASSWORD=N'$$AIERP_PLATFORM_RUNTIME_PASSWORD', CHECK_POLICY=OFF; IF SUSER_ID(N'aierp_data_runtime') IS NULL CREATE LOGIN [aierp_data_runtime] WITH PASSWORD=N'$$AIERP_DATA_RUNTIME_PASSWORD', CHECK_POLICY=OFF\""]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      AIERP_PLATFORM_RUNTIME_PASSWORD: ${AIERP_PLATFORM_RUNTIME_PASSWORD}
+      AIERP_DATA_RUNTIME_PASSWORD: ${AIERP_DATA_RUNTIME_PASSWORD}
+    depends_on:
+      sqlserver: { condition: service_healthy }
+    restart: "no"
   platform-api:
     build:
       context: ${SOURCE_ROOT}
@@ -84,7 +96,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Staging
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=aierp_platform_runtime;Password=${AIERP_PLATFORM_RUNTIME_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__Tenant: Server=sqlserver,1433;Database=AIERPPlatform;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      Database__PlatformRuntimeLogin: aierp_platform_runtime
+      Database__DataRuntimeLogin: aierp_data_runtime
+      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY}
       Database__ApplyMigrationsOnStartup: "false"
       Bootstrap__Email: ${BOOTSTRAP_EMAIL}
@@ -119,13 +135,16 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Staging
       ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
+      Database__PlatformRuntimeLogin: aierp_platform_runtime
+      Database__DataRuntimeLogin: aierp_data_runtime
       Authentication__SigningKey: ${AUTH_SIGNING_KEY}
       Bootstrap__Email: ${BOOTSTRAP_EMAIL}
       Bootstrap__Password: ${BOOTSTRAP_PASSWORD}
       Bootstrap__DisplayName: Staging Administrator
       Bootstrap__TenantName: ${BOOTSTRAP_TENANT_NAME}
     depends_on:
-      sqlserver: { condition: service_healthy }
+      sql-runtime-init: { condition: service_completed_successfully }
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
@@ -170,7 +189,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Staging
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=aierp_platform_runtime;Password=${AIERP_PLATFORM_RUNTIME_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__AIStudio: Server=sqlserver,1433;Database=AIERPStudio;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY}
       Authentication__Issuer: AIERP
       Authentication__Audience: AIERP
@@ -179,6 +200,7 @@ services:
       WorkspaceRunner__BaseUrl: http://workspace-runner:8080
     depends_on:
       sqlserver: { condition: service_healthy }
+      sql-runtime-init: { condition: service_completed_successfully }
       workspace-runner: { condition: service_healthy }
       platform-api: { condition: service_healthy }
     read_only: true
