@@ -124,6 +124,63 @@ public sealed class FxRevaluationVoucherLine
     public decimal CreditBaseAmount { get; set; }
 }
 
+public sealed class LedgerAccount
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class LedgerAccountMapping
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string MappingKey { get; set; } = "";
+    public Guid AccountId { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class JournalEntry
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public DateOnly EntryDate { get; set; }
+    public string Description { get; set; } = "";
+    public string SourceType { get; set; } = "";
+    public Guid SourceId { get; set; }
+    public Guid? CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<JournalEntryLine> Lines { get; set; } = new List<JournalEntryLine>();
+}
+
+public sealed class JournalEntryLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid JournalEntryId { get; set; }
+    public Guid AccountId { get; set; }
+    public int LineNumber { get; set; }
+    public string Description { get; set; } = "";
+    public decimal Debit { get; set; }
+    public decimal Credit { get; set; }
+}
+
+public static class LedgerMappingKeys
+{
+    public const string FxReceivable = "fx.receivable";
+    public const string FxPayable = "fx.payable";
+    public const string FxGain = "fx.gain";
+    public const string FxLoss = "fx.loss";
+    public const string InventoryAsset = "inventory.asset";
+    public const string InventoryRevaluationOffset = "inventory.revaluation-offset";
+    public const string InventoryLandedCostOffset = "inventory.landed-cost-offset";
+    public const string InventoryReversalOffset = "inventory.reversal-offset";
+}
+
 public enum CounterpartyType { Customer = 1, Supplier = 2, Both = 3 }
 public enum CustomerAddressKind { General = 1, Billing = 2, Delivery = 3 }
 

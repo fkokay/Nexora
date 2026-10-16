@@ -1768,6 +1768,164 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("InventoryTransfers");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.JournalEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("nvarchar(240)");
+
+                    b.Property<DateOnly>("EntryDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "SourceType", "SourceId")
+                        .IsUnique();
+
+                    b.ToTable("JournalEntries");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.JournalEntryLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Credit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Debit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("nvarchar(240)");
+
+                    b.Property<Guid>("JournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "AccountId");
+
+                    b.HasIndex("TenantId", "JournalEntryId", "LineNumber")
+                        .IsUnique();
+
+                    b.ToTable("JournalEntryLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_JournalEntryLines_OneSidedNonNegative", "[Debit] >= 0 AND [Credit] >= 0 AND (([Debit] > 0 AND [Credit] = 0) OR ([Credit] > 0 AND [Debit] = 0))");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.LedgerAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("LedgerAccounts");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.LedgerAccountMapping", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MappingKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AccountId");
+
+                    b.HasIndex("TenantId", "MappingKey")
+                        .IsUnique();
+
+                    b.ToTable("LedgerAccountMappings");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.PermissionDefinition", b =>
                 {
                     b.Property<string>("Code")
@@ -2776,6 +2934,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             Action = "execute",
                             Description = "execute · Period-end FX revaluation vouchers",
                             ResourceType = "erp.fx-revaluations"
+                        },
+                        new
+                        {
+                            Code = "erp.general-ledger.read",
+                            Action = "read",
+                            Description = "read · Tenant chart of accounts, mappings, and journal entries",
+                            ResourceType = "erp.general-ledger"
+                        },
+                        new
+                        {
+                            Code = "erp.general-ledger.create",
+                            Action = "create",
+                            Description = "create · Tenant chart of accounts, mappings, and journal entries",
+                            ResourceType = "erp.general-ledger"
+                        },
+                        new
+                        {
+                            Code = "erp.general-ledger.update",
+                            Action = "update",
+                            Description = "update · Tenant chart of accounts, mappings, and journal entries",
+                            ResourceType = "erp.general-ledger"
+                        },
+                        new
+                        {
+                            Code = "erp.general-ledger.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant chart of accounts, mappings, and journal entries",
+                            ResourceType = "erp.general-ledger"
+                        },
+                        new
+                        {
+                            Code = "erp.general-ledger.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant chart of accounts, mappings, and journal entries",
+                            ResourceType = "erp.general-ledger"
                         },
                         new
                         {
@@ -8187,6 +8380,51 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.JournalEntry", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.JournalEntryLine", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AccountId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.JournalEntry", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("TenantId", "JournalEntryId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.LedgerAccount", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.LedgerAccountMapping", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AccountId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseInvoice", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
@@ -9845,6 +10083,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("ReversalEntry");
 
                     b.Navigation("Tracking");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.JournalEntry", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseInvoice", b =>

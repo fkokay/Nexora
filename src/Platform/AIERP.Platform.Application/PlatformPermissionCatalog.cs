@@ -44,6 +44,7 @@ public static class PlatformPermissionCatalog
         new("erp.exchange-rates", "/api/finance/exchange-rates", "Tenant exchange rates"),
         new("erp.fx-exposure", "/api/finance/fx-exposure", "Foreign currency exposure"),
         new("erp.fx-revaluations", "/api/finance/fx-revaluations", "Period-end FX revaluation vouchers"),
+        new("erp.general-ledger", "/api/finance/general-ledger", "Tenant chart of accounts, mappings, and journal entries"),
         new("erp.finance-accounts", "/api/finance/accounts", "Cash and bank accounts"),
         new("erp.financial-transfers", "/api/finance/transfers", "Financial account transfers"),
         new("erp.bank-statements", "/api/finance/statements", "Bank statements and reconciliation"),

@@ -55,6 +55,7 @@ public interface IAIModelProvider
 }
 
 public sealed class AIProviderNotConfiguredException : Exception { }
+public sealed class AIProviderRateLimitException : Exception { }
 public sealed class AIProviderResponseException : Exception
 {
     public AIProviderResponseException(string message) : base(message) { }

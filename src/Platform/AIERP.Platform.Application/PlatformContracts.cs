@@ -271,6 +271,15 @@ public sealed record FxRevaluationVoucherLineView(Guid Id, FxRevaluationDirectio
 public sealed record FxRevaluationVoucherView(Guid Id, string Code, DateOnly AsOfDate, string BaseCurrencyCode,
     DateTimeOffset CreatedAt, Guid? CreatedByUserId, decimal TotalDebit, decimal TotalCredit,
     IReadOnlyList<FxRevaluationVoucherLineView> Lines);
+public sealed record LedgerAccountWriteRequest(string Code, string Name, bool IsActive = true);
+public sealed record LedgerAccountView(Guid Id, string Code, string Name, bool IsActive);
+public sealed record LedgerMappingWriteRequest(string MappingKey, Guid AccountId);
+public sealed record LedgerMappingView(string MappingKey, string Label, Guid? AccountId, string? AccountCode, string? AccountName);
+public sealed record JournalEntryLineView(int LineNumber, Guid AccountId, string AccountCode, string AccountName,
+    string Description, decimal Debit, decimal Credit);
+public sealed record JournalEntryView(Guid Id, string Code, DateOnly EntryDate, string Description, string SourceType,
+    Guid SourceId, DateTimeOffset CreatedAt, decimal TotalDebit, decimal TotalCredit, IReadOnlyList<JournalEntryLineView> Lines);
+public sealed record JournalTransferRequest(string SourceType, Guid SourceId);
 public sealed record PurchaseRequestOrderLineRequest(int LineNumber, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent = 20);
 public sealed record PurchaseRequestOrderWriteRequest(string Code, Guid SupplierId, DateOnly OrderDate, string? Notes,
     IReadOnlyList<PurchaseRequestOrderLineRequest> Lines, Guid? SupplierQuoteId = null, IReadOnlyDictionary<string, string?>? CustomFields = null);

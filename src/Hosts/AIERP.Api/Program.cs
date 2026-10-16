@@ -66,7 +66,7 @@ if (args.Contains("--migrate-only", StringComparer.Ordinal))
     await SeedBootstrapUserAsync(db, builder.Configuration);
     if (!string.IsNullOrWhiteSpace(builder.Configuration["Database:PlatformRuntimeLogin"]))
         await TenantDatabaseProvisioner.GrantDatabaseRuntimeAccessAsync(connectionString, "AIERPPlatform", builder.Configuration["Database:PlatformRuntimeLogin"]!, cancellationToken: CancellationToken.None);
-    if (separatedDatabases) await ProvisionAllTenantDatabasesAsync(connectionString, builder.Configuration["Database:DataRuntimeLogin"] ?? "aierp_data_runtime");
+    if (separatedDatabases) await ProvisionAllTenantDatabasesAsync(connectionString, builder.Configuration["Database:DataRuntimeLogin"] ?? "aierp_data_runtime", builder.Configuration["Database:SeparationBackupPath"]);
     return;
 }
 var provisionArgument = args.FirstOrDefault(x => x.StartsWith("--provision-tenant=", StringComparison.Ordinal));
@@ -75,7 +75,19 @@ if (provisionArgument is not null)
     if (!Guid.TryParse(provisionArgument["--provision-tenant=".Length..], out var provisionTenantId))
         throw new ArgumentException("Use --provision-tenant=<tenant-guid>.");
     if (!separatedDatabases) throw new InvalidOperationException("Tenant provisioning requires Database:SeparationEnabled=true.");
-    await new TenantDatabaseProvisioner(connectionString).ProvisionAsync(provisionTenantId);
+    await new TenantDatabaseProvisioner(connectionString, separationBackupPath: builder.Configuration["Database:SeparationBackupPath"]).ProvisionAsync(provisionTenantId);
+    return;
+}
+if (args.Contains("--verify-separation-backup", StringComparer.Ordinal))
+{
+    await new TenantDatabaseProvisioner(connectionString, separationBackupPath: builder.Configuration["Database:SeparationBackupPath"])
+        .VerifySeparationBackupAsync();
+    return;
+}
+if (args.Contains("--verify-separation", StringComparer.Ordinal))
+{
+    if (!separatedDatabases) throw new InvalidOperationException("Verification requires Database:SeparationEnabled=true.");
+    await TenantDatabaseSeparationVerifier.VerifyAllAsync(connectionString);
     return;
 }
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
@@ -107,7 +119,7 @@ if (app.Environment.IsDevelopment() && builder.Configuration.GetValue("Database:
     await BaselineEnsureCreatedDatabaseAsync(db);
     await db.Database.MigrateAsync();
     await SeedBootstrapUserAsync(db, builder.Configuration);
-    if (separatedDatabases) await ProvisionAllTenantDatabasesAsync(connectionString, builder.Configuration["Database:DataRuntimeLogin"] ?? "aierp_data_runtime");
+    if (separatedDatabases) await ProvisionAllTenantDatabasesAsync(connectionString, builder.Configuration["Database:DataRuntimeLogin"] ?? "aierp_data_runtime", builder.Configuration["Database:SeparationBackupPath"]);
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "platform-api" }));
@@ -4768,9 +4780,6 @@ fxRevaluations.MapPost("/", async (FxRevaluationCreateRequest request, ClaimsPri
         var previousAdjustment = prior?.TargetAdjustmentBase ?? 0m;
         var target = FxRevaluationCalculator.TargetAdjustment(key.Direction, outstanding, invoiceRate, closingRate);
         var adjustment = target - previousAdjustment;
-        var controlAccount = key.Direction == FxRevaluationDirection.Receivable ? "Dövizli Ticari Alacaklar" : "Dövizli Ticari Borçlar";
-        var debitAccount = adjustment >= 0 ? controlAccount : "Kur Farkı Gideri";
-        var creditAccount = adjustment >= 0 ? "Kur Farkı Geliri" : controlAccount;
         var amount = Math.Abs(adjustment);
         voucher.Lines.Add(new FxRevaluationVoucherLine { TenantId = tenantId, Voucher = voucher, Direction = key.Direction,
             InvoiceId = key.Item2, InvoiceCode = invoice.Id == Guid.Empty ? prior!.InvoiceCode : invoice.Code,
@@ -4778,7 +4787,7 @@ fxRevaluations.MapPost("/", async (FxRevaluationCreateRequest request, ClaimsPri
             CurrencyCode = invoice.Id == Guid.Empty ? prior!.CurrencyCode : invoice.CurrencyCode,
             OutstandingAmount = outstanding, InvoiceDateRate = invoiceRate, ClosingRate = closingRate,
             PreviousAdjustmentBase = previousAdjustment, TargetAdjustmentBase = target, AdjustmentBase = adjustment,
-            DebitAccount = debitAccount, CreditAccount = creditAccount, DebitBaseAmount = amount, CreditBaseAmount = amount });
+            DebitAccount = "", CreditAccount = "", DebitBaseAmount = amount, CreditBaseAmount = amount });
     }
     db.FxRevaluationVouchers.Add(voucher);
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.fx-revaluation.created",
@@ -4795,6 +4804,176 @@ fxRevaluations.MapPost("/", async (FxRevaluationCreateRequest request, ClaimsPri
 });
 
 var financeAccounts = app.MapGroup("/api/finance/accounts").RequireAuthorization();
+var generalLedger = app.MapGroup("/api/finance/general-ledger").RequireAuthorization();
+var ledgerMappingLabels = new Dictionary<string, string>(StringComparer.Ordinal)
+{
+    [LedgerMappingKeys.FxReceivable] = "Kur değerleme · alacak kontrol hesabı",
+    [LedgerMappingKeys.FxPayable] = "Kur değerleme · borç kontrol hesabı",
+    [LedgerMappingKeys.FxGain] = "Kur değerleme · gelir karşı hesabı",
+    [LedgerMappingKeys.FxLoss] = "Kur değerleme · gider karşı hesabı",
+    [LedgerMappingKeys.InventoryAsset] = "Stok maliyet hareketi · stok hesabı",
+    [LedgerMappingKeys.InventoryRevaluationOffset] = "Stok yeniden değerleme · karşı hesap",
+    [LedgerMappingKeys.InventoryLandedCostOffset] = "Ek maliyet · karşı hesap",
+    [LedgerMappingKeys.InventoryReversalOffset] = "Stok ters kayıt · karşı hesap"
+};
+generalLedger.MapGet("/accounts", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    return Results.Ok(await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId)
+        .OrderBy(x => x.Code).Select(x => new LedgerAccountView(x.Id, x.Code, x.Name, x.IsActive)).ToListAsync());
+});
+generalLedger.MapPost("/accounts", async (LedgerAccountWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var code = request.Code.Trim(); var name = request.Name.Trim();
+    if (code.Length is 0 or > 32 || name.Length is 0 or > 160) return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = ["Hesap kodu (1–32) ve adı (1–160) gereklidir."] });
+    if (await db.LedgerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu hesap kodu zaten tanımlı." });
+    var account = new LedgerAccount { TenantId = tenantId, Code = code, Name = name, IsActive = request.IsActive };
+    db.LedgerAccounts.Add(account);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.general-ledger.account-created", Resource = code });
+    await db.SaveChangesAsync();
+    return Results.Created($"/api/finance/general-ledger/accounts/{account.Id}", new LedgerAccountView(account.Id, account.Code, account.Name, account.IsActive));
+});
+generalLedger.MapPut("/accounts/{id:guid}", async (Guid id, LedgerAccountWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var account = await db.LedgerAccounts.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
+    if (account is null) return Results.NotFound();
+    var code = request.Code.Trim(); var name = request.Name.Trim();
+    if (code.Length is 0 or > 32 || name.Length is 0 or > 160) return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = ["Hesap kodu (1–32) ve adı (1–160) gereklidir."] });
+    if ((account.Code != code || account.Name != name) && await db.JournalEntryLines.AnyAsync(x => x.TenantId == tenantId && x.AccountId == id))
+        return Results.Conflict(new { error = "Yevmiye kaydı bulunan hesabın kodu ve adı değiştirilemez; hesabı pasife alın ve yeni hesap açın." });
+    if (await db.LedgerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id != id && x.Code == code)) return Results.Conflict(new { error = "Bu hesap kodu zaten tanımlı." });
+    account.Code = code; account.Name = name; account.IsActive = request.IsActive;
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.general-ledger.account-updated", Resource = code });
+    await db.SaveChangesAsync();
+    return Results.Ok(new LedgerAccountView(account.Id, account.Code, account.Name, account.IsActive));
+});
+generalLedger.MapGet("/mappings", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var mappings = await db.LedgerAccountMappings.AsNoTracking().Where(x => x.TenantId == tenantId)
+        .Join(db.LedgerAccounts.AsNoTracking(), m => new { m.TenantId, Id = m.AccountId }, a => new { a.TenantId, a.Id }, (m, a) => new { m.MappingKey, a.Id, a.Code, a.Name }).ToListAsync();
+    return Results.Ok(ledgerMappingLabels.Select(x => { var account = mappings.FirstOrDefault(m => m.MappingKey == x.Key); return new LedgerMappingView(x.Key, x.Value, account?.Id, account?.Code, account?.Name); }).ToList());
+});
+generalLedger.MapGet("/sources", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var transferred = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId)
+        .Select(x => new { x.SourceType, x.SourceId }).ToListAsync();
+    var fxDone = transferred.Where(x => x.SourceType == "FxRevaluation").Select(x => x.SourceId).ToHashSet();
+    var inventoryDone = transferred.Where(x => x.SourceType == "InventoryCostAdjustment").Select(x => x.SourceId).ToHashSet();
+    var fx = await db.FxRevaluationVouchers.AsNoTracking().Include(x => x.Lines).Where(x => x.TenantId == tenantId).ToListAsync();
+    var inventory = await db.InventoryCostAdjustments.AsNoTracking().Include(x => x.Lines).Where(x => x.TenantId == tenantId).ToListAsync();
+    return Results.Ok(new
+    {
+        fxRevaluations = fx.Where(x => !fxDone.Contains(x.Id)).OrderByDescending(x => x.AsOfDate).Select(x => new
+        {
+            id = x.Id, code = x.Code, entryDate = x.AsOfDate, amount = x.Lines.Sum(l => l.DebitBaseAmount),
+            requiredMappings = x.Lines.Where(l => l.AdjustmentBase != 0).SelectMany(l => l.AdjustmentBase > 0
+                ? new[] { l.Direction == FxRevaluationDirection.Receivable ? LedgerMappingKeys.FxReceivable : LedgerMappingKeys.FxPayable, LedgerMappingKeys.FxGain }
+                : new[] { l.Direction == FxRevaluationDirection.Receivable ? LedgerMappingKeys.FxReceivable : LedgerMappingKeys.FxPayable, LedgerMappingKeys.FxLoss }).Distinct().ToList()
+        }),
+        inventoryAdjustments = inventory.Where(x => !inventoryDone.Contains(x.Id)).OrderByDescending(x => x.EntryDate).Take(200)
+            .Select(x => new { id = x.Id, code = x.Code, entryDate = x.EntryDate, amount = x.Lines.Sum(l => Math.Abs(l.AmountBase)),
+                kind = x.Kind.ToString(), description = x.Description, requiredMappings = new[] { LedgerMappingKeys.InventoryAsset,
+                    x.Kind == InventoryCostAdjustmentKind.LandedCost ? LedgerMappingKeys.InventoryLandedCostOffset
+                    : x.Kind == InventoryCostAdjustmentKind.Reversal ? LedgerMappingKeys.InventoryReversalOffset : LedgerMappingKeys.InventoryRevaluationOffset } })
+    });
+});
+generalLedger.MapPut("/mappings/{mappingKey}", async (string mappingKey, LedgerMappingWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!ledgerMappingLabels.ContainsKey(mappingKey) || mappingKey != request.MappingKey) return Results.NotFound();
+    var account = await db.LedgerAccounts.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.AccountId && x.IsActive);
+    if (account is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["accountId"] = ["Aktif bir tenant hesabı seçin."] });
+    var mapping = await db.LedgerAccountMappings.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.MappingKey == mappingKey);
+    if (mapping is null) db.LedgerAccountMappings.Add(new LedgerAccountMapping { TenantId = tenantId, MappingKey = mappingKey, AccountId = account.Id });
+    else { mapping.AccountId = account.Id; mapping.UpdatedAt = DateTimeOffset.UtcNow; }
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.general-ledger.mapping-updated", Resource = $"{mappingKey}:{account.Code}" });
+    await db.SaveChangesAsync();
+    return Results.Ok(new LedgerMappingView(mappingKey, ledgerMappingLabels[mappingKey], account.Id, account.Code, account.Name));
+});
+generalLedger.MapGet("/entries", async (DateOnly? from, DateOnly? to, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var query = db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId);
+    if (from.HasValue) query = query.Where(x => x.EntryDate >= from.Value);
+    if (to.HasValue) query = query.Where(x => x.EntryDate <= to.Value);
+    var entries = await query.OrderByDescending(x => x.EntryDate).ThenByDescending(x => x.CreatedAt).Take(200)
+        .Select(x => new { x.Id, x.Code, x.EntryDate, x.Description, x.SourceType, x.SourceId, x.CreatedAt,
+            TotalDebit = x.Lines.Sum(l => l.Debit), TotalCredit = x.Lines.Sum(l => l.Credit) }).ToListAsync();
+    return Results.Ok(entries);
+});
+generalLedger.MapGet("/entries/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var entry = await db.JournalEntries.AsNoTracking().Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
+    if (entry is null) return Results.NotFound();
+    var accounts = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && entry.Lines.Select(l => l.AccountId).Contains(x.Id)).ToDictionaryAsync(x => x.Id);
+    var lines = entry.Lines.OrderBy(x => x.LineNumber).Select(x => new JournalEntryLineView(x.LineNumber, x.AccountId,
+        accounts[x.AccountId].Code, accounts[x.AccountId].Name, x.Description, x.Debit, x.Credit)).ToList();
+    return Results.Ok(new JournalEntryView(entry.Id, entry.Code, entry.EntryDate, entry.Description, entry.SourceType,
+        entry.SourceId, entry.CreatedAt, lines.Sum(x => x.Debit), lines.Sum(x => x.Credit), lines));
+});
+generalLedger.MapPost("/transfer", async (JournalTransferRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var sourceType = request.SourceType.Trim();
+    if (sourceType is not ("FxRevaluation" or "InventoryCostAdjustment")) return Results.ValidationProblem(new Dictionary<string, string[]> { ["sourceType"] = ["Desteklenen kaynak: FxRevaluation veya InventoryCostAdjustment."] });
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var tenant = await db.Tenants.FromSqlInterpolated($"SELECT * FROM [dbo].[Tenants] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {tenantId}").SingleOrDefaultAsync();
+    if (tenant is null) return Results.NotFound();
+    if (await db.JournalEntries.AnyAsync(x => x.TenantId == tenantId && x.SourceType == sourceType && x.SourceId == request.SourceId)) return Results.Conflict(new { error = "Bu kaynak daha önce deftere aktarılmıştır." });
+    var map = await db.LedgerAccountMappings.Where(x => x.TenantId == tenantId).ToDictionaryAsync(x => x.MappingKey, x => x.AccountId);
+    var activeAccounts = await db.LedgerAccounts.Where(x => x.TenantId == tenantId && x.IsActive).ToDictionaryAsync(x => x.Id);
+    var lines = new List<(Guid AccountId, string Description, decimal Debit, decimal Credit)>();
+    DateOnly entryDate; string sourceCode; string description;
+    if (sourceType == "FxRevaluation")
+    {
+        var source = await db.FxRevaluationVouchers.Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
+        if (source is null) return Results.NotFound();
+        entryDate = source.AsOfDate; sourceCode = source.Code; description = $"Kur değerleme · {source.Code}";
+        foreach (var line in source.Lines.Where(x => x.AdjustmentBase != 0))
+        {
+            var controlKey = line.Direction == FxRevaluationDirection.Receivable ? LedgerMappingKeys.FxReceivable : LedgerMappingKeys.FxPayable;
+            var debitKey = line.AdjustmentBase > 0 ? controlKey : LedgerMappingKeys.FxLoss;
+            var creditKey = line.AdjustmentBase > 0 ? LedgerMappingKeys.FxGain : controlKey;
+            if (!map.TryGetValue(debitKey, out var debitId) || !map.TryGetValue(creditKey, out var creditId) || !activeAccounts.ContainsKey(debitId) || !activeAccounts.ContainsKey(creditId))
+                return Results.Conflict(new { error = "Kur değerlemenin kullandığı hesap eşleştirmeleri tamamlanmamış. Genel muhasebe ayarlarını tamamlayın; kaynak fiş değişmedi." });
+            if (debitId == creditId) return Results.Conflict(new { error = "Borç ve alacak tarafı aynı hesaba eşlenmiş. Eşleştirmeleri ayrı tenant hesaplarına yönlendirin." });
+            var amount = Math.Abs(line.AdjustmentBase);
+            lines.Add((debitId, $"{line.InvoiceCode} · {line.CounterpartyName}", amount, 0));
+            lines.Add((creditId, $"{line.InvoiceCode} · {line.CounterpartyName}", 0, amount));
+        }
+    }
+    else
+    {
+        var source = await db.InventoryCostAdjustments.Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
+        if (source is null) return Results.NotFound();
+        entryDate = source.EntryDate; sourceCode = source.Code; description = $"Stok maliyet hareketi · {source.Code} · {source.Description}";
+        var offsetKey = source.Kind switch { InventoryCostAdjustmentKind.LandedCost => LedgerMappingKeys.InventoryLandedCostOffset, InventoryCostAdjustmentKind.Reversal => LedgerMappingKeys.InventoryReversalOffset, _ => LedgerMappingKeys.InventoryRevaluationOffset };
+        if (!map.TryGetValue(LedgerMappingKeys.InventoryAsset, out var stockId) || !map.TryGetValue(offsetKey, out var offsetId) || !activeAccounts.ContainsKey(stockId) || !activeAccounts.ContainsKey(offsetId))
+            return Results.Conflict(new { error = "Stok hareketinin kullandığı hesap eşleştirmeleri tamamlanmamış. Genel muhasebe ayarlarını tamamlayın; kaynak hareket değişmedi." });
+        if (stockId == offsetId) return Results.Conflict(new { error = "Stok ve karşı hesap aynı hesaba eşlenmiş. Eşleştirmeleri ayrı tenant hesaplarına yönlendirin." });
+        var stockInfo = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && source.Lines.Select(l => l.StockItemId).Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Code);
+        foreach (var line in source.Lines.Where(x => x.AmountBase != 0))
+        {
+            var amount = Math.Abs(line.AmountBase); var stockCode = stockInfo.GetValueOrDefault(line.StockItemId, "Stok");
+            if (line.AmountBase > 0) { lines.Add((stockId, $"{source.Code} · {stockCode}", amount, 0)); lines.Add((offsetId, $"{source.Code} · {stockCode}", 0, amount)); }
+            else { lines.Add((offsetId, $"{source.Code} · {stockCode}", amount, 0)); lines.Add((stockId, $"{source.Code} · {stockCode}", 0, amount)); }
+        }
+    }
+    if (lines.Count < 2 || lines.Sum(x => x.Debit) <= 0 || lines.Sum(x => x.Debit) != lines.Sum(x => x.Credit)) return Results.Conflict(new { error = "Kaynak fişte aktarılabilir dengeli bir tutar bulunamadı." });
+    var entry = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = entryDate,
+        Description = description.Length > 240 ? description[..240] : description, SourceType = sourceType, SourceId = request.SourceId, CreatedByUserId = GetUserId(principal) };
+    for (var i = 0; i < lines.Count; i++) entry.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = entry.Id, AccountId = lines[i].AccountId,
+        LineNumber = i + 1, Description = lines[i].Description.Length > 240 ? lines[i].Description[..240] : lines[i].Description, Debit = lines[i].Debit, Credit = lines[i].Credit });
+    db.JournalEntries.Add(entry);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.general-ledger.transferred", Resource = $"{sourceType}:{sourceCode}:{entry.Code}" });
+    await db.SaveChangesAsync(); await tx.CommitAsync();
+    return Results.Created($"/api/finance/general-ledger/entries/{entry.Id}", new { entry.Id, entry.Code, entry.EntryDate, entry.Description, entry.SourceType, entry.SourceId, TotalDebit = entry.Lines.Sum(x => x.Debit), TotalCredit = entry.Lines.Sum(x => x.Credit) });
+});
 app.MapGet("/api/finance/maturities", async (DateOnly? asOfDate, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
@@ -5423,13 +5602,14 @@ static async Task SeedBootstrapUserAsync(PlatformDbContext db, IConfiguration c)
     await TenantPermissionDefaults.AddTenantUserBaselineAsync(db, tenant.Id, user.Id);
     await db.SaveChangesAsync();
 }
-static async Task ProvisionAllTenantDatabasesAsync(string platformConnection, string dataRuntimeLogin)
+static async Task ProvisionAllTenantDatabasesAsync(string platformConnection, string dataRuntimeLogin, string? separationBackupPath)
 {
     await using var db = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options);
     var tenantIds = await db.Tenants.AsNoTracking().Select(x => x.Id).ToListAsync();
-    var provisioner = new TenantDatabaseProvisioner(platformConnection, dataRuntimeLogin);
+    var provisioner = new TenantDatabaseProvisioner(platformConnection, dataRuntimeLogin, separationBackupPath);
     foreach (var tenantId in tenantIds) await provisioner.ProvisionAsync(tenantId);
     await provisioner.ProvisionAIStudioAsync();
+    await TenantDatabaseSeparationVerifier.VerifyAllAsync(platformConnection);
 }
 static async Task BaselineEnsureCreatedDatabaseAsync(PlatformDbContext db)
 {

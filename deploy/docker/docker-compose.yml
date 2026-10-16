@@ -9,6 +9,8 @@ services:
       - "127.0.0.1:1433:1433"
     volumes:
       - aierp-sql-data:/var/opt/mssql
+      - aierp-production-backups:/var/opt/mssql/backups
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q 'SELECT 1' >/dev/null 2>&1"]
       interval: 10s
@@ -25,6 +27,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
       Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
+      Database__SeparationBackupPath: ${DATABASE_SEPARATION_BACKUP_PATH:-}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       Database__ApplyMigrationsOnStartup: "true"
       Bootstrap__Email: ${BOOTSTRAP_EMAIL:-}
@@ -40,6 +43,7 @@ services:
     depends_on:
       sqlserver:
         condition: service_healthy
+    restart: unless-stopped
 
   ai-service:
     build:
@@ -59,6 +63,9 @@ services:
       ReleaseDeployer__BaseUrl: http://release-deployer:8080
       AI__OpenAI__ApiKey: ${OPENAI_API_KEY:-}
       AI__OpenAI__Model: ${OPENAI_MODEL:-gpt-6-astra}
+      AI__Provider: ${AI_PROVIDER:-OpenAI}
+      AI__Nvidia__ApiKey: ${NVIDIA_API_KEY:-}
+      AI__Nvidia__Model: ${NVIDIA_MODEL:-}
       GitHub__AppId: ${GITHUB_APP_ID:-}
       GitHub__PrivateKeyPem: ${GITHUB_APP_PRIVATE_KEY_PEM:-}
       GitHub__AppSlug: ${GITHUB_APP_SLUG:-}
@@ -75,6 +82,7 @@ services:
         condition: service_started
       release-deployer:
         condition: service_healthy
+    restart: unless-stopped
     networks:
       - default
       - studio-internal
@@ -93,6 +101,7 @@ services:
         condition: service_started
       ai-service:
         condition: service_started
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
       interval: 15s
@@ -127,16 +136,19 @@ services:
     command:
       - >-
         set -eu;
-        test -n "$${RCLONE_CONFIG_OFFSITE_BUCKET}";
-        test -n "$${RCLONE_CONFIG_OFFSITE_ENDPOINT}";
-        test -n "$${RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID}";
-        test -n "$${RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY}";
-        test -n "$${RCLONE_CONFIG_OFFSITE_CRYPT_PASSWORD}";
+        test -n "$${OFFSITE_BACKUP_BUCKET}";
+        test -n "$${RCLONE_CONFIG_REMOTE_ENDPOINT}";
+        test -n "$${RCLONE_CONFIG_REMOTE_ACCESS_KEY_ID}";
+        test -n "$${RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY}";
+        test -n "$${RCLONE_CONFIG_CRYPT_PASSWORD}";
+        case "$${BACKUP_SYNC_INTERVAL_SECONDS}" in ''|*[!0-9]*|0) echo 'BACKUP_SYNC_INTERVAL_SECONDS must be a positive integer' >&2; exit 1;; esac;
         while :; do
-          rclone copy /production-backups crypt: --config /dev/null --log-level INFO || true;
-          sleep "$${BACKUP_SYNC_INTERVAL_SECONDS:-900}";
+          rclone copy /production-backups crypt: --config /dev/null --log-level INFO;
+          rclone check /production-backups crypt: --config /dev/null --download --log-level INFO;
+          sleep "$${BACKUP_SYNC_INTERVAL_SECONDS}";
         done
     environment:
+      OFFSITE_BACKUP_BUCKET: ${OFFSITE_BACKUP_BUCKET:-}
       RCLONE_CONFIG_REMOTE_TYPE: s3
       RCLONE_CONFIG_REMOTE_PROVIDER: ${OFFSITE_BACKUP_PROVIDER:-Other}
       RCLONE_CONFIG_REMOTE_ENDPOINT: ${OFFSITE_BACKUP_ENDPOINT:-}
@@ -153,6 +165,36 @@ services:
     networks:
       - offsite-egress
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+
+  offsite-restore:
+    image: rclone/rclone:1.75.2
+    profiles: [offsite-backup]
+    entrypoint: ["rclone"]
+    command: ["--version"]
+    environment:
+      RCLONE_CONFIG_REMOTE_TYPE: s3
+      RCLONE_CONFIG_REMOTE_PROVIDER: ${OFFSITE_BACKUP_PROVIDER:-Other}
+      RCLONE_CONFIG_REMOTE_ENDPOINT: ${OFFSITE_BACKUP_ENDPOINT:-}
+      RCLONE_CONFIG_REMOTE_REGION: ${OFFSITE_BACKUP_REGION:-us-east-1}
+      RCLONE_CONFIG_REMOTE_ENV_AUTH: "false"
+      RCLONE_CONFIG_REMOTE_ACCESS_KEY_ID: ${OFFSITE_BACKUP_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY: ${OFFSITE_BACKUP_SECRET_ACCESS_KEY:-}
+      RCLONE_CONFIG_CRYPT_TYPE: crypt
+      RCLONE_CONFIG_CRYPT_REMOTE: remote:${OFFSITE_BACKUP_BUCKET:-}/${OFFSITE_BACKUP_PREFIX:-nexora}
+      RCLONE_CONFIG_CRYPT_PASSWORD: ${OFFSITE_BACKUP_CRYPT_PASSWORD_OBSCURED:-}
+    volumes:
+      - aierp-production-backups:/production-backups
+    networks:
+      - offsite-egress
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=32m
@@ -199,6 +241,7 @@ services:
       - aierp-release-packages:/release-packages
     networks:
       - studio-internal
+    restart: unless-stopped
 
   release-deployer:
     build:
@@ -209,6 +252,7 @@ services:
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       Authentication__Issuer: AIERP
       Authentication__Audience: AIERP.ReleaseDeployer
+      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
       ReleaseDeployer__PackageRoot: /release-packages
       ReleaseDeployer__ReleaseRoot: /staging-releases
       ReleaseDeployer__ProductionRoot: /production-releases
@@ -239,6 +283,7 @@ services:
       - aierp-production-backups:/production-backups
     networks:
       - studio-internal
+    restart: unless-stopped
 
   workspace-sandbox:
     build:

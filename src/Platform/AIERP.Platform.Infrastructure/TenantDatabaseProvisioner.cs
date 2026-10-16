@@ -5,8 +5,17 @@ using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace AIERP.Platform.Infrastructure;
 
-public sealed class TenantDatabaseProvisioner(string platformConnection, string dataRuntimeLogin = "aierp_data_runtime")
+public sealed class TenantDatabaseProvisioner(string platformConnection, string dataRuntimeLogin = "aierp_data_runtime", string? separationBackupPath = null)
 {
+    private bool _sourceBackupVerified;
+
+    public Task VerifySeparationBackupAsync(CancellationToken cancellationToken = default)
+    {
+        var sourceDatabase = new SqlConnectionStringBuilder(platformConnection).InitialCatalog;
+        if (string.IsNullOrWhiteSpace(sourceDatabase)) throw new InvalidOperationException("Platform connection must specify a database.");
+        return EnsureVerifiedSourceBackupAsync(sourceDatabase, cancellationToken);
+    }
+
     public static async Task GrantDatabaseRuntimeAccessAsync(string adminConnection, string databaseName, string loginName, bool readOnly = false, CancellationToken cancellationToken = default)
     {
         if (!System.Text.RegularExpressions.Regex.IsMatch(databaseName, "^AIERP[A-Za-z0-9_]+$", System.Text.RegularExpressions.RegexOptions.CultureInvariant) ||
@@ -36,13 +45,14 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
             _ = await platform.Tenants.AsNoTracking().SingleOrDefaultAsync(x => x.Id == tenantId, cancellationToken)
                 ?? throw new InvalidOperationException("Tenant does not exist in PlatformDB.");
             var entry = await platform.TenantDatabaseCatalog.FindAsync([tenantId], cancellationToken);
+            if (entry?.State == TenantDatabaseProvisioningState.Ready) return;
+            await EnsureVerifiedSourceBackupAsync(sourceDatabase, cancellationToken);
             if (entry is null)
             {
                 entry = new TenantDatabaseCatalogEntry { TenantId = tenantId, DatabaseName = databaseName };
                 platform.TenantDatabaseCatalog.Add(entry);
             }
             if (!string.Equals(entry.DatabaseName, databaseName, StringComparison.Ordinal)) throw new InvalidOperationException("Catalog database name does not match the tenant identity.");
-            if (entry.State == TenantDatabaseProvisioningState.Ready) return;
             entry.State = TenantDatabaseProvisioningState.Copying;
             entry.LastError = null;
             entry.UpdatedAt = DateTimeOffset.UtcNow;
@@ -64,13 +74,14 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
             var options = new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(targetBuilder.ConnectionString).Options;
             await using (var target = new TenantDbContext(options)) await target.Database.MigrateAsync(cancellationToken);
             await GrantDatabaseRuntimeAccessAsync(platformConnection, databaseName, dataRuntimeLogin, cancellationToken: cancellationToken);
-            await CopyTenantRowsAsync(sourceDatabase, databaseName, tenantId, new TenantDbContext(options), cancellationToken);
+            await using (var tenant = new TenantDbContext(options)) await CopyTenantRowsAsync(sourceDatabase, databaseName, tenantId, tenant, cancellationToken);
             await using var platform = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options);
             var ready = await platform.TenantDatabaseCatalog.SingleAsync(x => x.TenantId == tenantId, cancellationToken);
             ready.State = TenantDatabaseProvisioningState.Ready;
             ready.LastError = null;
             ready.ReadyAt = ready.UpdatedAt = DateTimeOffset.UtcNow;
             await platform.SaveChangesAsync(cancellationToken);
+            await TenantDatabaseSeparationVerifier.VerifyTenantAsync(platformConnection, tenantId, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -97,6 +108,7 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
         {
             var state = await platform.DatabaseSeparationComponentStates.FindAsync([component], cancellationToken);
             if (state?.State == TenantDatabaseProvisioningState.Ready) return;
+            if (await platform.Tenants.AsNoTracking().AnyAsync(cancellationToken)) await EnsureVerifiedSourceBackupAsync(sourceDatabase, cancellationToken);
             if (state is null) platform.DatabaseSeparationComponentStates.Add(state = new DatabaseSeparationComponentState { Component = component, DatabaseName = databaseName });
             if (state.DatabaseName != databaseName) throw new InvalidOperationException("AIStudio catalog database name is invalid.");
             state.State = TenantDatabaseProvisioningState.Copying; state.LastError = null; state.UpdatedAt = DateTimeOffset.UtcNow;
@@ -127,6 +139,7 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
             var ready = await catalog.DatabaseSeparationComponentStates.SingleAsync(x => x.Component == component, cancellationToken);
             ready.State = TenantDatabaseProvisioningState.Ready; ready.LastError = null; ready.ReadyAt = ready.UpdatedAt = DateTimeOffset.UtcNow;
             await catalog.SaveChangesAsync(cancellationToken);
+            foreach (var tenantId in tenants) await TenantDatabaseSeparationVerifier.VerifyStudioTenantAsync(platformConnection, tenantId, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -135,6 +148,51 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
             if (failed is not null) { failed.State = TenantDatabaseProvisioningState.Failed; failed.LastError = ex.Message.Length > 1900 ? ex.Message[..1900] : ex.Message; failed.UpdatedAt = DateTimeOffset.UtcNow; await catalog.SaveChangesAsync(cancellationToken); }
             throw;
         }
+    }
+
+    private async Task EnsureVerifiedSourceBackupAsync(string sourceDatabase, CancellationToken cancellationToken)
+    {
+        if (_sourceBackupVerified) return;
+        if (string.IsNullOrWhiteSpace(separationBackupPath))
+            throw new InvalidOperationException("Tenant database separation requires Database:SeparationBackupPath pointing to a recent, checksum-verified full backup of the current Platform database. Stop all writers before taking the backup.");
+
+        var builder = new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = "master" };
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using (var verify = connection.CreateCommand())
+        {
+            verify.CommandText = "RESTORE VERIFYONLY FROM DISK = @path WITH CHECKSUM";
+            verify.Parameters.AddWithValue("@path", separationBackupPath);
+            await verify.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var header = connection.CreateCommand();
+        header.CommandText = "RESTORE HEADERONLY FROM DISK = @path";
+        header.Parameters.AddWithValue("@path", separationBackupPath);
+        await using var reader = await header.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) throw new InvalidOperationException("Separation backup has no readable backup header.");
+        var databaseNameOrdinal = reader.GetOrdinal("DatabaseName");
+        var backupTypeOrdinal = reader.GetOrdinal("BackupType");
+        var finishOrdinal = reader.GetOrdinal("BackupFinishDate");
+        var checksumsOrdinal = reader.GetOrdinal("HasBackupChecksums");
+        var backupSetGuidOrdinal = reader.GetOrdinal("BackupSetGUID");
+        var backupDatabase = reader.GetString(databaseNameOrdinal);
+        var backupType = Convert.ToInt32(reader.GetValue(backupTypeOrdinal), System.Globalization.CultureInfo.InvariantCulture);
+        var finish = reader.GetDateTime(finishOrdinal);
+        var hasChecksums = reader.GetBoolean(checksumsOrdinal);
+        var backupSetGuid = reader.GetGuid(backupSetGuidOrdinal);
+        await reader.DisposeAsync();
+        if (!string.Equals(backupDatabase, sourceDatabase, StringComparison.OrdinalIgnoreCase) || backupType != 1 || !hasChecksums)
+            throw new InvalidOperationException("Separation backup must be a checksum-protected full backup of the configured Platform database.");
+
+        await using var freshness = connection.CreateCommand();
+        freshness.CommandText = "SELECT CASE WHEN @finish >= DATEADD(MINUTE, -30, GETDATE()) AND @backupSet = (SELECT TOP (1) backup_set_uuid FROM msdb.dbo.backupset WHERE database_name = @database AND type = 'D' ORDER BY backup_finish_date DESC, backup_set_id DESC) THEN 1 ELSE 0 END";
+        freshness.Parameters.AddWithValue("@finish", DateTime.SpecifyKind(finish, DateTimeKind.Utc));
+        freshness.Parameters.AddWithValue("@database", sourceDatabase);
+        freshness.Parameters.AddWithValue("@backupSet", backupSetGuid);
+        if (Convert.ToInt32(await freshness.ExecuteScalarAsync(cancellationToken), System.Globalization.CultureInfo.InvariantCulture) != 1)
+            throw new InvalidOperationException("Separation backup is not the most recent full backup or is older than 30 minutes. Stop writers and take a fresh backup immediately before migration.");
+        _sourceBackupVerified = true;
     }
 
     private static async Task CopyTenantRowsAsync(string sourceDatabase, string targetDatabase, Guid tenantId, DbContext target, CancellationToken cancellationToken)
@@ -171,6 +229,7 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
                 if (table.Identity) await ExecuteAsync(connection, (SqlTransaction)tx, $"SET IDENTITY_INSERT {dest} ON", cancellationToken);
                 await ExecuteAsync(connection, (SqlTransaction)tx, $"INSERT INTO {dest} ({cols}) SELECT {cols} FROM {source} WHERE {Q(table.Filter)}=@tenant", cancellationToken, tenantId);
                 if (table.Identity) await ExecuteAsync(connection, (SqlTransaction)tx, $"SET IDENTITY_INSERT {dest} OFF", cancellationToken);
+                await VerifyTableCountAsync(connection, (SqlTransaction)tx, sourceDatabase, table, tenantId, cancellationToken);
             }
             foreach (var table in eligible)
                 await ExecuteAsync(connection, (SqlTransaction)tx, $"ALTER TABLE {Q(table.Schema)}.{Q(table.Name)} WITH CHECK CHECK CONSTRAINT ALL", cancellationToken);
@@ -184,6 +243,20 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
             throw;
         }
         finally { await connection.CloseAsync(); }
+    }
+
+    private static async Task VerifyTableCountAsync(SqlConnection connection, SqlTransaction transaction, string sourceDatabase,
+        (string Schema, string Name, string Filter, string[] Columns, bool Identity) table, Guid tenantId, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        var source = $"{Q(sourceDatabase)}.{Q(table.Schema)}.{Q(table.Name)}";
+        var target = $"{Q(table.Schema)}.{Q(table.Name)}";
+        command.CommandText = $"SELECT (SELECT COUNT_BIG(*) FROM {source} WHERE {Q(table.Filter)}=@tenant), (SELECT COUNT_BIG(*) FROM {target} WHERE {Q(table.Filter)}=@tenant)";
+        command.Parameters.AddWithValue("@tenant", tenantId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken) || reader.GetInt64(0) != reader.GetInt64(1))
+            throw new InvalidOperationException($"Tenant row count verification failed for {table.Schema}.{table.Name}.");
     }
 
     private static async Task ExecuteAsync(SqlConnection connection, SqlTransaction tx, string sql, CancellationToken cancellationToken, Guid? tenantId = null)

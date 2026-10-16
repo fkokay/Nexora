@@ -101,6 +101,7 @@ services:
       Database__PlatformRuntimeLogin: aierp_platform_runtime
       Database__DataRuntimeLogin: aierp_data_runtime
       Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
+      Database__SeparationBackupPath: ${DATABASE_SEPARATION_BACKUP_PATH:-}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY}
       Database__ApplyMigrationsOnStartup: "false"
       Bootstrap__Email: ${BOOTSTRAP_EMAIL}
@@ -136,6 +137,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Staging
       ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
       Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
+      Database__SeparationBackupPath: ${DATABASE_SEPARATION_BACKUP_PATH:-}
       Database__PlatformRuntimeLogin: aierp_platform_runtime
       Database__DataRuntimeLogin: aierp_data_runtime
       Authentication__SigningKey: ${AUTH_SIGNING_KEY}

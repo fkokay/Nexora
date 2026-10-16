@@ -112,7 +112,11 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "ai-d
 app.MapGet("/studio/capabilities", (ClaimsPrincipal user, IConfiguration configuration) =>
 {
     if (!TryScope(user, out _, out _)) return Results.Forbid();
-    return Results.Ok(new { aiConfigured = !string.IsNullOrWhiteSpace(configuration["AI:OpenAI:ApiKey"]) });
+    var nvidiaSelected = string.Equals(configuration["AI:Provider"], "NVIDIA", StringComparison.OrdinalIgnoreCase);
+    var aiConfigured = nvidiaSelected
+        ? !string.IsNullOrWhiteSpace(configuration["AI:Nvidia:ApiKey"]) && !string.IsNullOrWhiteSpace(configuration["AI:Nvidia:Model"])
+        : !string.IsNullOrWhiteSpace(configuration["AI:OpenAI:ApiKey"]);
+    return Results.Ok(new { aiConfigured });
 }).RequireAuthorization();
 var studio = app.MapGroup("/studio/requests").RequireAuthorization();
 studio.MapGet("/", async (Guid? projectId, ClaimsPrincipal user, AIStudioDbContext db) =>
@@ -2604,6 +2608,12 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.chat.message.unavailable", Resource = conversation.Id.ToString() });
         await db.SaveChangesAsync(cancellationToken);
         return Results.Problem("AI sağlayıcısı yapılandırılmadı.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+    catch (AIProviderRateLimitException)
+    {
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.chat.message.failed", Resource = conversation.Id.ToString() });
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Problem("Yapay zeka sağlayıcısı 429 ile yanıt verdi. API kullanım kotası, harcama limiti veya hız sınırını kontrol edin; limit giderildikten sonra yeniden deneyin.", statusCode: StatusCodes.Status429TooManyRequests);
     }
     catch (AIProviderResponseException)
     {

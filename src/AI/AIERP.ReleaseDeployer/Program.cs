@@ -31,6 +31,22 @@ var app = builder.Build();
 app.UseAuthentication();
 app.UseAuthorization();
 
+var scheduledBackupStopping = app.Lifetime.ApplicationStopping;
+app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
+{
+    while (!scheduledBackupStopping.IsCancellationRequested)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var nextRun = new DateTimeOffset(now.Year, now.Month, now.Day, 2, 0, 0, TimeSpan.Zero);
+        if (nextRun <= now) nextRun = nextRun.AddDays(1);
+        try { await Task.Delay(nextRun - now, scheduledBackupStopping); }
+        catch (OperationCanceledException) when (scheduledBackupStopping.IsCancellationRequested) { break; }
+        try { await BackupActiveProductionProjectsAsync(builder.Configuration, signingKey, app.Logger, scheduledBackupStopping); }
+        catch (OperationCanceledException) when (scheduledBackupStopping.IsCancellationRequested) { break; }
+        catch (Exception exception) { app.Logger.LogError(exception, "Scheduled production database backup failed."); }
+    }
+}));
+
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "release-deployer" }));
 app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
@@ -302,7 +318,8 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
             secrets = secrets with { PlatformRuntimePassword = NewRuntimePassword("pP2!"), DataRuntimePassword = NewRuntimePassword("dD3!") };
             await WriteEncryptedAsync(secretsPath, secrets, signingKey, cancellationToken);
         }
-        var env = $"SOURCE_ROOT={sourceDirectory}\nPRODUCTION_PORT={secrets.Port}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={secrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\n";
+        var separationBackupPath = previousDeploymentId is null ? "" : $"/var/opt/mssql/backups/AIERPPlatform-{body.ProjectId:N}-{body.DeploymentId:N}.bak";
+        var env = $"SOURCE_ROOT={sourceDirectory}\nPRODUCTION_PORT={secrets.Port}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={secrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\nDATABASE_SEPARATION_BACKUP_PATH={separationBackupPath}\n";
         await File.WriteAllTextAsync(envPath, env, new UTF8Encoding(false), cancellationToken);
         if (OperatingSystem.IsLinux()) File.SetUnixFileMode(envPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         var composeFile = Path.Combine(sourceDirectory, ".aierp-deploy", "compose.yml");
@@ -358,7 +375,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
                 if (File.Exists(oldCompose) && oldSecrets is not null)
                 {
                     var restoreEnv = Path.Combine(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-restore-{body.ProjectId:N}.env");
-                    await File.WriteAllTextAsync(restoreEnv, $"SOURCE_ROOT={oldSource}\nPRODUCTION_PORT={oldSecrets.Port}\nMSSQL_SA_PASSWORD={oldSecrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={oldSecrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={oldSecrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={oldSecrets.JwtKey}\nBOOTSTRAP_EMAIL={oldSecrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={oldSecrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={oldSecrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\n", new UTF8Encoding(false), CancellationToken.None);
+                    await File.WriteAllTextAsync(restoreEnv, $"SOURCE_ROOT={oldSource}\nPRODUCTION_PORT={oldSecrets.Port}\nMSSQL_SA_PASSWORD={oldSecrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={oldSecrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={oldSecrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={oldSecrets.JwtKey}\nBOOTSTRAP_EMAIL={oldSecrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={oldSecrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={oldSecrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\nDATABASE_SEPARATION_BACKUP_PATH=/var/opt/mssql/backups/AIERPPlatform-{body.ProjectId:N}-{body.DeploymentId:N}.bak\n", new UTF8Encoding(false), CancellationToken.None);
                     if (OperatingSystem.IsLinux()) File.SetUnixFileMode(restoreEnv, UnixFileMode.UserRead | UnixFileMode.UserWrite);
                     try
                     {
@@ -504,6 +521,76 @@ app.MapPost("/internal/deployments/production/restore", async (RestoreProduction
 }).RequireAuthorization();
 
 app.Run();
+
+static async Task BackupActiveProductionProjectsAsync(IConfiguration configuration, string signingKey, ILogger logger, CancellationToken cancellationToken)
+{
+    var releaseRoot = Path.GetFullPath(configuration["ReleaseDeployer:ProductionRoot"] ?? "/production-releases");
+    if (!Directory.Exists(releaseRoot)) return;
+    await DeployerState.Gate.WaitAsync(cancellationToken);
+    try
+    {
+        foreach (var projectDirectory in Directory.EnumerateDirectories(releaseRoot).Take(1000))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!Guid.TryParseExact(Path.GetFileName(projectDirectory), "N", out var projectId)) continue;
+            var currentPath = Path.Combine(projectDirectory, "current.json");
+            var secretsPath = Path.Combine(projectDirectory, "secrets.enc.json");
+            if (!File.Exists(currentPath) || !File.Exists(secretsPath)) continue;
+            DeploymentCurrentPointer? pointer;
+            await using (var stream = File.OpenRead(currentPath))
+                pointer = await JsonSerializer.DeserializeAsync<DeploymentCurrentPointer>(stream, JsonConfig.Options, cancellationToken);
+            if (pointer?.DeploymentId is not Guid deploymentId || deploymentId == Guid.Empty) continue;
+            var secrets = await ReadEncryptedAsync<DeploymentSecrets>(secretsPath, signingKey, cancellationToken);
+            if (secrets is null || string.IsNullOrWhiteSpace(secrets.SqlPassword)) continue;
+            var source = Path.Combine(projectDirectory, deploymentId.ToString("N"), "source");
+            var composeFile = Path.Combine(source, ".aierp-deploy", "compose.yml");
+            if (!File.Exists(composeFile)) continue;
+            var backupId = Guid.NewGuid();
+            var envFile = Path.Combine(Path.GetFullPath(Path.GetTempPath()), $"aierp-scheduled-backup-{projectId:N}-{backupId:N}.env");
+            try
+            {
+                var separation = configuration.GetValue<bool>("Database:SeparationEnabled").ToString().ToLowerInvariant();
+                var env = $"SOURCE_ROOT={source}\nPRODUCTION_PORT={secrets.Port}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={secrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separation}\n";
+                await File.WriteAllTextAsync(envFile, env, new UTF8Encoding(false), cancellationToken);
+                if (OperatingSystem.IsLinux()) File.SetUnixFileMode(envFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                var prefix = new[] { "compose", "--project-name", $"aierp-production-{projectId:N}", "--file", composeFile, "--env-file", envFile };
+                var sqlcmd = new[] { "exec", "-T", "sqlserver", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", secrets.SqlPassword, "-C", "-b", "-d", "master", "-Q" };
+                var stopped = await RunDockerAsync(prefix.Concat(["stop", "platform-api", "ai-service", "platform-migrator"]), TimeSpan.FromMinutes(2), cancellationToken);
+                if (stopped.ExitCode != 0)
+                {
+                    await RunDockerAsync(prefix.Concat(["start", "platform-api", "ai-service"]), TimeSpan.FromMinutes(3), CancellationToken.None);
+                    throw new IOException($"Production writers could not be stopped for project {projectId:N}.");
+                }
+                try
+                {
+                    var databases = await ListAierpDatabasesAsync(prefix, sqlcmd, cancellationToken);
+                    if (databases.Count == 0 || !await BackupDatabaseSetAsync(prefix, sqlcmd, databases, projectId, backupId, cancellationToken))
+                        throw new IOException($"No verified AIERP database set was produced for project {projectId:N}.");
+                    foreach (var database in databases)
+                    {
+                        var stagingBackup = Path.Combine("/production-backups", Path.GetFileName(DatabaseBackupPath(database, projectId, backupId)));
+                        var activeBackup = Path.Combine("/production-backups", Path.GetFileName(DatabaseBackupPath(database, projectId, deploymentId)));
+                        File.Move(stagingBackup, activeBackup, overwrite: true);
+                    }
+                    var stagingManifest = BackupManifestPath(projectId, backupId);
+                    var activeManifest = BackupManifestPath(projectId, deploymentId);
+                    var manifestStagingPath = $"{stagingManifest}.tmp";
+                    await File.WriteAllTextAsync(manifestStagingPath, JsonSerializer.Serialize(databases, JsonConfig.Options), new UTF8Encoding(false), cancellationToken);
+                    File.Move(manifestStagingPath, activeManifest, overwrite: true);
+                }
+                finally
+                {
+                    var restarted = await RunDockerAsync(prefix.Concat(["start", "platform-api", "ai-service"]), TimeSpan.FromMinutes(3), CancellationToken.None);
+                    if (restarted.ExitCode != 0) throw new IOException($"Production writers could not be restarted after backup for project {projectId:N}.");
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception exception) { logger.LogError(exception, "Scheduled production database backup failed for project {ProjectId}.", projectId); }
+            finally { if (File.Exists(envFile)) File.Delete(envFile); }
+        }
+    }
+    finally { DeployerState.Gate.Release(); }
+}
 
 static bool HasScope(ClaimsPrincipal caller, CreateStagingDeployment body, string scope) =>
     caller.FindFirstValue("deployment_id") == body.DeploymentId.ToString("D") &&

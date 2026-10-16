@@ -21,6 +21,10 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<TenantExchangeRate> TenantExchangeRates => Set<TenantExchangeRate>();
     public DbSet<FxRevaluationVoucher> FxRevaluationVouchers => Set<FxRevaluationVoucher>();
     public DbSet<FxRevaluationVoucherLine> FxRevaluationVoucherLines => Set<FxRevaluationVoucherLine>();
+    public DbSet<LedgerAccount> LedgerAccounts => Set<LedgerAccount>();
+    public DbSet<LedgerAccountMapping> LedgerAccountMappings => Set<LedgerAccountMapping>();
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<JournalEntryLine> JournalEntryLines => Set<JournalEntryLine>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<DevelopmentRequest> DevelopmentRequests => Set<DevelopmentRequest>();
     public DbSet<DevelopmentProject> DevelopmentProjects => Set<DevelopmentProject>();
@@ -258,6 +262,48 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
                 t.HasCheckConstraint("CK_FxRevaluationVoucherLines_AmountsNonNegative", "[OutstandingAmount] >= 0 AND [DebitBaseAmount] >= 0 AND [CreditBaseAmount] >= 0");
                 t.HasCheckConstraint("CK_FxRevaluationVoucherLines_Balanced", "[DebitBaseAmount] = [CreditBaseAmount]");
             });
+        });
+        modelBuilder.Entity<LedgerAccount>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(32);
+            e.Property(x => x.Name).HasMaxLength(160);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<LedgerAccountMapping>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.MappingKey }).IsUnique();
+            e.Property(x => x.MappingKey).HasMaxLength(64).IsUnicode(false);
+            e.HasOne<LedgerAccount>().WithMany().HasForeignKey(x => new { x.TenantId, x.AccountId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<JournalEntry>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(48);
+            e.Property(x => x.Description).HasMaxLength(240);
+            e.Property(x => x.SourceType).HasMaxLength(32).IsUnicode(false);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<JournalEntryLine>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.JournalEntryId, x.LineNumber }).IsUnique();
+            e.Property(x => x.Description).HasMaxLength(240);
+            e.Property(x => x.Debit).HasPrecision(18, 2);
+            e.Property(x => x.Credit).HasPrecision(18, 2);
+            e.HasOne<JournalEntry>().WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.JournalEntryId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<LedgerAccount>().WithMany().HasForeignKey(x => new { x.TenantId, x.AccountId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t => t.HasCheckConstraint("CK_JournalEntryLines_OneSidedNonNegative", "[Debit] >= 0 AND [Credit] >= 0 AND (([Debit] > 0 AND [Credit] = 0) OR ([Credit] > 0 AND [Debit] = 0))"));
         });
         modelBuilder.Entity<TenantMembership>(e =>
         {
