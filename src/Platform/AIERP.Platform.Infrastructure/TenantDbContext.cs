@@ -17,7 +17,8 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             typeof(GitHubInstallationAuthorizationState), typeof(DevelopmentWorkspaceRequest), typeof(ArchitecturePlanRecord),
             typeof(AITestPlanRecord), typeof(ReleaseCandidateRecord), typeof(ReleaseCandidateReviewRecord),
             typeof(StudioReleaseVersionRecord), typeof(StudioReleasePackageRecord), typeof(StudioReleaseDeploymentRecord),
-            typeof(StudioProductionPromotionApprovalRecord), typeof(StudioConversation), typeof(StudioConversationMessage),
+            typeof(StudioProductionPromotionApprovalRecord), typeof(StudioConversation), typeof(StudioConversationMessage), typeof(StudioKnowledgeDocument),
+            typeof(StudioCodeReviewThread), typeof(StudioCodeReviewComment), typeof(TenantAIProviderSettings),
             typeof(TenantDatabaseCatalogEntry), typeof(DatabaseSeparationComponentState)
         };
         foreach (var type in studioEntities) modelBuilder.Ignore(type);

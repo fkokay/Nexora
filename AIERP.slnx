@@ -6,6 +6,15 @@
     <Project Path="src/AI/AIERP.WorkspaceSandbox/AIERP.WorkspaceSandbox.csproj" />
     <Project Path="src/AI/AIERP.WorkspaceRunner/AIERP.WorkspaceRunner.csproj" />
   </Folder>
+  <Folder Name="/src/Extensions/">
+    <Project Path="src/Extensions/AIERP.ModuleSDK/AIERP.ModuleSDK.csproj" />
+    <Project Path="src/Extensions/AIERP.IntegrationSDK/AIERP.IntegrationSDK.csproj" />
+    <Project Path="src/Extensions/AIERP.IntegrationHost/AIERP.IntegrationHost.csproj" />
+    <Project Path="src/Extensions/AIERP.PluginHost/AIERP.PluginHost.csproj" />
+  </Folder>
+  <Folder Name="/src/Observability/">
+    <Project Path="src/Observability/AIERP.Observability/AIERP.Observability.csproj" />
+  </Folder>
   <Folder Name="/src/Hosts/">
     <Project Path="src/Hosts/AIERP.Api/AIERP.Api.csproj" />
   </Folder>
@@ -15,6 +24,9 @@
     <Project Path="src/Platform/AIERP.Platform.Infrastructure/AIERP.Platform.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/" />
+  <Folder Name="/tests/IntegrationTests/">
+    <Project Path="tests/IntegrationTests/AIERP.Api.IntegrationTests.csproj" />
+  </Folder>
   <Folder Name="/tests/UnitTests/">
     <Project Path="tests/UnitTests/AIERP.Platform.UnitTests/AIERP.Platform.UnitTests.csproj" />
   </Folder>

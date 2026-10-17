@@ -103,6 +103,10 @@ services:
       Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
       Database__SeparationBackupPath: ${DATABASE_SEPARATION_BACKUP_PATH:-}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY}
+      PluginHost__SigningKey: ${PLUGIN_HOST_SIGNING_KEY}
+      PluginHost__BaseUrl: http://plugin-host:8080
+      PluginHost__Issuer: AIERP
+      ModulePackages__RootPath: /module-packages
       Database__ApplyMigrationsOnStartup: "false"
       Bootstrap__Email: ${BOOTSTRAP_EMAIL}
       Bootstrap__Password: ${BOOTSTRAP_PASSWORD}
@@ -110,8 +114,10 @@ services:
       Bootstrap__TenantName: ${BOOTSTRAP_TENANT_NAME}
       Frontend__Origins__0: http://localhost:${STAGING_PORT}
       Frontend__Origins__1: http://127.0.0.1:${STAGING_PORT}
+    volumes: [module-packages:/module-packages]
     depends_on:
       platform-migrator: { condition: service_completed_successfully }
+      plugin-host: { condition: service_healthy }
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
@@ -128,6 +134,32 @@ services:
       retries: 15
       start_period: 30s
     restart: unless-stopped
+  plugin-host:
+    build:
+      context: ${SOURCE_ROOT}
+      dockerfile: .aierp-deploy/PluginHost.Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      PluginHost__SigningKey: ${PLUGIN_HOST_SIGNING_KEY}
+      PluginHost__Issuer: AIERP
+      PluginHost__Audience: AIERP.PluginHost
+      ModulePackages__RootPath: /module-packages
+    volumes: [module-packages:/module-packages:ro]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=16m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 0.50
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 15
+      start_period: 15s
+    restart: unless-stopped
   platform-migrator:
     build:
       context: ${SOURCE_ROOT}
@@ -141,6 +173,7 @@ services:
       Database__PlatformRuntimeLogin: aierp_platform_runtime
       Database__DataRuntimeLogin: aierp_data_runtime
       Authentication__SigningKey: ${AUTH_SIGNING_KEY}
+      PluginHost__SigningKey: ${PLUGIN_HOST_SIGNING_KEY}
       Bootstrap__Email: ${BOOTSTRAP_EMAIL}
       Bootstrap__Password: ${BOOTSTRAP_PASSWORD}
       Bootstrap__DisplayName: Staging Administrator
@@ -257,6 +290,9 @@ volumes:
   workspace-data:
   test-jobs:
   release-packages:
+  module-packages:
+    external: true
+    name: aierp-module-packages
 networks:
   default:
     internal: true

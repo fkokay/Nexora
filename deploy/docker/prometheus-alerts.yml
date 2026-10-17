@@ -1,0 +1,19 @@
+groups:
+  - name: aierp-service-health
+    rules:
+      - alert: AIERPServiceUnavailable
+        expr: up{job=~"aierp-platform-api|aierp-ai-service|aierp-release-deployer"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI ERP service scrape is failing"
+          description: "Prometheus has not been able to scrape {{ $labels.job }} for two minutes."
+      - alert: AIERPHighServerErrorRate
+        expr: sum(rate(aierp_http_server_request_duration_seconds_count{status=~"5.."}[5m])) by (job) / clamp_min(sum(rate(aierp_http_server_request_duration_seconds_count[5m])) by (job), 0.001) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI ERP server error rate is elevated"
+          description: "More than five percent of {{ $labels.job }} requests returned 5xx for ten minutes."

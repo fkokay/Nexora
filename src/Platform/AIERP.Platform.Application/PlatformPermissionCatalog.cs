@@ -21,6 +21,12 @@ public static class PlatformPermissionCatalog
         new("erp.audit-events", "/api/audit-events", "Tenant audit history"),
         new("erp.audit-retention", "/api/audit-retention", "Tenant audit retention policy"),
         new("erp.access-control", "/api/access-control", "Tenant permissions and policies"),
+        new("erp.custom-forms", "/api/custom-forms", "Tenant dynamic forms and submissions"),
+        new("erp.workflows", "/api/workflows", "Tenant workflow definitions, instances and approvals"),
+        new("erp.business-rules", "/api/business-rules", "Tenant business rule definitions and evaluation history"),
+        new("erp.reports", "/api/reports", "Tenant report definitions and execution"),
+        new("erp.custom-menus", "/api/custom-menus", "Tenant custom navigation entries"),
+        new("erp.ai-settings", "/api/ai-settings", "Tenant AI provider settings and API credentials"),
         new("erp.customer-groups", "/api/customer-groups", "Customer groups"),
         new("erp.customers", "/api/customers", "Customer and supplier accounts"),
         new("erp.stock-items", "/api/stock/items", "Stock cards and units"),
@@ -49,6 +55,8 @@ public static class PlatformPermissionCatalog
         new("erp.financial-transfers", "/api/finance/transfers", "Financial account transfers"),
         new("erp.bank-statements", "/api/finance/statements", "Bank statements and reconciliation"),
         new("erp.maturities", "/api/finance/maturities", "Receivable and payable maturities"),
+        new("erp.tenant-modules", "/api/tenant/modules", "Published extension catalog and tenant module entitlements"),
+        new("erp.integrations", "/api/integrations", "Tenant integration execution"),
         new("studio.capabilities", "/studio/capabilities", "Studio capabilities"),
         new("studio.requests", "/studio/requests", "Development requests"),
         new("studio.projects", "/studio/projects", "Development projects and members"),
@@ -60,6 +68,7 @@ public static class PlatformPermissionCatalog
         new("studio.deployments", "/studio/projects", "Staging and production deployments"),
         new("studio.production-approvals", "/studio/projects", "Production promotion approvals"),
         new("studio.ai-analysis", "/studio/projects", "AI source and test analysis"),
+        new("studio.ai-design", "/studio/projects", "AI ERP screen design proposals"),
         new("studio.ai-plans", "/studio/projects", "AI test and architecture plans"),
         new("studio.conversations", "/studio/projects", "Studio conversations"),
         new("studio.code-suggestions", "/studio/projects", "AI code suggestions and changes")
@@ -130,6 +139,7 @@ public static class PlatformPermissionCatalog
             : route.Contains("test-run") || route.Contains("build-run") || route.Contains("test-discovery") ? "studio.workspace-tests"
             : route.Contains("conversation") ? "studio.conversations"
             : route.Contains("test-plan") || route.Contains("architecture-plan") ? "studio.ai-plans"
+            : route.Contains("ui-design") ? "studio.ai-design"
             : route.Contains("analysis") || route.Contains("code-review") || route.Contains("sandbox-error-analysis") ? "studio.ai-analysis"
             : route.Contains("code-suggestion") || route.Contains("/changes") || route.Contains("/commit-approved-changes") ? "studio.code-suggestions"
             : route.EndsWith("/workspace-requests") ? "studio.workspace-requests"
@@ -141,21 +151,23 @@ public static class PlatformPermissionCatalog
     private static bool IsExecutionRoute(string routePattern)
     {
         var route = routePattern.TrimEnd('/').ToLowerInvariant();
-        var operationSegments = new[] { "post", "approve", "reject", "cancel", "review", "provision", "deploy", "restore", "reverse", "void",
+        var operationSegments = new[] { "post", "approve", "reject", "cancel", "review", "provision", "deploy", "restore", "reverse", "void", "publish",
             "package", "version", "publish-pull-request", "pull-request-draft", "working-branch", "commit-approved-changes",
             "apply-code-suggestion", "multi-file-code-suggestion", "code-suggestion", "source-analysis", "test-plan",
             "architecture-plan", "code-review", "sandbox-error-analysis", "revalue", "reconcile", "convert", "close", "release",
-            "send", "accept", "match", "auto-match", "create-book-entry", "convert-to-order", "decision", "activate", "deactivate" };
+            "send", "accept", "match", "auto-match", "create-book-entry", "convert-to-order", "decision", "activate", "deactivate", "manual", "invoke", "run", "export", "ui-design", "execute" };
         var tail = route.Split('/').LastOrDefault() ?? string.Empty;
         return operationSegments.Contains(tail, StringComparer.OrdinalIgnoreCase);
     }
 
     public static IReadOnlyList<string> AttributeKeys { get; } =
     ["subject.userId", "subject.role", "resource.type", "resource.tenantId", "request.method", "request.action",
-     "resource.route.id", "resource.route.projectId", "resource.route.requestId", "resource.route.workspaceRequestId",
+     "resource.route.id", "resource.route.projectId", "resource.route.requestId", "resource.route.workspaceRequestId", "resource.route.formId", "resource.route.submissionId",
      "resource.route.invoiceId", "resource.route.candidateId", "resource.route.deploymentId", "resource.route.packageId",
      "resource.route.approvalId", "resource.route.conversationId", "resource.route.planId", "resource.route.changeId",
      "resource.route.id", "resource.route.memberId", "resource.route.versionId", "resource.route.workspaceRequestId",
+     "resource.route.moduleCode", "resource.route.menuEntryCode",
      "resource.route.supplierId", "resource.route.orderId", "resource.route.receiptId", "resource.route.candidateId",
-     "resource.route.statementId", "resource.route.accountId"];
+     "resource.route.statementId", "resource.route.accountId", "resource.status", "resource.customerId",
+     "resource.supplierId", "resource.ownerUserId"];
 }

@@ -12,12 +12,18 @@ public sealed record CodeSourceFile(string Path, string Content, string Sha256);
 public sealed record ProposedCodeFile(string Path, string ProposedContent, IReadOnlyList<string> Notes);
 public sealed record MultiFileCodeSuggestion(string Summary, IReadOnlyList<ProposedCodeFile> Changes, IReadOnlyList<string> Risks);
 public sealed record StudioChatTurn(string Role, string Content);
+public sealed record StudioEmbeddingBatch(string Model, IReadOnlyList<float[]> Vectors);
 public sealed record StudioCodeContext(string Path, int Line, string Excerpt);
 public sealed record StudioDiffContext(string Path, string Status, string BaseContent, string CurrentContent, string CommitSha);
 public sealed record StudioCodeReviewFinding(string Severity, string Title, string Detail, string Recommendation);
 public sealed record StudioCodeReview(string Summary, IReadOnlyList<StudioCodeReviewFinding> Findings, IReadOnlyList<string> Limitations);
 public sealed record StudioPullRequestDraft(string Title, string Body, IReadOnlyList<string> Risks, IReadOnlyList<string> Limitations);
 public sealed record StudioPullRequestContext(string ProjectName, string SourceBranch, string BaseBranch, string CommitSha, string TestTargetPath, string ChangeSummary);
+public sealed record UiDesignElement(string Type, string Label, string? Placeholder, IReadOnlyList<string> Options);
+public sealed record UiDesignSection(string Title, string Description, string Layout, IReadOnlyList<UiDesignElement> Elements);
+public sealed record UiDesignAction(string Label, string Style);
+public sealed record UiDesignPlan(string Title, string Description, IReadOnlyList<UiDesignSection> Sections,
+    IReadOnlyList<UiDesignAction> Actions, IReadOnlyList<string> ResponsiveBehaviors, IReadOnlyList<string> AccessibilityNotes);
 public sealed record SandboxErrorContext(string Operation, string TargetPath, string Status, int? ExitCode,
     string? Message, string Output, string CommitSha);
 public sealed record SandboxErrorAnalysis(string Summary, string LikelyCause, IReadOnlyList<string> RecommendedActions,
@@ -25,8 +31,10 @@ public sealed record SandboxErrorAnalysis(string Summary, string LikelyCause, IR
 
 public interface IAIModelProvider
 {
+    Task<StudioEmbeddingBatch?> CreateStudioEmbeddingsAsync(IReadOnlyList<string> inputs, CancellationToken cancellationToken);
+
     Task<string> ReplyToStudioChatAsync(string projectName, string branchName, IReadOnlyList<StudioChatTurn> history,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken, Func<string, Task>? onDelta = null, string? knowledgeContext = null);
 
     Task<string> AnalyzeStudioSourceAsync(string question, string projectName, string branchName,
         IReadOnlyList<StudioCodeContext> sources, CancellationToken cancellationToken);
@@ -39,6 +47,9 @@ public interface IAIModelProvider
 
     Task<ArchitecturePlan> CreateArchitecturePlanAsync(string request, string projectName, string branchName,
         IReadOnlyList<ArchitectureTechnology> technologies, IReadOnlyList<string> entryPoints,
+        CancellationToken cancellationToken);
+
+    Task<UiDesignPlan> CreateUiDesignPlanAsync(string request, string projectName, string branchName, string targetPath,
         CancellationToken cancellationToken);
 
     Task<AITestPlan> CreateTestPlanAsync(string request, string projectName, string branchName,

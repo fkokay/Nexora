@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>true</IsPackable>
+    <PackageId>AIERP.ModuleSDK</PackageId>
+    <Version>0.1.0</Version>
+    <Description>Contracts and validation for isolated AI ERP modules.</Description>
+  </PropertyGroup>
+</Project>

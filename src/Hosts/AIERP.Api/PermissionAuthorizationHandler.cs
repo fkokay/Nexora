@@ -1,10 +1,13 @@
 using System.Security.Claims;
 using AIERP.Platform.Application;
+using AIERP.Platform.Domain;
+using AIERP.Platform.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 
 internal sealed class PermissionRequirement : IAuthorizationRequirement;
 
-internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthorizer authorizer)
+internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthorizer authorizer, TenantDbContext tenantDb)
     : AuthorizationHandler<PermissionRequirement>
 {
     protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PermissionRequirement requirement)
@@ -23,6 +26,90 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
         var routePattern = (http.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? string.Empty;
         if (!PlatformPermissionCatalog.TryResolve(http.Request.Path.Value ?? string.Empty, http.Request.Method,
                 routePattern, routeValues, tenantId, userId, role, out var resolved) || resolved is null) return;
+        if (IsStatusFilteredCollection(http.Request.Method, http.Request.Path.Value, resolved.Permission.ResourceType))
+        {
+            var attributes = new Dictionary<string, string>(resolved.Attributes, StringComparer.OrdinalIgnoreCase)
+            {
+                ["resource.collectionRowsFiltered"] = "true"
+            };
+            resolved = resolved with { Attributes = attributes };
+        }
+        if (!string.Equals(role, "TenantAdmin", StringComparison.Ordinal)
+            && routeValues.TryGetValue("id", out var rawId) && Guid.TryParse(rawId, out var resourceId))
+        {
+            var resourceAttributes = await ResolveResourceAttributesAsync(tenantDb, tenantId, resolved.Permission.ResourceType, resourceId, http.RequestAborted);
+            if (resourceAttributes is not null)
+            {
+                var attributes = new Dictionary<string, string>(resolved.Attributes, StringComparer.OrdinalIgnoreCase);
+                foreach (var (key, value) in resourceAttributes) attributes[key] = value;
+                resolved = resolved with { Attributes = attributes };
+            }
+        }
         if (await authorizer.IsAllowedAsync(tenantId, userId, role, resolved, http.RequestAborted)) context.Succeed(requirement);
+    }
+
+    private static bool IsStatusFilteredCollection(string method, string? path, string resourceType)
+    {
+        if (!string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) || path is null) return false;
+        var route = path.TrimEnd('/');
+        return (resourceType, route) is
+            ("erp.sales-quotes", "/api/sales/quotes") or
+            ("erp.sales-orders", "/api/sales/orders") or
+            ("erp.sales-invoices", "/api/sales/invoices") or
+            ("erp.purchase-requests", "/api/purchasing/requests") or
+            ("erp.purchase-orders", "/api/purchasing/orders") or
+            ("erp.purchase-invoices", "/api/purchasing/invoices");
+    }
+
+    private static async Task<Dictionary<string, string>?> ResolveResourceAttributesAsync(TenantDbContext db, Guid tenantId, string resourceType, Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (resourceType == "erp.sales-quotes")
+        {
+            var value = await db.SalesQuotes.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Status, x.CustomerId }).SingleOrDefaultAsync(cancellationToken);
+            return value is null ? null : ResourceAttributes(value.Status.ToString(), customerId: value.CustomerId);
+        }
+        if (resourceType == "erp.sales-orders")
+        {
+            var value = await db.SalesOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Status, x.CustomerId }).SingleOrDefaultAsync(cancellationToken);
+            return value is null ? null : ResourceAttributes(value.Status.ToString(), customerId: value.CustomerId);
+        }
+        if (resourceType == "erp.purchase-requests")
+        {
+            var value = await db.PurchaseRequests.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Status, OwnerUserId = x.RequestedByUserId }).SingleOrDefaultAsync(cancellationToken);
+            return value is null ? null : ResourceAttributes(value.Status.ToString(), ownerUserId: value.OwnerUserId);
+        }
+        if (resourceType == "erp.purchase-orders")
+        {
+            var value = await db.PurchaseOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Status, x.SupplierId }).SingleOrDefaultAsync(cancellationToken);
+            return value is null ? null : ResourceAttributes(value.Status.ToString(), supplierId: value.SupplierId);
+        }
+        if (resourceType == "erp.sales-invoices")
+        {
+            var value = await db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Status, x.CustomerId }).SingleOrDefaultAsync(cancellationToken);
+            return value is null ? null : ResourceAttributes(value.Status.ToString(), customerId: value.CustomerId);
+        }
+        if (resourceType == "erp.purchase-invoices")
+        {
+            var value = await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Status, x.SupplierId }).SingleOrDefaultAsync(cancellationToken);
+            return value is null ? null : ResourceAttributes(value.Status.ToString(), supplierId: value.SupplierId);
+        }
+        return null;
+    }
+
+    private static Dictionary<string, string> ResourceAttributes(string status, Guid? customerId = null,
+        Guid? supplierId = null, Guid? ownerUserId = null)
+    {
+        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["resource.status"] = status };
+        if (customerId is not null) attributes["resource.customerId"] = customerId.Value.ToString("D");
+        if (supplierId is not null) attributes["resource.supplierId"] = supplierId.Value.ToString("D");
+        if (ownerUserId is not null) attributes["resource.ownerUserId"] = ownerUserId.Value.ToString("D");
+        return attributes;
     }
 }

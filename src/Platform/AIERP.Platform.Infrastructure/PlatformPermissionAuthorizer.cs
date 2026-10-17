@@ -22,6 +22,19 @@ public sealed class PlatformPermissionAuthorizer(PlatformDbContext db) : IPlatfo
             .Where(x => x.TenantId == tenantId && x.IsActive && x.PermissionCode == permission.Permission.Code
                 && (x.SubjectUserId == userId || x.SubjectRole == role))
             .ToListAsync(cancellationToken);
+        if (permission.Attributes.TryGetValue("resource.collectionRowsFiltered", out var rowFilteredCollection)
+            && string.Equals(rowFilteredCollection, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            var scopedRules = rules.Where(rule => rule.ResourceType is null
+                || string.Equals(rule.ResourceType, permission.Permission.ResourceType, StringComparison.OrdinalIgnoreCase)).ToList();
+            var rowAttributes = new[] { "resource.status", "resource.customerId", "resource.supplierId", "resource.ownerUserId" };
+            var routeMatched = scopedRules.Where(rule => !rowAttributes.Contains(rule.AttributeName, StringComparer.OrdinalIgnoreCase)
+                && MatchesAttribute(rule, permission.Attributes)).ToList();
+            if (routeMatched.Any(x => x.Effect == TenantPermissionEffect.Deny)) return false;
+            return routeMatched.Any(x => x.Effect == TenantPermissionEffect.Allow)
+                || scopedRules.Any(x => x.Effect == TenantPermissionEffect.Allow
+                    && rowAttributes.Contains(x.AttributeName, StringComparer.OrdinalIgnoreCase));
+        }
         var matched = rules.Where(rule =>
             (rule.ResourceType is null || string.Equals(rule.ResourceType, permission.Permission.ResourceType, StringComparison.OrdinalIgnoreCase))
             && MatchesAttribute(rule, permission.Attributes)).ToList();

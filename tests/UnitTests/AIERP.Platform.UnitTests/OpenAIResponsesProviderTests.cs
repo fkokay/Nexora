@@ -1,7 +1,10 @@
 using System.Net;
 using System.Text;
 using AIERP.AIService.AI;
+using AIERP.Platform.Infrastructure;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
 
 namespace AIERP.Platform.UnitTests;
 
@@ -213,6 +216,28 @@ public sealed class OpenAIResponsesProviderTests
     }
 
     [Fact]
+    public async Task Provider_streams_studio_chat_deltas_as_they_arrive()
+    {
+        var handler = new StubHandler(async request =>
+        {
+            var body = await request.Content!.ReadAsStringAsync();
+            Assert.Contains("\"stream\":true", body);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hello \"}\n\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"there.\"}\n\ndata: [DONE]\n\n", Encoding.UTF8, "text/event-stream")
+            };
+        });
+        var provider = CreateProvider(handler, "test-key");
+        var received = new StringBuilder();
+
+        var reply = await provider.ReplyToStudioChatAsync("Nexora", "main", [new StudioChatTurn("user", "Say hello")],
+            CancellationToken.None, delta => { received.Append(delta); return Task.CompletedTask; });
+
+        Assert.Equal("Hello there.", reply);
+        Assert.Equal(reply, received.ToString());
+    }
+
+    [Fact]
     public async Task Provider_sends_only_user_selected_source_excerpts_without_persisting_them()
     {
         var handler = new StubHandler(async request =>
@@ -376,7 +401,10 @@ public sealed class OpenAIResponsesProviderTests
             ["AI:OpenAI:ApiKey"] = apiKey,
             ["AI:OpenAI:Model"] = "test-model"
         }).Build();
-        return new OpenAIResponsesProvider(new HttpClient(handler), config);
+        var dbOptions = new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseSqlServer("Server=localhost;Database=AIERPPlatform;User Id=test;Password=test;TrustServerCertificate=True")
+            .Options;
+        return new OpenAIResponsesProvider(new HttpClient(handler), config, new PlatformDbContext(dbOptions), new HttpContextAccessor());
     }
 
     private static HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK)

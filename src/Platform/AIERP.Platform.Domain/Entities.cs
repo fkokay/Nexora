@@ -10,6 +10,57 @@ public sealed class AppUser
     public ICollection<TenantMembership> Memberships { get; set; } = new List<TenantMembership>();
 }
 
+public sealed class PlatformUserRole
+{
+    public Guid UserId { get; set; }
+    public string Role { get; set; } = "";
+    public Guid? AssignedByUserId { get; set; }
+    public DateTimeOffset AssignedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PlatformModulePublisherKey
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Publisher { get; set; } = "";
+    public string KeyId { get; set; } = "";
+    public string PublicKeyPem { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PlatformModuleRelease
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string ModuleCode { get; set; } = "";
+    public string Version { get; set; } = "";
+    public string Publisher { get; set; } = "";
+    public string ManifestJson { get; set; } = "";
+    public string ArtifactSha256 { get; set; } = "";
+    public string SignatureBase64 { get; set; } = "";
+    public string KeyId { get; set; } = "";
+    public string StorageKey { get; set; } = "";
+    public string? RuntimeKind { get; set; }
+    public DateTimeOffset? RuntimeValidatedAt { get; set; }
+    public string Status { get; set; } = "Draft";
+    public string? RevocationReason { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public Guid? PublishedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? PublishedAt { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
+}
+
+/// <summary>Tenant-scoped enablement of a signed catalog release.</summary>
+public sealed class TenantModuleActivation
+{
+    public Guid TenantId { get; set; }
+    public string ModuleCode { get; set; } = "";
+    public string Version { get; set; } = "";
+    public Guid ActivatedByUserId { get; set; }
+    public DateTimeOffset ActivatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class Tenant
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -36,6 +87,17 @@ public sealed class Tenant
     public ICollection<PurchaseInvoice> PurchaseInvoices { get; set; } = new List<PurchaseInvoice>();
     public ICollection<SupplierPayment> SupplierPayments { get; set; } = new List<SupplierPayment>();
     public ICollection<FinancialAccount> FinancialAccounts { get; set; } = new List<FinancialAccount>();
+}
+
+public sealed class TenantAIProviderSettings
+{
+    public Guid TenantId { get; set; }
+    public string Provider { get; set; } = "OpenAI";
+    public string? OpenAIKeyCipherText { get; set; }
+    public string OpenAIModel { get; set; } = "gpt-6-astra";
+    public string? NvidiaKeyCipherText { get; set; }
+    public string NvidiaModel { get; set; } = "";
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public enum TenantDatabaseProvisioningState { Provisioning = 1, Copying = 2, Ready = 3, Failed = 4 }
@@ -171,11 +233,25 @@ public sealed class JournalEntryLine
 
 public static class LedgerMappingKeys
 {
+    public const string FinancialAccountPrefix = "financial-account.";
+    public const string SalesReceivable = "sales.receivable";
+    public const string SalesRevenue = "sales.revenue";
+    public const string SalesCost = "sales.cost";
+    public const string SalesTaxPayable = "sales.tax-payable";
+    public const string CustomerCardClearing = "collection.card-clearing";
+    public const string CustomerCheckClearing = "collection.check-clearing";
+    public const string PurchasePayable = "purchase.payable";
+    public const string PurchaseCost = "purchase.cost";
+    public const string PurchaseTaxRecoverable = "purchase.tax-recoverable";
+    public const string PurchaseReceiptAccrual = "purchase.receipt-accrual";
+    public const string SupplierCardClearing = "payment.card-clearing";
+    public const string SupplierCheckClearing = "payment.check-clearing";
     public const string FxReceivable = "fx.receivable";
     public const string FxPayable = "fx.payable";
     public const string FxGain = "fx.gain";
     public const string FxLoss = "fx.loss";
     public const string InventoryAsset = "inventory.asset";
+    public const string InventoryReturnCostOffset = "inventory.return-cost-offset";
     public const string InventoryRevaluationOffset = "inventory.revaluation-offset";
     public const string InventoryLandedCostOffset = "inventory.landed-cost-offset";
     public const string InventoryReversalOffset = "inventory.reversal-offset";
@@ -1696,6 +1772,182 @@ public sealed class TenantPermissionRule
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+public sealed class TenantCustomFormDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "Draft";
+    public string FieldsJson { get; set; } = "[]";
+    public Guid CreatedByUserId { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TenantCustomFormRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid FormId { get; set; }
+    public TenantCustomFormDefinition Form { get; set; } = null!;
+    public int Version { get; set; }
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public string Status { get; set; } = "Draft";
+    public string FieldsJson { get; set; } = "[]";
+    public string ChangeKind { get; set; } = "Updated";
+    public Guid ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TenantCustomFormSubmission
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid FormId { get; set; }
+    public TenantCustomFormDefinition Form { get; set; } = null!;
+    public string FormCode { get; set; } = "";
+    public string FormName { get; set; } = "";
+    public int FormVersion { get; set; }
+    public string FieldsJsonSnapshot { get; set; } = "[]";
+    public string ValuesJson { get; set; } = "{}";
+    public string Status { get; set; } = "Submitted";
+    public Guid SubmittedByUserId { get; set; }
+    public DateTimeOffset SubmittedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? DecidedByUserId { get; set; }
+    public DateTimeOffset? DecidedAt { get; set; }
+    public string? DecisionReason { get; set; }
+}
+
+public sealed class TenantWorkflowDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "Draft";
+    public string StepsJson { get; set; } = "[]";
+    public Guid CreatedByUserId { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TenantWorkflowInstance
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid DefinitionId { get; set; }
+    public TenantWorkflowDefinition Definition { get; set; } = null!;
+    public string DefinitionCode { get; set; } = "";
+    public string DefinitionName { get; set; } = "";
+    public int DefinitionVersion { get; set; }
+    public string StepsJsonSnapshot { get; set; } = "[]";
+    public string SubjectType { get; set; } = "";
+    public string SubjectTitle { get; set; } = "";
+    public Guid? SubjectId { get; set; }
+    public string ContextJson { get; set; } = "{}";
+    public string Status { get; set; } = "Pending";
+    public int CurrentStepIndex { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+    public Guid StartedByUserId { get; set; }
+    public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? CompletedAt { get; set; }
+}
+
+public sealed class TenantWorkflowAction
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid InstanceId { get; set; }
+    public TenantWorkflowInstance Instance { get; set; } = null!;
+    public int StepIndex { get; set; }
+    public string StepName { get; set; } = "";
+    public string Decision { get; set; } = "Approved";
+    public string? Comment { get; set; }
+    public Guid ActorUserId { get; set; }
+    public string ActorRole { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TenantBusinessRuleDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public string Trigger { get; set; } = "purchase-request.submitted";
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "Draft";
+    public string ConditionsJson { get; set; } = "[]";
+    public string WorkflowCode { get; set; } = "";
+    public Guid CreatedByUserId { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TenantBusinessRuleEvaluation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid RuleId { get; set; }
+    public TenantBusinessRuleDefinition Rule { get; set; } = null!;
+    public Guid EventId { get; set; }
+    public bool Matched { get; set; }
+    public Guid? WorkflowInstanceId { get; set; }
+    public TenantWorkflowInstance? WorkflowInstance { get; set; }
+    public string Details { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TenantSavedReport
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Name { get; set; } = "";
+    public string Kind { get; set; } = "Report";
+    public string Source { get; set; } = "customers";
+    public string DefinitionJson { get; set; } = "{}";
+    public Guid CreatedByUserId { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TenantDashboardWidget
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid SavedReportId { get; set; }
+    public TenantSavedReport SavedReport { get; set; } = null!;
+    public int Position { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TenantCustomMenuEntry
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Label { get; set; } = "";
+    public string TargetPage { get; set; } = "";
+    public int Position { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class AuditEvent
 {
     public long Id { get; set; }
@@ -1818,6 +2070,11 @@ public sealed class ReleaseCandidateRecord
     public string TestSnapshotSha256 { get; set; } = "";
     public DateTimeOffset TestCompletedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public int? GitHubPullRequestNumber { get; set; }
+    public string? GitHubPullRequestUrl { get; set; }
+    public string? GitHubRepository { get; set; }
+    public string? GitHubBaseBranch { get; set; }
+    public string? GitHubPullRequestState { get; set; }
 }
 
 public sealed class StudioReleaseVersionRecord
@@ -1920,4 +2177,51 @@ public sealed class StudioConversationMessage
     public string Role { get; set; } = "user";
     public string Content { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class StudioKnowledgeDocument
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid WorkspaceRequestId { get; set; }
+    public Guid IndexedByUserId { get; set; }
+    public string Path { get; set; } = "";
+    public string ContentSha256 { get; set; } = "";
+    public string CommitSha { get; set; } = "";
+    public string Content { get; set; } = "";
+    public string? EmbeddingModel { get; set; }
+    public string? EmbeddingJson { get; set; }
+    public DateTimeOffset IndexedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class StudioCodeReviewThread
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid WorkspaceRequestId { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public string Path { get; set; } = "";
+    public int LineNumber { get; set; }
+    public string HeadCommitSha { get; set; } = "";
+    public string Status { get; set; } = "Open";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] RowVersion { get; set; } = [];
+}
+
+public sealed class StudioCodeReviewComment
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ThreadId { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public string Body { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public long? GitHubReviewCommentId { get; set; }
+    public DateTimeOffset? GitHubSyncedAt { get; set; }
+    public string? GitHubAuthorLogin { get; set; }
+    public int? GitHubPullRequestNumber { get; set; }
+    public string? GitHubRepository { get; set; }
 }

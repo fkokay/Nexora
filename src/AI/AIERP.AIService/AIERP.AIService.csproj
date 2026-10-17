@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Platform\AIERP.Platform.Application\AIERP.Platform.Application.csproj" />
     <ProjectReference Include="..\..\Platform\AIERP.Platform.Infrastructure\AIERP.Platform.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Observability\AIERP.Observability\AIERP.Observability.csproj" />
   </ItemGroup>
 
   <ItemGroup>

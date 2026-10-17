@@ -12,12 +12,28 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
         : base(options) => this.auditExecutionContext = auditExecutionContext;
 
     public DbSet<AppUser> Users => Set<AppUser>();
+    public DbSet<PlatformUserRole> PlatformUserRoles => Set<PlatformUserRole>();
+    public DbSet<PlatformModulePublisherKey> PlatformModulePublisherKeys => Set<PlatformModulePublisherKey>();
+    public DbSet<PlatformModuleRelease> PlatformModuleReleases => Set<PlatformModuleRelease>();
+    public DbSet<TenantModuleActivation> TenantModuleActivations => Set<TenantModuleActivation>();
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TenantAIProviderSettings> TenantAIProviderSettings => Set<TenantAIProviderSettings>();
     public DbSet<TenantDatabaseCatalogEntry> TenantDatabaseCatalog => Set<TenantDatabaseCatalogEntry>();
     public DbSet<DatabaseSeparationComponentState> DatabaseSeparationComponentStates => Set<DatabaseSeparationComponentState>();
     public DbSet<TenantMembership> TenantMemberships => Set<TenantMembership>();
     public DbSet<PermissionDefinition> PermissionDefinitions => Set<PermissionDefinition>();
     public DbSet<TenantPermissionRule> TenantPermissionRules => Set<TenantPermissionRule>();
+    public DbSet<TenantCustomFormDefinition> TenantCustomFormDefinitions => Set<TenantCustomFormDefinition>();
+    public DbSet<TenantCustomFormRevision> TenantCustomFormRevisions => Set<TenantCustomFormRevision>();
+    public DbSet<TenantCustomFormSubmission> TenantCustomFormSubmissions => Set<TenantCustomFormSubmission>();
+    public DbSet<TenantWorkflowDefinition> TenantWorkflowDefinitions => Set<TenantWorkflowDefinition>();
+    public DbSet<TenantWorkflowInstance> TenantWorkflowInstances => Set<TenantWorkflowInstance>();
+    public DbSet<TenantWorkflowAction> TenantWorkflowActions => Set<TenantWorkflowAction>();
+    public DbSet<TenantBusinessRuleDefinition> TenantBusinessRuleDefinitions => Set<TenantBusinessRuleDefinition>();
+    public DbSet<TenantBusinessRuleEvaluation> TenantBusinessRuleEvaluations => Set<TenantBusinessRuleEvaluation>();
+    public DbSet<TenantSavedReport> TenantSavedReports => Set<TenantSavedReport>();
+    public DbSet<TenantDashboardWidget> TenantDashboardWidgets => Set<TenantDashboardWidget>();
+    public DbSet<TenantCustomMenuEntry> TenantCustomMenuEntries => Set<TenantCustomMenuEntry>();
     public DbSet<TenantExchangeRate> TenantExchangeRates => Set<TenantExchangeRate>();
     public DbSet<FxRevaluationVoucher> FxRevaluationVouchers => Set<FxRevaluationVoucher>();
     public DbSet<FxRevaluationVoucherLine> FxRevaluationVoucherLines => Set<FxRevaluationVoucherLine>();
@@ -26,6 +42,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<JournalEntryLine> JournalEntryLines => Set<JournalEntryLine>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<IntegrationOperation> IntegrationOperations => Set<IntegrationOperation>();
     public DbSet<DevelopmentRequest> DevelopmentRequests => Set<DevelopmentRequest>();
     public DbSet<DevelopmentProject> DevelopmentProjects => Set<DevelopmentProject>();
     public DbSet<DevelopmentProjectAccess> DevelopmentProjectAccesses => Set<DevelopmentProjectAccess>();
@@ -41,6 +58,9 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<StudioProductionPromotionApprovalRecord> StudioProductionPromotionApprovalRecords => Set<StudioProductionPromotionApprovalRecord>();
     public DbSet<StudioConversation> StudioConversations => Set<StudioConversation>();
     public DbSet<StudioConversationMessage> StudioConversationMessages => Set<StudioConversationMessage>();
+    public DbSet<StudioKnowledgeDocument> StudioKnowledgeDocuments => Set<StudioKnowledgeDocument>();
+    public DbSet<StudioCodeReviewThread> StudioCodeReviewThreads => Set<StudioCodeReviewThread>();
+    public DbSet<StudioCodeReviewComment> StudioCodeReviewComments => Set<StudioCodeReviewComment>();
     public DbSet<CustomerAccount> CustomerAccounts => Set<CustomerAccount>();
     public DbSet<CustomerCustomFieldDefinition> CustomerCustomFieldDefinitions => Set<CustomerCustomFieldDefinition>();
     public DbSet<CustomerCustomFieldDefinitionRevision> CustomerCustomFieldDefinitionRevisions => Set<CustomerCustomFieldDefinitionRevision>();
@@ -189,6 +209,46 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.DisplayName).HasMaxLength(160);
             e.Property(x => x.PasswordHash).HasMaxLength(512);
         });
+        modelBuilder.Entity<PlatformUserRole>(e =>
+        {
+            e.HasKey(x => new { x.UserId, x.Role });
+            e.Property(x => x.Role).HasMaxLength(64).IsUnicode(false);
+            e.HasIndex(x => x.Role);
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<PlatformModulePublisherKey>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Publisher, x.KeyId }).IsUnique();
+            e.Property(x => x.Publisher).HasMaxLength(120);
+            e.Property(x => x.KeyId).HasMaxLength(80).IsUnicode(false);
+            e.Property(x => x.PublicKeyPem).HasMaxLength(4096);
+        });
+        modelBuilder.Entity<PlatformModuleRelease>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.ModuleCode, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.Status, x.ModuleCode });
+            e.Property(x => x.ModuleCode).HasMaxLength(80).IsUnicode(false);
+            e.Property(x => x.Version).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.Publisher).HasMaxLength(120);
+            e.Property(x => x.ManifestJson).HasMaxLength(65536);
+            e.Property(x => x.ArtifactSha256).HasMaxLength(64).IsUnicode(false).IsFixedLength();
+            e.Property(x => x.SignatureBase64).HasMaxLength(2048).IsUnicode(false);
+            e.Property(x => x.KeyId).HasMaxLength(80).IsUnicode(false);
+            e.Property(x => x.StorageKey).HasMaxLength(80).IsUnicode(false);
+            e.Property(x => x.RuntimeKind).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.Status).HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.RevocationReason).HasMaxLength(500);
+        });
+        modelBuilder.Entity<TenantModuleActivation>(e =>
+        {
+            e.HasKey(x => new { x.TenantId, x.ModuleCode });
+            e.Property(x => x.ModuleCode).HasMaxLength(80).IsUnicode(false);
+            e.Property(x => x.Version).HasMaxLength(40).IsUnicode(false);
+            e.HasIndex(x => new { x.TenantId, x.Version });
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<Tenant>(e =>
         {
             e.HasKey(x => x.Id);
@@ -198,6 +258,16 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.BaseCurrencyCode).HasMaxLength(3).IsFixedLength().HasDefaultValue("TRY");
             e.Property(x => x.AuditRetentionDays).HasDefaultValue(365);
             e.ToTable(t => t.HasCheckConstraint("CK_Tenants_AuditRetentionDays", "[AuditRetentionDays] >= 30 AND [AuditRetentionDays] <= 3650"));
+        });
+        modelBuilder.Entity<TenantAIProviderSettings>(e =>
+        {
+            e.HasKey(x => x.TenantId);
+            e.Property(x => x.Provider).HasMaxLength(20);
+            e.Property(x => x.OpenAIKeyCipherText).HasMaxLength(2048);
+            e.Property(x => x.OpenAIModel).HasMaxLength(200).HasDefaultValue("gpt-6-astra");
+            e.Property(x => x.NvidiaKeyCipherText).HasMaxLength(2048);
+            e.Property(x => x.NvidiaModel).HasMaxLength(200);
+            e.HasOne<Tenant>().WithOne().HasForeignKey<TenantAIProviderSettings>(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<TenantDatabaseCatalogEntry>(e =>
         {
@@ -286,6 +356,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.EntryDate, x.CreatedAt });
             e.Property(x => x.Code).HasMaxLength(48);
             e.Property(x => x.Description).HasMaxLength(240);
             e.Property(x => x.SourceType).HasMaxLength(32).IsUnicode(false);
@@ -358,6 +429,23 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.OccurredAt });
             e.Property(x => x.Action).HasMaxLength(120);
             e.Property(x => x.Resource).HasMaxLength(240);
+        });
+        modelBuilder.Entity<IntegrationOperation>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.IntegrationCode, x.IdempotencyKeyHash }).IsUnique();
+            e.HasIndex(x => new { x.Status, x.NextAttemptAt, x.CreatedAt });
+            e.HasIndex(x => new { x.TenantId, x.RequestedByUserId, x.CreatedAt });
+            e.Property(x => x.IntegrationCode).HasMaxLength(80).IsUnicode(false);
+            e.Property(x => x.IdempotencyKeyHash).HasMaxLength(64).IsUnicode(false);
+            e.Property(x => x.PayloadSha256).HasMaxLength(64).IsUnicode(false);
+            e.Property(x => x.ProviderIdempotencyKey).HasMaxLength(64).IsUnicode(false);
+            e.Property(x => x.EncryptedPayload).HasColumnType("nvarchar(max)");
+            e.Property(x => x.EncryptedResult).HasColumnType("nvarchar(max)");
+            e.Property(x => x.Status).HasMaxLength(24).IsUnicode(false);
+            e.Property(x => x.ErrorCode).HasMaxLength(48).IsUnicode(false);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<DevelopmentRequest>(e =>
         {
@@ -472,6 +560,10 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.CommitSha).HasMaxLength(64);
             e.Property(x => x.TestTargetPath).HasMaxLength(512);
             e.Property(x => x.TestSnapshotSha256).HasMaxLength(64);
+            e.Property(x => x.GitHubPullRequestUrl).HasMaxLength(2048);
+            e.Property(x => x.GitHubRepository).HasMaxLength(256);
+            e.Property(x => x.GitHubBaseBranch).HasMaxLength(256);
+            e.Property(x => x.GitHubPullRequestState).HasMaxLength(32);
             e.HasOne<DevelopmentProject>().WithMany().HasForeignKey(x => new { x.TenantId, x.ProjectId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<DevelopmentWorkspaceRequest>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkspaceRequestId })
@@ -594,6 +686,46 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.Role).HasMaxLength(16);
             e.Property(x => x.Content).HasMaxLength(8000);
             e.HasOne<StudioConversation>().WithMany().HasForeignKey(x => new { x.TenantId, x.ConversationId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<StudioKnowledgeDocument>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.ProjectId, x.WorkspaceRequestId, x.Path, x.IndexedAt });
+            e.HasIndex(x => new { x.TenantId, x.WorkspaceRequestId, x.Path, x.ContentSha256 }).IsUnique();
+            e.Property(x => x.Path).HasMaxLength(500);
+            e.Property(x => x.ContentSha256).HasMaxLength(64).IsUnicode(false).IsFixedLength();
+            e.Property(x => x.CommitSha).HasMaxLength(64).IsUnicode(false);
+            e.Property(x => x.Content).HasColumnType("nvarchar(max)");
+            e.Property(x => x.EmbeddingModel).HasMaxLength(100);
+            e.Property(x => x.EmbeddingJson).HasColumnType("nvarchar(max)");
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<StudioCodeReviewThread>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.ProjectId, x.WorkspaceRequestId, x.Path, x.LineNumber, x.Status });
+            e.Property(x => x.Path).HasMaxLength(500);
+            e.Property(x => x.HeadCommitSha).HasMaxLength(64).IsUnicode(false);
+            e.Property(x => x.Status).HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<DevelopmentProject>().WithMany().HasForeignKey(x => new { x.TenantId, x.ProjectId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<DevelopmentWorkspaceRequest>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkspaceRequestId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<StudioCodeReviewComment>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.ThreadId, x.CreatedAt });
+            e.Property(x => x.Body).HasMaxLength(4000);
+            e.Property(x => x.GitHubAuthorLogin).HasMaxLength(39);
+            e.Property(x => x.GitHubPullRequestNumber);
+            e.Property(x => x.GitHubRepository).HasMaxLength(256);
+            e.HasIndex(x => x.GitHubReviewCommentId).IsUnique().HasFilter("[GitHubReviewCommentId] IS NOT NULL");
+            e.HasOne<StudioCodeReviewThread>().WithMany().HasForeignKey(x => new { x.TenantId, x.ThreadId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<CustomerAccount>(e =>
@@ -1726,6 +1858,129 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasOne(x => x.CustomerCollection).WithMany(x => x.FinancialTransactions).HasForeignKey(x => new { x.TenantId, x.CustomerCollectionId, x.CurrencyCode }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.CurrencyCode }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.SupplierPayment).WithMany(x => x.FinancialTransactions).HasForeignKey(x => new { x.TenantId, x.SupplierPaymentId, x.CurrencyCode }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.CurrencyCode }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Transfer).WithMany(x => x.Transactions).HasForeignKey(x => new { x.TenantId, x.TransferId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantCustomFormDefinition>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status, x.UpdatedAt });
+            e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.Name).HasMaxLength(120);
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.Property(x => x.Status).HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.FieldsJson).HasColumnType("nvarchar(max)");
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantCustomFormRevision>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.FormId, x.Version, x.CreatedAt });
+            e.Property(x => x.Name).HasMaxLength(120);
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.Property(x => x.Status).HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.FieldsJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ChangeKind).HasMaxLength(24).IsUnicode(false);
+            e.HasOne(x => x.Form).WithMany().HasForeignKey(x => new { x.TenantId, x.FormId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantCustomFormSubmission>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.FormId, x.Status, x.SubmittedAt });
+            e.HasIndex(x => new { x.TenantId, x.SubmittedByUserId, x.SubmittedAt });
+            e.Property(x => x.FormCode).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.FormName).HasMaxLength(120);
+            e.Property(x => x.Status).HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.FieldsJsonSnapshot).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ValuesJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.DecisionReason).HasMaxLength(500);
+            e.HasOne(x => x.Form).WithMany().HasForeignKey(x => new { x.TenantId, x.FormId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantWorkflowDefinition>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Code }).HasFilter("[Status] = 'Published'").IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status, x.UpdatedAt });
+            e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false); e.Property(x => x.Name).HasMaxLength(120);
+            e.Property(x => x.Description).HasMaxLength(500); e.Property(x => x.Status).HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.StepsJson).HasColumnType("nvarchar(max)");
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantWorkflowInstance>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Status, x.StartedAt });
+            e.HasIndex(x => new { x.TenantId, x.StartedByUserId, x.StartedAt });
+            e.Property(x => x.DefinitionCode).HasMaxLength(40).IsUnicode(false); e.Property(x => x.DefinitionName).HasMaxLength(120);
+            e.Property(x => x.SubjectType).HasMaxLength(80).IsUnicode(false); e.Property(x => x.SubjectTitle).HasMaxLength(160);
+            e.Property(x => x.Status).HasMaxLength(16).IsUnicode(false); e.Property(x => x.StepsJsonSnapshot).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ContextJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne(x => x.Definition).WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantWorkflowAction>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasIndex(x => new { x.TenantId, x.InstanceId, x.StepIndex, x.CreatedAt });
+            e.Property(x => x.StepName).HasMaxLength(120); e.Property(x => x.Decision).HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.Comment).HasMaxLength(500); e.Property(x => x.ActorRole).HasMaxLength(64).IsUnicode(false);
+            e.HasOne(x => x.Instance).WithMany().HasForeignKey(x => new { x.TenantId, x.InstanceId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantBusinessRuleDefinition>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Trigger, x.Status }).HasFilter("[Status] = 'Published'").IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false); e.Property(x => x.Name).HasMaxLength(120);
+            e.Property(x => x.Description).HasMaxLength(500); e.Property(x => x.Trigger).HasMaxLength(64).IsUnicode(false);
+            e.Property(x => x.Status).HasMaxLength(16).IsUnicode(false); e.Property(x => x.WorkflowCode).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.ConditionsJson).HasColumnType("nvarchar(max)");
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantBusinessRuleEvaluation>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.RuleId, x.EventId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            e.Property(x => x.Details).HasMaxLength(500);
+            e.HasOne(x => x.Rule).WithMany().HasForeignKey(x => new { x.TenantId, x.RuleId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.WorkflowInstance).WithMany().HasForeignKey(x => new { x.TenantId, x.WorkflowInstanceId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantSavedReport>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(120);
+            e.Property(x => x.Kind).HasMaxLength(12).IsUnicode(false).HasDefaultValue("Report");
+            e.Property(x => x.Source).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.DefinitionJson).HasColumnType("nvarchar(max)");
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantDashboardWidget>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.SavedReportId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Position });
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.SavedReport).WithMany().HasForeignKey(x => new { x.TenantId, x.SavedReportId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<TenantCustomMenuEntry>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Position });
+            e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.Label).HasMaxLength(80);
+            e.Property(x => x.TargetPage).HasMaxLength(40).IsUnicode(false);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

@@ -406,6 +406,25 @@ namespace AIERP.Platform.Infrastructure.Migrations.AIStudio
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("GitHubBaseBranch")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int?>("GitHubPullRequestNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GitHubPullRequestState")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("GitHubPullRequestUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<string>("GitHubRepository")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
@@ -489,6 +508,116 @@ namespace AIERP.Platform.Infrastructure.Migrations.AIStudio
                     b.ToTable("ReleaseCandidateReviewRecords");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioCodeReviewComment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("GitHubAuthorLogin")
+                        .HasMaxLength(39)
+                        .HasColumnType("nvarchar(39)");
+
+                    b.Property<int?>("GitHubPullRequestNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GitHubRepository")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<long?>("GitHubReviewCommentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("GitHubSyncedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ThreadId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GitHubReviewCommentId")
+                        .IsUnique()
+                        .HasFilter("[GitHubReviewCommentId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "ThreadId", "CreatedAt");
+
+                    b.ToTable("StudioCodeReviewComments");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioCodeReviewThread", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("HeadCommitSha")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("WorkspaceRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "WorkspaceRequestId");
+
+                    b.HasIndex("TenantId", "ProjectId", "WorkspaceRequestId", "Path", "LineNumber", "Status");
+
+                    b.ToTable("StudioCodeReviewThreads");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.StudioConversation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -559,6 +688,66 @@ namespace AIERP.Platform.Infrastructure.Migrations.AIStudio
                     b.HasIndex("TenantId", "ConversationId", "CreatedAt");
 
                     b.ToTable("StudioConversationMessages");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioKnowledgeDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CommitSha")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ContentSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("EmbeddingJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EmbeddingModel")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("IndexedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("IndexedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkspaceRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "WorkspaceRequestId", "Path", "ContentSha256")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ProjectId", "WorkspaceRequestId", "Path", "IndexedAt");
+
+                    b.ToTable("StudioKnowledgeDocuments");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.StudioProductionPromotionApprovalRecord", b =>
@@ -990,6 +1179,39 @@ namespace AIERP.Platform.Infrastructure.Migrations.AIStudio
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioCodeReviewComment", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.StudioCodeReviewThread", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ThreadId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioCodeReviewThread", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.DevelopmentProject", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ProjectId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.DevelopmentWorkspaceRequest", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WorkspaceRequestId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.StudioConversation", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.DevelopmentProject", null)
@@ -1013,6 +1235,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.AIStudio
                         .WithMany()
                         .HasForeignKey("TenantId", "ConversationId")
                         .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioKnowledgeDocument", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
