@@ -44,7 +44,8 @@ public sealed record CustomerCustomFieldRestoreRequest(int Version, bool Confirm
 public sealed record CustomerCustomFieldValuesWriteRequest(IReadOnlyDictionary<string, string?>? Values);
 public sealed record CustomerCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record StockItemView(Guid Id, string Code, string Name, string? Barcode, string UnitCode, string? Category,
-    decimal MinimumStock, bool IsActive, DateTimeOffset CreatedAt, byte[] RowVersion, InventoryTrackingMode TrackingMode = InventoryTrackingMode.None);
+    decimal MinimumStock, bool IsActive, DateTimeOffset CreatedAt, byte[] RowVersion, InventoryTrackingMode TrackingMode = InventoryTrackingMode.None,
+    int ProcurementLeadTimeDays = 0, int ManufacturingLeadTimeDays = 0);
 public sealed record InventoryTrackingAllocationRequest(string TrackingCode, decimal Quantity, DateOnly? ExpiryDate = null);
 public sealed record InventoryTrackingAllocationView(string TrackingCode, decimal Quantity, DateOnly? ExpiryDate);
 public sealed record StockItemUnitConversionView(Guid Id, string UnitCode, decimal FactorToBase, bool IsActive);
@@ -61,9 +62,9 @@ public sealed record StockCustomFieldValuesWriteRequest(IReadOnlyDictionary<stri
 public sealed record StockCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record StockItemWriteRequest(string Code, string Name, string? Barcode, string UnitCode = "EA",
     string? Category = null, decimal MinimumStock = 0, bool IsActive = true, IReadOnlyDictionary<string, string?>? CustomFields = null,
-    InventoryTrackingMode TrackingMode = InventoryTrackingMode.None);
+    InventoryTrackingMode TrackingMode = InventoryTrackingMode.None, int ProcurementLeadTimeDays = 0, int ManufacturingLeadTimeDays = 0);
 public sealed record StockItemUpdateRequest(string Code, string Name, string? Barcode, string UnitCode, string? Category, decimal MinimumStock, byte[]? RowVersion,
-    InventoryTrackingMode? TrackingMode = null);
+    InventoryTrackingMode? TrackingMode = null, int ProcurementLeadTimeDays = 0, int ManufacturingLeadTimeDays = 0);
 public sealed record StockItemStateChangeRequest(byte[]? RowVersion, bool Confirmation);
 public sealed record WarehouseView(Guid Id, string Code, string Name, bool IsActive, byte[] RowVersion);
 public sealed record WarehouseCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
@@ -138,7 +139,7 @@ public sealed record SalesQuoteSummary(Guid Id, string Code, Guid CustomerId, st
 public sealed record SalesQuotePage(IReadOnlyList<SalesQuoteSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record SalesOrderSummary(Guid Id, string Code, Guid QuoteId, string QuoteCode, Guid CustomerId,
     string CustomerName, DateOnly OrderDate, string CurrencyCode, SalesOrderStatus Status, decimal GrandTotal,
-    int LineCount, DateTimeOffset CreatedAt);
+    int LineCount, DateTimeOffset CreatedAt, DateOnly? RequestedDeliveryDate = null);
 public sealed record SalesOrderCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record SalesOrderCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -149,10 +150,12 @@ public sealed record SalesOrderCustomFieldUpdateRequest(string? Label, int MaxLe
 public sealed record SalesOrderCustomFieldRestoreRequest(int Version, bool Confirmation);
 public sealed record SalesOrderCustomFieldValuesWriteRequest(IReadOnlyDictionary<string, string?>? Values);
 public sealed record SalesOrderCustomFieldValueRestoreRequest(bool Confirmation);
+public sealed record SalesOrderDeliveryDateWriteRequest(DateOnly? RequestedDeliveryDate);
 public sealed record SalesOrderView(Guid Id, string Code, Guid QuoteId, string QuoteCode, Guid CustomerId,
     string CustomerName, DateOnly OrderDate, string CurrencyCode, SalesOrderStatus Status, decimal Subtotal,
     decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt,
-    IReadOnlyList<SalesOrderLineView> Lines, IReadOnlyList<SalesOrderCustomFieldValueView>? CustomFields = null);
+    IReadOnlyList<SalesOrderLineView> Lines, IReadOnlyList<SalesOrderCustomFieldValueView>? CustomFields = null,
+    DateOnly? RequestedDeliveryDate = null);
 public sealed record SalesOrderLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, decimal DeliveredQuantity, decimal RemainingQuantity,
@@ -213,7 +216,8 @@ public sealed record SalesReturnSummary(Guid Id, string Code, Guid SalesInvoiceI
     string WarehouseName, DateOnly ReturnDate, SalesReturnStatus Status, decimal GrandTotal, int LineCount,
     DateTimeOffset CreatedAt, IReadOnlyList<SalesReturnLineView> Lines);
 public sealed record PurchaseOrderWriteRequest(string Code, Guid SupplierId, DateOnly OrderDate, string CurrencyCode,
-    string? Notes, IReadOnlyList<SalesQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
+    string? Notes, IReadOnlyList<SalesQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null,
+    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null);
 public sealed record PurchaseRequestLineWriteRequest(Guid StockItemId, decimal Quantity, string? UnitCode = null);
 public sealed record PurchaseRequestWriteRequest(string Code, DateOnly RequestDate, DateOnly? NeededByDate,
     string Description, IReadOnlyList<PurchaseRequestLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
@@ -286,7 +290,8 @@ public sealed record ManualJournalLineWriteRequest(Guid AccountId, string Descri
 public sealed record ManualJournalEntryReverseRequest(DateOnly EntryDate, string Reason);
 public sealed record PurchaseRequestOrderLineRequest(int LineNumber, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent = 20);
 public sealed record PurchaseRequestOrderWriteRequest(string Code, Guid SupplierId, DateOnly OrderDate, string? Notes,
-    IReadOnlyList<PurchaseRequestOrderLineRequest> Lines, Guid? SupplierQuoteId = null, IReadOnlyDictionary<string, string?>? CustomFields = null);
+    IReadOnlyList<PurchaseRequestOrderLineRequest> Lines, Guid? SupplierQuoteId = null, IReadOnlyDictionary<string, string?>? CustomFields = null,
+    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null);
 public sealed record PurchaseRequestLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName,
     string UnitCode, decimal Quantity);
 public sealed record PurchaseRequestSummary(Guid Id, string Code, DateOnly RequestDate, DateOnly? NeededByDate,
@@ -303,7 +308,8 @@ public sealed record PurchaseOrderLineView(int LineNumber, Guid StockItemId, str
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, decimal ReceivedQuantity, decimal RemainingQuantity);
 public sealed record PurchaseOrderSummary(Guid Id, string Code, Guid SupplierId, string SupplierName, DateOnly OrderDate,
-    string CurrencyCode, PurchaseOrderStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt);
+    string CurrencyCode, PurchaseOrderStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
+    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null);
 public sealed record PurchaseOrderCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record PurchaseOrderCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -317,7 +323,8 @@ public sealed record PurchaseOrderCustomFieldValueRestoreRequest(bool Confirmati
 public sealed record PurchaseOrderView(Guid Id, string Code, Guid SupplierId, string SupplierName, DateOnly OrderDate,
     string CurrencyCode, PurchaseOrderStatus Status, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal,
     string? Notes, DateTimeOffset CreatedAt, IReadOnlyList<PurchaseOrderLineView> Lines,
-    IReadOnlyList<PurchaseReceiptSummary> Receipts, IReadOnlyList<PurchaseOrderCustomFieldValueView>? CustomFields = null);
+    IReadOnlyList<PurchaseReceiptSummary> Receipts, IReadOnlyList<PurchaseOrderCustomFieldValueView>? CustomFields = null,
+    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null);
 public sealed record PurchaseOrderPage(IReadOnlyList<PurchaseOrderSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record PurchaseReceiptLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null,
     IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null);
@@ -561,6 +568,8 @@ public static class InventoryValidation
         if (request.Category?.Trim().Length > 120) errors["category"] = ["Kategori en fazla 120 karakter olabilir."];
         if (!Enum.IsDefined(request.TrackingMode)) errors["trackingMode"] = ["Takip modu None, Lot veya Serial olmalıdır."];
         if (request.MinimumStock < 0 || request.MinimumStock > 99999999999999.9999m || request.MinimumStock != decimal.Round(request.MinimumStock, 4)) errors["minimumStock"] = ["Minimum stok negatif olamaz; en fazla 4 ondalık basamak kullanılabilir."];
+        if (request.ProcurementLeadTimeDays is < 0 or > 3650) errors["procurementLeadTimeDays"] = ["Tedarik süresi 0–3650 gün aralığında olmalıdır."];
+        if (request.ManufacturingLeadTimeDays is < 0 or > 3650) errors["manufacturingLeadTimeDays"] = ["Üretim süresi 0–3650 gün aralığında olmalıdır."];
         return errors.Count == 0 ? null : errors;
     }
 
@@ -759,6 +768,10 @@ public static class SalesOrderReservationValidation
 
 public static class PurchaseOrderWorkflow
 {
+    public static bool CanReceive(PurchaseOrderStatus status) => status is PurchaseOrderStatus.Open or PurchaseOrderStatus.PartiallyReceived;
+    public static bool CanEdit(PurchaseOrderStatus status) => status is PurchaseOrderStatus.Open or PurchaseOrderStatus.PartiallyReceived;
+    public static bool HasOutstandingOrder(PurchaseOrderStatus status) => status is PurchaseOrderStatus.Open or PurchaseOrderStatus.PartiallyReceived or PurchaseOrderStatus.PendingApproval;
+
     public static PurchaseOrderStatus GetStatus(IEnumerable<(decimal Ordered, decimal Received)> lineQuantities)
     {
         var lines = lineQuantities.ToArray();

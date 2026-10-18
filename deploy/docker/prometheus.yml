@@ -14,6 +14,10 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: [ai-service:8080]
+  - job_name: aierp-integration-host
+    metrics_path: /metrics
+    static_configs:
+      - targets: [integration-host:8080]
   - job_name: aierp-release-deployer
     metrics_path: /metrics
     static_configs:

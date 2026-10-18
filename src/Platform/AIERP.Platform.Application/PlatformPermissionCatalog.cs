@@ -20,6 +20,7 @@ public static class PlatformPermissionCatalog
         new("erp.dashboard", "/api/dashboard", "ERP dashboard"),
         new("erp.audit-events", "/api/audit-events", "Tenant audit history"),
         new("erp.audit-retention", "/api/audit-retention", "Tenant audit retention policy"),
+        new("erp.crm-opportunities", "/api/crm/opportunities", "CRM sales opportunities"),
         new("erp.access-control", "/api/access-control", "Tenant permissions and policies"),
         new("erp.custom-forms", "/api/custom-forms", "Tenant dynamic forms and submissions"),
         new("erp.workflows", "/api/workflows", "Tenant workflow definitions, instances and approvals"),
@@ -155,7 +156,7 @@ public static class PlatformPermissionCatalog
             "package", "version", "publish-pull-request", "pull-request-draft", "working-branch", "commit-approved-changes",
             "apply-code-suggestion", "multi-file-code-suggestion", "code-suggestion", "source-analysis", "test-plan",
             "architecture-plan", "code-review", "sandbox-error-analysis", "revalue", "reconcile", "convert", "close", "release",
-            "send", "accept", "match", "auto-match", "create-book-entry", "convert-to-order", "decision", "activate", "deactivate", "manual", "invoke", "run", "export", "ui-design", "execute" };
+            "send", "accept", "match", "auto-match", "create-book-entry", "convert-to-order", "decision", "activate", "deactivate", "manual", "invoke", "run", "export", "ui-design", "execute", "stage" };
         var tail = route.Split('/').LastOrDefault() ?? string.Empty;
         return operationSegments.Contains(tail, StringComparer.OrdinalIgnoreCase);
     }

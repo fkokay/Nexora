@@ -60,6 +60,17 @@ server {
 
 internal const string StagingCompose = """
 services:
+  sql-backup-volume-init:
+    image: busybox:1.37.0
+    command: ["sh", "-c", "chown 10001:0 /backups && chmod 0775 /backups"]
+    volumes: [sql-backups:/backups]
+    network_mode: none
+    user: "0:0"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt: [no-new-privileges:true]
+    restart: "no"
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
@@ -72,7 +83,9 @@ services:
       timeout: 5s
       retries: 15
       start_period: 30s
-    volumes: [sql-data:/var/opt/mssql]
+    volumes: [sql-data:/var/opt/mssql, sql-backups:/var/opt/mssql/backups]
+    depends_on:
+      sql-backup-volume-init: { condition: service_completed_successfully }
     mem_limit: 2g
     cpus: 1.5
     pids_limit: 512
@@ -287,6 +300,7 @@ services:
     restart: unless-stopped
 volumes:
   sql-data:
+  sql-backups:
   workspace-data:
   test-jobs:
   release-packages:

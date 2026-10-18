@@ -10,6 +10,40 @@ namespace AIERP.Platform.UnitTests;
 
 public sealed class StudioKnowledgeEmbeddingsTests
 {
+    [Theory]
+    [InlineData("contracts/openapi.yaml")]
+    [InlineData("contracts/service.proto")]
+    [InlineData("contracts/schema.graphql")]
+    [InlineData("contracts/schema.graphqls")]
+    [InlineData("contracts/query.gql")]
+    [InlineData("contracts/legacy.wsdl")]
+    [InlineData("contracts/schema.xsd")]
+    [InlineData("contracts/customer.thrift")]
+    [InlineData("contracts/customer.avsc")]
+    [InlineData("contracts/customer.avdl")]
+    [InlineData("database/schema.prisma")]
+    [InlineData("tests/OrdersTests.cs")]
+    public void KnowledgePathRules_AcceptApiContractsSchemasAndTestSources(string path)
+    {
+        Assert.True(StudioKnowledgePathRules.IsSafeKnowledgePath(path));
+    }
+
+    [Theory]
+    [InlineData(".env.local")]
+    [InlineData("src/provider-secret.graphql")]
+    [InlineData("contracts/provider-secret.wsdl")]
+    [InlineData("src/appsettings.Production.json")]
+    [InlineData("node_modules/pkg/schema.graphql")]
+    [InlineData("../outside/service.proto")]
+    [InlineData("keys/id_rsa.prisma")]
+    [InlineData("C:\\workspace\\source.cs")]
+    [InlineData("src/./Orders.cs")]
+    [InlineData("src//Orders.cs")]
+    public void KnowledgePathRules_RejectSensitiveOrEscapingPaths(string path)
+    {
+        Assert.False(StudioKnowledgePathRules.IsSafeKnowledgePath(path));
+    }
+
     [Fact]
     public void Chunk_preserves_start_line_and_bounds_text_size()
     {
@@ -53,6 +87,32 @@ public sealed class StudioKnowledgeEmbeddingsTests
         Assert.Equal(StudioKnowledgeEmbeddings.VectorDimension, stored.Vector.Length);
         Assert.Empty(StudioKnowledgeEmbeddings.DeserializeVectors("[{\"startLine\":1,\"vector\":[1]}]"));
     }
+
+    [Fact]
+    public void Approved_history_is_stable_bounded_and_carries_review_context()
+    {
+        var candidateId = Guid.Parse("efbf463c-1d45-43d5-bac4-60955839800d");
+        var history = new ApprovedDevelopmentHistory(candidateId, "feature/invoices", "abc123", "tests/Invoices.csproj",
+            DateTimeOffset.Parse("2026-10-17T09:00:00Z"), DateTimeOffset.Parse("2026-10-17T10:00:00Z"),
+            "Invoice approval", "Require a second reviewer for large invoices.", "Verified the tenant boundary and test results.");
+
+        var content = StudioApprovedHistoryKnowledge.Build(history);
+
+        Assert.Equal($"approved-history/{candidateId:D}.md", StudioApprovedHistoryKnowledge.Path(candidateId));
+        Assert.Contains("Commit: abc123", content, StringComparison.Ordinal);
+        Assert.Contains("Invoice approval", content, StringComparison.Ordinal);
+        Assert.Contains("Verified the tenant boundary", content, StringComparison.Ordinal);
+        Assert.Equal(content, StudioApprovedHistoryKnowledge.Build(history));
+        Assert.Equal(StudioApprovedHistoryKnowledge.Sha256(content), StudioApprovedHistoryKnowledge.Sha256(StudioApprovedHistoryKnowledge.Build(history)));
+        Assert.Contains("untrusted data", content, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("api_key = 'abcdef1234567890'")]
+    [InlineData("sk-proj-12345678901234567890")]
+    [InlineData("-----BEGIN PRIVATE KEY-----")]
+    public void Approved_history_secret_scanner_rejects_potential_secrets(string content) =>
+        Assert.True(StudioApprovedHistoryKnowledge.ContainsPotentialSecret(content));
 
     [Fact]
     public async Task OpenAI_embedding_provider_uses_bounded_configured_model_and_validates_response()

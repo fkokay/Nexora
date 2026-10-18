@@ -13,13 +13,44 @@ public sealed class PrometheusHttpMetrics
 {
     private static readonly double[] Buckets = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
     private static readonly HashSet<string> KnownMethods = new(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"], StringComparer.Ordinal);
+    private static readonly HashSet<string> BusinessMetrics = new(StringComparer.Ordinal)
+    {
+        "aierp_erp_assistant_tool_calls_total", "aierp_erp_assistant_tool_duration_seconds",
+        "aierp_integration_executions_total", "aierp_integration_execution_duration_seconds"
+    };
+    private static readonly HashSet<string> BusinessOutcomes = new(StringComparer.Ordinal)
+        { "success", "error", "succeeded", "failed", "cancelled" };
+    private static readonly HashSet<string> BusinessTools = new(StringComparer.Ordinal)
+    {
+        "search_stock_items", "list_warehouses", "get_warehouse_balances", "search_customer_accounts",
+        "get_customer_balance", "generate_report", "other"
+    };
     private readonly ConcurrentDictionary<RequestSeries, Histogram> series = new();
+    private readonly ConcurrentDictionary<BusinessSeries, long> businessCounters = new();
+    private readonly ConcurrentDictionary<BusinessSeries, Histogram> businessHistograms = new();
 
     public void Record(string method, string route, int statusCode, double durationSeconds)
     {
         var normalizedMethod = KnownMethods.Contains(method) ? method : "OTHER";
         var normalizedStatus = statusCode is >= 100 and <= 599 ? statusCode : 500;
         series.GetOrAdd(new(normalizedMethod, route, normalizedStatus), _ => new Histogram()).Record(durationSeconds);
+    }
+
+    public void RecordBusinessCounter(string metric, string? tool, string outcome, long value)
+    {
+        if (!BusinessMetrics.Contains(metric) || !metric.EndsWith("_total", StringComparison.Ordinal) || value <= 0 ||
+            !BusinessOutcomes.Contains(outcome) || (tool is not null && !BusinessTools.Contains(tool))) return;
+        var labels = tool is null ? $"outcome=\"{Escape(outcome)}\"" : $"tool=\"{Escape(tool)}\",outcome=\"{Escape(outcome)}\"";
+        businessCounters.AddOrUpdate(new(metric, labels), value, (_, current) => current + value);
+    }
+
+    public void RecordBusinessHistogram(string metric, string? tool, string outcome, double durationSeconds)
+    {
+        if (!BusinessMetrics.Contains(metric) || metric.EndsWith("_total", StringComparison.Ordinal) ||
+            !BusinessOutcomes.Contains(outcome) || (tool is not null && !BusinessTools.Contains(tool)) ||
+            !double.IsFinite(durationSeconds) || durationSeconds < 0) return;
+        var labels = tool is null ? $"outcome=\"{Escape(outcome)}\"" : $"tool=\"{Escape(tool)}\",outcome=\"{Escape(outcome)}\"";
+        businessHistograms.GetOrAdd(new(metric, labels), _ => new Histogram()).Record(durationSeconds);
     }
 
     public string Render()
@@ -46,6 +77,37 @@ public sealed class PrometheusHttpMetrics
             output.Append("aierp_http_server_request_duration_seconds_count{").Append(labels).Append("} ")
                 .Append(count.ToString(CultureInfo.InvariantCulture)).AppendLine();
         }
+
+        foreach (var group in businessCounters.OrderBy(x => x.Key.Name, StringComparer.Ordinal).GroupBy(x => x.Key.Name, StringComparer.Ordinal))
+        {
+            output.Append("# HELP ").Append(group.Key).AppendLine(" Bounded AI ERP business operation count.");
+            output.Append("# TYPE ").Append(group.Key).AppendLine(" counter");
+            foreach (var (key, value) in group.OrderBy(x => x.Key.Labels, StringComparer.Ordinal))
+                output.Append(group.Key).Append('{').Append(key.Labels).Append("} ").Append(value.ToString(CultureInfo.InvariantCulture)).AppendLine();
+        }
+        foreach (var group in businessHistograms.OrderBy(x => x.Key.Name, StringComparer.Ordinal).GroupBy(x => x.Key.Name, StringComparer.Ordinal))
+        {
+            output.Append("# HELP ").Append(group.Key).AppendLine(" Bounded AI ERP business operation duration in seconds.");
+            output.Append("# TYPE ").Append(group.Key).AppendLine(" histogram");
+            foreach (var (key, histogram) in group.OrderBy(x => x.Key.Labels, StringComparer.Ordinal))
+            {
+                var cumulative = 0L;
+                for (var i = 0; i < Buckets.Length; i++)
+                {
+                    cumulative += histogram.GetBucket(i);
+                    output.Append(group.Key).Append("_bucket{").Append(key.Labels)
+                        .Append(",le=\"").Append(Buckets[i].ToString("0.###", CultureInfo.InvariantCulture)).Append("\"} ")
+                        .Append(cumulative.ToString(CultureInfo.InvariantCulture)).AppendLine();
+                }
+                var count = histogram.Count;
+                output.Append(group.Key).Append("_bucket{").Append(key.Labels).Append(",le=\"+Inf\"} ")
+                    .Append(count.ToString(CultureInfo.InvariantCulture)).AppendLine();
+                output.Append(group.Key).Append("_sum{").Append(key.Labels).Append("} ")
+                    .Append(histogram.SumSeconds.ToString("0.#########", CultureInfo.InvariantCulture)).AppendLine();
+                output.Append(group.Key).Append("_count{").Append(key.Labels).Append("} ")
+                    .Append(count.ToString(CultureInfo.InvariantCulture)).AppendLine();
+            }
+        }
         return output.ToString();
     }
 
@@ -54,6 +116,7 @@ public sealed class PrometheusHttpMetrics
         .Replace("\n", "\\n", StringComparison.Ordinal);
 
     private readonly record struct RequestSeries(string Method, string Route, int StatusCode);
+    private readonly record struct BusinessSeries(string Name, string Labels);
 
     private sealed class Histogram
     {

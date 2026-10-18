@@ -1,0 +1,38 @@
+{
+  "generatedAtUtc": "2026-10-18T06:54:57Z",
+  "entityFrameworkToolsVersion": "10.0.13",
+  "generation": "dotnet ef migrations script --idempotent --no-build",
+  "status": "generated-not-applied",
+  "contexts": [
+    {
+      "name": "PlatformDbContext",
+      "migrationCount": 104,
+      "latestMigration": "20261017134602_AddStudioKnowledgeRefreshConsentPlatform",
+      "databaseWhenSharedCompose": "AIERPPlatform",
+      "file": "platform-idempotent.sql",
+      "sha256": "BD515036C3F71B25D6F6D528E19F84C221E2BDBEADFA7176FB2790E0DDA70108"
+    },
+    {
+      "name": "TenantDbContext",
+      "migrationCount": 21,
+      "latestMigration": "20261017212650_AddTenantModelDrift",
+      "databaseWhenSeparated": "AIERPTenant_<tenant-guid>",
+      "file": "tenant-idempotent.sql",
+      "sha256": "AA9770BFF7BF987B62AB94DD7BF30DD1E194447DC8C4EB92E2511E19A8187800"
+    },
+    {
+      "name": "AIStudioDbContext",
+      "migrationCount": 10,
+      "latestMigration": "20261017134712_AddStudioKnowledgeRefreshConsentAIStudio",
+      "databaseWhenSeparated": "AIERPStudio",
+      "file": "aistudio-idempotent.sql",
+      "sha256": "5B45062638FA13B63050C6E9018545BB87A10A268D908800BBDF40A0F8C5F149"
+    }
+  ],
+  "verification": {
+    "uniqueMigrationIdsMatchSourceCounts": true,
+    "historyInsertCountMatchesMigrationCount": true,
+    "databaseExecution": "not-run",
+    "targetSchemaVerification": "not-run"
+  }
+}

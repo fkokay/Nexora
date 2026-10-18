@@ -160,11 +160,14 @@ internal static class WorkflowEndpoints
             var current = CurrentStep(instance);
             PurchaseRequest? purchaseRequest = null;
             SalesQuote? salesQuote = null;
+            PurchaseOrder? purchaseOrder = null;
             if (transition.IsComplete && instance.SubjectType == "PurchaseRequest" && instance.SubjectId is not null)
             {
-                purchaseRequest = await db.PurchaseRequests.FromSqlInterpolated(
-                    $"SELECT * FROM [dbo].[PurchaseRequests] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {instance.SubjectId.Value}")
-                    .SingleOrDefaultAsync(ct);
+                purchaseRequest = db.Database.IsSqlServer()
+                    ? await db.PurchaseRequests.FromSqlInterpolated(
+                        $"SELECT * FROM [dbo].[PurchaseRequests] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {instance.SubjectId.Value}")
+                        .SingleOrDefaultAsync(ct)
+                    : await db.PurchaseRequests.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == instance.SubjectId.Value, ct);
                 if (purchaseRequest is null || purchaseRequest.Status != PurchaseRequestStatus.Submitted)
                     return Results.Conflict(new { error = "Bağlı satın alma talebi artık inceleme beklemiyor." });
             }
@@ -176,6 +179,15 @@ internal static class WorkflowEndpoints
                     : await db.SalesQuotes.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == instance.SubjectId.Value, ct);
                 if (salesQuote is null || salesQuote.Status != SalesQuoteStatus.Accepted)
                     return Results.Conflict(new { error = "Bağlı satış teklifi artık onay beklemiyor." });
+            }
+            if (transition.IsComplete && instance.SubjectType == "PurchaseOrder" && instance.SubjectId is not null)
+            {
+                purchaseOrder = db.Database.IsRelational()
+                    ? await db.PurchaseOrders.FromSqlInterpolated(
+                        $"SELECT * FROM [dbo].[PurchaseOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {instance.SubjectId.Value}").SingleOrDefaultAsync(ct)
+                    : await db.PurchaseOrders.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == instance.SubjectId.Value, ct);
+                if (purchaseOrder is null || purchaseOrder.Status != PurchaseOrderStatus.PendingApproval)
+                    return Results.Conflict(new { error = "Bağlı satın alma siparişi artık inceleme beklemiyor." });
             }
             var action = new TenantWorkflowAction
             {
@@ -196,6 +208,11 @@ internal static class WorkflowEndpoints
             {
                 if (transition.Status == "Rejected") salesQuote.Status = SalesQuoteStatus.Rejected;
                 Audit(db, tenantId, userId, transition.Status == "Approved" ? "sales-quote.approved-by-workflow" : "sales-quote.rejected-by-workflow", salesQuote.Code);
+            }
+            if (purchaseOrder is not null)
+            {
+                purchaseOrder.Status = transition.Status == "Approved" ? PurchaseOrderStatus.Open : PurchaseOrderStatus.Rejected;
+                Audit(db, tenantId, userId, transition.Status == "Approved" ? "purchase-order.approved-by-workflow" : "purchase-order.rejected-by-workflow", purchaseOrder.Code);
             }
             Audit(db, tenantId, userId, "workflow.decision", $"{instance.Id}:{request.Decision}:{instance.CurrentStepIndex}");
             try { await db.SaveChangesAsync(ct); }

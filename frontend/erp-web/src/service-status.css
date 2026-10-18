@@ -1,0 +1,11 @@
+.status-dot{display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;vertical-align:middle;background:#adb4c2}
+.status-dot.ready,.service-dot.ready{background:#35ad7b}
+.status-dot.checking,.service-dot.checking{background:#e3a42e}
+.status-dot.unavailable,.service-dot.unavailable{background:#d9535f}
+.service-dot.unknown{background:#9ca3af;box-shadow:0 0 0 3px #f0f1f4}
+.status-live.checking{color:#9a6b11;background:#fff5df}
+.status-live.unavailable{color:#b83442;background:#fff0f1}
+.service-ok.checking{color:#9a6b11}
+.service-ok.unavailable{color:#b83442}
+.service-ok.unknown{color:#7d8492}
+.page-loading{min-height:180px;display:grid;place-items:center;color:#7d8492;font-size:13px}

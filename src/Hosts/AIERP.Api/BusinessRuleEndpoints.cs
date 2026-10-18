@@ -156,16 +156,31 @@ internal static class BusinessRuleEndpoints
             "SalesQuote", quote.Code, actorUserId, facts, ct);
     }
 
+    internal static Task<bool> ApplyPurchaseOrderCreatedRulesAsync(TenantDbContext db, PurchaseOrder order, Guid actorUserId, CancellationToken ct)
+    {
+        var facts = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["code"] = order.Code,
+            ["supplierId"] = order.SupplierId.ToString("D"),
+            ["currencyCode"] = order.CurrencyCode,
+            ["lineCount"] = order.Lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["grandTotal"] = order.GrandTotal.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["orderDate"] = order.OrderDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+        };
+        return EvaluateAndRouteAsync(db, order.TenantId, order.Id, TenantBusinessRuleEngine.PurchaseOrderCreated,
+            "PurchaseOrder", order.Code, actorUserId, facts, ct);
+    }
+
     internal static Task<bool> IsSalesQuoteAwaitingApprovalAsync(TenantDbContext db, Guid tenantId, Guid quoteId, CancellationToken ct) =>
         db.TenantWorkflowInstances.AnyAsync(x => x.TenantId == tenantId && x.SubjectType == "SalesQuote"
             && x.SubjectId == quoteId && x.Status == "Pending", ct);
 
-    private static async Task EvaluateAndRouteAsync(TenantDbContext db, Guid tenantId, Guid eventId, string trigger,
+    private static async Task<bool> EvaluateAndRouteAsync(TenantDbContext db, Guid tenantId, Guid eventId, string trigger,
         string subjectType, string subjectTitle, Guid actorUserId, IReadOnlyDictionary<string, string?> facts, CancellationToken ct)
     {
         var rule = await db.TenantBusinessRuleDefinitions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId
             && x.Trigger == trigger && x.Status == "Published", ct);
-        if (rule is null) return;
+        if (rule is null) return false;
         var conditions = ReadConditions(rule.ConditionsJson);
         var matched = TenantBusinessRuleEngine.Matches(conditions, facts);
         TenantWorkflowInstance? instance = null;
@@ -201,6 +216,7 @@ internal static class BusinessRuleEndpoints
                 Action = "workflow.started-by-rule", Resource = $"{workflowCode(rule)}:{instance.Id}" });
 
         static string workflowCode(TenantBusinessRuleDefinition definition) => definition.WorkflowCode;
+        return instance is not null;
     }
 
     private static bool Validate(string? code, string? name, string? description, string? workflowCode, string trigger,

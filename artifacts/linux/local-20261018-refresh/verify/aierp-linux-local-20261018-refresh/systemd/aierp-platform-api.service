@@ -1,0 +1,33 @@
+[Unit]
+Description=Nexora ERP Platform API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nexora
+Group=nexora
+WorkingDirectory=/opt/nexora/current/api
+EnvironmentFile=/etc/nexora/platform-api.env
+ExecStart=/usr/bin/dotnet /opt/nexora/current/api/AIERP.Api.dll
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120s
+TimeoutStopSec=30s
+KillSignal=SIGINT
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/nexora /var/log/nexora
+SyslogIdentifier=nexora-platform-api
+
+[Install]
+WantedBy=multi-user.target

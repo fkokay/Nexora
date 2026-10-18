@@ -1,0 +1,46 @@
+{
+  "completedAtUtc": "2026-10-18T09:54:48.3631600+00:00",
+  "runnerContainer": "docker-workspace-runner-1",
+  "sandboxContainer": "docker-workspace-sandbox-1",
+  "networkDisabled": true,
+  "externalDependencies": false,
+  "results": [
+    {
+      "ecosystem": "Node.js",
+      "target": "node/package.json",
+      "status": "Built",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 1029,
+      "message": "Node.js syntax check passed for 1 files. No source modules were executed."
+    },
+    {
+      "ecosystem": "Python",
+      "target": "python/sample.py",
+      "status": "Built",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 587,
+      "message": "Python source compiled successfully."
+    },
+    {
+      "ecosystem": "Go",
+      "target": "go/go.mod",
+      "status": "BuildFailed",
+      "success": false,
+      "exitCode": 1,
+      "durationMilliseconds": 623,
+      "message": "Go build failed."
+    },
+    {
+      "ecosystem": "Rust",
+      "target": "rust/Cargo.toml",
+      "status": "Built",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 3701,
+      "message": "Rust build completed successfully."
+    }
+  ],
+  "status": "failed"
+}

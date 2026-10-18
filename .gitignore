@@ -7,3 +7,7 @@ frontend/erp-web/dist/
 *.user
 .vs/
 deploy/docker/integration-secrets/
+deploy/docker/sandbox-package-cache/
+deploy/docker/sandbox-package-cache-runtime/
+
+.local-scout-cache/

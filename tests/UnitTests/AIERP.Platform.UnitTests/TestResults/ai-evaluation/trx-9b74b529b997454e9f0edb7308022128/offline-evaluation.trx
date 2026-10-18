@@ -1,0 +1,148 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="f45d1d1b-3a1e-4a89-b404-66216c512121" name="FATIH@DESKTOP-QUF2ORT 2026-10-18 20:55:02" runUser="DESKTOP-QUF2ORT\FATIH" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-18T20:55:02.4172580+03:00" queuing="2026-10-18T20:55:02.4172585+03:00" start="2026-10-18T20:54:59.2045994+03:00" finish="2026-10-18T20:55:02.5134021+03:00" />
+  <TestSettings name="default" id="c4b1d138-299b-4c0c-a040-2e34307e9db8">
+    <Deployment runDeploymentRoot="FATIH_DESKTOP-QUF2ORT_2026-10-18_20_55_02" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="afc0094b-3f90-4f40-88d8-e9f9fba15152" testId="426f5050-d6fe-8a88-f864-f40e47d532d8" testName="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;warehouse-balances&quot;, expectedName: &quot;get_warehouse_balances&quot;, arguments: &quot;{\&quot;warehouseId\&quot;:\&quot;11111111-1111-1111-1111-1111111&quot;···, prompt: &quot;Depo bakiyelerini getir.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matching row.&quot;)" computerName="DESKTOP-QUF2ORT" duration="00:00:00.0008092" startTime="2026-10-18T20:55:02.2640191+03:00" endTime="2026-10-18T20:55:02.2648052+03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="afc0094b-3f90-4f40-88d8-e9f9fba15152">
+      <Output>
+        <StdOut>AI evaluation set: erp-assistant-orchestration v1.0.0; schema=1.0.0; sha256=55113e7646a1b4166173abf4d60836a5867805d3dcb00fb967f975e9584f6ace; provider=openai-responses-mock; model=offline-scripted-model-v1; execution=offline-mocked; semanticQualityScored=false&#xD;
+Case: warehouse-balances</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="ff3bf1b1-8133-4f75-9930-ab5304266164" testId="9d66666f-d7fa-732a-a75f-ab7148996483" testName="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;customer-balance&quot;, expectedName: &quot;get_customer_balance&quot;, arguments: &quot;{\&quot;customerId\&quot;:\&quot;22222222-2222-2222-2222-22222222&quot;···, prompt: &quot;Müşteri bakiyesini getir.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matching row.&quot;)" computerName="DESKTOP-QUF2ORT" duration="00:00:00.0010100" startTime="2026-10-18T20:55:02.2609097+03:00" endTime="2026-10-18T20:55:02.2616860+03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ff3bf1b1-8133-4f75-9930-ab5304266164">
+      <Output>
+        <StdOut>AI evaluation set: erp-assistant-orchestration v1.0.0; schema=1.0.0; sha256=55113e7646a1b4166173abf4d60836a5867805d3dcb00fb967f975e9584f6ace; provider=openai-responses-mock; model=offline-scripted-model-v1; execution=offline-mocked; semanticQualityScored=false&#xD;
+Case: customer-balance</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="13ed2ce2-7e32-4d34-a5a3-f834618174e3" testId="f07880f7-da6d-0a4b-bce1-47636000c7d5" testName="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;crm-opportunity-report&quot;, expectedName: &quot;generate_report&quot;, arguments: &quot;{\&quot;source\&quot;:\&quot;crmOpportunities\&quot;,\&quot;columns\&quot;:[\&quot;co&quot;···, prompt: &quot;CRM fırsatlarını raporla.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matching row.&quot;)" computerName="DESKTOP-QUF2ORT" duration="00:00:00.0102607" startTime="2026-10-18T20:55:02.2505004+03:00" endTime="2026-10-18T20:55:02.2594640+03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="13ed2ce2-7e32-4d34-a5a3-f834618174e3">
+      <Output>
+        <StdOut>AI evaluation set: erp-assistant-orchestration v1.0.0; schema=1.0.0; sha256=55113e7646a1b4166173abf4d60836a5867805d3dcb00fb967f975e9584f6ace; provider=openai-responses-mock; model=offline-scripted-model-v1; execution=offline-mocked; semanticQualityScored=false&#xD;
+Case: crm-opportunity-report</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="2dcd3c03-0365-4316-a172-28b6f2f4d512" testId="f17150ac-ee43-32bf-556d-7d34133d4d77" testName="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;stock-search&quot;, expectedName: &quot;search_stock_items&quot;, arguments: &quot;{\&quot;term\&quot;:\&quot;M8 screw\&quot;}&quot;, prompt: &quot;Vida M8 stok durumunu söyle.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matching row.&quot;)" computerName="DESKTOP-QUF2ORT" duration="00:00:00.3133396" startTime="2026-10-18T20:55:01.9254470+03:00" endTime="2026-10-18T20:55:02.2490711+03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2dcd3c03-0365-4316-a172-28b6f2f4d512">
+      <Output>
+        <StdOut>AI evaluation set: erp-assistant-orchestration v1.0.0; schema=1.0.0; sha256=55113e7646a1b4166173abf4d60836a5867805d3dcb00fb967f975e9584f6ace; provider=openai-responses-mock; model=offline-scripted-model-v1; execution=offline-mocked; semanticQualityScored=false&#xD;
+Case: stock-search</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="1c776e2e-eae6-4d6f-8449-ca21f9bcc0fa" testId="5bab9611-9e3c-464b-8277-c7d17bb8fabe" testName="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Tool_budget_violation_is_rejected_before_any_read_tool_side_effect" computerName="DESKTOP-QUF2ORT" duration="00:00:00.0074542" startTime="2026-10-18T20:55:02.3200119+03:00" endTime="2026-10-18T20:55:02.3201315+03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="1c776e2e-eae6-4d6f-8449-ca21f9bcc0fa">
+      <Output>
+        <StdOut>AI evaluation set: erp-assistant-orchestration v1.0.0; schema=1.0.0; sha256=55113e7646a1b4166173abf4d60836a5867805d3dcb00fb967f975e9584f6ace; provider=openai-responses-mock; model=offline-scripted-model-v1; execution=offline-mocked; semanticQualityScored=false&#xD;
+Case: four-call-budget-rejection</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="17bcc287-4f8e-4c70-8db9-5a43746edfb4" testId="70989cd9-6228-c787-645f-a1e7f9c490d8" testName="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Stock_lookup_routes_one_read_only_tool_and_keeps_injected_tool_text_untrusted" computerName="DESKTOP-QUF2ORT" duration="00:00:00.0065149" startTime="2026-10-18T20:55:02.2649898+03:00" endTime="2026-10-18T20:55:02.2714839+03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="17bcc287-4f8e-4c70-8db9-5a43746edfb4">
+      <Output>
+        <StdOut>AI evaluation set: erp-assistant-orchestration v1.0.0; schema=1.0.0; sha256=55113e7646a1b4166173abf4d60836a5867805d3dcb00fb967f975e9584f6ace; provider=openai-responses-mock; model=offline-scripted-model-v1; execution=offline-mocked; semanticQualityScored=false&#xD;
+Case: stock-lookup-untrusted-tool-output</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="70b3b7ab-b270-48fc-9521-4a26d2d34ce8" testId="f533f500-8104-e7e0-435d-7e519576474f" testName="AIERP.Platform.UnitTests.AIERPAssistantEvaluationContractTests.Versioned_dataset_matches_the_scripted_tool_matrix_and_declares_its_semantic_limit" computerName="DESKTOP-QUF2ORT" duration="00:00:00.0597254" startTime="2026-10-18T20:55:01.9289115+03:00" endTime="2026-10-18T20:55:02.0060256+03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="70b3b7ab-b270-48fc-9521-4a26d2d34ce8">
+      <Output>
+        <StdOut>evaluationSet=erp-assistant-orchestration@1.0.0; schema=1.0.0; sha256=55113e7646a1b4166173abf4d60836a5867805d3dcb00fb967f975e9584f6ace; cases=10; execution=offline-mocked; semanticQualityScored=false</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="70e1f888-63af-489f-b1e2-bc396a012982" testId="ae335519-5654-45a0-4cbe-1b35857319b0" testName="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Tool_failure_is_sanitized_and_does_not_leak_internal_error_details" computerName="DESKTOP-QUF2ORT" duration="00:00:00.0026639" startTime="2026-10-18T20:55:02.3205526+03:00" endTime="2026-10-18T20:55:02.3206293+03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="70e1f888-63af-489f-b1e2-bc396a012982">
+      <Output>
+        <StdOut>AI evaluation set: erp-assistant-orchestration v1.0.0; schema=1.0.0; sha256=55113e7646a1b4166173abf4d60836a5867805d3dcb00fb967f975e9584f6ace; provider=openai-responses-mock; model=offline-scripted-model-v1; execution=offline-mocked; semanticQualityScored=false&#xD;
+Case: tool-failure-sanitization</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="011130ee-1dbe-4903-807c-ffe45c16b68b" testId="dac8cf88-9f80-2f3a-d0c9-bf189bbc5691" testName="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;warehouse-list&quot;, expectedName: &quot;list_warehouses&quot;, arguments: &quot;{}&quot;, prompt: &quot;Depoları listele.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matching row.&quot;)" computerName="DESKTOP-QUF2ORT" duration="00:00:00.0012373" startTime="2026-10-18T20:55:02.2597529+03:00" endTime="2026-10-18T20:55:02.2606482+03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="011130ee-1dbe-4903-807c-ffe45c16b68b">
+      <Output>
+        <StdOut>AI evaluation set: erp-assistant-orchestration v1.0.0; schema=1.0.0; sha256=55113e7646a1b4166173abf4d60836a5867805d3dcb00fb967f975e9584f6ace; provider=openai-responses-mock; model=offline-scripted-model-v1; execution=offline-mocked; semanticQualityScored=false&#xD;
+Case: warehouse-list</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="4b09ce11-49e0-4e11-a96c-e28543c2f831" testId="bc9ce29d-d937-9070-b064-630dd963d212" testName="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;customer-report&quot;, expectedName: &quot;generate_report&quot;, arguments: &quot;{\&quot;source\&quot;:\&quot;customers\&quot;,\&quot;columns\&quot;:[\&quot;code\&quot;],\&quot;···, prompt: &quot;Müşteri raporunu getir.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matching row.&quot;)" computerName="DESKTOP-QUF2ORT" duration="00:00:00.0009344" startTime="2026-10-18T20:55:02.2632097+03:00" endTime="2026-10-18T20:55:02.2639065+03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4b09ce11-49e0-4e11-a96c-e28543c2f831">
+      <Output>
+        <StdOut>AI evaluation set: erp-assistant-orchestration v1.0.0; schema=1.0.0; sha256=55113e7646a1b4166173abf4d60836a5867805d3dcb00fb967f975e9584f6ace; provider=openai-responses-mock; model=offline-scripted-model-v1; execution=offline-mocked; semanticQualityScored=false&#xD;
+Case: customer-report</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="48a094e9-de47-4e82-aa2e-1a1e382a2851" testId="bbfe51ef-2e0a-0196-da4a-09c752058da9" testName="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;customer-search&quot;, expectedName: &quot;search_customer_accounts&quot;, arguments: &quot;{\&quot;term\&quot;:\&quot;Acme\&quot;}&quot;, prompt: &quot;Acme müşterisini bul.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matching row.&quot;)" computerName="DESKTOP-QUF2ORT" duration="00:00:00.0011535" startTime="2026-10-18T20:55:02.2618265+03:00" endTime="2026-10-18T20:55:02.2629879+03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="48a094e9-de47-4e82-aa2e-1a1e382a2851">
+      <Output>
+        <StdOut>AI evaluation set: erp-assistant-orchestration v1.0.0; schema=1.0.0; sha256=55113e7646a1b4166173abf4d60836a5867805d3dcb00fb967f975e9584f6ace; provider=openai-responses-mock; model=offline-scripted-model-v1; execution=offline-mocked; semanticQualityScored=false&#xD;
+Case: customer-search</StdOut>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;customer-balance&quot;, expectedName: &quot;get_customer_balance&quot;, arguments: &quot;{\&quot;customerId\&quot;:\&quot;22222222-2222-2222-2222-22222222&quot;···, prompt: &quot;Müşteri bakiyesini getir.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 match···" storage="d:\cprojeler\nexora\tests\unittests\aierp.platform.unittests\bin\debug\net10.0\aierp.platform.unittests.dll" id="9d66666f-d7fa-732a-a75f-ab7148996483">
+      <Execution id="ff3bf1b1-8133-4f75-9930-ab5304266164" />
+      <TestMethod codeBase="D:\CProjeler\Nexora\tests\UnitTests\AIERP.Platform.UnitTests\bin\Debug\net10.0\AIERP.Platform.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests" name="Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result" />
+    </UnitTest>
+    <UnitTest name="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;warehouse-balances&quot;, expectedName: &quot;get_warehouse_balances&quot;, arguments: &quot;{\&quot;warehouseId\&quot;:\&quot;11111111-1111-1111-1111-1111111&quot;···, prompt: &quot;Depo bakiyelerini getir.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 ma···" storage="d:\cprojeler\nexora\tests\unittests\aierp.platform.unittests\bin\debug\net10.0\aierp.platform.unittests.dll" id="426f5050-d6fe-8a88-f864-f40e47d532d8">
+      <Execution id="afc0094b-3f90-4f40-88d8-e9f9fba15152" />
+      <TestMethod codeBase="D:\CProjeler\Nexora\tests\UnitTests\AIERP.Platform.UnitTests\bin\Debug\net10.0\AIERP.Platform.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests" name="Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result" />
+    </UnitTest>
+    <UnitTest name="AIERP.Platform.UnitTests.AIERPAssistantEvaluationContractTests.Versioned_dataset_matches_the_scripted_tool_matrix_and_declares_its_semantic_limit" storage="d:\cprojeler\nexora\tests\unittests\aierp.platform.unittests\bin\debug\net10.0\aierp.platform.unittests.dll" id="f533f500-8104-e7e0-435d-7e519576474f">
+      <Execution id="70b3b7ab-b270-48fc-9521-4a26d2d34ce8" />
+      <TestMethod codeBase="D:\CProjeler\Nexora\tests\UnitTests\AIERP.Platform.UnitTests\bin\Debug\net10.0\AIERP.Platform.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="AIERP.Platform.UnitTests.AIERPAssistantEvaluationContractTests" name="Versioned_dataset_matches_the_scripted_tool_matrix_and_declares_its_semantic_limit" />
+    </UnitTest>
+    <UnitTest name="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Tool_budget_violation_is_rejected_before_any_read_tool_side_effect" storage="d:\cprojeler\nexora\tests\unittests\aierp.platform.unittests\bin\debug\net10.0\aierp.platform.unittests.dll" id="5bab9611-9e3c-464b-8277-c7d17bb8fabe">
+      <Execution id="1c776e2e-eae6-4d6f-8449-ca21f9bcc0fa" />
+      <TestMethod codeBase="D:\CProjeler\Nexora\tests\UnitTests\AIERP.Platform.UnitTests\bin\Debug\net10.0\AIERP.Platform.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests" name="Tool_budget_violation_is_rejected_before_any_read_tool_side_effect" />
+    </UnitTest>
+    <UnitTest name="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;stock-search&quot;, expectedName: &quot;search_stock_items&quot;, arguments: &quot;{\&quot;term\&quot;:\&quot;M8 screw\&quot;}&quot;, prompt: &quot;Vida M8 stok durumunu söyle.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matching row.&quot;)" storage="d:\cprojeler\nexora\tests\unittests\aierp.platform.unittests\bin\debug\net10.0\aierp.platform.unittests.dll" id="f17150ac-ee43-32bf-556d-7d34133d4d77">
+      <Execution id="2dcd3c03-0365-4316-a172-28b6f2f4d512" />
+      <TestMethod codeBase="D:\CProjeler\Nexora\tests\UnitTests\AIERP.Platform.UnitTests\bin\Debug\net10.0\AIERP.Platform.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests" name="Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result" />
+    </UnitTest>
+    <UnitTest name="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Stock_lookup_routes_one_read_only_tool_and_keeps_injected_tool_text_untrusted" storage="d:\cprojeler\nexora\tests\unittests\aierp.platform.unittests\bin\debug\net10.0\aierp.platform.unittests.dll" id="70989cd9-6228-c787-645f-a1e7f9c490d8">
+      <Execution id="17bcc287-4f8e-4c70-8db9-5a43746edfb4" />
+      <TestMethod codeBase="D:\CProjeler\Nexora\tests\UnitTests\AIERP.Platform.UnitTests\bin\Debug\net10.0\AIERP.Platform.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests" name="Stock_lookup_routes_one_read_only_tool_and_keeps_injected_tool_text_untrusted" />
+    </UnitTest>
+    <UnitTest name="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;customer-search&quot;, expectedName: &quot;search_customer_accounts&quot;, arguments: &quot;{\&quot;term\&quot;:\&quot;Acme\&quot;}&quot;, prompt: &quot;Acme müşterisini bul.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matching row.&quot;)" storage="d:\cprojeler\nexora\tests\unittests\aierp.platform.unittests\bin\debug\net10.0\aierp.platform.unittests.dll" id="bbfe51ef-2e0a-0196-da4a-09c752058da9">
+      <Execution id="48a094e9-de47-4e82-aa2e-1a1e382a2851" />
+      <TestMethod codeBase="D:\CProjeler\Nexora\tests\UnitTests\AIERP.Platform.UnitTests\bin\Debug\net10.0\AIERP.Platform.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests" name="Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result" />
+    </UnitTest>
+    <UnitTest name="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;customer-report&quot;, expectedName: &quot;generate_report&quot;, arguments: &quot;{\&quot;source\&quot;:\&quot;customers\&quot;,\&quot;columns\&quot;:[\&quot;code\&quot;],\&quot;···, prompt: &quot;Müşteri raporunu getir.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matching row.&quot;)" storage="d:\cprojeler\nexora\tests\unittests\aierp.platform.unittests\bin\debug\net10.0\aierp.platform.unittests.dll" id="bc9ce29d-d937-9070-b064-630dd963d212">
+      <Execution id="4b09ce11-49e0-4e11-a96c-e28543c2f831" />
+      <TestMethod codeBase="D:\CProjeler\Nexora\tests\UnitTests\AIERP.Platform.UnitTests\bin\Debug\net10.0\AIERP.Platform.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests" name="Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result" />
+    </UnitTest>
+    <UnitTest name="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;crm-opportunity-report&quot;, expectedName: &quot;generate_report&quot;, arguments: &quot;{\&quot;source\&quot;:\&quot;crmOpportunities\&quot;,\&quot;columns\&quot;:[\&quot;co&quot;···, prompt: &quot;CRM fırsatlarını raporla.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matc···" storage="d:\cprojeler\nexora\tests\unittests\aierp.platform.unittests\bin\debug\net10.0\aierp.platform.unittests.dll" id="f07880f7-da6d-0a4b-bce1-47636000c7d5">
+      <Execution id="13ed2ce2-7e32-4d34-a5a3-f834618174e3" />
+      <TestMethod codeBase="D:\CProjeler\Nexora\tests\UnitTests\AIERP.Platform.UnitTests\bin\Debug\net10.0\AIERP.Platform.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests" name="Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result" />
+    </UnitTest>
+    <UnitTest name="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Tool_failure_is_sanitized_and_does_not_leak_internal_error_details" storage="d:\cprojeler\nexora\tests\unittests\aierp.platform.unittests\bin\debug\net10.0\aierp.platform.unittests.dll" id="ae335519-5654-45a0-4cbe-1b35857319b0">
+      <Execution id="70e1f888-63af-489f-b1e2-bc396a012982" />
+      <TestMethod codeBase="D:\CProjeler\Nexora\tests\UnitTests\AIERP.Platform.UnitTests\bin\Debug\net10.0\AIERP.Platform.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests" name="Tool_failure_is_sanitized_and_does_not_leak_internal_error_details" />
+    </UnitTest>
+    <UnitTest name="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests.Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(caseId: &quot;warehouse-list&quot;, expectedName: &quot;list_warehouses&quot;, arguments: &quot;{}&quot;, prompt: &quot;Depoları listele.&quot;, authorizedToolResult: &quot;{\&quot;rows\&quot;:[{\&quot;code\&quot;:\&quot;SAFE-01\&quot;}],\&quot;totalCount\&quot;:&quot;···, expectedAnswer: &quot;The authorized read returned 1 matching row.&quot;)" storage="d:\cprojeler\nexora\tests\unittests\aierp.platform.unittests\bin\debug\net10.0\aierp.platform.unittests.dll" id="dac8cf88-9f80-2f3a-d0c9-bf189bbc5691">
+      <Execution id="011130ee-1dbe-4903-807c-ffe45c16b68b" />
+      <TestMethod codeBase="D:\CProjeler\Nexora\tests\UnitTests\AIERP.Platform.UnitTests\bin\Debug\net10.0\AIERP.Platform.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="AIERP.Platform.UnitTests.ERPAssistantOrchestrationEvaluationTests" name="Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="426f5050-d6fe-8a88-f864-f40e47d532d8" executionId="afc0094b-3f90-4f40-88d8-e9f9fba15152" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9d66666f-d7fa-732a-a75f-ab7148996483" executionId="ff3bf1b1-8133-4f75-9930-ab5304266164" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f07880f7-da6d-0a4b-bce1-47636000c7d5" executionId="13ed2ce2-7e32-4d34-a5a3-f834618174e3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f17150ac-ee43-32bf-556d-7d34133d4d77" executionId="2dcd3c03-0365-4316-a172-28b6f2f4d512" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5bab9611-9e3c-464b-8277-c7d17bb8fabe" executionId="1c776e2e-eae6-4d6f-8449-ca21f9bcc0fa" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="70989cd9-6228-c787-645f-a1e7f9c490d8" executionId="17bcc287-4f8e-4c70-8db9-5a43746edfb4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f533f500-8104-e7e0-435d-7e519576474f" executionId="70b3b7ab-b270-48fc-9521-4a26d2d34ce8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ae335519-5654-45a0-4cbe-1b35857319b0" executionId="70e1f888-63af-489f-b1e2-bc396a012982" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="dac8cf88-9f80-2f3a-d0c9-bf189bbc5691" executionId="011130ee-1dbe-4903-807c-ffe45c16b68b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="bc9ce29d-d937-9070-b064-630dd963d212" executionId="4b09ce11-49e0-4e11-a96c-e28543c2f831" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="bbfe51ef-2e0a-0196-da4a-09c752058da9" executionId="48a094e9-de47-4e82-aa2e-1a1e382a2851" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Bir Listede Olmayan Sonuçlar" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Yüklenen Tüm Sonuçlar" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="11" executed="11" passed="11" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.01] xUnit.net VSTest Adapter v3.1.4+50e68bbb8b (64-bit .NET 10.0.13)&#xD;
+[xUnit.net 00:00:00.30]   Discovering: AIERP.Platform.UnitTests&#xD;
+[xUnit.net 00:00:00.64]   Discovered:  AIERP.Platform.UnitTests&#xD;
+[xUnit.net 00:00:00.71]   Starting:    AIERP.Platform.UnitTests&#xD;
+[xUnit.net 00:00:01.16]   Finished:    AIERP.Platform.UnitTests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

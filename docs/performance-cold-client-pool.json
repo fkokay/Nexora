@@ -1,0 +1,31 @@
+{
+  "environment": "local-docker-compose",
+  "scenario": "authenticated-read-only-dashboard-summary-cold-client-pool",
+  "endpoint": "http://localhost:5080/api/dashboard",
+  "requests": 300,
+  "concurrency": 25,
+  "warmupRequests": 10,
+  "warmupUsedSeparateHttpClient": true,
+  "thresholds": {
+    "p95Milliseconds": 1000,
+    "maxErrorRatePercent": 1.0
+  },
+  "results": {
+    "successful": 300,
+    "failed": 0,
+    "errorRatePercent": 0.0,
+    "averageMilliseconds": 203.22,
+    "p95Milliseconds": 2185,
+    "maxMilliseconds": 2297,
+    "throughputRequestsPerSecond": 121.75,
+    "wallClockMilliseconds": 2464,
+    "statuses": [
+      {
+        "result": "200",
+        "count": 300
+      }
+    ]
+  },
+  "notes": "Initial diagnostic probe used a separate HttpClient for 10 warm-up requests, leaving the measured HttpClient connection pool cold. It breached steady-state p95 and motivated warming the same client pool. Retained as a diagnostic observation; do not compare directly with warmed runs.",
+  "date": "2026-10-17"
+}

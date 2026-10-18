@@ -65,6 +65,28 @@ public sealed class TenantBusinessRuleEngineTests
         Assert.False(TenantBusinessRuleEngine.Validate(conditions, "unsupported.event").IsValid);
     }
 
+    [Fact]
+    public void ValidatesPurchaseOrderCreatedTriggerWithOrderSpecificFacts()
+    {
+        var conditions = new[]
+        {
+            new TenantBusinessRuleCondition("supplierId", "Equals", "supplier-1"),
+            new TenantBusinessRuleCondition("grandTotal", "GreaterThanOrEqual", "50000"),
+            new TenantBusinessRuleCondition("orderDate", "OnOrAfter", "2026-10-01")
+        };
+        var facts = new Dictionary<string, string?>
+        {
+            ["code"] = "PO-100", ["supplierId"] = "supplier-1", ["currencyCode"] = "TRY",
+            ["lineCount"] = "3", ["grandTotal"] = "75000.50", ["orderDate"] = "2026-10-17"
+        };
+
+        Assert.Contains(TenantBusinessRuleEngine.SupportedTriggers, trigger => trigger.Code == TenantBusinessRuleEngine.PurchaseOrderCreated);
+        Assert.True(TenantBusinessRuleEngine.Validate(conditions, TenantBusinessRuleEngine.PurchaseOrderCreated).IsValid);
+        Assert.True(TenantBusinessRuleEngine.Matches(conditions, facts));
+        Assert.False(TenantBusinessRuleEngine.Matches(conditions, new Dictionary<string, string?>(facts) { ["grandTotal"] = "49999" }));
+        Assert.False(TenantBusinessRuleEngine.Validate(conditions, "unsupported.event").IsValid);
+    }
+
     [Theory]
     [InlineData("large-request-routing", true)]
     [InlineData("Large_Request", false)]

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Text.RegularExpressions;
 
 namespace AIERP.IntegrationSDK;
@@ -14,6 +15,12 @@ public sealed record IntegrationExecutionResult<T>(
 /// <summary>Runs a typed adapter with bounded retry and deadline handling. Adapters must reuse the supplied idempotency key on every attempt.</summary>
 public static partial class IntegrationAdapterExecutor
 {
+    public const string TelemetryName = "AIERP.IntegrationSDK";
+    public static readonly ActivitySource ActivitySource = new(TelemetryName);
+    public static readonly Meter Meter = new(TelemetryName);
+    private static readonly Counter<long> Executions = Meter.CreateCounter<long>("aierp.integration.executions", "{execution}");
+    private static readonly Histogram<double> ExecutionDuration = Meter.CreateHistogram<double>("aierp.integration.execution.duration", "ms");
+
     private static readonly HashSet<string> SafeProviderErrorCodes = new(StringComparer.Ordinal)
     {
         "adapter_failed", "adapter_error", "provider_error", "provider_rejected", "authentication_failed", "rate_limited",
@@ -28,6 +35,57 @@ public static partial class IntegrationAdapterExecutor
         CancellationToken cancellationToken = default,
         Func<TimeSpan, CancellationToken, Task>? delayAsync = null,
         Func<double>? jitter = null)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        using var activity = ActivitySource.StartActivity("integration.execute", ActivityKind.Client);
+        var stopwatch = Stopwatch.StartNew();
+        activity?.SetTag("integration.code", context.IntegrationCode);
+        IntegrationExecutionResult<TResponse> result;
+        try
+        {
+            result = await ExecuteCoreAsync(adapter, context, request, retryPolicy, cancellationToken, delayAsync, jitter);
+        }
+        catch (OperationCanceledException)
+        {
+            RecordTelemetry(activity, context.IntegrationCode, "cancelled", "cancelled", 0, stopwatch.Elapsed);
+            throw;
+        }
+        catch
+        {
+            RecordTelemetry(activity, context.IntegrationCode, "failed", "executor_error", 0, stopwatch.Elapsed);
+            throw;
+        }
+
+        var outcome = result.Succeeded ? "succeeded" : "failed";
+        RecordTelemetry(activity, context.IntegrationCode, outcome, result.ErrorCode, result.Attempts, result.Duration);
+        return result;
+    }
+
+    private static void RecordTelemetry(Activity? activity, string? integrationCode, string outcome, string? errorCode, int attempts, TimeSpan duration)
+    {
+        var tags = new TagList
+        {
+            { "integration.code", integrationCode ?? "unknown" },
+            { "outcome", outcome }
+        };
+        if (!string.IsNullOrWhiteSpace(errorCode)) tags.Add("error.code", errorCode);
+        Executions.Add(1, tags);
+        ExecutionDuration.Record(duration.TotalMilliseconds, tags);
+
+        activity?.SetTag("integration.outcome", outcome);
+        activity?.SetTag("integration.attempts", attempts);
+        if (!string.IsNullOrWhiteSpace(errorCode)) activity?.SetTag("error.code", errorCode);
+        if (outcome != "succeeded") activity?.SetStatus(ActivityStatusCode.Error, errorCode ?? outcome);
+    }
+
+    private static async Task<IntegrationExecutionResult<TResponse>> ExecuteCoreAsync<TRequest, TResponse>(
+        IERPIntegrationAdapter<TRequest, TResponse> adapter,
+        IntegrationContext context,
+        TRequest request,
+        IntegrationRetryPolicy retryPolicy,
+        CancellationToken cancellationToken,
+        Func<TimeSpan, CancellationToken, Task>? delayAsync,
+        Func<double>? jitter)
     {
         ArgumentNullException.ThrowIfNull(adapter);
         ArgumentNullException.ThrowIfNull(context);

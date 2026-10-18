@@ -1,0 +1,41 @@
+{
+  "observedAtUtc": "2026-10-18T19:15:12.4914372+00:00",
+  "environment": "local-docker-compose",
+  "prometheus": {
+    "endpoint": "http://localhost:9090",
+    "checkedJobs": 4,
+    "targets": [
+      {
+        "job": "aierp-platform-api",
+        "health": "up",
+        "scrapeAgeSeconds": 3.3,
+        "errorPresent": false
+      },
+      {
+        "job": "aierp-ai-service",
+        "health": "up",
+        "scrapeAgeSeconds": 3.2,
+        "errorPresent": false
+      },
+      {
+        "job": "aierp-integration-host",
+        "health": "up",
+        "scrapeAgeSeconds": 8.2,
+        "errorPresent": false
+      },
+      {
+        "job": "aierp-release-deployer",
+        "health": "up",
+        "scrapeAgeSeconds": 4.0,
+        "errorPresent": false
+      }
+    ]
+  },
+  "platformApiMetrics": {
+    "endpoint": "http://localhost:5080/metrics",
+    "requestDurationHistogramPresent": true,
+    "requestsObserved": true
+  },
+  "result": "passed",
+  "notes": "Target labels and scrape timings plus metric-presence booleans only; no request labels, credentials, tenant IDs, or business data are stored."
+}

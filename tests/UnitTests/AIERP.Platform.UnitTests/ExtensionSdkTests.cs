@@ -9,12 +9,83 @@ using AIERP.Observability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 
 namespace AIERP.Platform.UnitTests;
 
 public sealed class ExtensionSdkTests
 {
+    [Fact]
+    public void ProductionMigrationRollbackPolicy_RestartsPreviousApplicationOnlyBeforeMigrationCanRun()
+    {
+        Assert.True(ProductionMigrationRollbackPolicy.ShouldRestartPreviousApplication(migrationMayHaveRun: false));
+        Assert.False(ProductionMigrationRollbackPolicy.ShouldRestartPreviousApplication(migrationMayHaveRun: true));
+    }
+
+    [Fact]
+    public void FailedProductionDeploymentCleanup_PreservesNamedDatabaseVolumes()
+    {
+        var arguments = ProductionMigrationRollbackPolicy.FailedDeploymentCleanupArguments(
+            "aierp-production-project", "compose.yml", "deploy.env");
+
+        Assert.Equal(["compose", "--project-name", "aierp-production-project", "--file", "compose.yml", "--env-file", "deploy.env", "down", "--remove-orphans"], arguments);
+        Assert.DoesNotContain("--volumes", arguments);
+    }
+
+    [Fact]
+    public void ProductionMigrationRollbackState_RecordsMigrationAndRollbackOutcomes()
+    {
+        var state = new ProductionMigrationRollbackState(Guid.NewGuid(), Guid.NewGuid(), "may_have_run",
+            "blocked_migration_may_have_run", "Previous application restart is blocked.", DateTimeOffset.UtcNow);
+        var json = JsonSerializer.Serialize(state);
+        var parsed = JsonSerializer.Deserialize<ProductionMigrationRollbackState>(json);
+
+        Assert.NotNull(parsed);
+        Assert.Equal("may_have_run", parsed.MigrationStatus);
+        Assert.Equal("blocked_migration_may_have_run", parsed.RollbackStatus);
+        Assert.NotNull(parsed.PreviousDeploymentId);
+    }
+
+    [Fact]
+    public void IntegrationJsonMapper_MapsSelectedFieldsToNestedProviderPayload()
+    {
+        using var source = JsonDocument.Parse("""{"document":{"number":"PO-42","total":125.50},"tenantSecret":"must-not-leak"}""");
+        var mapped = IntegrationJsonMapper.Map(source.RootElement,
+        [
+            new IntegrationJsonFieldMapping("document.number", "purchaseOrder.reference", Required: true),
+            new IntegrationJsonFieldMapping("document.total", "purchaseOrder.amount")
+        ]);
+
+        Assert.Equal("PO-42", mapped.GetProperty("purchaseOrder").GetProperty("reference").GetString());
+        Assert.Equal(125.50m, mapped.GetProperty("purchaseOrder").GetProperty("amount").GetDecimal());
+        Assert.False(mapped.TryGetProperty("tenantSecret", out _));
+    }
+
+    [Fact]
+    public void IntegrationJsonMapper_RequiresConfiguredFieldsAndRejectsUnsafeOrConflictingPaths()
+    {
+        using var source = JsonDocument.Parse("""{"value":1}""");
+
+        Assert.Throws<IntegrationJsonMappingException>(() => IntegrationJsonMapper.Map(source.RootElement,
+            [new IntegrationJsonFieldMapping("missing", "provider.value", Required: true)]));
+        Assert.Throws<IntegrationJsonMappingException>(() => IntegrationJsonMapper.Map(source.RootElement,
+            [new IntegrationJsonFieldMapping("value", "provider.value"), new IntegrationJsonFieldMapping("value", "provider.value")]));
+        Assert.Throws<IntegrationJsonMappingException>(() => IntegrationJsonMapper.Map(source.RootElement,
+            [new IntegrationJsonFieldMapping("value", "provider.$meta.value")]));
+    }
+
+    [Fact]
+    public void IntegrationJsonMapper_LeavesPayloadUnchangedWhenNoMappingIsConfigured()
+    {
+        using var source = JsonDocument.Parse("""{"value":1,"nested":{"safe":true}}""");
+        var mapped = IntegrationJsonMapper.Map(source.RootElement, []);
+
+        Assert.Equal(source.RootElement.GetRawText(), mapped.GetRawText());
+    }
+
     [Fact]
     public void ModuleManifestValidator_AcceptsValidDeclarativeManifest()
     {
@@ -54,6 +125,27 @@ public sealed class ExtensionSdkTests
         Assert.Contains(result.Errors, error => error.Contains("local absolute path", StringComparison.Ordinal));
         Assert.Contains(result.Errors, error => error.Contains("undeclared permission", StringComparison.Ordinal));
         Assert.Contains(result.Errors, error => error.Contains("SHA-256", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ModuleManifestValidator_RejectsNullCatalogEntriesWithoutThrowing()
+    {
+        var manifest = new ModuleManifest("service.desk", "Service Desk", "1.2.0", "Nexora", "1.0.0",
+            [null!], [null!],
+            [null!, new ModuleMenuEntry("service.desk.home", "Service Desk", "/service-desk", "service.desk.read",
+                new ModuleMenuView("form", [null!], "table", [null!]))],
+            [null!], [null!]);
+
+        var result = ModuleManifestValidator.Validate(manifest);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("Dependency entries cannot be null", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains("Permission entries cannot be null", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains("Menu entries cannot be null", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains("Migration entries cannot be null", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains("Data capability entries cannot be null", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains("input fields cannot be null", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains("result columns cannot be null", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -186,6 +278,13 @@ public sealed class ExtensionSdkTests
     [Fact]
     public void ModuleManifestValidator_RequiresFixedDataCapabilitiesAndDeclaredPermissions()
     {
+        Assert.Equal(
+            ["customers.balance.read", "customers.search", "inventory.availability.search", "suppliers.search"],
+            ModuleDataCapabilityCatalog.All.Keys.Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal("customer-code", ModuleDataCapabilityCatalog.All["customers.balance.read"].RequiredInputField);
+        Assert.False(ModuleDataCapabilityCatalog.All["customers.balance.read"].SupportsLimit);
+        Assert.True(ModuleDataCapabilityCatalog.All["inventory.availability.search"].SupportsLimit);
+
         var allowed = new ModuleManifest("catalog", "Catalog", "1.0.0", "Nexora", "1.0.0", [],
             [new ModulePermission("customer.read", "Read customer directory"), new ModulePermission("stock.read", "Read inventory availability")], [], [],
             [new ModuleDataCapability("customers.search", "customer.read"), new ModuleDataCapability("inventory.availability.search", "stock.read")]);
@@ -301,6 +400,61 @@ public sealed class ExtensionSdkTests
     }
 
     [Fact]
+    public async Task IntegrationAdapterExecutor_EmitsSanitizedActivityAndMetrics()
+    {
+        long executions = 0;
+        string? metricOutcome = null;
+        Activity? completedActivity = null;
+        var prometheusMetrics = new PrometheusHttpMetrics();
+        using var prometheusBridge = new PrometheusBusinessMetricsBridge(prometheusMetrics);
+        await prometheusBridge.StartAsync(CancellationToken.None);
+        using var meterListener = new MeterListener
+        {
+            InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == IntegrationAdapterExecutor.TelemetryName)
+                    listener.EnableMeasurementEvents(instrument);
+            }
+        };
+        meterListener.SetMeasurementEventCallback<long>((instrument, measurement, tags, _) =>
+        {
+            if (instrument.Name != "aierp.integration.executions") return;
+            executions += measurement;
+            foreach (var tag in tags)
+                if (tag.Key == "outcome") metricOutcome = tag.Value?.ToString();
+        });
+        meterListener.Start();
+        using var activityListener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == IntegrationAdapterExecutor.TelemetryName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = activity => completedActivity = activity
+        };
+        ActivitySource.AddActivityListener(activityListener);
+
+        var context = new IntegrationContext(Guid.NewGuid(), "sample.orders", "corr-safe", "idem-safe", DateTimeOffset.UtcNow.AddMinutes(1));
+        var adapter = new TestIntegrationAdapter("sample.orders", (_, _, _) =>
+            Task.FromResult(new IntegrationResult<string>(true, "ok", null, null, false)));
+        var result = await IntegrationAdapterExecutor.ExecuteAsync(adapter, context, "private-payload",
+            new IntegrationRetryPolicy(1, TimeSpan.Zero, TimeSpan.Zero));
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(1, executions);
+        Assert.Equal("succeeded", metricOutcome);
+        Assert.NotNull(completedActivity);
+        Assert.Equal("sample.orders", completedActivity!.GetTagItem("integration.code"));
+        Assert.Equal("succeeded", completedActivity.GetTagItem("integration.outcome"));
+        Assert.Equal(1, completedActivity.GetTagItem("integration.attempts"));
+        Assert.DoesNotContain("private-payload", completedActivity.Tags.Select(tag => tag.Value));
+        Assert.DoesNotContain("tenant", completedActivity.Tags.Select(tag => tag.Key), StringComparer.OrdinalIgnoreCase);
+        var scrapedMetrics = prometheusMetrics.Render();
+        Assert.Contains("aierp_integration_executions_total{outcome=\"succeeded\"} 1", scrapedMetrics, StringComparison.Ordinal);
+        Assert.Contains("aierp_integration_execution_duration_seconds_count{outcome=\"succeeded\"} 1", scrapedMetrics, StringComparison.Ordinal);
+        Assert.DoesNotContain("sample.orders", scrapedMetrics, StringComparison.Ordinal);
+        Assert.DoesNotContain(context.TenantId.ToString(), scrapedMetrics, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task IntegrationDispatcher_DoesNotPretendUnconfiguredVendorsAreAvailable()
     {
         var configuration = new ConfigurationBuilder().Build();
@@ -313,6 +467,419 @@ public sealed class ExtensionSdkTests
         Assert.False(result.Configured);
         Assert.Null(result.Result);
         Assert.Equal(0, dispatcher.ConfiguredCount);
+    }
+
+    [Fact]
+    public void IntegrationDispatcher_ReportsSanitizedConfigurationReadiness()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Integrations:ready.orders:Enabled"] = "true",
+            ["Integrations:ready.orders:BaseUrl"] = "https://provider.example/v1/",
+            ["Integrations:ready.orders:Path"] = "orders",
+            ["Integrations:ready.orders:AllowedHosts:0"] = "provider.example",
+            ["Integrations:ready.orders:RequestMappings:0:SourcePath"] = "order.number",
+            ["Integrations:ready.orders:RequestMappings:0:TargetPath"] = "purchase.reference",
+            ["Integrations:ready.orders:ResponseMappings:0:SourcePath"] = "accepted",
+            ["Integrations:ready.orders:ResponseMappings:0:TargetPath"] = "result.success",
+            ["Integrations:bad.mapping:Enabled"] = "true",
+            ["Integrations:bad.mapping:BaseUrl"] = "https://provider.example/v1/",
+            ["Integrations:bad.mapping:Path"] = "orders",
+            ["Integrations:bad.mapping:AllowedHosts:0"] = "provider.example",
+            ["Integrations:bad.mapping:ResponseMappings:0:SourcePath"] = "accepted",
+            ["Integrations:bad.mapping:ResponseMappings:0:TargetPath"] = "../result",
+            ["Integrations:bad.orders:Enabled"] = "true",
+            ["Integrations:bad.orders:BaseUrl"] = "http://provider.example/v1/",
+            ["Integrations:bad.orders:Path"] = "orders",
+            ["Integrations:bad.orders:AllowedHosts:0"] = "provider.example",
+            ["Integrations:disabled.orders:Enabled"] = "false",
+            ["Integrations:disabled.orders:BaseUrl"] = "not-a-url"
+        }).Build();
+        var dispatcher = new IntegrationDispatcher(configuration, new TestHttpClientFactory(), new TestIntegrationSecretResolver());
+
+        var summary = dispatcher.GetHealthSummary();
+
+        Assert.Equal(new IntegrationHostHealthSummary(3, 1, 2), summary);
+    }
+
+    [Theory]
+    [InlineData("../admin")]
+    [InlineData("orders/%2e%2e/admin")]
+    [InlineData("orders/%252e%252e/admin")]
+    [InlineData("orders\\..\\admin")]
+    [InlineData("/admin")]
+    public async Task IntegrationDispatcher_RejectsPathsOutsideConfiguredBaseDirectory(string path)
+    {
+        var calls = 0;
+        var handler = new CapturingHttpMessageHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent("{}") });
+        });
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Integrations:sample.orders:Enabled"] = "true",
+            ["Integrations:sample.orders:BaseUrl"] = "https://provider.example/v1/",
+            ["Integrations:sample.orders:Path"] = path,
+            ["Integrations:sample.orders:AllowedHosts:0"] = "provider.example"
+        }).Build();
+        var dispatcher = new IntegrationDispatcher(configuration, new TestIntegrationHttpClientFactory(handler), new TestIntegrationSecretResolver());
+        using var payload = JsonDocument.Parse("{\"order\":\"PO-19\"}");
+        var context = new IntegrationContext(Guid.NewGuid(), "sample.orders", "correlation-1", "idem-1", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await dispatcher.ExecuteAsync("sample.orders", context, payload.RootElement, CancellationToken.None);
+
+        Assert.True(result.Configured);
+        Assert.Equal("invalid_integration", result.Result!.ErrorCode);
+        Assert.Equal(0, result.Result.Attempts);
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public void IntegrationJsonMapper_HealthValidationDetectsInvalidAndOverlappingTargets()
+    {
+        var errors = IntegrationJsonMapper.Validate(
+        [
+            new IntegrationJsonFieldMapping("order.number", "purchase.reference"),
+            new IntegrationJsonFieldMapping("order.total", "purchase")
+        ]);
+
+        Assert.Single(errors);
+    }
+
+    [Fact]
+    public async Task IntegrationDispatcher_SendsOnlyConfiguredMappedProviderFields()
+    {
+        string? sentJson = null;
+        Uri? sentUri = null;
+        var handler = new CapturingHttpMessageHandler(async (request, cancellationToken) =>
+        {
+            sentUri = request.RequestUri;
+            sentJson = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"accepted":true}""")
+            };
+        });
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Integrations:sample.orders:Enabled"] = "true",
+            ["Integrations:sample.orders:BaseUrl"] = "https://provider.example/v1/",
+            ["Integrations:sample.orders:Path"] = "orders",
+            ["Integrations:sample.orders:AllowedHosts:0"] = "provider.example",
+            ["Integrations:sample.orders:RequestMappings:0:SourcePath"] = "order.number",
+            ["Integrations:sample.orders:RequestMappings:0:TargetPath"] = "purchase.reference",
+            ["Integrations:sample.orders:RequestMappings:0:Required"] = "true",
+            ["Integrations:sample.orders:RequestMappings:1:SourcePath"] = "order.total",
+            ["Integrations:sample.orders:RequestMappings:1:TargetPath"] = "purchase.amount",
+            ["Integrations:sample.orders:ResponseMappings:0:SourcePath"] = "accepted",
+            ["Integrations:sample.orders:ResponseMappings:0:TargetPath"] = "result.success",
+            ["Integrations:sample.orders:ResponseMappings:0:Required"] = "true"
+        }).Build();
+        var dispatcher = new IntegrationDispatcher(configuration, new TestIntegrationHttpClientFactory(handler), new TestIntegrationSecretResolver());
+        using var payload = JsonDocument.Parse("""{"order":{"number":"PO-19","total":55.25},"internalNote":"do not forward"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "sample.orders", "correlation-1", "idem-1", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await dispatcher.ExecuteAsync("sample.orders", context, payload.RootElement, CancellationToken.None);
+
+        Assert.True(result.Configured);
+        Assert.True(result.Result?.Succeeded);
+        Assert.Equal(new Uri("https://provider.example/v1/orders"), sentUri);
+        using var sent = JsonDocument.Parse(sentJson!);
+        Assert.Equal("PO-19", sent.RootElement.GetProperty("purchase").GetProperty("reference").GetString());
+        Assert.Equal(55.25m, sent.RootElement.GetProperty("purchase").GetProperty("amount").GetDecimal());
+        Assert.False(sent.RootElement.TryGetProperty("internalNote", out _));
+        Assert.True(result.Result!.Value!.ValueKind == JsonValueKind.Object);
+        Assert.True(result.Result.Value.GetProperty("result").GetProperty("success").GetBoolean());
+    }
+
+    [Fact]
+    public async Task IntegrationDispatcher_UsesStripePaymentIntentAdapterWithTenantSecretAndStableIdempotency()
+    {
+        Uri? sentUri = null;
+        string? sentForm = null;
+        string? sentIdempotencyKey = null;
+        string? sentAuthorization = null;
+        var handler = new CapturingHttpMessageHandler(async (request, cancellationToken) =>
+        {
+            sentUri = request.RequestUri;
+            sentForm = await request.Content!.ReadAsStringAsync(cancellationToken);
+            sentIdempotencyKey = request.Headers.GetValues("Idempotency-Key").Single();
+            sentAuthorization = request.Headers.Authorization?.ToString();
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"id":"pi_offline_42","object":"payment_intent","status":"requires_payment_method","amount":12500,"currency":"try","client_secret":"must-not-leak"}""")
+            };
+        });
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Integrations:stripe.payment-intent:Enabled"] = "true",
+            ["Integrations:stripe.payment-intent:Provider"] = "stripe.payment-intent",
+            ["Integrations:stripe.payment-intent:CredentialSecretName"] = "stripe-api",
+            ["Integrations:stripe.payment-intent:RequestMappings:0:SourcePath"] = "order.amountMinor",
+            ["Integrations:stripe.payment-intent:RequestMappings:0:TargetPath"] = "amount",
+            ["Integrations:stripe.payment-intent:RequestMappings:0:Required"] = "true",
+            ["Integrations:stripe.payment-intent:RequestMappings:1:SourcePath"] = "order.currency",
+            ["Integrations:stripe.payment-intent:RequestMappings:1:TargetPath"] = "currency",
+            ["Integrations:stripe.payment-intent:RequestMappings:1:Required"] = "true",
+            ["Integrations:stripe.payment-intent:RequestMappings:2:SourcePath"] = "order.number",
+            ["Integrations:stripe.payment-intent:RequestMappings:2:TargetPath"] = "metadata.order_id",
+            ["Integrations:stripe.payment-intent:RequestMappings:2:Required"] = "true",
+            ["Integrations:stripe.payment-intent:ResponseMappings:0:SourcePath"] = "id",
+            ["Integrations:stripe.payment-intent:ResponseMappings:0:TargetPath"] = "payment.providerId",
+            ["Integrations:stripe.payment-intent:ResponseMappings:0:Required"] = "true",
+            ["Integrations:stripe.payment-intent:ResponseMappings:1:SourcePath"] = "status",
+            ["Integrations:stripe.payment-intent:ResponseMappings:1:TargetPath"] = "payment.status"
+        }).Build();
+        var dispatcher = new IntegrationDispatcher(configuration, new TestIntegrationHttpClientFactory(handler),
+            new FixedIntegrationSecretResolver("sk_test_offline-secret"));
+        using var payload = JsonDocument.Parse("""{"order":{"amountMinor":12500,"currency":"try","number":"SO-42"},"internalNote":"must-not-leak"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "stripe.payment-intent", "corr-stripe", "tenant-namespaced-key", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        Assert.Equal(new IntegrationHostHealthSummary(1, 1, 0), dispatcher.GetHealthSummary());
+        var result = await dispatcher.ExecuteAsync("stripe.payment-intent", context, payload.RootElement, CancellationToken.None);
+
+        Assert.True(result.Configured);
+        Assert.True(result.Result!.Succeeded);
+        Assert.Equal(new Uri("https://api.stripe.com/v1/payment_intents"), sentUri);
+        Assert.Equal("Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes("sk_test_offline-secret:")), sentAuthorization);
+        Assert.Equal("tenant-namespaced-key", sentIdempotencyKey);
+        Assert.Contains("amount=12500", sentForm, StringComparison.Ordinal);
+        Assert.Contains("currency=try", sentForm, StringComparison.Ordinal);
+        Assert.Contains("metadata%5Border_id%5D=SO-42", sentForm, StringComparison.Ordinal);
+        Assert.DoesNotContain("internalNote", sentForm, StringComparison.Ordinal);
+        Assert.Equal("pi_offline_42", result.Result.ExternalReference);
+        Assert.Equal("pi_offline_42", result.Result.Value!.GetProperty("payment").GetProperty("providerId").GetString());
+        Assert.Equal("requires_payment_method", result.Result.Value.GetProperty("payment").GetProperty("status").GetString());
+        Assert.DoesNotContain("client_secret", result.Result.Value.GetRawText(), StringComparison.Ordinal);
+        Assert.DoesNotContain("sk_test_offline-secret", result.Result.Value.GetRawText(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task IntegrationDispatcher_RejectsUnknownProviderWithoutFallbackOutboundRequest()
+    {
+        var calls = 0;
+        var handler = new CapturingHttpMessageHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent("{}") });
+        });
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Integrations:unknown.orders:Enabled"] = "true",
+            ["Integrations:unknown.orders:Provider"] = "unknown.orders",
+            ["Integrations:unknown.orders:BaseUrl"] = "https://provider.example/v1/",
+            ["Integrations:unknown.orders:Path"] = "orders",
+            ["Integrations:unknown.orders:AllowedHosts:0"] = "provider.example"
+        }).Build();
+        var dispatcher = new IntegrationDispatcher(configuration, new TestIntegrationHttpClientFactory(handler), new TestIntegrationSecretResolver());
+        using var payload = JsonDocument.Parse("""{"order":"PO-99"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "unknown.orders", "corr-unknown", "idem-unknown", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        Assert.Equal(new IntegrationHostHealthSummary(1, 0, 1), dispatcher.GetHealthSummary());
+        var result = await dispatcher.ExecuteAsync("unknown.orders", context, payload.RootElement, CancellationToken.None);
+
+        Assert.True(result.Configured);
+        Assert.Equal("invalid_integration", result.Result!.ErrorCode);
+        Assert.Equal(0, result.Result.Attempts);
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task StripePaymentIntentAdapter_RejectsConfirmationAndUnsupportedFieldsBeforeSending()
+    {
+        var calls = 0;
+        var handler = new CapturingHttpMessageHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent("{}") });
+        });
+        var adapter = new StripePaymentIntentAdapter("stripe.payment-intent", "sk_test_offline".AsMemory(), new HttpClient(handler));
+        using var request = JsonDocument.Parse("""{"amount":12500,"currency":"try","confirm":true}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "stripe.payment-intent", "corr-stripe", "idem-stripe", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await adapter.ExecuteAsync(context, request.RootElement, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("validation_failed", result.ErrorCode);
+        Assert.False(result.IsRetryable);
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task IntegrationDispatcher_UsesPayPalOrdersV2WithStableRequestIdAndAllowlistedResponse()
+    {
+        var sentBodies = new List<string>();
+        var requestIds = new List<string>();
+        var sentUris = new List<Uri?>();
+        var authorizations = new List<string?>();
+        var handler = new CapturingHttpMessageHandler(async (request, cancellationToken) =>
+        {
+            sentUris.Add(request.RequestUri);
+            sentBodies.Add(await request.Content!.ReadAsStringAsync(cancellationToken));
+            requestIds.Add(request.Headers.GetValues("PayPal-Request-Id").Single());
+            authorizations.Add(request.Headers.Authorization?.ToString());
+            return new HttpResponseMessage(System.Net.HttpStatusCode.Created)
+            {
+                Content = new StringContent("""{"id":"5O190127TN364715T","status":"CREATED","intent":"CAPTURE","links":[{"href":"https://evil.example/approve"}],"payer":{"email_address":"private@example.test"}}""")
+            };
+        });
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Integrations:paypal.orders-v2:Enabled"] = "true",
+            ["Integrations:paypal.orders-v2:Provider"] = "paypal.orders-v2",
+            ["Integrations:paypal.orders-v2:CredentialSecretName"] = "paypal-access-token",
+            ["Integrations:paypal.orders-v2:RequestMappings:0:SourcePath"] = "order.total",
+            ["Integrations:paypal.orders-v2:RequestMappings:0:TargetPath"] = "amount",
+            ["Integrations:paypal.orders-v2:RequestMappings:0:Required"] = "true",
+            ["Integrations:paypal.orders-v2:RequestMappings:1:SourcePath"] = "order.currency",
+            ["Integrations:paypal.orders-v2:RequestMappings:1:TargetPath"] = "currency",
+            ["Integrations:paypal.orders-v2:RequestMappings:1:Required"] = "true",
+            ["Integrations:paypal.orders-v2:RequestMappings:2:SourcePath"] = "order.number",
+            ["Integrations:paypal.orders-v2:RequestMappings:2:TargetPath"] = "invoiceId",
+            ["Integrations:paypal.orders-v2:RequestMappings:2:Required"] = "true",
+            ["Integrations:paypal.orders-v2:ResponseMappings:0:SourcePath"] = "id",
+            ["Integrations:paypal.orders-v2:ResponseMappings:0:TargetPath"] = "payment.providerId",
+            ["Integrations:paypal.orders-v2:ResponseMappings:0:Required"] = "true",
+            ["Integrations:paypal.orders-v2:ResponseMappings:1:SourcePath"] = "status",
+            ["Integrations:paypal.orders-v2:ResponseMappings:1:TargetPath"] = "payment.status"
+        }).Build();
+        var dispatcher = new IntegrationDispatcher(configuration, new TestIntegrationHttpClientFactory(handler),
+            new FixedIntegrationSecretResolver("offline-paypal-oauth-token"));
+        using var payload = JsonDocument.Parse("""{"order":{"total":"42.50","currency":"USD","number":"SO-42"},"internalNote":"must-not-leak"}""");
+        var tenantId = Guid.NewGuid();
+        var context = new IntegrationContext(tenantId, "paypal.orders-v2", "corr-paypal", "tenant-namespaced-key", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        Assert.Equal(new IntegrationHostHealthSummary(1, 1, 0), dispatcher.GetHealthSummary());
+        var first = await dispatcher.ExecuteAsync("paypal.orders-v2", context, payload.RootElement, CancellationToken.None);
+        var second = await dispatcher.ExecuteAsync("paypal.orders-v2", context, payload.RootElement, CancellationToken.None);
+
+        Assert.True(first.Configured && first.Result!.Succeeded);
+        Assert.True(second.Result!.Succeeded);
+        Assert.All(sentUris, uri => Assert.Equal(new Uri("https://api-m.sandbox.paypal.com/v2/checkout/orders"), uri));
+        Assert.All(authorizations, value => Assert.Equal("Bearer offline-paypal-oauth-token", value));
+        Assert.Equal(requestIds[0], requestIds[1]);
+        Assert.Equal(32, requestIds[0].Length);
+        using var sent = JsonDocument.Parse(sentBodies[0]);
+        Assert.Equal("CAPTURE", sent.RootElement.GetProperty("intent").GetString());
+        var unit = sent.RootElement.GetProperty("purchase_units")[0];
+        Assert.Equal("42.5", unit.GetProperty("amount").GetProperty("value").GetString());
+        Assert.Equal("USD", unit.GetProperty("amount").GetProperty("currency_code").GetString());
+        Assert.Equal("SO-42", unit.GetProperty("invoice_id").GetString());
+        Assert.False(unit.TryGetProperty("internalNote", out _));
+        Assert.Equal("5O190127TN364715T", first.Result.ExternalReference);
+        Assert.Equal("CREATED", first.Result.Value!.GetProperty("payment").GetProperty("status").GetString());
+        Assert.DoesNotContain("links", first.Result.Value.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("payer", first.Result.Value.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("private@example.test", first.Result.Value.GetRawText(), StringComparison.Ordinal);
+        Assert.DoesNotContain("offline-paypal-oauth-token", first.Result.Value.GetRawText(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("{\"amount\":\"10.00\",\"currency\":\"USD\",\"intent\":\"CAPTURE\"}")]
+    [InlineData("{\"amount\":\"10.00\",\"currency\":\"USD\",\"applicationContext\":{\"returnUrl\":\"https://attacker.example\"}}")]
+    [InlineData("{\"amount\":\"0\",\"currency\":\"USD\"}")]
+    [InlineData("{\"amount\":\"1.234\",\"currency\":\"USD\"}")]
+    [InlineData("{\"amount\":\"10.00\",\"currency\":\"usd\"}")]
+    public async Task PayPalOrderAdapter_RejectsApprovalCaptureAndInvalidInputsBeforeSending(string requestJson)
+    {
+        var calls = 0;
+        var handler = new CapturingHttpMessageHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.Created) { Content = new StringContent("{}") });
+        });
+        var adapter = new PayPalOrderAdapter("paypal.orders-v2", "offline-token".AsMemory(), new HttpClient(handler));
+        using var request = JsonDocument.Parse(requestJson);
+        var context = new IntegrationContext(Guid.NewGuid(), "paypal.orders-v2", "corr-paypal", "idem-paypal", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await adapter.ExecuteAsync(context, request.RootElement, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("validation_failed", result.ErrorCode);
+        Assert.False(result.IsRetryable);
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task PayPalOrderAdapter_RejectsNonCreatedResponseWithoutReturningProviderFields()
+    {
+        var handler = new CapturingHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.Created)
+        {
+            Content = new StringContent("""{"id":"5O190127TN364715T","status":"COMPLETED","intent":"CAPTURE","secret":"private"}""")
+        }));
+        var adapter = new PayPalOrderAdapter("paypal.orders-v2", "offline-token".AsMemory(), new HttpClient(handler));
+        using var request = JsonDocument.Parse("""{"amount":"10.00","currency":"USD"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "paypal.orders-v2", "corr-paypal", "idem-paypal", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await adapter.ExecuteAsync(context, request.RootElement, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("provider_error", result.ErrorCode);
+        Assert.Null(result.ExternalReference);
+    }
+
+    [Fact]
+    public async Task IntegrationDispatcher_FailsSanitizedWhenRequiredProviderResponseFieldIsMissing()
+    {
+        var handler = new CapturingHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"accepted":true}""")
+        }));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Integrations:sample.orders:Enabled"] = "true",
+            ["Integrations:sample.orders:BaseUrl"] = "https://provider.example/v1/",
+            ["Integrations:sample.orders:Path"] = "orders",
+            ["Integrations:sample.orders:AllowedHosts:0"] = "provider.example",
+            ["Integrations:sample.orders:ResponseMappings:0:SourcePath"] = "receipt.id",
+            ["Integrations:sample.orders:ResponseMappings:0:TargetPath"] = "result.id",
+            ["Integrations:sample.orders:ResponseMappings:0:Required"] = "true"
+        }).Build();
+        var dispatcher = new IntegrationDispatcher(configuration, new TestIntegrationHttpClientFactory(handler), new TestIntegrationSecretResolver());
+        using var payload = JsonDocument.Parse("""{"document":"PO-19"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "sample.orders", "correlation-1", "idem-1", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await dispatcher.ExecuteAsync("sample.orders", context, payload.RootElement, CancellationToken.None);
+
+        Assert.True(result.Configured);
+        Assert.False(result.Result!.Succeeded);
+        Assert.Equal("mapping_failed", result.Result.ErrorCode);
+        Assert.Equal(1, result.Result.Attempts);
+        Assert.Equal(JsonValueKind.Undefined, result.Result.Value.ValueKind);
+    }
+
+    [Fact]
+    public async Task IntegrationDispatcher_RejectsInvalidResponseMappingBeforeOutboundRequest()
+    {
+        var calls = 0;
+        var handler = new CapturingHttpMessageHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}")
+            });
+        });
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Integrations:sample.orders:Enabled"] = "true",
+            ["Integrations:sample.orders:BaseUrl"] = "https://provider.example/v1/",
+            ["Integrations:sample.orders:Path"] = "orders",
+            ["Integrations:sample.orders:AllowedHosts:0"] = "provider.example",
+            ["Integrations:sample.orders:ResponseMappings:0:SourcePath"] = "accepted",
+            ["Integrations:sample.orders:ResponseMappings:0:TargetPath"] = "result..success"
+        }).Build();
+        var dispatcher = new IntegrationDispatcher(configuration, new TestIntegrationHttpClientFactory(handler), new TestIntegrationSecretResolver());
+        using var payload = JsonDocument.Parse("""{"document":"PO-19"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "sample.orders", "correlation-1", "idem-1", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await dispatcher.ExecuteAsync("sample.orders", context, payload.RootElement, CancellationToken.None);
+
+        Assert.True(result.Configured);
+        Assert.Equal("mapping_failed", result.Result!.ErrorCode);
+        Assert.Equal(0, result.Result.Attempts);
+        Assert.Equal(0, calls);
     }
 
     [Fact]
@@ -445,6 +1012,21 @@ public sealed class ExtensionSdkTests
         Assert.Equal("execute", permission.Permission.Action);
     }
 
+    [Theory]
+    [InlineData("GET", "/api/crm/opportunities", "/api/crm/opportunities", "read")]
+    [InlineData("POST", "/api/crm/opportunities", "/api/crm/opportunities", "create")]
+    [InlineData("POST", "/api/crm/opportunities/123/stage", "/api/crm/opportunities/{id:guid}/stage", "execute")]
+    public void PlatformPermissionCatalog_ResolvesCrmOpportunityRoutes(string method, string path, string routePattern, string action)
+    {
+        var resolved = PlatformPermissionCatalog.TryResolve(path, method, routePattern, new Dictionary<string, string?>(),
+            Guid.NewGuid(), Guid.NewGuid(), "TenantUser", out var permission);
+
+        Assert.True(resolved);
+        Assert.NotNull(permission);
+        Assert.Equal("erp.crm-opportunities", permission.Permission.ResourceType);
+        Assert.Equal(action, permission.Permission.Action);
+    }
+
     [Fact]
     public void PlatformPermissionCatalog_UsesDedicatedPermissionForAiUiDesign()
     {
@@ -548,10 +1130,28 @@ public sealed class ExtensionSdkTests
         public HttpClient CreateClient(string name) => new();
     }
 
+    private sealed class TestIntegrationHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+    }
+
+    private sealed class CapturingHttpMessageHandler(
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            send(request, cancellationToken);
+    }
+
     private sealed class TestIntegrationSecretResolver : IIntegrationSecretResolver
     {
         public ValueTask<ReadOnlyMemory<char>> ResolveAsync(Guid tenantId, IntegrationCredentialReference reference,
             CancellationToken cancellationToken) => ValueTask.FromResult(ReadOnlyMemory<char>.Empty);
+    }
+
+    private sealed class FixedIntegrationSecretResolver(string secret) : IIntegrationSecretResolver
+    {
+        public ValueTask<ReadOnlyMemory<char>> ResolveAsync(Guid tenantId, IntegrationCredentialReference reference,
+            CancellationToken cancellationToken) => ValueTask.FromResult(secret.AsMemory());
     }
 
     private static ModuleManifest Manifest(string code, string version, IReadOnlyList<ModuleDependency> dependencies) =>

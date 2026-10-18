@@ -1,0 +1,197 @@
+{
+  "completedAtUtc": "2026-10-18T16:46:46.5184661+00:00",
+  "environment": "local-docker-compose",
+  "provider": "SQL Server through Platform API",
+  "checks": [
+    {
+      "name": "tenant-report-catalog",
+      "passed": true,
+      "details": "Authenticated tenant catalog exposes stockItems."
+    },
+    {
+      "name": "tenant-financial-transaction-report-catalog",
+      "passed": true,
+      "details": "Authenticated tenant catalog exposes financialAccountTransactions."
+    },
+    {
+      "name": "tenant-sales-quote-report-catalog",
+      "passed": true,
+      "details": "Authenticated tenant catalog exposes salesQuotes."
+    },
+    {
+      "name": "tenant-crm-opportunity-report-catalog",
+      "passed": true,
+      "details": "Authenticated tenant catalog exposes crmOpportunities."
+    },
+    {
+      "name": "tenant-supplier-payment-report-catalog",
+      "passed": true,
+      "details": "Authenticated tenant catalog exposes supplierPayments."
+    },
+    {
+      "name": "sql-report-source-customers",
+      "passed": true,
+      "details": "Tenant SQL query returned 1 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-salesInvoices",
+      "passed": true,
+      "details": "Tenant SQL query returned 1 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-purchaseOrders",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-purchaseInvoices",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-purchaseReceipts",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-manufacturingOrders",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-manufacturingWorkCenters",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-inventoryTransactions",
+      "passed": true,
+      "details": "Tenant SQL query returned 1 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-salesOrders",
+      "passed": true,
+      "details": "Tenant SQL query returned 1 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-purchaseSupplierQuotes",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-salesDeliveries",
+      "passed": true,
+      "details": "Tenant SQL query returned 1 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-salesReturns",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-supplierReturns",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-purchaseRequests",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-bankStatements",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-report-source-workflowInstances",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded row(s); business row data is not retained."
+    },
+    {
+      "name": "sql-stock-balance-detail",
+      "passed": true,
+      "details": "Tenant SQL query returned 1 bounded rows and 1 total rows; row data is not retained."
+    },
+    {
+      "name": "sql-stock-grouped-aggregate",
+      "passed": true,
+      "details": "Tenant SQL grouping returned 1 bounded groups and 1 total groups; values are not retained."
+    },
+    {
+      "name": "sql-stock-null-aware-group-drilldown",
+      "passed": true,
+      "details": "Tenant SQL drill-down matched the selected group's count; row data is not retained."
+    },
+    {
+      "name": "sql-report-deterministic-paging-customers",
+      "passed": true,
+      "details": "Tenant SQL pages for 'customers' are bounded, ordered and disjoint; row values are not retained."
+    },
+    {
+      "name": "sql-sales-quote-detail",
+      "passed": true,
+      "details": "Tenant SQL query returned 1 bounded rows and 1 total rows; quote data is not retained."
+    },
+    {
+      "name": "sql-sales-quote-csv",
+      "passed": true,
+      "details": "SQL-backed sales quote export returned the expected CSV header; row contents are not retained."
+    },
+    {
+      "name": "sales-quote-grouping-rejected",
+      "passed": true,
+      "details": "The API rejects grouping for sales quote reports to preserve quote-level traceability."
+    },
+    {
+      "name": "sql-crm-opportunity-filtered-detail",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 filtered bounded rows and 0 total rows; opportunity data is not retained."
+    },
+    {
+      "name": "sql-crm-opportunity-csv",
+      "passed": true,
+      "details": "SQL-backed CRM opportunity export returned the expected CSV header; row contents are not retained."
+    },
+    {
+      "name": "crm-opportunity-grouping-rejected",
+      "passed": true,
+      "details": "The API rejects CRM opportunity grouping to avoid currency-unsafe estimated-value aggregates."
+    },
+    {
+      "name": "sql-financial-transaction-detail",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded rows and 0 total rows; financial row data is not retained."
+    },
+    {
+      "name": "sql-financial-transaction-csv",
+      "passed": true,
+      "details": "SQL-backed financial export returned the expected CSV header; row contents are not retained."
+    },
+    {
+      "name": "financial-transaction-grouping-rejected",
+      "passed": true,
+      "details": "The API rejects grouping for transaction reports to prevent cross-currency aggregation."
+    },
+    {
+      "name": "sql-supplier-payment-detail",
+      "passed": true,
+      "details": "Tenant SQL query returned 0 bounded rows and 0 total rows; payment details are not retained."
+    },
+    {
+      "name": "sql-supplier-payment-csv",
+      "passed": true,
+      "details": "SQL-backed supplier payment export returned the expected CSV header; row contents are not retained."
+    },
+    {
+      "name": "supplier-payment-grouping-rejected",
+      "passed": true,
+      "details": "The API rejects supplier payment grouping to prevent cross-currency totals."
+    }
+  ],
+  "passed": 37,
+  "failed": 0,
+  "skipped": 0,
+  "skippedChecks": [],
+  "notes": "Read-only report queries can emit normal metadata-only audit events. Credentials, bearer tokens, tenant identifiers, source records, and response bodies are not stored or printed on failures."
+}

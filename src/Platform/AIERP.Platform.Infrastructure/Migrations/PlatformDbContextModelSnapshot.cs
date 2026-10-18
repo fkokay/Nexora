@@ -334,6 +334,221 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.BillOfMaterial", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(48)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<decimal>("OutputQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("ProductStockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ProductStockItemId", "IsActive");
+
+                    b.ToTable("BillOfMaterials", t =>
+                        {
+                            t.HasCheckConstraint("CK_BillOfMaterials_OutputQuantityPositive", "[OutputQuantity] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.BillOfMaterialLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("BillOfMaterialId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ComponentStockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ScrapPercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "ComponentStockItemId");
+
+                    b.HasIndex("TenantId", "BillOfMaterialId", "ComponentStockItemId")
+                        .IsUnique();
+
+                    b.ToTable("BillOfMaterialLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_BillOfMaterialLines_Quantities", "[Quantity] > 0 AND [ScrapPercent] >= 0 AND [ScrapPercent] <= 100");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.BillOfMaterialOperation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("BillOfMaterialId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("RunMinutesPerOutputUnit")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("decimal(12,4)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SetupMinutes")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "WorkCenterId");
+
+                    b.HasIndex("TenantId", "BillOfMaterialId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("BillOfMaterialOperations", t =>
+                        {
+                            t.HasCheckConstraint("CK_BillOfMaterialOperations_Minutes", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutesPerOutputUnit] >= 0 AND ([SetupMinutes] + [RunMinutesPerOutputUnit]) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CrmOpportunity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("char(3)")
+                        .IsFixedLength();
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("EstimatedValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly?>("ExpectedCloseDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTimeOffset?>("NextActivityAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("ProbabilityPercent")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "CustomerId");
+
+                    b.HasIndex("TenantId", "NextActivityAt");
+
+                    b.HasIndex("TenantId", "Stage", "ExpectedCloseDate");
+
+                    b.ToTable("CrmOpportunities");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.CustomerAccount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2018,6 +2233,344 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("LedgerAccountMappings");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingCapacityAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AllocatedMinutes")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<Guid>("ManufacturingOrderOperationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("ScheduledDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "ManufacturingOrderOperationId", "ScheduledDate")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "WorkCenterId", "ScheduledDate");
+
+                    b.ToTable("ManufacturingCapacityAllocations", t =>
+                        {
+                            t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_Minutes", "[AllocatedMinutes] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("BillOfMaterialId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(48)");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateOnly>("PlannedDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("PlannedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "BillOfMaterialId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "WarehouseId");
+
+                    b.HasIndex("TenantId", "Status", "PlannedDate");
+
+                    b.ToTable("ManufacturingOrders", t =>
+                        {
+                            t.HasCheckConstraint("CK_ManufacturingOrders_PlannedQuantityPositive", "[PlannedQuantity] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingOrderLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ComponentCodeSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ComponentNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ComponentStockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ManufacturingOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("RequiredQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "ComponentStockItemId");
+
+                    b.HasIndex("TenantId", "ManufacturingOrderId", "ComponentStockItemId")
+                        .IsUnique();
+
+                    b.ToTable("ManufacturingOrderLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_ManufacturingOrderLines_RequiredQuantityPositive", "[RequiredQuantity] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingOrderOperation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("ActualCostBase")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("ActualRunMinutes")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<decimal?>("ActualSetupMinutes")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("LaborCostPerHourBase")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("ManufacturingOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("OverheadCostPerHourBase")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("PlannedCostBase")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("RunMinutes")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateOnly?>("ScheduledEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("ScheduledStartDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SetupMinutes")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("WorkCenterCodeSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(48)");
+
+                    b.Property<Guid>("WorkCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("WorkCenterNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ManufacturingOrderId", "Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "WorkCenterId", "ScheduledStartDate", "ScheduledEndDate");
+
+                    b.ToTable("ManufacturingOrderOperations", t =>
+                        {
+                            t.HasCheckConstraint("CK_ManufacturingOrderOperations_Actuals", "([ActualSetupMinutes] IS NULL OR [ActualSetupMinutes] >= 0) AND ([ActualRunMinutes] IS NULL OR [ActualRunMinutes] >= 0) AND ([ActualCostBase] IS NULL OR [ActualCostBase] >= 0)");
+
+                            t.HasCheckConstraint("CK_ManufacturingOrderOperations_MinutesAndCost", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutes] >= 0 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0 AND [PlannedCostBase] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingWorkCenter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("CapacityMinutesPerDay")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(48)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("LaborCostPerHourBase")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<decimal>("OverheadCostPerHourBase")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("ManufacturingWorkCenters", t =>
+                        {
+                            t.HasCheckConstraint("CK_ManufacturingWorkCenters_Capacity", "[CapacityMinutesPerDay] > 0 AND [CapacityMinutesPerDay] <= 1440 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.MrpPlanSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConversionStateJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IncludesOpenSalesOrders")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly>("PlanDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SupplyCaveat")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "CreatedAt");
+
+                    b.HasIndex("TenantId", "WarehouseId");
+
+                    b.ToTable("MrpPlanSnapshots");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.PermissionDefinition", b =>
                 {
                     b.Property<string>("Code")
@@ -2186,6 +2739,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             Action = "execute",
                             Description = "execute · Tenant audit retention policy",
                             ResourceType = "erp.audit-retention"
+                        },
+                        new
+                        {
+                            Code = "erp.crm-opportunities.read",
+                            Action = "read",
+                            Description = "read · CRM sales opportunities",
+                            ResourceType = "erp.crm-opportunities"
+                        },
+                        new
+                        {
+                            Code = "erp.crm-opportunities.create",
+                            Action = "create",
+                            Description = "create · CRM sales opportunities",
+                            ResourceType = "erp.crm-opportunities"
+                        },
+                        new
+                        {
+                            Code = "erp.crm-opportunities.update",
+                            Action = "update",
+                            Description = "update · CRM sales opportunities",
+                            ResourceType = "erp.crm-opportunities"
+                        },
+                        new
+                        {
+                            Code = "erp.crm-opportunities.delete",
+                            Action = "delete",
+                            Description = "delete · CRM sales opportunities",
+                            ResourceType = "erp.crm-opportunities"
+                        },
+                        new
+                        {
+                            Code = "erp.crm-opportunities.execute",
+                            Action = "execute",
+                            Description = "execute · CRM sales opportunities",
+                            ResourceType = "erp.crm-opportunities"
                         },
                         new
                         {
@@ -4354,6 +4942,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<DateOnly?>("ExpectedReceiptDate")
+                        .HasColumnType("date");
+
                     b.Property<decimal>("GrandTotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -4379,6 +4970,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TargetWarehouseId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("TaxTotal")
@@ -4408,6 +5002,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("TenantId", "SourceSupplierQuoteId", "SourcePurchaseRequestId")
                         .IsUnique()
                         .HasFilter("[SourceSupplierQuoteId] IS NOT NULL AND [SourcePurchaseRequestId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "TargetWarehouseId", "ExpectedReceiptDate");
 
                     b.ToTable("PurchaseOrders");
                 });
@@ -4892,7 +5488,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal?>("EnteredQuantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("EnteredUnitCode")
                         .HasColumnType("nvarchar(max)");
@@ -5585,6 +6182,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
+                    b.Property<DateTimeOffset?>("GitHubPullRequestUpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("GitHubPullRequestUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("nvarchar(2048)");
@@ -5737,7 +6337,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal?>("EnteredQuantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("EnteredUnitCode")
                         .HasColumnType("nvarchar(max)");
@@ -6164,6 +6765,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.Property<Guid>("QuoteId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly?>("RequestedDeliveryDate")
+                        .HasColumnType("date");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -6915,7 +7519,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("decimal(5,2)");
 
                     b.Property<decimal?>("EnteredQuantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("EnteredUnitCode")
                         .HasColumnType("nvarchar(max)");
@@ -7017,6 +7622,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<int>("ManufacturingLeadTimeDays")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("MinimumStock")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -7025,6 +7633,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ProcurementLeadTimeDays")
+                        .HasColumnType("int");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -7060,6 +7671,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.ToTable("StockItems", t =>
                         {
+                            t.HasCheckConstraint("CK_StockItems_LeadTimesNonNegative", "[ProcurementLeadTimeDays] >= 0 AND [ManufacturingLeadTimeDays] >= 0");
+
                             t.HasCheckConstraint("CK_StockItems_MinimumStockNonNegative", "[MinimumStock] >= 0");
                         });
                 });
@@ -7523,6 +8136,51 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("StudioKnowledgeDocuments");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioKnowledgeRefreshConsent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("GrantedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("GrantedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("LastRefreshedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SelectedPathsJson")
+                        .IsRequired()
+                        .HasMaxLength(12000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkspaceRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastRefreshedAt");
+
+                    b.HasIndex("TenantId", "ProjectId", "WorkspaceRequestId")
+                        .IsUnique();
+
+                    b.ToTable("StudioKnowledgeRefreshConsents");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.StudioProductionPromotionApprovalRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7949,7 +8607,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("decimal(5,2)");
 
                     b.Property<decimal?>("EnteredQuantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("EnteredUnitCode")
                         .HasColumnType("nvarchar(max)");
@@ -9241,6 +9900,73 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Statement");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.BillOfMaterial", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.StockItem", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ProductStockItemId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.BillOfMaterialLine", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.BillOfMaterial", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("TenantId", "BillOfMaterialId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.StockItem", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ComponentStockItemId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.BillOfMaterialOperation", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.BillOfMaterial", null)
+                        .WithMany("Operations")
+                        .HasForeignKey("TenantId", "BillOfMaterialId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingWorkCenter", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WorkCenterId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CrmOpportunity", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.CustomerAccount", "Customer")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CustomerId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Customer");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.CustomerAccount", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
@@ -9883,6 +10609,105 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingCapacityAllocation", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingOrderOperation", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ManufacturingOrderOperationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingWorkCenter", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WorkCenterId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingOrder", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.BillOfMaterial", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "BillOfMaterialId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WarehouseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingOrderLine", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.StockItem", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ComponentStockItemId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingOrder", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("TenantId", "ManufacturingOrderId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingOrderOperation", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingOrder", null)
+                        .WithMany("Operations")
+                        .HasForeignKey("TenantId", "ManufacturingOrderId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingWorkCenter", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WorkCenterId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingWorkCenter", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.MrpPlanSnapshot", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WarehouseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.PlatformUserRole", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.AppUser", null)
@@ -9972,6 +10797,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AIERP.Platform.Domain.Warehouse", "TargetWarehouse")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TargetWarehouseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AIERP.Platform.Domain.PurchaseSupplierQuote", "SourceSupplierQuote")
                         .WithOne("PurchaseOrder")
                         .HasForeignKey("AIERP.Platform.Domain.PurchaseOrder", "TenantId", "SourceSupplierQuoteId", "SourcePurchaseRequestId")
@@ -9983,6 +10814,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("SourceSupplierQuote");
 
                     b.Navigation("Supplier");
+
+                    b.Navigation("TargetWarehouse");
 
                     b.Navigation("Tenant");
                 });
@@ -11152,6 +11985,15 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioKnowledgeRefreshConsent", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.StudioProductionPromotionApprovalRecord", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.DevelopmentProject", null)
@@ -11678,6 +12520,13 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Lines");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.BillOfMaterial", b =>
+                {
+                    b.Navigation("Lines");
+
+                    b.Navigation("Operations");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.CustomerAccount", b =>
                 {
                     b.Navigation("Addresses");
@@ -11748,6 +12597,13 @@ namespace AIERP.Platform.Infrastructure.Migrations
             modelBuilder.Entity("AIERP.Platform.Domain.JournalEntry", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingOrder", b =>
+                {
+                    b.Navigation("Lines");
+
+                    b.Navigation("Operations");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseInvoice", b =>

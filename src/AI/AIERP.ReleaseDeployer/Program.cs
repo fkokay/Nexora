@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+DeployerState.AllowTestDockerOverride = ReleaseDeployerDockerExecutionPolicy.IsTestOverrideAllowed(builder.Environment.EnvironmentName);
 builder.Services.AddAierpHttpMetrics();
 var signingKey = builder.Configuration["Authentication:SigningKey"];
 var separationEnabled = builder.Configuration.GetValue<bool>("Database:SeparationEnabled");
@@ -163,7 +164,7 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
         if (config.ExitCode != 0) return Results.Problem("Staging Compose yapılandırması doğrulanamadı.", statusCode: StatusCodes.Status422UnprocessableEntity);
         var up = await RunDockerAsync(commandPrefix.Concat(["up", "--detach", "--build", "--remove-orphans"]), TimeSpan.FromMinutes(20), cancellationToken);
         if (up.ExitCode != 0) return Results.Problem("Staging servisleri başlatılamadı. Deployer hata çıktısını gizlilik için saklamadı.", statusCode: StatusCodes.Status502BadGateway);
-        var healthy = await WaitForHealthyAsync(commandPrefix, cancellationToken);
+        var healthy = await WaitForHealthyAsync(commandPrefix, configuration, cancellationToken);
         if (!healthy) return Results.Problem("Staging servisleri başlatıldı ancak health check süresi içinde sağlıklı olmadı.", statusCode: StatusCodes.Status504GatewayTimeout);
 
         var result = new StagingDeploymentResult(body.DeploymentId, body.IdempotencyKey, body.PackageId, body.PackageSha256.ToUpperInvariant(), body.CommitSha,
@@ -273,8 +274,11 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
     var projectName = $"aierp-production-{body.ProjectId:N}";
     var secretsPath = Path.Combine(projectDirectory, "secrets.enc.json");
     var envPath = Path.Combine(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-{body.DeploymentId:N}.env");
+    var migrationRollbackPath = Path.Combine(deploymentDirectory, "migration-rollback.json");
     Guid? previousDeploymentId = null;
     var succeeded = false;
+    var migrationMayHaveRun = false;
+    var migrationStatus = "not_started";
     await DeployerState.Gate.WaitAsync(cancellationToken);
     try
     {
@@ -310,6 +314,8 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
         var sourceDirectory = Path.Combine(deploymentDirectory, "source");
         Directory.CreateDirectory(sourceDirectory);
         await ExtractVerifiedPackageAsync(packagePath, sourceDirectory, body.PackageId, body.Version, body.CommitSha, metadata.FileCount, cancellationToken);
+        await WriteProductionMigrationRollbackStateAsync(migrationRollbackPath,
+            new ProductionMigrationRollbackState(body.DeploymentId, previousDeploymentId, migrationStatus, "deployment_in_progress", null, DateTimeOffset.UtcNow), cancellationToken);
         WriteTrustedBuildFiles(sourceDirectory, production: true);
         var secrets = File.Exists(secretsPath) ? await ReadEncryptedAsync<DeploymentSecrets>(secretsPath, signingKey, cancellationToken) : null;
         if (secrets is null)
@@ -350,21 +356,35 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
                     return Results.Problem("Production servisleri yedek için durdurulamadı; dağıtım başlatılmadı.", statusCode: StatusCodes.Status503ServiceUnavailable);
                 var sqlcmd = new[] { "exec", "-T", "sqlserver", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", secrets.SqlPassword, "-C", "-b", "-d", "master", "-Q" };
                 var backupNames = await ListAierpDatabasesAsync(backupPrefix, sqlcmd, cancellationToken);
-                if (backupNames.Count == 0 || !await BackupDatabaseSetAsync(backupPrefix, sqlcmd, backupNames, body.ProjectId, body.DeploymentId, cancellationToken))
+                if (backupNames.Count == 0 || !await BackupDatabaseSetAsync(backupPrefix, sqlcmd, backupNames, body.ProjectId, body.DeploymentId, ProductionBackupRoot(configuration), cancellationToken))
                     return Results.Problem("Production veritabanı yedeği alınamadı veya doğrulanamadı; yeni sürüm başlatılmadı.", statusCode: StatusCodes.Status503ServiceUnavailable);
-                await File.WriteAllTextAsync(BackupManifestPath(body.ProjectId, body.DeploymentId), JsonSerializer.Serialize(backupNames, JsonConfig.Options), cancellationToken);
+                await File.WriteAllTextAsync(BackupManifestPath(body.ProjectId, body.DeploymentId, ProductionBackupRoot(configuration)), JsonSerializer.Serialize(backupNames, JsonConfig.Options), cancellationToken);
             }
             finally { if (File.Exists(backupEnv)) File.Delete(backupEnv); }
         }
+        // Write ahead of Compose: an interrupted command may have started the one-shot migrator.
+        migrationMayHaveRun = true;
+        migrationStatus = "may_have_run";
+        await WriteProductionMigrationRollbackStateAsync(migrationRollbackPath,
+            new ProductionMigrationRollbackState(body.DeploymentId, previousDeploymentId, migrationStatus, "pending_operator_review", null, DateTimeOffset.UtcNow), cancellationToken);
         if ((await RunDockerAsync(prefix.Concat(["up", "--detach", "--build", "--remove-orphans"]), TimeSpan.FromMinutes(20), cancellationToken)).ExitCode != 0)
             return Results.Problem("Production Compose servisleri başlatılamadı.", statusCode: StatusCodes.Status502BadGateway);
-        if (!await WaitForHealthyAsync(prefix, cancellationToken))
+        migrationStatus = "completed"; // Compose waits for platform-migrator to complete successfully before starting platform-api.
+        await WriteProductionMigrationRollbackStateAsync(migrationRollbackPath,
+            new ProductionMigrationRollbackState(body.DeploymentId, previousDeploymentId, migrationStatus, "pending_operator_review", null, DateTimeOffset.UtcNow), cancellationToken);
+        if (!await WaitForHealthyAsync(prefix, configuration, cancellationToken))
             return Results.Problem("Production servisleri health check süresinde hazır olmadı.", statusCode: StatusCodes.Status504GatewayTimeout);
         var result = new StagingDeploymentResult(body.DeploymentId, body.IdempotencyKey, body.PackageId, body.PackageSha256.ToUpperInvariant(), body.CommitSha,
             $"http://localhost:{secrets.Port}", projectName, secrets.BootstrapEmail, secrets.BootstrapPassword, DateTimeOffset.UtcNow);
         await WriteEncryptedResultAsync(existingResultPath, result, signingKey, cancellationToken);
         await File.WriteAllTextAsync(currentPath, JsonSerializer.Serialize(new DeploymentCurrentPointer(body.DeploymentId), JsonConfig.Options), new UTF8Encoding(false), cancellationToken);
         succeeded = true;
+        try
+        {
+            await WriteProductionMigrationRollbackStateAsync(migrationRollbackPath,
+                new ProductionMigrationRollbackState(body.DeploymentId, previousDeploymentId, migrationStatus, "not_required", "deployment_succeeded", DateTimeOffset.UtcNow), cancellationToken);
+        }
+        catch (Exception exception) { app.Logger.LogError(exception, "Could not persist successful migration state for deployment {DeploymentId}.", body.DeploymentId); }
         return Results.Ok(result);
     }
     catch (InvalidDataException exception) { return Results.Conflict(new { error = exception.Message }); }
@@ -373,8 +393,10 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
     catch (IOException) { return Results.Problem("Production paket veya dağıtım dosyaları okunamadı.", statusCode: StatusCodes.Status500InternalServerError); }
     finally
     {
-        if (!succeeded && previousDeploymentId is Guid previousId)
+        if (!succeeded && previousDeploymentId is Guid previousId && ProductionMigrationRollbackPolicy.ShouldRestartPreviousApplication(migrationMayHaveRun))
         {
+            var rollbackOutcome = "previous_application_restart_failed";
+            var rollbackMessage = "Previous application was not confirmed healthy.";
             try
             {
                 var oldSource = Path.Combine(projectDirectory, $"{previousId:N}", "source");
@@ -389,19 +411,38 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
                     {
                         var restorePrefix = new[] { "compose", "--project-name", projectName, "--file", oldCompose, "--env-file", restoreEnv };
                         var restore = await RunDockerAsync(restorePrefix.Concat(["up", "--detach", "--build", "--remove-orphans"]), TimeSpan.FromMinutes(20), CancellationToken.None);
-                        if (restore.ExitCode == 0)
+                        if (restore.ExitCode == 0 && await WaitForHealthyAsync(restorePrefix, configuration, CancellationToken.None))
                         {
-                            var healthy = await WaitForHealthyAsync(restorePrefix, CancellationToken.None);
-                            Console.Error.WriteLine(healthy
-                                ? $"Production application rollback healthy: failed deployment {body.DeploymentId:D}, previous deployment {previousId:D}."
-                                : $"Production application rollback health check failed: failed deployment {body.DeploymentId:D}, previous deployment {previousId:D}.");
+                            rollbackOutcome = "previous_application_restarted_healthy_probe_only";
+                            rollbackMessage = "Previous application passed its configured health probe; database schema compatibility was not verified.";
                         }
-                        else Console.Error.WriteLine($"Production application rollback command failed: failed deployment {body.DeploymentId:D}, previous deployment {previousId:D}.");
                     }
                     finally { if (File.Exists(restoreEnv)) File.Delete(restoreEnv); }
                 }
             }
-            catch { }
+            catch (Exception exception)
+            {
+                rollbackMessage = $"Previous application restart failed: {exception.GetType().Name}.";
+            }
+            try
+            {
+                await WriteProductionMigrationRollbackStateAsync(migrationRollbackPath,
+                    new ProductionMigrationRollbackState(body.DeploymentId, previousId, migrationStatus, rollbackOutcome, rollbackMessage, DateTimeOffset.UtcNow), CancellationToken.None);
+            }
+            catch (Exception exception) { app.Logger.LogError(exception, "Could not persist production rollback state for deployment {DeploymentId}.", body.DeploymentId); }
+            app.Logger.LogWarning("Production deployment {DeploymentId} failed before migration; rollback outcome: {RollbackOutcome}. {RollbackMessage}", body.DeploymentId, rollbackOutcome, rollbackMessage);
+        }
+        else if (!succeeded && previousDeploymentId is Guid blockedPreviousId)
+        {
+            const string outcome = "blocked_migration_may_have_run";
+            const string message = "Previous application was not restarted because the new migration may have changed the database. Database restore is a separate operator decision.";
+            try
+            {
+                await WriteProductionMigrationRollbackStateAsync(migrationRollbackPath,
+                    new ProductionMigrationRollbackState(body.DeploymentId, blockedPreviousId, migrationStatus, outcome, message, DateTimeOffset.UtcNow), CancellationToken.None);
+            }
+            catch (Exception exception) { app.Logger.LogError(exception, "Could not persist production migration safety state for deployment {DeploymentId}.", body.DeploymentId); }
+            app.Logger.LogError("Production deployment {DeploymentId} failed after migration may have started. Previous application restart is blocked; migration status {MigrationStatus}.", body.DeploymentId, migrationStatus);
         }
         else if (!succeeded && Directory.Exists(deploymentDirectory))
         {
@@ -409,7 +450,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
             {
                 var failedCompose = Path.Combine(deploymentDirectory, "source", ".aierp-deploy", "compose.yml");
                 if (File.Exists(failedCompose) && File.Exists(envPath))
-                    await RunDockerAsync(["compose", "--project-name", projectName, "--file", failedCompose, "--env-file", envPath, "down", "--volumes", "--remove-orphans"], TimeSpan.FromMinutes(3), CancellationToken.None);
+                    await RunDockerAsync(ProductionMigrationRollbackPolicy.FailedDeploymentCleanupArguments(projectName, failedCompose, envPath), TimeSpan.FromMinutes(3), CancellationToken.None);
                 Directory.Delete(deploymentDirectory, recursive: true);
             }
             catch { }
@@ -472,22 +513,23 @@ app.MapPost("/internal/deployments/production/restore", async (RestoreProduction
         var activePrefix = new[] { "compose", "--project-name", projectName, "--file", activeCompose, "--env-file", envPath };
         var targetPrefix = new[] { "compose", "--project-name", projectName, "--file", targetCompose, "--env-file", targetEnvPath };
         var sqlcmd = new[] { "exec", "-T", "sqlserver", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", secrets.SqlPassword, "-C", "-b", "-d", "master", "-Q" };
-        var backupNames = await ReadBackupManifestAsync(body.ProjectId, body.BackupDeploymentId, cancellationToken);
-        if (backupNames is null && File.Exists(Path.Combine("/production-backups", $"AIERPPlatform-{body.ProjectId:N}-{body.BackupDeploymentId:N}.bak")))
+        var backupRoot = ProductionBackupRoot(configuration);
+        var backupNames = await ReadBackupManifestAsync(body.ProjectId, body.BackupDeploymentId, backupRoot, cancellationToken);
+        if (backupNames is null && File.Exists(Path.Combine(backupRoot, $"AIERPPlatform-{body.ProjectId:N}-{body.BackupDeploymentId:N}.bak")))
             backupNames = ["AIERPPlatform"]; // Compatibility with backups created before database-set manifests.
-        if (backupNames is null || backupNames.Count == 0 || !await VerifyDatabaseSetAsync(activePrefix, sqlcmd, backupNames, body.ProjectId, body.BackupDeploymentId, cancellationToken))
+        if (backupNames is null || backupNames.Count == 0 || !await VerifyDatabaseSetAsync(activePrefix, sqlcmd, backupNames, body.ProjectId, body.BackupDeploymentId, backupRoot, cancellationToken))
             return Results.Conflict(new { error = "Geri yüklenecek veritabanı yedek seti doğrulanamadı; production değişmeden bırakıldı." });
         safetyDatabaseNames = await ListAierpDatabasesAsync(activePrefix, sqlcmd, cancellationToken);
-        if (safetyDatabaseNames.Count == 0 || !await BackupDatabaseSetAsync(activePrefix, sqlcmd, safetyDatabaseNames, body.ProjectId, body.DeploymentId, cancellationToken))
+        if (safetyDatabaseNames.Count == 0 || !await BackupDatabaseSetAsync(activePrefix, sqlcmd, safetyDatabaseNames, body.ProjectId, body.DeploymentId, backupRoot, cancellationToken))
             return Results.Problem("Geri yükleme öncesi mevcut veritabanı yedek seti alınamadı; production değişmeden bırakıldı.", statusCode: StatusCodes.Status503ServiceUnavailable);
         var stopped = await RunDockerAsync(activePrefix.Concat(["stop", "platform-api", "ai-service", "platform-migrator"]), TimeSpan.FromMinutes(2), cancellationToken);
         if (stopped.ExitCode != 0) return Results.Problem("Production API durdurulamadı; veritabanı geri yüklenmedi.", statusCode: StatusCodes.Status503ServiceUnavailable);
         applicationStopped = true;
         databaseRestoreAttempted = true;
-        if (!await RestoreDatabaseSetAsync(activePrefix, sqlcmd, backupNames, body.ProjectId, body.BackupDeploymentId, cancellationToken))
+        if (!await RestoreDatabaseSetAsync(activePrefix, sqlcmd, backupNames, body.ProjectId, body.BackupDeploymentId, backupRoot, cancellationToken))
             return Results.Problem("Veritabanı yedek seti geri yüklenemedi; Deployer mevcut uygulama ve veriyi kurtarmayı deneyecek.", statusCode: StatusCodes.Status502BadGateway);
         if ((await RunDockerAsync(targetPrefix.Concat(["up", "--detach", "--build", "--remove-orphans"]), TimeSpan.FromMinutes(20), cancellationToken)).ExitCode != 0 ||
-            !await WaitForHealthyAsync(targetPrefix, cancellationToken))
+            !await WaitForHealthyAsync(targetPrefix, configuration, cancellationToken))
             return Results.Problem("Önceki uygulama sürümü geri yüklendi ancak health check geçmedi; Deployer mevcut veritabanı yedeğini geri almaya çalıştı.", statusCode: StatusCodes.Status504GatewayTimeout);
         var operationSource = Path.Combine(operationDirectory, "source");
         if (Directory.Exists(operationDirectory)) Directory.Delete(operationDirectory, recursive: true);
@@ -515,9 +557,9 @@ app.MapPost("/internal/deployments/production/restore", async (RestoreProduction
                 if (oldSecrets is not null && File.Exists(activeCompose))
                 {
                     var sqlcmd = new[] { "exec", "-T", "sqlserver", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", oldSecrets.SqlPassword, "-C", "-b", "-d", "master", "-Q" };
-                    var safetyRestored = !databaseRestoreAttempted || await RestoreDatabaseSetAsync(activePrefix, sqlcmd, safetyDatabaseNames, body.ProjectId, body.DeploymentId, CancellationToken.None);
+                    var safetyRestored = !databaseRestoreAttempted || await RestoreDatabaseSetAsync(activePrefix, sqlcmd, safetyDatabaseNames, body.ProjectId, body.DeploymentId, ProductionBackupRoot(configuration), CancellationToken.None);
                     var start = await RunDockerAsync(activePrefix.Concat(["up", "--detach", "--build", "--remove-orphans"]), TimeSpan.FromMinutes(20), CancellationToken.None);
-                    var healthy = start.ExitCode == 0 && safetyRestored && await WaitForHealthyAsync(activePrefix, CancellationToken.None);
+                    var healthy = start.ExitCode == 0 && safetyRestored && await WaitForHealthyAsync(activePrefix, configuration, CancellationToken.None);
                     Console.Error.WriteLine(healthy ? $"Production database restore rolled back safely for operation {body.DeploymentId:D}." : $"Production database restore recovery failed for operation {body.DeploymentId:D}.");
                 }
             }
@@ -574,16 +616,17 @@ static async Task BackupActiveProductionProjectsAsync(IConfiguration configurati
                 try
                 {
                     var databases = await ListAierpDatabasesAsync(prefix, sqlcmd, cancellationToken);
-                    if (databases.Count == 0 || !await BackupDatabaseSetAsync(prefix, sqlcmd, databases, projectId, backupId, cancellationToken))
+                    var backupRoot = ProductionBackupRoot(configuration);
+                    if (databases.Count == 0 || !await BackupDatabaseSetAsync(prefix, sqlcmd, databases, projectId, backupId, backupRoot, cancellationToken))
                         throw new IOException($"No verified AIERP database set was produced for project {projectId:N}.");
                     foreach (var database in databases)
                     {
-                        var stagingBackup = Path.Combine("/production-backups", Path.GetFileName(DatabaseBackupPath(database, projectId, backupId)));
-                        var activeBackup = Path.Combine("/production-backups", Path.GetFileName(DatabaseBackupPath(database, projectId, deploymentId)));
+                        var stagingBackup = Path.Combine(backupRoot, Path.GetFileName(DatabaseBackupPath(database, projectId, backupId)));
+                        var activeBackup = Path.Combine(backupRoot, Path.GetFileName(DatabaseBackupPath(database, projectId, deploymentId)));
                         File.Move(stagingBackup, activeBackup, overwrite: true);
                     }
-                    var stagingManifest = BackupManifestPath(projectId, backupId);
-                    var activeManifest = BackupManifestPath(projectId, deploymentId);
+                    var stagingManifest = BackupManifestPath(projectId, backupId, backupRoot);
+                    var activeManifest = BackupManifestPath(projectId, deploymentId, backupRoot);
                     var manifestStagingPath = $"{stagingManifest}.tmp";
                     await File.WriteAllTextAsync(manifestStagingPath, JsonSerializer.Serialize(databases, JsonConfig.Options), new UTF8Encoding(false), cancellationToken);
                     File.Move(manifestStagingPath, activeManifest, overwrite: true);
@@ -738,30 +781,51 @@ void WriteTrustedBuildFiles(string sourceRoot, bool production = false)
         ? StagingTemplates.StagingCompose
             .Replace("Staging", "Production", StringComparison.Ordinal)
             .Replace("STAGING_PORT", "PRODUCTION_PORT", StringComparison.Ordinal)
-            .Replace("volumes: [sql-data:/var/opt/mssql]", "volumes: [sql-data:/var/opt/mssql, aierp-production-backups:/var/opt/mssql/backups]", StringComparison.Ordinal)
-            .Replace("  module-packages:\n    external: true\n    name: aierp-module-packages\nnetworks:", "  module-packages:\n    external: true\n    name: aierp-module-packages\n  aierp-production-backups:\n    external: true\n    name: aierp-production-backups\nnetworks:", StringComparison.Ordinal)
+            .Replace("sql-backups:/var/opt/mssql/backups", "aierp-production-backups:/var/opt/mssql/backups", StringComparison.Ordinal)
+            .Replace("sql-backups:/backups", "aierp-production-backups:/backups", StringComparison.Ordinal)
         : StagingTemplates.StagingCompose;
+    if (production)
+    {
+        // Match the root-level networks key independent of source checkout CRLF/LF endings.
+        compose = System.Text.RegularExpressions.Regex.Replace(compose, "(?m)^  sql-backups:\\r?\\n", "");
+        compose = System.Text.RegularExpressions.Regex.Replace(compose, "(?m)^networks:",
+            "  aierp-production-backups:\n    external: true\n    name: aierp-production-backups\nnetworks:",
+            new System.Text.RegularExpressions.RegexOptions());
+    }
     if (production && (!compose.Contains("aierp-production-backups:/var/opt/mssql/backups", StringComparison.Ordinal) ||
+                       !compose.Contains("aierp-production-backups:/backups", StringComparison.Ordinal) ||
                        !compose.Contains("name: aierp-production-backups", StringComparison.Ordinal)))
         throw new InvalidDataException("Production Compose yedek volume'u oluşturulamadı.");
     File.WriteAllText(Path.Combine(deployDirectory, "compose.yml"), compose);
 }
 
-static async Task<bool> WaitForHealthyAsync(string[] composePrefix, CancellationToken cancellationToken)
+static async Task<bool> WaitForHealthyAsync(string[] composePrefix, IConfiguration configuration, CancellationToken cancellationToken)
 {
-    var deadline = DateTimeOffset.UtcNow.AddMinutes(5);
+    var timeoutSeconds = int.TryParse(configuration["ReleaseDeployer:HealthCheckTimeoutSeconds"], out var configuredTimeout)
+        ? Math.Clamp(configuredTimeout, 1, 300) : 300;
+    var intervalMilliseconds = int.TryParse(configuration["ReleaseDeployer:HealthCheckIntervalMilliseconds"], out var configuredInterval)
+        ? Math.Clamp(configuredInterval, 10, 5_000) : 5_000;
+    var deadline = DateTimeOffset.UtcNow.AddSeconds(timeoutSeconds);
     while (DateTimeOffset.UtcNow < deadline)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var result = await RunDockerAsync(composePrefix.Concat(["exec", "-T", "development-studio", "wget", "-q", "--spider", "http://127.0.0.1/health"]), TimeSpan.FromSeconds(10), cancellationToken);
         if (result.ExitCode == 0) return true;
-        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(intervalMilliseconds), cancellationToken);
     }
     return false;
 }
 
-static string BackupManifestPath(Guid projectId, Guid deploymentId) => Path.Combine("/production-backups", $"AIERP-{projectId:N}-{deploymentId:N}.json");
+static string ProductionBackupRoot(IConfiguration configuration) => Path.GetFullPath(configuration["ReleaseDeployer:ProductionBackupRoot"] ?? "/production-backups");
+static string BackupManifestPath(Guid projectId, Guid deploymentId, string backupRoot) => Path.Combine(backupRoot, $"AIERP-{projectId:N}-{deploymentId:N}.json");
 static string DatabaseBackupPath(string database, Guid projectId, Guid deploymentId) => $"/var/opt/mssql/backups/{database}-{projectId:N}-{deploymentId:N}.bak";
+
+static async Task WriteProductionMigrationRollbackStateAsync(string path, ProductionMigrationRollbackState state, CancellationToken cancellationToken)
+{
+    var temporaryPath = path + ".tmp";
+    await File.WriteAllTextAsync(temporaryPath, JsonSerializer.Serialize(state, JsonConfig.Options), new UTF8Encoding(false), cancellationToken);
+    File.Move(temporaryPath, path, overwrite: true);
+}
 
 static async Task<List<string>> ListAierpDatabasesAsync(IEnumerable<string> composePrefix, IEnumerable<string> sqlcmdPrefix, CancellationToken cancellationToken)
 {
@@ -775,9 +839,9 @@ static async Task<List<string>> ListAierpDatabasesAsync(IEnumerable<string> comp
 static bool IsSafeAierpDatabaseName(string name) => name == "AIERPPlatform" || name == "AIERPStudio" ||
     System.Text.RegularExpressions.Regex.IsMatch(name, "^AIERPTenant_[0-9a-fA-F]{32}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
-static async Task<List<string>?> ReadBackupManifestAsync(Guid projectId, Guid deploymentId, CancellationToken cancellationToken)
+static async Task<List<string>?> ReadBackupManifestAsync(Guid projectId, Guid deploymentId, string backupRoot, CancellationToken cancellationToken)
 {
-    var path = BackupManifestPath(projectId, deploymentId);
+    var path = BackupManifestPath(projectId, deploymentId, backupRoot);
     if (!File.Exists(path)) return null;
     try
     {
@@ -788,7 +852,7 @@ static async Task<List<string>?> ReadBackupManifestAsync(Guid projectId, Guid de
     catch (JsonException) { return null; }
 }
 
-static async Task<bool> BackupDatabaseSetAsync(IEnumerable<string> composePrefix, IEnumerable<string> sqlcmdPrefix, IReadOnlyList<string> databases, Guid projectId, Guid operationId, CancellationToken cancellationToken)
+static async Task<bool> BackupDatabaseSetAsync(IEnumerable<string> composePrefix, IEnumerable<string> sqlcmdPrefix, IReadOnlyList<string> databases, Guid projectId, Guid operationId, string backupRoot, CancellationToken cancellationToken)
 {
     foreach (var database in databases)
     {
@@ -796,30 +860,31 @@ static async Task<bool> BackupDatabaseSetAsync(IEnumerable<string> composePrefix
         var path = DatabaseBackupPath(database, projectId, operationId);
         var sql = $"BACKUP DATABASE {SqlIdentifier(database)} TO DISK = N'{path}' WITH INIT, CHECKSUM; RESTORE VERIFYONLY FROM DISK = N'{path}' WITH CHECKSUM";
         var result = await RunDockerAsync(composePrefix.Concat(sqlcmdPrefix).Append(sql), TimeSpan.FromMinutes(15), cancellationToken);
-        if (result.ExitCode != 0 || !File.Exists(Path.Combine("/production-backups", Path.GetFileName(path)))) return false;
+        if (result.ExitCode != 0 || !File.Exists(Path.Combine(backupRoot, Path.GetFileName(path)))) return false;
     }
     return true;
 }
 
-static async Task<bool> VerifyDatabaseSetAsync(IEnumerable<string> composePrefix, IEnumerable<string> sqlcmdPrefix, IReadOnlyList<string> databases, Guid projectId, Guid operationId, CancellationToken cancellationToken)
+static async Task<bool> VerifyDatabaseSetAsync(IEnumerable<string> composePrefix, IEnumerable<string> sqlcmdPrefix, IReadOnlyList<string> databases, Guid projectId, Guid operationId, string backupRoot, CancellationToken cancellationToken)
 {
     foreach (var database in databases)
     {
         if (!IsSafeAierpDatabaseName(database)) return false;
         var path = DatabaseBackupPath(database, projectId, operationId);
-        if (!File.Exists(Path.Combine("/production-backups", Path.GetFileName(path)))) return false;
+        if (!File.Exists(Path.Combine(backupRoot, Path.GetFileName(path)))) return false;
         var result = await RunDockerAsync(composePrefix.Concat(sqlcmdPrefix).Append($"RESTORE VERIFYONLY FROM DISK = N'{path}' WITH CHECKSUM"), TimeSpan.FromMinutes(5), cancellationToken);
         if (result.ExitCode != 0) return false;
     }
     return true;
 }
 
-static async Task<bool> RestoreDatabaseSetAsync(IEnumerable<string> composePrefix, IEnumerable<string> sqlcmdPrefix, IReadOnlyList<string> databases, Guid projectId, Guid operationId, CancellationToken cancellationToken)
+static async Task<bool> RestoreDatabaseSetAsync(IEnumerable<string> composePrefix, IEnumerable<string> sqlcmdPrefix, IReadOnlyList<string> databases, Guid projectId, Guid operationId, string backupRoot, CancellationToken cancellationToken)
 {
     foreach (var database in databases)
     {
         if (!IsSafeAierpDatabaseName(database)) return false;
         var path = DatabaseBackupPath(database, projectId, operationId);
+        if (!File.Exists(Path.Combine(backupRoot, Path.GetFileName(path)))) return false;
         var sql = $"IF DB_ID(N'{database}') IS NOT NULL ALTER DATABASE {SqlIdentifier(database)} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE {SqlIdentifier(database)} FROM DISK = N'{path}' WITH REPLACE, CHECKSUM; ALTER DATABASE {SqlIdentifier(database)} SET MULTI_USER";
         var result = await RunDockerAsync(composePrefix.Concat(sqlcmdPrefix).Append(sql), TimeSpan.FromMinutes(20), cancellationToken);
         if (result.ExitCode != 0) return false;
@@ -834,7 +899,20 @@ static string DerivePluginHostSigningKey(string apiSigningKey) => Convert.ToBase
 
 static async Task<CommandResult> RunDockerAsync(IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken)
 {
-    var start = new ProcessStartInfo("docker") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+    // The executable override is used by isolated release-orchestration acceptance tests.
+    // Production keeps the Docker CLI default; no request data can select the executable.
+    var executable = DeployerState.AllowTestDockerOverride
+        ? Environment.GetEnvironmentVariable("AIERP_RELEASE_DEPLOYER_DOCKER_EXECUTABLE") : null;
+    var start = new ProcessStartInfo(string.IsNullOrWhiteSpace(executable) ? "docker" : executable)
+        { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+    var argumentPrefix = DeployerState.AllowTestDockerOverride
+        ? Environment.GetEnvironmentVariable("AIERP_RELEASE_DEPLOYER_DOCKER_ARGUMENTS_PREFIX") : null;
+    if (!string.IsNullOrWhiteSpace(argumentPrefix))
+    {
+        var parsedPrefix = JsonSerializer.Deserialize<string[]>(argumentPrefix, JsonConfig.Options)
+            ?? throw new InvalidOperationException("Docker command argument prefix must be a JSON string array.");
+        foreach (var argument in parsedPrefix) start.ArgumentList.Add(argument);
+    }
     foreach (var argument in arguments) start.ArgumentList.Add(argument);
     using var process = new Process { StartInfo = start };
     process.Start();
@@ -862,11 +940,28 @@ static async Task<string> ReadBoundedAsync(StreamReader reader, int maxChars, Ca
 }
 
 static class JsonConfig { public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web); }
-sealed class DeployerState { public static readonly SemaphoreSlim Gate = new(1, 1); }
+sealed class DeployerState
+{
+    public static readonly SemaphoreSlim Gate = new(1, 1);
+    public static bool AllowTestDockerOverride { get; set; }
+}
+public static class ReleaseDeployerDockerExecutionPolicy
+{
+    public static bool IsTestOverrideAllowed(string? environmentName) =>
+        string.Equals(environmentName, "Test", StringComparison.OrdinalIgnoreCase);
+}
 sealed record CreateStagingDeployment(Guid DeploymentId, Guid TenantId, Guid ProjectId, Guid PackageId, Guid IdempotencyKey, Guid? ExpectedActiveDeploymentId, string PackageSha256, string CommitSha, string Version);
 sealed record RestoreProductionDeployment(Guid DeploymentId, Guid TenantId, Guid ProjectId, Guid PackageId, Guid IdempotencyKey, Guid ExpectedActiveDeploymentId, Guid BackupDeploymentId, Guid TargetDeploymentId, string PackageSha256, string CommitSha, string Version);
 sealed record StagingDeploymentResult(Guid DeploymentId, Guid IdempotencyKey, Guid PackageId, string PackageSha256, string CommitSha, string Url, string ProviderDeploymentId, string BootstrapEmail, string BootstrapPassword, DateTimeOffset CreatedAt);
 sealed record DeploymentCurrentPointer(Guid DeploymentId);
+public sealed record ProductionMigrationRollbackState(Guid DeploymentId, Guid? PreviousDeploymentId, string MigrationStatus, string RollbackStatus, string? Message, DateTimeOffset UpdatedAt);
+public static class ProductionMigrationRollbackPolicy
+{
+    public static bool ShouldRestartPreviousApplication(bool migrationMayHaveRun) => !migrationMayHaveRun;
+
+    public static string[] FailedDeploymentCleanupArguments(string projectName, string composeFile, string envFile) =>
+        ["compose", "--project-name", projectName, "--file", composeFile, "--env-file", envFile, "down", "--remove-orphans"];
+}
 sealed record DeploymentSecrets(string BootstrapEmail, string BootstrapPassword, string SqlPassword, string JwtKey, string TenantName, int Port,
     string? PlatformRuntimePassword = null, string? DataRuntimePassword = null);
 sealed record PackageMetadata(Guid PackageId, string FileName, string Version, string CommitSha, string PackageSha256, long SizeBytes, int FileCount, DateTimeOffset CreatedAt);

@@ -1,0 +1,20 @@
+{
+  "product": "Nexora AI ERP IIS Bundle",
+  "version": "local-20261018-refresh",
+  "configuration": "Release",
+  "targetFramework": "net10.0",
+  "hostingModel": "framework-dependent IIS ANCM out-of-process",
+  "builtAtUtc": "2026-10-18T19:21:18.2237719Z",
+  "components": [
+    "platform-api",
+    "ai-service",
+    "erp-web",
+    "development-studio"
+  ],
+  "prerequisites": [
+    "Windows Server with IIS 10",
+    "ASP.NET Core .NET 10 Hosting Bundle",
+    "IIS URL Rewrite 2.1",
+    "IIS ARR 3.0"
+  ]
+}

@@ -14,17 +14,15 @@ public static class TenantDatabaseSeparationVerifier
             ?? throw new InvalidOperationException($"Tenant {tenantId:D} has no database catalog entry.");
         if (entry.State != TenantDatabaseProvisioningState.Ready)
             throw new InvalidOperationException($"Tenant {tenantId:D} database is not Ready.");
-        var sourceName = new SqlConnectionStringBuilder(platformConnection).InitialCatalog;
         var targetConnection = new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = entry.DatabaseName };
         var options = new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(targetConnection.ConnectionString).Options;
         await using var target = new TenantDbContext(options);
-        await VerifyRowsAsync(sourceName, target, tenantId, cancellationToken);
+        await VerifyTenantIsolationAsync(target, tenantId, cancellationToken);
         await VerifyDatabaseAsync(targetConnection.ConnectionString, cancellationToken);
     }
 
     public static async Task VerifyStudioTenantAsync(string platformConnection, Guid tenantId, CancellationToken cancellationToken = default)
     {
-        var sourceName = new SqlConnectionStringBuilder(platformConnection).InitialCatalog;
         var platformOptions = new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options;
         await using var platform = new PlatformDbContext(platformOptions);
         var state = await platform.DatabaseSeparationComponentStates.AsNoTracking()
@@ -34,7 +32,6 @@ public static class TenantDatabaseSeparationVerifier
         var studioConnection = new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = state.DatabaseName };
         var options = new DbContextOptionsBuilder<AIStudioDbContext>().UseSqlServer(studioConnection.ConnectionString).Options;
         await using var target = new AIStudioDbContext(options);
-        await VerifyRowsAsync(sourceName, target, tenantId, cancellationToken);
         await VerifyDatabaseAsync(studioConnection.ConnectionString, cancellationToken);
     }
 
@@ -50,9 +47,8 @@ public static class TenantDatabaseSeparationVerifier
         }
     }
 
-    private static async Task VerifyRowsAsync(string? sourceDatabase, DbContext target, Guid tenantId, CancellationToken cancellationToken)
+    private static async Task VerifyTenantIsolationAsync(DbContext target, Guid tenantId, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(sourceDatabase)) throw new InvalidOperationException("Platform connection must specify a database.");
         var connection = (SqlConnection)target.Database.GetDbConnection();
         await connection.OpenAsync(cancellationToken);
         try
@@ -71,11 +67,11 @@ public static class TenantDatabaseSeparationVerifier
                 var filter = table.Name == "Tenants" ? "Id" : columns.Contains("TenantId") ? "TenantId" : null;
                 if (filter is null) continue;
                 await using var count = connection.CreateCommand();
-                count.CommandText = $"SELECT (SELECT COUNT_BIG(*) FROM {Q(sourceDatabase)}.{Q(table.Schema)}.{Q(table.Name)} WHERE {Q(filter)}=@tenant), (SELECT COUNT_BIG(*) FROM {Q(table.Schema)}.{Q(table.Name)} WHERE {Q(filter)}=@tenant)";
+                count.CommandText = $"SELECT COUNT_BIG(*) FROM {Q(table.Schema)}.{Q(table.Name)} WHERE {Q(filter)}<>@tenant";
                 count.Parameters.AddWithValue("@tenant", tenantId);
-                await using var countReader = await count.ExecuteReaderAsync(cancellationToken);
-                if (!await countReader.ReadAsync(cancellationToken) || countReader.GetInt64(0) != countReader.GetInt64(1))
-                    throw new InvalidOperationException($"Tenant row count verification failed for {table.Schema}.{table.Name} in {connection.Database}.");
+                var outOfScopeRows = Convert.ToInt64(await count.ExecuteScalarAsync(cancellationToken), System.Globalization.CultureInfo.InvariantCulture);
+                if (outOfScopeRows != 0)
+                    throw new InvalidOperationException($"Tenant database {connection.Database} contains {outOfScopeRows} rows outside tenant scope in {table.Schema}.{table.Name}.");
             }
         }
         finally { await connection.CloseAsync(); }

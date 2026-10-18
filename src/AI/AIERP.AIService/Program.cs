@@ -1,7 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading.RateLimiting;
@@ -22,6 +24,7 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddAierpHttpMetrics();
+builder.Services.AddHostedService<PrometheusBusinessMetricsBridge>();
 var jwtKey = builder.Configuration["Authentication:SigningKey"];
 if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32) throw new InvalidOperationException("Authentication:SigningKey must be configured with at least 32 bytes.");
 var connectionString = builder.Configuration.GetConnectionString("Platform") ?? throw new InvalidOperationException("ConnectionStrings:Platform is required.");
@@ -59,6 +62,11 @@ builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler
 builder.Services.AddAuthorization(options => options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
     .RequireAuthenticatedUser().AddRequirements(new PermissionRequirement()).Build());
 builder.Services.AddHttpClient("workspace-runner", client => client.Timeout = TimeSpan.FromMinutes(4));
+builder.Services.AddHttpClient("platform-api", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["PlatformApi:BaseUrl"] ?? "http://platform-api:8080");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddHttpClient("release-deployer", client => client.Timeout = TimeSpan.FromMinutes(25));
 builder.Services.AddHttpClient<GitHubAppInstallationTokenProvider>(client => client.Timeout = TimeSpan.FromSeconds(20));
 builder.Services.AddHttpClient("github-api", client =>
@@ -82,6 +90,9 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("ai-tester", context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.FindFirstValue("sub") ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 3, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+    options.AddPolicy("ai-database-engineer", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirstValue("sub") ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 3, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     options.AddPolicy("ai-chat", context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.FindFirstValue("sub") ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 15, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
@@ -90,6 +101,9 @@ builder.Services.AddRateLimiter(options =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     options.AddPolicy("workspace-read", context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.FindFirstValue("sub") ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+    options.AddPolicy("github-webhook", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
 });
 var frontendOrigins = builder.Configuration.GetSection("Frontend:Origins").Get<string[]>() ?? [builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173"];
@@ -144,6 +158,24 @@ app.MapGet("/health", async (PlatformDbContext platformDb, IConfiguration config
         return Results.Json(new { status = "not_ready", service = "ai-development-service", dependency = "database" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 });
+app.MapGitHubWebhook(async (context, webhook, deliveryId, cancellationToken) =>
+{
+    var configuration = context.RequestServices.GetRequiredService<IConfiguration>();
+    var platformDb = context.RequestServices.GetRequiredService<PlatformDbContext>();
+    var studioConnection = configuration.GetConnectionString("AIStudio") ?? configuration.GetConnectionString("Platform")!;
+    if (configuration.GetValue<bool>("Database:SeparationEnabled"))
+    {
+        var component = await platformDb.DatabaseSeparationComponentStates.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Component == "AIStudio", cancellationToken);
+        if (component is null || component.State != TenantDatabaseProvisioningState.Ready)
+            return Results.Problem("AI Studio database is not ready to process GitHub events.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        studioConnection = new SqlConnectionStringBuilder(studioConnection) { InitialCatalog = component.DatabaseName }.ConnectionString;
+    }
+    var studioOptions = new DbContextOptionsBuilder<AIStudioDbContext>().UseSqlServer(studioConnection).Options;
+    await using var studioDb = new AIStudioDbContext(studioOptions);
+    var changed = await GitHubPullRequestStateSynchronizer.ApplyAsync(studioDb, webhook, deliveryId, cancellationToken);
+    return Results.Ok(new { updated = changed });
+}).RequireRateLimiting("github-webhook");
 app.MapGet("/studio/capabilities", async (ClaimsPrincipal user, IConfiguration configuration, PlatformDbContext platformDb) =>
 {
     if (!TryScope(user, out var tenantId, out _)) return Results.Forbid();
@@ -767,6 +799,175 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) { return Results.Problem("Test hedefleri taraması zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization();
+app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPrincipal user, HttpContext httpContext,
+    IAIModelProvider aiProvider, IHttpClientFactory clients, AIStudioDbContext db, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "ERP sorusunu AI sağlayıcısına göndermek için açık kullanıcı onayı gerekli." });
+    var question = body.Question?.Trim();
+    if (string.IsNullOrWhiteSpace(question) || question.Length > 2000)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["question"] = ["Soru gerekli ve en fazla 2000 karakter olabilir."] });
+    var authorization = httpContext.Request.Headers.Authorization.ToString();
+    if (!authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return Results.Unauthorized();
+
+    async Task<string> ExecuteReadOnlyTool(string name, string argumentsJson, CancellationToken ct)
+    {
+        using var arguments = JsonDocument.Parse(argumentsJson);
+        if (arguments.RootElement.ValueKind != JsonValueKind.Object) throw new ArgumentException("Tool arguments must be an object.");
+        string path;
+        object? postBody = null;
+        switch (name)
+        {
+            case "search_stock_items":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) || termElement.ValueKind != JsonValueKind.String)
+                    throw new ArgumentException("Invalid stock search arguments.");
+                var term = termElement.GetString()?.Trim();
+                if (term is null || term.Length is < 2 or > 100) throw new ArgumentException("Search term must contain 2–100 characters.");
+                path = QueryHelpers.AddQueryString("/api/stock/items", new Dictionary<string, string?> { ["q"] = term, ["page"] = "1", ["pageSize"] = "25" });
+                break;
+            }
+            case "list_warehouses":
+                if (arguments.RootElement.EnumerateObject().Any()) throw new ArgumentException("Unexpected warehouse arguments.");
+                path = "/api/warehouses";
+                break;
+            case "get_warehouse_balances":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("warehouseId", out var idElement) ||
+                    idElement.ValueKind != JsonValueKind.String || !Guid.TryParse(idElement.GetString(), out var warehouseId))
+                    throw new ArgumentException("Invalid warehouse identifier.");
+                path = $"/api/warehouses/{warehouseId:D}/balances";
+                break;
+            }
+            case "search_customer_accounts":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) || termElement.ValueKind != JsonValueKind.String)
+                    throw new ArgumentException("Invalid account search arguments.");
+                var term = termElement.GetString()?.Trim();
+                if (term is null || term.Length is < 2 or > 100) throw new ArgumentException("Search term must contain 2–100 characters.");
+                path = QueryHelpers.AddQueryString("/api/customers", new Dictionary<string, string?> { ["q"] = term, ["page"] = "1", ["pageSize"] = "25" });
+                break;
+            }
+            case "get_customer_balance":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("customerId", out var idElement) ||
+                    idElement.ValueKind != JsonValueKind.String || !Guid.TryParse(idElement.GetString(), out var customerId))
+                    throw new ArgumentException("Invalid customer identifier.");
+                path = $"/api/customers/{customerId:D}/balance";
+                break;
+            }
+            case "generate_report":
+            {
+                var root = arguments.RootElement;
+                var properties = root.EnumerateObject().ToArray();
+                var allowedSources = new HashSet<string>(StringComparer.Ordinal)
+                {
+                    "customers", "salesInvoices", "purchaseOrders", "purchaseInvoices", "purchaseReceipts",
+                    "manufacturingOrders", "inventoryTransactions", "salesOrders", "salesDeliveries", "salesReturns",
+                    "purchaseRequests", "stockItems"
+                };
+                if (properties.Length != 5 || !root.TryGetProperty("source", out var sourceElement) || sourceElement.ValueKind != JsonValueKind.String ||
+                    !allowedSources.Contains(sourceElement.GetString() ?? "") || !root.TryGetProperty("columns", out var columnsElement) ||
+                    columnsElement.ValueKind != JsonValueKind.Array || columnsElement.GetArrayLength() is < 1 or > 10 ||
+                    !root.TryGetProperty("filters", out var filtersElement) || filtersElement.ValueKind != JsonValueKind.Array || filtersElement.GetArrayLength() > 5 ||
+                    !root.TryGetProperty("sortBy", out var sortByElement) || sortByElement.ValueKind != JsonValueKind.String ||
+                    !root.TryGetProperty("descending", out var descendingElement) || descendingElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                    throw new ArgumentException("Invalid bounded report arguments.");
+
+                var columns = columnsElement.EnumerateArray().Select(column =>
+                {
+                    if (column.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(column.GetString()) || column.GetString()!.Length > 64)
+                        throw new ArgumentException("Invalid report column.");
+                    return column.GetString()!;
+                }).ToArray();
+                if (columns.Distinct(StringComparer.Ordinal).Count() != columns.Length || !columns.Contains(sortByElement.GetString(), StringComparer.Ordinal))
+                    throw new ArgumentException("Report columns must be unique and include the sort field.");
+
+                var filters = filtersElement.EnumerateArray().Select(filter =>
+                {
+                    if (filter.ValueKind != JsonValueKind.Object || filter.EnumerateObject().Count() != 3 ||
+                        !filter.TryGetProperty("field", out var fieldElement) || fieldElement.ValueKind != JsonValueKind.String ||
+                        string.IsNullOrWhiteSpace(fieldElement.GetString()) || fieldElement.GetString()!.Length > 64 ||
+                        !filter.TryGetProperty("operator", out var operatorElement) || operatorElement.ValueKind != JsonValueKind.String ||
+                        !new[] { "equals", "contains", "gt", "gte", "lt", "lte", "isNull" }.Contains(operatorElement.GetString(), StringComparer.Ordinal) ||
+                        !filter.TryGetProperty("value", out var valueElement) || valueElement.ValueKind != JsonValueKind.String ||
+                        valueElement.GetString()!.Length > 200 || (operatorElement.GetString() == "isNull" && valueElement.GetString()!.Length != 0) ||
+                        (operatorElement.GetString() != "isNull" && valueElement.GetString()!.Length == 0))
+                        throw new ArgumentException("Invalid report filter.");
+                    return new { field = fieldElement.GetString(), @operator = operatorElement.GetString(), value = valueElement.GetString() };
+                }).ToArray();
+
+                path = "/api/reports/run";
+                postBody = new
+                {
+                    source = sourceElement.GetString(), columns, filters, sortBy = sortByElement.GetString(),
+                    descending = descendingElement.GetBoolean(), page = 1, pageSize = 10
+                };
+                break;
+            }
+            default: throw new ArgumentException("Unknown read-only ERP tool.");
+        }
+
+        var client = clients.CreateClient("platform-api");
+        using var request = new HttpRequestMessage(postBody is null ? HttpMethod.Get : HttpMethod.Post, path);
+        if (postBody is not null) request.Content = JsonContent.Create(postBody);
+        request.Headers.Authorization = System.Net.Http.Headers.AuthenticationHeaderValue.Parse(authorization);
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (!response.IsSuccessStatusCode) return JsonSerializer.Serialize(new { error = $"ERP data request failed ({(int)response.StatusCode})." });
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var result = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+        if (name == "list_warehouses")
+            return JsonSerializer.Serialize(result.RootElement.EnumerateArray().Select(item => new
+            {
+                id = item.GetProperty("id").GetGuid(), code = item.GetProperty("code").GetString(),
+                name = item.GetProperty("name").GetString(), active = item.GetProperty("isActive").GetBoolean()
+            }));
+        if (name == "search_stock_items")
+        {
+            var items = result.RootElement.GetProperty("items").EnumerateArray().Select(item => new
+            {
+                code = item.GetProperty("code").GetString(), name = item.GetProperty("name").GetString(),
+                unitCode = item.GetProperty("unitCode").GetString(), active = item.GetProperty("isActive").GetBoolean()
+            });
+            return JsonSerializer.Serialize(items);
+        }
+        if (name == "search_customer_accounts")
+            return JsonSerializer.Serialize(result.RootElement.GetProperty("items").EnumerateArray().Select(item => new
+            {
+                id = item.GetProperty("id").GetGuid(), code = item.GetProperty("code").GetString(),
+                name = item.GetProperty("name").GetString(), type = item.GetProperty("type").ToString(),
+                active = item.GetProperty("isActive").GetBoolean()
+            }));
+        if (name == "get_customer_balance") return JsonSerializer.Serialize(result.RootElement);
+        if (name == "generate_report")
+            return ERPReportToolResult.Serialize(result.RootElement);
+        return JsonSerializer.Serialize(result.RootElement.EnumerateArray().Take(100).Select(item => new
+        {
+            code = item.GetProperty("code").GetString(), name = item.GetProperty("name").GetString(),
+            unitCode = item.GetProperty("unitCode").GetString(), quantityOnHand = item.GetProperty("quantityOnHand").GetDecimal(),
+            reservedQuantity = item.GetProperty("reservedQuantity").GetDecimal(), availableQuantity = item.GetProperty("availableQuantity").GetDecimal(),
+            belowMinimum = item.GetProperty("belowMinimum").GetBoolean()
+        }));
+    }
+
+    try
+    {
+        var history = body.History ?? Array.Empty<StudioChatTurn>();
+        if (history.Count > 10 || history.Any(turn => turn.Role is not ("user" or "assistant") || turn.Content.Length > 2000))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["history"] = ["Sohbet geçmişi izin verilen sınırları aşıyor."] });
+        var answer = await aiProvider.ReplyToERPDataQuestionAsync(question, history, cancellationToken, ExecuteReadOnlyTool);
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.ai.read_assistant", Resource = "read-only-erp-data" });
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Ok(new { answer, readOnly = true });
+    }
+    catch (AIProviderNotConfiguredException) { return Results.Problem("AI sağlayıcısı yapılandırılmamış.", statusCode: 503); }
+    catch (AIProviderResponseException error) { return Results.Problem(error.Message, statusCode: 502); }
+}).RequireAuthorization(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build()).RequireRateLimiting("ai-chat");
+
 app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-runs", async (Guid projectId, Guid requestId, [FromBody] CreateWorkspaceTestRun body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
@@ -851,8 +1052,14 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.ExecutionConfirmed) return Results.BadRequest(new { error = "Proje kodunu sandbox içinde build etmek için açık onay gerekli." });
-    if (!IsStudioSourcePath(body.TargetPath) || !Path.GetExtension(body.TargetPath ?? "").Equals(".csproj", StringComparison.OrdinalIgnoreCase))
-        return Results.ValidationProblem(new Dictionary<string, string[]> { ["targetPath"] = ["Yalnız keşfedilmiş .NET proje dosyaları build edilebilir."] });
+    var isDotNetTarget = Path.GetExtension(body.TargetPath ?? "").Equals(".csproj", StringComparison.OrdinalIgnoreCase);
+    var isNodeTarget = Path.GetFileName(body.TargetPath ?? "").Equals("package.json", StringComparison.OrdinalIgnoreCase);
+    var isPythonTarget = Path.GetExtension(body.TargetPath ?? "").Equals(".py", StringComparison.OrdinalIgnoreCase);
+    var isGoTarget = IsStudioGoManifestPath(body.TargetPath);
+    var isRustTarget = IsStudioCargoManifestPath(body.TargetPath);
+    if ((!IsStudioSourcePath(body.TargetPath) && !isGoTarget && !isRustTarget) ||
+        (!isDotNetTarget && !isNodeTarget && !isPythonTarget && !isGoTarget && !isRustTarget))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["targetPath"] = ["Yalnız keşfedilmiş .NET, Node.js, Python, Go veya Rust build hedefleri kullanılabilir."] });
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
     if (project is null) return Results.NotFound();
     if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
@@ -929,7 +1136,6 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
     if (request is null) return Results.NotFound();
     if (string.IsNullOrWhiteSpace(request.WorkspaceBranchName)) return Results.Conflict(new { error = "İzole çalışma dalı hazır değil." });
-    if (string.IsNullOrWhiteSpace(configuration["AI:OpenAI:ApiKey"])) return Results.Problem("AI sağlayıcısı yapılandırılmadı.", statusCode: StatusCodes.Status503ServiceUnavailable);
     if (!Uri.TryCreate(configuration["WorkspaceRunner:BaseUrl"], UriKind.Absolute, out var runnerUri) || runnerUri.Scheme != Uri.UriSchemeHttp)
         return Results.Problem("Workspace Runner yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
     try
@@ -949,12 +1155,27 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         if (!failed) return Results.Conflict(new { error = "Yalnızca başarısız veya tamamlanamayan sandbox işleri analiz edilebilir.", status = status.Status });
         var context = new SandboxErrorContext(body.Operation, status.TargetPath, status.Status, status.ExitCode,
             SandboxLogRedactor.Redact(status.Message), SandboxLogRedactor.Redact(status.Output), status.CommitSha);
+        var triage = SandboxFailureTriage.Classify(context.Operation, context.Status, context.Message, context.Output);
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.sandbox-error-analysis.requested", Resource = $"{request.Id:D}:{jobId:D}" });
         await db.SaveChangesAsync(cancellationToken);
-        var analysis = await aiProvider.AnalyzeSandboxErrorAsync(project.Name, request.WorkspaceBranchName, context, cancellationToken);
+        SandboxErrorAnalysis analysis;
+        if (SandboxFailureTriage.RequiresAiAnalysis(triage))
+        {
+            if (string.IsNullOrWhiteSpace(configuration["AI:OpenAI:ApiKey"]))
+                return Results.Problem("AI sağlayıcısı yapılandırılmadı.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            analysis = await aiProvider.AnalyzeSandboxErrorAsync(project.Name, request.WorkspaceBranchName, context, cancellationToken);
+        }
+        else
+        {
+            analysis = new SandboxErrorAnalysis(
+                triage.Summary,
+                "Bu sonuç için deterministik sınıflandırma AI kaynak incelemesi önermiyor.",
+                new[] { triage.NextStep },
+                new[] { "AI sağlayıcısına istek gönderilmedi.", "Bu sonuç otomatik kod değişikliği oluşturmaz." });
+        }
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.sandbox-error-analysis.completed", Resource = $"{request.Id:D}:{jobId:D}" });
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new { jobId, analysis, operation = body.Operation, targetPath = status.TargetPath, status = status.Status, commitSha = status.CommitSha, outputWasRedacted = true, sourceOutputPersisted = false });
+        return Results.Ok(new { jobId, analysis, triage, operation = body.Operation, targetPath = status.TargetPath, status = status.Status, commitSha = status.CommitSha, outputWasRedacted = true, sourceOutputPersisted = false });
     }
     catch (AIProviderNotConfiguredException) { return Results.Problem("AI sağlayıcısı yapılandırılmadı.", statusCode: StatusCodes.Status503ServiceUnavailable); }
     catch (AIProviderResponseException) { return Results.Problem("AI sandbox hata analizi yanıtı alınamadı.", statusCode: StatusCodes.Status502BadGateway); }
@@ -1044,6 +1265,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     var candidate = await db.ReleaseCandidateRecords
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId && x.Id == version.ReleaseCandidateId, cancellationToken);
     if (candidate is null || !string.Equals(candidate.CommitSha, version.CommitSha, StringComparison.OrdinalIgnoreCase)) return Results.Conflict(new { error = "Sürüm adayı ve sürüm metadata'sı eşleşmiyor." });
+    if (!GitHubPullRequestReleaseRules.CanRelease(candidate)) return Results.Conflict(new { error = "Bağlı GitHub PR kapalı veya geçerli durumda değil; yeni paket için PR yeniden açılmalı ya da birleştirilmeli." });
     var review = await db.ReleaseCandidateReviewRecords.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidate.Id, cancellationToken);
     if (review?.Decision != "Approved" || review.ReviewedByUserId == candidate.CreatedByUserId)
         return Results.Conflict(new { error = "Paket için sürüm adayını oluşturan kişiden bağımsız yetkili onayı gerekli." });
@@ -1116,6 +1338,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == version.ReleaseCandidateId, cancellationToken);
     if (candidate is null || version is null || candidate.CommitSha != package.CommitSha || version.CommitSha != package.CommitSha)
         return Results.Conflict(new { error = "Paket, sürüm adayı ve commit aynı proje/istek kapsamında eşleşmiyor." });
+    if (body.RollbackTargetDeploymentId is null && !GitHubPullRequestReleaseRules.CanRelease(candidate)) return Results.Conflict(new { error = "Bağlı GitHub PR kapalı veya geçerli durumda değil; staging için PR yeniden açılmalı ya da birleştirilmeli." });
     if (body.RollbackTargetDeploymentId is null && candidate.WorkspaceRequestId != requestId)
         return Results.Conflict(new { error = "Normal dağıtım paketi seçili workspace isteğine ait olmalıdır." });
     var review = await db.ReleaseCandidateReviewRecords.AsNoTracking()
@@ -1256,6 +1479,8 @@ app.MapPost("/studio/projects/{projectId:guid}/release-deployments/{deploymentId
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidate.Id, cancellationToken);
     if (package is null || version is null || candidate is null || candidateReview?.Decision != "Approved" || candidateReview.ReviewedByUserId == candidate.CreatedByUserId)
         return Results.Conflict(new { error = "Paketin bağımsız aday onayı doğrulanamadı." });
+    if (staging.RollbackOfDeploymentId is null && !GitHubPullRequestReleaseRules.CanRelease(candidate))
+        return Results.Conflict(new { error = "Bağlı GitHub PR kapalı veya geçerli durumda değil; üretim onayı için PR yeniden açılmalı ya da birleştirilmeli." });
     var approval = new StudioProductionPromotionApprovalRecord
     {
         TenantId = tenantId, ProjectId = projectId, StagingDeploymentId = staging.Id, ReleasePackageId = package.Id,
@@ -1382,6 +1607,16 @@ app.MapPost("/studio/projects/{projectId:guid}/production-approvals/{approvalId:
     var package = await db.StudioReleasePackageRecords.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == approval.ReleasePackageId, cancellationToken);
     if (package is null) return Results.Conflict(new { error = "Onaylı release paketi bulunamadı." });
+    var version = await db.StudioReleaseVersionRecords.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == package.ReleaseVersionId, cancellationToken);
+    var candidate = version is null ? null : await db.ReleaseCandidateRecords.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == version.ReleaseCandidateId, cancellationToken);
+    var stagingDeployment = await db.StudioReleaseDeploymentRecords.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == approval.StagingDeploymentId, cancellationToken);
+    if (candidate is null || stagingDeployment is null)
+        return Results.Conflict(new { error = "Üretim onayının bağlı sürüm adayı veya staging dağıtımı bulunamadı." });
+    if (stagingDeployment.RollbackOfDeploymentId is null && !GitHubPullRequestReleaseRules.CanRelease(candidate))
+        return Results.Conflict(new { error = "Bağlı GitHub PR kapalı veya geçerli durumda değil; üretim yayını için PR yeniden açılmalı ya da birleştirilmeli." });
     if (!Uri.TryCreate(configuration["ReleaseDeployer:BaseUrl"], UriKind.Absolute, out var deployerUri) || deployerUri.Scheme != Uri.UriSchemeHttp)
         return Results.Problem("Yerel production deployer yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
     var active = await db.StudioReleaseDeploymentRecords
@@ -1852,30 +2087,23 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
 
         using var github = clients.CreateClient("github-api");
         github.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", installationToken);
-        var baseBranch = Uri.EscapeDataString(workspaceRequest.BranchName);
-        var head = Uri.EscapeDataString($"{owner}:{candidate.BranchName}");
-        using var existingResponse = await github.GetAsync($"repos/{Uri.EscapeDataString(owner)}/{Uri.EscapeDataString(repositoryName)}/pulls?state=open&head={head}&base={baseBranch}", cancellationToken);
-        if (!existingResponse.IsSuccessStatusCode) return Results.Problem("Dal gönderildi ancak açık PR durumu okunamadı.", statusCode: StatusCodes.Status502BadGateway);
-        var existing = await existingResponse.Content.ReadFromJsonAsync<List<GitHubPullRequestResponse>>(cancellationToken: cancellationToken) ?? [];
-        var pull = existing.FirstOrDefault();
-        var created = false;
-        if (pull is null)
-        {
-            using var createResponse = await github.PostAsJsonAsync($"repos/{Uri.EscapeDataString(owner)}/{Uri.EscapeDataString(repositoryName)}/pulls",
-                new { title, body = description, head = candidate.BranchName, @base = workspaceRequest.BranchName, draft = true }, cancellationToken);
-            if (!createResponse.IsSuccessStatusCode) return Results.Problem("Dal gönderildi ancak GitHub PR oluşturmayı reddetti.", statusCode: StatusCodes.Status502BadGateway);
-            pull = await createResponse.Content.ReadFromJsonAsync<GitHubPullRequestResponse>(cancellationToken: cancellationToken);
-            created = true;
-        }
-        if (pull is null || pull.Number <= 0 || string.IsNullOrWhiteSpace(pull.HtmlUrl)) return Results.Problem("GitHub geçersiz PR yanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway);
+        var publishResult = await GitHubPullRequestPublisher.PublishAsync(github, owner, repositoryName,
+            candidate.BranchName, workspaceRequest.BranchName, title, description, cancellationToken);
+        if (!publishResult.Succeeded)
+            return Results.Problem(publishResult.Failure ?? "GitHub PR oluşturma sonucu doğrulanamadı.", statusCode: StatusCodes.Status502BadGateway);
+        var pull = publishResult.PullRequest!;
+        var created = publishResult.Created;
         candidate.GitHubPullRequestNumber = pull.Number;
         candidate.GitHubPullRequestUrl = pull.HtmlUrl;
         candidate.GitHubRepository = repository;
         candidate.GitHubBaseBranch = workspaceRequest.BranchName;
-        candidate.GitHubPullRequestState = pull.State;
+        candidate.GitHubPullRequestState = pull.Head?.Sha is null || !string.Equals(pull.Head.Sha, candidate.CommitSha, StringComparison.OrdinalIgnoreCase)
+            ? "head-changed"
+            : pull.Draft ? "draft" : pull.State;
+        candidate.GitHubPullRequestUpdatedAt = pull.UpdatedAt;
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = created ? "studio.release.pull-request.created" : "studio.release.pull-request.reused", Resource = $"{requestId:D}:{candidateId:D}:{pull.Number}" });
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new { pullNumber = pull.Number, htmlUrl = pull.HtmlUrl, state = pull.State, draft = pull.Draft, created,
+        return Results.Ok(new { pullNumber = pull.Number, htmlUrl = pull.HtmlUrl, state = candidate.GitHubPullRequestState, draft = pull.Draft, created,
             branchName = candidate.BranchName, baseBranch = workspaceRequest.BranchName, commitSha = candidate.CommitSha, pushed.Pushed });
     }
     catch (GitHubAppConfigurationException) { return Results.Problem("GitHub App yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable); }
@@ -1953,7 +2181,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         if (!response.IsSuccessStatusCode) return Results.Problem("GitHub PR incelemesini kabul etmedi.", statusCode: response.StatusCode == HttpStatusCode.UnprocessableEntity ? StatusCodes.Status409Conflict : StatusCodes.Status502BadGateway);
         var result = await response.Content.ReadFromJsonAsync<GitHubPullRequestReviewResponse>(cancellationToken: cancellationToken);
         if (result is null || result.Id <= 0) return Results.Problem("GitHub geçersiz inceleme yanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway);
-        candidate.GitHubPullRequestState = current.State;
+        candidate.GitHubPullRequestState = current.Draft ? "draft" : current.State;
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = $"studio.release.pull-request.review.{eventName.ToLowerInvariant()}", Resource = $"{requestId:D}:{candidateId:D}:{candidate.GitHubPullRequestNumber}:{result.Id}" });
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(new { reviewId = result.Id, state = result.State, submittedAt = result.SubmittedAt, htmlUrl = candidate.GitHubPullRequestUrl });
@@ -2538,8 +2766,10 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var expectedSha256 = body.CreateNewFile ? GetEmptyFileSha256() : body.ExpectedSha256;
+    var allowEmptyManualEdit = body.ManualEdit && !body.CreateNewFile;
     if (!body.ApprovalConfirmed || !CodeSourcePolicy.IsEligibleFilePath(body.FilePath) || !IsSha256(expectedSha256) ||
-        string.IsNullOrWhiteSpace(body.ProposedContent) || body.ProposedContent.Contains('\0') || Encoding.UTF8.GetByteCount(body.ProposedContent) > 128 * 1024)
+        body.ProposedContent is null || (string.IsNullOrWhiteSpace(body.ProposedContent) && !allowEmptyManualEdit) ||
+        body.ProposedContent.Contains('\0') || Encoding.UTF8.GetByteCount(body.ProposedContent) > 128 * 1024)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["approval"] = ["Açık kullanıcı onayı, geçerli bir kaynak dosyası özeti ve 128 KiB sınırında öneri içeriği gerekli."] });
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
@@ -2562,7 +2792,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         var operation = body.CreateNewFile ? "workspace.create-file" : "workspace.apply-file";
         using var message = new HttpRequestMessage(HttpMethod.Post, $"/internal/workspaces/{request.Id:D}/{(body.CreateNewFile ? "create-file" : "apply-file")}")
         {
-            Content = System.Net.Http.Json.JsonContent.Create(new RunnerApplyFileRequest(changeId, body.FilePath, expectedSha256, body.ProposedContent, true))
+            Content = System.Net.Http.Json.JsonContent.Create(new RunnerApplyFileRequest(changeId, body.FilePath, expectedSha256, body.ProposedContent, true, allowEmptyManualEdit))
         };
         message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateRunnerToken(configuration, request.Id, operation));
         using var response = await client.SendAsync(message, cancellationToken);
@@ -2920,42 +3150,100 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     var request = await db.DevelopmentWorkspaceRequests.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId, cancellationToken);
     if (request is null) return Results.NotFound();
     var documents = await db.StudioKnowledgeDocuments.AsNoTracking().Where(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId)
-        .GroupBy(x => x.Path).Select(g => g.OrderByDescending(x => x.IndexedAt).ThenByDescending(x => x.Id).First()).OrderBy(x => x.Path)
-        .Select(x => new { x.Id, x.Path, x.ContentSha256, x.CommitSha, x.IndexedAt, x.EmbeddingModel, SizeBytes = x.Content.Length }).ToListAsync(cancellationToken);
-    return Results.Ok(new { documents, indexedFileCount = documents.Count });
+        .GroupBy(x => x.Path).Select(g => g.OrderByDescending(x => x.IndexedAt).ThenByDescending(x => x.Id).First()).Where(x => x.Content.Length > 0).OrderBy(x => x.Path)
+        .Select(x => new { x.Id, x.Path, x.ContentSha256, x.CommitSha, x.IndexedAt, x.EmbeddingModel, CharacterCount = x.Content.Length }).ToListAsync(cancellationToken);
+    var refreshConsent = await db.StudioKnowledgeRefreshConsents.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId, cancellationToken);
+    string[] refreshPaths = [];
+    if (refreshConsent is not null)
+    {
+        try { refreshPaths = JsonSerializer.Deserialize<string[]>(refreshConsent.SelectedPathsJson) ?? []; }
+        catch (JsonException) { refreshPaths = []; }
+    }
+    return Results.Ok(new { documents, indexedFileCount = documents.Count,
+        autoRefresh = new { enabled = refreshConsent is not null, paths = refreshPaths, lastRefreshedAt = refreshConsent?.LastRefreshedAt } });
+}).RequireAuthorization();
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/knowledge/approved-history", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanContributeToProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    if (!await db.DevelopmentWorkspaceRequests.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId, cancellationToken))
+        return Results.NotFound();
+    var approved = await (from candidate in db.ReleaseCandidateRecords.AsNoTracking()
+        join review in db.ReleaseCandidateReviewRecords.AsNoTracking() on new { candidate.TenantId, ReleaseCandidateId = candidate.Id } equals new { review.TenantId, review.ReleaseCandidateId }
+        where candidate.TenantId == tenantId && candidate.ProjectId == projectId && review.Decision == "Approved" && review.ReviewedByUserId != candidate.CreatedByUserId
+        orderby review.CreatedAt descending
+        select new { candidate.Id, candidate.WorkspaceRequestId, candidate.BranchName, candidate.CommitSha, candidate.TestTargetPath, candidate.TestCompletedAt, ApprovedAt = review.CreatedAt })
+        .Take(200).ToListAsync(cancellationToken);
+    approved = approved.GroupBy(x => x.Id).Select(group => group.OrderByDescending(x => x.ApprovedAt).First()).Take(50).ToList();
+    var workspaceIds = approved.Select(x => x.WorkspaceRequestId).Distinct().ToArray();
+    var workspaces = await db.DevelopmentWorkspaceRequests.AsNoTracking().Where(x => x.TenantId == tenantId && x.ProjectId == projectId && workspaceIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, cancellationToken);
+    var developmentRequestIds = workspaces.Values.Where(x => x.DevelopmentRequestId is not null).Select(x => x.DevelopmentRequestId!.Value).Distinct().ToArray();
+    var developmentRequests = await db.DevelopmentRequests.AsNoTracking().Where(x => x.TenantId == tenantId && x.ProjectId == projectId && developmentRequestIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, cancellationToken);
+    var items = approved.Select(candidate =>
+    {
+        var workspace = workspaces.GetValueOrDefault(candidate.WorkspaceRequestId);
+        var developmentRequest = workspace?.DevelopmentRequestId is Guid developmentRequestId ? developmentRequests.GetValueOrDefault(developmentRequestId) : null;
+        return new { candidate.Id, candidate.BranchName, candidate.CommitSha, candidate.TestTargetPath, candidate.TestCompletedAt,
+            candidate.ApprovedAt, DevelopmentRequestTitle = developmentRequest?.Title };
+    });
+    return Results.Ok(new { items });
 }).RequireAuthorization();
 app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/knowledge", async (Guid projectId, Guid requestId, IndexStudioKnowledge body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "Kaynak dosyalarını AI Studio bilgi tabanında saklamak için açık onay gerekli." });
-    if (body.Paths is null || body.Paths.Count is 0 or > 50 || body.Paths.Any(path => string.IsNullOrWhiteSpace(path) || path.Length > 500))
-        return Results.ValidationProblem(new Dictionary<string, string[]> { ["paths"] = ["1–50 adet geçerli dosya yolu seçin."] });
-    if (body.Paths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != body.Paths.Count)
+    var paths = body.Paths ?? [];
+    var historyIds = body.ApprovedHistoryCandidateIds ?? [];
+    var sourceCount = paths.Count + historyIds.Count;
+    if (paths.Count > 50 || historyIds.Count > 10 || sourceCount == 0 || sourceCount > 50 || paths.Any(path => string.IsNullOrWhiteSpace(path) || path.Length > 500) || body.EnableAutoRefresh && paths.Count == 0)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["sources"] = ["1–50 dosya yolu ve en fazla 10 onaylanmış geçmiş kaydı seçin."] });
+    if (paths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != paths.Count || historyIds.Distinct().Count() != historyIds.Count)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["paths"] = ["Dosya yolları tekrarlanmamalıdır."] });
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
     if (project is null) return Results.NotFound();
     if (!CanContributeToProject(user, project.AccessGrants, userId)) return Results.Forbid();
     var request = await db.DevelopmentWorkspaceRequests.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
     if (request is null) return Results.NotFound();
+    var approvedHistoryRows = new List<(ReleaseCandidateRecord Candidate, ReleaseCandidateReviewRecord Review, DevelopmentWorkspaceRequest Workspace, DevelopmentRequest? DevelopmentRequest)>();
+    if (historyIds.Count > 0)
+    {
+        var candidateReviews = await (from candidate in db.ReleaseCandidateRecords.AsNoTracking()
+            join review in db.ReleaseCandidateReviewRecords.AsNoTracking() on new { candidate.TenantId, ReleaseCandidateId = candidate.Id } equals new { review.TenantId, review.ReleaseCandidateId }
+            where candidate.TenantId == tenantId && candidate.ProjectId == projectId && historyIds.Contains(candidate.Id)
+                && review.Decision == "Approved" && review.ReviewedByUserId != candidate.CreatedByUserId
+            orderby review.CreatedAt descending
+            select new { Candidate = candidate, Review = review }).ToListAsync(cancellationToken);
+        candidateReviews = candidateReviews.GroupBy(x => x.Candidate.Id).Select(group => group.First()).ToList();
+        if (candidateReviews.Count != historyIds.Count)
+            return Results.Conflict(new { error = "Seçilen geliştirme geçmişi kaydı bu proje için bulunamadı veya bağımsız olarak onaylanmamış." });
+        var selectedWorkspaceIds = candidateReviews.Select(x => x.Candidate.WorkspaceRequestId).Distinct().ToArray();
+        var selectedWorkspaces = await db.DevelopmentWorkspaceRequests.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.ProjectId == projectId && selectedWorkspaceIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
+        if (selectedWorkspaceIds.Any(id => !selectedWorkspaces.ContainsKey(id)))
+            return Results.Conflict(new { error = "Onaylanmış geçmiş kaydının çalışma alanı artık kullanılamıyor." });
+        var linkedRequestIds = selectedWorkspaces.Values.Where(x => x.DevelopmentRequestId is not null).Select(x => x.DevelopmentRequestId!.Value).Distinct().ToArray();
+        var linkedRequests = await db.DevelopmentRequests.AsNoTracking().Where(x => x.TenantId == tenantId && x.ProjectId == projectId && linkedRequestIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+        approvedHistoryRows.AddRange(candidateReviews.Select(row =>
+        {
+            var workspace = selectedWorkspaces[row.Candidate.WorkspaceRequestId];
+            var developmentRequest = workspace.DevelopmentRequestId is Guid linkedRequestId ? linkedRequests.GetValueOrDefault(linkedRequestId) : null;
+            return (row.Candidate, row.Review, workspace, developmentRequest);
+        }));
+    }
     if (!Uri.TryCreate(configuration["WorkspaceRunner:BaseUrl"], UriKind.Absolute, out var runnerUri) || runnerUri.Scheme != Uri.UriSchemeHttp)
         return Results.Problem("Workspace Runner yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
-    var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".cs", ".csx", ".razor", ".ts", ".tsx", ".js", ".jsx", ".html", ".css", ".scss", ".sql", ".py", ".go", ".rs", ".java", ".md", ".json", ".xml", ".yml", ".yaml" };
-    static bool IsSafeKnowledgePath(string path, HashSet<string> extensions)
-    {
-        var normalized = path.Replace('\\', '/');
-        var name = normalized.Split('/').Last();
-        return !normalized.StartsWith('/') && !normalized.Split('/').Any(part => part is ".." or ".git" or "node_modules" or "bin" or "obj") &&
-            !normalized.Split('/').Any(part => part.StartsWith(".env", StringComparison.OrdinalIgnoreCase)) &&
-            !normalized.Contains("secret", StringComparison.OrdinalIgnoreCase) && !normalized.Contains("credential", StringComparison.OrdinalIgnoreCase) &&
-            !name.StartsWith("appsettings", StringComparison.OrdinalIgnoreCase) && !name.Equals(".npmrc", StringComparison.OrdinalIgnoreCase) &&
-            !name.Equals(".pypirc", StringComparison.OrdinalIgnoreCase) && !name.Contains("id_rsa", StringComparison.OrdinalIgnoreCase) &&
-            extensions.Contains(Path.GetExtension(normalized));
-    }
-    if (body.Paths.Any(path => !IsSafeKnowledgePath(path, allowedExtensions)))
+    if (paths.Any(path => !StudioKnowledgePathRules.IsSafeKnowledgePath(path)))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["paths"] = ["Seçimde desteklenmeyen veya hassas dosya yolu var."] });
     using var client = clients.CreateClient("workspace-runner"); client.BaseAddress = runnerUri;
     var indexed = new List<StudioKnowledgeDocument>(); var totalBytes = 0;
-    foreach (var path in body.Paths)
+    foreach (var path in paths)
     {
         using var message = new HttpRequestMessage(HttpMethod.Get, $"/internal/workspaces/{request.Id:D}/file-content?path={Uri.EscapeDataString(path)}");
         message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateRunnerToken(configuration, request.Id, "workspace.read-file"));
@@ -2966,7 +3254,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         if (source is null || source.SizeBytes > 128 * 1024) return Results.ValidationProblem(new Dictionary<string, string[]> { ["paths"] = [$"Dosya 128 KiB sınırını aşıyor veya okunamadı: {path}"] });
         totalBytes += source.SizeBytes;
         if (totalBytes > 512 * 1024) return Results.ValidationProblem(new Dictionary<string, string[]> { ["paths"] = ["Toplam indeks boyutu 512 KiB sınırını aşıyor."] });
-        if (Regex.IsMatch(source.Content, "-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}|\\bgh[pousr]_[A-Za-z0-9_]{20,}|\\bAKIA[0-9A-Z]{16}\\b|(?i)(?:api[_-]?key|password|client[_-]?secret|connectionstring)\\s*[:=]\\s*['\"]?[^\\s'\";]{8,}", RegexOptions.CultureInvariant))
+        if (StudioApprovedHistoryKnowledge.ContainsPotentialSecret(source.Content))
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["paths"] = [$"Olası anahtar içeren dosya indekslenmedi: {path}"] });
         var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(source.Content))).ToLowerInvariant();
         var latestSha = await db.StudioKnowledgeDocuments.AsNoTracking()
@@ -2974,6 +3262,29 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
             .OrderByDescending(x => x.IndexedAt).ThenByDescending(x => x.Id).Select(x => x.ContentSha256).FirstOrDefaultAsync(cancellationToken);
         if (!string.Equals(latestSha, sha, StringComparison.OrdinalIgnoreCase)) indexed.Add(new StudioKnowledgeDocument { TenantId = tenantId, ProjectId = projectId, WorkspaceRequestId = requestId, IndexedByUserId = userId,
             Path = source.Path, ContentSha256 = sha, CommitSha = "working-tree", Content = source.Content });
+    }
+    var indexedHistory = 0;
+    foreach (var (candidate, review, workspace, developmentRequest) in approvedHistoryRows)
+    {
+        var path = StudioApprovedHistoryKnowledge.Path(candidate.Id);
+        var content = StudioApprovedHistoryKnowledge.Build(new ApprovedDevelopmentHistory(candidate.Id, candidate.BranchName,
+            candidate.CommitSha, candidate.TestTargetPath, candidate.TestCompletedAt, review.CreatedAt,
+            developmentRequest?.Title, developmentRequest?.Description, review.Note));
+        var sizeBytes = Encoding.UTF8.GetByteCount(content);
+        if (sizeBytes > 64 * 1024 || (totalBytes += sizeBytes) > 512 * 1024)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["approvedHistoryCandidateIds"] = ["Onaylanmış geçmiş içeriği dosya başına 64 KiB ve toplamda 512 KiB sınırını aşamaz."] });
+        if (StudioApprovedHistoryKnowledge.ContainsPotentialSecret(content))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["approvedHistoryCandidateIds"] = ["Olası anahtar içeren onay geçmişi indekslenmedi."] });
+        var sha = StudioApprovedHistoryKnowledge.Sha256(content);
+        var latestSha = await db.StudioKnowledgeDocuments.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId && x.Path == path)
+            .OrderByDescending(x => x.IndexedAt).ThenByDescending(x => x.Id).Select(x => x.ContentSha256).FirstOrDefaultAsync(cancellationToken);
+        if (!string.Equals(latestSha, sha, StringComparison.OrdinalIgnoreCase))
+        {
+            indexed.Add(new StudioKnowledgeDocument { TenantId = tenantId, ProjectId = projectId, WorkspaceRequestId = requestId,
+                IndexedByUserId = userId, Path = path, ContentSha256 = sha, CommitSha = candidate.CommitSha, Content = content });
+            indexedHistory++;
+        }
     }
     var semanticDocuments = 0;
     if (indexed.Count > 0)
@@ -3016,10 +3327,42 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Kaynak dosyaların embedding işlemi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
         db.StudioKnowledgeDocuments.AddRange(indexed);
     }
-    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.knowledge.indexed", Resource = $"{requestId:D}:{indexed.Count}:semantic={semanticDocuments}" });
+    if (body.EnableAutoRefresh)
+    {
+        var consent = await db.StudioKnowledgeRefreshConsents.SingleOrDefaultAsync(x =>
+            x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId, cancellationToken);
+        if (consent is null)
+        {
+            consent = new StudioKnowledgeRefreshConsent { TenantId = tenantId, ProjectId = projectId, WorkspaceRequestId = requestId,
+                GrantedByUserId = userId, SelectedPathsJson = JsonSerializer.Serialize(paths), GrantedAt = DateTimeOffset.UtcNow, LastRefreshedAt = DateTimeOffset.UtcNow };
+            db.StudioKnowledgeRefreshConsents.Add(consent);
+        }
+        else
+        {
+            consent.GrantedByUserId = userId; consent.SelectedPathsJson = JsonSerializer.Serialize(paths);
+            consent.GrantedAt = DateTimeOffset.UtcNow; consent.LastRefreshedAt = DateTimeOffset.UtcNow;
+        }
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.knowledge.auto-refresh.enabled", Resource = $"{requestId:D}:paths={paths.Count}" });
+    }
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.knowledge.indexed", Resource = $"{requestId:D}:{indexed.Count}:history={indexedHistory}:semantic={semanticDocuments}" });
     await db.SaveChangesAsync(cancellationToken);
-    return Results.Ok(new { indexed = indexed.Count, semanticIndexed = semanticDocuments, retrievalMode = semanticDocuments == indexed.Count && indexed.Count > 0 ? "semantic" : "keyword", skippedUnchanged = body.Paths.Count - indexed.Count, totalBytes, sourceVersion = "working-tree", baseCommitSha = request.CommitSha });
+    return Results.Ok(new { indexed = indexed.Count, indexedHistory, semanticIndexed = semanticDocuments, retrievalMode = semanticDocuments == indexed.Count && indexed.Count > 0 ? "semantic" : "keyword", skippedUnchanged = paths.Count + historyIds.Count - indexed.Count, totalBytes, sourceVersion = "working-tree-and-approved-history", baseCommitSha = request.CommitSha });
 }).RequireAuthorization().RequireRateLimiting("ai-chat");
+app.MapDelete("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/knowledge/auto-refresh", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanContributeToProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var consent = await db.StudioKnowledgeRefreshConsents.SingleOrDefaultAsync(x =>
+        x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId, cancellationToken);
+    if (consent is null) return Results.NoContent();
+    db.StudioKnowledgeRefreshConsents.Remove(consent);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.knowledge.auto-refresh.revoked", Resource = requestId.ToString("D") });
+    await db.SaveChangesAsync(cancellationToken);
+    return Results.NoContent();
+}).RequireAuthorization();
 app.MapDelete("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/knowledge/{documentId:guid}", async (Guid projectId, Guid requestId, Guid documentId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
@@ -3028,8 +3371,19 @@ app.MapDelete("/studio/projects/{projectId:guid}/workspace-requests/{requestId:g
     if (!CanContributeToProject(user, project.AccessGrants, userId)) return Results.Forbid();
     var document = await db.StudioKnowledgeDocuments.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId && x.Id == documentId, cancellationToken);
     if (document is null) return Results.NotFound();
-    db.StudioKnowledgeDocuments.Remove(document);
-    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.knowledge.document.deleted", Resource = document.Id.ToString() });
+    var pathSnapshots = await db.StudioKnowledgeDocuments.Where(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId && x.Path == document.Path).ToListAsync(cancellationToken);
+    db.StudioKnowledgeDocuments.RemoveRange(pathSnapshots);
+    var refreshConsent = await db.StudioKnowledgeRefreshConsents.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId, cancellationToken);
+    if (refreshConsent is not null)
+    {
+        string[] refreshPaths;
+        try { refreshPaths = JsonSerializer.Deserialize<string[]>(refreshConsent.SelectedPathsJson) ?? []; }
+        catch (JsonException) { refreshPaths = []; }
+        var remainingPaths = refreshPaths.Where(path => !string.Equals(path, document.Path, StringComparison.Ordinal)).ToArray();
+        if (remainingPaths.Length == 0) db.StudioKnowledgeRefreshConsents.Remove(refreshConsent);
+        else refreshConsent.SelectedPathsJson = JsonSerializer.Serialize(remainingPaths);
+    }
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.knowledge.document.deleted", Resource = $"{document.Id:D}:{pathSnapshots.Count}:path={document.Path}" });
     await db.SaveChangesAsync(cancellationToken);
     return Results.NoContent();
 }).RequireAuthorization();
@@ -3107,7 +3461,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     var result = messages.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Select(x => new StudioConversationMessageView(x.Id, x.Role, x.Content, x.CreatedAt)).ToList();
     return Results.Ok(result);
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations/{conversationId:guid}/messages", async (Guid projectId, Guid requestId, Guid conversationId, SendStudioChatMessage body, ClaimsPrincipal user, AIStudioDbContext db, IAIModelProvider aiProvider, HttpContext httpContext, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations/{conversationId:guid}/messages", async (Guid projectId, Guid requestId, Guid conversationId, SendStudioChatMessage body, ClaimsPrincipal user, AIStudioDbContext db, IAIModelProvider aiProvider, IHttpClientFactory clients, IConfiguration configuration, HttpContext httpContext, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "AI paylaşımı için açık kullanıcı onayı gerekli." });
@@ -3130,9 +3484,12 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     string? knowledgeContext = null;
     if (body.IncludeKnowledgeBase)
     {
+        var refreshed = await StudioKnowledgeAutoRefresher.RefreshAsync(tenantId, projectId, requestId, userId, db, clients, aiProvider, configuration, CreateRunnerToken, cancellationToken);
+        if (!refreshed.Success) return Results.Problem(refreshed.Error, statusCode: refreshed.StatusCode);
         var documents = await db.StudioKnowledgeDocuments.AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId)
             .GroupBy(x => x.Path).Select(g => g.OrderByDescending(x => x.IndexedAt).ThenByDescending(x => x.Id).First())
+            .Where(x => x.Content.Length > 0)
             .Take(50).ToListAsync(cancellationToken);
         var terms = content.Split(new[] { ' ', '\t', '\r', '\n', '.', ',', ':', ';', '(', ')', '{', '}', '[', ']', '"', '\'' }, StringSplitOptions.RemoveEmptyEntries)
             .Where(term => term.Length >= 3).Select(term => term.ToLowerInvariant()).Distinct().Take(12).ToArray();
@@ -3303,6 +3660,68 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (TaskCanceledException) { return Results.Problem("Geri alma isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/database-engineering-plan", async (Guid projectId, Guid requestId, CreateDatabaseEngineeringPlan body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "Seçilen veritabanı şema dosyalarını AI Database Engineer'a göndermek için açık onay gerekli." });
+    var requestText = body.Request?.Trim();
+    var paths = body.Paths ?? [];
+    if (string.IsNullOrWhiteSpace(requestText) || requestText.Length > 2000 || paths.Count is < 1 or > 10 ||
+        paths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != paths.Count)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = ["İstek 1–2000 karakter, farklı ve açıkça seçilmiş 1–10 şema dosyası olmalıdır."] });
+    if (paths.Any(path => !StudioDatabaseEngineeringRules.IsSupportedSchemaPath(path)))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["paths"] = ["Yalnızca güvenli SQL, ORM modeli, uygulama modeli veya proje şema dosyaları seçilebilir."] });
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanContributeToProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var request = await db.DevelopmentWorkspaceRequests.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
+    if (request is null) return Results.NotFound();
+    if (string.IsNullOrWhiteSpace(request.WorkspaceBranchName)) return Results.Conflict(new { error = "Önce izole çalışma dalı oluşturulmalıdır." });
+    if (string.IsNullOrWhiteSpace(configuration["AI:OpenAI:ApiKey"]))
+        return Results.Problem("AI Database Engineer için OpenAI sağlayıcısı yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    if (!Uri.TryCreate(configuration["WorkspaceRunner:BaseUrl"], UriKind.Absolute, out var runnerUri) || runnerUri.Scheme != Uri.UriSchemeHttp)
+        return Results.Problem("Workspace Runner yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.database-engineer.plan.requested", Resource = $"{requestId:D}:files={paths.Count}" });
+    await db.SaveChangesAsync(cancellationToken);
+    try
+    {
+        using var client = clients.CreateClient("workspace-runner");
+        client.BaseAddress = runnerUri;
+        var sources = new List<CodeSourceFile>(paths.Count);
+        var totalBytes = 0;
+        foreach (var path in paths)
+        {
+            using var message = new HttpRequestMessage(HttpMethod.Get, $"/internal/workspaces/{request.Id:D}/file-content?path={Uri.EscapeDataString(path)}");
+            message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateRunnerToken(configuration, request.Id, "workspace.read-file"));
+            using var response = await client.SendAsync(message, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.NotFound) return Results.ValidationProblem(new Dictionary<string, string[]> { ["paths"] = [$"Dosya çalışma alanında bulunamadı: {path}"] });
+            if (!response.IsSuccessStatusCode) return Results.Problem("Workspace Runner seçilen veritabanı şema kaynağını okuyamadı.", statusCode: StatusCodes.Status502BadGateway);
+            var file = await response.Content.ReadFromJsonAsync<RunnerFileContent>(cancellationToken: cancellationToken);
+            if (file is null || file.Content is null || !string.Equals(file.Path, path, StringComparison.Ordinal) || !StudioKnowledgePathRules.IsSafeKnowledgePath(file.Path))
+                return Results.Problem("Workspace Runner geçersiz şema dosyası döndürdü.", statusCode: StatusCodes.Status502BadGateway);
+            var fileBytes = Encoding.UTF8.GetByteCount(file.Content);
+            if (fileBytes > 32 * 1024 || (totalBytes += fileBytes) > 128 * 1024)
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            if (StudioApprovedHistoryKnowledge.ContainsPotentialSecret(file.Content))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["paths"] = [$"Hassas değer içerebilecek dosya AI analizine gönderilmedi: {path}"] });
+            var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(file.Content))).ToLowerInvariant();
+            sources.Add(new CodeSourceFile(path, file.Content, sha));
+        }
+        var plan = await aiProvider.CreateDatabaseEngineeringPlanAsync(requestText, project.Name, request.WorkspaceBranchName,
+            sources, cancellationToken);
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.database-engineer.plan.created", Resource = $"{requestId:D}:files={sources.Count}" });
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Ok(new { plan, sources = sources.Select(source => new { source.Path, source.Sha256 }), executed = false });
+    }
+    catch (AIProviderNotConfiguredException) { return Results.Problem("AI Database Engineer sağlayıcısı yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable); }
+    catch (AIProviderRateLimitException) { return Results.Problem("AI sağlayıcısı istek sınırına ulaştı. Yeniden deneyin.", statusCode: StatusCodes.Status429TooManyRequests); }
+    catch (AIProviderResponseException) { return Results.Problem("AI sağlayıcısı geçerli bir veritabanı mühendisliği planı döndürmedi.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (HttpRequestException) { return Results.Problem("Workspace Runner veya AI sağlayıcısına bağlanılamadı.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Veritabanı mühendisliği analizi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
+    catch (System.Text.Json.JsonException) { return Results.Problem("AI sağlayıcısı veya Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
+}).RequireAuthorization().RequireRateLimiting("ai-database-engineer");
 app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/architecture-plan", async (Guid projectId, Guid requestId, CreateArchitecturePlan body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
@@ -3550,6 +3969,13 @@ static bool IsStudioCargoManifestPath(string? path) => !string.IsNullOrWhiteSpac
         !segment.StartsWith('.') && !segment.Contains("secret", StringComparison.OrdinalIgnoreCase) &&
         !segment.Contains("credential", StringComparison.OrdinalIgnoreCase) && !segment.Contains("password", StringComparison.OrdinalIgnoreCase) &&
         !segment.Contains("apikey", StringComparison.OrdinalIgnoreCase));
+static bool IsStudioGoManifestPath(string? path) => !string.IsNullOrWhiteSpace(path) && path.Length <= 500 &&
+    !path.StartsWith('/') && !path.Contains('\\') && !path.Contains(':') && !path.Any(char.IsControl) &&
+    Path.GetFileName(path).Equals("go.mod", StringComparison.OrdinalIgnoreCase) &&
+    path.Split('/').All(segment => !string.IsNullOrWhiteSpace(segment) && segment is not ("." or "..") &&
+        !segment.StartsWith('.') && !segment.Contains("secret", StringComparison.OrdinalIgnoreCase) &&
+        !segment.Contains("credential", StringComparison.OrdinalIgnoreCase) && !segment.Contains("password", StringComparison.OrdinalIgnoreCase) &&
+        !segment.Contains("apikey", StringComparison.OrdinalIgnoreCase));
 static string CreateRunnerToken(IConfiguration configuration, Guid workspaceId, string operation)
 {
     var now = DateTime.UtcNow;
@@ -3606,6 +4032,7 @@ internal sealed record ProjectMemberView(Guid UserId, string Email, string Acces
 internal sealed record CreateWorkspaceRequest(string? BranchName, Guid? DevelopmentRequestId = null);
 internal sealed record ReviewWorkspaceRequest(string? Outcome, string? Note);
 internal sealed record CreateArchitecturePlan(string? Request);
+internal sealed record CreateDatabaseEngineeringPlan(string? Request, IReadOnlyList<string>? Paths, bool AISharingConfirmed);
 internal sealed record CreateTestPlan(string? Request, bool AISharingConfirmed);
 internal sealed record CreateWorkspaceTestRun(string? TargetPath, bool ExecutionConfirmed);
 internal sealed record CreateSandboxErrorAnalysis(string Operation, bool AISharingConfirmed);
@@ -3614,7 +4041,8 @@ internal sealed record CreateStudioConversation(string? Title);
 internal sealed record DeleteStudioConversation(bool Confirm);
 internal sealed record DeleteSavedStudioPlan(bool Confirm);
 internal sealed record SendStudioChatMessage(string? Content, bool AISharingConfirmed, bool IncludeKnowledgeBase = false);
-internal sealed record IndexStudioKnowledge(IReadOnlyList<string>? Paths, bool AISharingConfirmed);
+internal sealed record ERPAssistantQuestion(string? Question, bool AISharingConfirmed, IReadOnlyList<StudioChatTurn>? History = null);
+internal sealed record IndexStudioKnowledge(IReadOnlyList<string>? Paths, bool AISharingConfirmed, IReadOnlyList<Guid>? ApprovedHistoryCandidateIds = null, bool EnableAutoRefresh = false);
 internal sealed record AnalyzeSelectedSource(string? Question, IReadOnlyList<StudioSourceReference>? Sources, bool AISharingConfirmed);
 internal sealed record StudioSourceReference(string Path, int Line, string Excerpt);
 internal sealed record ReviewStudioDiff(string? Path, bool AISharingConfirmed);
@@ -3635,7 +4063,7 @@ internal sealed record CodeSuggestionPreview(string FilePath, string SourceSha25
 internal sealed record MultiFileCodeSuggestionPreview(string Summary, IReadOnlyList<MultiFileCodeChangePreview> Changes, IReadOnlyList<string> Risks);
 internal sealed record MultiFileCodeChangePreview(string FilePath, string SourceSha256, string OriginalContent, string ProposedContent, IReadOnlyList<string> Notes);
 internal sealed record AppliedCodeSuggestion(Guid ChangeId, string FilePath, string Sha256, DateTimeOffset AppliedAt);
-internal sealed record RunnerApplyFileRequest(Guid ChangeId, string? Path, string? ExpectedSha256, string? ProposedContent, bool ApprovalConfirmed);
+internal sealed record RunnerApplyFileRequest(Guid ChangeId, string? Path, string? ExpectedSha256, string? ProposedContent, bool ApprovalConfirmed, bool AllowEmptyContent = false);
 internal sealed record RunnerApplyFileResponse(Guid ChangeId, string Path, string Sha256, DateTimeOffset AppliedAt);
 internal sealed record RunnerRestoreFileRequest(string? ExpectedSha256, bool ApprovalConfirmed);
 internal sealed record RunnerRestoreFileResponse(Guid ChangeId, string Path, string Sha256);
@@ -3695,7 +4123,7 @@ internal sealed record RestoreProductionDatabase(Guid IdempotencyKey, Guid Expec
 internal sealed record DeployerRestoreProductionDeployment(Guid DeploymentId, Guid TenantId, Guid ProjectId, Guid PackageId, Guid IdempotencyKey, Guid ExpectedActiveDeploymentId, Guid BackupDeploymentId, Guid TargetDeploymentId, string PackageSha256, string CommitSha, string Version);
 internal sealed record StudioStagingDeploymentOperationResult(StudioReleaseDeploymentView Deployment, string BootstrapEmail, string BootstrapPassword);
 internal sealed record RunnerPushBranchResponse(string BranchName, string CommitSha, bool Pushed);
-internal sealed record GitHubPullRequestResponse(int Number, [property: JsonPropertyName("html_url")] string? HtmlUrl, string? State, bool Draft, [property: JsonPropertyName("head")] GitHubPullRequestHead? Head);
+internal sealed record GitHubPullRequestResponse(int Number, [property: JsonPropertyName("html_url")] string? HtmlUrl, string? State, bool Draft, [property: JsonPropertyName("head")] GitHubPullRequestHead? Head, [property: JsonPropertyName("updated_at")] DateTimeOffset? UpdatedAt);
 internal sealed record GitHubPullRequestHead([property: JsonPropertyName("sha")] string? Sha);
 internal sealed record GitHubPullRequestReviewResponse(long Id, string? State, [property: JsonPropertyName("submitted_at")] DateTimeOffset? SubmittedAt);
 internal sealed record GitHubReviewCommentResponse(long Id, [property: JsonPropertyName("in_reply_to_id")] long? InReplyToId,

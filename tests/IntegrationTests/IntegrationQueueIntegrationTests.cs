@@ -69,6 +69,79 @@ public sealed class IntegrationQueueIntegrationTests
         Assert.Equal("Queued", stored.Status);
     }
 
+    [Fact]
+    public async Task Tenant_admin_can_page_and_cancel_only_queued_operations_in_their_tenant()
+    {
+        await using var app = await StartApplicationAsync();
+        using var admin = app.GetTestClient();
+        admin.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString("D"));
+        admin.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
+        admin.DefaultRequestHeaders.Add("Idempotency-Key", "queue-a-1");
+        var firstResponse = await admin.PostAsJsonAsync("/api/integrations/netsis/execute", new { payload = new { value = 1 } });
+        var firstId = (await firstResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("operationId").GetGuid();
+
+        admin.DefaultRequestHeaders.Remove("Idempotency-Key");
+        admin.DefaultRequestHeaders.Add("Idempotency-Key", "queue-a-2");
+        await admin.PostAsJsonAsync("/api/integrations/stripe/execute", new { payload = new { value = 2 } });
+
+        using var otherTenant = app.GetTestClient();
+        otherTenant.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString("D"));
+        otherTenant.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
+        otherTenant.DefaultRequestHeaders.Add("Idempotency-Key", "queue-b-1");
+        await otherTenant.PostAsJsonAsync("/api/integrations/netsis/execute", new { payload = new { value = 3 } });
+
+        var page = await admin.GetFromJsonAsync<JsonElement>("/api/integrations/operations?page=1&pageSize=1&status=Queued");
+        Assert.Equal(2, page.GetProperty("totalCount").GetInt32());
+        Assert.Single(page.GetProperty("items").EnumerateArray());
+        Assert.False(page.GetProperty("items")[0].TryGetProperty("encryptedPayload", out _));
+        var filtered = await admin.GetFromJsonAsync<JsonElement>("/api/integrations/operations?integrationCode=netsis");
+        Assert.Equal(1, filtered.GetProperty("totalCount").GetInt32());
+
+        using var ordinaryUser = app.GetTestClient();
+        ordinaryUser.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString("D"));
+        ordinaryUser.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await ordinaryUser.GetAsync("/api/integrations/operations")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await ordinaryUser.PostAsync($"/api/integrations/operations/{firstId:D}/cancel", null)).StatusCode);
+
+        var cancelled = await admin.PostAsJsonAsync($"/api/integrations/operations/{firstId:D}/cancel", new { });
+        Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
+        Assert.Equal("Cancelled", (await cancelled.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.NotFound, (await otherTenant.PostAsync($"/api/integrations/operations/{firstId:D}/cancel", null)).StatusCode);
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+        var stored = await db.IntegrationOperations.SingleAsync(x => x.Id == firstId);
+        Assert.Equal("Cancelled", stored.Status);
+        Assert.Empty(stored.EncryptedPayload);
+        Assert.Contains(await db.AuditEvents.ToListAsync(), audit => audit.Action == "integration.operation.cancelled");
+    }
+
+    [Fact]
+    public async Task Integration_queue_admin_query_rejects_invalid_filters_and_running_work_cannot_be_cancelled()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", "queue-running-1");
+        var submitted = await client.PostAsJsonAsync("/api/integrations/netsis/execute", new { payload = new { value = 1 } });
+        var operationId = (await submitted.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("operationId").GetGuid();
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            var operation = await db.IntegrationOperations.SingleAsync(x => x.Id == operationId);
+            operation.Status = "Running";
+            await db.SaveChangesAsync();
+        }
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/integrations/operations?status=Anything")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/integrations/operations?pageSize=101")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/integrations/operations?page=10001")).StatusCode);
+        var cancel = await client.PostAsync($"/api/integrations/operations/{operationId:D}/cancel", null);
+        Assert.Equal(HttpStatusCode.Conflict, cancel.StatusCode);
+        Assert.Equal("Running", (await cancel.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+    }
+
     private static async Task<WebApplication> StartApplicationAsync()
     {
         var databaseName = $"integration-queue-{Guid.NewGuid():N}";

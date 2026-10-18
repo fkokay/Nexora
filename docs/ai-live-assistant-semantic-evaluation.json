@@ -1,0 +1,19 @@
+{
+  "observedAtUtc": "2026-10-18T22:22:42.9559809+03:00",
+  "evaluationSet": "erp-assistant-synthetic-inventory",
+  "version": "1.0.0",
+  "provider": "OpenAI",
+  "model": "gpt-6-astra",
+  "requests": 1,
+  "maxOutputTokens": 120,
+  "tenantDataUsed": false,
+  "passed": false,
+  "outcome": "provider_rejected_request",
+  "httpStatus": 429,
+  "retryAttempted": false,
+  "answerTextRecorded": false,
+  "responseBodyRecorded": false,
+  "note": "Single synthetic request was rejected with HTTP 429. Response body was intentionally omitted; HTTP status alone cannot distinguish rate limiting from account quota. The cause remains unknown. No retry was attempted.",
+  "failureClass": "rate_limit_or_quota_unknown",
+  "classificationSource": "http_status_only"
+}

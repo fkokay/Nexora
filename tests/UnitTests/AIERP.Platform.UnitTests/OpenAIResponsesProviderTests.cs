@@ -285,6 +285,106 @@ public sealed class OpenAIResponsesProviderTests
     }
 
     [Fact]
+    public async Task ERP_assistant_uses_bounded_typed_tools_and_returns_tool_results_to_model()
+    {
+        var callCount = 0;
+        var handler = new StubHandler(async request =>
+        {
+            var body = await request.Content!.ReadAsStringAsync();
+            Assert.Contains("\"store\":false", body);
+            callCount++;
+            if (callCount == 1)
+            {
+                Assert.Contains("\"strict\":true", body);
+                Assert.Contains("search_customer_accounts", body);
+                Assert.Contains("get_customer_balance", body);
+                var call = new { type = "function_call", name = "search_customer_accounts", arguments = "{\"term\":\"Acme\"}", call_id = "call_123" };
+                return JsonResponse(System.Text.Json.JsonSerializer.Serialize(new { status = "completed", output = new[] { call } }));
+            }
+            Assert.Contains("function_call_output", body);
+            Assert.Contains("ACME-01", body);
+            return JsonResponse(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                status = "completed",
+                output = new[] { new { type = "message", content = new[] { new { type = "output_text", text = "Acme Ltd. bakiyesini ayrıca sorabilirsiniz." } } } }
+            }));
+        });
+        var provider = CreateProvider(handler, "test-key");
+        var executed = new List<(string Name, string Arguments)>();
+
+        var answer = await provider.ReplyToERPDataQuestionAsync("Acme hesabını bul.",
+            [new StudioChatTurn("user", "Cari hesap ara: Acme")], CancellationToken.None,
+            (name, arguments, _) =>
+            {
+                executed.Add((name, arguments));
+                return Task.FromResult("[{\"id\":\"11111111-1111-1111-1111-111111111111\",\"code\":\"ACME-01\",\"name\":\"Acme Ltd.\"}]");
+            });
+
+        Assert.Equal("Acme Ltd. bakiyesini ayrıca sorabilirsiniz.", answer);
+        Assert.Equal(2, callCount);
+        Assert.Equal(("search_customer_accounts", "{\"term\":\"Acme\"}"), Assert.Single(executed));
+    }
+
+    [Fact]
+    public async Task ERP_assistant_exposes_read_only_report_tool_and_executes_typed_request()
+    {
+        const string arguments = "{\"source\":\"purchaseInvoices\",\"columns\":[\"invoiceCode\",\"supplierName\",\"currencyCode\",\"grandTotal\"],\"filters\":[{\"field\":\"status\",\"operator\":\"equals\",\"value\":\"posted\"}],\"sortBy\":\"invoiceCode\",\"descending\":false}";
+        var callCount = 0;
+        var handler = new StubHandler(async request =>
+        {
+            var body = await request.Content!.ReadAsStringAsync();
+            callCount++;
+            if (callCount == 1)
+            {
+                Assert.Contains("generate_report", body);
+                using var document = System.Text.Json.JsonDocument.Parse(body);
+                var reportTool = document.RootElement.GetProperty("tools").EnumerateArray()
+                    .Single(tool => tool.GetProperty("name").GetString() == "generate_report");
+                Assert.True(reportTool.GetProperty("strict").GetBoolean());
+                var parameters = reportTool.GetProperty("parameters");
+                Assert.True(parameters.GetProperty("additionalProperties").GetBoolean() == false);
+                var sourceValues = parameters.GetProperty("properties").GetProperty("source").GetProperty("enum")
+                    .EnumerateArray().Select(value => value.GetString()).ToArray();
+                Assert.Equal(new[]
+                {
+                    "customers", "salesInvoices", "purchaseOrders", "purchaseInvoices", "purchaseReceipts",
+                    "manufacturingOrders", "inventoryTransactions", "salesOrders", "salesQuotes", "salesDeliveries",
+                    "salesReturns", "supplierReturns", "purchaseRequests", "stockItems", "bankStatements",
+                    "financialAccountTransactions", "supplierPayments", "crmOpportunities"
+                }, sourceValues);
+                Assert.DoesNotContain("workflowInstances", sourceValues);
+                return JsonResponse(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    status = "completed",
+                    output = new[] { new { type = "function_call", name = "generate_report", arguments, call_id = "report_call" } }
+                }));
+            }
+
+            Assert.Contains("function_call_output", body);
+            Assert.Contains("Supplier Ltd.", body);
+            Assert.Contains("totalCount", body);
+            return JsonResponse(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                status = "completed",
+                output = new[] { new { type = "message", content = new[] { new { type = "output_text", text = "Bir alış faturası bulundu." } } } }
+            }));
+        });
+        var provider = CreateProvider(handler, "test-key");
+        (string Name, string Arguments)? executed = null;
+
+        var answer = await provider.ReplyToERPDataQuestionAsync("Yayınlanmış alış faturalarını raporla.", [], CancellationToken.None,
+            (name, toolArguments, _) =>
+            {
+                executed = (name, toolArguments);
+                return Task.FromResult("{\"source\":\"purchaseInvoices\",\"columns\":[{\"code\":\"invoiceCode\"}],\"rows\":[{\"invoiceCode\":\"PI-100\",\"supplierName\":\"Supplier Ltd.\",\"currencyCode\":\"TRY\",\"grandTotal\":1250}],\"totalCount\":1,\"page\":1}");
+            });
+
+        Assert.Equal("Bir alış faturası bulundu.", answer);
+        Assert.Equal(2, callCount);
+        Assert.Equal(("generate_report", arguments), executed);
+    }
+
+    [Fact]
     public async Task Provider_does_not_call_openai_for_code_without_a_configured_api_key()
     {
         var handler = new StubHandler(_ => throw new Xunit.Sdk.XunitException("HTTP call must not be sent without a configured key."));

@@ -10,6 +10,9 @@ services:
     volumes:
       - aierp-sql-data:/var/opt/mssql
       - aierp-production-backups:/var/opt/mssql/backups
+    depends_on:
+      sql-backup-volume-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q 'SELECT 1' >/dev/null 2>&1"]
@@ -18,16 +21,31 @@ services:
       retries: 15
       start_period: 30s
 
+  sql-backup-volume-init:
+    image: busybox:1.37.0
+    command: ["sh", "-c", "chown 10001:0 /backups && chmod 0775 /backups"]
+    volumes:
+      - aierp-production-backups:/backups
+    network_mode: none
+    user: "0:0"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt: [no-new-privileges:true]
+    restart: "no"
+
   platform-api:
     build:
       context: ../..
       dockerfile: deploy/docker/Platform.Api.Dockerfile
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__Tenant: Server=sqlserver,1433;Database=AIERPPlatform;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD:-${MSSQL_SA_PASSWORD}};Encrypt=True;TrustServerCertificate=True
       Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
       Database__SeparationBackupPath: ${DATABASE_SEPARATION_BACKUP_PATH:-}
+      Database__DataRuntimeLogin: aierp_data_runtime
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       PluginHost__SigningKey: ${PLUGIN_HOST_SIGNING_KEY:?Set PLUGIN_HOST_SIGNING_KEY in .env}
       PluginHost__Issuer: AIERP
@@ -36,6 +54,7 @@ services:
       PluginHost__BaseUrl: http://plugin-host:8080
       IntegrationHost__SigningKey: ${PLUGIN_HOST_SIGNING_KEY:?Set PLUGIN_HOST_SIGNING_KEY in .env}
       IntegrationHost__BaseUrl: http://integration-host:8080
+      AIService__BaseUrl: http://ai-service:8080
       IntegrationQueue__EncryptionKey: ${INTEGRATION_QUEUE_ENCRYPTION_KEY:?Set INTEGRATION_QUEUE_ENCRYPTION_KEY in .env}
       AI__SettingsEncryptionKey: ${AI_SETTINGS_ENCRYPTION_KEY:-}
       Bootstrap__Email: ${BOOTSTRAP_EMAIL:-}
@@ -129,6 +148,7 @@ services:
     networks:
       - integration-runtime
       - integration-egress
+      - integration-metrics
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health >/dev/null || exit 1"]
@@ -142,9 +162,10 @@ services:
       context: ../..
       dockerfile: deploy/docker/AIService.Dockerfile
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: ${AI_SERVICE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__AIStudio: Server=sqlserver,1433;Database=AIERPStudio;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD:-${MSSQL_SA_PASSWORD}};Encrypt=True;TrustServerCertificate=True
       Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
       StudioKnowledge__RetentionDays: ${STUDIO_KNOWLEDGE_RETENTION_DAYS:-180}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
@@ -164,6 +185,7 @@ services:
       GitHub__AppId: ${GITHUB_APP_ID:-}
       GitHub__PrivateKeyPem: ${GITHUB_APP_PRIVATE_KEY_PEM:-}
       GitHub__AppSlug: ${GITHUB_APP_SLUG:-}
+      GitHub__WebhookSecret: ${GITHUB_APP_WEBHOOK_SECRET:-}
       GitHub__SetupCallbackUrl: ${GITHUB_APP_SETUP_CALLBACK_URL:-http://localhost:5081/studio/github/setup-callback}
       GitHub__StudioRedirectUrl: ${GITHUB_STUDIO_REDIRECT_URL:-http://localhost:5174/?app=studio}
     ports:
@@ -372,9 +394,27 @@ services:
       - aierp-workspaces:/workspaces
       - aierp-test-jobs:/test-jobs
       - aierp-release-packages:/release-packages
+    depends_on:
+      workspace-test-jobs-init:
+        condition: service_completed_successfully
     networks:
       - studio-internal
     restart: unless-stopped
+
+  workspace-test-jobs-init:
+    image: busybox:1.37.0
+    command: ["sh", "-c", "if [ \"$(stat -c %u /test-jobs)\" != 1654 ]; then chown -R 1654:1654 /test-jobs; fi && chmod 0770 /test-jobs"]
+    volumes:
+      - aierp-test-jobs:/test-jobs
+    network_mode: none
+    user: "0:0"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 16
+    mem_limit: 64m
+    restart: "no"
 
   release-deployer:
     build:
@@ -438,6 +478,7 @@ services:
     networks:
       - monitoring
       - monitoring-ui
+      - integration-metrics
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -456,19 +497,20 @@ services:
     environment:
       WorkspaceSandbox__JobRoot: /test-jobs
       WorkspaceSandbox__TempRoot: /tmp/test-jobs
+      WorkspaceSandbox__PackageCacheRoot: /package-cache
+      WorkspaceSandbox__MaxDependencyCacheBytes: "536870912"
     depends_on:
       workspace-runner:
         condition: service_started
     network_mode: none
     read_only: true
     tmpfs:
-      - /tmp/test-jobs:rw,exec,nosuid,nodev,size=2g
+      - /tmp/test-jobs:rw,exec,nosuid,nodev,size=2g,uid=1654,gid=1654,mode=0711
     cap_drop:
       - ALL
     cap_add:
       - DAC_OVERRIDE
       - KILL
-      - CHOWN
       - SETPCAP
       - SETUID
       - SETGID
@@ -479,6 +521,7 @@ services:
     cpus: 2.0
     volumes:
       - aierp-test-jobs:/test-jobs
+      - ${WORKSPACE_SANDBOX_PACKAGE_CACHE_PATH:-./sandbox-package-cache-runtime}:/package-cache:ro
     restart: unless-stopped
 
 volumes:
@@ -507,6 +550,8 @@ networks:
   plugin-runtime:
     internal: true
   integration-runtime:
+    internal: true
+  integration-metrics:
     internal: true
   integration-egress: {}
   monitoring-ui: {}

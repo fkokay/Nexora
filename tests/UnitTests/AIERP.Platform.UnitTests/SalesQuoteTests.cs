@@ -118,6 +118,20 @@ public sealed class SalesQuoteTests
         Assert.Equal(expected, PurchaseOrderWorkflow.GetStatus([(ordered, received)]));
     }
 
+    [Theory]
+    [InlineData(PurchaseOrderStatus.Open, true, true, true)]
+    [InlineData(PurchaseOrderStatus.PartiallyReceived, true, true, true)]
+    [InlineData(PurchaseOrderStatus.PendingApproval, false, false, true)]
+    [InlineData(PurchaseOrderStatus.Rejected, false, false, false)]
+    [InlineData(PurchaseOrderStatus.Received, false, false, false)]
+    [InlineData(PurchaseOrderStatus.Cancelled, false, false, false)]
+    public void Purchase_order_actions_respect_approval_state(PurchaseOrderStatus status, bool canEdit, bool canReceive, bool outstanding)
+    {
+        Assert.Equal(canEdit, PurchaseOrderWorkflow.CanEdit(status));
+        Assert.Equal(canReceive, PurchaseOrderWorkflow.CanReceive(status));
+        Assert.Equal(outstanding, PurchaseOrderWorkflow.HasOutstandingOrder(status));
+    }
+
     [Fact]
     public void Purchase_receipt_requires_idempotency_warehouse_and_positive_unique_lines()
     {

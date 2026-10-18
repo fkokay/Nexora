@@ -59,9 +59,11 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<StudioConversation> StudioConversations => Set<StudioConversation>();
     public DbSet<StudioConversationMessage> StudioConversationMessages => Set<StudioConversationMessage>();
     public DbSet<StudioKnowledgeDocument> StudioKnowledgeDocuments => Set<StudioKnowledgeDocument>();
+    public DbSet<StudioKnowledgeRefreshConsent> StudioKnowledgeRefreshConsents => Set<StudioKnowledgeRefreshConsent>();
     public DbSet<StudioCodeReviewThread> StudioCodeReviewThreads => Set<StudioCodeReviewThread>();
     public DbSet<StudioCodeReviewComment> StudioCodeReviewComments => Set<StudioCodeReviewComment>();
     public DbSet<CustomerAccount> CustomerAccounts => Set<CustomerAccount>();
+    public DbSet<CrmOpportunity> CrmOpportunities => Set<CrmOpportunity>();
     public DbSet<CustomerCustomFieldDefinition> CustomerCustomFieldDefinitions => Set<CustomerCustomFieldDefinition>();
     public DbSet<CustomerCustomFieldDefinitionRevision> CustomerCustomFieldDefinitionRevisions => Set<CustomerCustomFieldDefinitionRevision>();
     public DbSet<CustomerCustomFieldValue> CustomerCustomFieldValues => Set<CustomerCustomFieldValue>();
@@ -70,6 +72,15 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<CustomerLedgerEntry> CustomerLedgerEntries => Set<CustomerLedgerEntry>();
     public DbSet<StockItem> StockItems => Set<StockItem>();
+    public DbSet<BillOfMaterial> BillOfMaterials => Set<BillOfMaterial>();
+    public DbSet<BillOfMaterialLine> BillOfMaterialLines => Set<BillOfMaterialLine>();
+    public DbSet<ManufacturingWorkCenter> ManufacturingWorkCenters => Set<ManufacturingWorkCenter>();
+    public DbSet<BillOfMaterialOperation> BillOfMaterialOperations => Set<BillOfMaterialOperation>();
+    public DbSet<ManufacturingOrder> ManufacturingOrders => Set<ManufacturingOrder>();
+    public DbSet<MrpPlanSnapshot> MrpPlanSnapshots => Set<MrpPlanSnapshot>();
+    public DbSet<ManufacturingOrderLine> ManufacturingOrderLines => Set<ManufacturingOrderLine>();
+    public DbSet<ManufacturingOrderOperation> ManufacturingOrderOperations => Set<ManufacturingOrderOperation>();
+    public DbSet<ManufacturingCapacityAllocation> ManufacturingCapacityAllocations => Set<ManufacturingCapacityAllocation>();
     public DbSet<StockItemUnitConversion> StockItemUnitConversions => Set<StockItemUnitConversion>();
     public DbSet<StockItemCustomFieldDefinition> StockItemCustomFieldDefinitions => Set<StockItemCustomFieldDefinition>();
     public DbSet<StockItemCustomFieldDefinitionRevision> StockItemCustomFieldDefinitionRevisions => Set<StockItemCustomFieldDefinitionRevision>();
@@ -701,6 +712,15 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.EmbeddingJson).HasColumnType("nvarchar(max)");
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         });
+        modelBuilder.Entity<StudioKnowledgeRefreshConsent>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.ProjectId, x.WorkspaceRequestId }).IsUnique();
+            e.HasIndex(x => x.LastRefreshedAt);
+            e.Property(x => x.SelectedPathsJson).HasMaxLength(12000);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<StudioCodeReviewThread>(e =>
         {
             e.HasKey(x => x.Id);
@@ -742,6 +762,25 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.RowVersion).IsRowVersion();
             e.HasOne(x => x.Tenant).WithMany(x => x.Customers).HasForeignKey(x => x.TenantId);
             e.HasOne(x => x.Group).WithMany(x => x.Customers).HasForeignKey(x => new { x.TenantId, x.GroupId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false);
+        });
+        modelBuilder.Entity<CrmOpportunity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Stage, x.ExpectedCloseDate });
+            e.HasIndex(x => new { x.TenantId, x.NextActivityAt });
+            e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.Name).HasMaxLength(160);
+            e.Property(x => x.Stage).HasConversion<string>().HasMaxLength(20).IsUnicode(false);
+            e.Property(x => x.EstimatedValue).HasPrecision(18, 2);
+            e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength().IsUnicode(false);
+            e.Property(x => x.ProbabilityPercent);
+            e.Property(x => x.Notes).HasMaxLength(2000);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => new { x.TenantId, x.CustomerId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<CustomerCustomFieldDefinition>(e =>
         {
@@ -846,6 +885,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.UnitCode).HasMaxLength(8);
             e.Property(x => x.Category).HasMaxLength(120);
             e.Property(x => x.MinimumStock).HasPrecision(18, 4);
+            e.ToTable(t => t.HasCheckConstraint("CK_StockItems_LeadTimesNonNegative", "[ProcurementLeadTimeDays] >= 0 AND [ManufacturingLeadTimeDays] >= 0"));
             e.Property(x => x.TrackingMode).HasConversion<string>().HasMaxLength(16).HasDefaultValue(InventoryTrackingMode.None);
             e.Property(x => x.RowVersion).IsRowVersion();
             e.ToTable(t => t.HasCheckConstraint("CK_StockItems_MinimumStockNonNegative", "[MinimumStock] >= 0"));
@@ -1240,6 +1280,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.StockName).HasMaxLength(200);
             e.Property(x => x.UnitCode).HasMaxLength(8);
             e.Property(x => x.Quantity).HasPrecision(18, 4);
+            e.Property(x => x.EnteredQuantity).HasPrecision(18, 4);
             e.ToTable(t => t.HasCheckConstraint("CK_SalesDeliveryLines_QuantityPositive", "[Quantity] > 0"));
             e.HasOne(x => x.Delivery).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.DeliveryId, x.OrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.OrderId }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.OrderLine).WithMany().HasForeignKey(x => new { x.TenantId, x.OrderId, x.OrderLineNumber }).HasPrincipalKey(x => new { x.TenantId, x.OrderId, x.LineNumber }).OnDelete(DeleteBehavior.Restrict);
@@ -1374,6 +1415,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.StockName).HasMaxLength(200);
             e.Property(x => x.UnitCode).HasMaxLength(8);
             e.Property(x => x.Quantity).HasPrecision(18, 4);
+            e.Property(x => x.EnteredQuantity).HasPrecision(18, 4);
             e.Property(x => x.UnitPrice).HasPrecision(18, 4);
             e.Property(x => x.DiscountPercent).HasPrecision(5, 2);
             e.Property(x => x.VatPercent).HasPrecision(5, 2);
@@ -1545,6 +1587,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasAlternateKey(x => new { x.TenantId, x.Id, x.SupplierId });
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.OrderDate, x.CreatedAt });
+            e.HasIndex(x => new { x.TenantId, x.TargetWarehouseId, x.ExpectedReceiptDate });
             e.Property(x => x.Code).HasMaxLength(40);
             e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength();
             e.Property(x => x.Notes).HasMaxLength(1000);
@@ -1553,6 +1596,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.TaxTotal).HasPrecision(18, 2);
             e.Property(x => x.GrandTotal).HasPrecision(18, 2);
             e.HasOne(x => x.Tenant).WithMany(x => x.PurchaseOrders).HasForeignKey(x => x.TenantId);
+            e.HasOne(x => x.TargetWarehouse).WithMany().HasForeignKey(x => new { x.TenantId, x.TargetWarehouseId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Supplier).WithMany().HasForeignKey(x => new { x.TenantId, x.SupplierId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.SourcePurchaseRequest).WithOne(x => x.PurchaseOrder)
                 .HasForeignKey<PurchaseOrder>(x => new { x.TenantId, x.SourcePurchaseRequestId })
@@ -1665,6 +1709,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.StockName).HasMaxLength(200);
             e.Property(x => x.UnitCode).HasMaxLength(8);
             e.Property(x => x.Quantity).HasPrecision(18, 4);
+            e.Property(x => x.EnteredQuantity).HasPrecision(18, 4);
             e.ToTable(t => t.HasCheckConstraint("CK_PurchaseReceiptLines_QuantityPositive", "[Quantity] > 0"));
             e.HasOne(x => x.Receipt).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.ReceiptId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.PurchaseOrderId }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.OrderLine).WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId, x.OrderLineNumber }).HasPrincipalKey(x => new { x.TenantId, x.PurchaseOrderId, x.LineNumber }).OnDelete(DeleteBehavior.Restrict);
@@ -1761,6 +1806,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.StockName).HasMaxLength(200);
             e.Property(x => x.UnitCode).HasMaxLength(8);
             e.Property(x => x.Quantity).HasPrecision(18, 4);
+            e.Property(x => x.EnteredQuantity).HasPrecision(18, 4);
             e.Property(x => x.UnitPrice).HasPrecision(18, 4);
             e.Property(x => x.DiscountPercent).HasPrecision(5, 2);
             e.Property(x => x.VatPercent).HasPrecision(5, 2);
@@ -1981,6 +2027,134 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.Label).HasMaxLength(80);
             e.Property(x => x.TargetPage).HasMaxLength(40).IsUnicode(false);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<BillOfMaterial>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ProductStockItemId, x.IsActive });
+            e.Property(x => x.Code).HasMaxLength(48).IsUnicode(false);
+            e.Property(x => x.Name).HasMaxLength(160);
+            e.Property(x => x.OutputQuantity).HasPrecision(18, 4);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t => t.HasCheckConstraint("CK_BillOfMaterials_OutputQuantityPositive", "[OutputQuantity] > 0"));
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.ProductStockItemId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ManufacturingWorkCenter>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(48).IsUnicode(false);
+            e.Property(x => x.Name).HasMaxLength(160);
+            e.Property(x => x.LaborCostPerHourBase).HasPrecision(18, 4);
+            e.Property(x => x.OverheadCostPerHourBase).HasPrecision(18, 4);
+            e.ToTable(t => t.HasCheckConstraint("CK_ManufacturingWorkCenters_Capacity", "[CapacityMinutesPerDay] > 0 AND [CapacityMinutesPerDay] <= 1440 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0"));
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<BillOfMaterialOperation>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.BillOfMaterialId, x.Sequence }).IsUnique();
+            e.Property(x => x.SetupMinutes).HasPrecision(12, 2);
+            e.Property(x => x.RunMinutesPerOutputUnit).HasPrecision(12, 4);
+            e.ToTable(t => t.HasCheckConstraint("CK_BillOfMaterialOperations_Minutes", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutesPerOutputUnit] >= 0 AND ([SetupMinutes] + [RunMinutesPerOutputUnit]) > 0"));
+            e.HasOne<BillOfMaterial>().WithMany(x => x.Operations).HasForeignKey(x => new { x.TenantId, x.BillOfMaterialId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<BillOfMaterialLine>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.BillOfMaterialId, x.ComponentStockItemId }).IsUnique();
+            e.Property(x => x.Quantity).HasPrecision(18, 4);
+            e.Property(x => x.ScrapPercent).HasPrecision(9, 4);
+            e.ToTable(t => t.HasCheckConstraint("CK_BillOfMaterialLines_Quantities", "[Quantity] > 0 AND [ScrapPercent] >= 0 AND [ScrapPercent] <= 100"));
+            e.HasOne<BillOfMaterial>().WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.BillOfMaterialId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.ComponentStockItemId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ManufacturingOrder>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status, x.PlannedDate });
+            e.Property(x => x.Code).HasMaxLength(48).IsUnicode(false);
+            e.Property(x => x.PlannedQuantity).HasPrecision(18, 4);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t => t.HasCheckConstraint("CK_ManufacturingOrders_PlannedQuantityPositive", "[PlannedQuantity] > 0"));
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<BillOfMaterial>().WithMany().HasForeignKey(x => new { x.TenantId, x.BillOfMaterialId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Warehouse>().WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<MrpPlanSnapshot>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            e.Property(x => x.SupplyCaveat).HasMaxLength(1000);
+            e.Property(x => x.ResultJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ConversionStateJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Warehouse>().WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ManufacturingOrderLine>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.ManufacturingOrderId, x.ComponentStockItemId }).IsUnique();
+            e.Property(x => x.ComponentCodeSnapshot).HasMaxLength(64);
+            e.Property(x => x.ComponentNameSnapshot).HasMaxLength(200);
+            e.Property(x => x.RequiredQuantity).HasPrecision(18, 4);
+            e.ToTable(t => t.HasCheckConstraint("CK_ManufacturingOrderLines_RequiredQuantityPositive", "[RequiredQuantity] > 0"));
+            e.HasOne<ManufacturingOrder>().WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.ManufacturingOrderId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.ComponentStockItemId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ManufacturingOrderOperation>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.ManufacturingOrderId, x.Sequence }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.WorkCenterId, x.ScheduledStartDate, x.ScheduledEndDate });
+            e.Property(x => x.WorkCenterCodeSnapshot).HasMaxLength(48).IsUnicode(false);
+            e.Property(x => x.WorkCenterNameSnapshot).HasMaxLength(160);
+            e.Property(x => x.SetupMinutes).HasPrecision(12, 2);
+            e.Property(x => x.RunMinutes).HasPrecision(12, 2);
+            e.Property(x => x.LaborCostPerHourBase).HasPrecision(18, 4);
+            e.Property(x => x.OverheadCostPerHourBase).HasPrecision(18, 4);
+            e.Property(x => x.PlannedCostBase).HasPrecision(18, 4);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.ActualSetupMinutes).HasPrecision(12, 2);
+            e.Property(x => x.ActualRunMinutes).HasPrecision(12, 2);
+            e.Property(x => x.ActualCostBase).HasPrecision(18, 4);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_ManufacturingOrderOperations_MinutesAndCost", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutes] >= 0 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0 AND [PlannedCostBase] >= 0");
+                t.HasCheckConstraint("CK_ManufacturingOrderOperations_Actuals", "([ActualSetupMinutes] IS NULL OR [ActualSetupMinutes] >= 0) AND ([ActualRunMinutes] IS NULL OR [ActualRunMinutes] >= 0) AND ([ActualCostBase] IS NULL OR [ActualCostBase] >= 0)");
+            });
+            e.HasOne<ManufacturingOrder>().WithMany(x => x.Operations).HasForeignKey(x => new { x.TenantId, x.ManufacturingOrderId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ManufacturingCapacityAllocation>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.ManufacturingOrderOperationId, x.ScheduledDate }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.WorkCenterId, x.ScheduledDate });
+            e.Property(x => x.AllocatedMinutes).HasPrecision(12, 2);
+            e.ToTable(t => t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_Minutes", "[AllocatedMinutes] > 0"));
+            e.HasOne<ManufacturingOrderOperation>().WithMany().HasForeignKey(x => new { x.TenantId, x.ManufacturingOrderOperationId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

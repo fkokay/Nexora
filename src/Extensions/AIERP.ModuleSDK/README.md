@@ -58,6 +58,8 @@ A module can request only fixed host operations that are both supported by the p
 
 Currently supported capability:
 
+The SDK exposes the immutable `ModuleDataCapabilityCatalog.All` registry with each capability's code, purpose, required form field, result contract, and whether a bounded `limit` is supported. The manifest validator uses this catalog to validate module views; the API still dispatches each code to a fixed tenant-scoped implementation.
+
 | Code | Query | Returned fields |
 | --- | --- | --- |
 | `customers.search` | `term` (2–100 characters), optional `limit` (1–25; default 10) | Active customer/Both accounts matching code or name: `id`, `code`, `name`, `currencyCode` |

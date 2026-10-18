@@ -17,7 +17,7 @@ public sealed class AIStudioDbContext(DbContextOptions<AIStudioDbContext> option
             typeof(ArchitecturePlanRecord), typeof(AITestPlanRecord), typeof(ReleaseCandidateRecord),
             typeof(ReleaseCandidateReviewRecord), typeof(StudioReleaseVersionRecord), typeof(StudioReleasePackageRecord),
             typeof(StudioReleaseDeploymentRecord), typeof(StudioProductionPromotionApprovalRecord),
-            typeof(StudioConversation), typeof(StudioConversationMessage), typeof(StudioKnowledgeDocument),
+            typeof(StudioConversation), typeof(StudioConversationMessage), typeof(StudioKnowledgeDocument), typeof(StudioKnowledgeRefreshConsent),
             typeof(StudioCodeReviewThread), typeof(StudioCodeReviewComment)
         };
         var registered = typeof(PlatformDbContextBase<PlatformDbContext>).GetProperties()

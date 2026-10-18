@@ -1,0 +1,3716 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "fullName": "Docker Scout",
+          "informationUri": "https://docker.com/products/docker-scout",
+          "name": "docker scout",
+          "rules": [
+            {
+              "id": "CVE-2025-69649",
+              "name": "OsPackageVulnerability",
+              "shortDescription": {
+                "text": "CVE-2025-69649"
+              },
+              "helpUri": "https://scout.docker.com/v/CVE-2025-69649?s=alpine&n=binutils&ns=alpine&t=apk&osn=alpine&osv=3.24&vr=%3C%3D2.45.1-r1",
+              "help": {
+                "text": "\n",
+                "markdown": "> \n\n|                                                                                  |\n|Package         pkg:apk/alpine/binutils@2.45.1-r1?os_name=alpine&os_version=3.24  |\n|Affected range  <=2.45.1-r1                                                       |\n|Fixed version   not fixed                                                         |\n"
+              },
+              "properties": {
+                "affected_version": "<=2.45.1-r1",
+                "cvssV3_severity": "HIGH",
+                "fixed_version": "not fixed",
+                "purls": [
+                  "pkg:apk/alpine/binutils@2.45.1-r1?os_name=alpine&os_version=3.24"
+                ],
+                "security-severity": "7.5",
+                "tags": [
+                  "HIGH"
+                ]
+              }
+            },
+            {
+              "id": "CVE-2025-69650",
+              "name": "OsPackageVulnerability",
+              "shortDescription": {
+                "text": "CVE-2025-69650"
+              },
+              "helpUri": "https://scout.docker.com/v/CVE-2025-69650?s=alpine&n=binutils&ns=alpine&t=apk&osn=alpine&osv=3.24&vr=%3C%3D2.45.1-r1",
+              "help": {
+                "text": "\n",
+                "markdown": "> \n\n|                                                                                  |\n|Package         pkg:apk/alpine/binutils@2.45.1-r1?os_name=alpine&os_version=3.24  |\n|Affected range  <=2.45.1-r1                                                       |\n|Fixed version   not fixed                                                         |\n"
+              },
+              "properties": {
+                "affected_version": "<=2.45.1-r1",
+                "cvssV3_severity": "HIGH",
+                "fixed_version": "not fixed",
+                "purls": [
+                  "pkg:apk/alpine/binutils@2.45.1-r1?os_name=alpine&os_version=3.24"
+                ],
+                "security-severity": "7.5",
+                "tags": [
+                  "HIGH"
+                ]
+              }
+            },
+            {
+              "id": "CVE-2026-6846",
+              "name": "OsPackageVulnerability",
+              "shortDescription": {
+                "text": "CVE-2026-6846"
+              },
+              "helpUri": "https://scout.docker.com/v/CVE-2026-6846?s=alpine&n=binutils&ns=alpine&t=apk&osn=alpine&osv=3.24&vr=%3C%3D2.45.1-r1",
+              "help": {
+                "text": "\n",
+                "markdown": "> \n\n|                                                                                  |\n|Package         pkg:apk/alpine/binutils@2.45.1-r1?os_name=alpine&os_version=3.24  |\n|Affected range  <=2.45.1-r1                                                       |\n|Fixed version   not fixed                                                         |\n"
+              },
+              "properties": {
+                "affected_version": "<=2.45.1-r1",
+                "cvssV3_severity": "HIGH",
+                "fixed_version": "not fixed",
+                "purls": [
+                  "pkg:apk/alpine/binutils@2.45.1-r1?os_name=alpine&os_version=3.24"
+                ],
+                "security-severity": "7.8",
+                "tags": [
+                  "HIGH"
+                ]
+              }
+            },
+            {
+              "id": "CVE-2026-86140",
+              "name": "OsPackageVulnerability",
+              "shortDescription": {
+                "text": "CVE-2026-86140"
+              },
+              "helpUri": "https://scout.docker.com/v/CVE-2026-86140?s=alpine&n=libxml2&ns=alpine&t=apk&osn=alpine&osv=3.24&vr=%3C%3D2.13.9-r2",
+              "help": {
+                "text": "\n",
+                "markdown": "> \n\n|                                                                                 |\n|Package         pkg:apk/alpine/libxml2@2.13.9-r2?os_name=alpine&os_version=3.24  |\n|Affected range  <=2.13.9-r2                                                      |\n|Fixed version   not fixed                                                        |\n"
+              },
+              "properties": {
+                "affected_version": "<=2.13.9-r2",
+                "cvssV3_severity": "HIGH",
+                "fixed_version": "not fixed",
+                "purls": [
+                  "pkg:apk/alpine/libxml2@2.13.9-r2?os_name=alpine&os_version=3.24"
+                ],
+                "security-severity": "8.0",
+                "tags": [
+                  "HIGH"
+                ]
+              }
+            },
+            {
+              "id": "CVE-2025-15661",
+              "name": "OsPackageVulnerability",
+              "shortDescription": {
+                "text": "CVE-2025-15661"
+              },
+              "helpUri": "https://scout.docker.com/v/CVE-2025-15661?s=alpine&n=libssh2&ns=alpine&t=apk&osn=alpine&osv=3.24&vr=%3C%3D1.11.1-r3",
+              "help": {
+                "text": "\n",
+                "markdown": "> \n\n|                                                                                 |\n|Package         pkg:apk/alpine/libssh2@1.11.1-r3?os_name=alpine&os_version=3.24  |\n|Affected range  <=1.11.1-r3                                                      |\n|Fixed version   not fixed                                                        |\n"
+              },
+              "properties": {
+                "affected_version": "<=1.11.1-r3",
+                "cvssV3_severity": "HIGH",
+                "fixed_version": "not fixed",
+                "purls": [
+                  "pkg:apk/alpine/libssh2@1.11.1-r3?os_name=alpine&os_version=3.24"
+                ],
+                "security-severity": "8.3",
+                "tags": [
+                  "HIGH"
+                ]
+              }
+            },
+            {
+              "id": "CVE-2026-66032",
+              "name": "OsPackageVulnerability",
+              "shortDescription": {
+                "text": "CVE-2026-66032"
+              },
+              "helpUri": "https://scout.docker.com/v/CVE-2026-66032?s=alpine&n=libssh2&ns=alpine&t=apk&osn=alpine&osv=3.24&vr=%3C%3D1.11.1-r3",
+              "help": {
+                "text": "\n",
+                "markdown": "> \n\n|                                                                                 |\n|Package         pkg:apk/alpine/libssh2@1.11.1-r3?os_name=alpine&os_version=3.24  |\n|Affected range  <=1.11.1-r3                                                      |\n|Fixed version   not fixed                                                        |\n"
+              },
+              "properties": {
+                "affected_version": "<=1.11.1-r3",
+                "cvssV3_severity": "HIGH",
+                "fixed_version": "not fixed",
+                "purls": [
+                  "pkg:apk/alpine/libssh2@1.11.1-r3?os_name=alpine&os_version=3.24"
+                ],
+                "security-severity": "8.7",
+                "tags": [
+                  "HIGH"
+                ]
+              }
+            }
+          ],
+          "version": "1.26.0"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "CVE-2025-69649",
+          "ruleIndex": 0,
+          "kind": "fail",
+          "level": "error",
+          "message": {
+            "text": "Vulnerability    :CVE-2025-69649                                                    \nSeverity         :HIGH                                                              \nPackage          :pkg:apk/alpine/binutils@2.45.1-r1?os_name=alpine&os_version=3.24  \nAffected range   :<=2.45.1-r1                                                       \nFixed version    :not fixed                                                         \nEPSS Score       :0.002660                                                          \nEPSS Percentile  :0.175230                                                          \n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/lib/apk/db/installed"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/addr2line"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/ar"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/as"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/c++filt"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/dwp"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/elfedit"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/gprof"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/ld"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/nm"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/objcopy"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/objdump"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/ranlib"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/readelf"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/size"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/strings"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/strip"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/bfd-plugins/libdep.so"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libbfd-2.45.1.so"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libctf-nobfd.so.0.0.0"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libctf.so.0.0.0"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libopcodes-2.45.1.so"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libsframe.so.2.0.0"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xa"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xa"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/stamp"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2025-69650",
+          "ruleIndex": 1,
+          "kind": "fail",
+          "level": "error",
+          "message": {
+            "text": "Vulnerability    :CVE-2025-69650                                                    \nSeverity         :HIGH                                                              \nPackage          :pkg:apk/alpine/binutils@2.45.1-r1?os_name=alpine&os_version=3.24  \nAffected range   :<=2.45.1-r1                                                       \nFixed version    :not fixed                                                         \nEPSS Score       :0.005220                                                          \nEPSS Percentile  :0.430360                                                          \n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/lib/apk/db/installed"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/addr2line"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/ar"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/as"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/c++filt"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/dwp"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/elfedit"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/gprof"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/ld"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/nm"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/objcopy"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/objdump"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/ranlib"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/readelf"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/size"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/strings"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/strip"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/bfd-plugins/libdep.so"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libbfd-2.45.1.so"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libctf-nobfd.so.0.0.0"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libctf.so.0.0.0"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libopcodes-2.45.1.so"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libsframe.so.2.0.0"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xa"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xa"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/stamp"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2026-6846",
+          "ruleIndex": 2,
+          "kind": "fail",
+          "level": "error",
+          "message": {
+            "text": "Vulnerability    :CVE-2026-6846                                                     \nSeverity         :HIGH                                                              \nPackage          :pkg:apk/alpine/binutils@2.45.1-r1?os_name=alpine&os_version=3.24  \nAffected range   :<=2.45.1-r1                                                       \nFixed version    :not fixed                                                         \nEPSS Score       :0.001960                                                          \nEPSS Percentile  :0.087130                                                          \n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/lib/apk/db/installed"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/addr2line"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/ar"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/as"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/c++filt"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/dwp"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/elfedit"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/gprof"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/ld"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/nm"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/objcopy"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/objdump"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/ranlib"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/readelf"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/size"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/strings"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/bin/strip"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/bfd-plugins/libdep.so"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libbfd-2.45.1.so"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libctf-nobfd.so.0.0.0"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libctf.so.0.0.0"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libopcodes-2.45.1.so"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libsframe.so.2.0.0"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf32_x86_64.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_i386.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_iamcu.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xd"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdcer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xde"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xder"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xdwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xs"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xsc"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xsce"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xscer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xse"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xser"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xsw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xswe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xswer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xw"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xwe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/elf_x86_64.xwer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xa"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pe.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.x"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xa"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xbn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xe"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xer"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xn"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xr"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/i386pep.xu"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/x86_64-alpine-linux-musl/lib/ldscripts/stamp"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2026-86140",
+          "ruleIndex": 3,
+          "kind": "fail",
+          "level": "error",
+          "message": {
+            "text": "Vulnerability    :CVE-2026-86140                                                   \nSeverity         :HIGH                                                             \nPackage          :pkg:apk/alpine/libxml2@2.13.9-r2?os_name=alpine&os_version=3.24  \nAffected range   :<=2.13.9-r2                                                      \nFixed version    :not fixed                                                        \nEPSS Score       :0.001570                                                         \nEPSS Percentile  :0.044400                                                         \n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/lib/apk/db/installed"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libxml2.so.2.13.9"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2025-15661",
+          "ruleIndex": 4,
+          "kind": "fail",
+          "level": "error",
+          "message": {
+            "text": "Vulnerability    :CVE-2025-15661                                                   \nSeverity         :HIGH                                                             \nPackage          :pkg:apk/alpine/libssh2@1.11.1-r3?os_name=alpine&os_version=3.24  \nAffected range   :<=1.11.1-r3                                                      \nFixed version    :not fixed                                                        \nEPSS Score       :0.006480                                                         \nEPSS Percentile  :0.500220                                                         \n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/lib/apk/db/installed"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libssh2.so.1.0.1"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2026-66032",
+          "ruleIndex": 5,
+          "kind": "fail",
+          "level": "error",
+          "message": {
+            "text": "Vulnerability    :CVE-2026-66032                                                   \nSeverity         :HIGH                                                             \nPackage          :pkg:apk/alpine/libssh2@1.11.1-r3?os_name=alpine&os_version=3.24  \nAffected range   :<=1.11.1-r3                                                      \nFixed version    :not fixed                                                        \nEPSS Score       :0.004480                                                         \nEPSS Percentile  :0.375300                                                         \n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/lib/apk/db/installed"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/libssh2.so.1.0.1"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

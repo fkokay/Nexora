@@ -45,7 +45,17 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
             _ = await platform.Tenants.AsNoTracking().SingleOrDefaultAsync(x => x.Id == tenantId, cancellationToken)
                 ?? throw new InvalidOperationException("Tenant does not exist in PlatformDB.");
             var entry = await platform.TenantDatabaseCatalog.FindAsync([tenantId], cancellationToken);
-            if (entry?.State == TenantDatabaseProvisioningState.Ready) return;
+            if (entry?.State == TenantDatabaseProvisioningState.Ready)
+            {
+                if (!string.Equals(entry.DatabaseName, databaseName, StringComparison.Ordinal))
+                    throw new InvalidOperationException("Catalog database name does not match the tenant identity.");
+                var readyBuilder = new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = entry.DatabaseName };
+                var readyOptions = new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(readyBuilder.ConnectionString).Options;
+                await using var readyDatabase = new TenantDbContext(readyOptions);
+                await readyDatabase.Database.MigrateAsync(cancellationToken);
+                await GrantDatabaseRuntimeAccessAsync(platformConnection, entry.DatabaseName, dataRuntimeLogin, cancellationToken: cancellationToken);
+                return;
+            }
             await EnsureVerifiedSourceBackupAsync(sourceDatabase, cancellationToken);
             if (entry is null)
             {
@@ -66,7 +76,7 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
             {
                 await master.OpenAsync(cancellationToken);
                 await using var create = master.CreateCommand();
-                create.CommandText = "IF DB_ID(@db) IS NULL EXEC('CREATE DATABASE ' + QUOTENAME(@db))";
+                create.CommandText = "IF DB_ID(@db) IS NULL BEGIN DECLARE @sql nvarchar(max) = N'CREATE DATABASE ' + QUOTENAME(@db); EXEC sys.sp_executesql @sql; END";
                 create.Parameters.AddWithValue("@db", databaseName);
                 await create.ExecuteNonQueryAsync(cancellationToken);
             }
@@ -107,7 +117,17 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
         await using (var platform = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options))
         {
             var state = await platform.DatabaseSeparationComponentStates.FindAsync([component], cancellationToken);
-            if (state?.State == TenantDatabaseProvisioningState.Ready) return;
+            if (state?.State == TenantDatabaseProvisioningState.Ready)
+            {
+                if (!string.Equals(state.DatabaseName, databaseName, StringComparison.Ordinal))
+                    throw new InvalidOperationException("AIStudio catalog database name is invalid.");
+                var readyBuilder = new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = state.DatabaseName };
+                var readyOptions = new DbContextOptionsBuilder<AIStudioDbContext>().UseSqlServer(readyBuilder.ConnectionString).Options;
+                await using var readyDatabase = new AIStudioDbContext(readyOptions);
+                await readyDatabase.Database.MigrateAsync(cancellationToken);
+                await GrantDatabaseRuntimeAccessAsync(platformConnection, state.DatabaseName, dataRuntimeLogin, cancellationToken: cancellationToken);
+                return;
+            }
             if (await platform.Tenants.AsNoTracking().AnyAsync(cancellationToken)) await EnsureVerifiedSourceBackupAsync(sourceDatabase, cancellationToken);
             if (state is null) platform.DatabaseSeparationComponentStates.Add(state = new DatabaseSeparationComponentState { Component = component, DatabaseName = databaseName });
             if (state.DatabaseName != databaseName) throw new InvalidOperationException("AIStudio catalog database name is invalid.");
@@ -120,7 +140,7 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
             await using (var master = new SqlConnection(masterBuilder.ConnectionString))
             {
                 await master.OpenAsync(cancellationToken); await using var create = master.CreateCommand();
-                create.CommandText = "IF DB_ID(@db) IS NULL EXEC('CREATE DATABASE ' + QUOTENAME(@db))"; create.Parameters.AddWithValue("@db", databaseName);
+                create.CommandText = "IF DB_ID(@db) IS NULL BEGIN DECLARE @sql nvarchar(max) = N'CREATE DATABASE ' + QUOTENAME(@db); EXEC sys.sp_executesql @sql; END"; create.Parameters.AddWithValue("@db", databaseName);
                 await create.ExecuteNonQueryAsync(cancellationToken);
             }
             var targetBuilder = new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = databaseName };
@@ -210,10 +230,20 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
             foreach (var (schema, name) in tables)
             {
                 await using var metadata = connection.CreateCommand(); metadata.Transaction = (SqlTransaction)tx;
-                metadata.CommandText = "SELECT c.name, c.is_identity FROM sys.columns c JOIN sys.tables t ON t.object_id=c.object_id JOIN sys.schemas s ON s.schema_id=t.schema_id WHERE s.name=@s AND t.name=@t ORDER BY c.column_id";
+                metadata.CommandText = "SELECT c.name, c.is_identity, c.system_type_id, c.is_computed, c.generated_always_type FROM sys.columns c JOIN sys.tables t ON t.object_id=c.object_id JOIN sys.schemas s ON s.schema_id=t.schema_id WHERE s.name=@s AND t.name=@t ORDER BY c.column_id";
                 metadata.Parameters.AddWithValue("@s", schema); metadata.Parameters.AddWithValue("@t", name);
                 var columns = new List<string>(); var identity = false;
-                await using (var reader = await metadata.ExecuteReaderAsync(cancellationToken)) while (await reader.ReadAsync(cancellationToken)) { columns.Add(reader.GetString(0)); identity |= reader.GetBoolean(1); }
+                await using (var reader = await metadata.ExecuteReaderAsync(cancellationToken))
+                {
+                    while (await reader.ReadAsync(cancellationToken))
+                    {
+                        // Rowversion/timestamp, computed, and generated-always columns are
+                        // owned by SQL Server and cannot be supplied in an INSERT SELECT.
+                        if (reader.GetByte(2) == 189 || reader.GetBoolean(3) || reader.GetByte(4) != 0) continue;
+                        columns.Add(reader.GetString(0));
+                        identity |= reader.GetBoolean(1);
+                    }
+                }
                 var filter = name == "Tenants" ? "Id" : columns.Contains("TenantId", StringComparer.OrdinalIgnoreCase) ? "TenantId" : null;
                 if (filter is not null) eligible.Add((schema, name, filter, columns.ToArray(), identity));
             }

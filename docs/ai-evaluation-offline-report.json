@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAtUtc": "2026-10-18T22:16:06.3333734+00:00",
+  "evaluationSet": {
+    "id": "erp-assistant-orchestration",
+    "version": "1.0.0",
+    "schemaVersion": "1.0.0",
+    "sha256": "ee268adb2b0df2f495cefc284c7249e34a763b17e9cdef161512d27f7ebd779f"
+  },
+  "execution": {
+    "mode": "offline-mocked",
+    "provider": "openai-responses-mock",
+    "model": "offline-scripted-model-v1",
+    "externalRequests": 0,
+    "semanticQualityScored": false,
+    "semanticQualityStatus": "not-scored-mock-provider",
+    "testExitCode": 0
+  },
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "skipped": 0
+  },
+  "cases": [
+    {
+      "id": "contract-validation",
+      "outcome": "Passed"
+    },
+    {
+      "id": "crm-opportunity-report",
+      "outcome": "Passed"
+    },
+    {
+      "id": "customer-balance",
+      "outcome": "Passed"
+    },
+    {
+      "id": "customer-report",
+      "outcome": "Passed"
+    },
+    {
+      "id": "customer-search",
+      "outcome": "Passed"
+    },
+    {
+      "id": "four-call-budget-rejection",
+      "outcome": "Passed"
+    },
+    {
+      "id": "provider-429-classification",
+      "outcome": "Passed"
+    },
+    {
+      "id": "stock-lookup-untrusted-tool-output",
+      "outcome": "Passed"
+    },
+    {
+      "id": "stock-search",
+      "outcome": "Passed"
+    },
+    {
+      "id": "tool-failure-sanitization",
+      "outcome": "Passed"
+    },
+    {
+      "id": "warehouse-balances",
+      "outcome": "Passed"
+    },
+    {
+      "id": "warehouse-list",
+      "outcome": "Passed"
+    }
+  ],
+  "contract": {
+    "unmappedTests": 0,
+    "missingCases": [],
+    "duplicateCaseIds": []
+  }
+}

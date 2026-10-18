@@ -6,3 +6,5 @@
 **/node_modules
 **/dist
 **/.vite
+.local-scout-cache/
+deploy/docker/sandbox-package-cache/

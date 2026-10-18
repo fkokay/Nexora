@@ -7,7 +7,8 @@ WORKDIR /workspace
 COPY frontend/development-studio ./frontend/development-studio
 RUN npm --prefix frontend/development-studio run build
 
-FROM nginx:1.27-alpine
+FROM nginx:1.30-alpine3.24-slim
+RUN apk upgrade --no-cache
 COPY deploy/docker/development-studio.nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /workspace/frontend/development-studio/dist /usr/share/nginx/html
 EXPOSE 80

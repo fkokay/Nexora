@@ -1,0 +1,34 @@
+[Unit]
+Description=Nexora ERP AI Service
+After=network-online.target aierp-platform-api.service
+Wants=network-online.target
+Requires=aierp-platform-api.service
+
+[Service]
+Type=simple
+User=nexora
+Group=nexora
+WorkingDirectory=/opt/nexora/current/ai-service
+EnvironmentFile=/etc/nexora/ai-service.env
+ExecStart=/usr/bin/dotnet /opt/nexora/current/ai-service/AIERP.AIService.dll
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120s
+TimeoutStopSec=30s
+KillSignal=SIGINT
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/nexora /var/log/nexora
+SyslogIdentifier=nexora-ai-service
+
+[Install]
+WantedBy=multi-user.target

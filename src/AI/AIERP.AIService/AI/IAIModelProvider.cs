@@ -7,11 +7,16 @@ public sealed record ArchitectureTechnology(string Name, int FileCount);
 public sealed record AITestTarget(string Path, string Ecosystem, string Evidence);
 public sealed record AITestScenario(string Title, string Category, string Objective, IReadOnlyList<string> Steps, string ExpectedResult, string Priority);
 public sealed record AITestPlan(string Summary, IReadOnlyList<AITestScenario> Scenarios, IReadOnlyList<string> Assumptions, IReadOnlyList<string> Risks);
+public sealed record DatabaseQuerySuggestion(string Purpose, string Sql);
+public sealed record DatabaseEngineeringPlan(string Summary, IReadOnlyList<DatabaseQuerySuggestion> ReadOnlySqlQueries,
+    IReadOnlyList<string> MigrationDesign, IReadOnlyList<string> IndexRecommendations, IReadOnlyList<string> PerformanceAnalysis,
+    IReadOnlyList<string> IntegrityChecks, IReadOnlyList<string> Assumptions, IReadOnlyList<string> Risks);
 public sealed record CodeSuggestion(string Summary, string ProposedContent, IReadOnlyList<string> Notes);
 public sealed record CodeSourceFile(string Path, string Content, string Sha256);
 public sealed record ProposedCodeFile(string Path, string ProposedContent, IReadOnlyList<string> Notes);
 public sealed record MultiFileCodeSuggestion(string Summary, IReadOnlyList<ProposedCodeFile> Changes, IReadOnlyList<string> Risks);
 public sealed record StudioChatTurn(string Role, string Content);
+public sealed record ERPAssistantToolCall(string Name, string ArgumentsJson);
 public sealed record StudioEmbeddingBatch(string Model, IReadOnlyList<float[]> Vectors);
 public sealed record StudioCodeContext(string Path, int Line, string Excerpt);
 public sealed record StudioDiffContext(string Path, string Status, string BaseContent, string CurrentContent, string CommitSha);
@@ -31,6 +36,8 @@ public sealed record SandboxErrorAnalysis(string Summary, string LikelyCause, IR
 
 public interface IAIModelProvider
 {
+    Task<string> ReplyToERPDataQuestionAsync(string question, IReadOnlyList<StudioChatTurn> history, CancellationToken cancellationToken,
+        Func<string, string, CancellationToken, Task<string>> executeReadOnlyTool);
     Task<StudioEmbeddingBatch?> CreateStudioEmbeddingsAsync(IReadOnlyList<string> inputs, CancellationToken cancellationToken);
 
     Task<string> ReplyToStudioChatAsync(string projectName, string branchName, IReadOnlyList<StudioChatTurn> history,
@@ -54,6 +61,9 @@ public interface IAIModelProvider
 
     Task<AITestPlan> CreateTestPlanAsync(string request, string projectName, string branchName,
         IReadOnlyList<AITestTarget> targets, CancellationToken cancellationToken);
+
+    Task<DatabaseEngineeringPlan> CreateDatabaseEngineeringPlanAsync(string request, string projectName, string branchName,
+        IReadOnlyList<CodeSourceFile> schemaSources, CancellationToken cancellationToken);
 
     Task<CodeSuggestion> CreateCodeSuggestionAsync(string request, string projectName, string branchName,
         string filePath, string sourceContent, CancellationToken cancellationToken, bool createNewFile = false);

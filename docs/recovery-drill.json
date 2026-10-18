@@ -1,0 +1,19 @@
+{
+  "drillId": "20261017T083150Z_fa9e801e",
+  "completedAtUtc": "2026-10-17T08:31:53.9421214Z",
+  "container": "docker-sqlserver-1",
+  "sourceDatabase": "AIERPPlatform",
+  "temporaryDatabase": "AIERPRecoveryDrill_20261017T083150Z_fa9e801e",
+  "backupFile": "AIERPRecoveryDrill_20261017T083150Z_fa9e801e.bak",
+  "backupVerified": true,
+  "restoreCheckedWithDbcc": true,
+  "sourceUserTables": 134,
+  "restoredUserTables": 134,
+  "sourceRows": 19699,
+  "restoredRows": 19701,
+  "rowCountDelta": 2,
+  "rowCountsArePointInTimeComparable": false,
+  "temporaryArtifactsRemoved": true,
+  "status": "passed",
+  "error": null
+}

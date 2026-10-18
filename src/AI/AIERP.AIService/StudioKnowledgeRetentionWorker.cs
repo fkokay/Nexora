@@ -63,10 +63,14 @@ public sealed class StudioKnowledgeRetentionWorker : BackgroundService
             var deleted = await db.StudioKnowledgeDocuments
                 .Where(document => document.IndexedAt < cutoff)
                 .ExecuteDeleteAsync(cancellationToken);
+            var expiredConsents = await db.StudioKnowledgeRefreshConsents
+                .Where(consent => consent.LastRefreshedAt < cutoff)
+                .ExecuteDeleteAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Studio source index retention completed. Deleted {DeletedCount} expired snapshots older than {RetentionDays} days.",
+                "Studio source index retention completed. Deleted {DeletedCount} expired snapshots and {ExpiredConsentCount} inactive refresh consents older than {RetentionDays} days.",
                 deleted,
+                expiredConsents,
                 _retentionDays);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

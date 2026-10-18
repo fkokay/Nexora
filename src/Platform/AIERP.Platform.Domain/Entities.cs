@@ -259,6 +259,7 @@ public static class LedgerMappingKeys
 
 public enum CounterpartyType { Customer = 1, Supplier = 2, Both = 3 }
 public enum CustomerAddressKind { General = 1, Billing = 2, Delivery = 3 }
+public enum CrmOpportunityStage { Prospecting = 1, Qualified = 2, Proposal = 3, Negotiation = 4, Won = 5, Lost = 6 }
 
 public sealed class CustomerGroup
 {
@@ -290,6 +291,27 @@ public sealed class CustomerAccount
     public byte[] RowVersion { get; set; } = [];
     public ICollection<CustomerAddress> Addresses { get; set; } = new List<CustomerAddress>();
     public ICollection<CustomerLedgerEntry> LedgerEntries { get; set; } = new List<CustomerLedgerEntry>();
+}
+
+public sealed class CrmOpportunity
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public Guid? CustomerId { get; set; }
+    public CustomerAccount? Customer { get; set; }
+    public CrmOpportunityStage Stage { get; set; } = CrmOpportunityStage.Prospecting;
+    public decimal? EstimatedValue { get; set; }
+    public string CurrencyCode { get; set; } = "TRY";
+    public int ProbabilityPercent { get; set; } = 10;
+    public DateOnly? ExpectedCloseDate { get; set; }
+    public DateTimeOffset? NextActivityAt { get; set; }
+    public string? Notes { get; set; }
+    public Guid? CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] RowVersion { get; set; } = [];
 }
 
 public sealed class CustomerCustomFieldDefinition
@@ -405,6 +427,8 @@ public sealed class StockItem
     public string UnitCode { get; set; } = "EA";
     public string? Category { get; set; }
     public decimal MinimumStock { get; set; }
+    public int ProcurementLeadTimeDays { get; set; }
+    public int ManufacturingLeadTimeDays { get; set; }
     public InventoryTrackingMode TrackingMode { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -413,6 +437,135 @@ public sealed class StockItem
 }
 
 public enum InventoryTrackingMode { None = 0, Lot = 1, Serial = 2 }
+
+public enum ManufacturingOrderStatus { Planned = 1, Released = 2, Completed = 3, Cancelled = 4 }
+public enum ManufacturingOperationStatus { Planned = 1, InProgress = 2, Completed = 3 }
+
+public sealed class BillOfMaterial
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public Guid ProductStockItemId { get; set; }
+    public decimal OutputQuantity { get; set; } = 1m;
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] RowVersion { get; set; } = [];
+    public ICollection<BillOfMaterialLine> Lines { get; set; } = new List<BillOfMaterialLine>();
+    public ICollection<BillOfMaterialOperation> Operations { get; set; } = new List<BillOfMaterialOperation>();
+}
+
+public sealed class ManufacturingWorkCenter
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int CapacityMinutesPerDay { get; set; } = 480;
+    public decimal LaborCostPerHourBase { get; set; }
+    public decimal OverheadCostPerHourBase { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class BillOfMaterialOperation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid BillOfMaterialId { get; set; }
+    public int Sequence { get; set; }
+    public Guid WorkCenterId { get; set; }
+    public decimal SetupMinutes { get; set; }
+    public decimal RunMinutesPerOutputUnit { get; set; }
+}
+
+public sealed class BillOfMaterialLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid BillOfMaterialId { get; set; }
+    public Guid ComponentStockItemId { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal ScrapPercent { get; set; }
+}
+
+public sealed class ManufacturingOrder
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public Guid BillOfMaterialId { get; set; }
+    public Guid WarehouseId { get; set; }
+    public decimal PlannedQuantity { get; set; }
+    public ManufacturingOrderStatus Status { get; set; } = ManufacturingOrderStatus.Planned;
+    public DateOnly PlannedDate { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? CompletedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+    public ICollection<ManufacturingOrderLine> Lines { get; set; } = new List<ManufacturingOrderLine>();
+    public ICollection<ManufacturingOrderOperation> Operations { get; set; } = new List<ManufacturingOrderOperation>();
+}
+
+public sealed class MrpPlanSnapshot
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid WarehouseId { get; set; }
+    public DateOnly PlanDate { get; set; }
+    public bool IncludesOpenSalesOrders { get; set; }
+    public string SupplyCaveat { get; set; } = "";
+    public string ResultJson { get; set; } = "";
+    public string ConversionStateJson { get; set; } = "[]";
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] RowVersion { get; set; } = [];
+}
+
+public sealed class ManufacturingOrderOperation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ManufacturingOrderId { get; set; }
+    public int Sequence { get; set; }
+    public Guid WorkCenterId { get; set; }
+    public string WorkCenterCodeSnapshot { get; set; } = "";
+    public string WorkCenterNameSnapshot { get; set; } = "";
+    public decimal SetupMinutes { get; set; }
+    public decimal RunMinutes { get; set; }
+    public decimal LaborCostPerHourBase { get; set; }
+    public decimal OverheadCostPerHourBase { get; set; }
+    public decimal PlannedCostBase { get; set; }
+    public ManufacturingOperationStatus Status { get; set; } = ManufacturingOperationStatus.Planned;
+    public decimal? ActualSetupMinutes { get; set; }
+    public decimal? ActualRunMinutes { get; set; }
+    public decimal? ActualCostBase { get; set; }
+    public DateTimeOffset? StartedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public DateOnly? ScheduledStartDate { get; set; }
+    public DateOnly? ScheduledEndDate { get; set; }
+}
+
+public sealed class ManufacturingCapacityAllocation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ManufacturingOrderOperationId { get; set; }
+    public Guid WorkCenterId { get; set; }
+    public DateOnly ScheduledDate { get; set; }
+    public decimal AllocatedMinutes { get; set; }
+}
+
+public sealed class ManufacturingOrderLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ManufacturingOrderId { get; set; }
+    public Guid ComponentStockItemId { get; set; }
+    public string ComponentCodeSnapshot { get; set; } = "";
+    public string ComponentNameSnapshot { get; set; } = "";
+    public decimal RequiredQuantity { get; set; }
+}
 
 public sealed class StockItemUnitConversion
 {
@@ -638,7 +791,7 @@ public sealed class InventoryCostAdjustmentLine
     public decimal AmountBase { get; set; }
 }
 
-public enum PurchaseOrderStatus { Open = 1, PartiallyReceived = 2, Received = 3, Cancelled = 4 }
+public enum PurchaseOrderStatus { Open = 1, PartiallyReceived = 2, Received = 3, Cancelled = 4, PendingApproval = 5, Rejected = 6 }
 public enum PurchaseRequestStatus { Submitted = 1, Approved = 2, Rejected = 3, Ordered = 4 }
 public enum PurchaseSupplierQuoteStatus { Submitted = 1, Selected = 2, NotSelected = 3 }
 
@@ -848,6 +1001,9 @@ public sealed class PurchaseOrder
     public PurchaseSupplierQuote? SourceSupplierQuote { get; set; }
     public string Code { get; set; } = "";
     public DateOnly OrderDate { get; set; }
+    public DateOnly? ExpectedReceiptDate { get; set; }
+    public Guid? TargetWarehouseId { get; set; }
+    public Warehouse? TargetWarehouse { get; set; }
     public string CurrencyCode { get; set; } = "TRY";
     public PurchaseOrderStatus Status { get; set; } = PurchaseOrderStatus.Open;
     public decimal Subtotal { get; set; }
@@ -1279,6 +1435,7 @@ public sealed class SalesOrder
     public CustomerAccount Customer { get; set; } = null!;
     public string Code { get; set; } = "";
     public DateOnly OrderDate { get; set; }
+    public DateOnly? RequestedDeliveryDate { get; set; }
     public string CurrencyCode { get; set; } = "TRY";
     public SalesOrderStatus Status { get; set; } = SalesOrderStatus.Open;
     public decimal Subtotal { get; set; }
@@ -2075,6 +2232,7 @@ public sealed class ReleaseCandidateRecord
     public string? GitHubRepository { get; set; }
     public string? GitHubBaseBranch { get; set; }
     public string? GitHubPullRequestState { get; set; }
+    public DateTimeOffset? GitHubPullRequestUpdatedAt { get; set; }
 }
 
 public sealed class StudioReleaseVersionRecord
@@ -2193,6 +2351,19 @@ public sealed class StudioKnowledgeDocument
     public string? EmbeddingModel { get; set; }
     public string? EmbeddingJson { get; set; }
     public DateTimeOffset IndexedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class StudioKnowledgeRefreshConsent
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid WorkspaceRequestId { get; set; }
+    public Guid GrantedByUserId { get; set; }
+    public string SelectedPathsJson { get; set; } = "[]";
+    public DateTimeOffset GrantedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset LastRefreshedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] RowVersion { get; set; } = [];
 }
 
 public sealed class StudioCodeReviewThread

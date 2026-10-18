@@ -1,0 +1,58 @@
+{
+  "disposition": "superseded-not-accepted",
+  "reviewNote": "The four package-cache jobs passed, but this trial ran the worker and repository-controlled child processes under the same UID and therefore weakened their identity boundary. It was reverted. Use docs/workspace-sandbox-capability-acceptance-20261018.json for the accepted final configuration.",
+  "completedAtUtc": "2026-10-18T18:40:45.9239057+00:00",
+  "runnerContainer": "docker-workspace-runner-1",
+  "sandboxContainer": "docker-workspace-sandbox-1",
+  "packageCacheRoot": "deploy\\docker\\sandbox-package-cache-rootless-acceptance-v3",
+  "networkDisabled": true,
+  "operatorCaches": [
+    "npm",
+    "go-mod",
+    "cargo-home",
+    "nuget"
+  ],
+  "results": [
+    {
+      "ecosystem": "Node.js",
+      "target": "package.json",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 6793,
+      "message": "Node.js tests completed successfully.",
+      "output": "✔ uses the staged npm dependency (1.00908ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 75.084593"
+    },
+    {
+      "ecosystem": "Go",
+      "target": "go/cache_test.go",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 16717,
+      "message": "Go tests completed successfully.",
+      "output": "ok  \texample.local/sandbox-cache-smoke\t0.003s"
+    },
+    {
+      "ecosystem": "Rust",
+      "target": "Cargo.toml",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 2086,
+      "message": "Rust tests completed successfully.",
+      "output": "running 1 test\ntest tests::consumes_operator_cache ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n   Compiling aierp-cache-dep v0.1.0 (/tmp/test-jobs/957cfd57b19247449123beb097a98f43/.cargo/aierp-cache-dep)\n   Compiling aierp-cache-smoke v0.1.0 (/tmp/test-jobs/957cfd57b19247449123beb097a98f43)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.86s\n     Running unittests src/lib.rs (target/debug/deps/aierp_cache_smoke-8b9bef3583082ab3)\n   Doc-tests aierp_cache_smoke"
+    },
+    {
+      "ecosystem": ".NET",
+      "target": "CacheSmoke.Tests.csproj",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 26918,
+      "message": "Tests completed successfully.",
+      "output": "CacheSmoke.Tests -> /tmp/test-jobs/36bb259cdb974d61b446fa23f3ae4bdc/bin/Debug/net10.0/CacheSmoke.Tests.dll\nTest run for /tmp/test-jobs/36bb259cdb974d61b446fa23f3ae4bdc/bin/Debug/net10.0/CacheSmoke.Tests.dll (.NETCoreApp,Version=v10.0)\nA total of 1 test files matched the specified pattern.\n\nPassed!  - Failed:     0, Passed:     1, Skipped:     0, Total:     1, Duration: 12 ms - CacheSmoke.Tests.dll (net10.0)"
+    }
+  ],
+  "status": "superseded"
+}

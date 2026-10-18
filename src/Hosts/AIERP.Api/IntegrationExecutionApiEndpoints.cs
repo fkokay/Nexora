@@ -16,14 +16,97 @@ public sealed record IntegrationOperationApiResponse(
     int Attempts,
     string? ErrorCode,
     AIERP.IntegrationSDK.IntegrationHostExecuteResponse? Result);
+public sealed record IntegrationOperationAdminItem(
+    Guid OperationId,
+    string IntegrationCode,
+    string Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? CompletedAt,
+    int Attempts,
+    string? ErrorCode);
+public sealed record IntegrationOperationAdminPage(
+    IReadOnlyList<IntegrationOperationAdminItem> Items,
+    int Page,
+    int PageSize,
+    int TotalCount);
 
 public static class IntegrationExecutionApiEndpoints
 {
     private const int MaximumPayloadBytes = 128 * 1024;
     private const int MaximumPendingOperationsPerTenant = 250;
+    private const int MaximumAdminQueuePage = 10_000;
 
     public static void MapIntegrationExecutionApi(this WebApplication app)
     {
+        app.MapGet("/api/integrations/operations", async (
+            ClaimsPrincipal user,
+            PlatformDbContext db,
+            int page = 1,
+            int pageSize = 25,
+            string? status = null,
+            string? integrationCode = null,
+            CancellationToken cancellationToken = default) =>
+        {
+            if (!TryGetActor(user, out var tenantId, out _) || user.FindFirstValue("role") != "TenantAdmin")
+                return Results.Forbid();
+            if (page is < 1 or > MaximumAdminQueuePage || pageSize is < 1 or > 100 ||
+                (status is not null && !IsKnownStatus(status)) ||
+                (integrationCode is not null && !AIERP.ModuleSDK.ModuleManifestValidator.IsValidModuleCode(integrationCode)))
+                return Results.BadRequest(new { errorCode = "invalid_query" });
+
+            var query = db.IntegrationOperations.AsNoTracking().Where(x => x.TenantId == tenantId);
+            if (status is not null) query = query.Where(x => x.Status == status);
+            if (integrationCode is not null) query = query.Where(x => x.IntegrationCode == integrationCode);
+            var totalCount = await query.CountAsync(cancellationToken);
+            var items = await query.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+                .Skip((page - 1) * pageSize).Take(pageSize)
+                .Select(x => new IntegrationOperationAdminItem(x.Id, x.IntegrationCode, x.Status,
+                    x.CreatedAt, x.UpdatedAt, x.StartedAt, x.CompletedAt, x.AttemptCount, x.ErrorCode))
+                .ToListAsync(cancellationToken);
+            return Results.Ok(new IntegrationOperationAdminPage(items, page, pageSize, totalCount));
+        }).RequireAuthorization();
+
+        app.MapPost("/api/integrations/operations/{operationId:guid}/cancel", async (
+            Guid operationId,
+            ClaimsPrincipal user,
+            PlatformDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            if (!TryGetActor(user, out var tenantId, out var userId) || user.FindFirstValue("role") != "TenantAdmin")
+                return Results.Forbid();
+            var operation = await db.IntegrationOperations.SingleOrDefaultAsync(x => x.Id == operationId &&
+                x.TenantId == tenantId, cancellationToken);
+            if (operation is null) return Results.NotFound();
+            if (operation.Status != "Queued")
+                return Results.Conflict(new { errorCode = "operation_not_cancellable", status = operation.Status });
+
+            var now = DateTimeOffset.UtcNow;
+            operation.Status = "Cancelled";
+            operation.UpdatedAt = now;
+            operation.CompletedAt = now;
+            operation.EncryptedPayload = string.Empty;
+            db.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                Action = "integration.operation.cancelled",
+                Resource = $"{operation.IntegrationCode}:{operation.Id:N}"
+            });
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Results.Conflict(new { errorCode = "operation_state_changed" });
+            }
+            return Results.Ok(new IntegrationOperationAdminItem(operation.Id, operation.IntegrationCode, operation.Status,
+                operation.CreatedAt, operation.UpdatedAt, operation.StartedAt, operation.CompletedAt,
+                operation.AttemptCount, operation.ErrorCode));
+        }).RequireAuthorization();
+
         app.MapPost("/api/integrations/{integrationCode}/execute", async (
             string integrationCode,
             IntegrationExecuteApiRequest request,
@@ -143,4 +226,7 @@ public static class IntegrationExecutionApiEndpoints
     private static bool IsSafeIdempotencyKey(string? value) =>
         !string.IsNullOrWhiteSpace(value) && value.Length <= 128 &&
         value.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or ':' or '-');
+
+    private static bool IsKnownStatus(string status) => status is
+        "Queued" or "Running" or "Succeeded" or "Failed" or "Indeterminate" or "Cancelled";
 }

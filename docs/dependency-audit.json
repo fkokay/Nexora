@@ -1,0 +1,27 @@
+{
+  "dateUtc": "2026-10-17T08:26:33.7955772Z",
+  "environment": "local-worktree",
+  "audits": [
+    {
+      "ecosystem": "NuGet",
+      "scope": "AIERP.slnx including transitive dependencies",
+      "vulnerabilityCount": 0,
+      "commandSucceeded": true
+    },
+    {
+      "ecosystem": "npm",
+      "scope": "frontend/erp-web",
+      "vulnerabilityCount": 0,
+      "commandSucceeded": true
+    },
+    {
+      "ecosystem": "npm",
+      "scope": "frontend/development-studio",
+      "vulnerabilityCount": 0,
+      "commandSucceeded": true
+    }
+  ],
+  "totalVulnerabilities": 0,
+  "passed": true,
+  "notes": "NuGet and npm advisory database results at scan time. This dependency audit is not SAST, container image scanning, or penetration testing."
+}

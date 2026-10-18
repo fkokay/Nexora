@@ -1,0 +1,32 @@
+{
+  "attemptedAtLocal": "2026-10-18",
+  "service": "workspace-sandbox",
+  "change": "Trial-removed CAP_CHOWN and CAP_DAC_OVERRIDE from the sandbox container capability set.",
+  "initialResult": "incomplete",
+  "observations": [
+    "The service started with both capabilities removed.",
+    "The first Node.js package-cache job reached cleanup, where the root worker could not delete a Node-created file owned by UID 65532 because CAP_DAC_OVERRIDE was absent.",
+    "The BackgroundService stopped; Compose restarted the sandbox service.",
+    "CAP_DAC_OVERRIDE was restored and the sandbox service is running again. CAP_CHOWN remains removed. The initial four-ecosystem acceptance was interrupted; a subsequent full rerun is recorded below."
+  ],
+  "generatedArtifactsPreserved": [
+    "deploy/docker/sandbox-package-cache/cargo-home/aierp-cache-dep",
+    "deploy/docker/sandbox-package-cache/go-mod/aierp-cache-dep",
+    "deploy/docker/sandbox-package-cache/npm/aierp-cache-dep",
+    "deploy/docker/sandbox-package-cache/nuget/Aierp.CacheSmoke.Dependency.1.0.0.nupkg"
+  ],
+  "legacyCachePathExcludedFromRuntime": "deploy/docker/sandbox-package-cache",
+  "retest": {
+    "completedAtUtc": "2026-10-18T17:21:36.0492988Z",
+    "result": "passed",
+    "capabilities": ["CAP_DAC_OVERRIDE", "CAP_KILL", "CAP_SETGID", "CAP_SETPCAP", "CAP_SETUID"],
+    "removedCapability": "CAP_CHOWN",
+    "isolatedPackageCachePath": "deploy/docker/sandbox-package-cache-runtime",
+    "ecosystemsPassed": ["Node.js", "Go", "Rust", ".NET"],
+    "assertionsPassed": 4,
+    "assertionsFailed": 0,
+    "report": "docs/workspace-sandbox-package-cache-smoke.json"
+  },
+  "dataImpact": "No application database, business-data volume, image, build cache, or persistent SQL data was modified. The one temporary queue record created by the smoke test was removed.",
+  "followUp": "The four-ecosystem acceptance passed with CAP_DAC_OVERRIDE restored and CHOWN removed. Runtime now mounts the clean deploy/docker/sandbox-package-cache-runtime path; the original generated fixtures remain preserved in the legacy ignored path and are not mounted."
+}

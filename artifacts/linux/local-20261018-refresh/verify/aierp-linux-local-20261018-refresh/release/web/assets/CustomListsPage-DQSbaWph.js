@@ -1,0 +1,1 @@
+import{t as e}from"./vendor-DQKKIQnU.js";import t from"./ReportsPage-Bk9NsV2w.js";var n=e();function r({token:e,role:r}){return(0,n.jsx)(t,{token:e,role:r,mode:`list`})}export{r as default};

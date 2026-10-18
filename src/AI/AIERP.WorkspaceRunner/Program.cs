@@ -403,13 +403,14 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/apply-file", async (Guid wo
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (!request.ApprovalConfirmed) return Results.BadRequest(new { error = "Kullanıcı onayı gerekli." });
     if (!WorkspaceSecurity.IsWritableSourcePath(request.Path) || !WorkspaceSecurity.IsSha256(request.ExpectedSha256) ||
-        string.IsNullOrWhiteSpace(request.ProposedContent) || request.ProposedContent.Contains('\0') || Encoding.UTF8.GetByteCount(request.ProposedContent) > 128 * 1024)
+        request.ProposedContent is null || (string.IsNullOrWhiteSpace(request.ProposedContent) && !request.AllowEmptyContent) ||
+        request.ProposedContent.Contains('\0') || Encoding.UTF8.GetByteCount(request.ProposedContent) > 128 * 1024)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["file"] = ["Yalnızca mevcut, izinli kaynak dosyalarına 128 KiB sınırında içerik uygulanabilir."] });
     var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
     try
     {
         var result = await WorkspaceSecurity.ApplyFileContentAsync(root, workspaceId, request.ChangeId, request.Path, request.ExpectedSha256!,
-            request.ProposedContent, cancellationToken);
+            request.ProposedContent, cancellationToken, request.AllowEmptyContent);
         if (result.Applied) return Results.Ok(new WorkspaceFileApplyResponse(result.ChangeId!.Value, request.Path!, result.Sha256!, result.AppliedAt!.Value));
         return result.Error switch
         {
@@ -613,7 +614,13 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/build-runs", async (Guid wo
 {
     const int maxPendingJobs = 8;
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
-    if (!WorkspaceSecurity.IsSafeDotNetTestTarget(request.TargetPath)) return Results.BadRequest(new { error = "Yalnız güvenli bir .NET proje hedefi build edilebilir." });
+    var isDotNetTarget = WorkspaceSecurity.IsSafeDotNetTestTarget(request.TargetPath);
+    var isNodeTarget = WorkspaceSecurity.IsSafeNodeTestTarget(request.TargetPath);
+    var isPythonTarget = WorkspaceSecurity.IsSafePythonTestTarget(request.TargetPath);
+    var isGoTarget = WorkspaceSecurity.IsSafeGoBuildTarget(request.TargetPath);
+    var isRustTarget = WorkspaceSecurity.IsSafeRustTestTarget(request.TargetPath);
+    if (!isDotNetTarget && !isNodeTarget && !isPythonTarget && !isGoTarget && !isRustTarget)
+        return Results.BadRequest(new { error = "Yalnız güvenli bir .NET, Node.js, Python, Go veya Rust build hedefi seçilebilir." });
     var workspaceRoot = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
     var jobRoot = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
@@ -627,8 +634,9 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/build-runs", async (Guid wo
         if (Directory.EnumerateDirectories(jobRoot).Count(directory => !File.Exists(Path.Combine(directory, "result.json"))) >= maxPendingJobs)
             return Results.Json(new { error = "Sandbox kuyruğu dolu. Birkaç dakika sonra yeniden deneyin." }, statusCode: StatusCodes.Status429TooManyRequests);
         var discovery = WorkspaceSecurity.DiscoverTests(workspaceRoot, workspaceId);
-        if (!discovery.Targets.Any(x => x.Ecosystem == ".NET" && x.CanBuild && string.Equals(x.Path, request.TargetPath, StringComparison.Ordinal)))
-            return Results.Conflict(new { error = "Seçilen .NET hedefi güncel keşifte bulunamadı. Hedefleri yeniden keşfedin." });
+        var ecosystem = isDotNetTarget ? ".NET" : isNodeTarget ? "Node.js" : isPythonTarget ? "Python" : isGoTarget ? "Go" : "Rust";
+        if (!discovery.Targets.Any(x => x.Ecosystem == ecosystem && x.CanBuild && string.Equals(x.Path, request.TargetPath, StringComparison.Ordinal)))
+            return Results.Conflict(new { error = "Seçilen hedef güncel keşifte build edilebilir olarak bulunamadı. Hedefleri yeniden keşfedin." });
         var status = await WorkspaceSecurity.GetWorkspaceGitStatusAsync(workspaceRoot, workspaceId, cancellationToken);
         if (status is null) return Results.NotFound(new { error = "Çalışma alanı bulunamadı." });
         Directory.CreateDirectory(jobDirectory);
@@ -720,7 +728,7 @@ internal sealed record GitHostValidation(bool IsValid, Uri? Uri, string? Error);
 internal sealed record WorkspaceFileEntry(string Name, string Path, string Kind, long? SizeBytes);
 internal sealed record WorkspaceFileListing(string Path, IReadOnlyList<WorkspaceFileEntry> Entries, int? NextOffset);
 internal sealed record WorkspaceFileContent(string Path, string Content, int SizeBytes, string Sha256);
-internal sealed record WorkspaceFileApplyRequest(Guid ChangeId, string? Path, string? ExpectedSha256, string? ProposedContent, bool ApprovalConfirmed);
+internal sealed record WorkspaceFileApplyRequest(Guid ChangeId, string? Path, string? ExpectedSha256, string? ProposedContent, bool ApprovalConfirmed, bool AllowEmptyContent = false);
 internal sealed record WorkspaceFileCreateRequest(Guid ChangeId, string? Path, string? ExpectedSha256, string? ProposedContent, bool ApprovalConfirmed);
 internal sealed record WorkspaceFileApplyResponse(Guid ChangeId, string Path, string Sha256, DateTimeOffset AppliedAt);
 internal sealed record WorkspaceFileRestoreRequest(string? ExpectedSha256, bool ApprovalConfirmed);
@@ -874,10 +882,10 @@ internal static class WorkspaceSecurity
     }
     private static bool IsCommitPath(string? path) => IsWritableSourcePath(path) && !path!.Contains(',');
     internal static async Task<WorkspaceFileApplyResult> ApplyFileContentAsync(string root, Guid workspaceId, Guid changeId, string? relativePath,
-        string expectedSha256, string proposedContent, CancellationToken cancellationToken)
+        string expectedSha256, string proposedContent, CancellationToken cancellationToken, bool allowEmptyContent = false)
     {
         if (changeId == Guid.Empty || !IsWritableSourcePath(relativePath) || !IsSha256(expectedSha256)) return new(false, "invalid_path", null);
-        if (string.IsNullOrWhiteSpace(proposedContent) || proposedContent.Contains('\0')) return new(false, "unsupported", null);
+        if ((string.IsNullOrWhiteSpace(proposedContent) && !allowEmptyContent) || proposedContent.Contains('\0')) return new(false, "unsupported", null);
         if (Encoding.UTF8.GetByteCount(proposedContent) > 128 * 1024) return new(false, "too_large", null);
         var gate = FileWriteGates.GetOrAdd(workspaceId, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken);
@@ -1340,7 +1348,7 @@ internal static class WorkspaceSecurity
                     }
                 }
                 var canTest = isTestProject || testPackage;
-                targets.Add(new WorkspaceTestTarget(path, ".NET", canTest ? isTestProject ? "IsTestProject=true" : "Test framework package reference" : "Buildable .NET project", canTest ? "dotnet test --no-restore" : "dotnet build --no-restore", canTest, true));
+                targets.Add(new WorkspaceTestTarget(path, ".NET", canTest ? isTestProject ? "IsTestProject=true" : "Test framework package reference" : "Buildable .NET project", canTest ? "dotnet test --no-restore (offline; operator NuGet feed allowed)" : "dotnet build --no-restore (offline; operator NuGet feed allowed)", canTest, true));
             }
             catch (System.Xml.XmlException) { }
             catch (IOException) { }
@@ -1365,11 +1373,19 @@ internal static class WorkspaceSecurity
                 var usesNodeTestName = new[] { ".test", "-test", "_test" }.Any(suffix => filename.EndsWith(suffix + extension, StringComparison.OrdinalIgnoreCase));
                 return extension is ".js" or ".cjs" or ".mjs" && (inTestDirectory || usesNodeTestName);
             });
+            var hasNodeSources = files.Any(candidate =>
+            {
+                var relative = directory.Length == 0 ? candidate : candidate.StartsWith(directory + "/", StringComparison.OrdinalIgnoreCase) ? candidate[(directory.Length + 1)..] : "";
+                return relative.Length > 0 && Path.GetExtension(relative).ToLowerInvariant() is ".js" or ".cjs" or ".mjs";
+            });
             try
             {
                 using var _ = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(fullPath!), new System.Text.Json.JsonDocumentOptions { MaxDepth = 24 });
-                if (hasNativeNodeTests)
-                    targets.Add(new WorkspaceTestTarget(directory.Length == 0 ? "package.json" : $"{directory}/package.json", "Node.js", "Built-in node:test file patterns", "node --test (offline; no package dependencies)"));
+                if (hasNativeNodeTests || hasNodeSources)
+                    targets.Add(new WorkspaceTestTarget(directory.Length == 0 ? "package.json" : $"{directory}/package.json", "Node.js",
+                        hasNativeNodeTests ? "Built-in node:test file patterns" : "JavaScript source files",
+                        hasNativeNodeTests ? "node --test (offline; locked dependencies use the operator cache)" : "node --check (offline; source files only)",
+                        hasNativeNodeTests, true));
             }
             catch (System.Text.Json.JsonException) { }
             catch (IOException) { }
@@ -1377,20 +1393,28 @@ internal static class WorkspaceSecurity
 
         var pythonTestFile = files.FirstOrDefault(path => Path.GetFileName(path).StartsWith("test_", StringComparison.OrdinalIgnoreCase) ||
                                                            Path.GetFileName(path).EndsWith("_test.py", StringComparison.OrdinalIgnoreCase));
-        if (pythonTestFile is not null && targets.Count < maxTargets)
-            targets.Add(new WorkspaceTestTarget(pythonTestFile, "Python", "test_*.py or *_test.py files", "python3 -m pytest"));
+        var pythonBuildFile = pythonTestFile ?? files.FirstOrDefault(path => Path.GetExtension(path).Equals(".py", StringComparison.OrdinalIgnoreCase));
+        if (pythonBuildFile is not null && targets.Count < maxTargets)
+            targets.Add(new WorkspaceTestTarget(pythonBuildFile, "Python",
+                pythonTestFile is not null ? "test_*.py or *_test.py files" : "Python source file",
+                pythonTestFile is not null ? "python3 -m pytest (offline; requirements.txt uses the operator wheelhouse)" : "python3 -m py_compile", pythonTestFile is not null, true));
         var goTestFile = files.FirstOrDefault(path => Path.GetFileName(path).EndsWith("_test.go", StringComparison.OrdinalIgnoreCase) &&
             files.Any(candidate => Path.GetFileName(candidate).Equals("go.mod", StringComparison.OrdinalIgnoreCase) &&
                 (path.StartsWith(candidate[..(candidate.LastIndexOf('/') + 1)], StringComparison.Ordinal) || !candidate.Contains('/'))));
         if (goTestFile is not null && targets.Count < maxTargets)
-            targets.Add(new WorkspaceTestTarget(goTestFile, "Go", "*_test.go file inside a Go module", "go test -mod=readonly . (offline; standard library only)"));
+            targets.Add(new WorkspaceTestTarget(goTestFile, "Go", "*_test.go file inside a Go module", "go test -mod=readonly . (offline; operator cache for module dependencies)", true, false));
+        var goModule = files.FirstOrDefault(path => Path.GetFileName(path).Equals("go.mod", StringComparison.OrdinalIgnoreCase));
+        if (goModule is not null && targets.Count < maxTargets)
+            targets.Add(new WorkspaceTestTarget(goModule, "Go", "go.mod module manifest", "go build -mod=readonly ./... (offline; operator cache for module dependencies)", false, true));
         var cargoManifest = files.FirstOrDefault(path => Path.GetFileName(path).Equals("Cargo.toml", StringComparison.OrdinalIgnoreCase));
         var hasRustTestFiles = cargoManifest is not null && files.Any(path =>
             (Path.GetFileName(path).EndsWith("_test.rs", StringComparison.OrdinalIgnoreCase) ||
              path.Split('/').Any(segment => segment.Equals("tests", StringComparison.OrdinalIgnoreCase)) && Path.GetExtension(path).Equals(".rs", StringComparison.OrdinalIgnoreCase)) &&
             (path.StartsWith(cargoManifest[..(cargoManifest.LastIndexOf('/') + 1)], StringComparison.Ordinal) || !cargoManifest.Contains('/')));
         if (cargoManifest is not null && hasRustTestFiles && targets.Count < maxTargets)
-            targets.Add(new WorkspaceTestTarget(cargoManifest, "Rust", "Rust test files inside Cargo package", "cargo test --offline (no external dependencies)"));
+            targets.Add(new WorkspaceTestTarget(cargoManifest, "Rust", "Rust test files inside Cargo package", "cargo test --offline (locked dependencies use the operator cache)", true, true));
+        else if (cargoManifest is not null && targets.Count < maxTargets)
+            targets.Add(new WorkspaceTestTarget(cargoManifest, "Rust", "Cargo.toml package manifest", "cargo build --offline (locked dependencies use the operator cache)", false, true));
         return new WorkspaceTestDiscovery(files.Count, truncated, targets.OrderBy(x => x.Path, StringComparer.OrdinalIgnoreCase).Take(maxTargets).ToList());
     }
     internal static bool IsSafeDotNetTestTarget(string? path) => !string.IsNullOrWhiteSpace(path) && path.Length <= 500 &&
@@ -1418,6 +1442,13 @@ internal static class WorkspaceSecurity
         !path.StartsWith('/') && !path.Contains('\\') && !path.Contains(':') && !path.Any(char.IsControl) &&
         Path.GetExtension(path).Equals(".go", StringComparison.OrdinalIgnoreCase) &&
         Path.GetFileName(path).EndsWith("_test.go", StringComparison.OrdinalIgnoreCase) &&
+        path.Split('/').All(segment => !string.IsNullOrWhiteSpace(segment) && segment is not ("." or "..") &&
+            !segment.StartsWith('.') && !segment.Contains("secret", StringComparison.OrdinalIgnoreCase) &&
+            !segment.Contains("credential", StringComparison.OrdinalIgnoreCase) && !segment.Contains("password", StringComparison.OrdinalIgnoreCase) &&
+            !segment.Contains("apikey", StringComparison.OrdinalIgnoreCase) && !ExcludedDirectoryNames.Contains(segment));
+    internal static bool IsSafeGoBuildTarget(string? path) => !string.IsNullOrWhiteSpace(path) && path.Length <= 500 &&
+        !path.StartsWith('/') && !path.Contains('\\') && !path.Contains(':') && !path.Any(char.IsControl) &&
+        Path.GetFileName(path).Equals("go.mod", StringComparison.OrdinalIgnoreCase) &&
         path.Split('/').All(segment => !string.IsNullOrWhiteSpace(segment) && segment is not ("." or "..") &&
             !segment.StartsWith('.') && !segment.Contains("secret", StringComparison.OrdinalIgnoreCase) &&
             !segment.Contains("credential", StringComparison.OrdinalIgnoreCase) && !segment.Contains("password", StringComparison.OrdinalIgnoreCase) &&

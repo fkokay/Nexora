@@ -265,6 +265,45 @@ public sealed class WorkspaceExplorerSecurityTests
     }
 
     [Fact]
+    public async Task Apply_file_content_allows_explicit_empty_manual_edit_and_keeps_restore_history()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-workspaces-{Guid.NewGuid():N}");
+        var workspaceId = Guid.NewGuid();
+        var workspace = Path.Combine(root, workspaceId.ToString("N"));
+        Directory.CreateDirectory(Path.Combine(workspace, ".git"));
+        Directory.CreateDirectory(Path.Combine(workspace, "src"));
+        var path = Path.Combine(workspace, "src", "Example.cs");
+        const string original = "class Existing {}\n";
+        await File.WriteAllTextAsync(path, original);
+        try
+        {
+            var expected = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(path)));
+            var rejected = await WorkspaceSecurity.ApplyFileContentAsync(root, workspaceId, Guid.NewGuid(), "src/Example.cs", expected,
+                string.Empty, CancellationToken.None);
+            Assert.False(rejected.Applied);
+            Assert.Equal("unsupported", rejected.Error);
+            Assert.Equal(original, await File.ReadAllTextAsync(path));
+
+            var changeId = Guid.NewGuid();
+            var applied = await WorkspaceSecurity.ApplyFileContentAsync(root, workspaceId, changeId, "src/Example.cs", expected,
+                string.Empty, CancellationToken.None, allowEmptyContent: true);
+            Assert.True(applied.Applied);
+            Assert.Empty(await File.ReadAllBytesAsync(path));
+            Assert.Equal(Convert.ToHexString(SHA256.HashData(Array.Empty<byte>())), applied.Sha256);
+
+            var diff = await WorkspaceSecurity.GetChangeDiffAsync(root, workspaceId, changeId, CancellationToken.None);
+            Assert.NotNull(diff);
+            Assert.Equal(original, diff.OriginalContent);
+            Assert.Empty(diff.CurrentContent);
+
+            var restored = await WorkspaceSecurity.RestoreChangeAsync(root, workspaceId, changeId, applied.Sha256!, CancellationToken.None);
+            Assert.True(restored.Restored);
+            Assert.Equal(original, await File.ReadAllTextAsync(path));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
     public async Task Change_history_restores_versions_in_reverse_order_and_refuses_stale_overwrites()
     {
         var root = Path.Combine(Path.GetTempPath(), $"aierp-workspaces-{Guid.NewGuid():N}");

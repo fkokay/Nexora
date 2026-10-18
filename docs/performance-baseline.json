@@ -1,0 +1,30 @@
+{
+  "dateUtc": "2026-10-17T08:21:58.9018930Z",
+  "environment": "local-docker-compose",
+  "scenario": "authenticated-read-only-dashboard-summary",
+  "endpoint": "http://localhost:5080/api/dashboard",
+  "requests": 300,
+  "concurrency": 25,
+  "warmupRequests": 50,
+  "thresholds": {
+    "p95Milliseconds": 1000,
+    "maxErrorRatePercent": 1.0
+  },
+  "results": {
+    "successful": 300,
+    "failed": 0,
+    "errorRatePercent": 0.0,
+    "averageMilliseconds": 21.76,
+    "p95Milliseconds": 36,
+    "maxMilliseconds": 59,
+    "throughputRequestsPerSecond": 1086.96,
+    "wallClockMilliseconds": 276,
+    "statuses": [
+      {
+        "result": "200",
+        "count": 300
+      }
+    ]
+  },
+  "notes": "Single-host local steady-state baseline; same HTTP client connection pool warmed with 50 requests before measurement. Not a production capacity target. Measured requests are read-only; authentication setup is excluded. No credentials, tokens, user IDs, tenant IDs, or response bodies are stored."
+}

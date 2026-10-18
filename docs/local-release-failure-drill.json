@@ -1,0 +1,14 @@
+{
+  "drillId": "20261018T174832Z_4cb4623e",
+  "completedAtUtc": "2026-10-18T17:48:35.5404673Z",
+  "container": "docker-sqlserver-1",
+  "temporaryDatabase": "AIERPReleaseFailureDrill_20261018T174832Z_4cb4623e",
+  "migrationFailureRolledBack": true,
+  "corruptRestoreRejected": true,
+  "targetSurvivedFailedRestore": true,
+  "safetyBackupRestoredAndDbccChecked": true,
+  "temporaryArtifactsRemoved": true,
+  "status": "passed",
+  "failedStage": null,
+  "error": null
+}

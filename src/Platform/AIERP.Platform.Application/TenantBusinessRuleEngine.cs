@@ -16,6 +16,7 @@ public static partial class TenantBusinessRuleEngine
 {
     public const string PurchaseRequestSubmitted = "purchase-request.submitted";
     public const string SalesQuoteAccepted = "sales-quote.accepted";
+    public const string PurchaseOrderCreated = "purchase-order.created";
     private static readonly IReadOnlyList<TenantBusinessRuleTrigger> Triggers =
     [
         new(PurchaseRequestSubmitted, "Satın alma talebi gönderildi", "Talep kaydedilip gönderildiğinde değerlendirilir.",
@@ -28,6 +29,11 @@ public static partial class TenantBusinessRuleEngine
             new("code", "Teklif kodu", "text"), new("customerId", "Cari kullanıcı kodu", "text"), new("currencyCode", "Para birimi", "text"),
             new("lineCount", "Satır sayısı", "number"), new("grandTotal", "Genel toplam", "number"),
             new("quoteDate", "Teklif tarihi", "date"), new("validUntil", "Geçerlilik tarihi", "date")
+        ]),
+        new(PurchaseOrderCreated, "Satın alma siparişi oluşturuldu", "Yeni siparişi mal kabulden önce koşullu onay akışına yönlendirin.",
+        [
+            new("code", "Sipariş kodu", "text"), new("supplierId", "Tedarikçi kodu", "text"), new("currencyCode", "Para birimi", "text"),
+            new("lineCount", "Satır sayısı", "number"), new("grandTotal", "Genel toplam", "number"), new("orderDate", "Sipariş tarihi", "date")
         ])
     ];
 
@@ -97,7 +103,7 @@ public static partial class TenantBusinessRuleEngine
                 "GreaterThanOrEqual" => left >= right, "LessThan" => left < right, "LessThanOrEqual" => left <= right, _ => false
             };
         }
-        if (field is "requestDate" or "neededByDate" or "quoteDate" or "validUntil")
+        if (field is "requestDate" or "neededByDate" or "quoteDate" or "validUntil" or "orderDate")
         {
             if (!DateOnly.TryParseExact(actual, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var left)) return false;
             if (expected.Length == 0) return op == "Equals" ? actual.Length == 0 : op == "NotEquals" && actual.Length > 0;

@@ -1,0 +1,90 @@
+{
+  "drill": "local-compose-sql-graceful-restart",
+  "startedAtUtc": "2026-10-18T16:43:39.9361468Z",
+  "completedAtUtc": "2026-10-18T16:44:26.8043946Z",
+  "container": "docker-sqlserver-1",
+  "stopTimeoutSeconds": 30,
+  "recoveryTimeoutSeconds": 240,
+  "volumesModified": false,
+  "migrationsRun": false,
+  "sqlRestarted": true,
+  "sqlHealthy": true,
+  "expectedDatabaseCountOnline": 3,
+  "expectedDatabaseCount": 3,
+  "applicationContainersRecovered": true,
+  "httpEndpoints": [
+    {
+      "name": "Development Studio",
+      "statusCode": 200,
+      "passed": true
+    },
+    {
+      "name": "Platform API",
+      "statusCode": 200,
+      "passed": true
+    },
+    {
+      "name": "AI Service",
+      "statusCode": 200,
+      "passed": true
+    }
+  ],
+  "result": "passed",
+  "failure": null,
+  "runningContainerCountBefore": 10,
+  "databaseCheckAttempts": 1,
+  "missingContainersAfterRecovery": [],
+  "containerHealthAfterRecovery": [
+    {
+      "name": "docker-platform-api-1",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "name": "docker-workspace-sandbox-1",
+      "state": "running",
+      "health": "none"
+    },
+    {
+      "name": "docker-prometheus-1",
+      "state": "running",
+      "health": "none"
+    },
+    {
+      "name": "docker-ai-service-1",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "name": "docker-release-deployer-1",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "name": "docker-development-studio-1",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "name": "docker-integration-host-1",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "name": "docker-plugin-host-1",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "name": "docker-workspace-runner-1",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "name": "docker-sqlserver-1",
+      "state": "running",
+      "health": "healthy"
+    }
+  ],
+  "httpCheckAttempts": 1
+}

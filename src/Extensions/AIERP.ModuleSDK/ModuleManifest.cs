@@ -52,13 +52,7 @@ public sealed record ModuleManifestValidationResult(IReadOnlyList<string> Errors
 
 public static partial class ModuleManifestValidator
 {
-    public static IReadOnlySet<string> SupportedDataCapabilities { get; } = new[]
-    {
-        "customers.search",
-        "customers.balance.read",
-        "suppliers.search",
-        "inventory.availability.search"
-    }.ToFrozenSet(StringComparer.Ordinal);
+    public static IReadOnlySet<string> SupportedDataCapabilities { get; } = ModuleDataCapabilityCatalog.All.Keys.ToFrozenSet(StringComparer.Ordinal);
     private static readonly Regex IdentifierPattern = IdentifierRegex();
     private static readonly Regex SemVersionPattern = SemVersionRegex();
     private static readonly Regex Sha256Pattern = Sha256Regex();
@@ -83,7 +77,9 @@ public static partial class ModuleManifestValidator
         Version(manifest.Version, "Version", errors);
         Version(manifest.MinimumPlatformVersion, "MinimumPlatformVersion", errors);
 
-        var dependencies = manifest.Dependencies ?? [];
+        var rawDependencies = manifest.Dependencies ?? [];
+        if (rawDependencies.Any(x => x is null)) errors.Add("Dependency entries cannot be null.");
+        var dependencies = rawDependencies.Where(x => x is not null).ToArray();
         var duplicateDependencies = Duplicates(dependencies.Select(x => x.ModuleCode));
         if (duplicateDependencies.Count > 0) errors.Add($"Duplicate dependencies: {string.Join(", ", duplicateDependencies)}.");
         foreach (var dependency in dependencies)
@@ -93,8 +89,10 @@ public static partial class ModuleManifestValidator
             Version(dependency.MinimumVersion, $"Dependency {dependency.ModuleCode} minimum version", errors);
         }
 
-        var permissions = manifest.Permissions ?? [];
-        if (permissions.Count > 64) errors.Add("A module may declare at most 64 permissions.");
+        var rawPermissions = manifest.Permissions ?? [];
+        if (rawPermissions.Any(x => x is null)) errors.Add("Permission entries cannot be null.");
+        if (rawPermissions.Count > 64) errors.Add("A module may declare at most 64 permissions.");
+        var permissions = rawPermissions.Where(x => x is not null).ToArray();
         var permissionCodes = permissions.Select(x => x.Code).ToHashSet(StringComparer.Ordinal);
         if (Duplicates(permissions.Select(x => x.Code)).Count > 0) errors.Add("Permission codes must be unique.");
         foreach (var permission in permissions)
@@ -115,10 +113,13 @@ public static partial class ModuleManifestValidator
             if (!permissionCodes.Contains(capability.PermissionCode)) errors.Add($"Data capability {capability.Code} references an undeclared permission.");
         }
 
-        if ((manifest.MenuEntries ?? []).Count > 64) errors.Add("A module may declare at most 64 menu entries.");
-        var menuCodes = Duplicates((manifest.MenuEntries ?? []).Select(x => x.Code));
+        var rawMenuEntries = manifest.MenuEntries ?? [];
+        if (rawMenuEntries.Any(x => x is null)) errors.Add("Menu entries cannot be null.");
+        if (rawMenuEntries.Count > 64) errors.Add("A module may declare at most 64 menu entries.");
+        var menuEntries = rawMenuEntries.Where(x => x is not null).ToArray();
+        var menuCodes = Duplicates(menuEntries.Select(x => x.Code));
         if (menuCodes.Count > 0) errors.Add($"Duplicate menu entry codes: {string.Join(", ", menuCodes)}.");
-        foreach (var entry in manifest.MenuEntries ?? [])
+        foreach (var entry in menuEntries)
         {
             if (!IdentifierPattern.IsMatch(entry.Code ?? string.Empty) || (entry.Code?.Length ?? 0) > 80) errors.Add($"Menu entry code '{entry.Code}' is invalid or exceeds 80 characters.");
             Required(entry.Label, $"Menu entry {entry.Code} label", errors);
@@ -129,9 +130,12 @@ public static partial class ModuleManifestValidator
             if (entry.View is { } view) ValidateView(entry.Code ?? string.Empty, view, dataCapabilities, errors);
         }
 
-        var migrationVersions = Duplicates((manifest.Migrations ?? []).Select(x => x.Version));
+        var rawMigrations = manifest.Migrations ?? [];
+        if (rawMigrations.Any(x => x is null)) errors.Add("Migration entries cannot be null.");
+        var migrations = rawMigrations.Where(x => x is not null).ToArray();
+        var migrationVersions = Duplicates(migrations.Select(x => x.Version));
         if (migrationVersions.Count > 0) errors.Add($"Duplicate migration versions: {string.Join(", ", migrationVersions)}.");
-        foreach (var migration in manifest.Migrations ?? [])
+        foreach (var migration in migrations)
         {
             Version(migration.Version, "Migration version", errors);
             if (!Sha256Pattern.IsMatch(migration.Checksum ?? string.Empty)) errors.Add($"Migration {migration.Version} must include a lowercase SHA-256 checksum.");
@@ -142,16 +146,20 @@ public static partial class ModuleManifestValidator
 
     private static void ValidateView(string entryCode, ModuleMenuView view, IReadOnlyList<ModuleDataCapability> dataCapabilities, List<string> errors)
     {
-        var inputFields = view.InputFields ?? [];
-        var resultColumns = view.ResultColumns ?? [];
+        var rawInputFields = view.InputFields ?? [];
+        var rawResultColumns = view.ResultColumns ?? [];
+        if (rawInputFields.Any(x => x is null)) errors.Add($"Menu entry {entryCode} input fields cannot be null.");
+        if (rawResultColumns.Any(x => x is null)) errors.Add($"Menu entry {entryCode} result columns cannot be null.");
+        var inputFields = rawInputFields.Where(x => x is not null).ToArray();
+        var resultColumns = rawResultColumns.Where(x => x is not null).ToArray();
         if (view.InputMode is not ("json" or "form")) errors.Add($"Menu entry {entryCode} input mode must be json or form.");
         if (view.ResultMode is not ("json" or "table")) errors.Add($"Menu entry {entryCode} result mode must be json or table.");
-        if (inputFields.Count > 32) errors.Add($"Menu entry {entryCode} may declare at most 32 input fields.");
-        if (resultColumns.Count > 32) errors.Add($"Menu entry {entryCode} may declare at most 32 result columns.");
-        if (view.InputMode == "form" && inputFields.Count == 0) errors.Add($"Menu entry {entryCode} form input requires at least one field.");
-        if (view.InputMode == "json" && inputFields.Count != 0) errors.Add($"Menu entry {entryCode} json input cannot declare form fields.");
-        if (view.ResultMode == "table" && resultColumns.Count == 0) errors.Add($"Menu entry {entryCode} table result requires at least one column.");
-        if (view.ResultMode == "json" && resultColumns.Count != 0) errors.Add($"Menu entry {entryCode} json result cannot declare table columns.");
+        if (inputFields.Length > 32) errors.Add($"Menu entry {entryCode} may declare at most 32 input fields.");
+        if (resultColumns.Length > 32) errors.Add($"Menu entry {entryCode} may declare at most 32 result columns.");
+        if (view.InputMode == "form" && inputFields.Length == 0) errors.Add($"Menu entry {entryCode} form input requires at least one field.");
+        if (view.InputMode == "json" && inputFields.Length != 0) errors.Add($"Menu entry {entryCode} json input cannot declare form fields.");
+        if (view.ResultMode == "table" && resultColumns.Length == 0) errors.Add($"Menu entry {entryCode} table result requires at least one column.");
+        if (view.ResultMode == "json" && resultColumns.Length != 0) errors.Add($"Menu entry {entryCode} json result cannot declare table columns.");
 
         var viewCapabilities = view.DataCapabilities ?? [];
         if (viewCapabilities.Count > 4) errors.Add($"Menu entry {entryCode} may request at most four data capabilities.");
@@ -160,24 +168,19 @@ public static partial class ModuleManifestValidator
         if (viewCapabilities.Count > 0 && view.InputMode != "form") errors.Add($"Menu entry {entryCode} data capabilities require form input mode.");
         foreach (var capability in viewCapabilities.Where(x => x is not null))
         {
-            if (!SupportedDataCapabilities.Contains(capability) || !dataCapabilities.Any(x => x is not null && x.Code == capability))
+            if (!ModuleDataCapabilityCatalog.TryGet(capability, out var definition) ||
+                !dataCapabilities.Any(x => x is not null && x.Code == capability))
             {
                 errors.Add($"Menu entry {entryCode} requests a data capability not declared by its module.");
                 continue;
             }
-            if (capability == "customers.balance.read")
-            {
-                if (!inputFields.Any(field => field.Code == "customer-code" && field.Type == "text" && field.Required))
-                    errors.Add($"Menu entry {entryCode} data capability {capability} requires a required text field named customer-code.");
-            }
-            else
-            {
-                if (!inputFields.Any(field => field.Code == "term" && field.Type == "text" && field.Required))
-                    errors.Add($"Menu entry {entryCode} data capability {capability} requires a required text field named term.");
-                var limitField = inputFields.SingleOrDefault(field => field.Code == "limit");
-                if (limitField is not null && limitField.Type != "number")
-                    errors.Add($"Menu entry {entryCode} data capability limit field must be numeric.");
-            }
+            if (!inputFields.Any(field => field.Code == definition.RequiredInputField && field.Type == "text" && field.Required))
+                errors.Add($"Menu entry {entryCode} data capability {capability} requires a required text field named {definition.RequiredInputField}.");
+            var limitField = inputFields.SingleOrDefault(field => field.Code == "limit");
+            if (definition.SupportsLimit && limitField is not null && limitField.Type != "number")
+                errors.Add($"Menu entry {entryCode} data capability limit field must be numeric.");
+            if (!definition.SupportsLimit && limitField is not null)
+                errors.Add($"Menu entry {entryCode} data capability {capability} does not accept a limit field.");
         }
 
         ValidateFields(entryCode, "input", inputFields, errors);
@@ -186,8 +189,10 @@ public static partial class ModuleManifestValidator
 
     private static void ValidateFields(string entryCode, string section, IReadOnlyList<ModuleUiField> fields, List<string> errors)
     {
-        if (Duplicates(fields.Select(x => x.Code ?? string.Empty)).Count > 0) errors.Add($"Menu entry {entryCode} {section} field codes must be unique.");
-        foreach (var field in fields)
+        if (fields.Any(x => x is null)) errors.Add($"Menu entry {entryCode} {section} fields cannot be null.");
+        var validFields = fields.Where(x => x is not null).ToArray();
+        if (Duplicates(validFields.Select(x => x.Code ?? string.Empty)).Count > 0) errors.Add($"Menu entry {entryCode} {section} field codes must be unique.");
+        foreach (var field in validFields)
         {
             if (!IdentifierPattern.IsMatch(field.Code ?? string.Empty) || (field.Code?.Length ?? 0) > 60)
                 errors.Add($"Menu entry {entryCode} {section} field code '{field.Code}' is invalid.");

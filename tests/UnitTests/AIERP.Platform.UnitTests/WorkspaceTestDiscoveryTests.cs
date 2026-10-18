@@ -21,7 +21,7 @@ public sealed class WorkspaceTestDiscoveryTests
 
             Assert.Equal(3, discovery.ScannedFiles);
             Assert.False(discovery.Truncated);
-            Assert.Contains(discovery.Targets, target => target.Path == "tests/UnitTests.csproj" && target.Ecosystem == ".NET" && target.SuggestedCommand == "dotnet test --no-restore");
+            Assert.Contains(discovery.Targets, target => target.Path == "tests/UnitTests.csproj" && target.Ecosystem == ".NET" && target.SuggestedCommand.StartsWith("dotnet test --no-restore", StringComparison.Ordinal));
             Assert.Contains(discovery.Targets, target => target.Path == "package.json" && target.Ecosystem == "Node.js");
             Assert.DoesNotContain(discovery.Targets, target => target.Path.Contains("node_modules", StringComparison.Ordinal));
         }
@@ -44,4 +44,42 @@ public sealed class WorkspaceTestDiscoveryTests
         }
         finally { Directory.Delete(root, recursive: true); }
     }
+
+    [Fact]
+    public void Discovery_exposes_fixed_offline_build_targets_for_supported_languages()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-build-discovery-{Guid.NewGuid():N}");
+        var workspaceId = Guid.NewGuid();
+        var workspace = Path.Combine(root, workspaceId.ToString("N"));
+        Directory.CreateDirectory(Path.Combine(workspace, ".git"));
+        Directory.CreateDirectory(Path.Combine(workspace, "tests"));
+        File.WriteAllText(Path.Combine(workspace, "package.json"), "{}");
+        File.WriteAllText(Path.Combine(workspace, "app.js"), "const ready = true;");
+        File.WriteAllText(Path.Combine(workspace, "test_sample.py"), "def test_ok(): assert True");
+        File.WriteAllText(Path.Combine(workspace, "go.mod"), "module example.local/app\n\ngo 1.20\n");
+        File.WriteAllText(Path.Combine(workspace, "app_test.go"), "package app\nimport \"testing\"\nfunc TestOK(t *testing.T) {}\n");
+        File.WriteAllText(Path.Combine(workspace, "Cargo.toml"), "[package]\nname = \"sample\"\nversion = \"0.1.0\"\nedition = \"2021\"\n");
+        File.WriteAllText(Path.Combine(workspace, "src.rs"), "fn main() {}\n");
+        File.WriteAllText(Path.Combine(workspace, "tests", "sample.rs"), "#[test] fn works() {}\n");
+        try
+        {
+            var targets = WorkspaceSecurity.DiscoverTests(root, workspaceId).Targets;
+
+            Assert.Contains(targets, target => target.Path == "package.json" && target.Ecosystem == "Node.js" && target.CanBuild && target.CanTest == false);
+            Assert.Contains(targets, target => target.Path == "test_sample.py" && target.Ecosystem == "Python" && target.CanBuild && target.CanTest);
+            Assert.Contains(targets, target => target.Path == "go.mod" && target.Ecosystem == "Go" && target.CanBuild && target.CanTest == false);
+            Assert.Contains(targets, target => target.Path == "Cargo.toml" && target.Ecosystem == "Rust" && target.CanBuild && target.CanTest);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Theory]
+    [InlineData("go.mod", true)]
+    [InlineData("services/api/go.mod", true)]
+    [InlineData("../go.mod", false)]
+    [InlineData(".hidden/go.mod", false)]
+    [InlineData("services/passwords/go.mod", false)]
+    [InlineData("services/api/go.sum", false)]
+    public void Go_build_targets_are_limited_to_safe_module_manifests(string path, bool expected)
+        => Assert.Equal(expected, WorkspaceSecurity.IsSafeGoBuildTarget(path));
 }

@@ -3,6 +3,8 @@ using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Xml.Linq;
+using AIERP.WorkspaceSandbox;
 
 public sealed record SandboxTestJob(Guid Id, Guid WorkspaceId, string TargetPath, DateTimeOffset CreatedAt, string Operation = "test");
 
@@ -12,6 +14,8 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
     private const long MaxArchiveBytes = 100 * 1024 * 1024;
     private const int MaxFiles = 20_000;
     private const int MaxOutputCharacters = 32_000;
+    private const int MaxPackageCacheEntries = 50_000;
+    private static readonly TimeSpan DotNetRestoreTimeout = TimeSpan.FromSeconds(120);
     private static readonly HashSet<string> ExcludedDirectories = new(StringComparer.OrdinalIgnoreCase)
         { ".git", ".vs", ".next", "node_modules", "bin", "obj", "dist", "build", "coverage", "packages", "vendor" };
 
@@ -73,48 +77,176 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
             MakeSnapshotWritableForSandboxUser(workDirectory);
             if (job.Operation == "build")
             {
-                if (!Path.GetExtension(job.TargetPath).Equals(".csproj", StringComparison.OrdinalIgnoreCase))
+                if (Path.GetExtension(job.TargetPath).Equals(".csproj", StringComparison.OrdinalIgnoreCase))
                 {
-                    result = new(false, "Rejected", "Şimdilik yalnız keşfedilmiş .NET proje dosyaları build edilebilir.", -1, "");
+                    if (!TryCreateNugetRestoreConfig(workDirectory, out var restoreConfigPath, out var cacheError, out var cacheStatus))
+                        result = new(false, cacheStatus, cacheError, -1, "");
+                    else
+                    {
+                        var restore = await RunCommandAsync(workDirectory, "dotnet", ["restore", target, "--configfile", restoreConfigPath, "--ignore-failed-sources", "-p:NuGetAudit=false", "--disable-parallel"], DotNetRestoreTimeout, stoppingToken);
+                        if (restore.ExitCode != 0)
+                            result = new(false, restore.TimedOut ? "TimedOut" : "DependencyUnavailable", restore.TimedOut ? "Offline NuGet restore exceeded its time limit." : "Offline dependency restore failed. The sandbox has no network access; dependencies must be available in its approved package cache.", restore.ExitCode, CombineOutput(restore));
+                        else
+                        {
+                            var build = await RunCommandAsync(workDirectory, "dotnet", ["build", target, "--no-restore", "--configuration", "Release", "--verbosity", "minimal"], TimeSpan.FromSeconds(55), stoppingToken);
+                            result = new(build.ExitCode == 0, build.TimedOut ? "TimedOut" : build.ExitCode == 0 ? "Built" : "BuildFailed",
+                                build.TimedOut ? "Build exceeded its time limit." : build.ExitCode == 0 ? ".NET build completed successfully." : ".NET build failed.", build.ExitCode, CombineOutput(build));
+                        }
+                    }
+                }
+                else if (Path.GetFileName(target).Equals("package.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    var projectDirectory = Path.GetDirectoryName(target)!;
+                    var sources = Directory.EnumerateFiles(projectDirectory, "*", SearchOption.AllDirectories)
+                        .Where(path => Path.GetExtension(path).ToLowerInvariant() is ".js" or ".cjs" or ".mjs")
+                        .OrderBy(path => path, StringComparer.Ordinal).Take(201).ToArray();
+                    if (sources.Length == 0 || sources.Length > 200)
+                    {
+                        result = new(false, "Rejected", "Node.js build requires 1–200 JavaScript source files in the selected project.", -1, "");
+                    }
+                    else
+                    {
+                        var output = new List<string>();
+                        var nodeStopwatch = Stopwatch.StartNew();
+                        var exitCode = 0;
+                        var timedOut = false;
+                        foreach (var source in sources)
+                        {
+                            if (nodeStopwatch.Elapsed >= TimeSpan.FromSeconds(55)) { timedOut = true; exitCode = -1; break; }
+                            var relative = Path.GetRelativePath(projectDirectory, source);
+                            var check = await RunCommandAsync(projectDirectory, "node", ["--check", source], TimeSpan.FromSeconds(5), stoppingToken);
+                            var text = CombineOutput(check);
+                            if (text.Length > 0) output.Add($"$ node --check {relative}{Environment.NewLine}{text}");
+                            if (check.ExitCode != 0) { exitCode = check.ExitCode; timedOut = check.TimedOut; break; }
+                        }
+                        result = new(exitCode == 0, timedOut ? "TimedOut" : exitCode == 0 ? "Built" : "BuildFailed",
+                            timedOut ? "Node.js syntax checks exceeded their time limit." : exitCode == 0 ? $"Node.js syntax check passed for {sources.Length} files. No source modules were executed." : "Node.js syntax check failed.", exitCode, string.Join(Environment.NewLine, output));
+                    }
+                }
+                else if (Path.GetExtension(target).Equals(".py", StringComparison.OrdinalIgnoreCase))
+                {
+                    var build = await RunCommandAsync(workDirectory, "python3", ["-m", "py_compile", target], TimeSpan.FromSeconds(35), stoppingToken);
+                    result = new(build.ExitCode == 0, build.TimedOut ? "TimedOut" : build.ExitCode == 0 ? "Built" : "BuildFailed",
+                        build.TimedOut ? "Python syntax compilation exceeded its time limit." : build.ExitCode == 0 ? "Python source compiled successfully." : "Python syntax compilation failed.", build.ExitCode, CombineOutput(build));
+                }
+                else if (Path.GetFileName(target).Equals("go.mod", StringComparison.OrdinalIgnoreCase))
+                {
+                    var moduleDirectory = Path.GetDirectoryName(target)!;
+                    if (HasExternalGoDependencies(target))
+                    {
+                        if (!TryPreparePackageCache(workDirectory, "go-mod", out var cacheError))
+                            result = new(false, "DependencyUnavailable", $"Go dependencies are unavailable in the operator package cache. {cacheError}", -1, "");
+                        else
+                        {
+                            var build = await RunCommandAsync(moduleDirectory, "go", ["build", "-mod=readonly", "./..."], TimeSpan.FromSeconds(55), stoppingToken);
+                            result = new(build.ExitCode == 0, build.TimedOut ? "TimedOut" : build.ExitCode == 0 ? "Built" : "BuildFailed",
+                                build.TimedOut ? "Build exceeded its time limit." : build.ExitCode == 0 ? "Go build completed successfully." : "Go build failed.", build.ExitCode, CombineOutput(build));
+                        }
+                    }
+                    else
+                    {
+                        var build = await RunCommandAsync(moduleDirectory, "go", ["build", "-mod=readonly", "./..."], TimeSpan.FromSeconds(55), stoppingToken);
+                        result = new(build.ExitCode == 0, build.TimedOut ? "TimedOut" : build.ExitCode == 0 ? "Built" : "BuildFailed",
+                            build.TimedOut ? "Go build exceeded its time limit." : build.ExitCode == 0 ? "Go build completed successfully." : "Go build failed.", build.ExitCode, CombineOutput(build));
+                    }
+                }
+                else if (Path.GetFileName(target).Equals("Cargo.toml", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (HasExternalRustDependencies(target) && !File.Exists(Path.Combine(Path.GetDirectoryName(target)!, "Cargo.lock")))
+                    {
+                        result = new(false, "DependencyUnavailable", "Rust dependencies require a Cargo.lock file for offline builds.", -1, "");
+                    }
+                    else if (HasExternalRustDependencies(target) && !TryPreparePackageCache(workDirectory, "cargo-home", out var cacheError))
+                    {
+                        result = new(false, "DependencyUnavailable", $"Rust dependencies are unavailable in the operator package cache. {cacheError}", -1, "");
+                    }
+                    else
+                    {
+                        var build = await RunCommandAsync(Path.GetDirectoryName(target)!, "cargo", ["build", "--offline"], TimeSpan.FromSeconds(55), stoppingToken);
+                        var output = CombineOutput(build);
+                        var unavailable = output.Contains("no matching package named", StringComparison.OrdinalIgnoreCase) || output.Contains("failed to download", StringComparison.OrdinalIgnoreCase);
+                        result = new(build.ExitCode == 0, build.TimedOut ? "TimedOut" : build.ExitCode == 0 ? "Built" : unavailable ? "DependencyUnavailable" : "BuildFailed",
+                            build.TimedOut ? "Rust build exceeded its time limit." : unavailable ? "Rust crate dependencies are not available in the offline sandbox." : build.ExitCode == 0 ? "Rust build completed successfully." : "Rust build failed.", build.ExitCode, output);
+                    }
                 }
                 else
                 {
-                    var restore = await RunCommandAsync(workDirectory, "dotnet", ["restore", job.TargetPath, "--source", "/opt/nuget-feed", "--ignore-failed-sources", "-p:NuGetAudit=false", "--disable-parallel"], TimeSpan.FromSeconds(35), stoppingToken);
-                    if (restore.ExitCode != 0)
-                        result = new(false, "DependencyUnavailable", "Offline dependency restore failed. The sandbox has no network access; dependencies must be available in its approved package cache.", restore.ExitCode, CombineOutput(restore));
-                    else
-                    {
-                        var build = await RunCommandAsync(workDirectory, "dotnet", ["build", job.TargetPath, "--no-restore", "--configuration", "Release", "--verbosity", "minimal"], TimeSpan.FromSeconds(55), stoppingToken);
-                        result = new(build.ExitCode == 0, build.TimedOut ? "TimedOut" : build.ExitCode == 0 ? "Built" : "BuildFailed",
-                            build.TimedOut ? "Build exceeded its time limit." : build.ExitCode == 0 ? ".NET build completed successfully." : ".NET build failed.", build.ExitCode, CombineOutput(build));
-                    }
+                    result = new(false, "Rejected", "The selected build target is not supported.", -1, "");
                 }
             }
             else if (Path.GetExtension(job.TargetPath).Equals(".csproj", StringComparison.OrdinalIgnoreCase))
             {
-                var restore = await RunCommandAsync(workDirectory, "dotnet", ["restore", job.TargetPath, "--source", "/opt/nuget-feed", "--ignore-failed-sources", "-p:NuGetAudit=false", "--disable-parallel"], TimeSpan.FromSeconds(35), stoppingToken);
-                if (restore.ExitCode != 0)
-                    result = new(false, "DependencyUnavailable", "Offline dependency restore failed. The sandbox has no network access; dependencies must be available in its approved package cache.", restore.ExitCode, CombineOutput(restore));
+                if (!TryCreateNugetRestoreConfig(workDirectory, out var restoreConfigPath, out var cacheError, out var cacheStatus))
+                {
+                    result = new(false, cacheStatus, cacheError, -1, "");
+                }
                 else
                 {
-                    var test = await RunCommandAsync(workDirectory, "dotnet", ["test", job.TargetPath, "--no-restore", "--logger", "console;verbosity=minimal"], TimeSpan.FromSeconds(55), stoppingToken);
-                    result = new(test.ExitCode == 0, test.TimedOut ? "TimedOut" : test.ExitCode == 0 ? "Passed" : "Failed",
-                        test.TimedOut ? "Test execution exceeded its time limit." : test.ExitCode == 0 ? "Tests completed successfully." : "Tests failed.", test.ExitCode, CombineOutput(test));
+                    var restore = await RunCommandAsync(workDirectory, "dotnet", ["restore", target, "--configfile", restoreConfigPath, "--ignore-failed-sources", "-p:NuGetAudit=false", "--disable-parallel"], DotNetRestoreTimeout, stoppingToken);
+                    if (restore.ExitCode != 0)
+                        result = new(false, restore.TimedOut ? "TimedOut" : "DependencyUnavailable", restore.TimedOut ? "Offline NuGet restore exceeded its time limit." : "Offline dependency restore failed. The sandbox has no network access; dependencies must be available in its approved package cache.", restore.ExitCode, CombineOutput(restore));
+                    else
+                    {
+                        var test = await RunCommandAsync(workDirectory, "dotnet", ["test", target, "--no-restore", "--logger", "console;verbosity=minimal"], TimeSpan.FromSeconds(55), stoppingToken);
+                        result = new(test.ExitCode == 0, test.TimedOut ? "TimedOut" : test.ExitCode == 0 ? "Passed" : "Failed",
+                            test.TimedOut ? "Test execution exceeded its time limit." : test.ExitCode == 0 ? "Tests completed successfully." : "Tests failed.", test.ExitCode, CombineOutput(test));
+                    }
                 }
             }
             else
             {
                 if (Path.GetFileName(target).Equals("package.json", StringComparison.OrdinalIgnoreCase) && HasExternalNodeDependencies(target))
                 {
-                    result = new(false, "DependencyUnavailable", "Node.js package dependencies are not installed in the offline sandbox. Only dependency-free built-in node:test suites can run.", -1, "");
+                    var projectDirectory = Path.GetDirectoryName(target)!;
+                    if (!File.Exists(Path.Combine(projectDirectory, "package-lock.json")))
+                        result = new(false, "DependencyUnavailable", "Offline Node.js dependency tests require a package-lock.json file.", -1, "");
+                    else if (!TryPreparePackageCache(workDirectory, "npm", out var cacheError))
+                        result = new(false, "DependencyUnavailable", $"Node.js dependencies are unavailable in the operator package cache. {cacheError}", -1, "");
+                    else
+                    {
+                        var cachePath = Path.Combine(workDirectory, ".operator-cache", "npm");
+                        var install = await RunCommandAsync(projectDirectory, "npm", ["ci", "--offline", "--cache", cachePath, "--ignore-scripts", "--no-audit", "--no-fund", "--loglevel=error"], TimeSpan.FromSeconds(35), stoppingToken);
+                        if (install.ExitCode != 0)
+                            result = new(false, install.TimedOut ? "TimedOut" : "DependencyUnavailable", install.TimedOut ? "Offline Node.js dependency restore exceeded its time limit." : "Node.js dependencies could not be restored from the operator cache.", install.ExitCode, CombineOutput(install));
+                        else
+                        {
+                            var test = await RunCommandAsync(projectDirectory, "node", ["--max-old-space-size=768", "--test"], TimeSpan.FromSeconds(55), stoppingToken);
+                            result = new(test.ExitCode == 0, test.TimedOut ? "TimedOut" : test.ExitCode == 0 ? "Passed" : "Failed",
+                                test.TimedOut ? "Test execution exceeded its time limit." : test.ExitCode == 0 ? "Node.js tests completed successfully." : "Node.js tests failed.", test.ExitCode, CombineOutput(test));
+                        }
+                    }
                 }
                 else if (Path.GetExtension(target).Equals(".py", StringComparison.OrdinalIgnoreCase))
                 {
-                    var test = await RunCommandAsync(workDirectory, "python3", ["-m", "pytest", job.TargetPath, "--no-header", "-q", "-p", "no:cacheprovider", "--disable-warnings"], TimeSpan.FromSeconds(55), stoppingToken);
-                    var output = CombineOutput(test);
-                    var missingDependency = output.Contains("ModuleNotFoundError", StringComparison.Ordinal) || output.Contains("No module named", StringComparison.OrdinalIgnoreCase);
-                    result = new(test.ExitCode == 0, test.TimedOut ? "TimedOut" : test.ExitCode == 0 ? "Passed" : missingDependency ? "DependencyUnavailable" : "Failed",
-                        test.TimedOut ? "Test execution exceeded its time limit." : missingDependency ? "Python package dependencies are not installed in the offline sandbox." : test.ExitCode == 0 ? "Python tests completed successfully." : "Python tests failed.", test.ExitCode, output);
+                    var requirements = Path.Combine(workDirectory, "requirements.txt");
+                    var pythonPath = new Dictionary<string, string>();
+                    var dependencyError = "";
+                    var dependencyExitCode = 0;
+                    var dependencyTimedOut = false;
+                    if (File.Exists(requirements))
+                    {
+                        if (!TryPreparePackageCache(workDirectory, "python-wheels", out dependencyError)) dependencyExitCode = -1;
+                        else
+                        {
+                            var wheels = Path.Combine(workDirectory, ".operator-cache", "python-wheels");
+                            var dependencies = Path.Combine(workDirectory, ".python-deps");
+                            var install = await RunCommandAsync(workDirectory, "python3", ["-m", "pip", "install", "--no-index", "--only-binary=:all:", "--find-links", wheels, "--target", dependencies, "--requirement", requirements, "--disable-pip-version-check"], TimeSpan.FromSeconds(35), stoppingToken);
+                            dependencyExitCode = install.ExitCode;
+                            dependencyTimedOut = install.TimedOut;
+                            dependencyError = CombineOutput(install);
+                            if (install.ExitCode == 0) pythonPath["PYTHONPATH"] = dependencies;
+                        }
+                    }
+                    if (dependencyExitCode != 0)
+                        result = new(false, dependencyTimedOut ? "TimedOut" : "DependencyUnavailable", dependencyTimedOut ? "Offline Python dependency restore exceeded its time limit." : "Python dependencies could not be restored from the operator wheelhouse.", dependencyExitCode, dependencyError);
+                    else
+                    {
+                        var test = await RunCommandAsync(workDirectory, "python3", ["-m", "pytest", job.TargetPath, "--no-header", "-q", "-p", "no:cacheprovider", "--disable-warnings"], TimeSpan.FromSeconds(55), stoppingToken, pythonPath);
+                        var output = CombineOutput(test);
+                        var missingDependency = output.Contains("ModuleNotFoundError", StringComparison.Ordinal) || output.Contains("No module named", StringComparison.OrdinalIgnoreCase);
+                        result = new(test.ExitCode == 0, test.TimedOut ? "TimedOut" : test.ExitCode == 0 ? "Passed" : missingDependency ? "DependencyUnavailable" : "Failed",
+                            test.TimedOut ? "Test execution exceeded its time limit." : missingDependency ? "Python package dependencies are unavailable in the offline sandbox." : test.ExitCode == 0 ? "Python tests completed successfully." : "Python tests failed.", test.ExitCode, output);
+                    }
                 }
                 else if (Path.GetExtension(target).Equals(".go", StringComparison.OrdinalIgnoreCase))
                 {
@@ -123,9 +255,9 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
                     {
                         result = new(false, "Rejected", "Selected Go test is not inside a Go module.", -1, "");
                     }
-                    else if (HasExternalGoDependencies(Path.Combine(moduleDirectory, "go.mod")))
+                    else if (HasExternalGoDependencies(Path.Combine(moduleDirectory, "go.mod")) && !TryPreparePackageCache(workDirectory, "go-mod", out var cacheError))
                     {
-                        result = new(false, "DependencyUnavailable", "Go module dependencies are not installed in the offline sandbox. Only standard-library Go modules can run.", -1, "");
+                        result = new(false, "DependencyUnavailable", $"Go dependencies are unavailable in the operator package cache. {cacheError}", -1, "");
                     }
                     else
                     {
@@ -139,9 +271,13 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
                 }
                 else if (Path.GetFileName(target).Equals("Cargo.toml", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (HasExternalRustDependencies(target))
+                    if (HasExternalRustDependencies(target) && !File.Exists(Path.Combine(Path.GetDirectoryName(target)!, "Cargo.lock")))
                     {
-                        result = new(false, "DependencyUnavailable", "Rust crate dependencies or workspace manifests are not supported in the offline sandbox. Only standalone dependency-free Cargo packages can run.", -1, "");
+                        result = new(false, "DependencyUnavailable", "Rust dependencies require a Cargo.lock file for offline tests.", -1, "");
+                    }
+                    else if (HasExternalRustDependencies(target) && !TryPreparePackageCache(workDirectory, "cargo-home", out var cacheError))
+                    {
+                        result = new(false, "DependencyUnavailable", $"Rust dependencies are unavailable in the operator package cache. {cacheError}", -1, "");
                     }
                     else
                     {
@@ -211,29 +347,32 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
     }
 
     private static async Task<ProcessResult> RunCommandAsync(string workingDirectory, string executable, IReadOnlyList<string> arguments,
-        TimeSpan timeout, CancellationToken cancellationToken)
+        TimeSpan timeout, CancellationToken cancellationToken, IReadOnlyDictionary<string, string>? environmentOverrides = null)
     {
         var tempDirectory = Path.Combine(workingDirectory, ".tmp");
         Directory.CreateDirectory(tempDirectory);
         if (OperatingSystem.IsLinux()) File.SetUnixFileMode(tempDirectory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute);
+        var setprivPath = File.Exists("/usr/bin/setpriv") ? "/usr/bin/setpriv" : "/bin/setpriv";
         using var process = new Process { StartInfo = new ProcessStartInfo
         {
             FileName = "/usr/bin/setsid", WorkingDirectory = workingDirectory, UseShellExecute = false,
             RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true
         }};
-        process.StartInfo.ArgumentList.Add("/usr/bin/setpriv");
+        process.StartInfo.ArgumentList.Add(setprivPath);
         process.StartInfo.ArgumentList.Add("--reuid=65532"); process.StartInfo.ArgumentList.Add("--regid=65532");
         process.StartInfo.ArgumentList.Add("--clear-groups"); process.StartInfo.ArgumentList.Add("--bounding-set=-all");
         process.StartInfo.ArgumentList.Add("--inh-caps=-all"); process.StartInfo.ArgumentList.Add("--ambient-caps=-all");
         process.StartInfo.ArgumentList.Add(executable);
         foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
         process.StartInfo.Environment.Clear();
-        process.StartInfo.Environment["PATH"] = "/usr/share/dotnet:/usr/bin:/bin";
+        process.StartInfo.Environment["PATH"] = "/usr/local/bin:/usr/local/go/bin:/usr/share/dotnet:/usr/bin:/bin";
         process.StartInfo.Environment["HOME"] = workingDirectory;
         process.StartInfo.Environment["TMPDIR"] = tempDirectory;
         process.StartInfo.Environment["DOTNET_CLI_HOME"] = Path.Combine(workingDirectory, ".dotnet");
         process.StartInfo.Environment["NUGET_PACKAGES"] = Path.Combine(workingDirectory, ".nuget");
         process.StartInfo.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+        process.StartInfo.Environment["DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE"] = "1";
+        process.StartInfo.Environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
         process.StartInfo.Environment["DOTNET_NOLOGO"] = "1";
         process.StartInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
         process.StartInfo.Environment["PYTHONNOUSERSITE"] = "1";
@@ -249,6 +388,9 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
         process.StartInfo.Environment["CARGO_NET_OFFLINE"] = "true";
         process.StartInfo.Environment["CARGO_TERM_COLOR"] = "never";
         process.StartInfo.Environment["RUSTFLAGS"] = "-C debuginfo=0";
+        if (environmentOverrides is not null)
+            foreach (var (key, value) in environmentOverrides)
+                process.StartInfo.Environment[key] = value;
         process.Start();
         var stdoutTask = ReadBoundedAsync(process.StandardOutput, MaxOutputCharacters / 2);
         var stderrTask = ReadBoundedAsync(process.StandardError, MaxOutputCharacters / 2);
@@ -300,9 +442,82 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
         File.Move(temporary, path, overwrite: true);
     }
 
+    private bool TryPreparePackageCache(string workDirectory, string cacheName, out string error)
+    {
+        var destinationName = cacheName switch
+        {
+            "go-mod" => ".gomodcache",
+            "cargo-home" => ".cargo",
+            _ => Path.Combine(".operator-cache", cacheName)
+        };
+        var destination = Path.Combine(workDirectory, destinationName);
+        var configuredMaxBytes = configuration.GetValue<long?>("WorkspaceSandbox:MaxDependencyCacheBytes") ?? 512L * 1024 * 1024;
+        var maxBytes = Math.Clamp(configuredMaxBytes, 1024L * 1024, 1024L * 1024 * 1024);
+        if (!OperatorPackageCache.TryCopy(configuration["WorkspaceSandbox:PackageCacheRoot"] ?? "/package-cache", cacheName,
+                destination, maxBytes, MaxPackageCacheEntries, out error)) return false;
+        MakeSnapshotWritableForSandboxUser(destination);
+        return true;
+    }
+
+    private bool TryCreateNugetRestoreConfig(string workDirectory, out string configPath, out string error, out string failureStatus)
+    {
+        error = "";
+        failureStatus = "DependencyUnavailable";
+        var cacheRoot = configuration["WorkspaceSandbox:PackageCacheRoot"] ?? "/package-cache";
+        var operatorFeedSource = Path.Combine(cacheRoot, "nuget");
+        var operatorFeed = Path.Combine(workDirectory, ".operator-cache", "nuget");
+        configPath = Path.Combine(workDirectory, ".operator-cache", "NuGet.Config");
+        var restoreSources = new List<XElement> { new("clear") };
+        var hasOperatorFeed = Directory.Exists(operatorFeedSource) && Directory.EnumerateFileSystemEntries(operatorFeedSource).Any();
+        if (hasOperatorFeed)
+        {
+            if (!TryPreparePackageCache(workDirectory, "nuget", out error))
+            {
+                error = $".NET dependencies are unavailable in the operator NuGet feed. {error}";
+                return false;
+            }
+            try
+            {
+                var feedFiles = Directory.EnumerateFiles(operatorFeed, "*", SearchOption.AllDirectories).ToArray();
+                if (feedFiles.Length == 0 || feedFiles.Any(file => !Path.GetExtension(file).Equals(".nupkg", StringComparison.OrdinalIgnoreCase)))
+                {
+                    error = "Operator NuGet feed accepts only .nupkg package files.";
+                    failureStatus = "Rejected";
+                    return false;
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                error = "Operator NuGet feed could not be inspected.";
+                return false;
+            }
+            restoreSources.Add(new XElement("add", new XAttribute("key", "operator-packages"), new XAttribute("value", operatorFeed)));
+        }
+        else
+        {
+            restoreSources.Add(new XElement("add", new XAttribute("key", "sandbox-built-in"), new XAttribute("value", "/opt/nuget-feed")));
+        }
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
+            new XDocument(new XElement("configuration",
+                    new XElement("packageSources", restoreSources),
+                    new XElement("fallbackPackageFolders",
+                        new XElement("add", new XAttribute("key", "sandbox-built-in-cache"), new XAttribute("value", "/opt/nuget-feed"))))
+                )
+                .Save(configPath, SaveOptions.DisableFormatting);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            error = "Offline NuGet restore sources could not be configured.";
+            return false;
+        }
+    }
+
     private static bool IsSafeProjectPath(string? path) => !string.IsNullOrWhiteSpace(path) && path.Length <= 500 && !path.StartsWith('/') &&
         !path.Contains('\\') && !path.Contains(':') && !path.Any(char.IsControl) &&
-        (Path.GetExtension(path).Equals(".csproj", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("package.json", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(path).Equals(".py", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(path).Equals(".go", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("Cargo.toml", StringComparison.OrdinalIgnoreCase)) &&
+        (Path.GetExtension(path).Equals(".csproj", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("package.json", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(path).Equals(".py", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(path).Equals(".go", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("go.mod", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("Cargo.toml", StringComparison.OrdinalIgnoreCase)) &&
         path.Split('/').All(x => !string.IsNullOrWhiteSpace(x) && x is not ("." or "..") && !x.StartsWith('.'));
 
     private static bool HasExternalNodeDependencies(string packageManifestPath)

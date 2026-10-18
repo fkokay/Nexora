@@ -1,0 +1,42 @@
+{
+  "audit": "pre-migration-sales-invoice-links",
+  "completedAtUtc": "2026-10-18T17:34:02Z",
+  "backup": {
+    "file": "AIERPPlatform_pre_migration_20261018.bak",
+    "bytes": 1228800,
+    "sha256": "3F209AB92AE342BEEDBEAD773E8DC3945BCBD6DAC10D9E4B0C1D12DB02D51E38",
+    "restoreVerifyOnlyWithChecksum": "passed"
+  },
+  "method": "Restored to a uniquely named temporary database, inspected columns and link counts, then dropped the temporary database.",
+  "legacyCustomFieldInvoiceLinkComparison": {
+    "tables": [
+      "SalesInvoiceCustomFieldValues",
+      "SalesInvoiceCustomFieldValueRevisions"
+    ],
+    "legacySalesInvoiceIdColumnPresentInBackup": false,
+    "result": "not_comparable"
+  },
+  "remainingSalesInvoiceIdReferencesInBackup": [
+    {
+      "table": "CustomerCollectionAllocations",
+      "totalRows": 0,
+      "linkedRows": 0,
+      "orphanLinks": 0
+    },
+    {
+      "table": "CustomerLedgerEntries",
+      "totalRows": 1,
+      "linkedRows": 1,
+      "orphanLinks": 0
+    },
+    {
+      "table": "SalesReturns",
+      "totalRows": 0,
+      "linkedRows": 0,
+      "orphanLinks": 0
+    }
+  ],
+  "temporaryDatabaseRemoved": true,
+  "liveDatabaseModified": false,
+  "customerOrInvoiceIdentifiersRecorded": false
+}

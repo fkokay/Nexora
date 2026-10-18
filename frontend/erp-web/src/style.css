@@ -207,3 +207,13 @@
 .marketplace-empty { display: grid; justify-items: center; gap: 8px; padding: 54px 20px; text-align: center; }
 .marketplace-empty p { margin: 0; max-width: 440px; color: #778199; font-size: 13px; }
 @media (max-width: 640px) { .marketplace-card { padding: 17px; } .marketplace-card-footer { align-items: flex-start; flex-direction: column; } .marketplace-actions { justify-content: flex-start; } }
+.studio-adaptation-label{margin-top:15px;padding-top:13px;border-top:1px solid #f0f1f5;color:#a2a7b4}
+.side-subsection-label{margin:11px 10px 5px;padding-top:10px;border-top:1px solid #f0f1f5;color:#979dad;font-size:9px;font-weight:800;letter-spacing:.11em}
+.side-subsection-toggle{display:flex;width:calc(100% - 14px);align-items:center;justify-content:space-between;margin:11px 7px 4px;padding:10px 9px 8px;border:0;border-top:1px solid #f0f1f5;background:transparent;color:#979dad;font:inherit;font-size:9px;font-weight:800;letter-spacing:.11em;text-align:left;cursor:pointer}
+.side-subsection-toggle svg{color:#8980c9}
+.side-subsection-toggle:hover{color:#6558df}
+.platform-adaptation-nav{margin-top:4px!important;margin-bottom:12px!important;padding:5px 0 6px 12px!important;border-left:2px solid #e5e0ff!important;background:linear-gradient(90deg,#faf9ff,transparent);border-radius:0 8px 8px 0}
+.platform-adaptation-nav .finance-subnav-item{display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;color:#697184;font-size:10px}
+.platform-adaptation-nav .finance-subnav-item svg{color:#8a7be2;flex:none}
+.platform-adaptation-nav .finance-subnav-item.active{background:#efedff;color:#5d4bcf;font-weight:650}
+.platform-adaptation-nav .finance-subnav-item:hover{background:#f1efff;color:#5d4bcf}

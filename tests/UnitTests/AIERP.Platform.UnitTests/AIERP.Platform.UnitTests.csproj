@@ -20,9 +20,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="EvaluationSets\erp-assistant-orchestration-v1.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\Platform\AIERP.Platform.Application\AIERP.Platform.Application.csproj" />
     <ProjectReference Include="..\..\..\src\Platform\AIERP.Platform.Domain\AIERP.Platform.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\AI\AIERP.WorkspaceRunner\AIERP.WorkspaceRunner.csproj" />
+    <ProjectReference Include="..\..\..\src\AI\AIERP.WorkspaceSandbox\AIERP.WorkspaceSandbox.csproj" />
     <ProjectReference Include="..\..\..\src\AI\AIERP.AIService\AIERP.AIService.csproj" />
     <ProjectReference Include="..\..\..\src\AI\AIERP.ReleaseDeployer\AIERP.ReleaseDeployer.csproj" />
     <ProjectReference Include="..\..\..\src\Observability\AIERP.Observability\AIERP.Observability.csproj" />

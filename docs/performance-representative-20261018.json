@@ -1,0 +1,30 @@
+{
+  "dateUtc": "2026-10-18T17:50:27.2512601Z",
+  "environment": "local-docker-compose",
+  "scenario": "authenticated-read-only-dashboard-summary",
+  "endpoint": "http://localhost:5080/api/dashboard",
+  "requests": 1000,
+  "concurrency": 100,
+  "warmupRequests": 200,
+  "thresholds": {
+    "p95Milliseconds": 1000,
+    "maxErrorRatePercent": 1.0
+  },
+  "results": {
+    "successful": 1000,
+    "failed": 0,
+    "errorRatePercent": 0.0,
+    "averageMilliseconds": 82.86,
+    "p95Milliseconds": 346,
+    "maxMilliseconds": 619,
+    "throughputRequestsPerSecond": 1161.44,
+    "wallClockMilliseconds": 861,
+    "statuses": [
+      {
+        "result": "200",
+        "count": 1000
+      }
+    ]
+  },
+  "notes": "Single-host local baseline; not a production capacity target. Measured requests are read-only; login and tenant selection are setup calls and are excluded from the measurements. No response bodies, credentials, bearer tokens, user IDs, or tenant IDs are stored."
+}

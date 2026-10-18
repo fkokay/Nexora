@@ -11,6 +11,34 @@ namespace AIERP.Platform.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // The legacy SalesInvoiceId properties were EF shadow foreign keys. The
+            // supported value is InvoiceId; refuse to drop the legacy columns if
+            // any stored reference differs, so migration cannot silently discard
+            // a distinct invoice association.
+            migrationBuilder.Sql("""
+                DECLARE @hasMismatch bit = 0;
+                DECLARE @checkValues nvarchar(max);
+
+                IF COL_LENGTH(N'dbo.SalesInvoiceCustomFieldValues', N'SalesInvoiceId') IS NOT NULL
+                BEGIN
+                    IF COL_LENGTH(N'dbo.SalesInvoiceCustomFieldValues', N'InvoiceId') IS NULL
+                        THROW 51001, 'Sales invoice custom-field migration stopped: InvoiceId is missing.', 1;
+                    SET @checkValues = N'IF EXISTS (SELECT 1 FROM [dbo].[SalesInvoiceCustomFieldValues] WHERE [SalesInvoiceId] IS NOT NULL AND ([InvoiceId] IS NULL OR [SalesInvoiceId] <> [InvoiceId])) SET @hasMismatch = 1;';
+                    EXEC sys.sp_executesql @checkValues, N'@hasMismatch bit OUTPUT', @hasMismatch = @hasMismatch OUTPUT;
+                END;
+
+                IF COL_LENGTH(N'dbo.SalesInvoiceCustomFieldValueRevisions', N'SalesInvoiceId') IS NOT NULL
+                BEGIN
+                    IF COL_LENGTH(N'dbo.SalesInvoiceCustomFieldValueRevisions', N'InvoiceId') IS NULL
+                        THROW 51002, 'Sales invoice custom-field history migration stopped: InvoiceId is missing.', 1;
+                    SET @checkValues = N'IF EXISTS (SELECT 1 FROM [dbo].[SalesInvoiceCustomFieldValueRevisions] WHERE [SalesInvoiceId] IS NOT NULL AND ([InvoiceId] IS NULL OR [SalesInvoiceId] <> [InvoiceId])) SET @hasMismatch = 1;';
+                    EXEC sys.sp_executesql @checkValues, N'@hasMismatch bit OUTPUT', @hasMismatch = @hasMismatch OUTPUT;
+                END;
+
+                IF @hasMismatch = 1
+                    THROW 51003, 'Sales invoice custom-field migration stopped: legacy invoice references differ from InvoiceId.', 1;
+                """);
+
             migrationBuilder.DropForeignKey(
                 name: "FK_SalesInvoiceCustomFieldValueRevisions_SalesInvoices_SalesInvoiceId",
                 table: "SalesInvoiceCustomFieldValueRevisions");

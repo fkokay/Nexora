@@ -51,7 +51,15 @@ export default function ReportsPage({ token, role, mode = 'report' }: { token: s
 
   function update(patch: Partial<Definition>) { setDrilldownBase(null); setDefinition(current => ({ ...current, ...patch, page: patch.page ?? 1 })); setResult(null) }
   function newReport() { setDrilldownBase(null); setSelectedId(''); setName(''); setDefinition(defaultDefinition); setResult(null); setNotice(isList ? 'Yeni liste taslağı hazır.' : 'Yeni rapor taslağı hazır.') }
-  function openReport(report: SavedReport) { setDrilldownBase(null); setSelectedId(report.id); setName(report.name); setDefinition({ ...report.definition, page: 1, pageSize: 50 }); setResult(null); setError('') }
+  async function openReport(report: SavedReport) {
+    setDrilldownBase(null); setSelectedId(report.id); setName(report.name); setDefinition({ ...report.definition, page: 1, pageSize: 50 }); setResult(null); setError(''); setNotice('')
+    setBusy(true)
+    try {
+      const data = await request<Result>(`/api/reports/${report.id}/run`, { method: 'POST', body: JSON.stringify({ page: 1, pageSize: 50 }) })
+      setResult(data)
+      setDefinition({ ...report.definition, page: data.page, pageSize: data.pageSize })
+    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
   async function run(page = 1, query = definition) {
     setBusy(true); setError(''); setNotice('')
     try { const data = await request<Result>('/api/reports/run', { method: 'POST', body: JSON.stringify({ ...query, page }) }); setResult(data); setDefinition({ ...query, page: data.page }) }
@@ -89,9 +97,9 @@ export default function ReportsPage({ token, role, mode = 'report' }: { token: s
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   async function remove(report: SavedReport) {
-    if (!window.confirm(`“${report.name}” raporunu silmek istiyor musunuz?`)) return
+    if (!window.confirm(`“${report.name}” ${isList ? 'listesini' : 'raporunu'} silmek istiyor musunuz?`)) return
     setBusy(true)
-    try { await request(`/api/reports/${report.id}`, { method: 'DELETE' }); if (selectedId === report.id) newReport(); await refresh(); setNotice('Rapor silindi.') }
+    try { await request(`/api/reports/${report.id}`, { method: 'DELETE' }); if (selectedId === report.id) newReport(); await refresh(); setNotice(isList ? 'Liste silindi.' : 'Rapor silindi.') }
     catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   function addFilter() { if (definition.filters.length < 8) update({ filters: [...definition.filters, { field: columns[0]?.code ?? 'code', operator: 'contains', value: '' }] }) }
@@ -105,7 +113,7 @@ export default function ReportsPage({ token, role, mode = 'report' }: { token: s
       const url = URL.createObjectURL(await response.blob()); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `nexora-${isList ? 'liste' : 'rapor'}-${new Date().toISOString().slice(0, 10)}.csv`; anchor.click(); URL.revokeObjectURL(url)
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
-  function operatorsFor(column: Column | undefined) { if (!column) return ['equals']; if (column.code === 'barcode' || column.code === 'category' || column.code === 'riskLimit') return ['contains', 'equals', 'gt', 'gte', 'lt', 'lte', 'isNull'].filter(op => column.dataType === 'text' ? op === 'contains' || op === 'equals' || op === 'isNull' : op !== 'contains'); if (column.options || column.dataType === 'boolean') return ['equals']; if (column.dataType === 'text') return ['contains', 'equals']; if (column.dataType === 'date') return ['gt', 'gte', 'lt', 'lte']; return ['equals', 'gt', 'gte', 'lt', 'lte'] }
+  function operatorsFor(column: Column | undefined) { if (!column) return ['equals']; if (column.code === 'startedByUserId') return ['equals']; if (column.code === 'barcode' || column.code === 'category' || column.code === 'riskLimit') return ['contains', 'equals', 'gt', 'gte', 'lt', 'lte', 'isNull'].filter(op => column.dataType === 'text' ? op === 'contains' || op === 'equals' || op === 'isNull' : op !== 'contains'); if (column.options || column.dataType === 'boolean') return ['equals']; if (column.dataType === 'text') return ['contains', 'equals']; if (column.dataType === 'date') return ['gt', 'gte', 'lt', 'lte']; return ['equals', 'gt', 'gte', 'lt', 'lte'] }
   function valueInput(column: Column | undefined, value: string, onChange: (value: string) => void) {
     if (column?.options) return <select value={value} onChange={e => onChange(e.target.value)}><option value="">Seçin</option>{column.options.map(option => <option value={option} key={option}>{option}</option>)}</select>
     if (column?.dataType === 'boolean') return <select value={value} onChange={e => onChange(e.target.value)}><option value="">Seçin</option><option value="true">Aktif</option><option value="false">Pasif</option></select>
@@ -146,6 +154,6 @@ export default function ReportsPage({ token, role, mode = 'report' }: { token: s
         <div className="report-pagination"><span>{isGrouped ? `${result.totalGroups ? (result.page - 1) * result.pageSize + 1 : 0}–${Math.min(result.page * result.pageSize, result.totalGroups ?? 0)} / ${result.totalGroups ?? 0} grup` : result.totalCount ? `${(result.page - 1) * result.pageSize + 1}–${Math.min(result.page * result.pageSize, result.totalCount)} / ${result.totalCount}` : '0 kayıt'}</span><div><button className="secondary small-button" disabled={busy || result.page <= 1} onClick={() => void run(result.page - 1)}>Önceki</button><button className="secondary small-button" disabled={busy || result.page * result.pageSize >= (isGrouped ? result.totalGroups ?? 0 : result.totalCount)} onClick={() => void run(result.page + 1)}>Sonraki</button></div></div>
       </section>}
     </section>
-    <aside className="report-saved panel"><div className="report-section-heading"><div><p className="eyebrow">{isList ? 'KAYITLI LİSTELER' : 'KAYITLI RAPORLAR'}</p><h2>{isList ? 'Ekibinizin listeleri' : 'Ekibiniz'}</h2><small>{saved.length} {isList ? 'liste' : 'rapor'}</small></div><button className="secondary small-button" onClick={() => void refresh().catch(e => setError((e as Error).message))}>Yenile</button></div>{saved.length ? saved.map(report => <article className={`saved-report ${selectedId === report.id ? 'selected' : ''}`} key={report.id}><button className="saved-report-open" onClick={() => openReport(report)}><b>{report.name}</b><small>{sources.find(x => x.code === report.source)?.label ?? report.source} · Güncellendi {new Date(report.updatedAt).toLocaleDateString('tr-TR')}</small></button>{admin && <button className="report-delete-saved" title={isList ? 'Listeyi sil' : 'Raporu sil'} disabled={busy} onClick={() => void remove(report)}><Trash2 size={15} /></button>}</article>) : <div className="report-empty-state">Henüz kayıtlı {isList ? 'liste' : 'rapor'} yok.{admin ? ` Bir ${isList ? 'liste' : 'rapor'} tasarlayıp kaydedin.` : ' Yöneticinizden görünüm paylaşmasını isteyin.'}</div>}</aside></div>
+    <aside className="report-saved panel"><div className="report-section-heading"><div><p className="eyebrow">{isList ? 'KAYITLI LİSTELER' : 'KAYITLI RAPORLAR'}</p><h2>{isList ? 'Ekibinizin listeleri' : 'Ekibinizin raporları'}</h2><small>{saved.length} {isList ? 'liste' : 'rapor'}</small></div><button className="secondary small-button" onClick={() => void refresh().catch(e => setError((e as Error).message))}>Yenile</button></div>{saved.length ? saved.map(report => <article className={`saved-report ${selectedId === report.id ? 'selected' : ''}`} key={report.id}><button className="saved-report-open" title={`${report.name} öğesini aç ve çalıştır`} disabled={busy} onClick={() => void openReport(report)}><b>{report.name}</b><small>{sources.find(x => x.code === report.source)?.label ?? report.source} · Aç ve çalıştır · {new Date(report.updatedAt).toLocaleDateString('tr-TR')}</small></button>{admin && <button className="report-delete-saved" title={isList ? 'Listeyi sil' : 'Raporu sil'} disabled={busy} onClick={() => void remove(report)}><Trash2 size={15} /></button>}</article>) : <div className="report-empty-state">Henüz kayıtlı {isList ? 'liste' : 'rapor'} yok.{admin ? ` Bir ${isList ? 'liste' : 'rapor'} tasarlayıp kaydedin.` : ' Yöneticinizden görünüm paylaşmasını isteyin.'}</div>}</aside></div>
   </div>
 }

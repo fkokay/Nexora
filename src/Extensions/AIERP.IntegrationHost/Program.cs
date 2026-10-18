@@ -1,12 +1,15 @@
 using System.Text;
 using AIERP.IntegrationHost;
 using AIERP.IntegrationSDK;
+using AIERP.Observability;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 160 * 1024);
+builder.Services.AddAierpHttpMetrics();
+builder.Services.AddHostedService<PrometheusBusinessMetricsBridge>();
 var signingKey = builder.Configuration["IntegrationHost:SigningKey"];
 if (string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32)
     throw new InvalidOperationException("IntegrationHost:SigningKey must contain at least 32 bytes.");
@@ -41,17 +44,25 @@ builder.Services.AddRateLimiter(options => options.AddFixedWindowLimiter("integr
     limiter.QueueLimit = 0;
 }));
 var app = builder.Build();
+app.UseAierpHttpMetrics();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
-app.MapGet("/health", (IntegrationDispatcher dispatcher) => Results.Ok(new
+app.MapGet("/health", (IntegrationDispatcher dispatcher) =>
 {
-    status = "healthy",
-    service = "integration-host",
-    configuredAdapters = dispatcher.ConfiguredCount
-}));
+    var summary = dispatcher.GetHealthSummary();
+    return Results.Ok(new
+    {
+        status = summary.InvalidConfigurationAdapters == 0 ? "healthy" : "degraded",
+        service = "integration-host",
+        configuredAdapters = summary.ConfiguredAdapters,
+        validConfigurationAdapters = summary.ValidConfigurationAdapters,
+        invalidConfigurationAdapters = summary.InvalidConfigurationAdapters
+    });
+});
 app.MapIntegrationExecution();
+app.MapAierpMetrics();
 app.Run();
 
 public partial class Program;

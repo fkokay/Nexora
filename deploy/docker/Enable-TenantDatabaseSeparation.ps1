@@ -4,6 +4,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$preflightModule = Join-Path $PSScriptRoot 'TenantSeparation.Preflight.psm1'
+Import-Module $preflightModule -Force
 $composeFile = Join-Path $PSScriptRoot 'docker-compose.yml'
 $envPath = Join-Path $PSScriptRoot '.env'
 
@@ -92,11 +94,47 @@ try {
         throw 'AIERPPlatform has no tenant rows; the expected existing-data migration source was not found.'
     }
 
+    # Estimate a no-compression full backup conservatively from the current database
+    # file allocation, then require both a 20% margin and at least 1 GiB reserve.
+    $allocatedSizeQuery = "SET NOCOUNT ON; SELECT CAST(SUM(CAST(size AS decimal(38,0)) * 8192) AS bigint) FROM sys.master_files WHERE database_id = DB_ID(N'AIERPPlatform');"
+    $allocatedSizeOutput = @(Invoke-ComposeSql $allocatedSizeQuery)
+    $allocatedSizeText = $allocatedSizeOutput | ForEach-Object { "$($_)".Trim() } | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1
+    if (-not $allocatedSizeText) { throw 'Could not parse the allocated AIERPPlatform database size; refusing to start a full backup.' }
+    $allocatedDatabaseBytes = ConvertFrom-PreflightByteCount -Value $allocatedSizeText -Label 'Allocated AIERPPlatform database size'
+    if ($allocatedDatabaseBytes -le 0) { throw 'AIERPPlatform reported no allocated database files; refusing to start a full backup.' }
+
+    # Check free bytes from inside SQL Server against the exact mount receiving the
+    # backup, rather than checking the host or the deployer container filesystem.
+    $freeBytesCommand = "df -B1 --output=avail /var/opt/mssql/backups | tail -n 1"
+    $freeBytesOutput = @(Invoke-Compose @('exec', '-T', 'sqlserver', '/bin/bash', '-lc', $freeBytesCommand))
+    $freeBytesText = $freeBytesOutput | ForEach-Object { "$($_)".Trim() } | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1
+    if (-not $freeBytesText) { throw 'Could not parse free bytes on /var/opt/mssql/backups; refusing to start a full backup.' }
+    $availableBackupBytes = ConvertFrom-PreflightByteCount -Value $freeBytesText -Label 'Available bytes on /var/opt/mssql/backups'
+    $requiredBackupBytes = Assert-TenantSeparationBackupSpace -AvailableBytes $availableBackupBytes -AllocatedDatabaseBytes $allocatedDatabaseBytes
+    Write-Host ("Backup space preflight passed: {0:N2} GiB available; requirement {1:N2} GiB (allocated database plus reserve)." -f ($availableBackupBytes / 1GB), ($requiredBackupBytes / 1GB))
+
     $backupQuery = "BACKUP DATABASE [AIERPPlatform] TO DISK = N'$backupPath' WITH INIT, CHECKSUM; RESTORE VERIFYONLY FROM DISK = N'$backupPath' WITH CHECKSUM;"
     Invoke-ComposeSql $backupQuery | Out-Null
 
     Set-DotEnvValue 'DATABASE_SEPARATION_BACKUP_PATH' $backupPath
     Invoke-Compose @('run', '--rm', '--no-deps', 'platform-api', '--verify-separation-backup') | Out-Null
+
+    # Shared Compose starts with an administrator connection and does not create
+    # the tenant data runtime login until this migration path is selected. Create
+    # that login before the provisioner grants per-database roles to it.
+    $dataRuntimeLogin = 'aierp_data_runtime'
+    $loginExistsOutput = @(Invoke-ComposeSql "SET NOCOUNT ON; SELECT CASE WHEN SUSER_ID(N'$dataRuntimeLogin') IS NULL THEN 0 ELSE 1 END;")
+    $loginExistsText = $loginExistsOutput | ForEach-Object { "$($_)".Trim() } | Where-Object { $_ -match '^[01]$' } | Select-Object -Last 1
+    if ($null -eq $loginExistsText) { throw 'Could not determine whether the tenant data runtime SQL login exists.' }
+    $runtimePassword = Get-DotEnvValue 'AIERP_DATA_RUNTIME_PASSWORD'
+    if ([string]::IsNullOrWhiteSpace($runtimePassword)) {
+        if ($loginExistsText -eq '1') {
+            throw 'The tenant data runtime SQL login exists but AIERP_DATA_RUNTIME_PASSWORD is not configured. Set the matching secret in .env before retrying.'
+        }
+        $runtimePassword = [Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+        Set-DotEnvValue 'AIERP_DATA_RUNTIME_PASSWORD' $runtimePassword
+    }
+    Invoke-ComposeSql "IF SUSER_ID(N'$dataRuntimeLogin') IS NULL CREATE LOGIN [$dataRuntimeLogin] WITH PASSWORD=N'$runtimePassword', CHECK_POLICY=OFF;" | Out-Null
 
     Set-DotEnvValue 'DATABASE_SEPARATION_ENABLED' 'true'
     $separationEnabled = $true

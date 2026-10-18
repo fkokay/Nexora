@@ -1,0 +1,1 @@
+module.exports = { marker: () => "operator-npm-cache-ok" };

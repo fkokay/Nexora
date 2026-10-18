@@ -1,0 +1,56 @@
+{
+  "completedAtUtc": "2026-10-18T17:21:36.0492988+00:00",
+  "runnerContainer": "docker-workspace-runner-1",
+  "sandboxContainer": "docker-workspace-sandbox-1",
+  "packageCacheRoot": "deploy\\docker\\sandbox-package-cache-runtime",
+  "networkDisabled": true,
+  "operatorCaches": [
+    "npm",
+    "go-mod",
+    "cargo-home",
+    "nuget"
+  ],
+  "results": [
+    {
+      "ecosystem": "Node.js",
+      "target": "package.json",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 7024,
+      "message": "Node.js tests completed successfully.",
+      "output": "✔ uses the staged npm dependency (1.116016ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 75.576832"
+    },
+    {
+      "ecosystem": "Go",
+      "target": "go/cache_test.go",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 14269,
+      "message": "Go tests completed successfully.",
+      "output": "ok  \texample.local/sandbox-cache-smoke\t0.004s"
+    },
+    {
+      "ecosystem": "Rust",
+      "target": "Cargo.toml",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 474,
+      "message": "Rust tests completed successfully.",
+      "output": "running 1 test\ntest tests::consumes_operator_cache ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n   Compiling aierp-cache-dep v0.1.0 (/tmp/test-jobs/adc5de6eff2147398130501231d7064b/.cargo/aierp-cache-dep)\n   Compiling aierp-cache-smoke v0.1.0 (/tmp/test-jobs/adc5de6eff2147398130501231d7064b)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.38s\n     Running unittests src/lib.rs (target/debug/deps/aierp_cache_smoke-8b9bef3583082ab3)\n   Doc-tests aierp_cache_smoke"
+    },
+    {
+      "ecosystem": ".NET",
+      "target": "CacheSmoke.Tests.csproj",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 24426,
+      "message": "Tests completed successfully.",
+      "output": "CacheSmoke.Tests -> /tmp/test-jobs/8b2f237a90d8465c9df07daf83419c94/bin/Debug/net10.0/CacheSmoke.Tests.dll\nTest run for /tmp/test-jobs/8b2f237a90d8465c9df07daf83419c94/bin/Debug/net10.0/CacheSmoke.Tests.dll (.NETCoreApp,Version=v10.0)\nA total of 1 test files matched the specified pattern.\n\nPassed!  - Failed:     0, Passed:     1, Skipped:     0, Total:     1, Duration: 9 ms - CacheSmoke.Tests.dll (net10.0)"
+    }
+  ],
+  "status": "passed"
+}

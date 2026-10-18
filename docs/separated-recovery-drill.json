@@ -1,0 +1,49 @@
+{
+  "drillId": "20261018T140024Z_92dab6a1",
+  "completedAtUtc": "2026-10-18T14:00:35.4076686Z",
+  "container": "docker-sqlserver-1",
+  "topology": "separated-platform-tenant-studio",
+  "databases": [
+    {
+      "database": "AIERPPlatform",
+      "backupFile": "AIERPPlatform_after_precision_migration_20261018.bak",
+      "backupBytes": 21094400,
+      "backupSha256": "A80C85EC37C1A56206154B2A9F1678772E0FFF7785341BC1838A407B442F1D02",
+      "stagedCopyChecksumVerified": true,
+      "restoreVerifyOnlyPassed": true,
+      "dbccCheckdbPassed": true,
+      "sourceUserTables": 145,
+      "restoredUserTables": 145,
+      "status": "passed"
+    },
+    {
+      "database": "AIERPTenant_912df12f4e3144bea20735cca5834485",
+      "backupFile": "AIERPTenant_912df12f4e3144bea20735cca5834485_after_precision_migration_20261018.bak",
+      "backupBytes": 14798848,
+      "backupSha256": "62C47CBF6321B6254BF4C8D0823EE2D455AC5AC585119871EE814A9E1B17384A",
+      "stagedCopyChecksumVerified": true,
+      "restoreVerifyOnlyPassed": true,
+      "dbccCheckdbPassed": true,
+      "sourceUserTables": 120,
+      "restoredUserTables": 120,
+      "status": "passed"
+    },
+    {
+      "database": "AIERPStudio",
+      "backupFile": "AIERPStudio_after_precision_migration_20261018.bak",
+      "backupBytes": 6344704,
+      "backupSha256": "9280251B76BD3172942BB880CB8231BB9AAC6C8D0FA0CF9FFEE5FACE5A25F544",
+      "stagedCopyChecksumVerified": true,
+      "restoreVerifyOnlyPassed": true,
+      "dbccCheckdbPassed": true,
+      "sourceUserTables": 22,
+      "restoredUserTables": 22,
+      "status": "passed"
+    }
+  ],
+  "passed": 3,
+  "failed": 0,
+  "temporaryArtifactsRemoved": true,
+  "status": "passed",
+  "error": null
+}

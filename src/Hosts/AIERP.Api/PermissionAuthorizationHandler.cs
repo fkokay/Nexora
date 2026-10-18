@@ -4,10 +4,11 @@ using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 internal sealed class PermissionRequirement : IAuthorizationRequirement;
 
-internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthorizer authorizer, TenantDbContext tenantDb)
+internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthorizer authorizer)
     : AuthorizationHandler<PermissionRequirement>
 {
     protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PermissionRequirement requirement)
@@ -37,6 +38,9 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
         if (!string.Equals(role, "TenantAdmin", StringComparison.Ordinal)
             && routeValues.TryGetValue("id", out var rawId) && Guid.TryParse(rawId, out var resourceId))
         {
+            // Resolve the tenant database only for resource-level checks. Authentication
+            // and tenant selection run before a tenant database has been selected.
+            var tenantDb = http.RequestServices.GetRequiredService<TenantDbContext>();
             var resourceAttributes = await ResolveResourceAttributesAsync(tenantDb, tenantId, resolved.Permission.ResourceType, resourceId, http.RequestAborted);
             if (resourceAttributes is not null)
             {

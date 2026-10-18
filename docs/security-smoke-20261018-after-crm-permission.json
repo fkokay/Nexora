@@ -1,0 +1,129 @@
+{
+  "dateUtc": "2026-10-18T19:18:00.0208603Z",
+  "environment": "local-docker-compose",
+  "checks": [
+    {
+      "name": "platform-health",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "passed": true
+    },
+    {
+      "name": "anonymous-dashboard-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "invalid-bearer-dashboard-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-integration-execution-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-report-catalog-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-workflow-definitions-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-business-rule-catalog-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-custom-forms-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-dashboard-widgets-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-crm-opportunities-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-manufacturing-work-centers-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-sales-orders-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-integration-operations-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-tenant-marketplace-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "anonymous-access-control-members-denied",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "passed": true
+    },
+    {
+      "name": "tenant-session-authenticated",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "passed": true
+    },
+    {
+      "name": "tenant-header-spoof-does-not-break-authentication",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "passed": true
+    },
+    {
+      "name": "tenant-context-comes-from-authenticated-claim",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "authenticated-invalid-query-is-client-error",
+      "expectedStatus": 400,
+      "actualStatus": 400,
+      "passed": true
+    },
+    {
+      "name": "bearer-token-not-echoed-in-error",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    }
+  ],
+  "passed": 20,
+  "failed": 0,
+  "notes": "Statuses and security assertions only; credentials, tokens, user IDs, tenant IDs, and response bodies are not stored."
+}

@@ -1,0 +1,15 @@
+{
+  "completedAtUtc": "2026-10-17T22:05:47.0500601Z",
+  "environment": "local-worktree",
+  "scanner": ".NET SDK built-in analyzers",
+  "scope": "AIERP.slnx C# projects; latest-all, AllEnabledByDefault; restore skipped",
+  "commandSucceeded": true,
+  "analyzerWarningCount": 0,
+  "analyzerWarningRuleIds": [],
+  "analyzerErrorCount": 0,
+  "analyzerErrorRuleIds": [],
+  "passed": true,
+  "limitations": [
+    "C# and .NET SDK analyzers only; this is not dedicated cross-language SAST, dependency scanning, dynamic analysis, or penetration testing."
+  ]
+}
