@@ -232,6 +232,18 @@ public static class ReportEndpoints
         new("entryDebitTotal", "Fiş borç toplamı", "decimal"), new("entryCreditTotal", "Fiş alacak toplamı", "decimal"),
         new("isBalanced", "Fiş dengeli", "boolean")
     ];
+    private static readonly IReadOnlyList<ReportColumn> FxRevaluationLineColumns =
+    [
+        new("voucherCode", "Değerleme fişi", "text"), new("asOfDate", "Değerleme tarihi", "date"),
+        new("baseCurrencyCode", "Ana para birimi", "text"), new("direction", "Cari yönü", "text", ["Receivable", "Payable"]),
+        new("invoiceCode", "Fatura kodu", "text"), new("counterpartyName", "Cari adı", "text"),
+        new("currencyCode", "Fatura para birimi", "text"), new("outstandingAmount", "Açık tutar", "decimal"),
+        new("invoiceDateRate", "Fatura kuru", "decimal"), new("closingRate", "Kapanış kuru", "decimal"),
+        new("previousAdjustmentBase", "Önceki değerleme (ana para)", "decimal"),
+        new("targetAdjustmentBase", "Hedef değerleme (ana para)", "decimal"), new("adjustmentBase", "Dönem farkı (ana para)", "decimal"),
+        new("debitAccount", "Borç hesabı", "text"), new("creditAccount", "Alacak hesabı", "text"),
+        new("debitBaseAmount", "Borç (ana para)", "decimal"), new("creditBaseAmount", "Alacak (ana para)", "decimal")
+    ];
     private static readonly IReadOnlyList<ReportColumn> SupplierPaymentColumns =
     [
         new("code", "Ödeme kodu", "text"), new("invoiceCode", "Alış faturası", "text"),
@@ -294,6 +306,7 @@ public static class ReportEndpoints
             sources.Add(new("financialAccountTransactions", "Kasa-banka hareketleri", FinancialAccountTransactionColumns, []));
             sources.Add(new("financialAccountTransfers", "Kasa-banka hesap transferleri", FinancialAccountTransferColumns, []));
             sources.Add(new("journalEntryLines", "Muhasebe fiş satırları", JournalEntryLineColumns, []));
+            sources.Add(new("fxRevaluationLines", "Döviz değerleme satırları", FxRevaluationLineColumns, []));
             sources.Add(new("crmOpportunities", "CRM fırsatları", CrmOpportunityColumns, []));
             sources.Add(new("customerLedgerEntries", "Cari hareketleri", CustomerLedgerColumns, []));
             if (role == "TenantAdmin") sources.Add(new("workflowInstances", "İş akışı geçmişi", WorkflowInstanceColumns, WorkflowInstanceAggregates));
@@ -397,6 +410,7 @@ public static class ReportEndpoints
         if (normalized!.Source == "financialAccountTransactions") return await RunFinancialAccountTransactionsAsync(normalized, user, db, ct);
         if (normalized!.Source == "financialAccountTransfers") return await RunFinancialAccountTransfersAsync(normalized, user, db, ct);
         if (normalized!.Source == "journalEntryLines") return await RunJournalEntryLinesAsync(normalized, user, db, ct);
+        if (normalized!.Source == "fxRevaluationLines") return await RunFxRevaluationLinesAsync(normalized, user, db, ct);
         if (normalized!.Source == "supplierPayments") return await RunSupplierPaymentsAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized!.Source == "salesQuotes") return await RunSalesQuotesAsync(normalized, user, db, ct);
         if (normalized!.Source == "purchaseSupplierQuotes") return await RunPurchaseSupplierQuotesAsync(normalized, user, db, ct);
@@ -451,6 +465,7 @@ public static class ReportEndpoints
         if (normalized!.Source == "financialAccountTransactions") return await ExportFinancialAccountTransactionsAsync(normalized, user, db, ct);
         if (normalized!.Source == "financialAccountTransfers") return await ExportFinancialAccountTransfersAsync(normalized, user, db, ct);
         if (normalized!.Source == "journalEntryLines") return await ExportJournalEntryLinesAsync(normalized, user, db, ct);
+        if (normalized!.Source == "fxRevaluationLines") return await ExportFxRevaluationLinesAsync(normalized, user, db, ct);
         if (normalized!.Source == "supplierPayments") return await ExportSupplierPaymentsAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized!.Source == "salesQuotes") return await ExportSalesQuotesAsync(normalized, user, db, ct);
         if (normalized!.Source == "purchaseSupplierQuotes") return await ExportPurchaseSupplierQuotesAsync(normalized, user, db, ct);
@@ -2459,6 +2474,138 @@ public static class ReportEndpoints
 
     private static ReportColumn JournalEntryLineColumnByCode(string code) => JournalEntryLineColumns.First(x => x.Code == code);
 
+    private static IQueryable<FxRevaluationLineReportRow> FxRevaluationLineQuery(TenantDbContext db, Guid tenantId) =>
+        from line in db.FxRevaluationVoucherLines.AsNoTracking()
+        join voucher in db.FxRevaluationVouchers.AsNoTracking() on new { line.TenantId, Id = line.VoucherId } equals new { voucher.TenantId, Id = voucher.Id }
+        where line.TenantId == tenantId && voucher.TenantId == tenantId
+        select new FxRevaluationLineReportRow(line.Id, voucher.Id, voucher.Code, voucher.AsOfDate, voucher.BaseCurrencyCode,
+            line.Direction, line.InvoiceCode, line.CounterpartyName, line.CurrencyCode, line.OutstandingAmount,
+            line.InvoiceDateRate, line.ClosingRate, line.PreviousAdjustmentBase, line.TargetAdjustmentBase,
+            line.AdjustmentBase, line.DebitAccount, line.CreditAccount, line.DebitBaseAmount, line.CreditBaseAmount, voucher.CreatedAt);
+
+    private static async Task<IResult> RunFxRevaluationLinesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        var query = FxRevaluationLineQuery(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyFxRevaluationLineFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        var rows = await ApplyFxRevaluationLineSort(query, report.SortBy, report.Descending)
+            .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize).ToListAsync(ct);
+        var resultRows = rows.Select(row => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(
+            code => code, code => ReadFxRevaluationLineValue(row, code), StringComparer.Ordinal)).ToArray();
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed", Resource = "fxRevaluationLines" });
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new ReportResult(report.Source, report.Columns.Select(FxRevaluationLineColumnByCode).ToArray(), resultRows,
+            report.Page, report.PageSize, totalCount));
+    }
+
+    private static async Task<IResult> ExportFxRevaluationLinesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        var query = FxRevaluationLineQuery(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyFxRevaluationLineFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        if (totalCount > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
+        var rows = await ApplyFxRevaluationLineSort(query, report.SortBy, report.Descending).Take(10_000).ToListAsync(ct);
+        var csv = new StringBuilder();
+        csv.Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(FxRevaluationLineColumnByCode(code).Label))));
+        foreach (var row in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadFxRevaluationLineValue(row, code)))));
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.exported", Resource = $"fxRevaluationLines:{rows.Count}" });
+        await db.SaveChangesAsync(ct);
+        return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
+    }
+
+    private static bool TryApplyFxRevaluationLineFilter(ref IQueryable<FxRevaluationLineReportRow> query, ReportFilter filter, out string? error)
+    {
+        error = null;
+        var value = filter.Value?.Trim() ?? "";
+        if (filter.Field == "direction")
+        {
+            if (!Enum.TryParse<FxRevaluationDirection>(value, true, out var direction)) { error = "Cari yönü Receivable veya Payable olmalıdır."; return false; }
+            query = query.Where(x => x.Direction == direction); return true;
+        }
+        if (filter.Field is "voucherCode" or "baseCurrencyCode" or "invoiceCode" or "counterpartyName" or "currencyCode" or "debitAccount" or "creditAccount")
+        {
+            query = (filter.Field, filter.Operator) switch
+            {
+                ("voucherCode", "contains") => query.Where(x => x.VoucherCode.Contains(value)), ("voucherCode", _) => query.Where(x => x.VoucherCode == value),
+                ("baseCurrencyCode", "contains") => query.Where(x => x.BaseCurrencyCode.Contains(value)), ("baseCurrencyCode", _) => query.Where(x => x.BaseCurrencyCode == value),
+                ("invoiceCode", "contains") => query.Where(x => x.InvoiceCode.Contains(value)), ("invoiceCode", _) => query.Where(x => x.InvoiceCode == value),
+                ("counterpartyName", "contains") => query.Where(x => x.CounterpartyName.Contains(value)), ("counterpartyName", _) => query.Where(x => x.CounterpartyName == value),
+                ("currencyCode", "contains") => query.Where(x => x.CurrencyCode.Contains(value)), ("currencyCode", _) => query.Where(x => x.CurrencyCode == value),
+                ("debitAccount", "contains") => query.Where(x => x.DebitAccount.Contains(value)), ("debitAccount", _) => query.Where(x => x.DebitAccount == value),
+                ("creditAccount", "contains") => query.Where(x => x.CreditAccount.Contains(value)), _ => query.Where(x => x.CreditAccount == value)
+            };
+            return true;
+        }
+        if (filter.Field == "asOfDate")
+        {
+            if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)) { error = "Değerleme tarihi YYYY-MM-DD biçiminde olmalıdır."; return false; }
+            query = filter.Operator switch { "gt" => query.Where(x => x.AsOfDate > date), "gte" => query.Where(x => x.AsOfDate >= date), "lt" => query.Where(x => x.AsOfDate < date), _ => query.Where(x => x.AsOfDate <= date) };
+            return true;
+        }
+        if (filter.Field is "outstandingAmount" or "invoiceDateRate" or "closingRate" or "previousAdjustmentBase" or "targetAdjustmentBase" or "adjustmentBase" or "debitBaseAmount" or "creditBaseAmount")
+        {
+            if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount) || !ApplyDecimalOperator(filter.Operator, out var op)) { error = "Değerleme tutarı/kuru veya operatörü geçersiz."; return false; }
+            query = (filter.Field, op) switch
+            {
+                ("outstandingAmount", "gt") => query.Where(x => x.OutstandingAmount > amount), ("outstandingAmount", "gte") => query.Where(x => x.OutstandingAmount >= amount), ("outstandingAmount", "lt") => query.Where(x => x.OutstandingAmount < amount), ("outstandingAmount", "lte") => query.Where(x => x.OutstandingAmount <= amount), ("outstandingAmount", _) => query.Where(x => x.OutstandingAmount == amount),
+                ("invoiceDateRate", "gt") => query.Where(x => x.InvoiceDateRate > amount), ("invoiceDateRate", "gte") => query.Where(x => x.InvoiceDateRate >= amount), ("invoiceDateRate", "lt") => query.Where(x => x.InvoiceDateRate < amount), ("invoiceDateRate", "lte") => query.Where(x => x.InvoiceDateRate <= amount), ("invoiceDateRate", _) => query.Where(x => x.InvoiceDateRate == amount),
+                ("closingRate", "gt") => query.Where(x => x.ClosingRate > amount), ("closingRate", "gte") => query.Where(x => x.ClosingRate >= amount), ("closingRate", "lt") => query.Where(x => x.ClosingRate < amount), ("closingRate", "lte") => query.Where(x => x.ClosingRate <= amount), ("closingRate", _) => query.Where(x => x.ClosingRate == amount),
+                ("previousAdjustmentBase", "gt") => query.Where(x => x.PreviousAdjustmentBase > amount), ("previousAdjustmentBase", "gte") => query.Where(x => x.PreviousAdjustmentBase >= amount), ("previousAdjustmentBase", "lt") => query.Where(x => x.PreviousAdjustmentBase < amount), ("previousAdjustmentBase", "lte") => query.Where(x => x.PreviousAdjustmentBase <= amount), ("previousAdjustmentBase", _) => query.Where(x => x.PreviousAdjustmentBase == amount),
+                ("targetAdjustmentBase", "gt") => query.Where(x => x.TargetAdjustmentBase > amount), ("targetAdjustmentBase", "gte") => query.Where(x => x.TargetAdjustmentBase >= amount), ("targetAdjustmentBase", "lt") => query.Where(x => x.TargetAdjustmentBase < amount), ("targetAdjustmentBase", "lte") => query.Where(x => x.TargetAdjustmentBase <= amount), ("targetAdjustmentBase", _) => query.Where(x => x.TargetAdjustmentBase == amount),
+                ("adjustmentBase", "gt") => query.Where(x => x.AdjustmentBase > amount), ("adjustmentBase", "gte") => query.Where(x => x.AdjustmentBase >= amount), ("adjustmentBase", "lt") => query.Where(x => x.AdjustmentBase < amount), ("adjustmentBase", "lte") => query.Where(x => x.AdjustmentBase <= amount), ("adjustmentBase", _) => query.Where(x => x.AdjustmentBase == amount),
+                ("debitBaseAmount", "gt") => query.Where(x => x.DebitBaseAmount > amount), ("debitBaseAmount", "gte") => query.Where(x => x.DebitBaseAmount >= amount), ("debitBaseAmount", "lt") => query.Where(x => x.DebitBaseAmount < amount), ("debitBaseAmount", "lte") => query.Where(x => x.DebitBaseAmount <= amount), ("debitBaseAmount", _) => query.Where(x => x.DebitBaseAmount == amount),
+                ("creditBaseAmount", "gt") => query.Where(x => x.CreditBaseAmount > amount), ("creditBaseAmount", "gte") => query.Where(x => x.CreditBaseAmount >= amount), ("creditBaseAmount", "lt") => query.Where(x => x.CreditBaseAmount < amount), ("creditBaseAmount", "lte") => query.Where(x => x.CreditBaseAmount <= amount), _ => query.Where(x => x.CreditBaseAmount == amount)
+            };
+            return true;
+        }
+        error = "Döviz değerleme satırı filtresi geçersiz."; return false;
+    }
+
+    private static IQueryable<FxRevaluationLineReportRow> ApplyFxRevaluationLineSort(IQueryable<FxRevaluationLineReportRow> query, string field, bool descending)
+    {
+        IOrderedQueryable<FxRevaluationLineReportRow> ordered = (field, descending) switch
+        {
+            ("voucherCode", false) => query.OrderBy(x => x.VoucherCode), ("voucherCode", true) => query.OrderByDescending(x => x.VoucherCode),
+            ("asOfDate", false) => query.OrderBy(x => x.AsOfDate), ("asOfDate", true) => query.OrderByDescending(x => x.AsOfDate),
+            ("baseCurrencyCode", false) => query.OrderBy(x => x.BaseCurrencyCode), ("baseCurrencyCode", true) => query.OrderByDescending(x => x.BaseCurrencyCode),
+            ("direction", false) => query.OrderBy(x => x.Direction), ("direction", true) => query.OrderByDescending(x => x.Direction),
+            ("invoiceCode", false) => query.OrderBy(x => x.InvoiceCode), ("invoiceCode", true) => query.OrderByDescending(x => x.InvoiceCode),
+            ("counterpartyName", false) => query.OrderBy(x => x.CounterpartyName), ("counterpartyName", true) => query.OrderByDescending(x => x.CounterpartyName),
+            ("currencyCode", false) => query.OrderBy(x => x.CurrencyCode), ("currencyCode", true) => query.OrderByDescending(x => x.CurrencyCode),
+            ("outstandingAmount", false) => query.OrderBy(x => x.OutstandingAmount), ("outstandingAmount", true) => query.OrderByDescending(x => x.OutstandingAmount),
+            ("invoiceDateRate", false) => query.OrderBy(x => x.InvoiceDateRate), ("invoiceDateRate", true) => query.OrderByDescending(x => x.InvoiceDateRate),
+            ("closingRate", false) => query.OrderBy(x => x.ClosingRate), ("closingRate", true) => query.OrderByDescending(x => x.ClosingRate),
+            ("previousAdjustmentBase", false) => query.OrderBy(x => x.PreviousAdjustmentBase), ("previousAdjustmentBase", true) => query.OrderByDescending(x => x.PreviousAdjustmentBase),
+            ("targetAdjustmentBase", false) => query.OrderBy(x => x.TargetAdjustmentBase), ("targetAdjustmentBase", true) => query.OrderByDescending(x => x.TargetAdjustmentBase),
+            ("adjustmentBase", false) => query.OrderBy(x => x.AdjustmentBase), ("adjustmentBase", true) => query.OrderByDescending(x => x.AdjustmentBase),
+            ("debitAccount", false) => query.OrderBy(x => x.DebitAccount), ("debitAccount", true) => query.OrderByDescending(x => x.DebitAccount),
+            ("creditAccount", false) => query.OrderBy(x => x.CreditAccount), ("creditAccount", true) => query.OrderByDescending(x => x.CreditAccount),
+            ("debitBaseAmount", false) => query.OrderBy(x => x.DebitBaseAmount), ("debitBaseAmount", true) => query.OrderByDescending(x => x.DebitBaseAmount),
+            ("creditBaseAmount", false) => query.OrderBy(x => x.CreditBaseAmount), ("creditBaseAmount", true) => query.OrderByDescending(x => x.CreditBaseAmount),
+            _ => query.OrderBy(x => x.VoucherCode)
+        };
+        return ordered.ThenBy(x => x.VoucherId).ThenBy(x => x.InvoiceCode).ThenBy(x => x.Id);
+    }
+
+    private static object? ReadFxRevaluationLineValue(FxRevaluationLineReportRow row, string code) => code switch
+    {
+        "voucherCode" => row.VoucherCode, "asOfDate" => row.AsOfDate, "baseCurrencyCode" => row.BaseCurrencyCode,
+        "direction" => row.Direction.ToString(), "invoiceCode" => row.InvoiceCode, "counterpartyName" => row.CounterpartyName,
+        "currencyCode" => row.CurrencyCode, "outstandingAmount" => row.OutstandingAmount, "invoiceDateRate" => row.InvoiceDateRate,
+        "closingRate" => row.ClosingRate, "previousAdjustmentBase" => row.PreviousAdjustmentBase,
+        "targetAdjustmentBase" => row.TargetAdjustmentBase, "adjustmentBase" => row.AdjustmentBase,
+        "debitAccount" => row.DebitAccount, "creditAccount" => row.CreditAccount,
+        "debitBaseAmount" => row.DebitBaseAmount, "creditBaseAmount" => row.CreditBaseAmount, _ => null
+    };
+
+    private static ReportColumn FxRevaluationLineColumnByCode(string code) => FxRevaluationLineColumns.First(x => x.Code == code);
+
     private static async Task<IResult> RunSalesInvoicesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
@@ -3823,6 +3970,7 @@ public static class ReportEndpoints
                     "text" when request.Source == "supplierPayments" && filter.Field == "status" => filter.Operator == "equals",
                     "text" when request.Source == "supplierPayments" && filter.Field is "reference" or "accountCode" or "accountName" => filter.Operator is "contains" or "equals" or "isNull",
                     "text" when request.Source == "financialAccountTransfers" && filter.Field is "fromAccountCode" or "fromAccountName" or "toAccountCode" or "toAccountName" or "currencyCode" or "toCurrencyCode" or "description" or "code" => filter.Operator is "contains" or "equals",
+                    "text" when request.Source == "fxRevaluationLines" && filter.Field == "direction" => filter.Operator == "equals",
                     "text" when request.Source == "crmOpportunities" && filter.Field == "stage" => filter.Operator == "equals",
                     "text" when request.Source == "crmOpportunities" && filter.Field is "customerCode" or "customerName" => filter.Operator is "contains" or "equals" or "isNull",
                     "text" when request.Source == "crmOpportunities" && filter.Field == "currencyCode" => filter.Operator is "contains" or "equals",
@@ -3871,6 +4019,8 @@ public static class ReportEndpoints
             errors["groupByFields"] = ["Hesap transferleri para birimleri ve kur bilgisi farklı olabileceğinden transfer başına ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "journalEntryLines" && groupFields.Length > 0)
             errors["groupByFields"] = ["Muhasebe fiş satırları borç/alacak denetimi ve hesap izlenebilirliği için ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
+        if (request?.Source == "fxRevaluationLines" && groupFields.Length > 0)
+            errors["groupByFields"] = ["Döviz değerleme satırları kur ve hesap izlenebilirliği için belge satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "crmOpportunities" && groupFields.Length > 0)
             errors["groupByFields"] = ["CRM fırsatları para birimleri farklı olabileceğinden ve izlenebilirlik için fırsat başına bir ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "customerLedgerEntries" && groupFields.Length > 0)
@@ -4115,7 +4265,7 @@ public static class ReportEndpoints
 
     private static IReadOnlyList<ReportColumn> ColumnsForSource(string source) => source switch
     {
-        "customers" => CustomerColumns, "salesInvoices" => SalesInvoiceColumns, "purchaseOrders" => PurchaseOrderColumns, "purchaseInvoices" => PurchaseInvoiceColumns, "purchaseReceipts" => PurchaseReceiptColumns, "manufacturingOrders" => ManufacturingOrderColumns, "manufacturingWorkCenters" => ManufacturingWorkCenterColumns, "inventoryTransactions" => InventoryTransactionColumns, "salesOrders" => SalesOrderColumns, "salesQuotes" => SalesQuoteColumns, "purchaseSupplierQuotes" => PurchaseSupplierQuoteColumns, "supplierPayments" => SupplierPaymentColumns, "salesDeliveries" => SalesDeliveryColumns, "salesReturns" => SalesReturnColumns, "supplierReturns" => SupplierReturnColumns, "purchaseRequests" => PurchaseRequestColumns, "stockItems" => StockItemColumns, "workflowInstances" => WorkflowInstanceColumns, "bankStatements" => BankStatementColumns, "financialAccountTransactions" => FinancialAccountTransactionColumns, "financialAccountTransfers" => FinancialAccountTransferColumns, "journalEntryLines" => JournalEntryLineColumns, "crmOpportunities" => CrmOpportunityColumns, "customerLedgerEntries" => CustomerLedgerColumns, _ => []
+        "customers" => CustomerColumns, "salesInvoices" => SalesInvoiceColumns, "purchaseOrders" => PurchaseOrderColumns, "purchaseInvoices" => PurchaseInvoiceColumns, "purchaseReceipts" => PurchaseReceiptColumns, "manufacturingOrders" => ManufacturingOrderColumns, "manufacturingWorkCenters" => ManufacturingWorkCenterColumns, "inventoryTransactions" => InventoryTransactionColumns, "salesOrders" => SalesOrderColumns, "salesQuotes" => SalesQuoteColumns, "purchaseSupplierQuotes" => PurchaseSupplierQuoteColumns, "supplierPayments" => SupplierPaymentColumns, "salesDeliveries" => SalesDeliveryColumns, "salesReturns" => SalesReturnColumns, "supplierReturns" => SupplierReturnColumns, "purchaseRequests" => PurchaseRequestColumns, "stockItems" => StockItemColumns, "workflowInstances" => WorkflowInstanceColumns, "bankStatements" => BankStatementColumns, "financialAccountTransactions" => FinancialAccountTransactionColumns, "financialAccountTransfers" => FinancialAccountTransferColumns, "journalEntryLines" => JournalEntryLineColumns, "fxRevaluationLines" => FxRevaluationLineColumns, "crmOpportunities" => CrmOpportunityColumns, "customerLedgerEntries" => CustomerLedgerColumns, _ => []
     };
 
     private static IReadOnlyList<ReportAggregateOption> AggregatesForSource(string source) => source switch
@@ -4236,6 +4386,11 @@ public sealed record FinancialAccountTransferReportRow(Guid Id, string Code, str
 public sealed record JournalEntryLineReportRow(Guid Id, Guid EntryId, string EntryCode, DateOnly EntryDate, string EntryDescription,
     string SourceType, string AccountCode, string AccountName, int LineNumber, string LineDescription, decimal Debit,
     decimal Credit, decimal EntryDebitTotal, decimal EntryCreditTotal, bool IsBalanced, DateTimeOffset CreatedAt);
+public sealed record FxRevaluationLineReportRow(Guid Id, Guid VoucherId, string VoucherCode, DateOnly AsOfDate,
+    string BaseCurrencyCode, FxRevaluationDirection Direction, string InvoiceCode, string CounterpartyName, string CurrencyCode,
+    decimal OutstandingAmount, decimal InvoiceDateRate, decimal ClosingRate, decimal PreviousAdjustmentBase,
+    decimal TargetAdjustmentBase, decimal AdjustmentBase, string DebitAccount, string CreditAccount,
+    decimal DebitBaseAmount, decimal CreditBaseAmount, DateTimeOffset CreatedAt);
 public sealed record SupplierPaymentReportRow(Guid Id, string Code, string InvoiceCode, string SupplierCode, string SupplierName,
     DateOnly PaymentDate, string CurrencyCode, decimal Amount, string PaymentMethod, string? Reference, SupplierPaymentStatus Status,
     string? AccountCode, string? AccountName, DateTimeOffset CreatedAt);

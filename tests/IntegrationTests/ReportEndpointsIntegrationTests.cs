@@ -1502,6 +1502,80 @@ public sealed class ReportEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Fx_revaluation_line_report_is_tenant_scoped_filtered_and_exportable()
+    {
+        await using var app = await StartApplicationAsync();
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var tenantA = await db.Tenants.SingleAsync(x => x.Id == TenantA);
+            var tenantB = await db.Tenants.SingleAsync(x => x.Id == TenantB);
+            var voucherA = new FxRevaluationVoucher { TenantId = TenantA, Tenant = tenantA, Code = "FX-2026-10", AsOfDate = new DateOnly(2026, 10, 18), BaseCurrencyCode = "TRY" };
+            var voucherB = new FxRevaluationVoucher { TenantId = TenantB, Tenant = tenantB, Code = "FX-2026-10", AsOfDate = new DateOnly(2026, 10, 18), BaseCurrencyCode = "TRY" };
+            voucherA.Lines.Add(new FxRevaluationVoucherLine
+            {
+                TenantId = TenantA, VoucherId = voucherA.Id, Voucher = voucherA, Direction = FxRevaluationDirection.Receivable,
+                InvoiceId = Guid.NewGuid(), InvoiceCode = "INV-FX-A", CounterpartyName = "Tenant A customer", CurrencyCode = "USD",
+                OutstandingAmount = 100m, InvoiceDateRate = 30m, ClosingRate = 32m, PreviousAdjustmentBase = 100m,
+                TargetAdjustmentBase = 300m, AdjustmentBase = 200m, DebitAccount = "1200", CreditAccount = "6460",
+                DebitBaseAmount = 200m, CreditBaseAmount = 200m
+            });
+            voucherB.Lines.Add(new FxRevaluationVoucherLine
+            {
+                TenantId = TenantB, VoucherId = voucherB.Id, Voucher = voucherB, Direction = FxRevaluationDirection.Receivable,
+                InvoiceId = Guid.NewGuid(), InvoiceCode = "INV-FX-B", CounterpartyName = "Tenant B customer", CurrencyCode = "USD",
+                OutstandingAmount = 900m, InvoiceDateRate = 30m, ClosingRate = 32m, PreviousAdjustmentBase = 100m,
+                TargetAdjustmentBase = 300m, AdjustmentBase = 1800m, DebitAccount = "1200", CreditAccount = "6460",
+                DebitBaseAmount = 1800m, CreditBaseAmount = 1800m
+            });
+            db.FxRevaluationVouchers.AddRange(voucherA, voucherB);
+            await db.SaveChangesAsync();
+        }
+
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/reports/catalog");
+        var source = Assert.Single(catalog!, item => item.GetProperty("code").GetString() == "fxRevaluationLines");
+        Assert.Contains(source.GetProperty("columns").EnumerateArray(), column => column.GetProperty("code").GetString() == "closingRate");
+        var definition = new
+        {
+            source = "fxRevaluationLines",
+            columns = new[] { "voucherCode", "asOfDate", "baseCurrencyCode", "direction", "invoiceCode", "counterpartyName", "currencyCode", "outstandingAmount", "invoiceDateRate", "closingRate", "previousAdjustmentBase", "targetAdjustmentBase" },
+            filters = new[] { new { field = "invoiceCode", @operator = "contains", value = "INV-FX" }, new { field = "direction", @operator = "equals", value = "Receivable" } },
+            sortBy = "invoiceCode", descending = false, page = 1, pageSize = 50
+        };
+        var response = await client.PostAsJsonAsync("/api/reports/run", definition);
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        using var result = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(1, result.RootElement.GetProperty("totalCount").GetInt32());
+        var row = result.RootElement.GetProperty("rows")[0];
+        Assert.Equal("FX-2026-10", row.GetProperty("voucherCode").GetString());
+        Assert.Equal("INV-FX-A", row.GetProperty("invoiceCode").GetString());
+        Assert.Equal("Tenant A customer", row.GetProperty("counterpartyName").GetString());
+        Assert.Equal(200m, row.GetProperty("targetAdjustmentBase").GetDecimal() - row.GetProperty("previousAdjustmentBase").GetDecimal());
+
+        var accountDefinition = new
+        {
+            source = "fxRevaluationLines", columns = new[] { "invoiceCode", "adjustmentBase", "debitAccount", "creditAccount", "debitBaseAmount", "creditBaseAmount" },
+            filters = new[] { new { field = "invoiceCode", @operator = "equals", value = "INV-FX-A" } }, sortBy = "invoiceCode", descending = false, page = 1, pageSize = 50
+        };
+        var csvResponse = await client.PostAsJsonAsync("/api/reports/export", accountDefinition);
+        Assert.Equal(HttpStatusCode.OK, csvResponse.StatusCode);
+        var csv = await csvResponse.Content.ReadAsStringAsync();
+        Assert.Contains("1200", csv);
+        Assert.Contains("6460", csv);
+        Assert.Contains("200", csv);
+        Assert.DoesNotContain("INV-FX-B", csv);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var otherTenantResponse = await client.PostAsJsonAsync("/api/reports/run", definition);
+        using var otherTenant = JsonDocument.Parse(await otherTenantResponse.Content.ReadAsStringAsync());
+        Assert.Equal(1, otherTenant.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal("INV-FX-B", otherTenant.RootElement.GetProperty("rows")[0].GetProperty("invoiceCode").GetString());
+    }
+
+    [Fact]
     public async Task Financial_account_transaction_csv_rejects_more_than_ten_thousand_rows()
     {
         await using var app = await StartApplicationAsync();
