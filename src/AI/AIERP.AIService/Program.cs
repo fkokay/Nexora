@@ -2181,7 +2181,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         if (!response.IsSuccessStatusCode) return Results.Problem("GitHub PR incelemesini kabul etmedi.", statusCode: response.StatusCode == HttpStatusCode.UnprocessableEntity ? StatusCodes.Status409Conflict : StatusCodes.Status502BadGateway);
         var result = await response.Content.ReadFromJsonAsync<GitHubPullRequestReviewResponse>(cancellationToken: cancellationToken);
         if (result is null || result.Id <= 0) return Results.Problem("GitHub geçersiz inceleme yanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway);
-        candidate.GitHubPullRequestState = current.Draft ? "draft" : current.State;
+        GitHubPullRequestStateSynchronizer.ApplyVerifiedSnapshot(candidate, current.State!, current.Draft, current.Head?.Sha, current.UpdatedAt);
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = $"studio.release.pull-request.review.{eventName.ToLowerInvariant()}", Resource = $"{requestId:D}:{candidateId:D}:{candidate.GitHubPullRequestNumber}:{result.Id}" });
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(new { reviewId = result.Id, state = result.State, submittedAt = result.SubmittedAt, htmlUrl = candidate.GitHubPullRequestUrl });

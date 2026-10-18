@@ -98,6 +98,46 @@ public sealed class GitHubWebhookSecurityTests
     }
 
     [Fact]
+    public void Verified_live_review_snapshot_advances_watermark_and_rejects_late_webhook()
+    {
+        var testedCommit = "0123456789abcdef0123456789abcdef01234567";
+        var candidate = new ReleaseCandidateRecord
+        {
+            CommitSha = testedCommit,
+            GitHubRepository = "nexora/erp",
+            GitHubPullRequestNumber = 42,
+            GitHubPullRequestState = "draft",
+            GitHubPullRequestUpdatedAt = DateTimeOffset.Parse("2026-10-19T09:00:00Z")
+        };
+
+        Assert.True(GitHubPullRequestStateSynchronizer.ApplyVerifiedSnapshot(candidate, "open", false, testedCommit,
+            DateTimeOffset.Parse("2026-10-19T10:00:00Z")));
+        Assert.Equal("open", candidate.GitHubPullRequestState);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-19T10:00:00Z"), candidate.GitHubPullRequestUpdatedAt);
+
+        var lateWebhook = new GitHubPullRequestWebhookEvent("nexora/erp", 42, "draft", "converted_to_draft",
+            DateTimeOffset.Parse("2026-10-19T09:30:00Z"), testedCommit);
+        Assert.False(GitHubPullRequestStateSynchronizer.TryApply(candidate, lateWebhook, "delivery-late", out _));
+        Assert.Equal("open", candidate.GitHubPullRequestState);
+    }
+
+    [Fact]
+    public void Verified_live_snapshot_rejects_a_changed_head()
+    {
+        var candidate = new ReleaseCandidateRecord
+        {
+            CommitSha = "0123456789abcdef0123456789abcdef01234567",
+            GitHubPullRequestNumber = 42,
+            GitHubPullRequestState = "open"
+        };
+
+        Assert.False(GitHubPullRequestStateSynchronizer.ApplyVerifiedSnapshot(candidate, "open", false,
+            "abcdef0123456789abcdef0123456789abcdef01", DateTimeOffset.Parse("2026-10-19T10:00:00Z")));
+        Assert.Equal("open", candidate.GitHubPullRequestState);
+        Assert.Null(candidate.GitHubPullRequestUpdatedAt);
+    }
+
+    [Fact]
     public void Pull_request_sync_rejects_missing_head_sha_for_linked_release_candidate()
     {
         var updatedAt = DateTimeOffset.Parse("2026-10-17T10:00:00Z");

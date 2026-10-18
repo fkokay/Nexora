@@ -120,7 +120,7 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
         Directory.CreateDirectory(projectDirectory);
         var sourceDirectory = Path.Combine(deploymentDirectory, "source");
         Directory.CreateDirectory(sourceDirectory);
-        await ExtractVerifiedPackageAsync(packagePath, sourceDirectory, body.PackageId, body.Version, body.CommitSha, packageMetadata!.FileCount, cancellationToken);
+        await ExtractVerifiedPackageAsync(packagePath, body.PackageSha256, sourceDirectory, body.PackageId, body.Version, body.CommitSha, packageMetadata!.FileCount, cancellationToken);
         WriteTrustedBuildFiles(sourceDirectory);
 
         var secretsPath = Path.Combine(projectDirectory, "secrets.enc.json");
@@ -313,7 +313,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
         Directory.CreateDirectory(deploymentDirectory);
         var sourceDirectory = Path.Combine(deploymentDirectory, "source");
         Directory.CreateDirectory(sourceDirectory);
-        await ExtractVerifiedPackageAsync(packagePath, sourceDirectory, body.PackageId, body.Version, body.CommitSha, metadata.FileCount, cancellationToken);
+        await ExtractVerifiedPackageAsync(packagePath, body.PackageSha256, sourceDirectory, body.PackageId, body.Version, body.CommitSha, metadata.FileCount, cancellationToken);
         await WriteProductionMigrationRollbackStateAsync(migrationRollbackPath,
             new ProductionMigrationRollbackState(body.DeploymentId, previousDeploymentId, migrationStatus, "deployment_in_progress", null, DateTimeOffset.UtcNow), cancellationToken);
         WriteTrustedBuildFiles(sourceDirectory, production: true);
@@ -658,28 +658,25 @@ static bool HasRestoreScope(ClaimsPrincipal caller, RestoreProductionDeployment 
     caller.FindFirstValue("scope") == scope;
 
 static string SafeChild(string root, string name)
-{
-    var fullRoot = Path.GetFullPath(root);
-    var child = Path.GetFullPath(Path.Combine(fullRoot, name));
-    if (!child.StartsWith(fullRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-        throw new InvalidDataException("Dağıtım dosya yolu geçersiz.");
-    return child;
-}
+    => ReleaseDeployerPath.SafeChild(root, name);
 
 static bool IsSha256(string value) => value.Length == 64 && value.All(Uri.IsHexDigit);
 
 static void CopyDirectory(string source, string destination)
 {
+    ReleaseDeployerPath.AssertNoReparsePoints(source);
+    ReleaseDeployerPath.AssertNoReparsePoints(destination);
     Directory.CreateDirectory(destination);
     foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
     {
-        if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) throw new InvalidDataException("Dağıtım kaynağında sembolik bağlantı kabul edilmez.");
-        Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, directory)));
+        ReleaseDeployerPath.AssertNoReparsePoints(directory);
+        var target = SafeChild(destination, Path.GetRelativePath(source, directory));
+        Directory.CreateDirectory(target);
     }
     foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
     {
-        if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) throw new InvalidDataException("Dağıtım kaynağında sembolik bağlantı kabul edilmez.");
-        var target = Path.Combine(destination, Path.GetRelativePath(source, file));
+        ReleaseDeployerPath.AssertNoReparsePoints(file);
+        var target = SafeChild(destination, Path.GetRelativePath(source, file));
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         File.Copy(file, target, overwrite: false);
     }
@@ -722,9 +719,16 @@ static async Task<T?> ReadEncryptedAsync<T>(string path, string signingKey, Canc
     finally { CryptographicOperations.ZeroMemory(plain); }
 }
 
-static async Task ExtractVerifiedPackageAsync(string packagePath, string sourceDirectory, Guid packageId, string version, string commitSha, int expectedFileCount, CancellationToken cancellationToken)
+static async Task ExtractVerifiedPackageAsync(string packagePath, string expectedPackageSha256, string sourceDirectory, Guid packageId, string version, string commitSha, int expectedFileCount, CancellationToken cancellationToken)
 {
-    using var archive = ZipFile.OpenRead(packagePath);
+    // Keep one handle from package hashing through extraction. This prevents a
+    // package path replacement between the hash check and ZIP parsing.
+    await using var packageStream = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+    var packageHash = Convert.ToHexString(await SHA256.HashDataAsync(packageStream, cancellationToken));
+    if (!string.Equals(packageHash, expectedPackageSha256, StringComparison.OrdinalIgnoreCase))
+        throw new InvalidDataException("Sürüm paketinin SHA-256 değeri kayıtla eşleşmiyor.");
+    packageStream.Position = 0;
+    using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
     var manifestEntry = archive.GetEntry("AIERP-RELEASE.json") ?? throw new InvalidDataException("Sürüm manifesti arşivde yok.");
     ReleaseManifest? manifest;
     await using (var input = manifestEntry.Open()) manifest = await JsonSerializer.DeserializeAsync<ReleaseManifest>(input, JsonConfig.Options, cancellationToken);
@@ -746,14 +750,35 @@ static async Task ExtractVerifiedPackageAsync(string packagePath, string sourceD
         expandedBytes += entry.Length;
         var target = SafeChild(sourceDirectory, relative.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        await using var input = entry.Open();
-        var hash = await SHA256.HashDataAsync(input, cancellationToken);
-        if (!string.Equals(Convert.ToHexString(hash), file.Sha256, StringComparison.OrdinalIgnoreCase) || entry.Length != file.SizeBytes)
-            throw new InvalidDataException("Arşiv dosyasının hash veya boyut doğrulaması başarısız.");
-        await input.DisposeAsync();
-        await using var copySource = entry.Open();
-        await using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        await copySource.CopyToAsync(output, cancellationToken);
+        var temporaryTarget = SafeChild(Path.GetDirectoryName(target)!, $".{Path.GetFileName(target)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using var contentHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            long copiedBytes = 0;
+            await using (var input = entry.Open())
+            await using (var output = new FileStream(temporaryTarget, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                var buffer = new byte[64 * 1024];
+                int read;
+                while ((read = await input.ReadAsync(buffer, cancellationToken)) != 0)
+                {
+                    copiedBytes += read;
+                    if (copiedBytes > 16 * 1024 * 1024 || expandedBytes - entry.Length + copiedBytes > 100 * 1024 * 1024)
+                        throw new InvalidDataException("Sürüm arşivi boyut sınırını aşıyor.");
+                    contentHash.AppendData(buffer, 0, read);
+                    await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                }
+                await output.FlushAsync(cancellationToken);
+            }
+            if (copiedBytes != file.SizeBytes || copiedBytes != entry.Length ||
+                !string.Equals(Convert.ToHexString(contentHash.GetHashAndReset()), file.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Arşiv dosyasının hash veya boyut doğrulaması başarısız.");
+            File.Move(temporaryTarget, target, overwrite: false);
+        }
+        finally
+        {
+            if (File.Exists(temporaryTarget)) File.Delete(temporaryTarget);
+        }
     }
     if (found.Count != expected.Count) throw new InvalidDataException("Arşiv dosyaları manifestle tam eşleşmiyor.");
 }

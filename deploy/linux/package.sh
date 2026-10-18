@@ -30,6 +30,10 @@ dotnet publish "$REPO_ROOT/src/AI/AIERP.AIService/AIERP.AIService.csproj" \
   --configuration Release --framework net10.0 --self-contained false \
   -p:UseAppHost=false --output "$RELEASE_DIR/ai-service"
 
+# The SDK emits IIS web.config files even for Linux publishes. These bundles run
+# behind nginx with systemd/Kestrel, so the IIS-only files are neither used nor shipped.
+rm -f -- "$RELEASE_DIR/api/web.config" "$RELEASE_DIR/ai-service/web.config"
+
 build_frontend() {
   local source_dir="$1" output_dir="$2" stage_dir="$3"
   mkdir -p "$stage_dir" "$output_dir"
@@ -47,6 +51,7 @@ build_frontend "$REPO_ROOT/frontend/development-studio" "$RELEASE_DIR/studio" "$
 
 printf '%s\n' "$VERSION" > "$RELEASE_DIR/VERSION"
 cp "$SCRIPT_DIR/install.sh" "$BUNDLE_DIR/install.sh"
+cp "$SCRIPT_DIR/preflight.sh" "$BUNDLE_DIR/preflight.sh"
 cp "$SCRIPT_DIR/health-check.sh" "$BUNDLE_DIR/health-check.sh"
 cp "$SCRIPT_DIR/switch-release.sh" "$BUNDLE_DIR/switch-release.sh"
 cp "$SCRIPT_DIR/rollback.sh" "$BUNDLE_DIR/rollback.sh"

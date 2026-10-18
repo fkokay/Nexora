@@ -12,6 +12,8 @@ bash deploy/linux/package.sh 1.0.0
 
 The archive is written to `artifacts/linux/aierp-linux-1.0.0.tar.gz` with a sibling SHA-256 file. It contains framework-dependent .NET publishes, both frontend `dist` directories, service/nginx configuration, installer and rollback tools. `npm ci` is used so each lockfile controls its frontend dependencies. Before extraction/install, verify the archive with `sha256sum --check aierp-linux-1.0.0.tar.gz.sha256`; installer also verifies every published release file and the release version against `release/SHA256SUMS`.
 
+Before making host changes, `install.sh` runs the packaged `preflight.sh`. It checks the installer support files, release version, exact checksum-manifest coverage, component directories and file hashes; unsafe manifest paths, symlinks, missing files and unmanifested files fail closed. `tests/deployment/Test-LinuxInstallerPreflight.ps1` exercises this against temporary fixtures only.
+
 ## Host prerequisites and secrets
 
 Install .NET 10 ASP.NET Core Runtime, nginx, curl and systemd. Configure DNS names `erp.example.com` and `studio.example.com` (or replace both in the nginx file) and HTTPS termination before exposing the service publicly. The included nginx site listens on HTTP port 80 as a deployable starting point; add TLS certificates and HTTP-to-HTTPS redirection using the host's certificate management process. ERP Web is served on the ERP name; Studio UI is served on the Studio name. Both proxy `/api/*` to Platform API; Studio additionally proxies `/studio/*` to AI Service.

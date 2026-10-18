@@ -490,6 +490,77 @@ public sealed class ReportEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Sales_order_fulfillment_report_shows_line_reservations_backorders_and_is_tenant_scoped()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var order = await db.SalesOrders.SingleAsync(x => x.TenantId == TenantB && x.Code == "O-B");
+            order.Status = SalesOrderStatus.Cancelled;
+            var stock = await db.StockItems.SingleAsync(x => x.TenantId == TenantB && x.Code == "STOCK-B");
+            db.SalesOrderLines.Add(new SalesOrderLine
+            {
+                TenantId = TenantB, OrderId = order.Id, Order = order, LineNumber = 1, StockItemId = stock.Id, StockItem = stock,
+                StockCode = stock.Code, StockName = stock.Name, UnitCode = stock.UnitCode, Quantity = 900m
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/reports/catalog");
+        var source = Assert.Single(catalog!, item => item.GetProperty("code").GetString() == "salesOrderFulfillment");
+        Assert.Contains(source.GetProperty("columns").EnumerateArray(), column => column.GetProperty("code").GetString() == "backorderQuantity");
+        var definition = new
+        {
+            source = "salesOrderFulfillment",
+            columns = new[] { "orderCode", "stockCode", "orderedQuantity", "reservedQuantity", "fulfilledQuantity", "remainingQuantity", "backorderQuantity" },
+            filters = new[] { new { field = "backorderQuantity", @operator = "gte", value = "6" } },
+            sortBy = "orderCode", descending = false, page = 1, pageSize = 1
+        };
+        var response = await client.PostAsJsonAsync("/api/reports/run", definition);
+        response.EnsureSuccessStatusCode();
+        using var result = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(1, result.RootElement.GetProperty("totalCount").GetInt32());
+        var row = result.RootElement.GetProperty("rows")[0];
+        Assert.Equal("O-A", row.GetProperty("orderCode").GetString());
+        Assert.Equal("STOCK-A", row.GetProperty("stockCode").GetString());
+        Assert.Equal(10m, row.GetProperty("orderedQuantity").GetDecimal());
+        Assert.Equal(3m, row.GetProperty("reservedQuantity").GetDecimal());
+        Assert.Equal(1m, row.GetProperty("fulfilledQuantity").GetDecimal());
+        Assert.Equal(9m, row.GetProperty("remainingQuantity").GetDecimal());
+        Assert.Equal(6m, row.GetProperty("backorderQuantity").GetDecimal());
+
+        var csvResponse = await client.PostAsJsonAsync("/api/reports/export", definition);
+        csvResponse.EnsureSuccessStatusCode();
+        var csv = await csvResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Rezerve edilmemiş kalan miktar", csv);
+        Assert.Contains("STOCK-A", csv);
+        Assert.DoesNotContain("STOCK-B", csv);
+
+        var grouped = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "salesOrderFulfillment", columns = new[] { "orderCode" }, filters = Array.Empty<object>(), sortBy = "orderCode",
+            descending = false, page = 1, pageSize = 50, groupByFields = new[] { "orderCode" }, aggregate = "count"
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, grouped.StatusCode);
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var tenantB = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "salesOrderFulfillment", columns = new[] { "orderCode", "stockCode", "remainingQuantity", "backorderQuantity" }, filters = Array.Empty<object>(), sortBy = "orderCode",
+            descending = false, page = 1, pageSize = 50
+        });
+        tenantB.EnsureSuccessStatusCode();
+        using var tenantBResult = JsonDocument.Parse(await tenantB.Content.ReadAsStringAsync());
+        Assert.Equal("O-B", tenantBResult.RootElement.GetProperty("rows")[0].GetProperty("orderCode").GetString());
+        Assert.Equal("STOCK-B", tenantBResult.RootElement.GetProperty("rows")[0].GetProperty("stockCode").GetString());
+        Assert.Equal(0m, tenantBResult.RootElement.GetProperty("rows")[0].GetProperty("remainingQuantity").GetDecimal());
+        Assert.Equal(0m, tenantBResult.RootElement.GetProperty("rows")[0].GetProperty("backorderQuantity").GetDecimal());
+    }
+
+    [Fact]
     public async Task Sales_quote_reports_are_tenant_scoped_filterable_pageable_and_exportable()
     {
         await using var app = await StartApplicationAsync();

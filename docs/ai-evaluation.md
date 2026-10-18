@@ -2,7 +2,7 @@
 
 ## Offline orchestration contract
 
-The deterministic ERP assistant evaluation set is `tests/UnitTests/AIERP.Platform.UnitTests/EvaluationSets/erp-assistant-orchestration-v1.json`. It is versioned independently from code (`schemaVersion` and set `version`) and SHA-256 identified in test output and generated reports. The dataset defines seven tenant-read tool-routing scenarios and three trust, tool-budget, and failure-sanitization scenarios. Unit tests check that its tool names and argument payloads still match the executable scripted-provider cases.
+The deterministic ERP assistant evaluation set is `tests/UnitTests/AIERP.Platform.UnitTests/EvaluationSets/erp-assistant-orchestration-v1.json`. It is versioned independently from code (`schemaVersion` and set `version`) and SHA-256 identified in test output and generated reports. The dataset defines seven tenant-read tool-routing scenarios and five deterministic behavior scenarios covering untrusted tool results, unknown tool rejection, call budgets, failure sanitization, and provider rate-limit classification. Unit tests check that its tool names and argument payloads still match the executable scripted-provider cases, and that every scenario has a non-empty, duplicate-free assertion contract. The runner includes each case kind and its declared assertions in the report alongside the test outcome; declared assertions describe the scenario contract and are not independently scored semantic judgments.
 
 Run it without a live provider key:
 

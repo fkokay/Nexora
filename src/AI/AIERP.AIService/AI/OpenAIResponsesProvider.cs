@@ -15,6 +15,11 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
     private const int MaxResponseBytes = 256 * 1024;
     private const int MaxCodeResponseBytes = 512 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly HashSet<string> ERPAssistantReadOnlyToolNames = new(StringComparer.Ordinal)
+    {
+        "search_stock_items", "list_warehouses", "get_warehouse_balances",
+        "search_customer_accounts", "get_customer_balance", "generate_report"
+    };
     private static readonly object PlanSchema = new
     {
         type = "object",
@@ -483,6 +488,8 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
                 var arguments = argumentsElement.GetString() ?? "{}";
                 if (arguments.Length > 1000 || callIdElement.GetString() is not { Length: > 0 and <= 100 } callId)
                     throw new AIProviderResponseException("OpenAI returned oversized ERP assistant tool arguments.");
+                if (!ERPAssistantReadOnlyToolNames.Contains(name))
+                    throw new AIProviderResponseException("OpenAI requested an unsupported ERP assistant tool.");
                 string result;
                 try
                 {

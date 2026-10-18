@@ -161,6 +161,30 @@ public sealed class ERPAssistantOrchestrationEvaluationTests
     }
 
     [Fact]
+    public async Task Unknown_tool_name_is_rejected_before_executor_and_without_retry()
+    {
+        output.WriteLine("Case: unknown-tool-rejected-before-execution");
+        var invocationCount = 0;
+        var handler = new ScriptedResponsesHandler(_ => Task.FromResult(Response(new
+        {
+            status = "completed",
+            output = new[] { new { type = "function_call", name = "delete_all_tenant_data", arguments = "{}", call_id = "unknown-1" } }
+        })));
+        var provider = CreateProvider(handler);
+
+        var error = await Assert.ThrowsAsync<AIProviderResponseException>(() => provider.ReplyToERPDataQuestionAsync(
+            "Depoları listele.", [], CancellationToken.None, (_, _, _) =>
+            {
+                invocationCount++;
+                return Task.FromResult("unexpected");
+            }));
+
+        Assert.Equal("OpenAI requested an unsupported ERP assistant tool.", error.Message);
+        Assert.Equal(0, invocationCount);
+        Assert.Equal(1, handler.RequestCount);
+    }
+
+    [Fact]
     public async Task Tool_failure_is_sanitized_and_does_not_leak_internal_error_details()
     {
         output.WriteLine("Case: tool-failure-sanitization");

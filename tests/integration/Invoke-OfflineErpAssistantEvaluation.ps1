@@ -28,11 +28,20 @@ if (-not (Test-Path -LiteralPath $trxPath)) {
 $testResults = @($trx.SelectNodes("//*[local-name()='UnitTestResult']"))
 $behaviorTestMap = @{
     'Stock_lookup_routes_one_read_only_tool_and_keeps_injected_tool_text_untrusted' = 'stock-lookup-untrusted-tool-output'
+    'Unknown_tool_name_is_rejected_before_executor_and_without_retry' = 'unknown-tool-rejected-before-execution'
     'Tool_budget_violation_is_rejected_before_any_read_tool_side_effect' = 'four-call-budget-rejection'
     'Tool_failure_is_sanitized_and_does_not_leak_internal_error_details' = 'tool-failure-sanitization'
     'Provider_429_is_classified_without_body_inspection_or_automatic_retry' = 'provider-429-classification'
     'Versioned_dataset_matches_the_scripted_tool_matrix_and_declares_its_semantic_limit' = 'contract-validation'
 }
+$scenarioCatalog = @{}
+foreach ($scenario in $dataset.cases) {
+    $scenarioCatalog[[string]$scenario.id] = [pscustomobject]@{ kind = [string]$scenario.kind; declaredAssertions = @($scenario.assertions) }
+}
+foreach ($scenario in $dataset.behaviorCases) {
+    $scenarioCatalog[[string]$scenario.id] = [pscustomobject]@{ kind = [string]$scenario.kind; declaredAssertions = @($scenario.assertions) }
+}
+$scenarioCatalog['contract-validation'] = [pscustomobject]@{ kind = 'dataset-contract'; declaredAssertions = @('tool-matrix-matches-executable-cases', 'scenario-ids-unique', 'assertion-contracts-present') }
 $cases = foreach ($result in $testResults) {
     $name = [string]$result.GetAttribute('testName')
     $id = $null
@@ -43,7 +52,13 @@ $cases = foreach ($result in $testResults) {
         }
     }
     if (-not $id) { $id = 'unmapped-test' }
-    [pscustomobject]@{ id = $id; outcome = [string]$result.GetAttribute('outcome') }
+    $scenario = $scenarioCatalog[$id]
+    [pscustomobject]@{
+        id = $id
+        kind = if ($scenario) { $scenario.kind } else { 'unmapped' }
+        outcome = [string]$result.GetAttribute('outcome')
+        declaredAssertions = if ($scenario) { @($scenario.declaredAssertions) } else { @() }
+    }
 }
 
 $declaredIds = @($dataset.cases | ForEach-Object id) + @($dataset.behaviorCases | ForEach-Object id) + @('contract-validation')

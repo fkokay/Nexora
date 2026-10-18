@@ -4,6 +4,20 @@ using Microsoft.EntityFrameworkCore;
 
 public static class GitHubPullRequestStateSynchronizer
 {
+    public static bool ApplyVerifiedSnapshot(ReleaseCandidateRecord candidate, string state, bool draft, string? headSha,
+        DateTimeOffset? updatedAt)
+    {
+        if (candidate.GitHubPullRequestNumber is null || string.IsNullOrWhiteSpace(candidate.CommitSha) ||
+            string.IsNullOrWhiteSpace(headSha) ||
+            !string.Equals(candidate.CommitSha, headSha, StringComparison.OrdinalIgnoreCase) ||
+            updatedAt is { } snapshotUpdatedAt && candidate.GitHubPullRequestUpdatedAt is { } currentUpdatedAt && snapshotUpdatedAt < currentUpdatedAt)
+            return false;
+
+        candidate.GitHubPullRequestState = draft ? "draft" : state;
+        if (updatedAt is { } verifiedUpdatedAt) candidate.GitHubPullRequestUpdatedAt = verifiedUpdatedAt;
+        return true;
+    }
+
     public static async Task<int> ApplyAsync(AIStudioDbContext db, GitHubPullRequestWebhookEvent webhook, string deliveryId,
         CancellationToken cancellationToken = default)
     {

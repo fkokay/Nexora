@@ -24,12 +24,19 @@ public sealed class AIERPAssistantEvaluationContractTests(ITestOutputHelper outp
             .OrderBy(item => item.Id, StringComparer.Ordinal)
             .ToArray();
         var allIds = set.Cases.Select(item => item.Id).Concat(set.BehaviorCases.Select(item => item.Id)).ToArray();
+        var declaredScenarios = set.Cases.Select(item => (item.Id, item.Assertions))
+            .Concat(set.BehaviorCases.Select(item => (item.Id, item.Assertions))).ToArray();
 
         Assert.Equal("1.0.0", set.SchemaVersion);
         Assert.Equal("erp-assistant-orchestration", set.EvaluationSetId);
         Assert.Equal(declaredCases, executableCases);
         Assert.Equal(allIds.Length, allIds.Distinct(StringComparer.Ordinal).Count());
-        Assert.Equal(11, allIds.Length);
+        Assert.All(declaredScenarios, scenario =>
+        {
+            Assert.NotEmpty(scenario.Assertions);
+            Assert.Equal(scenario.Assertions.Count, scenario.Assertions.Distinct(StringComparer.Ordinal).Count());
+        });
+        Assert.Equal(12, allIds.Length);
         Assert.False(set.Scoring.SemanticQualityScored);
         Assert.False(set.Scoring.LiveProviderRequired);
         Assert.Equal(5, set.Scoring.RubricForFutureLiveEvaluation.Count);
@@ -56,7 +63,7 @@ public sealed class AIERPAssistantEvaluationContractTests(ITestOutputHelper outp
 
     private sealed record RubricItem(string Id, string Scale, int PassAt, string Description);
 
-    private sealed record EvaluationCase(string Id, string ExpectedTool, string Arguments);
+    private sealed record EvaluationCase(string Id, string ExpectedTool, string Arguments, IReadOnlyList<string> Assertions);
 
-    private sealed record BehaviorCase(string Id);
+    private sealed record BehaviorCase(string Id, IReadOnlyList<string> Assertions);
 }

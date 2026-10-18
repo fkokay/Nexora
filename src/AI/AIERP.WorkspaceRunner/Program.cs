@@ -121,10 +121,13 @@ app.MapPost("/internal/workspaces/provision", async (ProvisionRequest request, C
     var branchName = request.BranchName!;
 
     var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    if (WorkspaceSecurity.HasReparsePointInPath(root)) return Results.Problem("Workspace kök dizini güvenli değil.", statusCode: StatusCodes.Status500InternalServerError);
     Directory.CreateDirectory(root);
     var target = Path.GetFullPath(Path.Combine(root, request.WorkspaceId.ToString("N")));
-    if (!target.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+    var workspaceRootPrefix = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+    if (!target.StartsWith(workspaceRootPrefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
         return Results.BadRequest(new { error = "Geçersiz workspace yolu." });
+    if (WorkspaceSecurity.HasReparsePointInPath(target)) return Results.Conflict(new { error = "Workspace yolu sembolik bağlantı içeriyor." });
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     var createdTarget = false;
     try
@@ -809,9 +812,14 @@ internal static class WorkspaceSecurity
     internal static bool TryResolveDirectory(string root, Guid workspaceId, string? relativePath, out string? directory, out string? error)
     {
         directory = null; error = null;
+        root = Path.GetFullPath(root);
         var workspace = Path.GetFullPath(Path.Combine(root, workspaceId.ToString("N")));
-        var rootPrefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
-        if (!workspace.StartsWith(rootPrefix, StringComparison.Ordinal) || !Directory.Exists(workspace) || !Directory.Exists(Path.Combine(workspace, ".git")))
+        var rootPrefix = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+        if (!workspace.StartsWith(rootPrefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ||
+            HasReparsePointInPath(root) || HasReparsePointInPath(workspace) || !Directory.Exists(workspace))
+        { error = "workspace_missing"; return false; }
+        var gitDirectory = Path.Combine(workspace, ".git");
+        if (!Directory.Exists(gitDirectory) || HasReparsePointInPath(gitDirectory))
         { error = "workspace_missing"; return false; }
         var current = workspace;
         if (!string.IsNullOrEmpty(relativePath))
@@ -831,6 +839,25 @@ internal static class WorkspaceSecurity
             }
         }
         directory = current; return true;
+    }
+    internal static bool HasReparsePointInPath(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        var pathRoot = Path.GetPathRoot(fullPath);
+        if (string.IsNullOrEmpty(pathRoot)) return true;
+        var current = pathRoot;
+        foreach (var segment in fullPath[pathRoot.Length..].Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+        {
+            if (segment.Length == 0) continue;
+            current = Path.Combine(current, segment);
+            try
+            {
+                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) return true;
+            }
+            catch (FileNotFoundException) { return false; }
+            catch (DirectoryNotFoundException) { return false; }
+        }
+        return false;
     }
     internal static bool TryResolveFile(string root, Guid workspaceId, string? relativePath, out string? filePath, out string? error)
     {

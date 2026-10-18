@@ -18,6 +18,33 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public void Safe_child_rejects_traversal_and_reparse_point_ancestors()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-path-{Guid.NewGuid():N}");
+        var outside = Path.Combine(Path.GetTempPath(), $"aierp-deployer-outside-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(outside);
+        try
+        {
+            Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(root, "../outside/file.txt"));
+            var link = Path.Combine(root, "linked");
+            try { Directory.CreateSymbolicLink(link, outside); }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+            {
+                return; // Windows configurations without symlink privileges cannot exercise this filesystem case.
+            }
+
+            Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(root, "linked/payload.txt"));
+            Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(link, "payload.txt"));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+            try { Directory.Delete(outside, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
     public async Task Actual_deployer_api_handles_compose_failures_without_touching_external_docker_or_volumes()
     {
         Assert.False(global::ReleaseDeployerDockerExecutionPolicy.IsTestOverrideAllowed("Production"));

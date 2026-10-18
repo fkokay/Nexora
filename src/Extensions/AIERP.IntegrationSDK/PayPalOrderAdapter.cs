@@ -64,19 +64,26 @@ public sealed class PayPalOrderAdapter : IERPIntegrationAdapter<JsonElement, Jso
             return Failure(code, retryable);
         }
 
-        var bytes = await ReadBoundedAsync(response.Content, cancellationToken);
-        using var document = JsonDocument.Parse(bytes);
-        var root = document.RootElement;
-        if (root.ValueKind != JsonValueKind.Object ||
-            !TryString(root, "id", 128, out var id) || !IsOrderId(id) ||
-            !TryString(root, "status", 32, out var status) || status != "CREATED" ||
-            !TryString(root, "intent", 16, out var intent) || intent != "CAPTURE")
-            return Failure("provider_error", false);
+        try
+        {
+            var bytes = await ReadBoundedAsync(response.Content, cancellationToken);
+            using var document = JsonDocument.Parse(bytes);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !TryString(root, "id", 128, out var id) || !IsOrderId(id) ||
+                !TryString(root, "status", 32, out var status) || status != "CREATED" ||
+                !TryString(root, "intent", 16, out var intent) || intent != "CAPTURE")
+                return Failure("provider_error", false);
 
-        // Deliberately return only an opaque order reference and safe state; omit links, payer data,
-        // amounts, and any provider fields not required by the ERP integration contract.
-        var result = JsonSerializer.SerializeToElement(new { id, status, intent });
-        return new IntegrationResult<JsonElement>(true, result, id, null, false);
+            // Deliberately return only an opaque order reference and safe state; omit links, payer data,
+            // amounts, and any provider fields not required by the ERP integration contract.
+            var result = JsonSerializer.SerializeToElement(new { id, status, intent });
+            return new IntegrationResult<JsonElement>(true, result, id, null, false);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidDataException)
+        {
+            return Failure("provider_error", false);
+        }
     }
 
     private static bool TryBuildBody(JsonElement request, out string body)

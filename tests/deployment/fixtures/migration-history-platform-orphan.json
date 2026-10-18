@@ -1,0 +1,5 @@
+{
+  "PlatformDbContext": ["20261015141145_AddGitHubProjectAuthorization"],
+  "TenantDbContext": [],
+  "AIStudioDbContext": []
+}

@@ -128,6 +128,45 @@ public sealed class WorkspaceExplorerSecurityTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
+    [Fact]
+    public void Workspace_path_resolution_rejects_linked_storage_root_and_checkout()
+    {
+        var basePath = Path.Combine(Path.GetTempPath(), $"aierp-workspace-root-links-{Guid.NewGuid():N}");
+        var realRoot = Path.Combine(basePath, "real-root");
+        var linkedRoot = Path.Combine(basePath, "linked-root");
+        var checkoutRoot = Path.Combine(basePath, "checkout-root");
+        var outsideCheckout = Path.Combine(basePath, "outside-checkout");
+        var gitLinkRoot = Path.Combine(basePath, "git-link-root");
+        var outsideGit = Path.Combine(basePath, "outside-git");
+        var workspaceId = Guid.NewGuid();
+        Directory.CreateDirectory(Path.Combine(realRoot, workspaceId.ToString("N"), ".git"));
+        Directory.CreateDirectory(checkoutRoot);
+        Directory.CreateDirectory(Path.Combine(outsideCheckout, ".git"));
+        Directory.CreateDirectory(Path.Combine(gitLinkRoot, workspaceId.ToString("N")));
+        Directory.CreateDirectory(outsideGit);
+        try
+        {
+            try
+            {
+                Directory.CreateSymbolicLink(linkedRoot, realRoot);
+                Directory.CreateSymbolicLink(Path.Combine(checkoutRoot, workspaceId.ToString("N")), outsideCheckout);
+                Directory.CreateSymbolicLink(Path.Combine(gitLinkRoot, workspaceId.ToString("N"), ".git"), outsideGit);
+            }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+            {
+                return; // Windows installations without symlink privileges cannot exercise these filesystem cases.
+            }
+
+            Assert.False(WorkspaceSecurity.TryResolveDirectory(linkedRoot, workspaceId, null, out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveDirectory(checkoutRoot, workspaceId, null, out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveDirectory(gitLinkRoot, workspaceId, null, out _, out _));
+        }
+        finally
+        {
+            try { Directory.Delete(basePath, recursive: true); } catch (IOException) { }
+        }
+    }
+
     [Theory]
     [InlineData("feature/workspace-browser/readme.txt", true)]
     [InlineData("../outside.txt", false)]

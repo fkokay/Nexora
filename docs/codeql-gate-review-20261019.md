@@ -1,37 +1,42 @@
 # CodeQL gate review (2026-10-19)
 
-## Result
+## Remote scan
 
-There is no CodeQL gate configured on the remote `fkokay/Nexora` repository at the reviewed `master` revision. The working tree contains `.github/workflows/codeql.yml`, but Git reports it as untracked, so GitHub does not have this workflow and it cannot be dispatched remotely from the current repository state.
+- Repository: `fkokay/Nexora`, public, default branch `master`.
+- Local `HEAD` and `origin/master`: `6ba1909397c0f59c90cdb3851ad1fce32bea1b82` (`edit`).
+- The published `.github/workflows/codeql.yml` completed successfully on master in [run 39173053190](https://github.com/fkokay/Nexora/actions/runs/39173053190). Both `Analyze (csharp)` and `Analyze (javascript-typescript)` passed.
+- That analysis reports 195 open alerts: 186 `cs/path-injection` (high), 6 `cs/web/missing-x-frame-options` (high), 2 `cs/user-controlled-bypass` (high), and 1 `cs/command-line-injection` (critical).
+- The local CodeQL CLI v2.27.2 binary and release SHA-256 were verified. A local source database/scan has not been run; the current environment has no root license file and the official CLI distribution terms restrict use to eligible open-source/academic contexts. The successful hosted workflow is the authoritative scan evidence.
 
-## Evidence
+## Source review and local remediation
 
-- Remote repository: `fkokay/Nexora`, public, default branch `master`.
-- Remote `master` commit: `24a4a436ae8d2bca6dcbdb883ed1832853ff9b58` (`edit`); this matches local `HEAD` and `origin/master`.
-- GitHub REST `GET /repos/fkokay/Nexora/actions/workflows`: `total_count: 0`, `workflows: []`.
-- GitHub REST `GET /repos/fkokay/Nexora/actions/runs?per_page=10`: `total_count: 0`, `workflow_runs: []`.
-- GitHub REST `GET /repos/fkokay/Nexora/contents/.github/workflows`: HTTP 404 (`Not Found`).
-- GitHub REST `GET /repos/fkokay/Nexora/code-scanning/alerts?per_page=100`: HTTP 401 (`Requires authentication`). No alert count or alert content could be verified.
-- GitHub REST `GET /repos/fkokay/Nexora/branches/master/protection`: HTTP 401 (`Requires authentication`). Required status checks and branch protection could not be verified.
-- At the time of the initial review, neither `gh` nor `codeql` was installed in the available shell. The CodeQL CLI has since been installed locally (details below); `gh` and authenticated GitHub access remain unavailable. No GitHub connector is available in this task. The workflow dispatch API also requires an existing remote workflow and authenticated access.
-- Existing `docs/dotnet-static-analysis.json` records a successful built-in .NET analyzer run on 2026-10-17. It is limited to C#/.NET SDK analyzers and explicitly does not represent CodeQL, cross-language SAST, dependency scanning, dynamic analysis, or penetration testing.
+- The six frame-header alerts point to two IIS source templates, their generated IIS bundle copies, and generated Linux publish output. Added `X-Frame-Options: DENY` to the IIS service templates and refreshed their checked-in bundle copies. Linux runs the services through systemd/Kestrel behind nginx, so the Linux package script now removes SDK-generated IIS-only `web.config` files; both nginx virtual hosts already set `X-Frame-Options: DENY`. The Linux verification bundle's generated configs were also updated and both inner and outer checksums were regenerated. Offline deployment validation passed all five groups (`docs/deployment-bundle-validation-20261019-codeql.json`). These local changes have not yet been pushed, so the six remote alerts remain open pending a new hosted scan.
+- The critical `cs/command-line-injection` instance points to `WorkspaceSecurity.RunGit`. Initial source review found a fixed executable (`git`), `UseShellExecute = false`, argument separation via `ProcessStartInfo.ArgumentList`, a restricted process environment, and validation of GitHub URLs, branch names, workspace IDs, and writable paths. No shell command string is composed. This appears to be a CodeQL false positive, but it remains open pending full call-site regression review and is not dismissed.
+- One `cs/user-controlled-bypass` instance points to the AI assistant's `AISharingConfirmed` guard. It gates external AI processing as explicit user consent; whether that consent must also be persisted server-side needs a privacy/product decision. It remains open.
+- The other `cs/user-controlled-bypass` instance points to an HTTP content-type guard on module upload. The route independently requires `PlatformModuleMaintainer` authorization, and the handler also requires an authenticated subject before storing a release. The format check does not decide whether authentication runs. This appears unrelated to authentication bypass, but it remains open and was not dismissed.
+- Two path-injection flows reach module package storage in `AIERP.Api` and `PluginHost`. The package name is derived from a validated SHA-256, but the old lexical containment check did not reject pre-existing symlink/junction components in the configured package root. Added shared `ModulePackageStoragePath` resolution for uploads, verification and runtime reads; it rejects rooted/traversal paths and reparse points in existing components. Focused traversal/reparse tests passed 2/2; API and PluginHost Release builds passed with 0 warnings/errors. This fix is local only, so the hosted alerts remain open until commit and rescan.
+- Workspace file resolution rejected linked child directories/files, but the checkout root and its `.git` directory were not checked as part of the full path. Added ancestor checks for configured storage root, workspace checkout and `.git`; existing directory segments continue to reject reparse points. Six focused path-resolution tests passed and WorkspaceRunner Release build passed with 0 warnings/errors. The symlink-specific test returns early on Windows installations without symlink privileges; traversal cases still run.
+- The other path-injection flows have not been fully triaged. Workspace, release and module code contains centralized root-confinement, identifier, file-type, reparse-point, archive-entry and symlink checks; every reported flow still needs review at its exact sink, and a new hosted scan is required after the fixes are published.
 
-## Local workflow review
+## Merge ruleset state
 
-The untracked `.github/workflows/codeql.yml` proposes CodeQL analysis for C# (`autobuild`) and JavaScript/TypeScript (`none`) on pushes, pull requests to `master`, a weekly schedule, and manual dispatch. It uses read-only contents permission plus security-events write permission, and pins the Actions by commit SHA. This is a candidate local configuration only; no remote run or uploaded SARIF exists from this review.
+- A repository ruleset named `master` exists and targets the default branch. It contains required pull requests, strict status checks, deletion protection, and force-push protection.
+- GitHub reports its enforcement as `disabled`, so it currently blocks no merges.
+- `Analyze (csharp)` appears twice in its required status checks (once without an integration source and once with the CodeQL app source); the duplicate should be removed when the ruleset is activated.
+- No code-scanning severity threshold was configured. Do not turn that rule on until alerts have been triaged, because it can block merges on matching alerts, in-progress scans, or an unconfigured required tool.
 
-Even after this workflow is added to the remote repository, a workflow run alone does not establish that its checks block merges. The repository's required status checks could not be inspected without authenticated access. Confirm that the `Analyze (csharp)` and `Analyze (javascript-typescript)` checks are required for `master` before describing CodeQL as an enforced merge gate.
+## Remaining verification
 
+1. Review and remediate the remaining path-injection alerts by exact source/sink, then run CodeQL on the resulting commit.
+2. Complete call-site validation for the critical command-line finding and document/dismiss only if the hosted finding is confirmed to be a false positive.
+3. Decide whether AI sharing consent is request-scoped or needs a server-side consent record; update the two bypass alerts only after that decision and verification.
+4. Remove the duplicate C# status check and enable the `master` ruleset after confirming the intended merge behavior.
+5. Apply the X-Frame remediation to a commit and verify the alerts close in a fresh GitHub-hosted CodeQL run.
 
-## CodeQL CLI installation update (2026-10-19)
+## Latest local source review (2026-10-19)
 
-- Installed the official Windows CodeQL bundle `v2.27.2` to `%LOCALAPPDATA%\Programs\CodeQL\2.27.2\codeql`.
-- Verified the downloaded archive against the release SHA-256 `c4834b337e2db85bdd4e7e97455319ff70d28f06abb2987eff9ec0f62d51dcea`.
-- Added the versioned CLI directory to the user `PATH` and created a `codeql.cmd` shim in the existing user npm command directory so `codeql` resolves in this shell.
-- Verified `codeql version` reports `2.27.2` and `codeql resolve languages` lists both `csharp` and `javascript`.
-- This fixes local CLI discovery; it does not create a database, scan Nexora, or change the remote workflow. There is no root `LICENSE` file in this checkout. The CodeQL CLI distribution states that CLI analysis is for OSI-approved open-source codebases or academic research, and excludes automated/CI/CD use; a local Nexora database was therefore not created. See the [official CodeQL CLI binaries repository](https://github.com/github/codeql-cli-binaries).
-## Blocker and next verification
-
-Remote execution is blocked by two observed conditions: the remote repository currently has no Actions workflow to dispatch, and the available environment has no authenticated GitHub CLI/session for dispatching a workflow or reading code-scanning alerts and branch protection. No code was committed, pushed, or uploaded.
-
-After an authorized maintainer publishes the workflow and provides an authenticated GitHub session, verify the latest run for both matrix languages, then read the repository's code-scanning alerts and required status checks. Until those checks are complete, this review cannot report remote CodeQL results or a merge-enforced gate.
+- GitHub's open-alert API still reports the 195 alerts against published commit `6ba1909397c0f59c90cdb3851ad1fce32bea1b82`; no remote state changed during this review.
+- The API module upload content-type condition and AI ERP assistant consent field are user-controlled request values, but neither replaces or bypasses the route's authentication. The AI flag remains a privacy-consent product question and is not treated as a security authorization claim.
+- Module package paths were hardened locally as described above. Release Deployer also now rejects reparse-point ancestors in path resolution and checks source/destination paths during production copy; see `docs/release-deployer-path-hardening-20261019.md`.
+- WorkspaceRunner now rejects reparse points anywhere in the configured workspace root, workspace checkout, and `.git` directory before accepting a workspace path. Exact source/sink triage of all remaining runner alerts is still open.
+- The critical Git invocation was not changed or dismissed: `RunGit` still uses a fixed executable with `UseShellExecute=false` and `ArgumentList`; a full remote call-flow regression review remains required.

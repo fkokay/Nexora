@@ -27,7 +27,8 @@
   ],
   "behaviorCases": [
     { "id": "stock-lookup-untrusted-tool-output", "kind": "trust-boundary", "assertions": ["tool-result-is-untrusted", "authorized-fact-retained"] },
-    { "id": "four-call-budget-rejection", "kind": "tool-budget", "assertions": ["reject-before-any-tool-side-effect"] },
+    { "id": "unknown-tool-rejected-before-execution", "kind": "tool-allowlist", "assertions": ["reject-tool-not-in-read-only-catalog", "reject-before-tool-executor", "no-automatic-retry"] },
+    { "id": "four-call-budget-rejection", "kind": "tool-budget", "assertions": ["reject-before-any-tool-side-effect", "maximum-three-calls-per-response"] },
     { "id": "tool-failure-sanitization", "kind": "failure-sanitization", "assertions": ["stable-public-error", "no-tenant-or-secret-detail", "no-retry"] },
     { "id": "provider-429-classification", "kind": "provider-failure-classification", "assertions": ["http-429-classified-without-response-body", "rate-limit-versus-quota-remains-unknown", "no-automatic-retry"] }
   ]
