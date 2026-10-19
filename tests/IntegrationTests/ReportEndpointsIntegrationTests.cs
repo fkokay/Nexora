@@ -1191,6 +1191,59 @@ public sealed class ReportEndpointsIntegrationTests
             pageSize = 50
         });
         Assert.Equal(HttpStatusCode.BadRequest, invalidNullFilter.StatusCode);
+
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var tenant = await db.Tenants.SingleAsync(x => x.Id == TenantA);
+            db.StockItems.Add(new StockItem
+            {
+                TenantId = TenantA, Tenant = tenant, Code = "STOCK-LOW", Name = "Below minimum", Category = null, MinimumStock = 20m
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var belowMinimumDefinition = new
+        {
+            source = "stockItems",
+            columns = new[] { "code", "minimumStock", "available", "minimumStockGap", "belowMinimum" },
+            filters = new object[]
+            {
+                new { field = "belowMinimum", @operator = "equals", value = "true" },
+                new { field = "minimumStockGap", @operator = "gte", value = "20" }
+            },
+            sortBy = "minimumStockGap", descending = true, page = 1, pageSize = 50
+        };
+        var belowMinimumResponse = await client.PostAsJsonAsync("/api/reports/run", belowMinimumDefinition);
+        belowMinimumResponse.EnsureSuccessStatusCode();
+        using var belowMinimum = JsonDocument.Parse(await belowMinimumResponse.Content.ReadAsStringAsync());
+        Assert.Equal(1, belowMinimum.RootElement.GetProperty("totalCount").GetInt32());
+        var lowStock = belowMinimum.RootElement.GetProperty("rows")[0];
+        Assert.Equal("STOCK-LOW", lowStock.GetProperty("code").GetString());
+        Assert.Equal(20m, lowStock.GetProperty("minimumStockGap").GetDecimal());
+        Assert.True(lowStock.GetProperty("belowMinimum").GetBoolean());
+
+        var shortfallGroupsResponse = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "stockItems", columns = new[] { "code" }, filters = Array.Empty<object>(), sortBy = "code",
+            descending = false, page = 1, pageSize = 50, groupByFields = new[] { "category" }, aggregate = "sumMinimumStockGap"
+        });
+        shortfallGroupsResponse.EnsureSuccessStatusCode();
+        using var shortfallGroups = JsonDocument.Parse(await shortfallGroupsResponse.Content.ReadAsStringAsync());
+        Assert.Equal(20m, shortfallGroups.RootElement.GetProperty("groups")[0].GetProperty("value").GetDecimal());
+
+        var belowMinimumCsvResponse = await client.PostAsJsonAsync("/api/reports/export", belowMinimumDefinition);
+        belowMinimumCsvResponse.EnsureSuccessStatusCode();
+        var belowMinimumCsv = await belowMinimumCsvResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Minimum stok açığı", belowMinimumCsv);
+        Assert.Contains("STOCK-LOW", belowMinimumCsv);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var otherTenantResponse = await client.PostAsJsonAsync("/api/reports/run", belowMinimumDefinition);
+        otherTenantResponse.EnsureSuccessStatusCode();
+        using var otherTenantResult = JsonDocument.Parse(await otherTenantResponse.Content.ReadAsStringAsync());
+        Assert.Equal("STOCK-B", otherTenantResult.RootElement.GetProperty("rows")[0].GetProperty("code").GetString());
     }
 
     [Fact]

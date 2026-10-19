@@ -197,6 +197,7 @@ public static class ReportEndpoints
         new("code", "Stok kodu", "text"), new("name", "Stok adı", "text"), new("barcode", "Barkod", "text"),
         new("unitCode", "Birim", "text"), new("category", "Kategori", "text"), new("minimumStock", "Minimum stok", "decimal"),
         new("onHand", "Eldeki miktar", "decimal"), new("reserved", "Rezerve miktar", "decimal"), new("available", "Kullanılabilir miktar", "decimal"),
+        new("minimumStockGap", "Minimum stok açığı", "decimal"), new("belowMinimum", "Minimumun altında", "boolean"),
         new("trackingMode", "Takip türü", "text", ["None", "Lot", "Serial"]), new("isActive", "Durum", "boolean"),
         new("createdAt", "Oluşturulma", "date")
     ];
@@ -205,7 +206,8 @@ public static class ReportEndpoints
         new("count", "Stok kartı sayısı"), new("sumMinimumStock", "Minimum stok toplamı"), new("averageMinimumStock", "Ortalama minimum stok"),
         new("sumOnHand", "Eldeki miktar toplamı"), new("averageOnHand", "Ortalama eldeki miktar"),
         new("sumReserved", "Rezerve miktar toplamı"), new("averageReserved", "Ortalama rezerve miktar"),
-        new("sumAvailable", "Kullanılabilir miktar toplamı"), new("averageAvailable", "Ortalama kullanılabilir miktar")
+        new("sumAvailable", "Kullanılabilir miktar toplamı"), new("averageAvailable", "Ortalama kullanılabilir miktar"),
+        new("sumMinimumStockGap", "Minimum stok açığı toplamı"), new("averageMinimumStockGap", "Ortalama minimum stok açığı")
     ];
     private static readonly IReadOnlyList<ReportColumn> WorkflowInstanceColumns =
     [
@@ -2970,6 +2972,8 @@ public static class ReportEndpoints
             "onHand" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.OnHand),
             "reserved" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.Reserved),
             "available" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.Available),
+            "minimumStockGap" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.MinimumStockGap),
+            "belowMinimum" => (Expression<Func<StockItemReportRow, bool>>)(x => x.BelowMinimum),
             "trackingMode" => (Expression<Func<StockItemReportRow, InventoryTrackingMode>>)(x => x.TrackingMode),
             "isActive" => (Expression<Func<StockItemReportRow, bool>>)(x => x.IsActive),
             "createdAt" => (Expression<Func<StockItemReportRow, DateTimeOffset>>)(x => x.CreatedAt),
@@ -2981,6 +2985,7 @@ public static class ReportEndpoints
             "sumOnHand" or "averageOnHand" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.OnHand),
             "sumReserved" or "averageReserved" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.Reserved),
             "sumAvailable" or "averageAvailable" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.Available),
+            "sumMinimumStockGap" or "averageMinimumStockGap" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.MinimumStockGap),
             _ => null
         };
         return await AggregateMultipleGroupsAsync(query, selectors, aggregate, aggregateSelector, descending, skip, take, ct);
@@ -2998,6 +3003,8 @@ public static class ReportEndpoints
         "onHand" => await AggregateStockItemGroups(query.GroupBy(x => x.OnHand), aggregate, descending, skip, take, ct),
         "reserved" => await AggregateStockItemGroups(query.GroupBy(x => x.Reserved), aggregate, descending, skip, take, ct),
         "available" => await AggregateStockItemGroups(query.GroupBy(x => x.Available), aggregate, descending, skip, take, ct),
+        "minimumStockGap" => await AggregateStockItemGroups(query.GroupBy(x => x.MinimumStockGap), aggregate, descending, skip, take, ct),
+        "belowMinimum" => await AggregateStockItemGroups(query.GroupBy(x => x.BelowMinimum), aggregate, descending, skip, take, ct),
         "trackingMode" => await AggregateStockItemGroups(query.GroupBy(x => x.TrackingMode), aggregate, descending, skip, take, ct),
         "isActive" => await AggregateStockItemGroups(query.GroupBy(x => x.IsActive), aggregate, descending, skip, take, ct),
         "createdAt" => await AggregateStockItemGroups(query.GroupBy(x => x.CreatedAt), aggregate, descending, skip, take, ct),
@@ -3020,6 +3027,8 @@ public static class ReportEndpoints
             "averageReserved" => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Average(x => (decimal?)x.Reserved))).ToListAsync(ct),
             "sumAvailable" => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Sum(x => x.Available))).ToListAsync(ct),
             "averageAvailable" => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Average(x => (decimal?)x.Available))).ToListAsync(ct),
+            "sumMinimumStockGap" => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Sum(x => x.MinimumStockGap))).ToListAsync(ct),
+            "averageMinimumStockGap" => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Average(x => (decimal?)x.MinimumStockGap))).ToListAsync(ct),
             _ => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Count())).ToListAsync(ct)
         };
         return new AggregatePage(rows.Select(row => row with { GroupValue = row.GroupValue is InventoryTrackingMode mode ? mode.ToString() : row.GroupValue }).ToArray(), total);
@@ -3040,6 +3049,8 @@ public static class ReportEndpoints
         public decimal OnHand { get; init; }
         public decimal Reserved { get; init; }
         public decimal Available { get; init; }
+        public decimal MinimumStockGap { get; init; }
+        public bool BelowMinimum { get; init; }
     }
 
     private static IQueryable<StockItemReportRow> StockItemReportRows(TenantDbContext db, Guid tenantId)
@@ -3052,6 +3063,7 @@ public static class ReportEndpoints
                    .Where(reservation => reservation.TenantId == tenantId && reservation.Status == SalesOrderReservationStatus.Active
                        && reservation.OrderLine.StockItemId == item.Id)
                    .Sum(reservation => reservation.Quantity - reservation.FulfilledQuantity)
+               let available = onHand - reserved
                select new StockItemReportRow
                {
                 Id = item.Id,
@@ -3066,7 +3078,9 @@ public static class ReportEndpoints
                 CreatedAt = item.CreatedAt,
                 OnHand = onHand,
                 Reserved = reserved,
-                Available = onHand - reserved
+                Available = available,
+                MinimumStockGap = item.MinimumStock > available ? item.MinimumStock - available : 0m,
+                BelowMinimum = item.MinimumStock > available
                };
     }
 
@@ -3095,6 +3109,7 @@ public static class ReportEndpoints
             case "onHand":
             case "reserved":
             case "available":
+            case "minimumStockGap":
             case "minimumStock":
                 if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount) || !ApplyDecimalOperator(filter.Operator, out var op)) { error = "Stok miktarı veya operatörü geçersiz."; return false; }
                 query = (filter.Field, op) switch
@@ -3102,6 +3117,7 @@ public static class ReportEndpoints
                     ("onHand", "gt") => query.Where(x => x.OnHand > amount), ("onHand", "gte") => query.Where(x => x.OnHand >= amount), ("onHand", "lt") => query.Where(x => x.OnHand < amount), ("onHand", "lte") => query.Where(x => x.OnHand <= amount), ("onHand", _) => query.Where(x => x.OnHand == amount),
                     ("reserved", "gt") => query.Where(x => x.Reserved > amount), ("reserved", "gte") => query.Where(x => x.Reserved >= amount), ("reserved", "lt") => query.Where(x => x.Reserved < amount), ("reserved", "lte") => query.Where(x => x.Reserved <= amount), ("reserved", _) => query.Where(x => x.Reserved == amount),
                     ("available", "gt") => query.Where(x => x.Available > amount), ("available", "gte") => query.Where(x => x.Available >= amount), ("available", "lt") => query.Where(x => x.Available < amount), ("available", "lte") => query.Where(x => x.Available <= amount), ("available", _) => query.Where(x => x.Available == amount),
+                    ("minimumStockGap", "gt") => query.Where(x => x.MinimumStockGap > amount), ("minimumStockGap", "gte") => query.Where(x => x.MinimumStockGap >= amount), ("minimumStockGap", "lt") => query.Where(x => x.MinimumStockGap < amount), ("minimumStockGap", "lte") => query.Where(x => x.MinimumStockGap <= amount), ("minimumStockGap", _) => query.Where(x => x.MinimumStockGap == amount),
                     (_, "gt") => query.Where(x => x.MinimumStock > amount), (_, "gte") => query.Where(x => x.MinimumStock >= amount), (_, "lt") => query.Where(x => x.MinimumStock < amount), (_, "lte") => query.Where(x => x.MinimumStock <= amount), _ => query.Where(x => x.MinimumStock == amount)
                 }; return true;
             case "trackingMode":
@@ -3110,6 +3126,9 @@ public static class ReportEndpoints
             case "isActive":
                 if (!bool.TryParse(value, out var active)) { error = "Durum true/false olmalıdır."; return false; }
                 query = query.Where(x => x.IsActive == active); return true;
+            case "belowMinimum":
+                if (!bool.TryParse(value, out var belowMinimum)) { error = "Minimum stok eşiği true/false olmalıdır."; return false; }
+                query = query.Where(x => x.BelowMinimum == belowMinimum); return true;
             case "createdAt":
                 if (!DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var createdAt)) { error = "Oluşturulma filtresi ISO tarih olmalıdır."; return false; }
                 query = filter.Operator switch { "gt" => query.Where(x => x.CreatedAt > createdAt), "gte" => query.Where(x => x.CreatedAt >= createdAt), "lt" => query.Where(x => x.CreatedAt < createdAt), _ => query.Where(x => x.CreatedAt <= createdAt) }; return true;
@@ -3127,6 +3146,8 @@ public static class ReportEndpoints
         ("onHand", false) => query.OrderBy(x => x.OnHand).ThenBy(x => x.Id), ("onHand", true) => query.OrderByDescending(x => x.OnHand).ThenBy(x => x.Id),
         ("reserved", false) => query.OrderBy(x => x.Reserved).ThenBy(x => x.Id), ("reserved", true) => query.OrderByDescending(x => x.Reserved).ThenBy(x => x.Id),
         ("available", false) => query.OrderBy(x => x.Available).ThenBy(x => x.Id), ("available", true) => query.OrderByDescending(x => x.Available).ThenBy(x => x.Id),
+        ("minimumStockGap", false) => query.OrderBy(x => x.MinimumStockGap).ThenBy(x => x.Id), ("minimumStockGap", true) => query.OrderByDescending(x => x.MinimumStockGap).ThenBy(x => x.Id),
+        ("belowMinimum", false) => query.OrderBy(x => x.BelowMinimum).ThenBy(x => x.Id), ("belowMinimum", true) => query.OrderByDescending(x => x.BelowMinimum).ThenBy(x => x.Id),
         ("trackingMode", false) => query.OrderBy(x => x.TrackingMode).ThenBy(x => x.Id), ("trackingMode", true) => query.OrderByDescending(x => x.TrackingMode).ThenBy(x => x.Id),
         ("isActive", false) => query.OrderBy(x => x.IsActive).ThenBy(x => x.Id), ("isActive", true) => query.OrderByDescending(x => x.IsActive).ThenBy(x => x.Id),
         ("createdAt", false) => query.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id), ("createdAt", true) => query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id),
@@ -3136,7 +3157,8 @@ public static class ReportEndpoints
     private static object? ReadStockItemValue(StockItemReportRow item, string code) => code switch
     {
         "code" => item.Code, "name" => item.Name, "barcode" => item.Barcode, "unitCode" => item.UnitCode,
-        "category" => item.Category, "minimumStock" => item.MinimumStock, "onHand" => item.OnHand, "reserved" => item.Reserved, "available" => item.Available, "trackingMode" => item.TrackingMode.ToString(),
+        "category" => item.Category, "minimumStock" => item.MinimumStock, "onHand" => item.OnHand, "reserved" => item.Reserved, "available" => item.Available,
+        "minimumStockGap" => item.MinimumStockGap, "belowMinimum" => item.BelowMinimum, "trackingMode" => item.TrackingMode.ToString(),
         "isActive" => item.IsActive, "createdAt" => item.CreatedAt, _ => null
     };
 
@@ -4418,7 +4440,7 @@ public static class ReportEndpoints
                     "text" when request.Source == "workflowInstances" && filter.Field is "subjectType" or "status" or "startedByUserId" => filter.Operator == "equals",
                     "text" when request.Source == "stockItems" && (filter.Field is "barcode" or "category") => filter.Operator is "contains" or "equals" or "isNull",
                     "text" => filter.Operator is "contains" or "equals",
-                    "boolean" => filter.Field is "isActive" or "isBalanced" && filter.Operator == "equals",
+                    "boolean" => (filter.Field is "isActive" or "isBalanced" or "belowMinimum") && filter.Operator == "equals",
                     "decimal" when request.Source == "customers" && filter.Field == "riskLimit" => filter.Operator is "equals" or "gt" or "gte" or "lt" or "lte" or "isNull",
                     "decimal" when request.Source == "crmOpportunities" && filter.Field == "estimatedValue" => filter.Operator is "equals" or "gt" or "gte" or "lt" or "lte" or "isNull",
                     "number" when request.Source == "crmOpportunities" && filter.Field == "probabilityPercent" => filter.Operator is "equals" or "gt" or "gte" or "lt" or "lte",
@@ -4704,6 +4726,7 @@ public static class ReportEndpoints
         "sumOnHand" => "Eldeki miktar toplamı", "averageOnHand" => "Ortalama eldeki miktar",
         "sumReserved" => "Rezerve miktar toplamı", "averageReserved" => "Ortalama rezerve miktar",
         "sumAvailable" => "Kullanılabilir miktar toplamı", "averageAvailable" => "Ortalama kullanılabilir miktar",
+        "sumMinimumStockGap" => "Minimum stok açığı toplamı", "averageMinimumStockGap" => "Ortalama minimum stok açığı",
         _ => "Stok kartı sayısı"
     };
 

@@ -16,6 +16,8 @@ Status reflects the repository and local Compose environment checked on 2026-10-
 
 ## Verification snapshot
 
+- Phase 3 stock operational reporting (2026-10-19): the tenant-scoped stock-card report now includes a nonnegative minimum-stock gap and a below-minimum flag derived from all-warehouse available quantity. Both fields support typed filters, sorting, grouping, currency-independent quantity aggregates and bounded CSV export; no migration is needed. Release solution build passed with 0 warnings/errors and unit tests passed 444/444. The new SQL-backed report integration assertions are pending PR CI because the local Docker Engine is unavailable.
+
 - Local Docker recheck (2026-10-19): Docker CLI cannot connect to the `desktop-linux` endpoint. `com.docker.service` is stopped, and starting it from this session was denied by Windows service control. Docker Desktop's latest startup log reports an access failure while renaming its local secrets-engine socket. No Docker data volume or Compose deployment was modified. The previous healthy-Compose evidence is stale until Docker starts and health checks are rerun.
 
 - Latest local Compose state (2026-10-19): separation is enabled. `AIERPPlatform` retains platform/control data, tenant `912df12f4e3144bea20735cca5834485` has its own `AIERPTenant_912df12f4e3144bea20735cca5834485`, and Studio data is in `AIERPStudio`. All three databases are online; 106 current Platform, 22 Tenant and 10 AIStudio migrations are applied (history row counts 107/22/10, with one legacy Platform history row absent from source). Provisioning marked the tenant and Studio component Ready, and the separation verifier passed. The original PlatformDB remains intact as the migration source.
