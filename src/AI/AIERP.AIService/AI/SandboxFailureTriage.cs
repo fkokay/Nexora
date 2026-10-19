@@ -15,12 +15,13 @@ public static class SandboxFailureTriage
             (ContainsAny(text, "package ") && ContainsAny(text, " does not exist")) ||
             ContainsAny(text, "NU1301", "NU1101", "NU1102", "npm ERR! code ERESOLVE", "npm ERR! code E404", "npm ERR! code ETARGET",
                 "npm ERR! code ENOTFOUND", "npm ERR! fetch failed", "npm ERR! network", "npm ERR! 404 Not Found",
-                "ERR_MODULE_NOT_FOUND", "ModuleNotFoundError", "No matching distribution found", "no matching package", "failed to download", "failed to lookup module",
+                "ModuleNotFoundError", "No matching distribution found", "no matching package", "failed to download", "failed to lookup module",
                 "Could not resolve all files for configuration", "Could not resolve dependencies for project", "Could not resolve \"", "Failed to resolve import",
                 "no required module provides package", "go: updates to go.mod needed", "failed to select a version for",
                 "Could not find artifact", "Could not find group:", "cannot access ",
                 "can't find crate for", "cannot find package ", "No package metadata was found for",
-                "unable to find valid certification path", "Temporary failure in name resolution", "ECONNRESET", "EAI_AGAIN"))
+                "unable to find valid certification path", "Temporary failure in name resolution", "ECONNRESET", "EAI_AGAIN") ||
+            IsMissingNodePackage(text))
             return new("dependency", "Bağımlılık veya çevrimdışı paket kaynağı eksik.", false,
                 "Önce onaylı paket önbelleğini/lock dosyasını doğrulayın; bağımlılık hazır olmadan kaynak kodu onarmayın.");
 
@@ -43,7 +44,7 @@ public static class SandboxFailureTriage
             return new("build-configuration", "Derleme için gereken SDK, hedef framework veya MSBuild import'u bulunamadı.", false,
                 "Sandbox imajındaki SDK ve hedef framework kurulumunu, global.json dosyasını ve build komutunun proje yolunu doğrulayın; kaynak onarımı önermeyin.");
 
-        if (ContainsAny(text, "error CS", " error TS", "SyntaxError", "IndentationError", "TabError", "Syntax Error", "syntax error", "undefined reference", "undefined:",
+        if (IsMissingNodePath(text) || ContainsAny(text, "error CS", " error TS", "SyntaxError", "IndentationError", "TabError", "Syntax Error", "syntax error", "undefined reference", "undefined:",
                 "cannot find symbol", "declared and not used", "cannot use", "no new variables on left side of :=",
                 "too many arguments", "not enough arguments", "has no field or method", "could not compile", "error[E",
                 "Expected \"}\" but found", "Expected \")\" but found", "Expected \"]\" but found", "Expected \";\" but found",
@@ -62,6 +63,35 @@ public static class SandboxFailureTriage
 
     private static bool ContainsAny(string value, params string[] markers) =>
         markers.Any(marker => value.Contains(marker, StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsMissingNodePackage(string text) =>
+        TryGetMissingNodeSpecifier(text, out var specifier) && !IsLocalNodeSpecifier(specifier);
+
+    private static bool IsMissingNodePath(string text) =>
+        TryGetMissingNodeSpecifier(text, out var specifier) && IsLocalNodeSpecifier(specifier);
+
+    private static bool TryGetMissingNodeSpecifier(string text, out string specifier)
+    {
+        foreach (var marker in new[] { "Cannot find module", "Cannot find package" })
+        {
+            var markerIndex = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (markerIndex < 0) continue;
+            var start = markerIndex + marker.Length;
+            while (start < text.Length && char.IsWhiteSpace(text[start])) start++;
+            if (start >= text.Length || text[start] is not ('\'' or '"' or '`')) continue;
+            var quote = text[start++];
+            var end = text.IndexOf(quote, start);
+            if (end <= start) continue;
+            specifier = text[start..end];
+            return true;
+        }
+        specifier = "";
+        return false;
+    }
+
+    private static bool IsLocalNodeSpecifier(string specifier) => specifier.StartsWith(".", StringComparison.Ordinal) ||
+        specifier.StartsWith("/", StringComparison.Ordinal) || specifier.StartsWith("\\", StringComparison.Ordinal) ||
+        (specifier.Length >= 3 && char.IsAsciiLetter(specifier[0]) && specifier[1] == ':' && specifier[2] is '/' or '\\');
 }
 
 public sealed record SandboxFailureTriageResult(string Category, string Summary, bool SourceRepairCandidate, string NextStep);
