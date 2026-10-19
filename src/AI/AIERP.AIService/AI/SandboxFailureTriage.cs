@@ -12,10 +12,13 @@ public static class SandboxFailureTriage
     {
         var text = string.Concat(message, "\n", output);
         if (status.Equals("DependencyUnavailable", StringComparison.OrdinalIgnoreCase) ||
+            (ContainsAny(text, "package ") && ContainsAny(text, " does not exist")) ||
             ContainsAny(text, "NU1301", "NU1101", "NU1102", "npm ERR!", "ERR_MODULE_NOT_FOUND", "ModuleNotFoundError", "No matching distribution found", "no matching package", "failed to download", "failed to lookup module",
                 "Could not resolve all files for configuration", "Could not resolve dependencies for project", "Could not resolve \"", "Failed to resolve import",
                 "no required module provides package", "go: updates to go.mod needed", "failed to select a version for",
-                "Could not find artifact", "Could not find group:"))
+                "Could not find artifact", "Could not find group:", "cannot access ",
+                "can't find crate for", "cannot find package ", "No package metadata was found for",
+                "unable to find valid certification path", "Temporary failure in name resolution", "ECONNRESET", "EAI_AGAIN"))
             return new("dependency", "Bağımlılık veya çevrimdışı paket kaynağı eksik.", false,
                 "Önce onaylı paket önbelleğini/lock dosyasını doğrulayın; bağımlılık hazır olmadan kaynak kodu onarmayın.");
 
