@@ -868,7 +868,7 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 {
                     "customers", "salesInvoices", "purchaseOrders", "purchaseInvoices", "purchaseReceipts",
                     "manufacturingOrders", "inventoryTransactions", "salesOrders", "salesDeliveries", "salesReturns",
-                    "purchaseRequests", "stockItems"
+                    "purchaseRequests", "stockItems", "warehouseStock"
                 };
                 if (properties.Length != 5 || !root.TryGetProperty("source", out var sourceElement) || sourceElement.ValueKind != JsonValueKind.String ||
                     !allowedSources.Contains(sourceElement.GetString() ?? "") || !root.TryGetProperty("columns", out var columnsElement) ||

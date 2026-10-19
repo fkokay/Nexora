@@ -349,7 +349,7 @@ public sealed class OpenAIResponsesProviderTests
                 {
                     "customers", "salesInvoices", "purchaseOrders", "purchaseInvoices", "purchaseReceipts",
                     "manufacturingOrders", "inventoryTransactions", "salesOrders", "salesQuotes", "salesDeliveries",
-                    "salesReturns", "supplierReturns", "purchaseRequests", "stockItems", "bankStatements",
+                    "salesReturns", "supplierReturns", "purchaseRequests", "stockItems", "warehouseStock", "bankStatements",
                     "financialAccountTransactions", "supplierPayments", "crmOpportunities"
                 }, sourceValues);
                 Assert.DoesNotContain("workflowInstances", sourceValues);

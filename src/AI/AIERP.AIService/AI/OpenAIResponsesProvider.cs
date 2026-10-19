@@ -428,10 +428,10 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
                 parameters = new { type = "object", additionalProperties = false, properties = new { term = new { type = "string" } }, required = new[] { "term" } } },
             new { type = "function", name = "get_customer_balance", description = "Read the current calculated balance and risk limit in the account currency for a selected tenant-authorized customer account.", strict = true,
                 parameters = new { type = "object", additionalProperties = false, properties = new { customerId = new { type = "string" } }, required = new[] { "customerId" } } },
-            new { type = "function", name = "generate_report", description = "Run a bounded, read-only tenant report from the operational report catalog. Do not group or aggregate money; preserve row currencies.", strict = true,
+            new { type = "function", name = "generate_report", description = "Run a bounded, read-only tenant report from the operational report catalog, including stock balances by warehouse. Do not group or aggregate money; preserve row currencies.", strict = true,
                 parameters = new { type = "object", additionalProperties = false, properties = new
                 {
-                    source = new { type = "string", @enum = new[] { "customers", "salesInvoices", "purchaseOrders", "purchaseInvoices", "purchaseReceipts", "manufacturingOrders", "inventoryTransactions", "salesOrders", "salesQuotes", "salesDeliveries", "salesReturns", "supplierReturns", "purchaseRequests", "stockItems", "bankStatements", "financialAccountTransactions", "supplierPayments", "crmOpportunities" } },
+                    source = new { type = "string", @enum = new[] { "customers", "salesInvoices", "purchaseOrders", "purchaseInvoices", "purchaseReceipts", "manufacturingOrders", "inventoryTransactions", "salesOrders", "salesQuotes", "salesDeliveries", "salesReturns", "supplierReturns", "purchaseRequests", "stockItems", "warehouseStock", "bankStatements", "financialAccountTransactions", "supplierPayments", "crmOpportunities" } },
                     columns = new { type = "array", items = new { type = "string" }, minItems = 1, maxItems = 10 },
                     filters = new { type = "array", items = new { type = "object", additionalProperties = false, properties = new
                     {
