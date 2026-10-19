@@ -10,6 +10,12 @@ The rebuilt image resolves to `sha256:5168358c91320d7d484a7c955d6f3941f603d4c702
 
 A fresh package-policy check in a disposable container refreshed the Alpine v3.24 indexes and found no newer `binutils` or `libxml2` candidates than the installed `2.45.1-r1` and `2.13.9-r2`; Alpine edge package pages currently list those same versions as well ([binutils](https://pkgs.alpinelinux.org/package/edge/main/x86_64/binutils), [libxml2](https://pkgs.alpinelinux.org/package/edge/main/x86_64/libxml2)). Docker Scout likewise reports no fixed version for the four remaining HIGH records.
 
+### Upstream-fix follow-up
+
+Upstream fixes are now available even though Alpine has not packaged them: GNU Binutils 2.47 and libxml2 2.15.4. In a disposable, volume-free container, both official source archives were downloaded and their published SHA-256 checksums verified; Binutils 2.47 and libxml2 2.15.4 then compiled and installed under `/usr/local`. This was a compatibility experiment only; it did not alter the image or running Compose service.
+
+The experiment also showed why simply adding those builds to `PATH` is insufficient. In the current sandbox, `gcc -print-prog-name=ld` resolves to `/usr/x86_64-alpine-linux-musl/bin/ld` and the executed `/usr/bin/ld`/`readelf` remain Binutils 2.45.1. Separately, libxml2 2.15.4 has SONAME `libxml2.so.16`, while installed `llvm22-libs` requires `so:libxml2.so.2`; replacing the Alpine library without a compatibility plan would break the Rust/LLVM toolchain. The next remediation must install a package-managed Binutils toolchain selected by GCC and a patched, ABI-compatible libxml2 library (or rebuild/replace its dependent LLVM package), then pass the four-ecosystem sandbox matrix and a fresh digest scan. Do not count an overlaid `/usr/local` build as remediation.
+
 `libssh2` now updates selectively from Alpine edge (`1.11.1-r3` to `1.11.1-r4`), while Cargo remains installed and executable. Alpine's `r4` packaging commit includes patches for CVE-2025-15661 and CVE-2026-66032. A disposable network-enabled container reproduced the upgrade and verified Cargo's version and dynamic `libssh2.so.1` linkage. A separate read-only, network-disabled run of the rebuilt image verified the installed `r4` package and the .NET, Go, Rust/Cargo, Node/npm, and Python toolchains.
 
 The earlier `docs/docker-scout-workspace-sandbox-20261019.sarif.json` covers the pre-update digest (`sha256:9341675d7ea5291ec8b552d55767075bd2b26b79d3ec51c960a2d7f6b383c4a3`). The new JSON report above is the authoritative summary for the rebuilt digest.
@@ -35,7 +41,7 @@ Archive extraction, project inspection, and job coordination run as root inside 
 
 ## Disposition
 
-The two `libssh2` findings are remediated on the rebuilt image. Four HIGH findings remain in `binutils` and `libxml2`, which are required by the compiler/linker toolchain. Docker Scout currently reports no fixed version for either installed Alpine package; keep the Phase 9 security gate open and revisit when Alpine publishes fixes or a compatible toolchain replacement is validated. This is not a risk acceptance. Local Compose now runs the rebuilt digest, and the four-ecosystem offline package-cache matrix passed on it (`docs/workspace-sandbox-package-cache-smoke-20261019-libssh2-r4.json`).
+The two `libssh2` findings are remediated on the rebuilt image. Four HIGH findings remain in `binutils` and `libxml2`, which are required by the compiler/linker toolchain. Alpine v3.24/edge still has no fixed package versions, but upstream fixed releases exist; package installation and ABI compatibility are the outstanding work. Keep the Phase 9 security gate open until the actual tools and runtime libraries are replaced compatibly, the offline four-ecosystem acceptance passes, and a fresh scan confirms the findings are gone. This is not a risk acceptance. Local Compose remains on the previously verified digest; the compatibility experiment did not change it. The existing matrix evidence is `docs/workspace-sandbox-package-cache-smoke-20261019-libssh2-r4.json`.
 
 ## References
 
@@ -46,3 +52,6 @@ The two `libssh2` findings are remediated on the rebuilt image. Four HIGH findin
 - [Ubuntu CVE-2025-15661](https://ubuntu.com/security/CVE-2025-15661)
 - [Ubuntu USN-8722-1, libssh2 vulnerabilities](https://ubuntu.com/security/notices/USN-8722-1)
 - [Alpine aports `libssh2` r4 security-patch commit](https://gitlab.alpinelinux.org/alpine/aports/-/commit/315a222d1f21561dc0bcb3451a6fc94ae1dbb191)
+- [GNU Binutils 2.47 release](https://sourceware.org/pipermail/binutils/2026-July/150520.html)
+- [libxml2 2.15.4 release archive and published checksum](https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.sha256sum)
+- [libxml2 CVE-2026-86140 upstream fix](https://gitlab.gnome.org/GNOME/libxml2/-/commit/d1686f91dbda141a752200419d35639fd6b38340)
