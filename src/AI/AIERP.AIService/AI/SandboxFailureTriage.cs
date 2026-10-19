@@ -33,6 +33,16 @@ public static class SandboxFailureTriage
             return new("sandbox-configuration", "İş sandbox tarafından reddedildi veya sandbox hatası oluştu.", false,
                 "Sandbox hedefi ve servis sağlığını inceleyin; bu sonuçtan kod değişikliği önermeyin.");
 
+        if (ContainsAny(text,
+                "error MSB4019", "error MSB3644", "error MSB4236", "error MSB1009",
+                "The imported project was not found", "The reference assemblies for ",
+                "The SDK 'Microsoft.NET.Sdk' specified could not be found", "The SDK 'Microsoft.NET.Sdk.Web' specified could not be found",
+                "The SDK resolver failed to resolve", "The current .NET SDK does not support targeting",
+                "The reference assemblies for .NETFramework", "Could not locate the .NET SDK",
+                "No SDKs were found", "A compatible .NET SDK was not found", "The command could not be loaded"))
+            return new("build-configuration", "Derleme için gereken SDK, hedef framework veya MSBuild import'u bulunamadı.", false,
+                "Sandbox imajındaki SDK ve hedef framework kurulumunu, global.json dosyasını ve build komutunun proje yolunu doğrulayın; kaynak onarımı önermeyin.");
+
         if (ContainsAny(text, "error CS", " error TS", "SyntaxError", "IndentationError", "TabError", "Syntax Error", "syntax error", "undefined reference", "undefined:",
                 "cannot find symbol", "declared and not used", "cannot use", "no new variables on left side of :=",
                 "too many arguments", "not enough arguments", "has no field or method", "could not compile", "error[E",

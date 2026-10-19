@@ -35,7 +35,11 @@ public sealed class SandboxFailureTriageTests
     [InlineData("BuildFailed", "", "go: updates to go.mod needed; to update it: go mod tidy", "dependency", false)]
     [InlineData("BuildFailed", "", "failed to select a version for `serde` which could resolve this conflict", "dependency", false)]
     [InlineData("Failed", "test", "ModuleNotFoundError: No module named 'pytest_plugin'", "dependency", false)]
-    [InlineData("BuildFailed", "", "error MSB4019: The imported project was not found.", "unknown", false)]
+    [InlineData("BuildFailed", "", "error MSB4019: The imported project was not found.", "build-configuration", false)]
+    [InlineData("BuildFailed", "", "error MSB3644: The reference assemblies for .NETFramework,Version=v4.8 were not found.", "build-configuration", false)]
+    [InlineData("BuildFailed", "", "error MSB4236: The SDK 'Microsoft.NET.Sdk.Web' specified could not be found.", "build-configuration", false)]
+    [InlineData("BuildFailed", "", "error MSB1009: Project file does not exist.", "build-configuration", false)]
+    [InlineData("BuildFailed", "", "A compatible .NET SDK was not found.", "build-configuration", false)]
     [InlineData("Failed", "test", "Expected 2 but got 1", "test-failure", true)]
     [InlineData("BuildFailed", "", "unclassified output", "unknown", false)]
     public void Classify_separates_environment_failures_from_source_repair_candidates(
