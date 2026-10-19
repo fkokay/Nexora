@@ -8,6 +8,8 @@ Scanner evidence: `docs/container-image-scan-20261019-sandbox-libssh2-r4.json`
 
 The rebuilt image resolves to `sha256:5168358c91320d7d484a7c955d6f3941f603d4c70239c2569fe1eec2f6540580` (3,715,659,310 bytes). Docker Scout v1.26.0 indexed 1,143 packages and found 27 records: 4 HIGH, 16 MEDIUM, 5 LOW, and 2 unspecified. The updated digest has four HIGH findings across two packages; the two prior `libssh2` HIGH findings are absent.
 
+A fresh package-policy check in a disposable container refreshed the Alpine v3.24 indexes and found no newer `binutils` or `libxml2` candidates than the installed `2.45.1-r1` and `2.13.9-r2`; Alpine edge package pages currently list those same versions as well ([binutils](https://pkgs.alpinelinux.org/package/edge/main/x86_64/binutils), [libxml2](https://pkgs.alpinelinux.org/package/edge/main/x86_64/libxml2)). Docker Scout likewise reports no fixed version for the four remaining HIGH records.
+
 `libssh2` now updates selectively from Alpine edge (`1.11.1-r3` to `1.11.1-r4`), while Cargo remains installed and executable. Alpine's `r4` packaging commit includes patches for CVE-2025-15661 and CVE-2026-66032. A disposable network-enabled container reproduced the upgrade and verified Cargo's version and dynamic `libssh2.so.1` linkage. A separate read-only, network-disabled run of the rebuilt image verified the installed `r4` package and the .NET, Go, Rust/Cargo, Node/npm, and Python toolchains.
 
 The earlier `docs/docker-scout-workspace-sandbox-20261019.sarif.json` covers the pre-update digest (`sha256:9341675d7ea5291ec8b552d55767075bd2b26b79d3ec51c960a2d7f6b383c4a3`). The new JSON report above is the authoritative summary for the rebuilt digest.
