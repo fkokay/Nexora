@@ -400,12 +400,12 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
           fi
           if [ "$argument" = "-Q" ]; then query_index=1; fi
         done
-        previous_argument=""
+        has_exec=0
         for argument in "$@"; do
           if [ "$mode" = "config" ] && [ "$argument" = "config" ]; then exit 1; fi
           if [ "$mode" = "up" ] && [ "$argument" = "up" ]; then exit 1; fi
-          if [ "$mode" = "health" ] && [ "$previous_argument" = "exec" ] && [ "$argument" = "development-studio" ]; then exit 1; fi
-          previous_argument="$argument"
+          if [ "$argument" = "exec" ]; then has_exec=1; fi
+          if [ "$mode" = "health" ] && [ "$has_exec" -eq 1 ] && [ "$argument" = "development-studio" ]; then exit 1; fi
         done
         exit 0
         """;

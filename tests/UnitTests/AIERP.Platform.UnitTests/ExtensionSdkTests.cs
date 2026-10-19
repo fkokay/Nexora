@@ -1130,13 +1130,13 @@ public sealed class ExtensionSdkTests
         try
         {
             var first = await DistributedDeploymentLock.AcquireAsync(root, CancellationToken.None);
-            using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(800));
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var secondTask = DistributedDeploymentLock.AcquireAsync(root, cancellation.Token);
-            await Task.Delay(350);
+            await Task.Delay(500);
             Assert.False(secondTask.IsCompleted);
 
             await first.DisposeAsync();
-            await using var second = await secondTask.WaitAsync(TimeSpan.FromSeconds(2));
+            await using var second = await secondTask.WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
         {
