@@ -400,11 +400,13 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
           fi
           if [ "$argument" = "-Q" ]; then query_index=1; fi
         done
-        case "$mode:$arguments" in
-          config:*config*) exit 1 ;;
-          up:*up*) exit 1 ;;
-          health:*exec*development-studio*) exit 1 ;;
-        esac
+        previous_argument=""
+        for argument in "$@"; do
+          if [ "$mode" = "config" ] && [ "$argument" = "config" ]; then exit 1; fi
+          if [ "$mode" = "up" ] && [ "$argument" = "up" ]; then exit 1; fi
+          if [ "$mode" = "health" ] && [ "$previous_argument" = "exec" ] && [ "$argument" = "development-studio" ]; then exit 1; fi
+          previous_argument="$argument"
+        done
         exit 0
         """;
 
