@@ -13,7 +13,9 @@ public static class SandboxFailureTriage
         var text = string.Concat(message, "\n", output);
         if (status.Equals("DependencyUnavailable", StringComparison.OrdinalIgnoreCase) ||
             (ContainsAny(text, "package ") && ContainsAny(text, " does not exist")) ||
-            ContainsAny(text, "NU1301", "NU1101", "NU1102", "npm ERR!", "ERR_MODULE_NOT_FOUND", "ModuleNotFoundError", "No matching distribution found", "no matching package", "failed to download", "failed to lookup module",
+            ContainsAny(text, "NU1301", "NU1101", "NU1102", "npm ERR! code ERESOLVE", "npm ERR! code E404", "npm ERR! code ETARGET",
+                "npm ERR! code ENOTFOUND", "npm ERR! fetch failed", "npm ERR! network", "npm ERR! 404 Not Found",
+                "ERR_MODULE_NOT_FOUND", "ModuleNotFoundError", "No matching distribution found", "no matching package", "failed to download", "failed to lookup module",
                 "Could not resolve all files for configuration", "Could not resolve dependencies for project", "Could not resolve \"", "Failed to resolve import",
                 "no required module provides package", "go: updates to go.mod needed", "failed to select a version for",
                 "Could not find artifact", "Could not find group:", "cannot access ",

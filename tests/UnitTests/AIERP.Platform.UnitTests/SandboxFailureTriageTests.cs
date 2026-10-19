@@ -15,6 +15,8 @@ public sealed class SandboxFailureTriageTests
     [InlineData("BuildFailed", "", "go: cannot find package example.com/private/module", "dependency", false)]
     [InlineData("BuildFailed", "", "pip: No package metadata was found for internal-sdk", "dependency", false)]
     [InlineData("BuildFailed", "", "npm ERR! request to https://registry.npmjs.org/example failed, reason: EAI_AGAIN", "dependency", false)]
+    [InlineData("BuildFailed", "", "npm ERR! code ERESOLVE\nnpm ERR! ERESOLVE unable to resolve dependency tree", "dependency", false)]
+    [InlineData("BuildFailed", "", "npm ERR! code ELIFECYCLE\nsrc/App.ts(7,3): error TS2322: Type 'string' is not assignable to type 'number'.", "source-diagnostic", true)]
     [InlineData("TimedOut", "", "", "execution-limit", false)]
     [InlineData("Rejected", "", "", "sandbox-configuration", false)]
     [InlineData("BuildFailed", "", "src/App.cs(12): error CS1002: ; expected", "source-diagnostic", true)]
