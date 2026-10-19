@@ -14,8 +14,9 @@ public sealed class DistributedDeploymentLock : IAsyncDisposable
     public static async Task<DistributedDeploymentLock> AcquireAsync(string rootPath, CancellationToken cancellationToken)
     {
         var root = Path.GetFullPath(rootPath);
+        ReleaseDeployerPath.AssertNoReparsePoints(root);
         Directory.CreateDirectory(root);
-        var lockPath = Path.Combine(root, "deployment.lock");
+        var lockPath = ReleaseDeployerPath.SafeChild(root, "deployment.lock");
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();

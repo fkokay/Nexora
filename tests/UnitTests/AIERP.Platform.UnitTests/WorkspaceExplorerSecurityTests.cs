@@ -232,6 +232,33 @@ public sealed class WorkspaceExplorerSecurityTests
     }
 
     [Fact]
+    public void Workspace_runner_storage_resolution_rejects_reparse_points_under_configured_roots()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-runner-storage-{Guid.NewGuid():N}");
+        var outside = Path.Combine(Path.GetTempPath(), $"aierp-runner-outside-{Guid.NewGuid():N}");
+        var jobId = Guid.NewGuid();
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(outside);
+        try
+        {
+            try { Directory.CreateSymbolicLink(Path.Combine(root, jobId.ToString("N")), outside); }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+            { return; } // Some Windows filesystems do not grant symlink creation to the test process.
+
+            Assert.False(WorkspaceSecurity.TryResolveStorageChild(root, jobId.ToString("N"), out _));
+            Assert.False(WorkspaceSecurity.TryResolveStorageChild(root, "../outside", out _));
+            var newId = Guid.NewGuid();
+            Assert.True(WorkspaceSecurity.TryResolveStorageChild(root, newId.ToString("N"), out var newPath));
+            Assert.Equal(Path.Combine(root, newId.ToString("N")), newPath);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+            try { Directory.Delete(outside, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
     public void Workspace_file_resolution_rejects_symbolic_link_files()
     {
         if (OperatingSystem.IsWindows()) return;

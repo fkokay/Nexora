@@ -25,9 +25,8 @@ public static class ModulePackageArchive
         var chunk = new byte[16 * 1024];
         while (true)
         {
-            // The ZIP central directory is attacker-controlled. Do not trust Length
-            // as a decompression limit: malformed archives can declare a small size
-            // while the deflate stream emits substantially more data.
+            // The entry stream is bounded by the ZIP metadata. Keep an independent
+            // output cap here as defense in depth, then verify the final length.
             var remaining = archive.Entries[0].Length - output.Length;
             var read = artifact.Read(chunk, 0, (int)Math.Min(chunk.Length, Math.Max(1, remaining + 1)));
             if (read == 0) break;

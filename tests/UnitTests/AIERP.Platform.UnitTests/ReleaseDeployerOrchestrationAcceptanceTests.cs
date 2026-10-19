@@ -65,6 +65,32 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
     }
 
     [Fact]
+    public async Task Deployment_lock_rejects_reparse_point_lock_files()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-lock-{Guid.NewGuid():N}");
+        var outside = Path.Combine(Path.GetTempPath(), $"aierp-deployer-lock-outside-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(outside, string.Empty);
+        try
+        {
+            try { File.CreateSymbolicLink(Path.Combine(root, "deployment.lock"), outside); }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+            {
+                return; // Windows configurations without symlink privileges cannot exercise this filesystem case.
+            }
+
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                global::AIERP.ReleaseDeployer.DistributedDeploymentLock.AcquireAsync(root, CancellationToken.None));
+            Assert.Equal(string.Empty, await File.ReadAllTextAsync(outside));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+            try { File.Delete(outside); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
     public async Task Actual_deployer_api_handles_compose_failures_without_touching_external_docker_or_volumes()
     {
         Assert.False(global::ReleaseDeployerDockerExecutionPolicy.IsTestOverrideAllowed("Production"));

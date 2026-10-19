@@ -264,8 +264,7 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/release-packages", async (G
             !string.Equals(status.HeadCommitSha, request.CommitSha, StringComparison.OrdinalIgnoreCase))
             return Results.Conflict(new { error = "Sadece sürüm adayıyla aynı temiz commit paketlenebilir." });
         var testRoot = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
-        var testDirectory = Path.GetFullPath(Path.Combine(testRoot, request.TestJobId.ToString("N")));
-        if (!testDirectory.StartsWith(testRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal) || !Directory.Exists(testDirectory))
+        if (!WorkspaceSecurity.TryResolveStorageChild(testRoot, request.TestJobId.ToString("N"), out var testDirectory) || !Directory.Exists(testDirectory))
             return Results.Conflict(new { error = "Sandbox test kanıtı bulunamadı veya süresi doldu." });
         var jsonOptions = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
         await using var manifestStream = File.OpenRead(Path.Combine(testDirectory, "job.json"));
@@ -295,10 +294,10 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/release-packages/{packageId:
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (packageId == Guid.Empty) return Results.BadRequest();
     var root = Path.GetFullPath(configuration["Workspace:ReleasePackageRoot"] ?? "/release-packages");
-    var path = Path.GetFullPath(Path.Combine(root, $"{packageId:N}.zip"));
-    if (!path.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal) || !File.Exists(path)) return Results.NotFound();
+    if (!WorkspaceSecurity.TryResolveStorageChild(root, $"{packageId:N}.zip", out var path) || !File.Exists(path)) return Results.NotFound();
+    if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0) return Results.NotFound();
     var metadataPath = Path.ChangeExtension(path, ".json");
-    if (!File.Exists(metadataPath)) return Results.NotFound();
+    if (WorkspaceSecurity.HasReparsePointInPath(metadataPath) || !File.Exists(metadataPath)) return Results.NotFound();
     var metadata = File.ReadAllText(metadataPath);
     if (!metadata.Contains(packageId.ToString("D"), StringComparison.OrdinalIgnoreCase)) return Results.NotFound();
     var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
@@ -580,9 +579,11 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/test-runs", async (Guid wor
     var jobRoot = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     var jobId = Guid.NewGuid();
-    var jobDirectory = Path.Combine(jobRoot, jobId.ToString("N"));
+    var jobDirectory = string.Empty;
     try
     {
+        if (!WorkspaceSecurity.TryResolveStorageChild(jobRoot, jobId.ToString("N"), out jobDirectory))
+            return Results.Problem("Sandbox iş kuyruğu yolu güvenli değil.", statusCode: StatusCodes.Status503ServiceUnavailable);
         if (!Directory.Exists(jobRoot)) return Results.Problem("Sandbox iş kuyruğu yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
         foreach (var existingJobDirectory in Directory.EnumerateDirectories(jobRoot))
             await WorkspaceSecurity.ExpireStaleTestJobAsync(existingJobDirectory, cancellationToken);
@@ -628,9 +629,11 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/build-runs", async (Guid wo
     var jobRoot = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     var jobId = Guid.NewGuid();
-    var jobDirectory = Path.Combine(jobRoot, jobId.ToString("N"));
+    var jobDirectory = string.Empty;
     try
     {
+        if (!WorkspaceSecurity.TryResolveStorageChild(jobRoot, jobId.ToString("N"), out jobDirectory))
+            return Results.Problem("Sandbox iş kuyruğu yolu güvenli değil.", statusCode: StatusCodes.Status503ServiceUnavailable);
         if (!Directory.Exists(jobRoot)) return Results.Problem("Sandbox iş kuyruğu yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
         foreach (var existingJobDirectory in Directory.EnumerateDirectories(jobRoot))
             await WorkspaceSecurity.ExpireStaleTestJobAsync(existingJobDirectory, cancellationToken);
@@ -664,8 +667,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/build-runs/{jobId:guid}", as
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (jobId == Guid.Empty) return Results.BadRequest(new { error = "Build işi kimliği geçersiz." });
     var root = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
-    var jobDirectory = Path.GetFullPath(Path.Combine(root, jobId.ToString("N")));
-    if (!jobDirectory.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return Results.BadRequest();
+    if (!WorkspaceSecurity.TryResolveStorageChild(root, jobId.ToString("N"), out var jobDirectory)) return Results.NotFound();
     if (!Directory.Exists(jobDirectory)) return Results.NotFound();
     try
     {
@@ -687,9 +689,8 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/test-runs/{jobId:guid}", asy
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (jobId == Guid.Empty) return Results.BadRequest(new { error = "Test işi kimliği geçersiz." });
-    var jobDirectory = Path.GetFullPath(Path.Combine(Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs"), jobId.ToString("N")));
     var root = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
-    if (!jobDirectory.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return Results.BadRequest();
+    if (!WorkspaceSecurity.TryResolveStorageChild(root, jobId.ToString("N"), out var jobDirectory)) return Results.NotFound();
     var resultPath = Path.Combine(jobDirectory, "result.json");
     if (!Directory.Exists(jobDirectory)) return Results.NotFound();
     try
@@ -859,6 +860,20 @@ internal static class WorkspaceSecurity
             catch (DirectoryNotFoundException) { return false; }
         }
         return false;
+    }
+    internal static bool TryResolveStorageChild(string root, string childName, out string path)
+    {
+        path = null!;
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(childName) ||
+            childName.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, ':']) >= 0 ||
+            childName is "." or "..") return false;
+        var fullRoot = Path.GetFullPath(root);
+        var candidate = Path.GetFullPath(Path.Combine(fullRoot, childName));
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var prefix = Path.EndsInDirectorySeparator(fullRoot) ? fullRoot : fullRoot + Path.DirectorySeparatorChar;
+        if (!candidate.StartsWith(prefix, comparison) || HasReparsePointInPath(fullRoot) || HasReparsePointInPath(candidate)) return false;
+        path = candidate;
+        return true;
     }
     internal static bool TryResolveFile(string root, Guid workspaceId, string? relativePath, out string? filePath, out string? error)
     {
@@ -1541,10 +1556,9 @@ internal static class WorkspaceSecurity
         const long maxFileBytes = 16 * 1024 * 1024;
         Directory.CreateDirectory(packageRoot);
         var fullPackageRoot = Path.GetFullPath(packageRoot);
-        var archivePath = Path.GetFullPath(Path.Combine(fullPackageRoot, $"{request.PackageId:N}.zip"));
-        var metadataPath = Path.ChangeExtension(archivePath, ".json");
-        var temporaryPath = archivePath + $".{Guid.NewGuid():N}.tmp";
-        if (!archivePath.StartsWith(fullPackageRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        if (!TryResolveStorageChild(fullPackageRoot, $"{request.PackageId:N}.zip", out var archivePath) ||
+            !TryResolveStorageChild(fullPackageRoot, $"{request.PackageId:N}.json", out var metadataPath) ||
+            !TryResolveStorageChild(fullPackageRoot, $"{request.PackageId:N}.zip.{Guid.NewGuid():N}.tmp", out var temporaryPath))
             throw new InvalidDataException("Release package path is invalid.");
         var manifestCreatedAt = DateTimeOffset.UtcNow;
         var files = new List<ReleasePackageFile>();
