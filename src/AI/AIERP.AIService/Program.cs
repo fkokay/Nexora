@@ -921,11 +921,7 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var result = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
         if (name == "list_warehouses")
-            return JsonSerializer.Serialize(result.RootElement.EnumerateArray().Select(item => new
-            {
-                id = item.GetProperty("id").GetGuid(), code = item.GetProperty("code").GetString(),
-                name = item.GetProperty("name").GetString(), active = item.GetProperty("isActive").GetBoolean()
-            }));
+            return ERPWarehouseToolResult.Serialize(result.RootElement);
         if (name == "search_stock_items")
         {
             var items = result.RootElement.GetProperty("items").EnumerateArray().Select(item => new

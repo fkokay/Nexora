@@ -68,7 +68,7 @@ public sealed class StripePaymentIntentAdapter : IERPIntegrationAdapter<JsonElem
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object ||
                 !TryString(root, "id", 128, out var id) || !id.StartsWith("pi_", StringComparison.Ordinal) ||
-                !TryString(root, "status", 64, out var status))
+                !TryString(root, "status", 64, out var status) || !IsPaymentIntentStatus(status))
                 return Failure("provider_error", false);
 
             var result = new Dictionary<string, object?> { ["id"] = id, ["status"] = status };
@@ -133,6 +133,10 @@ public sealed class StripePaymentIntentAdapter : IERPIntegrationAdapter<JsonElem
         value = candidate;
         return true;
     }
+
+    private static bool IsPaymentIntentStatus(string status) => status is
+        "requires_payment_method" or "requires_confirmation" or "requires_action" or
+        "processing" or "requires_capture" or "canceled" or "succeeded";
 
     private static async Task<byte[]> ReadBoundedAsync(HttpContent content, CancellationToken cancellationToken)
     {

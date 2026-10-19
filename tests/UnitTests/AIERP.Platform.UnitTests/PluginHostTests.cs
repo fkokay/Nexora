@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
 using AIERP.ModuleSDK;
@@ -44,6 +45,20 @@ public sealed class PluginHostTests
     }
 
     [Fact]
+    public void ModulePackageArchive_StopsWhenInflatedPayloadExceedsUntrustedDeclaredLength()
+    {
+        var package = BuildPackage(("module.wasm", new byte[12 * 1024 * 1024]));
+        var centralDirectory = FindSignature(package, 0x02014b50);
+        Assert.True(centralDirectory >= 0);
+        // ZIP central-directory uncompressed-size field. Keep the payload small on
+        // disk but make its declared length pass the normal 8 MiB pre-check.
+        BinaryPrimitives.WriteUInt32LittleEndian(package.AsSpan(centralDirectory + 24, sizeof(uint)), 1);
+
+        var exception = Assert.Throws<InvalidDataException>(() => ModulePackageArchive.ExtractWasm(package));
+        Assert.Contains("declared or maximum size", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WasmModuleRuntime_InvokesFixedJsonAbiAndRejectsImports()
     {
         using var runtime = new WasmModuleRuntime();
@@ -74,6 +89,14 @@ public sealed class PluginHostTests
             entry.Write(contents);
         }
         return output.ToArray();
+    }
+
+    private static int FindSignature(byte[] bytes, uint signature)
+    {
+        for (var offset = 0; offset <= bytes.Length - sizeof(uint); offset++)
+            if (BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset, sizeof(uint))) == signature)
+                return offset;
+        return -1;
     }
 
     private static byte[] BuildModule(bool importFunction = false, bool infiniteLoop = false)

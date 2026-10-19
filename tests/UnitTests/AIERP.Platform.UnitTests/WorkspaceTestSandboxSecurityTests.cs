@@ -53,4 +53,37 @@ public sealed class WorkspaceTestSandboxSecurityTests
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
     }
+
+    [Fact]
+    public void Archive_extraction_rejects_existing_symlink_ancestors()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "aierp-test-archive-link-" + Guid.NewGuid().ToString("N"));
+        var destination = Path.Combine(root, "destination");
+        var outside = Path.Combine(root, "outside");
+        var archivePath = Path.Combine(root, "snapshot.zip");
+        Directory.CreateDirectory(destination);
+        Directory.CreateDirectory(outside);
+        try
+        {
+            try { Directory.CreateSymbolicLink(Path.Combine(destination, "linked"), outside); }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+            {
+                return; // Windows environments without symlink privileges cannot exercise this filesystem case.
+            }
+
+            using (var archive = ZipFile.Open(archivePath, ZipArchiveMode.Create))
+            using (var entry = archive.CreateEntry("linked/payload.txt").Open())
+            using (var writer = new StreamWriter(entry))
+                writer.Write("must not be written through the link");
+
+            var extractionException = Assert.ThrowsAny<Exception>(() => TestJobWorker.ExtractArchive(archivePath, destination));
+
+            Assert.Contains("symbolic link or reparse point", extractionException.Message, StringComparison.Ordinal);
+            Assert.False(File.Exists(Path.Combine(outside, "payload.txt")));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
 }

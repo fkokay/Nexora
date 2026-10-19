@@ -45,6 +45,26 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
     }
 
     [Fact]
+    public void Safe_child_rejects_windows_trailing_dot_and_space_aliases()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-alias-{Guid.NewGuid():N}");
+        Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(root, "release./current.json"));
+        Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(root, "release /current.json"));
+    }
+
+    [Fact]
+    public void Safe_child_rejects_windows_device_name_aliases()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-devices-{Guid.NewGuid():N}");
+        foreach (var name in new[] { "CON", "nul.txt", "PRN.log", "AUX.data", "COM1.bin", "COM9", "COM¹.txt", "LPT3.csv", "LPT²", "CONIN$.txt", "CONOUT$" })
+            Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(root, $"packages/{name}"));
+    }
+
+    [Fact]
     public async Task Actual_deployer_api_handles_compose_failures_without_touching_external_docker_or_volumes()
     {
         Assert.False(global::ReleaseDeployerDockerExecutionPolicy.IsTestOverrideAllowed("Production"));

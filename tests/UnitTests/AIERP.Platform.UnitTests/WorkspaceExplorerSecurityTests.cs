@@ -190,6 +190,47 @@ public sealed class WorkspaceExplorerSecurityTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
+    [Theory]
+    [InlineData(".env")]
+    [InlineData(".env.production")]
+    [InlineData("config/secrets.json")]
+    [InlineData("config/credential-store.json")]
+    public void Workspace_file_resolution_rejects_conventional_secret_files(string path)
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-workspaces-{Guid.NewGuid():N}");
+        var workspaceId = Guid.NewGuid();
+        var workspace = Path.Combine(root, workspaceId.ToString("N"));
+        Directory.CreateDirectory(Path.Combine(workspace, ".git"));
+        var file = Path.Combine(workspace, path.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        File.WriteAllText(file, "sensitive value");
+        try
+        {
+            Assert.False(WorkspaceSecurity.TryResolveFile(root, workspaceId, path, out _, out _));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void Workspace_path_resolution_rejects_windows_trailing_dot_and_space_aliases()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-workspaces-{Guid.NewGuid():N}");
+        var workspaceId = Guid.NewGuid();
+        var workspace = Path.Combine(root, workspaceId.ToString("N"));
+        Directory.CreateDirectory(Path.Combine(workspace, ".git"));
+        File.WriteAllText(Path.Combine(root, "outside.txt"), "outside");
+        try
+        {
+            Assert.False(WorkspaceSecurity.TryResolveDirectory(root, workspaceId, ".git ", out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveDirectory(root, workspaceId, ".. ", out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveFile(root, workspaceId, ".git /config", out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveFile(root, workspaceId, ".. /outside.txt", out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveNewFile(root, workspaceId, "src/new.cs.", out _, out _));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     [Fact]
     public void Workspace_file_resolution_rejects_symbolic_link_files()
     {

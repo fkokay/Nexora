@@ -828,7 +828,8 @@ internal static class WorkspaceSecurity
             { error = "Dosya yolu geçersiz."; return false; }
             foreach (var segment in relativePath.Split('/'))
             {
-                if (segment.Length == 0 || segment is "." or ".." || string.Equals(segment, ".git", StringComparison.OrdinalIgnoreCase) || segment.Any(char.IsControl))
+                if (segment.Length == 0 || segment is "." or ".." || HasWindowsTrailingDotOrSpace(segment) ||
+                    string.Equals(segment, ".git", StringComparison.OrdinalIgnoreCase) || segment.Any(char.IsControl))
                 { error = "Dosya yolu geçersiz."; return false; }
                 current = Path.GetFullPath(Path.Combine(current, segment));
                 if (!current.StartsWith(workspace + Path.DirectorySeparatorChar, StringComparison.Ordinal))
@@ -865,10 +866,15 @@ internal static class WorkspaceSecurity
         if (string.IsNullOrWhiteSpace(relativePath) || relativePath.StartsWith('/') || relativePath.Contains('\\') ||
             relativePath.Contains(':') || relativePath.Length > 500 || relativePath.Any(char.IsControl))
         { error = "Dosya yolu geçersiz."; return false; }
+        // The runner's file-content endpoint is used by AI services. Never let it read
+        // conventional local secret files, even when they are regular files in the checkout.
+        if (IsSensitiveReadPath(relativePath))
+        { error = "Dosya yolu güvenli kapsam dışında."; return false; }
         var separator = relativePath.LastIndexOf('/');
         var parent = separator < 0 ? "" : relativePath[..separator];
         var name = separator < 0 ? relativePath : relativePath[(separator + 1)..];
-        if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || HasWindowsTrailingDotOrSpace(name) ||
+            string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase))
         { error = "Dosya yolu geçersiz."; return false; }
         if (!TryResolveDirectory(root, workspaceId, parent, out var directory, out error)) return false;
         var candidate = Path.GetFullPath(Path.Combine(directory!, name));
@@ -880,6 +886,11 @@ internal static class WorkspaceSecurity
         { error = "Sembolik bağlantı dosyaları açılamaz."; return false; }
         filePath = candidate; return true;
     }
+    private static bool IsSensitiveReadPath(string path) => path.Split('/').Any(segment =>
+        segment.Equals(".env", StringComparison.OrdinalIgnoreCase) ||
+        segment.StartsWith(".env.", StringComparison.OrdinalIgnoreCase) ||
+        segment.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
+        segment.Contains("credential", StringComparison.OrdinalIgnoreCase));
     internal static bool TryResolveNewFile(string root, Guid workspaceId, string? relativePath, out string? filePath, out string? error)
     {
         filePath = null; error = null;
@@ -889,7 +900,8 @@ internal static class WorkspaceSecurity
         var separator = relativePath.LastIndexOf('/');
         var parent = separator < 0 ? "" : relativePath[..separator];
         var name = separator < 0 ? relativePath : relativePath[(separator + 1)..];
-        if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || HasWindowsTrailingDotOrSpace(name) ||
+            string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase))
         { error = "Dosya yolu geçersiz."; return false; }
         if (!TryResolveDirectory(root, workspaceId, parent, out var directory, out error)) return false;
         var candidate = Path.GetFullPath(Path.Combine(directory!, name));
@@ -899,6 +911,8 @@ internal static class WorkspaceSecurity
         if (File.Exists(candidate) || Directory.Exists(candidate)) { error = "file_exists"; return false; }
         filePath = candidate; return true;
     }
+    private static bool HasWindowsTrailingDotOrSpace(string segment) => OperatingSystem.IsWindows() &&
+        (segment.EndsWith(' ') || segment.EndsWith('.'));
     internal static bool IsWritableSourcePath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path) || path.Length > 500 || path.StartsWith('/') || path.Contains('\\') || path.Contains(':') || path.Any(char.IsControl)) return false;

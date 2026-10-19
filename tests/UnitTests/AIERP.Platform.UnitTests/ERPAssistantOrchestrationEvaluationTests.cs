@@ -34,6 +34,22 @@ public sealed class ERPAssistantOrchestrationEvaluationTests
         testCase.AuthorizedToolResult, testCase.ScriptedAnswer
     });
 
+    [Fact]
+    public void Warehouse_tool_result_is_bounded_by_rows_and_serialized_size()
+    {
+        var warehouses = JsonDocument.Parse(JsonSerializer.Serialize(Enumerable.Range(1, 150).Select(index => new
+        {
+            id = Guid.NewGuid(), code = $"W{index}", name = new string('x', 500), isActive = true
+        })));
+
+        var serialized = ERPWarehouseToolResult.Serialize(warehouses.RootElement);
+        using var result = JsonDocument.Parse(serialized);
+
+        Assert.True(result.RootElement.GetArrayLength() <= 100);
+        Assert.True(serialized.Length <= 16_000);
+        Assert.All(result.RootElement.EnumerateArray(), item => Assert.Equal(128, item.GetProperty("name").GetString()!.Length));
+    }
+
     [Theory]
     [MemberData(nameof(AllowedToolCases))]
     public async Task Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(string caseId, string expectedName, string arguments, string prompt, string authorizedToolResult, string expectedAnswer)

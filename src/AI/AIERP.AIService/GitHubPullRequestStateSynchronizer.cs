@@ -40,8 +40,7 @@ public static class GitHubPullRequestStateSynchronizer
         audit = null;
         if (!string.Equals(candidate.GitHubRepository, webhook.Repository, StringComparison.OrdinalIgnoreCase) ||
             candidate.GitHubPullRequestNumber != webhook.Number ||
-            string.Equals(candidate.GitHubPullRequestState, "merged", StringComparison.OrdinalIgnoreCase) ||
-            candidate.GitHubPullRequestUpdatedAt is { } currentUpdatedAt && webhook.UpdatedAt <= currentUpdatedAt) return false;
+            string.Equals(candidate.GitHubPullRequestState, "merged", StringComparison.OrdinalIgnoreCase)) return false;
         // A linked release candidate may only be marked releasable when the event
         // proves its current PR head is the exact commit that was tested.
         if (string.IsNullOrWhiteSpace(candidate.CommitSha) || string.IsNullOrWhiteSpace(webhook.HeadSha)) return false;
@@ -49,6 +48,11 @@ public static class GitHubPullRequestStateSynchronizer
             ? webhook.State
             : "head-changed";
         var stateChanged = !string.Equals(candidate.GitHubPullRequestState, state, StringComparison.OrdinalIgnoreCase);
+        // GitHub's updated_at values have second-level precision. Distinct events
+        // in the same second can share a timestamp, so reject older events and
+        // same-state redeliveries while still applying a real equal-time transition.
+        if (candidate.GitHubPullRequestUpdatedAt is { } currentUpdatedAt &&
+            (webhook.UpdatedAt < currentUpdatedAt || webhook.UpdatedAt == currentUpdatedAt && !stateChanged)) return false;
         candidate.GitHubPullRequestState = state;
         candidate.GitHubPullRequestUpdatedAt = webhook.UpdatedAt;
         if (stateChanged)

@@ -24,6 +24,27 @@ public sealed class GitHubPullRequestWebhookIntegrationTests
     private const string ChangedSha = "abcdef0123456789abcdef0123456789abcdef01";
 
     [Fact]
+    public void Older_webhook_snapshot_cannot_regress_newer_pull_request_state_or_tested_head()
+    {
+        var latest = DateTimeOffset.Parse("2026-10-19T10:05:00Z");
+        var candidate = new ReleaseCandidateRecord
+        {
+            TenantId = Guid.NewGuid(), GitHubRepository = "nexora/erp", GitHubPullRequestNumber = 42,
+            CommitSha = TestedSha, GitHubPullRequestState = "open", GitHubPullRequestUpdatedAt = latest
+        };
+        var stale = new GitHubPullRequestWebhookEvent("nexora/erp", 42, "closed", "closed",
+            latest.AddMinutes(-1), ChangedSha);
+
+        var applied = GitHubPullRequestStateSynchronizer.TryApply(candidate, stale, "stale-delivery", out var audit);
+
+        Assert.False(applied);
+        Assert.Null(audit);
+        Assert.Equal("open", candidate.GitHubPullRequestState);
+        Assert.Equal(latest, candidate.GitHubPullRequestUpdatedAt);
+        Assert.True(GitHubPullRequestReleaseRules.CanRelease(candidate));
+    }
+
+    [Fact]
     public async Task Signed_route_tracks_pull_request_lifecycle_and_rejects_invalid_signature()
     {
         var options = new DbContextOptionsBuilder<AIStudioDbContext>()

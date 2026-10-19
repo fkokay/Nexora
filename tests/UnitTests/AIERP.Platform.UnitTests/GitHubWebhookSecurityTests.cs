@@ -98,6 +98,27 @@ public sealed class GitHubWebhookSecurityTests
     }
 
     [Fact]
+    public void Pull_request_sync_applies_distinct_same_second_transition_but_ignores_same_state_redelivery()
+    {
+        var updatedAt = DateTimeOffset.Parse("2026-10-19T10:00:00Z");
+        var testedCommit = "0123456789abcdef0123456789abcdef01234567";
+        var candidate = new ReleaseCandidateRecord
+        {
+            TenantId = Guid.NewGuid(), GitHubRepository = "nexora/erp", GitHubPullRequestNumber = 42,
+            GitHubPullRequestState = "draft", GitHubPullRequestUpdatedAt = updatedAt, CommitSha = testedCommit
+        };
+        var ready = new GitHubPullRequestWebhookEvent("nexora/erp", 42, "open", "ready_for_review", updatedAt, testedCommit);
+
+        Assert.True(GitHubPullRequestStateSynchronizer.TryApply(candidate, ready, "delivery-ready", out var audit));
+        Assert.Equal("open", candidate.GitHubPullRequestState);
+        Assert.Equal("studio.github.pull-request.state-synced", audit!.Action);
+
+        Assert.False(GitHubPullRequestStateSynchronizer.TryApply(candidate, ready, "delivery-redelivery", out var replayAudit));
+        Assert.Null(replayAudit);
+        Assert.Equal("open", candidate.GitHubPullRequestState);
+    }
+
+    [Fact]
     public void Verified_live_review_snapshot_advances_watermark_and_rejects_late_webhook()
     {
         var testedCommit = "0123456789abcdef0123456789abcdef01234567";
