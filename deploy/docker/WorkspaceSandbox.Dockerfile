@@ -14,6 +14,7 @@ RUN grep -q '^package unsafe$' /usr/local/go/src/unsafe/unsafe.go && \
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine
 # Alpine 3.24 does not yet provide the CVE-fixed libcurl package; update only libcurl from edge.
+# Alpine edge carries upstream security patches for Cargo's dynamically linked libssh2.
 RUN apk upgrade --no-cache && apk add --no-cache util-linux ca-certificates nodejs npm python3 py3-pip py3-pytest rust cargo build-base && \
     rm -rf /usr/share/powershell /usr/bin/pwsh && \
     mkdir -p /test-jobs /tmp/test-jobs /opt/nuget-feed && chmod 0750 /test-jobs && \
@@ -22,6 +23,7 @@ RUN apk upgrade --no-cache && apk add --no-cache util-linux ca-certificates node
     rm -rf /usr/lib/node_modules/npm && \
     apk del curl && \
     apk upgrade --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/edge/main libcurl && \
+    apk upgrade --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/edge/main libssh2 && \
     dotnet --list-sdks >/dev/null
 COPY deploy/npm-patches /tmp/npm-patches
 RUN npm ci --prefix /tmp/npm-patches --ignore-scripts --no-audit --no-fund && \

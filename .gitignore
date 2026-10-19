@@ -9,6 +9,7 @@ frontend/erp-web/dist/
 deploy/docker/integration-secrets/
 deploy/docker/sandbox-package-cache/
 deploy/docker/sandbox-package-cache-runtime/
+deploy/docker/sandbox-package-cache-r4/
 
 .local-scout-cache/
 
