@@ -393,8 +393,8 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
         for argument in "$@"; do
           if [ "$query_index" -eq 1 ]; then
             case "$argument" in
-              *"SELECT name FROM sys.databases"*) printf '%s\\n' "AIERPPlatform" ;;
-              *"BACKUP DATABASE"*) backup_file=$(printf '%s' "$argument" | sed -n "s/.*DISK = N'[^']*\\/\\([^']*\\)'.*/\\1/p"); if [ -n "$backup_file" ]; then mkdir -p "$AIERP_RELEASE_DEPLOYER_FAKE_BACKUP_ROOT"; printf 'fake verified backup' > "$AIERP_RELEASE_DEPLOYER_FAKE_BACKUP_ROOT/$backup_file"; fi ;;
+              *"SELECT name FROM sys.databases"*) printf '%s\n' "AIERPPlatform"; printf '%s\n' 'database-list' >> "$AIERP_RELEASE_DEPLOYER_FAKE_EFFECTS_LOG" ;;
+              *"BACKUP DATABASE"*) backup_path=${argument#*DISK = N?}; backup_path=${backup_path%%\'*}; backup_file=${backup_path##*/}; if [ -n "$backup_file" ]; then mkdir -p "$AIERP_RELEASE_DEPLOYER_FAKE_BACKUP_ROOT"; printf 'fake verified backup' > "$AIERP_RELEASE_DEPLOYER_FAKE_BACKUP_ROOT/$backup_file"; printf '%s\n' 'backup-created' >> "$AIERP_RELEASE_DEPLOYER_FAKE_EFFECTS_LOG"; fi ;;
             esac
             break
           fi
