@@ -1380,7 +1380,7 @@ public sealed class ReportEndpointsIntegrationTests
         var definition = new
         {
             source = "purchaseInvoices",
-            columns = new[] { "code", "orderCode", "receiptCode", "supplierCode", "invoiceDate", "dueDate", "currencyCode", "status", "grandTotal", "lineCount" },
+            columns = new[] { "code", "orderCode", "receiptCode", "supplierCode", "invoiceDate", "dueDate", "currencyCode", "grandTotal", "paidAmount", "returnedAmount", "outstandingAmount", "lineCount" },
             filters = new[] { new { field = "invoiceDate", @operator = "gte", value = "2026-10-01" } },
             sortBy = "invoiceDate", descending = false, page = 1, pageSize = 50
         };
@@ -1395,13 +1395,28 @@ public sealed class ReportEndpointsIntegrationTests
         Assert.Equal("CUST-A", row.GetProperty("supplierCode").GetString());
         Assert.Equal("USD", row.GetProperty("currencyCode").GetString());
         Assert.Equal(350m, row.GetProperty("grandTotal").GetDecimal());
+        Assert.Equal(125m, row.GetProperty("paidAmount").GetDecimal());
+        Assert.Equal(35m, row.GetProperty("returnedAmount").GetDecimal());
+        Assert.Equal(190m, row.GetProperty("outstandingAmount").GetDecimal());
         Assert.Equal(1, row.GetProperty("lineCount").GetInt32());
+
+        var openBalanceFilter = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "purchaseInvoices", columns = new[] { "code", "outstandingAmount" },
+            filters = new[] { new { field = "outstandingAmount", @operator = "gt", value = "190" } },
+            sortBy = "outstandingAmount", descending = true, page = 1, pageSize = 50
+        });
+        openBalanceFilter.EnsureSuccessStatusCode();
+        using var filteredResult = JsonDocument.Parse(await openBalanceFilter.Content.ReadAsStringAsync());
+        Assert.Equal(0, filteredResult.RootElement.GetProperty("totalCount").GetInt32());
 
         var csv = await client.PostAsJsonAsync("/api/reports/export", definition);
         csv.EnsureSuccessStatusCode();
         var csvText = await csv.Content.ReadAsStringAsync();
         Assert.Contains("PINV-A", csvText);
         Assert.DoesNotContain("PINV-B", csvText);
+        Assert.Contains("Açık bakiye", csvText);
+        Assert.Contains("190", csvText);
 
         var grouped = await client.PostAsJsonAsync("/api/reports/run", new
         {

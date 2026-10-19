@@ -56,7 +56,9 @@ public static class ReportEndpoints
         new("dueDate", "Vade tarihi", "date"), new("currencyCode", "Para birimi", "text"),
         new("status", "Durum", "text", ["Posted", "Voided"]), new("subtotal", "Ara toplam", "decimal"),
         new("discountTotal", "İskonto toplamı", "decimal"), new("taxTotal", "Vergi toplamı", "decimal"),
-        new("grandTotal", "Genel toplam", "decimal"), new("lineCount", "Satır sayısı", "number"),
+        new("grandTotal", "Genel toplam", "decimal"), new("paidAmount", "Ödenen", "decimal"),
+        new("returnedAmount", "İade toplamı", "decimal"), new("outstandingAmount", "Açık bakiye", "decimal"),
+        new("lineCount", "Satır sayısı", "number"),
         new("createdAt", "Oluşturulma", "date")
     ];
     private static readonly IReadOnlyList<ReportColumn> ManufacturingOrderColumns =
@@ -1139,6 +1141,7 @@ public static class ReportEndpoints
         var rows = await ApplyPurchaseInvoiceSort(query, report.SortBy, report.Descending)
             .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize)
             .Include(x => x.PurchaseOrder).Include(x => x.PurchaseReceipt).Include(x => x.Supplier).Include(x => x.Lines)
+            .Include(x => x.Payments).Include(x => x.Returns)
             .AsSplitQuery().ToListAsync(ct);
         var resultRows = rows.Select(invoice => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(
             code => code, code => ReadPurchaseInvoiceValue(invoice, code), StringComparer.Ordinal)).ToArray();
@@ -1159,6 +1162,7 @@ public static class ReportEndpoints
         if (count > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
         var rows = await ApplyPurchaseInvoiceSort(query, report.SortBy, report.Descending).Take(10_000)
             .Include(x => x.PurchaseOrder).Include(x => x.PurchaseReceipt).Include(x => x.Supplier).Include(x => x.Lines)
+            .Include(x => x.Payments).Include(x => x.Returns)
             .AsSplitQuery().ToListAsync(ct);
         var csv = new StringBuilder().Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(PurchaseInvoiceColumnByCode(code).Label))));
         foreach (var invoice in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadPurchaseInvoiceValue(invoice, code)))));
@@ -3228,10 +3232,24 @@ public static class ReportEndpoints
             case "createdAt":
                 if (!DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var createdAt)) { error = "Oluşturulma filtresi ISO tarih olmalıdır."; return false; }
                 query = filter.Operator switch { "gt" => query.Where(x => x.CreatedAt > createdAt), "gte" => query.Where(x => x.CreatedAt >= createdAt), "lt" => query.Where(x => x.CreatedAt < createdAt), "lte" => query.Where(x => x.CreatedAt <= createdAt), _ => query.Where(x => x.CreatedAt == createdAt) }; return true;
-            case "subtotal": case "discountTotal": case "taxTotal": case "grandTotal":
+            case "outstandingAmount":
+                if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var outstandingAmount)) { error = "Açık bakiye filtresi sayısal olmalıdır."; return false; }
+                query = ApplyPurchaseInvoiceOutstandingFilter(query, filter.Operator, outstandingAmount);
+                return true;
+            case "paidAmount": case "returnedAmount": case "subtotal": case "discountTotal": case "taxTotal": case "grandTotal":
                 if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)) { error = "Tutar filtresi sayısal olmalıdır."; return false; }
                 query = (filter.Field, filter.Operator) switch
                 {
+                    ("paidAmount", "gt") => query.Where(x => (x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m) > amount),
+                    ("paidAmount", "gte") => query.Where(x => (x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m) >= amount),
+                    ("paidAmount", "lt") => query.Where(x => (x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m) < amount),
+                    ("paidAmount", "lte") => query.Where(x => (x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m) <= amount),
+                    ("paidAmount", _) => query.Where(x => (x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m) == amount),
+                    ("returnedAmount", "gt") => query.Where(x => (x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) > amount),
+                    ("returnedAmount", "gte") => query.Where(x => (x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) >= amount),
+                    ("returnedAmount", "lt") => query.Where(x => (x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) < amount),
+                    ("returnedAmount", "lte") => query.Where(x => (x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) <= amount),
+                    ("returnedAmount", _) => query.Where(x => (x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) == amount),
                     ("subtotal", "gt") => query.Where(x => x.Subtotal > amount), ("subtotal", "gte") => query.Where(x => x.Subtotal >= amount), ("subtotal", "lt") => query.Where(x => x.Subtotal < amount), ("subtotal", "lte") => query.Where(x => x.Subtotal <= amount), ("subtotal", _) => query.Where(x => x.Subtotal == amount),
                     ("discountTotal", "gt") => query.Where(x => x.DiscountTotal > amount), ("discountTotal", "gte") => query.Where(x => x.DiscountTotal >= amount), ("discountTotal", "lt") => query.Where(x => x.DiscountTotal < amount), ("discountTotal", "lte") => query.Where(x => x.DiscountTotal <= amount), ("discountTotal", _) => query.Where(x => x.DiscountTotal == amount),
                     ("taxTotal", "gt") => query.Where(x => x.TaxTotal > amount), ("taxTotal", "gte") => query.Where(x => x.TaxTotal >= amount), ("taxTotal", "lt") => query.Where(x => x.TaxTotal < amount), ("taxTotal", "lte") => query.Where(x => x.TaxTotal <= amount), ("taxTotal", _) => query.Where(x => x.TaxTotal == amount),
@@ -3703,7 +3721,44 @@ public static class ReportEndpoints
         (_, false) => query.OrderBy(x => x.ReceiptDate).ThenBy(x => x.Id), _ => query.OrderByDescending(x => x.ReceiptDate).ThenBy(x => x.Id)
     };
 
-    private static IQueryable<PurchaseInvoice> ApplyPurchaseInvoiceSort(IQueryable<PurchaseInvoice> query, string field, bool descending) => (field, descending) switch
+    private static IQueryable<PurchaseInvoice> ApplyPurchaseInvoiceOutstandingFilter(IQueryable<PurchaseInvoice> query, string operation, decimal amount)
+    {
+        var balances = from invoice in query
+            let paid = invoice.Payments.Where(x => x.TenantId == invoice.TenantId && x.Status == SupplierPaymentStatus.Posted).Sum(x => (decimal?)x.Amount) ?? 0m
+            let returned = invoice.Returns.Where(x => x.TenantId == invoice.TenantId && x.Status == SupplierReturnStatus.Posted).Sum(x => (decimal?)x.GrandTotal) ?? 0m
+            let raw = invoice.GrandTotal - paid - returned
+            select new { Invoice = invoice, Outstanding = raw > 0m ? raw : 0m };
+        var filtered = operation switch
+        {
+            "gt" => balances.Where(x => x.Outstanding > amount), "gte" => balances.Where(x => x.Outstanding >= amount),
+            "lt" => balances.Where(x => x.Outstanding < amount), "lte" => balances.Where(x => x.Outstanding <= amount),
+            _ => balances.Where(x => x.Outstanding == amount)
+        };
+        return filtered.Select(x => x.Invoice);
+    }
+
+    private static IQueryable<PurchaseInvoice> ApplyPurchaseInvoiceSort(IQueryable<PurchaseInvoice> query, string field, bool descending)
+    {
+        if (field == "paidAmount")
+            return descending
+                ? query.OrderByDescending(x => x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m).ThenBy(x => x.Id)
+                : query.OrderBy(x => x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m).ThenBy(x => x.Id);
+        if (field == "returnedAmount")
+            return descending
+                ? query.OrderByDescending(x => x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m).ThenBy(x => x.Id)
+                : query.OrderBy(x => x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m).ThenBy(x => x.Id);
+        if (field == "outstandingAmount")
+        {
+            var balances = from invoice in query
+                let paid = invoice.Payments.Where(x => x.TenantId == invoice.TenantId && x.Status == SupplierPaymentStatus.Posted).Sum(x => (decimal?)x.Amount) ?? 0m
+                let returned = invoice.Returns.Where(x => x.TenantId == invoice.TenantId && x.Status == SupplierReturnStatus.Posted).Sum(x => (decimal?)x.GrandTotal) ?? 0m
+                let raw = invoice.GrandTotal - paid - returned
+                select new { Invoice = invoice, Outstanding = raw > 0m ? raw : 0m };
+            return (descending
+                ? balances.OrderByDescending(x => x.Outstanding).ThenBy(x => x.Invoice.Id)
+                : balances.OrderBy(x => x.Outstanding).ThenBy(x => x.Invoice.Id)).Select(x => x.Invoice);
+        }
+        return (field, descending) switch
     {
         ("code", false) => query.OrderBy(x => x.Code).ThenBy(x => x.Id), ("code", true) => query.OrderByDescending(x => x.Code).ThenBy(x => x.Id),
         ("orderCode", false) => query.OrderBy(x => x.PurchaseOrder.Code).ThenBy(x => x.Id), ("orderCode", true) => query.OrderByDescending(x => x.PurchaseOrder.Code).ThenBy(x => x.Id),
@@ -3721,7 +3776,8 @@ public static class ReportEndpoints
         ("lineCount", false) => query.OrderBy(x => x.Lines.Count).ThenBy(x => x.Id), ("lineCount", true) => query.OrderByDescending(x => x.Lines.Count).ThenBy(x => x.Id),
         ("createdAt", false) => query.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id), ("createdAt", true) => query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id),
         (_, false) => query.OrderBy(x => x.Code).ThenBy(x => x.Id), _ => query.OrderByDescending(x => x.Code).ThenBy(x => x.Id)
-    };
+        };
+    }
 
     private static object? ReadPurchaseInvoiceValue(PurchaseInvoice x, string code) => code switch
     {
@@ -3729,7 +3785,13 @@ public static class ReportEndpoints
         "supplierCode" => x.Supplier.Code, "supplierName" => x.Supplier.Name, "invoiceDate" => x.InvoiceDate,
         "dueDate" => x.DueDate, "currencyCode" => x.CurrencyCode, "status" => x.Status.ToString(),
         "subtotal" => x.Subtotal, "discountTotal" => x.DiscountTotal, "taxTotal" => x.TaxTotal,
-        "grandTotal" => x.GrandTotal, "lineCount" => x.Lines.Count, "createdAt" => x.CreatedAt, _ => null
+        "grandTotal" => x.GrandTotal,
+        "paidAmount" => x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => p.Amount),
+        "returnedAmount" => x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => r.GrandTotal),
+        "outstandingAmount" => Math.Max(0m, x.GrandTotal -
+            x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => p.Amount) -
+            x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => r.GrandTotal)),
+        "lineCount" => x.Lines.Count, "createdAt" => x.CreatedAt, _ => null
     };
 
     private static object? ReadPurchaseReceiptValue(PurchaseReceipt x, string code) => code switch
