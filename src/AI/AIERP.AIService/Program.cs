@@ -2143,6 +2143,67 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("GitHub geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("GitHub inceleme talebi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/mark-pull-request-ready", async (Guid projectId, Guid requestId, Guid candidateId, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider tokenProvider, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var candidate = await db.ReleaseCandidateRecords.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId &&
+        x.WorkspaceRequestId == requestId && x.Id == candidateId, cancellationToken);
+    if (candidate is null) return Results.NotFound();
+    if (candidate.GitHubPullRequestNumber is null || string.IsNullOrWhiteSpace(candidate.GitHubRepository) ||
+        project.GitHubInstallationId is not long installationId || installationId <= 0)
+        return Results.Conflict(new { error = "GitHub PR veya repository yetkilendirmesi bulunamadı." });
+    var review = await db.ReleaseCandidateReviewRecords.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidateId, cancellationToken);
+    if (review?.Decision != "Approved" || review.ReviewedByUserId == candidate.CreatedByUserId)
+        return Results.Conflict(new { error = "Draft PR yalnız adayı oluşturan kişiden bağımsız yetkili onayından sonra hazır duruma alınabilir." });
+    var repositoryParts = candidate.GitHubRepository.Split('/');
+    if (repositoryParts.Length != 2)
+        return Results.Conflict(new { error = "GitHub repository kaydı geçersiz." });
+    var owner = repositoryParts[0];
+    var repository = repositoryParts[1];
+    if (owner.Length is < 1 or > 100 || repository.Length is < 1 or > 100 ||
+        owner.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_')) ||
+        repository.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('.' or '-' or '_')))
+        return Results.Conflict(new { error = "GitHub repository kaydı geçersiz." });
+    try
+    {
+        var installationToken = await tokenProvider.CreateRepositoryTokenAsync(installationId, candidate.GitHubRepository, cancellationToken);
+        using var github = clients.CreateClient("github-api");
+        github.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", installationToken);
+        var repoPath = $"{Uri.EscapeDataString(owner)}/{Uri.EscapeDataString(repository)}";
+        using var currentResponse = await github.GetAsync($"repos/{repoPath}/pulls/{candidate.GitHubPullRequestNumber}", cancellationToken);
+        if (!currentResponse.IsSuccessStatusCode)
+            return Results.Problem("GitHub PR durumu doğrulanamadı.", statusCode: StatusCodes.Status502BadGateway);
+        var current = await currentResponse.Content.ReadFromJsonAsync<GitHubPullRequestResponse>(cancellationToken: cancellationToken);
+        if (current is null || current.State != "open" || !current.Draft || string.IsNullOrWhiteSpace(current.NodeId) ||
+            !string.Equals(current.Head?.Sha, candidate.CommitSha, StringComparison.OrdinalIgnoreCase))
+            return Results.Conflict(new { error = "Yalnız açık draft PR, test edilen aynı commit ve bağımsız yetkili onayıyla hazır yapılabilir." });
+        var markedReady = await GitHubPullRequestLifecycle.MarkReadyForReviewAsync(github, current.NodeId, cancellationToken);
+        using var verifiedResponse = await github.GetAsync($"repos/{repoPath}/pulls/{candidate.GitHubPullRequestNumber}", cancellationToken);
+        if (!verifiedResponse.IsSuccessStatusCode)
+            return Results.Problem("GitHub PR geçişi tamamlandı ancak yeni durum doğrulanamadı.", statusCode: StatusCodes.Status502BadGateway);
+        var verified = await verifiedResponse.Content.ReadFromJsonAsync<GitHubPullRequestResponse>(cancellationToken: cancellationToken);
+        if (verified is null || verified.State != "open" ||
+            !string.Equals(verified.Head?.Sha, candidate.CommitSha, StringComparison.OrdinalIgnoreCase))
+            return Results.Conflict(new { error = "PR hazır duruma alındı ancak release adayıyla aynı HEAD doğrulanamadı." });
+        if (verified.Draft)
+            return Results.Problem(markedReady ? "GitHub geçişi yanıt verdi ancak PR hâlâ taslak." : "GitHub PR incelemeye hazır duruma alınamadı.", statusCode: StatusCodes.Status502BadGateway);
+        if (!GitHubPullRequestStateSynchronizer.ApplyVerifiedSnapshot(candidate, verified.State, verified.Draft, verified.Head?.Sha, verified.UpdatedAt))
+            return Results.Conflict(new { error = "GitHub PR daha yeni bir durumla güncellendi; release adayı yenileyip tekrar deneyin." });
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.release.pull-request.ready-for-review", Resource = $"{requestId:D}:{candidateId:D}:{candidate.GitHubPullRequestNumber}:{candidate.CommitSha}" });
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Ok(new { pullNumber = candidate.GitHubPullRequestNumber, htmlUrl = candidate.GitHubPullRequestUrl, state = candidate.GitHubPullRequestState, commitSha = candidate.CommitSha });
+    }
+    catch (GitHubAppConfigurationException) { return Results.Problem("GitHub App yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable); }
+    catch (GitHubIntegrationException) { return Results.Problem("GitHub App bu repository için yetki veremedi.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (HttpRequestException) { return Results.Problem("GitHub'a bağlanılamadı.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (System.Text.Json.JsonException) { return Results.Problem("GitHub geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("GitHub PR geçişi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
+}).RequireAuthorization().RequireRateLimiting("workspace-write");
 app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/pull-request-review", async (Guid projectId, Guid requestId, Guid candidateId, SubmitGitHubPullRequestReview body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider tokenProvider, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
@@ -4119,7 +4180,7 @@ internal sealed record RestoreProductionDatabase(Guid IdempotencyKey, Guid Expec
 internal sealed record DeployerRestoreProductionDeployment(Guid DeploymentId, Guid TenantId, Guid ProjectId, Guid PackageId, Guid IdempotencyKey, Guid ExpectedActiveDeploymentId, Guid BackupDeploymentId, Guid TargetDeploymentId, string PackageSha256, string CommitSha, string Version);
 internal sealed record StudioStagingDeploymentOperationResult(StudioReleaseDeploymentView Deployment, string BootstrapEmail, string BootstrapPassword);
 internal sealed record RunnerPushBranchResponse(string BranchName, string CommitSha, bool Pushed);
-internal sealed record GitHubPullRequestResponse(int Number, [property: JsonPropertyName("html_url")] string? HtmlUrl, string? State, bool Draft, [property: JsonPropertyName("head")] GitHubPullRequestHead? Head, [property: JsonPropertyName("updated_at")] DateTimeOffset? UpdatedAt);
+internal sealed record GitHubPullRequestResponse(int Number, [property: JsonPropertyName("html_url")] string? HtmlUrl, string? State, bool Draft, [property: JsonPropertyName("head")] GitHubPullRequestHead? Head, [property: JsonPropertyName("updated_at")] DateTimeOffset? UpdatedAt, [property: JsonPropertyName("node_id")] string? NodeId);
 internal sealed record GitHubPullRequestHead([property: JsonPropertyName("sha")] string? Sha);
 internal sealed record GitHubPullRequestReviewResponse(long Id, string? State, [property: JsonPropertyName("submitted_at")] DateTimeOffset? SubmittedAt);
 internal sealed record GitHubReviewCommentResponse(long Id, [property: JsonPropertyName("in_reply_to_id")] long? InReplyToId,
