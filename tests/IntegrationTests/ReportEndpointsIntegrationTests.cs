@@ -1256,8 +1256,56 @@ public sealed class ReportEndpointsIntegrationTests
     public async Task Sales_invoice_report_requires_currency_context_for_money_and_drills_by_date()
     {
         await using var app = await StartApplicationAsync();
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var invoice = await db.SalesInvoices.SingleAsync(x => x.TenantId == TenantA && x.Code == "INV-A");
+            var customer = await db.CustomerAccounts.SingleAsync(x => x.TenantId == TenantA && x.Code == "CUST-A");
+            var collection = new CustomerCollection
+            {
+                TenantId = TenantA, CustomerId = customer.Id, Customer = customer, RequestId = Guid.NewGuid(),
+                Code = "COL-A", CollectionDate = new DateOnly(2026, 10, 17), CurrencyCode = "USD", Amount = 100m
+            };
+            db.CustomerCollections.Add(collection);
+            db.CustomerCollectionAllocations.Add(new CustomerCollectionAllocation
+            {
+                TenantId = TenantA, CustomerCollectionId = collection.Id, CustomerCollection = collection,
+                SalesInvoiceId = invoice.Id, SalesInvoice = invoice, Amount = 100m
+            });
+            await db.SaveChangesAsync();
+        }
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+
+        var detailResponse = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "salesInvoices",
+            columns = new[] { "code", "currencyCode", "grandTotal", "paidAmount", "returnedAmount", "outstandingAmount" },
+            filters = new[] { new { field = "outstandingAmount", @operator = "equals", value = "125" } },
+            sortBy = "outstandingAmount", descending = true, page = 1, pageSize = 50
+        });
+        detailResponse.EnsureSuccessStatusCode();
+        using var detail = JsonDocument.Parse(await detailResponse.Content.ReadAsStringAsync());
+        Assert.Equal(1, detail.RootElement.GetProperty("totalCount").GetInt32());
+        var invoiceRow = detail.RootElement.GetProperty("rows")[0];
+        Assert.Equal("INV-A", invoiceRow.GetProperty("code").GetString());
+        Assert.Equal("USD", invoiceRow.GetProperty("currencyCode").GetString());
+        Assert.Equal(250m, invoiceRow.GetProperty("grandTotal").GetDecimal());
+        Assert.Equal(100m, invoiceRow.GetProperty("paidAmount").GetDecimal());
+        Assert.Equal(25m, invoiceRow.GetProperty("returnedAmount").GetDecimal());
+        Assert.Equal(125m, invoiceRow.GetProperty("outstandingAmount").GetDecimal());
+
+        var csvResponse = await client.PostAsJsonAsync("/api/reports/export", new
+        {
+            source = "salesInvoices",
+            columns = new[] { "code", "currencyCode", "grandTotal", "paidAmount", "returnedAmount", "outstandingAmount" },
+            filters = Array.Empty<object>(), sortBy = "outstandingAmount", descending = true, page = 1, pageSize = 50
+        });
+        csvResponse.EnsureSuccessStatusCode();
+        var csv = await csvResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Açık alacak", csv);
+        Assert.Contains("125", csv);
+        Assert.DoesNotContain("INV-B", csv);
 
         var unsafeAggregate = await client.PostAsJsonAsync("/api/reports/run", new
         {
