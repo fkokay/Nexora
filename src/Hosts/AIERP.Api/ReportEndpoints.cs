@@ -209,6 +209,12 @@ public static class ReportEndpoints
         new("sumAvailable", "Kullanılabilir miktar toplamı"), new("averageAvailable", "Ortalama kullanılabilir miktar"),
         new("sumMinimumStockGap", "Minimum stok açığı toplamı"), new("averageMinimumStockGap", "Ortalama minimum stok açığı")
     ];
+    private static readonly IReadOnlyList<ReportColumn> WarehouseStockColumns =
+    [
+        new("stockCode", "Stok kodu", "text"), new("stockName", "Stok adı", "text"), new("unitCode", "Birim", "text"),
+        new("warehouseCode", "Depo kodu", "text"), new("warehouseName", "Depo adı", "text"),
+        new("onHand", "Eldeki miktar", "decimal"), new("reserved", "Rezerve miktar", "decimal"), new("available", "Kullanılabilir miktar", "decimal")
+    ];
     private static readonly IReadOnlyList<ReportColumn> WorkflowInstanceColumns =
     [
         new("workflowCode", "İş akışı kodu", "text"), new("workflowName", "İş akışı adı", "text"),
@@ -328,6 +334,7 @@ public static class ReportEndpoints
                 new("purchaseRequests", "Satın alma talepleri", PurchaseRequestColumns, PurchaseRequestAggregates),
                 new("stockItems", "Stok kartları", StockItemColumns, StockItemAggregates)
             };
+            sources.Add(new("warehouseStock", "Depo bazında stok bakiyesi", WarehouseStockColumns, []));
             sources.Add(new("bankStatements", "Banka ekstreleri", BankStatementColumns, []));
             sources.Add(new("financialAccountTransactions", "Kasa-banka hareketleri", FinancialAccountTransactionColumns, []));
             sources.Add(new("financialAccountTransfers", "Kasa-banka hesap transferleri", FinancialAccountTransferColumns, []));
@@ -455,6 +462,7 @@ public static class ReportEndpoints
         if (normalized.Source == "salesReturns") return await RunSalesReturnsAsync(normalized, user, db, ct);
         if (normalized.Source == "supplierReturns") return await RunSupplierReturnsAsync(normalized, user, db, ct);
         if (normalized.Source == "stockItems") return await RunStockItemsAsync(normalized, user, db, ct);
+        if (normalized.Source == "warehouseStock") return await RunWarehouseStockAsync(normalized, user, db, ct);
         if (normalized.Source == "workflowInstances") return await RunWorkflowInstancesAsync(normalized, user, db, ct);
         if (normalized.Source == "crmOpportunities") return await RunCrmOpportunitiesAsync(normalized, user, db, ct);
         if (normalized.Source == "customerLedgerEntries") return await RunCustomerLedgerEntriesAsync(normalized, user, db,
@@ -512,6 +520,7 @@ public static class ReportEndpoints
         if (normalized.Source == "salesReturns") return await ExportSalesReturnsAsync(normalized, user, db, ct);
         if (normalized.Source == "supplierReturns") return await ExportSupplierReturnsAsync(normalized, user, db, ct);
         if (normalized.Source == "stockItems") return await ExportStockItemsAsync(normalized, user, db, ct);
+        if (normalized.Source == "warehouseStock") return await ExportWarehouseStockAsync(normalized, user, db, ct);
         if (normalized.Source == "workflowInstances") return await ExportWorkflowInstancesAsync(normalized, user, db, ct);
         if (normalized.Source == "crmOpportunities") return await ExportCrmOpportunitiesAsync(normalized, user, db, ct);
         if (normalized.Source == "customerLedgerEntries") return await ExportCustomerLedgerEntriesAsync(normalized, user, db,
@@ -1015,6 +1024,120 @@ public static class ReportEndpoints
         await db.SaveChangesAsync(ct);
         return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
     }
+
+    private static async Task<IResult> RunWarehouseStockAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<WarehouseStockReportRow> query = WarehouseStockRows(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyWarehouseStockFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        var rows = await ApplyWarehouseStockSort(query, report.SortBy, report.Descending)
+            .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize).ToListAsync(ct);
+        var resultRows = rows.Select(row => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(
+            code => code, code => ReadWarehouseStockValue(row, code), StringComparer.Ordinal)).ToArray();
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed", Resource = "warehouseStock" });
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new ReportResult(report.Source, report.Columns.Select(WarehouseStockColumnByCode).ToArray(), resultRows,
+            report.Page, report.PageSize, totalCount));
+    }
+
+    private static async Task<IResult> ExportWarehouseStockAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<WarehouseStockReportRow> query = WarehouseStockRows(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyWarehouseStockFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        if (totalCount > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
+        var rows = await ApplyWarehouseStockSort(query, report.SortBy, report.Descending).Take(10_000).ToListAsync(ct);
+        var csv = new StringBuilder().Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(WarehouseStockColumnByCode(code).Label))));
+        foreach (var row in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadWarehouseStockValue(row, code)))));
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.exported", Resource = $"warehouseStock:{rows.Count}" });
+        await db.SaveChangesAsync(ct);
+        return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
+    }
+
+    private static IQueryable<WarehouseStockReportRow> WarehouseStockRows(TenantDbContext db, Guid tenantId)
+    {
+        var keys = db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId)
+            .Select(x => new { x.StockItemId, x.WarehouseId })
+            .Union(db.SalesOrderReservations.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SalesOrderReservationStatus.Active)
+                .Select(x => new { StockItemId = x.OrderLine.StockItemId, x.WarehouseId }));
+        return from key in keys.Distinct()
+               join item in db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId) on key.StockItemId equals item.Id
+               join warehouse in db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId) on key.WarehouseId equals warehouse.Id
+               let onHand = db.InventoryTransactions.Where(x => x.TenantId == tenantId && x.StockItemId == item.Id && x.WarehouseId == warehouse.Id)
+                   .Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity)
+               let reserved = db.SalesOrderReservations.Where(x => x.TenantId == tenantId && x.WarehouseId == warehouse.Id
+                   && x.OrderLine.StockItemId == item.Id && x.Status == SalesOrderReservationStatus.Active)
+                   .Sum(x => x.Quantity - x.FulfilledQuantity)
+               select new WarehouseStockReportRow
+               {
+                   Id = item.Id, WarehouseId = warehouse.Id, StockCode = item.Code, StockName = item.Name, UnitCode = item.UnitCode,
+                   WarehouseCode = warehouse.Code, WarehouseName = warehouse.Name, OnHand = onHand, Reserved = reserved, Available = onHand - reserved
+               };
+    }
+
+    private static bool TryApplyWarehouseStockFilter(ref IQueryable<WarehouseStockReportRow> query, ReportFilter filter, out string? error)
+    {
+        error = null;
+        var value = filter.Value?.Trim() ?? "";
+        if (filter.Field is "stockCode" or "stockName" or "unitCode" or "warehouseCode" or "warehouseName")
+        {
+            query = filter.Field switch
+            {
+                "stockCode" when filter.Operator == "contains" => query.Where(x => x.StockCode.Contains(value)),
+                "stockCode" => query.Where(x => x.StockCode == value),
+                "stockName" when filter.Operator == "contains" => query.Where(x => x.StockName.Contains(value)),
+                "stockName" => query.Where(x => x.StockName == value),
+                "unitCode" when filter.Operator == "contains" => query.Where(x => x.UnitCode.Contains(value)),
+                "unitCode" => query.Where(x => x.UnitCode == value),
+                "warehouseCode" when filter.Operator == "contains" => query.Where(x => x.WarehouseCode.Contains(value)),
+                "warehouseCode" => query.Where(x => x.WarehouseCode == value),
+                "warehouseName" when filter.Operator == "contains" => query.Where(x => x.WarehouseName.Contains(value)),
+                _ => query.Where(x => x.WarehouseName == value)
+            };
+            return true;
+        }
+        if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)) { error = "Miktar filtresi geçersiz."; return false; }
+        query = filter.Field switch
+        {
+            "onHand" => query.Where(x => filter.Operator == "gt" ? x.OnHand > amount : filter.Operator == "gte" ? x.OnHand >= amount : filter.Operator == "lt" ? x.OnHand < amount : filter.Operator == "lte" ? x.OnHand <= amount : x.OnHand == amount),
+            "reserved" => query.Where(x => filter.Operator == "gt" ? x.Reserved > amount : filter.Operator == "gte" ? x.Reserved >= amount : filter.Operator == "lt" ? x.Reserved < amount : filter.Operator == "lte" ? x.Reserved <= amount : x.Reserved == amount),
+            "available" => query.Where(x => filter.Operator == "gt" ? x.Available > amount : filter.Operator == "gte" ? x.Available >= amount : filter.Operator == "lt" ? x.Available < amount : filter.Operator == "lte" ? x.Available <= amount : x.Available == amount),
+            _ => query
+        };
+        return true;
+    }
+
+    private static IQueryable<WarehouseStockReportRow> ApplyWarehouseStockSort(IQueryable<WarehouseStockReportRow> query, string field, bool descending) => (field, descending) switch
+    {
+        ("stockCode", false) => query.OrderBy(x => x.StockCode).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("stockCode", true) => query.OrderByDescending(x => x.StockCode).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("stockName", false) => query.OrderBy(x => x.StockName).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("stockName", true) => query.OrderByDescending(x => x.StockName).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("unitCode", false) => query.OrderBy(x => x.UnitCode).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("unitCode", true) => query.OrderByDescending(x => x.UnitCode).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("warehouseName", false) => query.OrderBy(x => x.WarehouseName).ThenBy(x => x.StockCode).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("warehouseName", true) => query.OrderByDescending(x => x.WarehouseName).ThenBy(x => x.StockCode).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("warehouseCode", false) => query.OrderBy(x => x.WarehouseCode).ThenBy(x => x.StockCode).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("warehouseCode", true) => query.OrderByDescending(x => x.WarehouseCode).ThenBy(x => x.StockCode).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("onHand", false) => query.OrderBy(x => x.OnHand).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id), ("onHand", true) => query.OrderByDescending(x => x.OnHand).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("reserved", false) => query.OrderBy(x => x.Reserved).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id), ("reserved", true) => query.OrderByDescending(x => x.Reserved).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("available", false) => query.OrderBy(x => x.Available).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id), _ => query.OrderByDescending(x => x.Available).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id)
+    };
+
+    private static object? ReadWarehouseStockValue(WarehouseStockReportRow row, string code) => code switch
+    {
+        "stockCode" => row.StockCode, "stockName" => row.StockName, "unitCode" => row.UnitCode,
+        "warehouseCode" => row.WarehouseCode, "warehouseName" => row.WarehouseName,
+        "onHand" => row.OnHand, "reserved" => row.Reserved, "available" => row.Available, _ => null
+    };
+
+    private static ReportColumn WarehouseStockColumnByCode(string code) => WarehouseStockColumns.First(x => x.Code == code);
 
     private static string CsvValue(object? value) => Csv(value switch
     {
@@ -3034,6 +3157,20 @@ public static class ReportEndpoints
         return new AggregatePage(rows.Select(row => row with { GroupValue = row.GroupValue is InventoryTrackingMode mode ? mode.ToString() : row.GroupValue }).ToArray(), total);
     }
 
+    private sealed class WarehouseStockReportRow
+    {
+        public Guid Id { get; init; }
+        public Guid WarehouseId { get; init; }
+        public string StockCode { get; init; } = "";
+        public string StockName { get; init; } = "";
+        public string UnitCode { get; init; } = "";
+        public string WarehouseCode { get; init; } = "";
+        public string WarehouseName { get; init; } = "";
+        public decimal OnHand { get; init; }
+        public decimal Reserved { get; init; }
+        public decimal Available { get; init; }
+    }
+
     private sealed class StockItemReportRow
     {
         public Guid Id { get; init; }
@@ -4461,6 +4598,8 @@ public static class ReportEndpoints
         if (!columns.Any(x => x.Code == sortBy)) errors["sortBy"] = ["Sıralama sütunu geçersiz."];
         if (request?.Source == "inventoryTransfers" && sortBy is not ("code" or "transferDate" or "status" or "createdAt"))
             errors["sortBy"] = ["Depo transferleri kod, transfer tarihi, durum veya oluşturulma tarihine göre sıralanabilir."];
+        if (request?.Source == "warehouseStock" && sortBy is not ("stockCode" or "stockName" or "unitCode" or "warehouseCode" or "warehouseName" or "onHand" or "reserved" or "available"))
+            errors["sortBy"] = ["Depo stok bakiyesi stok, depo veya miktar alanlarına göre sıralanabilir."];
         var requestedGroupFields = request?.GroupByFields is { Count: > 0 }
             ? request.GroupByFields.ToArray()
             : string.IsNullOrWhiteSpace(request?.GroupBy) ? [] : [request!.GroupBy!];
@@ -4511,6 +4650,8 @@ public static class ReportEndpoints
             errors["groupByFields"] = ["Üretim emirleri yalnızca durum alanına göre gruplanabilir."];
         if (request?.Source == "inventoryTransactions" && groupFields.Length > 0)
             errors["groupByFields"] = ["Stok hareketleri izlenebilirliği korumak için ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
+        if (request?.Source == "warehouseStock" && groupFields.Length > 0)
+            errors["groupByFields"] = ["Depo stok bakiyeleri depo ve stok kartı başına bir ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "workflowInstances" && groupFields.Any(field => field is not ("workflowCode" or "subjectType" or "status")))
             errors["groupByFields"] = ["İş akışı geçmişi kod, kayıt türü ve durum alanlarına göre gruplanabilir."];
         var aggregate = request?.Aggregate;
@@ -4732,7 +4873,7 @@ public static class ReportEndpoints
 
     private static IReadOnlyList<ReportColumn> ColumnsForSource(string source) => source switch
     {
-        "customers" => CustomerColumns, "salesInvoices" => SalesInvoiceColumns, "purchaseOrders" => PurchaseOrderColumns, "purchaseInvoices" => PurchaseInvoiceColumns, "purchaseReceipts" => PurchaseReceiptColumns, "manufacturingOrders" => ManufacturingOrderColumns, "manufacturingWorkCenters" => ManufacturingWorkCenterColumns, "inventoryTransactions" => InventoryTransactionColumns, "inventoryTransfers" => InventoryTransferColumns, "salesOrders" => SalesOrderColumns, "salesOrderFulfillment" => SalesOrderFulfillmentColumns, "salesQuotes" => SalesQuoteColumns, "purchaseSupplierQuotes" => PurchaseSupplierQuoteColumns, "supplierPayments" => SupplierPaymentColumns, "salesDeliveries" => SalesDeliveryColumns, "salesReturns" => SalesReturnColumns, "supplierReturns" => SupplierReturnColumns, "purchaseRequests" => PurchaseRequestColumns, "stockItems" => StockItemColumns, "workflowInstances" => WorkflowInstanceColumns, "bankStatements" => BankStatementColumns, "financialAccountTransactions" => FinancialAccountTransactionColumns, "financialAccountTransfers" => FinancialAccountTransferColumns, "journalEntryLines" => JournalEntryLineColumns, "fxRevaluationLines" => FxRevaluationLineColumns, "crmOpportunities" => CrmOpportunityColumns, "customerLedgerEntries" => CustomerLedgerColumns, _ => []
+        "customers" => CustomerColumns, "salesInvoices" => SalesInvoiceColumns, "purchaseOrders" => PurchaseOrderColumns, "purchaseInvoices" => PurchaseInvoiceColumns, "purchaseReceipts" => PurchaseReceiptColumns, "manufacturingOrders" => ManufacturingOrderColumns, "manufacturingWorkCenters" => ManufacturingWorkCenterColumns, "inventoryTransactions" => InventoryTransactionColumns, "inventoryTransfers" => InventoryTransferColumns, "salesOrders" => SalesOrderColumns, "salesOrderFulfillment" => SalesOrderFulfillmentColumns, "salesQuotes" => SalesQuoteColumns, "purchaseSupplierQuotes" => PurchaseSupplierQuoteColumns, "supplierPayments" => SupplierPaymentColumns, "salesDeliveries" => SalesDeliveryColumns, "salesReturns" => SalesReturnColumns, "supplierReturns" => SupplierReturnColumns, "purchaseRequests" => PurchaseRequestColumns, "stockItems" => StockItemColumns, "warehouseStock" => WarehouseStockColumns, "workflowInstances" => WorkflowInstanceColumns, "bankStatements" => BankStatementColumns, "financialAccountTransactions" => FinancialAccountTransactionColumns, "financialAccountTransfers" => FinancialAccountTransferColumns, "journalEntryLines" => JournalEntryLineColumns, "fxRevaluationLines" => FxRevaluationLineColumns, "crmOpportunities" => CrmOpportunityColumns, "customerLedgerEntries" => CustomerLedgerColumns, _ => []
     };
 
     private static IReadOnlyList<ReportAggregateOption> AggregatesForSource(string source) => source switch

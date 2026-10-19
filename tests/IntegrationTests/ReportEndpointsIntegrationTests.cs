@@ -1247,6 +1247,74 @@ public sealed class ReportEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Warehouse_stock_report_splits_balances_by_warehouse_and_keeps_tenant_boundary()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var tenant = await db.Tenants.SingleAsync(x => x.Id == TenantA);
+            var stock = await db.StockItems.SingleAsync(x => x.TenantId == TenantA && x.Code == "STOCK-A");
+            var secondWarehouse = new Warehouse { TenantId = TenantA, Tenant = tenant, Code = "WH-A2", Name = "A second warehouse" };
+            db.Warehouses.Add(secondWarehouse);
+            db.InventoryTransactions.Add(new InventoryTransaction
+            {
+                TenantId = TenantA, Warehouse = secondWarehouse, WarehouseId = secondWarehouse.Id, StockItem = stock, StockItemId = stock.Id,
+                EntryDate = new DateOnly(2026, 10, 3), Direction = InventoryDirection.Receipt, Quantity = 7m, Description = "Second warehouse receipt"
+            });
+            await db.SaveChangesAsync();
+        }
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/reports/catalog");
+        var source = Assert.Single(catalog!, item => item.GetProperty("code").GetString() == "warehouseStock");
+        Assert.Empty(source.GetProperty("aggregates").EnumerateArray());
+
+        var definition = new
+        {
+            source = "warehouseStock", columns = new[] { "stockCode", "warehouseCode", "onHand", "reserved", "available" },
+            filters = Array.Empty<object>(), sortBy = "warehouseCode", descending = false, page = 1, pageSize = 50
+        };
+        var response = await client.PostAsJsonAsync("/api/reports/run", definition);
+        response.EnsureSuccessStatusCode();
+        using var result = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(2, result.RootElement.GetProperty("totalCount").GetInt32());
+        var balance = result.RootElement.GetProperty("rows")[0];
+        Assert.Equal("STOCK-A", balance.GetProperty("stockCode").GetString());
+        Assert.Equal("WH-A", balance.GetProperty("warehouseCode").GetString());
+        Assert.Equal(15m, balance.GetProperty("onHand").GetDecimal());
+        Assert.Equal(3m, balance.GetProperty("reserved").GetDecimal());
+        Assert.Equal(12m, balance.GetProperty("available").GetDecimal());
+
+        var secondWarehouseResponse = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = definition.source, columns = definition.columns,
+            filters = new[] { new { field = "warehouseCode", @operator = "equals", value = "WH-A2" } },
+            sortBy = "available", descending = true, page = 1, pageSize = 50
+        });
+        secondWarehouseResponse.EnsureSuccessStatusCode();
+        using var secondWarehouseResult = JsonDocument.Parse(await secondWarehouseResponse.Content.ReadAsStringAsync());
+        Assert.Equal(7m, secondWarehouseResult.RootElement.GetProperty("rows")[0].GetProperty("onHand").GetDecimal());
+        Assert.Equal(0m, secondWarehouseResult.RootElement.GetProperty("rows")[0].GetProperty("reserved").GetDecimal());
+
+        var csvResponse = await client.PostAsJsonAsync("/api/reports/export", definition);
+        csvResponse.EnsureSuccessStatusCode();
+        var csv = await csvResponse.Content.ReadAsStringAsync();
+        Assert.Contains("WH-A", csv);
+        Assert.Contains("WH-A2", csv);
+        Assert.DoesNotContain("WH-B", csv);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var otherTenantResponse = await client.PostAsJsonAsync("/api/reports/run", definition);
+        otherTenantResponse.EnsureSuccessStatusCode();
+        using var otherTenantResult = JsonDocument.Parse(await otherTenantResponse.Content.ReadAsStringAsync());
+        Assert.Equal("STOCK-B", otherTenantResult.RootElement.GetProperty("rows")[0].GetProperty("stockCode").GetString());
+        Assert.Equal("WH-B", otherTenantResult.RootElement.GetProperty("rows")[0].GetProperty("warehouseCode").GetString());
+        Assert.Equal(100m, otherTenantResult.RootElement.GetProperty("rows")[0].GetProperty("onHand").GetDecimal());
+    }
+
+    [Fact]
     public async Task Customer_report_groups_nullable_risk_limit_and_keeps_tenant_boundary()
     {
         await using var app = await StartApplicationAsync();
