@@ -18,6 +18,111 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public void Safe_child_rejects_traversal_and_reparse_point_ancestors()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-path-{Guid.NewGuid():N}");
+        var outside = Path.Combine(Path.GetTempPath(), $"aierp-deployer-outside-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(outside);
+        try
+        {
+            Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(root, "../outside/file.txt"));
+            var link = Path.Combine(root, "linked");
+            try { Directory.CreateSymbolicLink(link, outside); }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+            {
+                return; // Windows configurations without symlink privileges cannot exercise this filesystem case.
+            }
+
+            Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(root, "linked/payload.txt"));
+            Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(link, "payload.txt"));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+            try { Directory.Delete(outside, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
+    public void Safe_child_rejects_database_backup_and_manifest_links_that_target_another_file()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-backups-{Guid.NewGuid():N}");
+        var outside = Path.Combine(Path.GetTempPath(), $"aierp-deployer-backup-target-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        File.WriteAllText(outside, "preserve");
+        var projectId = Guid.NewGuid();
+        var deploymentId = Guid.NewGuid();
+        var names = new[]
+        {
+            $"AIERP-{projectId:N}-{deploymentId:N}.json",
+            $"AIERP-{projectId:N}-{deploymentId:N}.json.tmp",
+            $"AIERPPlatform-{projectId:N}-{deploymentId:N}.bak"
+        };
+        try
+        {
+            foreach (var name in names)
+            {
+                try { File.CreateSymbolicLink(Path.Combine(root, name), outside); }
+                catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+                { return; } // Windows installations without symlink privileges cannot exercise this filesystem case.
+                Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(root, name));
+            }
+            Assert.Equal("preserve", File.ReadAllText(outside));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+            try { File.Delete(outside); } catch (IOException) { }
+        }
+    }
+    [Fact]
+    public void Safe_child_rejects_windows_trailing_dot_and_space_aliases()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-alias-{Guid.NewGuid():N}");
+        Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(root, "release./current.json"));
+        Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(root, "release /current.json"));
+    }
+
+    [Fact]
+    public void Safe_child_rejects_windows_device_name_aliases()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-devices-{Guid.NewGuid():N}");
+        foreach (var name in new[] { "CON", "nul.txt", "PRN.log", "AUX.data", "COM1.bin", "COM9", "COM¹.txt", "LPT3.csv", "LPT²", "CONIN$.txt", "CONOUT$" })
+            Assert.Throws<InvalidDataException>(() => global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeChild(root, $"packages/{name}"));
+    }
+
+    [Fact]
+    public async Task Deployment_lock_rejects_reparse_point_lock_files()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-lock-{Guid.NewGuid():N}");
+        var outside = Path.Combine(Path.GetTempPath(), $"aierp-deployer-lock-outside-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(outside, string.Empty);
+        try
+        {
+            try { File.CreateSymbolicLink(Path.Combine(root, "deployment.lock"), outside); }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+            {
+                return; // Windows configurations without symlink privileges cannot exercise this filesystem case.
+            }
+
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                global::AIERP.ReleaseDeployer.DistributedDeploymentLock.AcquireAsync(root, CancellationToken.None));
+            Assert.Equal(string.Empty, await File.ReadAllTextAsync(outside));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+            try { File.Delete(outside); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
     public async Task Actual_deployer_api_handles_compose_failures_without_touching_external_docker_or_volumes()
     {
         Assert.False(global::ReleaseDeployerDockerExecutionPolicy.IsTestOverrideAllowed("Production"));

@@ -494,6 +494,45 @@ public sealed class OpenAIResponsesProviderTests
             "Nexora", "feature", "main", new string('a', 40), "tests/app", "Change summary"), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Provider_preserves_bounded_retry_after_for_rate_limit_responses()
+    {
+        var handler = new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+        {
+            Headers = { RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(7)) }
+        }));
+        var provider = CreateProvider(handler, "test-key");
+
+        var exception = await Assert.ThrowsAsync<AIProviderRateLimitException>(() => provider.CreateArchitecturePlanAsync(
+            "Plan", "Nexora", "main", [], [], CancellationToken.None));
+
+        Assert.Equal(7, exception.RetryAfterSeconds);
+    }
+
+    [Fact]
+    public async Task Provider_caps_untrusted_retry_after_and_ignores_malformed_values()
+    {
+        var tooLongHandler = new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+        {
+            Headers = { RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromHours(1)) }
+        }));
+        var tooLongProvider = CreateProvider(tooLongHandler, "test-key");
+        var tooLong = await Assert.ThrowsAsync<AIProviderRateLimitException>(() => tooLongProvider.CreateArchitecturePlanAsync(
+            "Plan", "Nexora", "main", [], [], CancellationToken.None));
+        Assert.Equal(120, tooLong.RetryAfterSeconds);
+
+        var malformedHandler = new StubHandler(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            response.Headers.TryAddWithoutValidation("Retry-After", "not-a-delay");
+            return Task.FromResult(response);
+        });
+        var malformedProvider = CreateProvider(malformedHandler, "test-key");
+        var malformed = await Assert.ThrowsAsync<AIProviderRateLimitException>(() => malformedProvider.CreateArchitecturePlanAsync(
+            "Plan", "Nexora", "main", [], [], CancellationToken.None));
+        Assert.Null(malformed.RetryAfterSeconds);
+    }
+
     private static OpenAIResponsesProvider CreateProvider(StubHandler handler, string? apiKey)
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

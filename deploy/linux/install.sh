@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+"$SCRIPT_DIR/preflight.sh" "$SCRIPT_DIR"
 VERSION="$(cat "$SCRIPT_DIR/release/VERSION")"
 ROOT=/opt/nexora
 CONFIG=/etc/nexora
@@ -74,8 +75,6 @@ fi
 install -d -m 0755 "$ROOT" "$ROOT/releases" "$ROOT/bin" /var/lib/nexora /var/log/nexora
 chown nexora:nexora /var/lib/nexora /var/log/nexora
 
-if [[ ! -f "$SCRIPT_DIR/release/SHA256SUMS" ]]; then echo "Package file checksums are missing." >&2; exit 1; fi
-(cd "$SCRIPT_DIR/release" && sha256sum --check SHA256SUMS)
 if [[ -e "$ROOT/releases/$VERSION" ]]; then
   echo "Release already exists: $ROOT/releases/$VERSION (use a new version identifier)." >&2
   exit 1

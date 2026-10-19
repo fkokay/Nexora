@@ -121,10 +121,13 @@ app.MapPost("/internal/workspaces/provision", async (ProvisionRequest request, C
     var branchName = request.BranchName!;
 
     var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    if (WorkspaceSecurity.HasReparsePointInPath(root)) return Results.Problem("Workspace kök dizini güvenli değil.", statusCode: StatusCodes.Status500InternalServerError);
     Directory.CreateDirectory(root);
     var target = Path.GetFullPath(Path.Combine(root, request.WorkspaceId.ToString("N")));
-    if (!target.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+    var workspaceRootPrefix = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+    if (!target.StartsWith(workspaceRootPrefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
         return Results.BadRequest(new { error = "Geçersiz workspace yolu." });
+    if (WorkspaceSecurity.HasReparsePointInPath(target)) return Results.Conflict(new { error = "Workspace yolu sembolik bağlantı içeriyor." });
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     var createdTarget = false;
     try
@@ -261,8 +264,7 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/release-packages", async (G
             !string.Equals(status.HeadCommitSha, request.CommitSha, StringComparison.OrdinalIgnoreCase))
             return Results.Conflict(new { error = "Sadece sürüm adayıyla aynı temiz commit paketlenebilir." });
         var testRoot = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
-        var testDirectory = Path.GetFullPath(Path.Combine(testRoot, request.TestJobId.ToString("N")));
-        if (!testDirectory.StartsWith(testRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal) || !Directory.Exists(testDirectory))
+        if (!WorkspaceSecurity.TryResolveStorageChild(testRoot, request.TestJobId.ToString("N"), out var testDirectory) || !Directory.Exists(testDirectory))
             return Results.Conflict(new { error = "Sandbox test kanıtı bulunamadı veya süresi doldu." });
         var jsonOptions = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
         await using var manifestStream = File.OpenRead(Path.Combine(testDirectory, "job.json"));
@@ -292,10 +294,10 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/release-packages/{packageId:
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (packageId == Guid.Empty) return Results.BadRequest();
     var root = Path.GetFullPath(configuration["Workspace:ReleasePackageRoot"] ?? "/release-packages");
-    var path = Path.GetFullPath(Path.Combine(root, $"{packageId:N}.zip"));
-    if (!path.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal) || !File.Exists(path)) return Results.NotFound();
+    if (!WorkspaceSecurity.TryResolveStorageChild(root, $"{packageId:N}.zip", out var path) || !File.Exists(path)) return Results.NotFound();
+    if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0) return Results.NotFound();
     var metadataPath = Path.ChangeExtension(path, ".json");
-    if (!File.Exists(metadataPath)) return Results.NotFound();
+    if (WorkspaceSecurity.HasReparsePointInPath(metadataPath) || !File.Exists(metadataPath)) return Results.NotFound();
     var metadata = File.ReadAllText(metadataPath);
     if (!metadata.Contains(packageId.ToString("D"), StringComparison.OrdinalIgnoreCase)) return Results.NotFound();
     var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
@@ -577,9 +579,11 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/test-runs", async (Guid wor
     var jobRoot = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     var jobId = Guid.NewGuid();
-    var jobDirectory = Path.Combine(jobRoot, jobId.ToString("N"));
+    var jobDirectory = string.Empty;
     try
     {
+        if (!WorkspaceSecurity.TryResolveStorageChild(jobRoot, jobId.ToString("N"), out jobDirectory))
+            return Results.Problem("Sandbox iş kuyruğu yolu güvenli değil.", statusCode: StatusCodes.Status503ServiceUnavailable);
         if (!Directory.Exists(jobRoot)) return Results.Problem("Sandbox iş kuyruğu yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
         foreach (var existingJobDirectory in Directory.EnumerateDirectories(jobRoot))
             await WorkspaceSecurity.ExpireStaleTestJobAsync(existingJobDirectory, cancellationToken);
@@ -625,9 +629,11 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/build-runs", async (Guid wo
     var jobRoot = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     var jobId = Guid.NewGuid();
-    var jobDirectory = Path.Combine(jobRoot, jobId.ToString("N"));
+    var jobDirectory = string.Empty;
     try
     {
+        if (!WorkspaceSecurity.TryResolveStorageChild(jobRoot, jobId.ToString("N"), out jobDirectory))
+            return Results.Problem("Sandbox iş kuyruğu yolu güvenli değil.", statusCode: StatusCodes.Status503ServiceUnavailable);
         if (!Directory.Exists(jobRoot)) return Results.Problem("Sandbox iş kuyruğu yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
         foreach (var existingJobDirectory in Directory.EnumerateDirectories(jobRoot))
             await WorkspaceSecurity.ExpireStaleTestJobAsync(existingJobDirectory, cancellationToken);
@@ -661,8 +667,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/build-runs/{jobId:guid}", as
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (jobId == Guid.Empty) return Results.BadRequest(new { error = "Build işi kimliği geçersiz." });
     var root = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
-    var jobDirectory = Path.GetFullPath(Path.Combine(root, jobId.ToString("N")));
-    if (!jobDirectory.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return Results.BadRequest();
+    if (!WorkspaceSecurity.TryResolveStorageChild(root, jobId.ToString("N"), out var jobDirectory)) return Results.NotFound();
     if (!Directory.Exists(jobDirectory)) return Results.NotFound();
     try
     {
@@ -684,9 +689,8 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/test-runs/{jobId:guid}", asy
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (jobId == Guid.Empty) return Results.BadRequest(new { error = "Test işi kimliği geçersiz." });
-    var jobDirectory = Path.GetFullPath(Path.Combine(Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs"), jobId.ToString("N")));
     var root = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
-    if (!jobDirectory.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return Results.BadRequest();
+    if (!WorkspaceSecurity.TryResolveStorageChild(root, jobId.ToString("N"), out var jobDirectory)) return Results.NotFound();
     var resultPath = Path.Combine(jobDirectory, "result.json");
     if (!Directory.Exists(jobDirectory)) return Results.NotFound();
     try
@@ -809,9 +813,14 @@ internal static class WorkspaceSecurity
     internal static bool TryResolveDirectory(string root, Guid workspaceId, string? relativePath, out string? directory, out string? error)
     {
         directory = null; error = null;
+        root = Path.GetFullPath(root);
         var workspace = Path.GetFullPath(Path.Combine(root, workspaceId.ToString("N")));
-        var rootPrefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
-        if (!workspace.StartsWith(rootPrefix, StringComparison.Ordinal) || !Directory.Exists(workspace) || !Directory.Exists(Path.Combine(workspace, ".git")))
+        var rootPrefix = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+        if (!workspace.StartsWith(rootPrefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ||
+            HasReparsePointInPath(root) || HasReparsePointInPath(workspace) || !Directory.Exists(workspace))
+        { error = "workspace_missing"; return false; }
+        var gitDirectory = Path.Combine(workspace, ".git");
+        if (!Directory.Exists(gitDirectory) || HasReparsePointInPath(gitDirectory))
         { error = "workspace_missing"; return false; }
         var current = workspace;
         if (!string.IsNullOrEmpty(relativePath))
@@ -820,7 +829,8 @@ internal static class WorkspaceSecurity
             { error = "Dosya yolu geçersiz."; return false; }
             foreach (var segment in relativePath.Split('/'))
             {
-                if (segment.Length == 0 || segment is "." or ".." || string.Equals(segment, ".git", StringComparison.OrdinalIgnoreCase) || segment.Any(char.IsControl))
+                if (segment.Length == 0 || segment is "." or ".." || HasWindowsTrailingDotOrSpace(segment) ||
+                    string.Equals(segment, ".git", StringComparison.OrdinalIgnoreCase) || segment.Any(char.IsControl))
                 { error = "Dosya yolu geçersiz."; return false; }
                 current = Path.GetFullPath(Path.Combine(current, segment));
                 if (!current.StartsWith(workspace + Path.DirectorySeparatorChar, StringComparison.Ordinal))
@@ -832,16 +842,54 @@ internal static class WorkspaceSecurity
         }
         directory = current; return true;
     }
+    internal static bool HasReparsePointInPath(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        var pathRoot = Path.GetPathRoot(fullPath);
+        if (string.IsNullOrEmpty(pathRoot)) return true;
+        var current = pathRoot;
+        foreach (var segment in fullPath[pathRoot.Length..].Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+        {
+            if (segment.Length == 0) continue;
+            current = Path.Combine(current, segment);
+            try
+            {
+                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) return true;
+            }
+            catch (FileNotFoundException) { return false; }
+            catch (DirectoryNotFoundException) { return false; }
+        }
+        return false;
+    }
+    internal static bool TryResolveStorageChild(string root, string childName, out string path)
+    {
+        path = null!;
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(childName) ||
+            childName.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, ':']) >= 0 ||
+            childName is "." or "..") return false;
+        var fullRoot = Path.GetFullPath(root);
+        var candidate = Path.GetFullPath(Path.Combine(fullRoot, childName));
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var prefix = Path.EndsInDirectorySeparator(fullRoot) ? fullRoot : fullRoot + Path.DirectorySeparatorChar;
+        if (!candidate.StartsWith(prefix, comparison) || HasReparsePointInPath(fullRoot) || HasReparsePointInPath(candidate)) return false;
+        path = candidate;
+        return true;
+    }
     internal static bool TryResolveFile(string root, Guid workspaceId, string? relativePath, out string? filePath, out string? error)
     {
         filePath = null; error = null;
         if (string.IsNullOrWhiteSpace(relativePath) || relativePath.StartsWith('/') || relativePath.Contains('\\') ||
             relativePath.Contains(':') || relativePath.Length > 500 || relativePath.Any(char.IsControl))
         { error = "Dosya yolu geçersiz."; return false; }
+        // The runner's file-content endpoint is used by AI services. Never let it read
+        // conventional local secret files, even when they are regular files in the checkout.
+        if (IsSensitiveReadPath(relativePath))
+        { error = "Dosya yolu güvenli kapsam dışında."; return false; }
         var separator = relativePath.LastIndexOf('/');
         var parent = separator < 0 ? "" : relativePath[..separator];
         var name = separator < 0 ? relativePath : relativePath[(separator + 1)..];
-        if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || HasWindowsTrailingDotOrSpace(name) ||
+            string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase))
         { error = "Dosya yolu geçersiz."; return false; }
         if (!TryResolveDirectory(root, workspaceId, parent, out var directory, out error)) return false;
         var candidate = Path.GetFullPath(Path.Combine(directory!, name));
@@ -853,6 +901,11 @@ internal static class WorkspaceSecurity
         { error = "Sembolik bağlantı dosyaları açılamaz."; return false; }
         filePath = candidate; return true;
     }
+    private static bool IsSensitiveReadPath(string path) => path.Split('/').Any(segment =>
+        segment.Equals(".env", StringComparison.OrdinalIgnoreCase) ||
+        segment.StartsWith(".env.", StringComparison.OrdinalIgnoreCase) ||
+        segment.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
+        segment.Contains("credential", StringComparison.OrdinalIgnoreCase));
     internal static bool TryResolveNewFile(string root, Guid workspaceId, string? relativePath, out string? filePath, out string? error)
     {
         filePath = null; error = null;
@@ -862,7 +915,8 @@ internal static class WorkspaceSecurity
         var separator = relativePath.LastIndexOf('/');
         var parent = separator < 0 ? "" : relativePath[..separator];
         var name = separator < 0 ? relativePath : relativePath[(separator + 1)..];
-        if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || HasWindowsTrailingDotOrSpace(name) ||
+            string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase))
         { error = "Dosya yolu geçersiz."; return false; }
         if (!TryResolveDirectory(root, workspaceId, parent, out var directory, out error)) return false;
         var candidate = Path.GetFullPath(Path.Combine(directory!, name));
@@ -872,6 +926,8 @@ internal static class WorkspaceSecurity
         if (File.Exists(candidate) || Directory.Exists(candidate)) { error = "file_exists"; return false; }
         filePath = candidate; return true;
     }
+    private static bool HasWindowsTrailingDotOrSpace(string segment) => OperatingSystem.IsWindows() &&
+        (segment.EndsWith(' ') || segment.EndsWith('.'));
     internal static bool IsWritableSourcePath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path) || path.Length > 500 || path.StartsWith('/') || path.Contains('\\') || path.Contains(':') || path.Any(char.IsControl)) return false;
@@ -1500,10 +1556,9 @@ internal static class WorkspaceSecurity
         const long maxFileBytes = 16 * 1024 * 1024;
         Directory.CreateDirectory(packageRoot);
         var fullPackageRoot = Path.GetFullPath(packageRoot);
-        var archivePath = Path.GetFullPath(Path.Combine(fullPackageRoot, $"{request.PackageId:N}.zip"));
-        var metadataPath = Path.ChangeExtension(archivePath, ".json");
-        var temporaryPath = archivePath + $".{Guid.NewGuid():N}.tmp";
-        if (!archivePath.StartsWith(fullPackageRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        if (!TryResolveStorageChild(fullPackageRoot, $"{request.PackageId:N}.zip", out var archivePath) ||
+            !TryResolveStorageChild(fullPackageRoot, $"{request.PackageId:N}.json", out var metadataPath) ||
+            !TryResolveStorageChild(fullPackageRoot, $"{request.PackageId:N}.zip.{Guid.NewGuid():N}.tmp", out var temporaryPath))
             throw new InvalidDataException("Release package path is invalid.");
         var manifestCreatedAt = DateTimeOffset.UtcNow;
         var files = new List<ReleasePackageFile>();

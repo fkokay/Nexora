@@ -12,7 +12,8 @@ public static class SandboxFailureTriage
     {
         var text = string.Concat(message, "\n", output);
         if (status.Equals("DependencyUnavailable", StringComparison.OrdinalIgnoreCase) ||
-            ContainsAny(text, "NU1301", "NU1101", "NU1102", "npm ERR!", "ERR_MODULE_NOT_FOUND", "ModuleNotFoundError", "No matching distribution found", "no matching package", "failed to download", "failed to lookup module"))
+            ContainsAny(text, "NU1301", "NU1101", "NU1102", "npm ERR!", "ERR_MODULE_NOT_FOUND", "ModuleNotFoundError", "No matching distribution found", "no matching package", "failed to download", "failed to lookup module",
+                "Could not resolve all files for configuration", "Could not resolve dependencies for project", "Could not find artifact", "Could not find group:"))
             return new("dependency", "Bağımlılık veya çevrimdışı paket kaynağı eksik.", false,
                 "Önce onaylı paket önbelleğini/lock dosyasını doğrulayın; bağımlılık hazır olmadan kaynak kodu onarmayın.");
 
@@ -25,7 +26,7 @@ public static class SandboxFailureTriage
             return new("sandbox-configuration", "İş sandbox tarafından reddedildi veya sandbox hatası oluştu.", false,
                 "Sandbox hedefi ve servis sağlığını inceleyin; bu sonuçtan kod değişikliği önermeyin.");
 
-        if (ContainsAny(text, "error CS", " error TS", "SyntaxError", "Syntax Error", "syntax error", "undefined reference", "undefined:",
+        if (ContainsAny(text, "error CS", " error TS", "SyntaxError", "IndentationError", "TabError", "Syntax Error", "syntax error", "undefined reference", "undefined:",
                 "cannot find symbol", "declared and not used", "cannot use", "no new variables on left side of :=",
                 "too many arguments", "not enough arguments", "has no field or method", "could not compile", "error[E"))
             return new("source-diagnostic", "Çıktıda derleyici veya sözdizimi tanısı bulundu.", true,

@@ -311,8 +311,10 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
         await WriteResultAsync(resultPath, result, stoppingToken);
     }
 
-    private static void ExtractArchive(string archivePath, string destination)
+    internal static void ExtractArchive(string archivePath, string destination)
     {
+        destination = Path.GetFullPath(destination);
+        RejectReparsePoint(destination);
         using var archive = ZipFile.OpenRead(archivePath);
         if (archive.Entries.Count > MaxFiles) throw new SandboxRejectedException("Source snapshot has too many files.");
         long extractedBytes = 0;
@@ -331,10 +333,30 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
             var target = Path.GetFullPath(Path.Combine(destination, path.Replace('/', Path.DirectorySeparatorChar)));
             if (!target.StartsWith(destination + Path.DirectorySeparatorChar, StringComparison.Ordinal))
                 throw new SandboxRejectedException("Source snapshot path escapes its temporary directory.");
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            var parent = Path.GetDirectoryName(target)!;
+            EnsureNoReparsePointAncestors(destination, parent);
+            Directory.CreateDirectory(parent);
             using var input = entry.Open(); using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None);
             input.CopyTo(output);
         }
+    }
+
+    private static void EnsureNoReparsePointAncestors(string destination, string parent)
+    {
+        var current = parent;
+        while (current.StartsWith(destination + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            RejectReparsePoint(current);
+            current = Path.GetDirectoryName(current)!;
+        }
+        RejectReparsePoint(destination);
+    }
+
+    private static void RejectReparsePoint(string path)
+    {
+        if (!Directory.Exists(path) && !File.Exists(path)) return;
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            throw new SandboxRejectedException("Source snapshot destination contains a symbolic link or reparse point.");
     }
 
     private static void MakeSnapshotWritableForSandboxUser(string root)

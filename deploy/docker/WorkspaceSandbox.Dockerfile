@@ -3,7 +3,8 @@ WORKDIR /src
 ENV NUGET_PACKAGES=/tmp/aierp-nuget-packages
 COPY . .
 RUN dotnet restore AIERP.slnx && \
-    rm -rf /tmp/aierp-nuget-packages/system.security.cryptography.pkcs/9.0.11
+    rm -rf /tmp/aierp-nuget-packages/system.security.cryptography.pkcs/9.0.11 \
+           /tmp/aierp-nuget-packages/system.security.cryptography.pkcs/10.0.12
 RUN dotnet publish src/AI/AIERP.WorkspaceSandbox/AIERP.WorkspaceSandbox.csproj -c Release --no-restore -o /app/publish
 
 FROM golang:1.26.9-alpine AS go-toolchain

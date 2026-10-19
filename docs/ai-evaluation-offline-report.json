@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAtUtc": "2026-10-18T22:16:06.3333734+00:00",
+  "generatedAtUtc": "2026-10-18T23:10:48.6691343+00:00",
   "evaluationSet": {
     "id": "erp-assistant-orchestration",
     "version": "1.0.0",
     "schemaVersion": "1.0.0",
-    "sha256": "ee268adb2b0df2f495cefc284c7249e34a763b17e9cdef161512d27f7ebd779f"
+    "sha256": "e9c330271c49d9eee7d86874af57dbd8ceba774cdd1043bb445e8441dc32f27a"
   },
   "execution": {
     "mode": "offline-mocked",
@@ -17,59 +17,146 @@
     "testExitCode": 0
   },
   "summary": {
-    "total": 12,
-    "passed": 12,
+    "total": 13,
+    "passed": 13,
     "failed": 0,
     "skipped": 0
   },
   "cases": [
     {
       "id": "contract-validation",
-      "outcome": "Passed"
+      "kind": "dataset-contract",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "tool-matrix-matches-executable-cases",
+        "scenario-ids-unique",
+        "assertion-contracts-present"
+      ]
     },
     {
       "id": "crm-opportunity-report",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
     },
     {
       "id": "customer-balance",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
     },
     {
       "id": "customer-report",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
     },
     {
       "id": "customer-search",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
     },
     {
       "id": "four-call-budget-rejection",
-      "outcome": "Passed"
+      "kind": "tool-budget",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "reject-before-any-tool-side-effect",
+        "maximum-three-calls-per-response"
+      ]
     },
     {
       "id": "provider-429-classification",
-      "outcome": "Passed"
+      "kind": "provider-failure-classification",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "http-429-classified-without-response-body",
+        "rate-limit-versus-quota-remains-unknown",
+        "no-automatic-retry"
+      ]
     },
     {
       "id": "stock-lookup-untrusted-tool-output",
-      "outcome": "Passed"
+      "kind": "trust-boundary",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "tool-result-is-untrusted",
+        "authorized-fact-retained"
+      ]
     },
     {
       "id": "stock-search",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
     },
     {
       "id": "tool-failure-sanitization",
-      "outcome": "Passed"
+      "kind": "failure-sanitization",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "stable-public-error",
+        "no-tenant-or-secret-detail",
+        "no-retry"
+      ]
+    },
+    {
+      "id": "unknown-tool-rejected-before-execution",
+      "kind": "tool-allowlist",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "reject-tool-not-in-read-only-catalog",
+        "reject-before-tool-executor",
+        "no-automatic-retry"
+      ]
     },
     {
       "id": "warehouse-balances",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
     },
     {
       "id": "warehouse-list",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
     }
   ],
   "contract": {

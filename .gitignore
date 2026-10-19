@@ -11,3 +11,6 @@ deploy/docker/sandbox-package-cache/
 deploy/docker/sandbox-package-cache-runtime/
 
 .local-scout-cache/
+
+/artifacts/
+docs/trx-*/

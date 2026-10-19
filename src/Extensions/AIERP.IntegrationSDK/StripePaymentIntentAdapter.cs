@@ -61,20 +61,27 @@ public sealed class StripePaymentIntentAdapter : IERPIntegrationAdapter<JsonElem
             return Failure(code, retryable);
         }
 
-        var bytes = await ReadBoundedAsync(response.Content, cancellationToken);
-        using var document = JsonDocument.Parse(bytes);
-        var root = document.RootElement;
-        if (root.ValueKind != JsonValueKind.Object ||
-            !TryString(root, "id", 128, out var id) || !id.StartsWith("pi_", StringComparison.Ordinal) ||
-            !TryString(root, "status", 64, out var status))
+        try
+        {
+            var bytes = await ReadBoundedAsync(response.Content, cancellationToken);
+            using var document = JsonDocument.Parse(bytes);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !TryString(root, "id", 128, out var id) || !id.StartsWith("pi_", StringComparison.Ordinal) ||
+                !TryString(root, "status", 64, out var status) || !IsPaymentIntentStatus(status))
+                return Failure("provider_error", false);
+
+            var result = new Dictionary<string, object?> { ["id"] = id, ["status"] = status };
+            if (root.TryGetProperty("amount", out var amount) && amount.ValueKind == JsonValueKind.Number && amount.TryGetInt64(out var amountValue))
+                result["amount"] = amountValue;
+            if (TryString(root, "currency", 3, out var currency)) result["currency"] = currency;
+
+            return new IntegrationResult<JsonElement>(true, JsonSerializer.SerializeToElement(result), id, null, false);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidDataException)
+        {
             return Failure("provider_error", false);
-
-        var result = new Dictionary<string, object?> { ["id"] = id, ["status"] = status };
-        if (root.TryGetProperty("amount", out var amount) && amount.ValueKind == JsonValueKind.Number && amount.TryGetInt64(out var amountValue))
-            result["amount"] = amountValue;
-        if (TryString(root, "currency", 3, out var currency)) result["currency"] = currency;
-
-        return new IntegrationResult<JsonElement>(true, JsonSerializer.SerializeToElement(result), id, null, false);
+        }
     }
 
     private static bool TryBuildForm(JsonElement request, out List<KeyValuePair<string, string>> form)
@@ -126,6 +133,10 @@ public sealed class StripePaymentIntentAdapter : IERPIntegrationAdapter<JsonElem
         value = candidate;
         return true;
     }
+
+    private static bool IsPaymentIntentStatus(string status) => status is
+        "requires_payment_method" or "requires_confirmation" or "requires_action" or
+        "processing" or "requires_capture" or "canceled" or "succeeded";
 
     private static async Task<byte[]> ReadBoundedAsync(HttpContent content, CancellationToken cancellationToken)
     {

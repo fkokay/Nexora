@@ -274,11 +274,19 @@ moduleCatalog.MapPost("/releases", async (HttpRequest request, ClaimsPrincipal u
     if (!verification.IsValid) return Results.BadRequest(new { error = verification.Error });
     if (!Guid.TryParse(user.FindFirstValue(JwtRegisteredClaimNames.Sub), out var userId)) return Results.Unauthorized();
     if (await db.PlatformModuleReleases.AnyAsync(x => x.ModuleCode == manifest.ModuleCode && x.Version == manifest.Version, ct)) return Results.Conflict(new { error = "Bu modül sürümü katalogda zaten var." });
-    var root = Path.GetFullPath(config["ModulePackages:RootPath"] ?? "/module-packages"); Directory.CreateDirectory(root);
-    var storageKey = checksum.ToLowerInvariant() + ".zip"; var destination = Path.Combine(root, storageKey);
+    var root = Path.GetFullPath(config["ModulePackages:RootPath"] ?? "/module-packages");
+    string destination;
+    try
+    {
+        ModulePackageStoragePath.AssertNoReparsePoints(root);
+        Directory.CreateDirectory(root);
+        destination = ModulePackageStoragePath.ResolvePackage(root, checksum);
+    }
+    catch (InvalidDataException) { return Results.Problem("Modül paketi deposu güvenli değil.", statusCode: StatusCodes.Status500InternalServerError); }
+    var storageKey = checksum.ToLowerInvariant() + ".zip";
     if (!File.Exists(destination))
     {
-        var temporary = Path.Combine(root, $".{Guid.NewGuid():N}.upload");
+        var temporary = ModulePackageStoragePath.ResolveChild(root, $".{Guid.NewGuid():N}.upload");
         try
         {
             await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous | FileOptions.WriteThrough))
@@ -7091,9 +7099,9 @@ static async Task<(byte[]? Wasm, string? Error)> VerifyModuleReleaseArtifactAsyn
         !string.Equals(release.StorageKey, $"{release.ArtifactSha256.ToLowerInvariant()}.zip", StringComparison.Ordinal))
         return (null, "Modül yayın kaydı geçersiz.");
     var root = Path.GetFullPath(configuration["ModulePackages:RootPath"] ?? "/module-packages");
-    var path = Path.GetFullPath(Path.Combine(root, release.StorageKey));
-    if (!path.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-        return (null, "Modül paket yolu geçersiz.");
+    string path;
+    try { path = ModulePackageStoragePath.ResolvePackage(root, release.ArtifactSha256); }
+    catch (InvalidDataException) { return (null, "Modül paket yolu geçersiz."); }
     byte[] packageBytes;
     try
     {

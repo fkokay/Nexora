@@ -120,7 +120,7 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
         Directory.CreateDirectory(projectDirectory);
         var sourceDirectory = Path.Combine(deploymentDirectory, "source");
         Directory.CreateDirectory(sourceDirectory);
-        await ExtractVerifiedPackageAsync(packagePath, sourceDirectory, body.PackageId, body.Version, body.CommitSha, packageMetadata!.FileCount, cancellationToken);
+        await ExtractVerifiedPackageAsync(packagePath, body.PackageSha256, sourceDirectory, body.PackageId, body.Version, body.CommitSha, packageMetadata!.FileCount, cancellationToken);
         WriteTrustedBuildFiles(sourceDirectory);
 
         var secretsPath = Path.Combine(projectDirectory, "secrets.enc.json");
@@ -313,7 +313,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
         Directory.CreateDirectory(deploymentDirectory);
         var sourceDirectory = Path.Combine(deploymentDirectory, "source");
         Directory.CreateDirectory(sourceDirectory);
-        await ExtractVerifiedPackageAsync(packagePath, sourceDirectory, body.PackageId, body.Version, body.CommitSha, metadata.FileCount, cancellationToken);
+        await ExtractVerifiedPackageAsync(packagePath, body.PackageSha256, sourceDirectory, body.PackageId, body.Version, body.CommitSha, metadata.FileCount, cancellationToken);
         await WriteProductionMigrationRollbackStateAsync(migrationRollbackPath,
             new ProductionMigrationRollbackState(body.DeploymentId, previousDeploymentId, migrationStatus, "deployment_in_progress", null, DateTimeOffset.UtcNow), cancellationToken);
         WriteTrustedBuildFiles(sourceDirectory, production: true);
@@ -515,7 +515,7 @@ app.MapPost("/internal/deployments/production/restore", async (RestoreProduction
         var sqlcmd = new[] { "exec", "-T", "sqlserver", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", secrets.SqlPassword, "-C", "-b", "-d", "master", "-Q" };
         var backupRoot = ProductionBackupRoot(configuration);
         var backupNames = await ReadBackupManifestAsync(body.ProjectId, body.BackupDeploymentId, backupRoot, cancellationToken);
-        if (backupNames is null && File.Exists(Path.Combine(backupRoot, $"AIERPPlatform-{body.ProjectId:N}-{body.BackupDeploymentId:N}.bak")))
+        if (backupNames is null && File.Exists(DatabaseBackupVolumePath("AIERPPlatform", body.ProjectId, body.BackupDeploymentId, backupRoot)))
             backupNames = ["AIERPPlatform"]; // Compatibility with backups created before database-set manifests.
         if (backupNames is null || backupNames.Count == 0 || !await VerifyDatabaseSetAsync(activePrefix, sqlcmd, backupNames, body.ProjectId, body.BackupDeploymentId, backupRoot, cancellationToken))
             return Results.Conflict(new { error = "Geri yüklenecek veritabanı yedek seti doğrulanamadı; production değişmeden bırakıldı." });
@@ -621,13 +621,13 @@ static async Task BackupActiveProductionProjectsAsync(IConfiguration configurati
                         throw new IOException($"No verified AIERP database set was produced for project {projectId:N}.");
                     foreach (var database in databases)
                     {
-                        var stagingBackup = Path.Combine(backupRoot, Path.GetFileName(DatabaseBackupPath(database, projectId, backupId)));
-                        var activeBackup = Path.Combine(backupRoot, Path.GetFileName(DatabaseBackupPath(database, projectId, deploymentId)));
+                        var stagingBackup = DatabaseBackupVolumePath(database, projectId, backupId, backupRoot);
+                        var activeBackup = DatabaseBackupVolumePath(database, projectId, deploymentId, backupRoot);
                         File.Move(stagingBackup, activeBackup, overwrite: true);
                     }
                     var stagingManifest = BackupManifestPath(projectId, backupId, backupRoot);
                     var activeManifest = BackupManifestPath(projectId, deploymentId, backupRoot);
-                    var manifestStagingPath = $"{stagingManifest}.tmp";
+                    var manifestStagingPath = SafeChild(backupRoot, $"AIERP-{projectId:N}-{backupId:N}.json.tmp");
                     await File.WriteAllTextAsync(manifestStagingPath, JsonSerializer.Serialize(databases, JsonConfig.Options), new UTF8Encoding(false), cancellationToken);
                     File.Move(manifestStagingPath, activeManifest, overwrite: true);
                 }
@@ -658,28 +658,25 @@ static bool HasRestoreScope(ClaimsPrincipal caller, RestoreProductionDeployment 
     caller.FindFirstValue("scope") == scope;
 
 static string SafeChild(string root, string name)
-{
-    var fullRoot = Path.GetFullPath(root);
-    var child = Path.GetFullPath(Path.Combine(fullRoot, name));
-    if (!child.StartsWith(fullRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-        throw new InvalidDataException("Dağıtım dosya yolu geçersiz.");
-    return child;
-}
+    => ReleaseDeployerPath.SafeChild(root, name);
 
 static bool IsSha256(string value) => value.Length == 64 && value.All(Uri.IsHexDigit);
 
 static void CopyDirectory(string source, string destination)
 {
+    ReleaseDeployerPath.AssertNoReparsePoints(source);
+    ReleaseDeployerPath.AssertNoReparsePoints(destination);
     Directory.CreateDirectory(destination);
     foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
     {
-        if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) throw new InvalidDataException("Dağıtım kaynağında sembolik bağlantı kabul edilmez.");
-        Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, directory)));
+        ReleaseDeployerPath.AssertNoReparsePoints(directory);
+        var target = SafeChild(destination, Path.GetRelativePath(source, directory));
+        Directory.CreateDirectory(target);
     }
     foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
     {
-        if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) throw new InvalidDataException("Dağıtım kaynağında sembolik bağlantı kabul edilmez.");
-        var target = Path.Combine(destination, Path.GetRelativePath(source, file));
+        ReleaseDeployerPath.AssertNoReparsePoints(file);
+        var target = SafeChild(destination, Path.GetRelativePath(source, file));
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         File.Copy(file, target, overwrite: false);
     }
@@ -722,9 +719,16 @@ static async Task<T?> ReadEncryptedAsync<T>(string path, string signingKey, Canc
     finally { CryptographicOperations.ZeroMemory(plain); }
 }
 
-static async Task ExtractVerifiedPackageAsync(string packagePath, string sourceDirectory, Guid packageId, string version, string commitSha, int expectedFileCount, CancellationToken cancellationToken)
+static async Task ExtractVerifiedPackageAsync(string packagePath, string expectedPackageSha256, string sourceDirectory, Guid packageId, string version, string commitSha, int expectedFileCount, CancellationToken cancellationToken)
 {
-    using var archive = ZipFile.OpenRead(packagePath);
+    // Keep one handle from package hashing through extraction. This prevents a
+    // package path replacement between the hash check and ZIP parsing.
+    await using var packageStream = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+    var packageHash = Convert.ToHexString(await SHA256.HashDataAsync(packageStream, cancellationToken));
+    if (!string.Equals(packageHash, expectedPackageSha256, StringComparison.OrdinalIgnoreCase))
+        throw new InvalidDataException("Sürüm paketinin SHA-256 değeri kayıtla eşleşmiyor.");
+    packageStream.Position = 0;
+    using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
     var manifestEntry = archive.GetEntry("AIERP-RELEASE.json") ?? throw new InvalidDataException("Sürüm manifesti arşivde yok.");
     ReleaseManifest? manifest;
     await using (var input = manifestEntry.Open()) manifest = await JsonSerializer.DeserializeAsync<ReleaseManifest>(input, JsonConfig.Options, cancellationToken);
@@ -746,14 +750,35 @@ static async Task ExtractVerifiedPackageAsync(string packagePath, string sourceD
         expandedBytes += entry.Length;
         var target = SafeChild(sourceDirectory, relative.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        await using var input = entry.Open();
-        var hash = await SHA256.HashDataAsync(input, cancellationToken);
-        if (!string.Equals(Convert.ToHexString(hash), file.Sha256, StringComparison.OrdinalIgnoreCase) || entry.Length != file.SizeBytes)
-            throw new InvalidDataException("Arşiv dosyasının hash veya boyut doğrulaması başarısız.");
-        await input.DisposeAsync();
-        await using var copySource = entry.Open();
-        await using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        await copySource.CopyToAsync(output, cancellationToken);
+        var temporaryTarget = SafeChild(Path.GetDirectoryName(target)!, $".{Path.GetFileName(target)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using var contentHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            long copiedBytes = 0;
+            await using (var input = entry.Open())
+            await using (var output = new FileStream(temporaryTarget, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                var buffer = new byte[64 * 1024];
+                int read;
+                while ((read = await input.ReadAsync(buffer, cancellationToken)) != 0)
+                {
+                    copiedBytes += read;
+                    if (copiedBytes > 16 * 1024 * 1024 || expandedBytes - entry.Length + copiedBytes > 100 * 1024 * 1024)
+                        throw new InvalidDataException("Sürüm arşivi boyut sınırını aşıyor.");
+                    contentHash.AppendData(buffer, 0, read);
+                    await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                }
+                await output.FlushAsync(cancellationToken);
+            }
+            if (copiedBytes != file.SizeBytes || copiedBytes != entry.Length ||
+                !string.Equals(Convert.ToHexString(contentHash.GetHashAndReset()), file.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Arşiv dosyasının hash veya boyut doğrulaması başarısız.");
+            File.Move(temporaryTarget, target, overwrite: false);
+        }
+        finally
+        {
+            if (File.Exists(temporaryTarget)) File.Delete(temporaryTarget);
+        }
     }
     if (found.Count != expected.Count) throw new InvalidDataException("Arşiv dosyaları manifestle tam eşleşmiyor.");
 }
@@ -817,12 +842,18 @@ static async Task<bool> WaitForHealthyAsync(string[] composePrefix, IConfigurati
 }
 
 static string ProductionBackupRoot(IConfiguration configuration) => Path.GetFullPath(configuration["ReleaseDeployer:ProductionBackupRoot"] ?? "/production-backups");
-static string BackupManifestPath(Guid projectId, Guid deploymentId, string backupRoot) => Path.Combine(backupRoot, $"AIERP-{projectId:N}-{deploymentId:N}.json");
+static string BackupManifestPath(Guid projectId, Guid deploymentId, string backupRoot) => SafeChild(backupRoot, $"AIERP-{projectId:N}-{deploymentId:N}.json");
 static string DatabaseBackupPath(string database, Guid projectId, Guid deploymentId) => $"/var/opt/mssql/backups/{database}-{projectId:N}-{deploymentId:N}.bak";
+static string DatabaseBackupVolumePath(string database, Guid projectId, Guid deploymentId, string backupRoot)
+{
+    if (!IsSafeAierpDatabaseName(database)) throw new InvalidDataException("Veritabanı yedek adı geçersiz.");
+    return SafeChild(backupRoot, Path.GetFileName(DatabaseBackupPath(database, projectId, deploymentId)));
+}
 
 static async Task WriteProductionMigrationRollbackStateAsync(string path, ProductionMigrationRollbackState state, CancellationToken cancellationToken)
 {
-    var temporaryPath = path + ".tmp";
+    var temporaryDirectory = Path.GetDirectoryName(path) ?? throw new InvalidDataException("Dağıtım durum yolu geçersiz.");
+    var temporaryPath = SafeChild(temporaryDirectory, Path.GetFileName(path) + ".tmp");
     await File.WriteAllTextAsync(temporaryPath, JsonSerializer.Serialize(state, JsonConfig.Options), new UTF8Encoding(false), cancellationToken);
     File.Move(temporaryPath, path, overwrite: true);
 }
@@ -857,10 +888,11 @@ static async Task<bool> BackupDatabaseSetAsync(IEnumerable<string> composePrefix
     foreach (var database in databases)
     {
         if (!IsSafeAierpDatabaseName(database)) return false;
+        var volumePath = DatabaseBackupVolumePath(database, projectId, operationId, backupRoot);
         var path = DatabaseBackupPath(database, projectId, operationId);
         var sql = $"BACKUP DATABASE {SqlIdentifier(database)} TO DISK = N'{path}' WITH INIT, CHECKSUM; RESTORE VERIFYONLY FROM DISK = N'{path}' WITH CHECKSUM";
         var result = await RunDockerAsync(composePrefix.Concat(sqlcmdPrefix).Append(sql), TimeSpan.FromMinutes(15), cancellationToken);
-        if (result.ExitCode != 0 || !File.Exists(Path.Combine(backupRoot, Path.GetFileName(path)))) return false;
+        if (result.ExitCode != 0 || !File.Exists(volumePath)) return false;
     }
     return true;
 }
@@ -870,8 +902,9 @@ static async Task<bool> VerifyDatabaseSetAsync(IEnumerable<string> composePrefix
     foreach (var database in databases)
     {
         if (!IsSafeAierpDatabaseName(database)) return false;
+        var volumePath = DatabaseBackupVolumePath(database, projectId, operationId, backupRoot);
         var path = DatabaseBackupPath(database, projectId, operationId);
-        if (!File.Exists(Path.Combine(backupRoot, Path.GetFileName(path)))) return false;
+        if (!File.Exists(volumePath)) return false;
         var result = await RunDockerAsync(composePrefix.Concat(sqlcmdPrefix).Append($"RESTORE VERIFYONLY FROM DISK = N'{path}' WITH CHECKSUM"), TimeSpan.FromMinutes(5), cancellationToken);
         if (result.ExitCode != 0) return false;
     }
@@ -883,8 +916,9 @@ static async Task<bool> RestoreDatabaseSetAsync(IEnumerable<string> composePrefi
     foreach (var database in databases)
     {
         if (!IsSafeAierpDatabaseName(database)) return false;
+        var volumePath = DatabaseBackupVolumePath(database, projectId, operationId, backupRoot);
         var path = DatabaseBackupPath(database, projectId, operationId);
-        if (!File.Exists(Path.Combine(backupRoot, Path.GetFileName(path)))) return false;
+        if (!File.Exists(volumePath)) return false;
         var sql = $"IF DB_ID(N'{database}') IS NOT NULL ALTER DATABASE {SqlIdentifier(database)} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE {SqlIdentifier(database)} FROM DISK = N'{path}' WITH REPLACE, CHECKSUM; ALTER DATABASE {SqlIdentifier(database)} SET MULTI_USER";
         var result = await RunDockerAsync(composePrefix.Concat(sqlcmdPrefix).Append(sql), TimeSpan.FromMinutes(20), cancellationToken);
         if (result.ExitCode != 0) return false;

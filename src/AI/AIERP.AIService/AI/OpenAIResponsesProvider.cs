@@ -12,9 +12,15 @@ namespace AIERP.AIService.AI;
 public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguration configuration, PlatformDbContext platformDb,
     IHttpContextAccessor httpContextAccessor) : IAIModelProvider
 {
+    private const int MaxRetryAfterSeconds = 120;
     private const int MaxResponseBytes = 256 * 1024;
     private const int MaxCodeResponseBytes = 512 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly HashSet<string> ERPAssistantReadOnlyToolNames = new(StringComparer.Ordinal)
+    {
+        "search_stock_items", "list_warehouses", "get_warehouse_balances",
+        "search_customer_accounts", "get_customer_balance", "generate_report"
+    };
     private static readonly object PlanSchema = new
     {
         type = "object",
@@ -244,7 +250,7 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", provider.ApiKey);
         message.Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
         using var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeoutSource.Token);
-        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests) throw new AIProviderRateLimitException();
+        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests) throw CreateRateLimitException(response);
         if (!response.IsSuccessStatusCode) throw new AIProviderResponseException($"OpenAI embeddings request failed with HTTP {(int)response.StatusCode}.");
 
         var body = await ReadBoundedAsync(response.Content, 8 * 1024 * 1024, timeoutSource.Token);
@@ -306,7 +312,7 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
         message.Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
         using var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeoutSource.Token);
         if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-            throw new AIProviderRateLimitException();
+            throw CreateRateLimitException(response);
         if (!response.IsSuccessStatusCode) throw new AIProviderResponseException($"OpenAI request failed with HTTP {(int)response.StatusCode}.");
         if (onDelta is not null)
             return await ReadOpenAIChatStreamAsync(response.Content, onDelta, timeoutSource.Token);
@@ -351,7 +357,7 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
         message.Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
         using var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-            throw new AIProviderRateLimitException();
+            throw CreateRateLimitException(response);
         if (!response.IsSuccessStatusCode) throw new AIProviderResponseException($"NVIDIA NIM request failed with HTTP {(int)response.StatusCode}.");
         if (onDelta is not null)
             return await ReadNvidiaChatStreamAsync(response.Content, onDelta, cancellationToken);
@@ -447,7 +453,7 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
             message.Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
             using var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeoutSource.Token);
             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-                throw new AIProviderRateLimitException();
+                throw CreateRateLimitException(response);
             if (!response.IsSuccessStatusCode)
                 throw new AIProviderResponseException($"OpenAI request failed with HTTP {(int)response.StatusCode}.");
             var responseBody = await ReadBoundedAsync(response.Content, MaxResponseBytes, timeoutSource.Token);
@@ -483,6 +489,8 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
                 var arguments = argumentsElement.GetString() ?? "{}";
                 if (arguments.Length > 1000 || callIdElement.GetString() is not { Length: > 0 and <= 100 } callId)
                     throw new AIProviderResponseException("OpenAI returned oversized ERP assistant tool arguments.");
+                if (!ERPAssistantReadOnlyToolNames.Contains(name))
+                    throw new AIProviderResponseException("OpenAI requested an unsupported ERP assistant tool.");
                 string result;
                 try
                 {
@@ -685,6 +693,8 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
         message.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         message.Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
         using var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            throw CreateRateLimitException(response);
         var responseBody = await ReadBoundedAsync(response.Content, MaxResponseBytes, cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new AIProviderResponseException($"OpenAI request failed with HTTP {(int)response.StatusCode}.");
@@ -1051,6 +1061,20 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
             suggestion.Risks is null || suggestion.Risks.Count > 12 || suggestion.Risks.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 500))
             throw new AIProviderResponseException("OpenAI returned a multi-file suggestion outside the allowed response limits.");
         return suggestion;
+    }
+
+    private static AIProviderRateLimitException CreateRateLimitException(HttpResponseMessage response)
+    {
+        var retryAfter = response.Headers.RetryAfter;
+        if (retryAfter is null) return new AIProviderRateLimitException();
+
+        var delay = retryAfter.Delta ?? (retryAfter.Date is { } retryAt
+            ? retryAt - DateTimeOffset.UtcNow
+            : null);
+        if (delay is null || delay.Value < TimeSpan.Zero) return new AIProviderRateLimitException();
+
+        var seconds = (int)Math.Ceiling(Math.Min(delay.Value.TotalSeconds, MaxRetryAfterSeconds));
+        return new AIProviderRateLimitException(seconds);
     }
 
     private static void ValidatePlan(ArchitecturePlan plan)

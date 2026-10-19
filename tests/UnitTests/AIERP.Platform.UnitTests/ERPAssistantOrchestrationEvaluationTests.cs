@@ -34,6 +34,22 @@ public sealed class ERPAssistantOrchestrationEvaluationTests
         testCase.AuthorizedToolResult, testCase.ScriptedAnswer
     });
 
+    [Fact]
+    public void Warehouse_tool_result_is_bounded_by_rows_and_serialized_size()
+    {
+        var warehouses = JsonDocument.Parse(JsonSerializer.Serialize(Enumerable.Range(1, 150).Select(index => new
+        {
+            id = Guid.NewGuid(), code = $"W{index}", name = new string('x', 500), isActive = true
+        })));
+
+        var serialized = ERPWarehouseToolResult.Serialize(warehouses.RootElement);
+        using var result = JsonDocument.Parse(serialized);
+
+        Assert.True(result.RootElement.GetArrayLength() <= 100);
+        Assert.True(serialized.Length <= 16_000);
+        Assert.All(result.RootElement.EnumerateArray(), item => Assert.Equal(128, item.GetProperty("name").GetString()!.Length));
+    }
+
     [Theory]
     [MemberData(nameof(AllowedToolCases))]
     public async Task Every_allowed_read_tool_uses_strict_schema_and_returns_bounded_tool_result(string caseId, string expectedName, string arguments, string prompt, string authorizedToolResult, string expectedAnswer)
@@ -156,6 +172,30 @@ public sealed class ERPAssistantOrchestrationEvaluationTests
                 return Task.FromResult("[]");
             }));
 
+        Assert.Equal(0, invocationCount);
+        Assert.Equal(1, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task Unknown_tool_name_is_rejected_before_executor_and_without_retry()
+    {
+        output.WriteLine("Case: unknown-tool-rejected-before-execution");
+        var invocationCount = 0;
+        var handler = new ScriptedResponsesHandler(_ => Task.FromResult(Response(new
+        {
+            status = "completed",
+            output = new[] { new { type = "function_call", name = "delete_all_tenant_data", arguments = "{}", call_id = "unknown-1" } }
+        })));
+        var provider = CreateProvider(handler);
+
+        var error = await Assert.ThrowsAsync<AIProviderResponseException>(() => provider.ReplyToERPDataQuestionAsync(
+            "Depoları listele.", [], CancellationToken.None, (_, _, _) =>
+            {
+                invocationCount++;
+                return Task.FromResult("unexpected");
+            }));
+
+        Assert.Equal("OpenAI requested an unsupported ERP assistant tool.", error.Message);
         Assert.Equal(0, invocationCount);
         Assert.Equal(1, handler.RequestCount);
     }

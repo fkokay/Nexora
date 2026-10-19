@@ -91,9 +91,7 @@ static bool TryReleaseClaims(ClaimsPrincipal caller, out VerifiedModuleRelease r
 static async Task<byte[]> ReadWasmPackageAsync(IConfiguration configuration, string artifactSha256, CancellationToken cancellationToken)
 {
     var root = Path.GetFullPath(configuration["ModulePackages:RootPath"] ?? "/module-packages");
-    var path = Path.GetFullPath(Path.Combine(root, $"{artifactSha256.ToLowerInvariant()}.zip"));
-    if (!path.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-        throw new InvalidDataException("Modül paketi yolu geçersiz.");
+    var path = ModulePackageStoragePath.ResolvePackage(root, artifactSha256);
     await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
     if (stream.Length is <= 0 or > ModulePackageVerifier.MaximumArtifactBytes) throw new InvalidDataException("Modül paketi boyut sınırını aşıyor.");
     var actualHash = await ModulePackageVerifier.ComputeSha256Async(stream, cancellationToken);

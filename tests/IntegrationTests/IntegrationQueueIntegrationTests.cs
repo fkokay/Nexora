@@ -22,6 +22,17 @@ public sealed class IntegrationQueueIntegrationTests
     private static readonly Guid TenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     [Fact]
+    public async Task Integration_host_response_reader_rejects_oversized_stream_without_content_length()
+    {
+        using var content = new StreamContent(new RepeatingReadStream(1024 * 1024 + 1));
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            IntegrationOperationWorker.ReadBoundedResponseAsync(content, 1024 * 1024, CancellationToken.None));
+
+        Assert.Contains("exceeded", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Integration_requests_are_encrypted_idempotent_and_tenant_scoped()
     {
         await using var app = await StartApplicationAsync();
@@ -176,5 +187,28 @@ public sealed class IntegrationQueueIntegrationTests
             new Tenant { Id = TenantB, Name = "Tenant B", Slug = "tenant-b" });
         await db.SaveChangesAsync();
         return app;
+    }
+
+    private sealed class RepeatingReadStream(long length) : Stream
+    {
+        private long position;
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => length;
+        public override long Position { get => position; set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var read = (int)Math.Min(buffer.Length, length - position);
+            buffer.Span[..read].Fill((byte)'x');
+            position += read;
+            return ValueTask.FromResult(read);
+        }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() { }
     }
 }

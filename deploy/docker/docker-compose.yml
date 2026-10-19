@@ -233,6 +233,30 @@ services:
       retries: 5
       start_period: 5s
 
+  erp-web:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/ErpWeb.Dockerfile
+      args:
+        VITE_STUDIO_URL: ${VITE_STUDIO_URL:-http://localhost:5174/}
+    ports:
+      - "127.0.0.1:5173:80"
+    networks:
+      - default
+      - public-ingress
+    depends_on:
+      platform-api:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   public-ingress:
     image: caddy:2.11.7-alpine
     profiles: [public-ingress]

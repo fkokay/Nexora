@@ -76,7 +76,15 @@ public interface IAIModelProvider
 }
 
 public sealed class AIProviderNotConfiguredException : Exception { }
-public sealed class AIProviderRateLimitException : Exception { }
+public sealed class AIProviderRateLimitException : Exception
+{
+    public AIProviderRateLimitException(int? retryAfterSeconds = null)
+    {
+        RetryAfterSeconds = retryAfterSeconds is >= 0 and <= 120 ? retryAfterSeconds : null;
+    }
+
+    public int? RetryAfterSeconds { get; }
+}
 public sealed class AIProviderResponseException : Exception
 {
     public AIProviderResponseException(string message) : base(message) { }

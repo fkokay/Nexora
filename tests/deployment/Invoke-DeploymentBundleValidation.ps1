@@ -80,6 +80,10 @@ function Test-IisBundle([string]$Root) {
     }
     if ($apiConfig.configuration.'system.webServer'.aspNetCore.arguments -ne '.\AIERP.Api.dll' -or
         $aiConfig.configuration.'system.webServer'.aspNetCore.arguments -ne '.\AIERP.AIService.dll') { throw 'IIS ANCM DLL arguments do not match their components.' }
+    foreach ($config in @($apiConfig, $aiConfig)) {
+        $frameOptions = @($config.configuration.'system.webServer'.httpProtocol.customHeaders.add | Where-Object { $_.name -eq 'X-Frame-Options' -and $_.value -eq 'DENY' })
+        if ($frameOptions.Count -ne 1) { throw 'Packaged IIS service config must set exactly one X-Frame-Options: DENY header.' }
+    }
     foreach ($component in @('erp-web', 'development-studio')) {
         $webConfig = [xml](Get-Content -LiteralPath (Join-Path $Root "$component\web.config") -Raw)
         $rewriteText = $webConfig.configuration.'system.webServer'.rewrite.OuterXml
@@ -105,12 +109,29 @@ try {
     }
     Add-Check 'IIS PowerShell syntax' $true "$($powershellScripts.Count) deployment scripts/data files parsed without errors."
 
-    $linuxScripts = @('package.sh','install.sh','health-check.sh','switch-release.sh','rollback.sh') | ForEach-Object { Join-Path $repoRoot "deploy/linux/$_" }
+    $linuxScripts = @('package.sh','preflight.sh','install.sh','health-check.sh','switch-release.sh','rollback.sh') | ForEach-Object { Join-Path $repoRoot "deploy/linux/$_" }
     foreach ($script in $linuxScripts) {
         & $bash -n $script
         if ($LASTEXITCODE -ne 0) { throw "Bash syntax check failed: $script" }
     }
     Add-Check 'Linux Bash syntax' $true "$($linuxScripts.Count) deployment scripts pass bash -n."
+
+    $linuxInstaller = Get-Content -LiteralPath (Join-Path $repoRoot 'deploy/linux/install.sh') -Raw
+    $linuxPackage = Get-Content -LiteralPath (Join-Path $repoRoot 'deploy/linux/package.sh') -Raw
+    if ($linuxInstaller.IndexOf('preflight.sh') -lt 0 -or $linuxInstaller.IndexOf('preflight.sh') -gt $linuxInstaller.IndexOf('install -d -m 0750 "$CONFIG"') -or
+        $linuxPackage -notmatch 'cp "\$SCRIPT_DIR/preflight\.sh" "\$BUNDLE_DIR/preflight\.sh"') {
+        throw 'Linux installer must run packaged preflight before host changes, and the package builder must include it.'
+    }
+    Add-Check 'Linux installer preflight wiring' $true 'The bundle builder packages preflight.sh and install.sh invokes it before host configuration changes.'
+
+    $iisInstaller = Get-Content -LiteralPath (Join-Path $repoRoot 'deploy/iis/Install-IisBundle.ps1') -Raw
+    if ($iisInstaller -notmatch 'Assert-Administrator' -or $iisInstaller -notmatch 'Assert-ProtectedSecretsFile' -or
+        $iisInstaller -notmatch 'Database__ApplyMigrationsOnStartup' -or $iisInstaller -notmatch "'false'" -or
+        $iisInstaller -notmatch 'Versioned release paths are immutable' -or
+        $iisInstaller -notmatch 'Secrets file must remain outside the bundle and release directories') {
+        throw 'IIS installer static safety contract is incomplete (elevation, protected external secrets, immutable release path, or migrations-off).'
+    }
+    Add-Check 'IIS installer safety contract' $true 'Elevation, protected external secrets, immutable release path and startup migrations disabled verified statically.'
 
     $iis = Test-IisBundle $iisBundleRoot
     Add-Check 'IIS bundle manifest/components/config' $true "Version $($iis.version); four required components and routing/ANCM configuration verified."
@@ -139,6 +160,7 @@ try {
     & $tar -xzf $linuxArchivePath -C $extractRoot
     if ($LASTEXITCODE -ne 0) { throw 'Linux package extraction failed.' }
     $linuxRoot = Join-Path $extractRoot $topNames[0]
+    [void](Assert-File $linuxRoot 'preflight.sh')
     $releaseRoot = Join-Path $linuxRoot 'release'
     $version = [IO.File]::ReadAllText((Assert-File $releaseRoot 'VERSION')).Trim()
     if ($version -ne $topNames[0].Substring('aierp-linux-'.Length)) { throw 'Linux archive name and release/VERSION do not match.' }
@@ -148,6 +170,8 @@ try {
             throw "Linux package component is missing or empty: $component"
         }
     }
+    $linuxPackaging = Get-Content -LiteralPath (Join-Path $repoRoot 'deploy/linux/package.sh') -Raw
+    if ($linuxPackaging -notmatch 'rm -f -- "\$RELEASE_DIR/api/web\.config" "\$RELEASE_DIR/ai-service/web\.config"') { throw 'Linux packaging must remove SDK-generated IIS-only web.config files.' }
     $checksumCount = Test-ChecksumManifest $releaseRoot
     Add-Check 'Linux archive checksum/version/components' $true "Version $version; outer SHA-256 matches; four components present; $checksumCount release file checksums verified with exact manifest coverage."
 
@@ -166,7 +190,8 @@ try {
     $nginx = Get-Content -LiteralPath (Assert-File $linuxRoot 'nginx/nexora.conf') -Raw
     if ($nginx -notmatch 'server_name erp\.example\.com' -or $nginx -notmatch 'server_name studio\.example\.com' -or
         $nginx -notmatch 'root /opt/nexora/current/web' -or $nginx -notmatch 'root /opt/nexora/current/studio' -or
-        $nginx -notmatch 'location /studio/' -or $nginx -notmatch 'try_files \$uri \$uri/ /index\.html') { throw 'Linux nginx template is missing separate ERP/Studio routing or SPA fallback.' }
+        $nginx -notmatch 'location /studio/' -or $nginx -notmatch 'try_files \$uri \$uri/ /index\.html' -or
+        ([regex]::Matches($nginx, 'add_header X-Frame-Options DENY always;')).Count -lt 2) { throw 'Linux nginx template is missing separate ERP/Studio routing, SPA fallback, or frame protection.' }
     foreach ($service in @('aierp-platform-api.service', 'aierp-ai-service.service')) {
         $serviceText = Get-Content -LiteralPath (Assert-File $linuxRoot "systemd/$service") -Raw
         if ($serviceText -notmatch 'User=nexora' -or $serviceText -notmatch 'EnvironmentFile=/etc/nexora/' -or

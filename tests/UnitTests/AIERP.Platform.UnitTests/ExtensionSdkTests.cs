@@ -707,6 +707,43 @@ public sealed class ExtensionSdkTests
     }
 
     [Fact]
+    public async Task StripePaymentIntentAdapter_MapsMalformedSuccessfulResponseToProviderError()
+    {
+        var handler = new CapturingHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("{malformed")
+        }));
+        var adapter = new StripePaymentIntentAdapter("stripe.payment-intent", "sk_test_offline".AsMemory(), new HttpClient(handler));
+        using var request = JsonDocument.Parse("""{"amount":12500,"currency":"try"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "stripe.payment-intent", "corr-stripe", "idem-stripe", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await adapter.ExecuteAsync(context, request.RootElement, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("provider_error", result.ErrorCode);
+        Assert.False(result.IsRetryable);
+    }
+
+    [Fact]
+    public async Task StripePaymentIntentAdapter_RejectsUnknownPaymentIntentStatus()
+    {
+        var handler = new CapturingHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"id":"pi_offline_42","status":"future_private_state"}""")
+        }));
+        var adapter = new StripePaymentIntentAdapter("stripe.payment-intent", "sk_test_offline".AsMemory(), new HttpClient(handler));
+        using var request = JsonDocument.Parse("""{"amount":12500,"currency":"try"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "stripe.payment-intent", "corr-stripe", "idem-stripe", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await adapter.ExecuteAsync(context, request.RootElement, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("provider_error", result.ErrorCode);
+        Assert.Null(result.ExternalReference);
+        Assert.False(result.IsRetryable);
+    }
+
+    [Fact]
     public async Task IntegrationDispatcher_UsesPayPalOrdersV2WithStableRequestIdAndAllowlistedResponse()
     {
         var sentBodies = new List<string>();
@@ -817,6 +854,24 @@ public sealed class ExtensionSdkTests
         Assert.False(result.Succeeded);
         Assert.Equal("provider_error", result.ErrorCode);
         Assert.Null(result.ExternalReference);
+    }
+
+    [Fact]
+    public async Task PayPalOrderAdapter_MapsMalformedSuccessfulResponseToProviderError()
+    {
+        var handler = new CapturingHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.Created)
+        {
+            Content = new StringContent("{malformed")
+        }));
+        var adapter = new PayPalOrderAdapter("paypal.orders-v2", "offline-token".AsMemory(), new HttpClient(handler));
+        using var request = JsonDocument.Parse("""{"amount":"10.00","currency":"USD"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "paypal.orders-v2", "corr-paypal", "idem-paypal", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await adapter.ExecuteAsync(context, request.RootElement, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("provider_error", result.ErrorCode);
+        Assert.False(result.IsRetryable);
     }
 
     [Fact]

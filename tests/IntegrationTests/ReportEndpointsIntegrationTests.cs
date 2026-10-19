@@ -490,6 +490,77 @@ public sealed class ReportEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Sales_order_fulfillment_report_shows_line_reservations_backorders_and_is_tenant_scoped()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var order = await db.SalesOrders.SingleAsync(x => x.TenantId == TenantB && x.Code == "O-B");
+            order.Status = SalesOrderStatus.Cancelled;
+            var stock = await db.StockItems.SingleAsync(x => x.TenantId == TenantB && x.Code == "STOCK-B");
+            db.SalesOrderLines.Add(new SalesOrderLine
+            {
+                TenantId = TenantB, OrderId = order.Id, Order = order, LineNumber = 1, StockItemId = stock.Id, StockItem = stock,
+                StockCode = stock.Code, StockName = stock.Name, UnitCode = stock.UnitCode, Quantity = 900m
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/reports/catalog");
+        var source = Assert.Single(catalog!, item => item.GetProperty("code").GetString() == "salesOrderFulfillment");
+        Assert.Contains(source.GetProperty("columns").EnumerateArray(), column => column.GetProperty("code").GetString() == "backorderQuantity");
+        var definition = new
+        {
+            source = "salesOrderFulfillment",
+            columns = new[] { "orderCode", "stockCode", "orderedQuantity", "reservedQuantity", "fulfilledQuantity", "remainingQuantity", "backorderQuantity" },
+            filters = new[] { new { field = "backorderQuantity", @operator = "gte", value = "6" } },
+            sortBy = "orderCode", descending = false, page = 1, pageSize = 1
+        };
+        var response = await client.PostAsJsonAsync("/api/reports/run", definition);
+        response.EnsureSuccessStatusCode();
+        using var result = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(1, result.RootElement.GetProperty("totalCount").GetInt32());
+        var row = result.RootElement.GetProperty("rows")[0];
+        Assert.Equal("O-A", row.GetProperty("orderCode").GetString());
+        Assert.Equal("STOCK-A", row.GetProperty("stockCode").GetString());
+        Assert.Equal(10m, row.GetProperty("orderedQuantity").GetDecimal());
+        Assert.Equal(3m, row.GetProperty("reservedQuantity").GetDecimal());
+        Assert.Equal(1m, row.GetProperty("fulfilledQuantity").GetDecimal());
+        Assert.Equal(9m, row.GetProperty("remainingQuantity").GetDecimal());
+        Assert.Equal(6m, row.GetProperty("backorderQuantity").GetDecimal());
+
+        var csvResponse = await client.PostAsJsonAsync("/api/reports/export", definition);
+        csvResponse.EnsureSuccessStatusCode();
+        var csv = await csvResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Rezerve edilmemiş kalan miktar", csv);
+        Assert.Contains("STOCK-A", csv);
+        Assert.DoesNotContain("STOCK-B", csv);
+
+        var grouped = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "salesOrderFulfillment", columns = new[] { "orderCode" }, filters = Array.Empty<object>(), sortBy = "orderCode",
+            descending = false, page = 1, pageSize = 50, groupByFields = new[] { "orderCode" }, aggregate = "count"
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, grouped.StatusCode);
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var tenantB = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "salesOrderFulfillment", columns = new[] { "orderCode", "stockCode", "remainingQuantity", "backorderQuantity" }, filters = Array.Empty<object>(), sortBy = "orderCode",
+            descending = false, page = 1, pageSize = 50
+        });
+        tenantB.EnsureSuccessStatusCode();
+        using var tenantBResult = JsonDocument.Parse(await tenantB.Content.ReadAsStringAsync());
+        Assert.Equal("O-B", tenantBResult.RootElement.GetProperty("rows")[0].GetProperty("orderCode").GetString());
+        Assert.Equal("STOCK-B", tenantBResult.RootElement.GetProperty("rows")[0].GetProperty("stockCode").GetString());
+        Assert.Equal(0m, tenantBResult.RootElement.GetProperty("rows")[0].GetProperty("remainingQuantity").GetDecimal());
+        Assert.Equal(0m, tenantBResult.RootElement.GetProperty("rows")[0].GetProperty("backorderQuantity").GetDecimal());
+    }
+
+    [Fact]
     public async Task Sales_quote_reports_are_tenant_scoped_filterable_pageable_and_exportable()
     {
         await using var app = await StartApplicationAsync();
@@ -676,7 +747,8 @@ public sealed class ReportEndpointsIntegrationTests
         {
             var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
             var customer = await db.CustomerAccounts.SingleAsync(x => x.TenantId == TenantA && x.Code == "CUST-A");
-            customer.Name = "=1+1";
+            // Spreadsheets may ignore leading whitespace before a formula marker.
+            customer.Name = " \t=1+1";
             await db.SaveChangesAsync();
         }
 
@@ -689,7 +761,7 @@ public sealed class ReportEndpointsIntegrationTests
         });
         response.EnsureSuccessStatusCode();
         var csv = await response.Content.ReadAsStringAsync();
-        Assert.Contains("\"'=1+1\"", csv);
+        Assert.Contains("\"' \t=1+1\"", csv);
     }
 
     [Fact]
@@ -839,6 +911,63 @@ public sealed class ReportEndpointsIntegrationTests
             descending = false, page = 1, pageSize = 50, groupByFields = new[] { "direction" }, aggregate = "count"
         });
         Assert.Equal(HttpStatusCode.BadRequest, unsafeGrouping.StatusCode);
+    }
+
+    [Fact]
+    public async Task Inventory_transfer_report_is_tenant_scoped_filterable_and_exportable()
+    {
+        await using var app = await StartApplicationAsync();
+        var transferId = Guid.NewGuid();
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var source = await db.Warehouses.SingleAsync(x => x.TenantId == TenantA && x.Code == "WH-A");
+            var stock = await db.StockItems.SingleAsync(x => x.TenantId == TenantA && x.Code == "STOCK-A");
+            var destination = new Warehouse { TenantId = TenantA, Code = "WH-A2", Name = "A destination" };
+            var transfer = new InventoryTransfer { Id = transferId, TenantId = TenantA, RequestId = Guid.NewGuid(), Code = "TR-A", TransferDate = new DateOnly(2026, 10, 19), FromWarehouseId = source.Id, ToWarehouseId = destination.Id };
+            db.AddRange(destination, transfer,
+                new InventoryTransaction { TenantId = TenantA, WarehouseId = source.Id, StockItemId = stock.Id, EntryDate = transfer.TransferDate, Direction = InventoryDirection.Issue, Quantity = 7m, InventoryTransferId = transfer.Id, Description = "Transfer out" },
+                new InventoryTransaction { TenantId = TenantA, WarehouseId = destination.Id, StockItemId = stock.Id, EntryDate = transfer.TransferDate, Direction = InventoryDirection.Receipt, Quantity = 7m, InventoryTransferId = transfer.Id, Description = "Transfer in" });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/reports/catalog");
+        var sourceDefinition = Assert.Single(catalog!, x => x.GetProperty("code").GetString() == "inventoryTransfers");
+        Assert.Contains(sourceDefinition.GetProperty("columns").EnumerateArray(), x => x.GetProperty("code").GetString() == "totalQuantity");
+        var definition = new
+        {
+            source = "inventoryTransfers", columns = new[] { "code", "transferDate", "status", "fromWarehouseCode", "toWarehouseName", "lineCount", "totalQuantity" },
+            filters = new[] { new { field = "fromWarehouseCode", @operator = "equals", value = "WH-A" }, new { field = "transferDate", @operator = "gte", value = "2026-10-01" } },
+            sortBy = "transferDate", descending = false, page = 1, pageSize = 25
+        };
+        var response = await client.PostAsJsonAsync("/api/reports/run", definition);
+        response.EnsureSuccessStatusCode();
+        using var result = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(1, result.RootElement.GetProperty("totalCount").GetInt32());
+        var row = result.RootElement.GetProperty("rows")[0];
+        Assert.Equal("TR-A", row.GetProperty("code").GetString());
+        Assert.Equal("A destination", row.GetProperty("toWarehouseName").GetString());
+        Assert.Equal(1, row.GetProperty("lineCount").GetInt32());
+        Assert.Equal(7m, row.GetProperty("totalQuantity").GetDecimal());
+
+        var export = await client.PostAsJsonAsync("/api/reports/export", definition);
+        export.EnsureSuccessStatusCode();
+        var csv = await export.Content.ReadAsStringAsync();
+        Assert.Contains("TR-A", csv);
+        Assert.DoesNotContain("TR-B", csv);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var tenantB = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/reports/run", definition)).Content.ReadAsStringAsync());
+        Assert.Equal(0, tenantB.RootElement.GetProperty("totalCount").GetInt32());
+        var grouped = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "inventoryTransfers", columns = new[] { "code" }, filters = Array.Empty<object>(), sortBy = "code",
+            descending = false, page = 1, pageSize = 25, groupByFields = new[] { "code" }, aggregate = "count"
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, grouped.StatusCode);
     }
 
     [Fact]

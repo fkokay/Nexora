@@ -11,9 +11,9 @@ Do not transfer the managed Compose migrator's behavior or its local restore evi
 
 ## Package and schema evidence
 
-The offline bundle validation passed against `artifacts/linux/local-20261018-refresh/aierp-linux-local-20261018-refresh.tar.gz` and `artifacts/iis/local-20261018-refresh/`. It checked bundle metadata and component coverage, Linux archive and release SHA-256 checksums, environment templates, route configuration, systemd hardening and deployment script syntax. It did not install either bundle on a Linux or Windows Server host.
+The latest offline bundle validation (`docs/deployment-bundle-validation-20261019-audit-followup.json`) passed against `artifacts/linux/local-20261019-audit-followup/aierp-linux-local-20261019-audit-followup.tar.gz` and `artifacts/iis/local-20261019-audit-followup/`. It checked bundle metadata and component coverage, Linux archive and release SHA-256 checksums, environment templates, route configuration, systemd hardening and deployment script syntax. It did not install either bundle on a Linux or Windows Server host.
 
-Current source migrations are in `artifacts/migrations/2026-10-19/`: 106 Platform, 22 Tenant and 10 AIStudio migration IDs. The SQL is idempotent and generated, but unapplied. The older `artifacts/migrations/2026-10-18/` scripts are stale; do not use them for a release against current source. `manifest.json` and `SHA256SUMS.txt` identify the current scripts and latest migration IDs.
+Current source migrations are in `artifacts/migrations/2026-10-19/`: 106 Platform, 22 Tenant and 10 AIStudio migration IDs. The generated SQL scripts remain unapplied to a production database; the local separated Compose databases have applied those current histories. Production application still requires the target DBA's reviewed staging rehearsal. The older `artifacts/migrations/2026-10-18/` scripts are stale; do not use them for a release against current source. `manifest.json` and `SHA256SUMS.txt` identify the current scripts and latest migration IDs.
 
 Before applying a script on a real database:
 

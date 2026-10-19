@@ -10,6 +10,30 @@ namespace AIERP.Platform.UnitTests;
 public sealed class PluginHostTests
 {
     [Fact]
+    public void ModulePackageStoragePath_RejectsTraversalAndReparsePointAncestors()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-module-storage-{Guid.NewGuid():N}");
+        var outside = Path.Combine(Path.GetTempPath(), $"aierp-module-outside-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(outside);
+        try
+        {
+            Assert.Throws<InvalidDataException>(() => ModulePackageStoragePath.ResolveChild(root, "../outside/file.zip"));
+            var link = Path.Combine(root, "linked");
+            try { Directory.CreateSymbolicLink(link, outside); }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException) { return; }
+            Assert.Equal(Path.Combine(root, $"{new string('b', 64)}.zip"), ModulePackageStoragePath.ResolvePackage(root, new string('b', 64)));
+            Assert.Throws<InvalidDataException>(() => ModulePackageStoragePath.ResolveChild(root, "linked/package.zip"));
+            Assert.Throws<InvalidDataException>(() => ModulePackageStoragePath.ResolveChild(link, "package.zip"));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+            try { Directory.Delete(outside, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
     public void ModulePackageArchive_RequiresOneBoundedRootWasmEntry()
     {
         var wasm = BuildModule();
