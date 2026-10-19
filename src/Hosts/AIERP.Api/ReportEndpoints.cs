@@ -2886,7 +2886,7 @@ public static class ReportEndpoints
     private static async Task<IResult> RunSalesInvoicesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
-        IQueryable<SalesInvoice> query = db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Customer).Include(x => x.Returns);
+        IQueryable<SalesInvoice> query = db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Customer);
         foreach (var filter in report.Filters)
             if (!TryApplyInvoiceFilter(ref query, db, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -2903,9 +2903,11 @@ public static class ReportEndpoints
         }
         var rows = await ApplyInvoiceSort(query, db, report.SortBy, report.Descending)
             .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize).ToListAsync(ct);
-        var paidByInvoice = await GetPostedCollectionTotalsAsync(db, tenantId, rows.Select(x => x.Id).ToArray(), ct);
+        var invoiceIds = rows.Select(x => x.Id).ToArray();
+        var paidByInvoice = await GetPostedCollectionTotalsAsync(db, tenantId, invoiceIds, ct);
+        var returnedByInvoice = await GetPostedSalesReturnTotalsAsync(db, tenantId, invoiceIds, ct);
         var resultRows = rows.Select(invoice => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(
-            code => code, code => ReadInvoiceValue(invoice, code, paidByInvoice.GetValueOrDefault(invoice.Id)), StringComparer.Ordinal)).ToArray();
+            code => code, code => ReadInvoiceValue(invoice, code, paidByInvoice.GetValueOrDefault(invoice.Id), returnedByInvoice.GetValueOrDefault(invoice.Id)), StringComparer.Ordinal)).ToArray();
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed", Resource = "salesInvoices" });
         await db.SaveChangesAsync(ct);
         return Results.Ok(new ReportResult(report.Source, report.Columns.Select(InvoiceColumnByCode).ToArray(), resultRows,
@@ -2915,7 +2917,7 @@ public static class ReportEndpoints
     private static async Task<IResult> ExportSalesInvoicesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
-        IQueryable<SalesInvoice> query = db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Customer).Include(x => x.Returns);
+        IQueryable<SalesInvoice> query = db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Customer);
         foreach (var filter in report.Filters)
             if (!TryApplyInvoiceFilter(ref query, db, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -2941,9 +2943,12 @@ public static class ReportEndpoints
             var totalCount = await query.CountAsync(ct);
             if (totalCount > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
             var rows = await ApplyInvoiceSort(query, db, report.SortBy, report.Descending).Take(10_000).ToListAsync(ct);
-            var paidByInvoice = await GetPostedCollectionTotalsAsync(db, tenantId, rows.Select(x => x.Id).ToArray(), ct);
+            var invoiceIds = rows.Select(x => x.Id).ToArray();
+            var paidByInvoice = await GetPostedCollectionTotalsAsync(db, tenantId, invoiceIds, ct);
+            var returnedByInvoice = await GetPostedSalesReturnTotalsAsync(db, tenantId, invoiceIds, ct);
             csv.Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(InvoiceColumnByCode(code).Label))));
-            foreach (var invoice in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadInvoiceValue(invoice, code, paidByInvoice.GetValueOrDefault(invoice.Id))))));
+            foreach (var invoice in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadInvoiceValue(invoice, code,
+                paidByInvoice.GetValueOrDefault(invoice.Id), returnedByInvoice.GetValueOrDefault(invoice.Id))))));
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.exported", Resource = $"salesInvoices:{rows.Count}" });
         }
         await db.SaveChangesAsync(ct);
@@ -4121,6 +4126,16 @@ public static class ReportEndpoints
             .ToDictionaryAsync(x => x.InvoiceId, x => x.Amount, ct);
     }
 
+    private static async Task<Dictionary<Guid, decimal>> GetPostedSalesReturnTotalsAsync(TenantDbContext db, Guid tenantId, Guid[] invoiceIds, CancellationToken ct)
+    {
+        if (invoiceIds.Length == 0) return [];
+        return await db.SalesReturns.AsNoTracking()
+            .Where(r => r.TenantId == tenantId && invoiceIds.Contains(r.SalesInvoiceId) && r.Status == SalesReturnStatus.Posted)
+            .GroupBy(r => r.SalesInvoiceId)
+            .Select(group => new { InvoiceId = group.Key, Amount = group.Sum(r => r.GrandTotal) })
+            .ToDictionaryAsync(x => x.InvoiceId, x => x.Amount, ct);
+    }
+
     private static IQueryable<SalesInvoice> ApplyInvoiceSort(IQueryable<SalesInvoice> query, TenantDbContext db, string field, bool descending)
     {
         if (field == "paidAmount")
@@ -4158,13 +4173,12 @@ public static class ReportEndpoints
         };
     }
 
-    private static object? ReadInvoiceValue(SalesInvoice x, string code, decimal paidAmount) => code switch
+    private static object? ReadInvoiceValue(SalesInvoice x, string code, decimal paidAmount, decimal returnedAmount) => code switch
     {
         "code" => x.Code, "customerCode" => x.Customer.Code, "customerName" => x.Customer.Name, "invoiceDate" => x.InvoiceDate,
         "currencyCode" => x.CurrencyCode, "status" => x.Status.ToString(), "subtotal" => x.Subtotal, "taxTotal" => x.TaxTotal,
-        "grandTotal" => x.GrandTotal, "paidAmount" => paidAmount,
-        "returnedAmount" => x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SalesReturnStatus.Posted).Sum(r => r.GrandTotal),
-        "outstandingAmount" => Math.Max(0m, x.GrandTotal - paidAmount - x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SalesReturnStatus.Posted).Sum(r => r.GrandTotal)),
+        "grandTotal" => x.GrandTotal, "paidAmount" => paidAmount, "returnedAmount" => returnedAmount,
+        "outstandingAmount" => Math.Max(0m, x.GrandTotal - paidAmount - returnedAmount),
         "createdAt" => x.CreatedAt, _ => null
     };
 
