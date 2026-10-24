@@ -21,7 +21,7 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
     {
         "search_stock_items", "list_warehouses", "get_warehouse_balances",
         "search_customer_accounts", "get_customer_balance", "get_supplier_balance", "get_exchange_rate", "search_sales_orders", "search_purchase_orders", "get_report_schema", "generate_report",
-        "get_hr_leave_summary", "get_hr_attendance_summary", "search_sales_invoices", "search_purchase_invoices"
+        "get_hr_leave_summary", "get_hr_attendance_summary", "search_sales_invoices", "search_purchase_invoices", "get_cash_flow_forecast"
     };
     private static readonly object PlanSchema = new
     {
@@ -479,9 +479,15 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
                 {
                     from = new { type = "string", pattern = "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
                     to = new { type = "string", pattern = "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
-                }, required = new[] { "from", "to" } } }
+                }, required = new[] { "from", "to" } } },
+            new { type = "function", name = "get_cash_flow_forecast", description = "Read a bounded tenant-authorized cash forecast for a month-start date and 1–12 months. Returns only monthly currency totals and separates approved direct cash-budget inflows/outflows; no transaction, account, or counterparty identities. This is a forecast, not posted cash or a guarantee.", strict = true,
+                parameters = new { type = "object", additionalProperties = false, properties = new
+                {
+                    from = new { type = "string", pattern = "^[0-9]{4}-[0-9]{2}-01$", description = "First calendar day of the first forecast month." },
+                    months = new { type = "integer", minimum = 1, maximum = 12 }
+                }, required = new[] { "from", "months" } } }
         };
-        var input = new List<object> { new { role = "system", content = systemPrompt } };
+        var input = new List<object> { new { role = "system", content = systemPrompt + " For get_cash_flow_forecast, require an explicit month-start date and 1–12 month horizon. Its amounts are aggregated forecasts, not posted/guaranteed cash, and planned amounts can overlap invoice or instrument projections; report this limitation when relevant. Preserve each currency and never combine different currencies." } };
         input.AddRange(history.Select(turn => (object)new { role = turn.Role, content = turn.Content }));
         input.Add(new { role = "user", content = question.Trim() });
 

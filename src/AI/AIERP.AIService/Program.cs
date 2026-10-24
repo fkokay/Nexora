@@ -1141,6 +1141,26 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                     : "/api/hr/leave-requests";
                 break;
             }
+            case "get_cash_flow_forecast":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 2 || !arguments.RootElement.TryGetProperty("from", out var fromElement) ||
+                    fromElement.ValueKind != JsonValueKind.String || !arguments.RootElement.TryGetProperty("months", out var monthsElement) ||
+                    monthsElement.ValueKind != JsonValueKind.Number || !monthsElement.TryGetInt32(out var months) ||
+                    !ERPAssistantFinanceTools.TryValidatePeriod(fromElement.GetString(), months, out var from, out var horizon))
+                    throw new ArgumentException("Cash-flow forecast requires a month-start date and a 1–12 month horizon.");
+
+                if (!await ERPAssistantFinanceTools.IsReadAllowedAsync(name, tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/finance/cash-flow/forecast", new Dictionary<string, string?>
+                {
+                    ["from"] = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                    ["months"] = horizon.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                });
+                break;
+            }
             default: throw new ArgumentException("Unknown read-only ERP tool.");
         }
 
@@ -1184,6 +1204,8 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         }
         if (name == "get_report_schema")
             return ERPReportSchemaToolResult.Serialize(result.RootElement, arguments.RootElement.GetProperty("source").GetString()!);
+        if (name == "get_cash_flow_forecast")
+            return ERPAssistantFinanceTools.SummarizeCashForecast(result.RootElement);
         if (name == "list_warehouses")
             return ERPWarehouseToolResult.Serialize(result.RootElement);
         if (name == "search_stock_items")

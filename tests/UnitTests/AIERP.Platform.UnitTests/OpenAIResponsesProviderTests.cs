@@ -413,6 +413,12 @@ public sealed class OpenAIResponsesProviderTests
                 Assert.False(schemaTool.GetProperty("parameters").GetProperty("additionalProperties").GetBoolean());
                 var reportTool = document.RootElement.GetProperty("tools").EnumerateArray()
                     .Single(tool => tool.GetProperty("name").GetString() == "generate_report");
+                var cashFlowTool = document.RootElement.GetProperty("tools").EnumerateArray()
+                    .Single(tool => tool.GetProperty("name").GetString() == "get_cash_flow_forecast");
+                Assert.True(cashFlowTool.GetProperty("strict").GetBoolean());
+                var cashFlowParameters = cashFlowTool.GetProperty("parameters").GetProperty("properties");
+                Assert.Equal(12, cashFlowParameters.GetProperty("months").GetProperty("maximum").GetInt32());
+                Assert.Contains("direct cash-budget inflows/outflows", cashFlowTool.GetProperty("description").GetString(), StringComparison.OrdinalIgnoreCase);
                 Assert.True(reportTool.GetProperty("strict").GetBoolean());
                 var parameters = reportTool.GetProperty("parameters");
                 Assert.True(parameters.GetProperty("additionalProperties").GetBoolean() == false);
