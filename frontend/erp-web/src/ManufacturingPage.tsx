@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
+import { authenticatedFetch } from './authApi';
 import { Boxes, ClipboardList, Factory, Plus, RefreshCw } from 'lucide-react'
 import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import './manufacturing.css'
@@ -72,7 +73,7 @@ export default function ManufacturingPage({token,section}:{token:string;section:
  ])
  const [mrpStockItem,setMrpStockItem]=useState(''),[mrpQuantity,setMrpQuantity]=useState('1'),[mrpRequiredByDate,setMrpRequiredByDate]=useState(new Date().toISOString().slice(0,10)),[mrpPlan,setMrpPlan]=useState<MrpPlan|null>(null),[mrpHistory,setMrpHistory]=useState<MrpPlanHistory[]>([]),[mrpSelected,setMrpSelected]=useState<number[]>([]),[mrpBomSelections,setMrpBomSelections]=useState<Record<number,string>>({}),[purchaseRequestFields,setPurchaseRequestFields]=useState<PurchaseRequestField[]>([]),[purchaseRequestFieldValues,setPurchaseRequestFieldValues]=useState<Record<string,string>>({})
  const request=useCallback(async<T,>(url:string,init?:RequestInit):Promise<T>=>{
-  const method=(init?.method??'GET').toUpperCase(),r=await fetch(url,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}})
+  const method=(init?.method??'GET').toUpperCase(),r=await authenticatedFetch(url,token,init)
   if(!r.ok){
    if(r.status===403){
     const path=url.split('?')[0],tail=path.replace(/\/+$/,'').split('/').pop()?.toLowerCase()??''

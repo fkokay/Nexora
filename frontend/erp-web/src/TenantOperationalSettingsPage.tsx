@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { CircleDollarSign, Save, ShieldCheck, Warehouse } from 'lucide-react'
 import './tenant-operational-settings.css'
 
@@ -30,7 +31,7 @@ export default function TenantOperationalSettingsPage({ token, role, tenant, onN
   const profileChanged=companyProfile!==null&&(legalName!==companyProfile.legalName||taxOffice!==(companyProfile.taxOffice??'')||taxNumber!==(companyProfile.taxNumber??''))
 
   async function request<T>(path:string,options:ApiOptions={}):Promise<T> {
-    const response=await fetch(path,{method:options.method??'GET',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:options.body===undefined?undefined:JSON.stringify(options.body)})
+    const response=await authenticatedFetch(path, token, {method:options.method??'GET',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:options.body===undefined?undefined:JSON.stringify(options.body)})
     if(!response.ok){const payload=await response.json().catch(()=>null) as {error?:string;title?:string;errors?:Record<string,string[]>}|null;const validation=payload?.errors?Object.values(payload.errors).flat()[0]:undefined;throw new Error(response.status===403?'Bu işlem için yetkiniz yok.':validation||payload?.error||payload?.title||`İstek başarısız (${response.status}).`)}
     return response.json() as Promise<T>
   }

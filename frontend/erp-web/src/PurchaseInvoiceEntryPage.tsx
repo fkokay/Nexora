@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { FilePlus2, PackageCheck, Search, ShieldCheck } from 'lucide-react'
 import './purchase-invoice-entry.css'
 
@@ -27,7 +28,7 @@ export type PurchaseInvoiceEntryPageProps = {
 }
 
 async function request<T>(url: string, token: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers } })
+  const response = await authenticatedFetch(url, token, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers } })
   if (!response.ok) {
     let message = `İstek başarısız (${response.status}).`
     try { const body = await response.json(); message = body.error || body.title || message } catch { /* preserve the status message */ }

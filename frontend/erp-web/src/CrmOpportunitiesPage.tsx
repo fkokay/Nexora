@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { authenticatedFetch } from './authApi';
 import { BriefcaseBusiness, CalendarClock, CircleDollarSign, Plus, Search, Target, UserRound } from 'lucide-react'
 import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import './crm-opportunities.css'
@@ -32,7 +33,7 @@ export default function CrmOpportunitiesPage({token}:{token:string}) {
   const queryRef=useRef(query),filterRef=useRef(filter)
   queryRef.current=query;filterRef.current=filter
   const request=useCallback(async<T,>(url:string,init?:RequestInit):Promise<T>=>{
-    const response=await fetch(url,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}})
+    const response=await authenticatedFetch(url, token, {...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}})
     if(!response.ok){const body=await response.json().catch(()=>null) as {error?:string;title?:string;errors?:Record<string,string[]>}|null;throw new Error(body?.error||Object.values(body?.errors??{}).flat().join(' ')||body?.title||`İstek başarısız (${response.status})`)}
     return response.status===204?undefined as T:response.json() as Promise<T>
   },[token])

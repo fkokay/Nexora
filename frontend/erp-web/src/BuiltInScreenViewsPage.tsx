@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { ArrowDown, ArrowUp, Check, Clock3, Eye, EyeOff, GripVertical, LayoutTemplate, Plus, RotateCcw, Save, Send, ShieldCheck } from 'lucide-react'
 import './built-in-screen-views.css'
 
@@ -10,7 +11,7 @@ type Revision = { id: string; revision: number; name: string; fields: LayoutFiel
 type EditorState = { catalog: Catalog; active: View; draft: View | null }
 
 async function api<T>(token: string, path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(path, { ...options, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...options?.headers } })
+  const response = await authenticatedFetch(path, token, { ...options, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...options?.headers } })
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { error?: string; title?: string } | null
     throw new Error(body?.error || body?.title || `İstek başarısız (${response.status}).`)

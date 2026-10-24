@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { authenticatedFetch } from './authApi';
 import { ArrowDown, ArrowUp, Edit2, Plus, Save, Trash2, X } from 'lucide-react'
 import './custom-menus.css'
 
@@ -9,7 +10,7 @@ export function TenantCustomMenuNavigation({ token, page, onSelect }: { token: s
   const [entries, setEntries] = useState<Entry[]>([])
   useEffect(() => {
     let active = true
-    void fetch('/api/custom-menus/', { headers: { Authorization: `Bearer ${token}` } })
+    void authenticatedFetch('/api/custom-menus/', token, { headers: { Authorization: `Bearer ${token}` } })
       .then(async response => response.ok ? response.json() as Promise<Entry[]> : [])
       .then(items => { if (active) setEntries(items) })
       .catch(() => { if (active) setEntries([]) })
@@ -36,7 +37,7 @@ export default function CustomMenusPage({ token, role }: { token: string; role: 
   const admin = role === 'TenantAdmin'
 
   const request = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
-    const response = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers } })
+    const response = await authenticatedFetch(url, token, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers } })
     if (!response.ok) {
       const body = await response.json().catch(() => null) as { error?: string; title?: string; errors?: Record<string, string[]> } | null
       throw new Error(body?.error || Object.values(body?.errors ?? {}).flat().join(' ') || body?.title || `İstek başarısız (${response.status})`)

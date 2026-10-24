@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowRight, Check, ClipboardCheck, Clock3, Plus, Send, ShieldCheck, X } from 'lucide-react'
+import { authenticatedFetch } from './authApi'
 import './workflow.css'
 
 type Step={name:string;approverRole:string}
@@ -14,7 +15,7 @@ export default function WorkflowPage({token,role}:{token:string;role:string}) {
   const [editing,setEditing]=useState<Definition|null>(null),[builderOpen,setBuilderOpen]=useState(false),[name,setName]=useState(''),[code,setCode]=useState(''),[description,setDescription]=useState(''),[steps,setSteps]=useState<Step[]>([{name:'Yönetici onayı',approverRole:'TenantAdmin'}])
   const [starting,setStarting]=useState<Definition|null>(null),[subjectTitle,setSubjectTitle]=useState(''),[subjectType,setSubjectType]=useState('General')
   const [rejectNotes,setRejectNotes]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('')
-  const request=useCallback(async<T,>(url:string,init?:RequestInit):Promise<T>=>{const response=await fetch(url,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}});if(!response.ok){const body=await response.json().catch(()=>null) as {error?:string;title?:string;errors?:Record<string,string[]>}|null;throw new Error(body?.error||Object.values(body?.errors??{}).flat().join(' ')||body?.title||`İstek başarısız (${response.status})`)}return response.status===204?undefined as T:response.json() as Promise<T>},[token])
+  const request=useCallback(async<T,>(url:string,init?:RequestInit):Promise<T>=>{const response=await authenticatedFetch(url,token,{...init,headers:{'Content-Type':'application/json',...init?.headers}});if(!response.ok){const body=await response.json().catch(()=>null) as {error?:string;title?:string;errors?:Record<string,string[]>}|null;throw new Error(body?.error||Object.values(body?.errors??{}).flat().join(' ')||body?.title||`İstek başarısız (${response.status})`)}return response.status===204?undefined as T:response.json() as Promise<T>},[token])
   const refresh=useCallback(async()=>{try{const [d,i]=await Promise.all([request<Definition[]>('/api/workflows/definitions'),request<Instance[]>('/api/workflows/instances')]);setDefinitions(d);setInstances(i)}finally{setLoading(false)}},[request])
   useEffect(()=>{void refresh().catch(e=>setError((e as Error).message))},[refresh])
   const drafts=useMemo(()=>definitions.filter(x=>x.status==='Draft'),[definitions]),published=useMemo(()=>definitions.filter(x=>x.status==='Published'),[definitions])

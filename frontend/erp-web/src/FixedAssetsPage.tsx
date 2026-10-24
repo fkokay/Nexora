@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import './fixed-assets.css'
 
@@ -14,7 +15,7 @@ type Page<T> = {items:T[];page:number;pageSize:number;totalCount:number}
 type ScreenView = {fields:{key:string;label:string;visible:boolean;position:number;fixed?:boolean;section?:string|null}[]}
 
 async function request<T>(url:string,token:string,init?:RequestInit):Promise<T>{
-  const response=await fetch(url,{...init,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...init?.headers}})
+  const response=await authenticatedFetch(url, token, {...init,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...init?.headers}})
   if(!response.ok){let message=`İstek başarısız (${response.status})`;try{const body=await response.json();message=body.error||body.title||Object.values(body.errors||{}).flat().join(' ')||message}catch{}throw new Error(message)}
   return response.json() as Promise<T>
 }
@@ -32,7 +33,7 @@ export default function FixedAssetsPage({token,locale}:{token:string;locale:'tr'
   const [offsetAccountId,setOffsetAccountId]=useState(''),[purchaseInvoiceId,setPurchaseInvoiceId]=useState('')
   const [assetListView,setAssetListView]=useState<ScreenView|null>(null)
   const load=useCallback(async()=>{setLoading(true);setError('');try{const [page,staff,ledgerAccounts,invoices]=await Promise.all([request<Page<Asset>>('/api/fixed-assets?page=1&pageSize=200',token),request<Employee[]>('/api/hr/employees',token),request<LedgerAccount[]>('/api/finance/general-ledger/accounts',token),request<PurchaseInvoice[]>('/api/fixed-assets/purchase-invoices',token)]);setAssets(page.items);setEmployees(staff.filter(x=>x.status!=='Terminated'));setAccounts(ledgerAccounts.filter(x=>x.isActive));setPurchaseInvoices(invoices);setSelected(current=>current?page.items.find(x=>x.id===current.id)||null:page.items[0]||null)}catch(e){setError((e as Error).message)}finally{setLoading(false)}},[token])
-  const loadDetails=useCallback(async(asset:Asset|null)=>{setSelected(asset);setSchedule(null);setAssignments([]);setDisposal(null);setAcquisitionPosting(null);setDetailError('');if(!asset){setDetailLoading(false);return}setDetailLoading(true);try{const [nextSchedule,nextAssignments,nextDisposal,nextAcquisitionPosting]=await Promise.all([request<Schedule>(`/api/fixed-assets/${asset.id}/depreciation-schedule`,token),request<Assignment[]>(`/api/fixed-assets/${asset.id}/assignments`,token),fetch(`/api/fixed-assets/${asset.id}/disposal`,{headers:{Authorization:`Bearer ${token}`}}).then(async response=>response.status===404?null:response.ok?response.json() as Promise<Disposal>:Promise.reject(new Error(en?`Request failed (${response.status})`:`İstek başarısız (${response.status})`))),request<AcquisitionPosting>(`/api/fixed-assets/${asset.id}/acquisition-posting`,token)]);setSchedule(nextSchedule);setAssignments(nextAssignments);setDisposal(nextDisposal);setAcquisitionPosting(nextAcquisitionPosting)}catch(e){setDetailError((e as Error).message);setError((e as Error).message)}finally{setDetailLoading(false)}},[en,token])
+  const loadDetails=useCallback(async(asset:Asset|null)=>{setSelected(asset);setSchedule(null);setAssignments([]);setDisposal(null);setAcquisitionPosting(null);setDetailError('');if(!asset){setDetailLoading(false);return}setDetailLoading(true);try{const [nextSchedule,nextAssignments,nextDisposal,nextAcquisitionPosting]=await Promise.all([request<Schedule>(`/api/fixed-assets/${asset.id}/depreciation-schedule`,token),request<Assignment[]>(`/api/fixed-assets/${asset.id}/assignments`,token),authenticatedFetch(`/api/fixed-assets/${asset.id}/disposal`, token, {headers:{Authorization:`Bearer ${token}`}}).then(async response=>response.status===404?null:response.ok?response.json() as Promise<Disposal>:Promise.reject(new Error(en?`Request failed (${response.status})`:`İstek başarısız (${response.status})`))),request<AcquisitionPosting>(`/api/fixed-assets/${asset.id}/acquisition-posting`,token)]);setSchedule(nextSchedule);setAssignments(nextAssignments);setDisposal(nextDisposal);setAcquisitionPosting(nextAcquisitionPosting)}catch(e){setDetailError((e as Error).message);setError((e as Error).message)}finally{setDetailLoading(false)}},[en,token])
   useEffect(()=>{void load()},[load])
   useEffect(()=>{let active=true;void request<ScreenView>('/api/screen-views/fixed-assets/active',token).then(view=>{if(active)setAssetListView(view)}).catch(e=>{if(active)setError((e as Error).message)});return()=>{active=false}},[token])
   useEffect(()=>{if(selected)void loadDetails(selected)},[selected?.id,loadDetails])

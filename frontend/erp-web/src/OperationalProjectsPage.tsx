@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ScreenViewGroupHeader from './ScreenViewGroupHeader'
+import { authenticatedFetch } from './authApi'
 import './operational-projects.css'
 
 type Summary={id:string;code:string;name:string;customerAccountId:string|null;startDate:string|null;endDate:string|null;status:string;budgetAmount:number;currencyCode:string;createdAt:string;updatedAt:string;taskCount:number;allocatedHours:number;actualHours:number;completedTaskCount:number;overdueTaskCount:number;nextTaskDate:string|null;timeEntryCount:number;latestTimeEntryDate:string|null}
@@ -22,7 +23,7 @@ const defaultProjectScreenFields:ProjectScreenField[]=[
   {key:'currencyCode',label:'Döviz',visible:false,position:10},{key:'completedTaskCount',label:'Tamamlanan görev',visible:false,position:11},
   {key:'actions',label:'İşlemler',visible:true,position:12,fixed:true}
 ]
-async function api<T>(url:string,token:string,init?:RequestInit):Promise<T>{const r=await fetch(url,{...init,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...init?.headers}});if(!r.ok){let msg=`İstek başarısız (${r.status})`;try{const b=await r.json();msg=b.error||b.title||Object.values(b.errors||{}).flat().join(' ')||msg}catch{}throw new Error(msg)}return r.json()}
+async function api<T>(url:string,token:string,init?:RequestInit):Promise<T>{const r=await authenticatedFetch(url,token,{...init,headers:{'Content-Type':'application/json',...init?.headers}});if(!r.ok){let msg=`İstek başarısız (${r.status})`;try{const b=await r.json();msg=b.error||b.title||Object.values(b.errors||{}).flat().join(' ')||msg}catch{}throw new Error(msg)}return r.json()}
 
 function CostSummaryCard({summary,en}:{summary:CostSummary|null;en:boolean}){
   const hourUnit=en?'h':'saat'

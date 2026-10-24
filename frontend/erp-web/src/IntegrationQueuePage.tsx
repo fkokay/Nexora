@@ -19,22 +19,26 @@ type IntegrationOperationPage = { items: IntegrationOperation[]; page: number; p
 type EDocumentSubmission = { operationId: string; documentType: string; documentId: string; documentNumber: string; issueDate: string; currencyCode: string; status: string; createdAt: string; requestedByUserId: string }
 type EDocumentSubmissionDetail = { documentType: string; documentId: string; documentNumber: string; issueDate: string; currencyCode: string; document: Record<string, unknown> }
 type EDocumentSourceDocument = { id: string; number: string; issueDate: string; currencyCode: string; counterpartyName: string; total: number; status: string }
-type Props = { token: string }
+type Props = {
+  token: string
+  requestApi: <T>(url: string, token?: string, init?: RequestInit) => Promise<T>
+}
 const statuses = ['', 'AwaitingApproval', 'Queued', 'Running', 'Succeeded', 'Failed', 'Indeterminate', 'Cancelled'] as const
 const statusLabels: Record<IntegrationOperation['status'], string> = {
   AwaitingApproval: 'Onay bekliyor', Queued: 'Kuyrukta', Running: 'Çalışıyor', Succeeded: 'Başarılı', Failed: 'Başarısız', Indeterminate: 'Sonuç belirsiz', Cancelled: 'İptal edildi',
 }
 
-async function fetchQueue(url: string, token: string, init?: RequestInit) {
-  const response = await fetch(url, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init?.headers || {}) } })
-  if (!response.ok) {
-    const body = await response.json().catch(() => null) as { errorCode?: string; title?: string } | null
-    throw new Error(response.status === 409 ? 'İşlem durumu değişti. Listeyi yenileyin.' : body?.title || body?.errorCode || `İstek başarısız (${response.status}).`)
+async function fetchQueue<T>(url: string, token: string, requestApi: Props['requestApi'], init?: RequestInit): Promise<T> {
+  try {
+    return await requestApi<T>(url, token, init)
+  } catch (cause) {
+    if (cause instanceof Error && cause.message.includes('(409)'))
+      throw new Error('İşlem durumu değişti. Listeyi yenileyin.')
+    throw cause
   }
-  return response.status === 204 ? null : response.json()
 }
 
-export default function IntegrationQueuePage({ token }: Props) {
+export default function IntegrationQueuePage({ token, requestApi }: Props) {
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<IntegrationOperationPage | null>(null)
@@ -66,8 +70,8 @@ export default function IntegrationQueuePage({ token }: Props) {
     const query = new URLSearchParams({ page: String(page), pageSize: '25' })
     if (status) query.set('status', status)
     const [queueResult, submissionsResult] = await Promise.allSettled([
-      fetchQueue(`/api/integrations/operations?${query}`, token, { signal }) as Promise<IntegrationOperationPage>,
-      fetchQueue('/api/e-documents/submissions', token, { signal }) as Promise<EDocumentSubmission[]>,
+      fetchQueue<IntegrationOperationPage>(`/api/integrations/operations?${query}`, token, requestApi, { signal }),
+      fetchQueue<EDocumentSubmission[]>('/api/e-documents/submissions', token, requestApi, { signal }),
     ])
     if (signal?.aborted) return
     if (queueResult.status === 'fulfilled') setData(queueResult.value)
@@ -76,7 +80,7 @@ export default function IntegrationQueuePage({ token }: Props) {
     else setSubmissionsError(submissionsResult.reason instanceof Error ? submissionsResult.reason.message : 'Onay bekleyen gönderimler yüklenemedi.')
     setLoading(false)
     setSubmissionsLoading(false)
-  }, [page, status, token])
+  }, [page, status, token, requestApi])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -91,12 +95,12 @@ export default function IntegrationQueuePage({ token }: Props) {
     setSourceDocuments([])
     setSourceDocumentsError('')
     setSourceDocumentsLoading(true)
-    void fetchQueue(`/api/e-documents/source-documents?documentType=${encodeURIComponent(documentType)}`, token, { signal: controller.signal })
+    void fetchQueue<EDocumentSourceDocument[]>(`/api/e-documents/source-documents?documentType=${encodeURIComponent(documentType)}`, token, requestApi, { signal: controller.signal })
       .then((items: EDocumentSourceDocument[]) => setSourceDocuments(items))
       .catch(cause => { if (!controller.signal.aborted) setSourceDocumentsError(cause instanceof Error ? cause.message : 'ERP belgeleri yüklenemedi.') })
       .finally(() => { if (!controller.signal.aborted) setSourceDocumentsLoading(false) })
     return () => controller.abort()
-  }, [documentType, token])
+  }, [documentType, token, requestApi])
 
   async function cancel(item: IntegrationOperation) {
     if (!['Queued', 'AwaitingApproval'].includes(item.status) || !window.confirm(`${item.integrationCode} işlemini iptal etmek istiyor musunuz?`)) return
@@ -104,7 +108,7 @@ export default function IntegrationQueuePage({ token }: Props) {
     setError('')
     setNotice('')
     try {
-      await fetchQueue(`/api/integrations/operations/${item.operationId}/cancel`, token, { method: 'POST' })
+      await fetchQueue(`/api/integrations/operations/${item.operationId}/cancel`, token, requestApi, { method: 'POST' })
       setNotice('Kuyrukta bekleyen işlem iptal edildi.')
       await load()
     } catch (cause) {
@@ -122,7 +126,7 @@ export default function IntegrationQueuePage({ token }: Props) {
     try {
       const body = JSON.stringify({ documentType, documentId })
       if (body !== submissionBody.current) { submissionBody.current = body; submissionIdempotencyKey.current = crypto.randomUUID() }
-      await fetchQueue('/api/e-documents/submissions', token, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': submissionIdempotencyKey.current }, body })
+      await fetchQueue('/api/e-documents/submissions', token, requestApi, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': submissionIdempotencyKey.current }, body })
       submissionIdempotencyKey.current = ''; submissionBody.current = ''
       setNotice('Taslak hazırlandı. Dış sağlayıcıya gönderim için farklı bir yönetici onayı gerekiyor.')
       await load()
@@ -134,7 +138,7 @@ export default function IntegrationQueuePage({ token }: Props) {
     if (!documentId) return
     setPreviewing(true); setError(''); setNotice(''); setSourcePreview(null)
     try {
-      const preview = await fetchQueue(`/api/e-documents/source-documents/${encodeURIComponent(documentType)}/${documentId}/preview`, token) as EDocumentSubmissionDetail
+      const preview = await fetchQueue<EDocumentSubmissionDetail>(`/api/e-documents/source-documents/${encodeURIComponent(documentType)}/${documentId}/preview`, token, requestApi)
       setSourcePreview(preview)
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Belge önizlemesi yüklenemedi.') }
     finally { setPreviewing(false) }
@@ -143,7 +147,7 @@ export default function IntegrationQueuePage({ token }: Props) {
   async function reviewSubmission(item: EDocumentSubmission) {
     setBusyId(item.operationId); setError(''); setReviewItem(null); setReviewDetail(null)
     try {
-      const detail = await fetchQueue(`/api/e-documents/submissions/${item.operationId}`, token) as EDocumentSubmissionDetail
+      const detail = await fetchQueue<EDocumentSubmissionDetail>(`/api/e-documents/submissions/${item.operationId}`, token, requestApi)
       setReviewItem(item); setReviewDetail(detail)
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Belge ayrıntıları yüklenemedi.') }
     finally { setBusyId('') }
@@ -155,7 +159,7 @@ export default function IntegrationQueuePage({ token }: Props) {
     if (!item || !detail || !window.confirm(`${detail.documentType} ${detail.documentNumber} belgesini dış sağlayıcıya gönderilmek üzere onaylıyor musunuz? Bu işlem dış sistemde sonuç doğurabilir.`)) return
     setBusyId(item.operationId); setError(''); setNotice('')
     try {
-      await fetchQueue(`/api/e-documents/submissions/${item.operationId}/approve`, token, { method: 'POST' })
+      await fetchQueue(`/api/e-documents/submissions/${item.operationId}/approve`, token, requestApi, { method: 'POST' })
       setNotice('Gönderim onaylandı ve güvenli entegrasyon kuyruğuna alındı.')
       setReviewItem(null); setReviewDetail(null)
       await load()

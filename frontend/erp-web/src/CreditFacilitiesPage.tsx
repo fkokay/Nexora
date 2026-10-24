@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import './credit-facilities.css'
 
 type Schedule = { id:string; dueDate:string; principalAmount:number; interestAmount:number; feeAmount:number; status:string; paidDate:string|null; notes:string|null }
@@ -6,7 +7,7 @@ type Facility = { id:string; code:string; lenderName:string; facilityType:string
 type Movement = { id:string; type:string; transactionDate:string; principalAmount:number; interestAmount:number; feeAmount:number; accountCode:string; financialAccountTransactionId:string; creditFacilityScheduleId:string|null; notes:string|null; reversesMovementId:string|null; isReversed:boolean }
 type Account = { id:string; code:string; name:string; type:number; currencyCode:string; isActive:boolean; balance:number }
 async function request<T>(url:string,token:string,init?:RequestInit):Promise<T>{
-  const response=await fetch(url,{...init,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(init?.headers||{})}})
+  const response=await authenticatedFetch(url, token, {...init,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(init?.headers||{})}})
   if(!response.ok){let message=`İstek başarısız (${response.status})`;try{const body=await response.json();message=body.error||Object.values(body.errors||{}).flat().join(' ')||message}catch{}throw new Error(message)}
   if(response.status===204)return undefined as T
   return response.json() as Promise<T>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { FilePlus2, Plus, RotateCw, ShieldCheck, Trash2 } from 'lucide-react'
 import './standalone-supplier-invoice-draft.css'
 
@@ -28,7 +29,7 @@ function localDate(): string {
 const blankDraft = (): DraftInput => ({ requestId: crypto.randomUUID(), supplierId: '', invoiceNumber: '', invoiceDate: localDate(), dueDate: '', currencyCode: 'TRY', notes: '', subtotal: '', discountTotal: '0', taxTotal: '', grandTotal: '', lines: [blankLine()] })
 
 async function request<T>(url: string, token: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers } })
+  const response = await authenticatedFetch(url, token, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers } })
   if (!response.ok) {
     let message = `İstek başarısız (${response.status}).`
     try { const body = await response.json(); message = body.error || body.title || message } catch { /* retain the status message */ }

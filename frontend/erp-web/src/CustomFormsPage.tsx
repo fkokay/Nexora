@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { Check, ChevronDown, ClipboardList, Eye, FilePlus2, GripVertical, History, Plus, RotateCcw, Send, ShieldCheck, Trash2, Type, Hash, CalendarDays, ToggleLeft, ListChecks } from 'lucide-react'
 import './custom-forms.css'
 
@@ -18,7 +19,7 @@ export default function CustomFormsPage({token,role}:{token:string;role:string})
   const [builderPreview,setBuilderPreview]=useState(false), [previewErrors,setPreviewErrors]=useState<Record<string,string>>({})
   const [busy,setBusy]=useState(false), [error,setError]=useState(''), [notice,setNotice]=useState(''), [mode,setMode]=useState<'catalog'|'builder'|'history'>('catalog')
   const request=useCallback(async<T,>(url:string,init?:RequestInit):Promise<T>=>{
-    const response=await fetch(url,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}})
+    const response=await authenticatedFetch(url, token, {...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}})
     if(!response.ok){const body=await response.json().catch(()=>null) as {error?:string;title?:string;errors?:Record<string,string[]>}|null;throw new Error(body?.error||Object.values(body?.errors??{}).flat().join(' ')||body?.title||`İstek başarısız (${response.status})`)}
     return response.status===204?undefined as T:response.json() as Promise<T>
   },[token])

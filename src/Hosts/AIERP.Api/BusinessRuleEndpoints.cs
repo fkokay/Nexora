@@ -171,6 +171,23 @@ internal static class BusinessRuleEndpoints
             "PurchaseOrder", order.Code, actorUserId, facts, ct);
     }
 
+    internal static Task<bool> ApplyProjectTaskCompletedRulesAsync(TenantDbContext db, OperationalProject project,
+        OperationalProjectTask task, Guid actorUserId, CancellationToken ct)
+    {
+        var facts = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["code"] = task.Code,
+            ["name"] = task.Name,
+            ["projectCode"] = project.Code,
+            ["projectName"] = project.Name,
+            ["plannedHours"] = task.PlannedHours.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["completionDate"] = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            ["completedByUserId"] = actorUserId.ToString("D")
+        };
+        return EvaluateAndRouteAsync(db, project.TenantId, task.Id, TenantBusinessRuleEngine.ProjectTaskCompleted,
+            "OperationalProjectTask", $"{project.Code} · {task.Code} · {task.Name}", actorUserId, facts, ct);
+    }
+
     internal static Task<bool> IsSalesQuoteAwaitingApprovalAsync(TenantDbContext db, Guid tenantId, Guid quoteId, CancellationToken ct) =>
         db.TenantWorkflowInstances.AnyAsync(x => x.TenantId == tenantId && x.SubjectType == "SalesQuote"
             && x.SubjectId == quoteId && x.Status == "Pending", ct);

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 
 type Warehouse={id:string;code:string;name:string;isActive:boolean}
 type Need={stockItemId:string;stockCode:string;stockName:string;unitCode:string;openDemand:number;onHand:number;activeReserved:number;available:number;uncovered:number;openOrderCount:number}
 type Page={warehouse:{id:string;code:string;name:string}|null;items:Need[];page:number;pageSize:number;totalCount:number;method:string}
 type Props={token:string}
-async function request<T>(url:string,token:string):Promise<T>{const response=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});if(!response.ok){let message=`İstek başarısız (${response.status})`;try{const body=await response.json();message=body.error||body.title||message}catch{}throw new Error(message)}return await response.json() as T}
+async function request<T>(url:string,token:string):Promise<T>{const response=await authenticatedFetch(url, token, {headers:{Authorization:`Bearer ${token}`}});if(!response.ok){let message=`İstek başarısız (${response.status})`;try{const body=await response.json();message=body.error||body.title||message}catch{}throw new Error(message)}return await response.json() as T}
 export default function SalesDistributionPage({token}:Props){
  const [warehouses,setWarehouses]=useState<Warehouse[]>([]),[warehouseId,setWarehouseId]=useState(''),[query,setQuery]=useState(''),[page,setPage]=useState<Page|null>(null),[pageNumber,setPageNumber]=useState(1),[error,setError]=useState(''),[busy,setBusy]=useState(false)
  const loadWarehouses=useCallback(async()=>{const rows=await request<Warehouse[]>('/api/warehouses/',token);setWarehouses(rows.filter(x=>x.isActive));setWarehouseId(current=>current||rows.find(x=>x.isActive)?.id||'')},[token])

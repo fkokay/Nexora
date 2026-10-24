@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import './finance-budget.css'
 
 type Account = { id:string; code:string; name:string; isActive:boolean; statementSection:string }
@@ -8,7 +9,7 @@ type PlanView = { plan:Plan; lines:Line[] }
 type Entry = { accountId:string; periodStart:string; plannedAmount:number; notes:string|null }
 
 async function request<T>(url:string, token:string, init?:RequestInit):Promise<T>{
-  const response=await fetch(url,{...init,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(init?.headers||{})}})
+  const response=await authenticatedFetch(url, token, {...init,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(init?.headers||{})}})
   if(!response.ok){let message=`İstek başarısız (${response.status})`;try{const body=await response.json();message=body.error||message}catch{}throw new Error(message)}
   return response.json() as Promise<T>
 }

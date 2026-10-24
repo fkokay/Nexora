@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { FileText, Link2, Plus, RefreshCw } from 'lucide-react'
 import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import './purchase-delivery-notes.css'
@@ -24,7 +25,7 @@ const purchaseNoteDefaultFields:ScreenField[]=[
 ]
 
 async function request<T>(url:string, token:string, init?:RequestInit):Promise<T> {
-  const response=await fetch(url,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}})
+  const response=await authenticatedFetch(url, token, {...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}})
   if(!response.ok){const body=await response.json().catch(()=>null) as {error?:string;title?:string}|null;throw new Error(body?.error||body?.title||`İstek başarısız (${response.status}).`)}
   if(response.status===204)return undefined as T
   return response.json() as Promise<T>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { ArrowLeftRight, Banknote, CheckCircle2, CircleDollarSign, FileClock, FileText, Plus, RefreshCw, ShieldCheck, XCircle } from 'lucide-react'
 import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import './payment-instruments.css'
@@ -34,8 +35,8 @@ export default function PaymentInstrumentsPage({ token, role }:{token:string;rol
     try {
       const params=new URLSearchParams({page:String(page),pageSize:'50'});if(filter!=='All')params.set('status',filter);if(kindFilter!=='All')params.set('type',kindFilter)
       const [rows,accountRows]=await Promise.all([
-        fetch(`/api/finance/payment-instruments/?${params}`,{headers:{Authorization:`Bearer ${token}`}}),
-        fetch('/api/finance/accounts',{headers:{Authorization:`Bearer ${token}`}})
+        authenticatedFetch(`/api/finance/payment-instruments/?${params}`, token, {headers:{Authorization:`Bearer ${token}`}}),
+        authenticatedFetch('/api/finance/accounts', token, {headers:{Authorization:`Bearer ${token}`}})
       ])
       if(!rows.ok)throw new Error(`Çek/senet listesi alınamadı (${rows.status}).`)
       if(!accountRows.ok)throw new Error(`Finans hesapları alınamadı (${accountRows.status}).`)
@@ -43,12 +44,12 @@ export default function PaymentInstrumentsPage({ token, role }:{token:string;rol
     } catch(cause) { setError((cause as Error).message) } finally { setLoading(false) }
   },[token,page,filter,kindFilter])
   useEffect(()=>{void load()},[load])
-  useEffect(()=>{let cancelled=false;fetch('/api/screen-views/payment-instruments/active',{headers:{Authorization:`Bearer ${token}`}}).then(async response=>{if(!response.ok)return;const view=await response.json() as {fields?:ScreenField[]};if(!cancelled&&view.fields?.length)setScreenFields(view.fields)}).catch(()=>{});return()=>{cancelled=true}},[token])
+  useEffect(()=>{let cancelled=false;authenticatedFetch('/api/screen-views/payment-instruments/active', token, {headers:{Authorization:`Bearer ${token}`}}).then(async response=>{if(!response.ok)return;const view=await response.json() as {fields?:ScreenField[]};if(!cancelled&&view.fields?.length)setScreenFields(view.fields)}).catch(()=>{});return()=>{cancelled=true}},[token])
   const visible=items
   const visibleFields=screenFields.filter(field=>field.visible).sort((a,b)=>a.position-b.position)
   const portfolioSummary=summary.openByCurrency.map(x=>`${x.currencyCode} ${x.amount.toLocaleString('tr-TR',{minimumFractionDigits:2})}`).join(' · ')||'—'
   async function request<T>(path:string,method='GET',body?:unknown):Promise<T>{
-    const response=await fetch(path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)})
+    const response=await authenticatedFetch(path, token, {method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)})
     if(!response.ok){const payload=await response.json().catch(()=>null) as {error?:string;title?:string}|null;throw new Error(payload?.error||payload?.title||`İstek başarısız (${response.status}).`)}
     return response.status===204?undefined as T:await response.json() as T
   }

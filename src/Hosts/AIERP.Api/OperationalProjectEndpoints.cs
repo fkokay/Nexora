@@ -201,6 +201,8 @@ internal static partial class OperationalProjectEndpoints
             if (!CanTransition(task.Status, next)) return Results.Conflict(new { error = "Bu görev durumu geçişine izin verilmiyor." });
             var previous = task.Status; task.Status = next;
             Audit(db, tenantId, userId, "project.task-status-changed", $"{id}:{task.Code}:{previous}->{next}");
+            if (next == ProjectTaskStatus.Completed)
+                await BusinessRuleEndpoints.ApplyProjectTaskCompletedRulesAsync(db, project, task, userId, ct);
             await db.SaveChangesAsync(ct);
             return Results.Ok(ToTask(task));
         });

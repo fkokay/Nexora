@@ -104,7 +104,8 @@ public static partial class HumanResourcesEndpoints
             var rows = await query.OrderByDescending(x => x.CreatedAt).Take(500).Select(x => new LeaveView(x.Id, x.EmployeeId,
                 db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == x.EmployeeId).Select(e => e.PersonnelCode + " · " + e.FullName).FirstOrDefault() ?? "",
                 x.LeaveType, x.StartDate, x.EndDate, x.RequestedDays, x.Note, x.Status.ToString(), x.RequestedByUserId,
-                x.ReviewedByUserId, x.CreatedAt, x.ReviewedAt, x.ReviewNote, Convert.ToBase64String(x.RowVersion))).ToListAsync(ct);
+                x.ReviewedByUserId, x.CreatedAt, x.ReviewedAt, x.ReviewNote, Convert.ToBase64String(x.RowVersion),
+                x.Status == EmployeeLeaveStatus.Requested && x.RequestedByUserId == userId)).ToListAsync(ct);
             return Results.Ok(rows);
         });
 
@@ -149,6 +150,24 @@ public static partial class HumanResourcesEndpoints
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "İzin talebi başka bir kullanıcı tarafından değiştirildi." }); }
             return Results.Ok(new { leave.Id, status = leave.Status.ToString(), leave.ReviewedAt, leave.ReviewNote });
+        });
+
+        leaves.MapPost("/{id:guid}/cancel", async (Guid id, LeaveCancelRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var leave = await db.EmployeeLeaveRequests.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (leave is null) return Results.NotFound();
+            if (leave.RequestedByUserId != userId) return Results.Forbid();
+            if (leave.Status != EmployeeLeaveStatus.Requested)
+                return Results.Conflict(new { error = "Yalnız bekleyen izin talepleri iptal edilebilir." });
+            if (!TryDecodeRowVersion(request.RowVersion, out var version))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["rowVersion"] = ["Geçerli kayıt sürümü zorunludur."] });
+            db.Entry(leave).Property(x => x.RowVersion).OriginalValue = version;
+            leave.Status = EmployeeLeaveStatus.Cancelled;
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "hr.leave.cancelled", Resource = leave.Id.ToString("D") });
+            try { await db.SaveChangesAsync(ct); }
+            catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "İzin talebi başka bir kullanıcı tarafından değiştirildi." }); }
+            return Results.Ok(new { leave.Id, status = leave.Status.ToString() });
         });
 
         attendance.MapGet("/", async (DateOnly? from, DateOnly? to, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -347,9 +366,10 @@ public sealed record EmployeeView(Guid Id, string PersonnelCode, string FullName
     string? WorkEmail, DateOnly HireDate, DateOnly? TerminationDate, string Status, Guid? UserId, string RowVersion);
 public sealed record LeaveCreateRequest(Guid EmployeeId, string? LeaveType, DateOnly StartDate, DateOnly EndDate, decimal RequestedDays, string? Note = null);
 public sealed record LeaveReviewRequest(bool Approve, string? Note, string? RowVersion);
+public sealed record LeaveCancelRequest(string? RowVersion);
 public sealed record LeaveView(Guid Id, Guid EmployeeId, string Employee, string LeaveType, DateOnly StartDate, DateOnly EndDate,
     decimal RequestedDays, string? Note, string Status, Guid RequestedByUserId, Guid? ReviewedByUserId, DateTimeOffset CreatedAt,
-    DateTimeOffset? ReviewedAt, string? ReviewNote, string RowVersion);
+    DateTimeOffset? ReviewedAt, string? ReviewNote, string RowVersion, bool CanCancel);
 public sealed record AttendanceWriteRequest(Guid EmployeeId, DateOnly WorkDate, int WorkedMinutes, int OvertimeMinutes,
     string? Note = null, string? RowVersion = null);
 public sealed record AttendanceView(Guid Id, Guid EmployeeId, string Employee, DateOnly WorkDate, int WorkedMinutes,

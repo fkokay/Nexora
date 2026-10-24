@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { Building2, Code2, FileCode2, FileText, GitBranch, ListFilter, Network, PanelTop, Settings2, ShieldCheck, Workflow, X, Zap } from 'lucide-react'
 import './developer-mode.css'
 
@@ -32,7 +33,7 @@ export function DeveloperModePanel({ page, locale, token, onClose, onNavigate, o
   onCloseRef.current = onClose
   useEffect(() => {
     let active = true
-    void fetch('/api/tenant-license/', { headers: { Authorization: `Bearer ${token}` } })
+    void authenticatedFetch('/api/tenant-license/', token, { headers: { Authorization: `Bearer ${token}` } })
       .then(async response => response.ok ? response.json() as Promise<{ status: string; features?: { customModuleSource?: boolean } | null }> : null)
       .then(license => { if (active) setSourceEntitled(license?.status === 'Active' && license.features?.customModuleSource === true) })
       .catch(() => { if (active) setSourceEntitled(false) })

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import type { FormEvent } from 'react'
 
 type Campaign = { id:string; code:string; name:string; discountPercent:number; effectiveFrom:string; effectiveThrough:string; isActive:boolean; applicationCount:number }
@@ -9,7 +10,7 @@ type PerformancePage = { items:Performance[];page:number;pageSize:number;totalCo
 type Props = { token:string; role:string; onBack?:()=>void }
 
 async function request<T>(url:string, token:string, init:RequestInit={}):Promise<T>{
-  const response=await fetch(url,{...init,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...init.headers}})
+  const response=await authenticatedFetch(url, token, {...init,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...init.headers}})
   if(!response.ok){let message=`İstek başarısız (${response.status})`;try{const body=await response.json();message=body.error||body.title||message}catch{}throw new Error(message)}
   return response.status===204?undefined as T:await response.json() as T
 }

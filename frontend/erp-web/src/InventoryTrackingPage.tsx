@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { Barcode, RefreshCw, Search, ShieldCheck } from 'lucide-react'
 import './inventory-tracking.css'
 
@@ -7,7 +8,7 @@ type Balance = { stockItemId:string; stockItemCode:string; stockItemName:string;
 type Page = { items:Balance[]; page:number; pageSize:number; totalCount:number }
 
 async function request<T>(url:string, token:string):Promise<T>{
-  const response=await fetch(url,{headers:{Authorization:`Bearer ${token}`}})
+  const response=await authenticatedFetch(url, token, {headers:{Authorization:`Bearer ${token}`}})
   const body=await response.json()
   if(!response.ok)throw new Error(body.error||`İstek başarısız (${response.status})`)
   return body as T

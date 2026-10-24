@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import './direct-cash-budget.css'
 
 type PlanSummary = {
@@ -31,7 +32,7 @@ const currentMonth = String(today.getMonth() + 1).padStart(2, '0')
 const initialLine = (year: number): LineInput => ({ periodStart: `${year}-${currentMonth}-01`, direction: 'Inflow', category: 'Sales', description: '', amount: 0 })
 
 async function request<T>(url: string, token: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init?.headers || {}) } })
+  const response = await authenticatedFetch(url, token, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init?.headers || {}) } })
   if (!response.ok) {
     let message = `İstek başarısız (${response.status})`
     try { const body = await response.json(); message = body.error || message } catch { /* response may be empty */ }

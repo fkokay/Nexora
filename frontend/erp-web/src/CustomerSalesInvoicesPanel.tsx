@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { FileText, RotateCcw, ShieldCheck, X } from 'lucide-react'
 
 type InvoiceSummary = {
@@ -19,7 +20,7 @@ type InvoicePage = { items: InvoiceSummary[]; page: number; pageSize: number; to
 type Customer = { id: string; code: string; name: string }
 
 async function request<T>(path: string, token: string): Promise<T> {
-  const response = await fetch(path, { headers: { Authorization: `Bearer ${token}` } })
+  const response = await authenticatedFetch(path, token, { headers: { Authorization: `Bearer ${token}` } })
   if (!response.ok) {
     let message = `İstek başarısız (${response.status})`
     try { const body = await response.json() as { error?: string; title?: string }; message = body.error || body.title || message } catch { /* keep the status message */ }

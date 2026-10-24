@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { ArrowRight, FileText, Globe2, PackageCheck, Plus, RefreshCw, Ship } from 'lucide-react'
 import './foreign-trade.css'
 
@@ -35,7 +36,7 @@ export default function ForeignTradePage({ token }: { token: string; role: strin
   const [capabilities, setCapabilities] = useState<TradeCapabilities>({ canCreate: false, canUpdate: false, canAdvance: false })
 
   async function api<T>(url: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(url, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...init?.headers } })
+    const response = await authenticatedFetch(url, token, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...init?.headers } })
     if (!response.ok) {
       const body = await response.json().catch(() => null) as { error?: string; title?: string } | null
       if (response.status === 403) {

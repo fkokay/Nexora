@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import './CashForecastPanel.css'
 
 type Month = {
@@ -75,7 +76,7 @@ export default function CashForecastPanel({ token }: { token: string }) {
     setLoading(true)
     setError('')
     try {
-      const response = await fetch(`/api/finance/cash-flow/forecast?${new URLSearchParams({ from, months: String(months) })}`, {
+      const response = await authenticatedFetch(`/api/finance/cash-flow/forecast?${new URLSearchParams({ from, months: String(months) })}`, token, {
         headers: { Authorization: `Bearer ${token}` },
       })
       const body = await response.json().catch(() => null)

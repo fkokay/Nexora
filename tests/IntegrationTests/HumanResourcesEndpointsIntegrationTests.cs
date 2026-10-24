@@ -187,6 +187,56 @@ public sealed class HumanResourcesEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Employee_can_cancel_only_their_own_pending_leave_request_and_cancellation_is_audited()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, EmployeeUserA, "Employee");
+
+        var leaves = await client.GetFromJsonAsync<JsonElement[]>("/api/hr/leave-requests/");
+        var ownLeave = Assert.Single(leaves!);
+        Assert.True(ownLeave.GetProperty("canCancel").GetBoolean());
+        var version = ownLeave.GetProperty("rowVersion").GetString();
+
+        SetIdentity(client, TenantA, EmployeeUserB, "Employee");
+        using var unauthorized = await client.PostAsJsonAsync($"/api/hr/leave-requests/{LeaveA}/cancel", new { rowVersion = version });
+        Assert.Equal(HttpStatusCode.Forbidden, unauthorized.StatusCode);
+
+        SetIdentity(client, TenantA, EmployeeUserA, "Employee");
+        using var cancelled = await client.PostAsJsonAsync($"/api/hr/leave-requests/{LeaveA}/cancel", new { rowVersion = version });
+        Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
+        Assert.Equal("Cancelled", (await cancelled.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+        Assert.False((await client.GetFromJsonAsync<JsonElement[]>("/api/hr/leave-requests/"))![0].GetProperty("canCancel").GetBoolean());
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        Assert.Contains(db.AuditEvents, x => x.TenantId == TenantA && x.UserId == EmployeeUserA && x.Action == "hr.leave.cancelled");
+    }
+
+    [Fact]
+    public async Task Approved_leave_request_cannot_be_cancelled_by_employee()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+        var leave = (await client.GetFromJsonAsync<JsonElement[]>("/api/hr/leave-requests/"))!.Single();
+        using var review = await client.PostAsJsonAsync($"/api/hr/leave-requests/{LeaveA}/review", new
+        {
+            approve = true, note = (string?)null, rowVersion = leave.GetProperty("rowVersion").GetString()
+        });
+        Assert.Equal(HttpStatusCode.OK, review.StatusCode);
+
+        SetIdentity(client, TenantA, EmployeeUserA, "Employee");
+        var reviewed = (await client.GetFromJsonAsync<JsonElement[]>("/api/hr/leave-requests/"))!.Single();
+        Assert.False(reviewed.GetProperty("canCancel").GetBoolean());
+        using var cancellation = await client.PostAsJsonAsync($"/api/hr/leave-requests/{LeaveA}/cancel", new
+        {
+            rowVersion = reviewed.GetProperty("rowVersion").GetString()
+        });
+        Assert.Equal(HttpStatusCode.Conflict, cancellation.StatusCode);
+    }
+
+    [Fact]
     public async Task Payroll_rule_drafts_require_a_json_object_and_remain_tenant_scoped()
     {
         await using var app = await StartApplicationAsync();
@@ -322,8 +372,8 @@ public sealed class HumanResourcesEndpointsIntegrationTests
             new EmployeeRecord { Id = Guid.Parse("15151515-1515-1515-1515-151515151515"), TenantId = TenantA, PersonnelCode = "A-002", FullName = "Unlinked Employee", HireDate = new DateOnly(2024, 2, 1) },
             new EmployeeRecord { Id = EmployeeB, TenantId = TenantB, PersonnelCode = "B-001", FullName = "Tenant B Employee", UserId = EmployeeUserB, HireDate = new DateOnly(2024, 1, 1) });
         db.EmployeeLeaveRequests.AddRange(
-            new EmployeeLeaveRequest { Id = LeaveA, TenantId = TenantA, EmployeeId = EmployeeA, LeaveType = "Annual", StartDate = new DateOnly(2026, 12, 1), EndDate = new DateOnly(2026, 12, 2), RequestedDays = 2, RequestedByUserId = EmployeeUserA },
-            new EmployeeLeaveRequest { Id = LeaveB, TenantId = TenantB, EmployeeId = EmployeeB, LeaveType = "Annual", StartDate = new DateOnly(2026, 12, 1), EndDate = new DateOnly(2026, 12, 2), RequestedDays = 2, RequestedByUserId = EmployeeUserB });
+            new EmployeeLeaveRequest { Id = LeaveA, TenantId = TenantA, EmployeeId = EmployeeA, LeaveType = "Annual", StartDate = new DateOnly(2026, 12, 1), EndDate = new DateOnly(2026, 12, 2), RequestedDays = 2, RequestedByUserId = EmployeeUserA, RowVersion = new byte[8] },
+            new EmployeeLeaveRequest { Id = LeaveB, TenantId = TenantB, EmployeeId = EmployeeB, LeaveType = "Annual", StartDate = new DateOnly(2026, 12, 1), EndDate = new DateOnly(2026, 12, 2), RequestedDays = 2, RequestedByUserId = EmployeeUserB, RowVersion = new byte[8] });
         db.EmployeeAttendanceRecords.AddRange(
             new EmployeeAttendanceRecord { Id = AttendanceA, TenantId = TenantA, EmployeeId = EmployeeA, WorkDate = new DateOnly(2026, 10, 20), WorkedMinutes = 480, RecordedByUserId = Admin },
             new EmployeeAttendanceRecord { Id = AttendanceAOtherDay, TenantId = TenantA, EmployeeId = EmployeeA, WorkDate = new DateOnly(2026, 10, 21), WorkedMinutes = 420, RecordedByUserId = Admin },

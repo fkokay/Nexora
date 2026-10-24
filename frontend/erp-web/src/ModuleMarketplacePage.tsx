@@ -1,4 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { Boxes, Check, PackageOpen, Play, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import './ModuleMarketplacePage.css'
 
@@ -30,7 +31,7 @@ type ActivatedModule = { moduleCode: string; version: string; manifest: ModuleMa
 export type ModuleMenuSelection = { moduleCode: string; version: string; entry: ModuleManifest['menuEntries'][number] }
 
 async function request<T>(path: string, token: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, token, {
     ...init,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers },
   })

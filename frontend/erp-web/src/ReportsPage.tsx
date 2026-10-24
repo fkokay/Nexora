@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { authenticatedFetch } from './authApi';
 import { ArrowLeft, Copy, Download, Filter, Play, Plus, Save, Trash2 } from 'lucide-react'
 import { isEnglishLocale, localizedCatalogLabel, localizedText as tx, subscribeLocale } from './locale'
 import './reports.css'
@@ -46,7 +47,7 @@ export default function ReportsPage({ token, role, mode = 'report' }: { token: s
   const aggregateOptions = (source?.aggregates ?? []).filter(option => definition.source !== 'salesInvoices' || option.code === 'count' || groupingFields.includes('currencyCode') || hasCurrencyEqualityFilter)
   const columnMap = useMemo(() => new Map(columns.map(x => [x.code, x])), [columns])
   const request = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
-    const response = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers } })
+    const response = await authenticatedFetch(url, token, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers } })
     if (!response.ok) {
       const body = await response.json().catch(() => null) as { error?: string; title?: string; errors?: Record<string, string[]> } | null
       throw new Error(body?.error || Object.values(body?.errors ?? {}).flat().join(' ') || body?.title || tx(`İstek başarısız (${response.status})`, `Request failed (${response.status})`))
@@ -185,7 +186,7 @@ export default function ReportsPage({ token, role, mode = 'report' }: { token: s
     if (!result) return
     setBusy(true); setError('')
     try {
-      const response = await fetch('/api/reports/export', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(definition) })
+      const response = await authenticatedFetch('/api/reports/export', token, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(definition) })
       if (!response.ok) { const body = await response.json().catch(() => null) as { error?: string; title?: string } | null; throw new Error(body?.error || body?.title || tx(`Dışa aktarma başarısız (${response.status})`, `Export failed (${response.status})`)) }
       const url = URL.createObjectURL(await response.blob()); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `nexora-${isList ? 'liste' : 'rapor'}-${new Date().toISOString().slice(0, 10)}.csv`; anchor.click(); URL.revokeObjectURL(url)
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }

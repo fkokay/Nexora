@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { authenticatedFetch } from './authApi';
 import { MapPin, Plus, RefreshCw, Search, ShieldCheck, Warehouse } from 'lucide-react'
 import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import './warehouse-locations.css'
@@ -9,7 +10,7 @@ type Balance = { stockItemId: string; stockItemCode: string; stockItemName: stri
 type ScreenField = { key: keyof Pick<Balance, 'stockItemCode' | 'stockItemName' | 'quantity' | 'unitCode'>; label: string; visible: boolean; position: number; section?: string | null }
 
 async function request<T>(url: string, token: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } })
+  const response = await authenticatedFetch(url, token, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } })
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { error?: string; detail?: string } | null
     throw new Error(body?.error ?? body?.detail ?? `İstek başarısız (${response.status})`)

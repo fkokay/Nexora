@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
@@ -41,6 +42,23 @@ public sealed class OperationalProjectEndpointsIntegrationTests
         var taskResponse = await client.PostAsJsonAsync($"/api/projects/{id}/tasks", new { code = "ANALYSIS", name = "Requirements", startDate = "2026-10-02", endDate = "2026-10-04", plannedHours = 12.5m });
         Assert.Equal(HttpStatusCode.Created, taskResponse.StatusCode);
         using var taskJson = JsonDocument.Parse(await taskResponse.Content.ReadAsStringAsync()); var taskId = taskJson.RootElement.GetProperty("id").GetGuid();
+        var workflowId = Guid.NewGuid(); var ruleId = Guid.NewGuid();
+        await using (var setupScope = app.Services.CreateAsyncScope())
+        {
+            var db = setupScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.TenantWorkflowDefinitions.Add(new TenantWorkflowDefinition
+            {
+                Id = workflowId, TenantId = tenantA, Code = "project-task-review", Name = "Project task review", Version = 1,
+                Status = "Published", StepsJson = "[{\"name\":\"Review\",\"approverRole\":\"TenantAdmin\"}]"
+            });
+            db.TenantBusinessRuleDefinitions.Add(new TenantBusinessRuleDefinition
+            {
+                Id = ruleId, TenantId = tenantA, Code = "large-task-review", Name = "Review larger tasks",
+                Trigger = "project.task-completed", Status = "Published", WorkflowCode = "project-task-review",
+                ConditionsJson = "[{\"field\":\"plannedHours\",\"operator\":\"GreaterThanOrEqual\",\"value\":\"8\"}]"
+            });
+            await db.SaveChangesAsync();
+        }
         var badAllocation = await client.PostAsJsonAsync($"/api/projects/{id}/resources", new { taskId, plannedHours = 4, plannedHourlyCost = 50, currencyCode = "TRY" });
         Assert.Equal(HttpStatusCode.BadRequest, badAllocation.StatusCode);
         var allocation = await client.PostAsJsonAsync($"/api/projects/{id}/resources", new { taskId, resourceName = "Consultant 1", plannedHours = 4m, plannedHourlyCost = 50m, currencyCode = "TRY", notes = "planned" });
@@ -91,6 +109,7 @@ public sealed class OperationalProjectEndpointsIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/projects?page=1&pageSize=20&upcomingWithinDays=999")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/projects/{id}/tasks/{taskId}/status", new { status = "InProgress" })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/projects/{id}/tasks/{taskId}/status", new { status = "Completed" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/projects/{id}/tasks/{taskId}/status", new { status = "Completed" })).StatusCode);
         Assert.Equal(1, (await client.GetFromJsonAsync<JsonElement>("/api/projects?page=1&pageSize=20&taskCompletion=all-complete")).GetProperty("total").GetInt32());
         var adminReport = await client.GetFromJsonAsync<JsonElement>($"/api/projects/{id}/cost-summary");
         Assert.Equal(1.75m, adminReport.GetProperty("actualHours").GetDecimal());
@@ -114,5 +133,13 @@ public sealed class OperationalProjectEndpointsIntegrationTests
         Assert.True(await verifyDb.AuditEvents.AnyAsync(x => x.TenantId == tenantA && x.Action == "project.resource-allocated"));
         Assert.True(await verifyDb.AuditEvents.AnyAsync(x => x.TenantId == tenantA && x.Action == "project.time-recorded"));
         Assert.True(await verifyDb.AuditEvents.AnyAsync(x => x.TenantId == tenantA && x.Action == "project.status-changed"));
+        var evaluation = await verifyDb.TenantBusinessRuleEvaluations.SingleAsync(x => x.TenantId == tenantA && x.RuleId == ruleId);
+        Assert.True(evaluation.Matched);
+        Assert.NotNull(evaluation.WorkflowInstanceId);
+        var workflowInstance = await verifyDb.TenantWorkflowInstances.SingleAsync(x => x.TenantId == tenantA && x.Id == evaluation.WorkflowInstanceId);
+        Assert.Equal("OperationalProjectTask", workflowInstance.SubjectType);
+        Assert.Equal(taskId, workflowInstance.SubjectId);
+        Assert.Equal("Pending", workflowInstance.Status);
+        Assert.Contains("project.task-completed", TenantBusinessRuleEngine.SupportedTriggers.Select(x => x.Code));
     }
 }

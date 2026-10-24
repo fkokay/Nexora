@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronRight, Plus, RotateCcw, Settings2, Zap } from 'lucide-react'
+import { authenticatedFetch } from './authApi'
 import './business-rules.css'
 
 type Condition={field:string;operator:string;value:string}
@@ -18,14 +19,14 @@ export default function BusinessRulesPage({token,role}:{token:string;role:string
   const [rules,setRules]=useState<Rule[]>([]),[workflows,setWorkflows]=useState<Workflow[]>([]),[evaluations,setEvaluations]=useState<Evaluation[]>([])
   const [editing,setEditing]=useState<Rule|null>(null),[builderOpen,setBuilderOpen]=useState(false),[code,setCode]=useState(''),[name,setName]=useState(''),[description,setDescription]=useState(''),[workflowCode,setWorkflowCode]=useState(''),[trigger,setTrigger]=useState(defaultTrigger),[triggerCatalog,setTriggerCatalog]=useState<Trigger[]>([]),[conditions,setConditions]=useState<Condition[]>([{field:'lineCount',operator:'GreaterThan',value:'5'}])
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
-  const request=useCallback(async<T,>(url:string,init?:RequestInit):Promise<T>=>{const response=await fetch(url,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}});if(!response.ok){const body=await response.json().catch(()=>null) as {error?:string;title?:string;errors?:Record<string,string[]>}|null;throw new Error(body?.error||Object.values(body?.errors??{}).flat().join(' ')||body?.title||`İstek başarısız (${response.status})`)}return response.status===204?undefined as T:response.json() as Promise<T>},[token])
+  const request=useCallback(async<T,>(url:string,init?:RequestInit):Promise<T>=>{const response=await authenticatedFetch(url,token,{...init,headers:{'Content-Type':'application/json',...init?.headers}});if(!response.ok){const body=await response.json().catch(()=>null) as {error?:string;title?:string;errors?:Record<string,string[]>}|null;throw new Error(body?.error||Object.values(body?.errors??{}).flat().join(' ')||body?.title||`İstek başarısız (${response.status})`)}return response.status===204?undefined as T:response.json() as Promise<T>},[token])
   const refresh=useCallback(async()=>{const [r,w,catalog]=await Promise.all([request<Rule[]>('/api/business-rules/'),request<Workflow[]>('/api/workflows/definitions'),request<Trigger[]>('/api/business-rules/catalog')]);setRules(r);setWorkflows(w);setTriggerCatalog(catalog);if(admin)setEvaluations(await request<Evaluation[]>('/api/business-rules/evaluations'))},[request,admin])
   useEffect(()=>{void refresh().catch(e=>setError((e as Error).message))},[refresh])
   const publishedWorkflows=useMemo(()=>workflows.filter(x=>x.status==='Published'),[workflows]),drafts=useMemo(()=>rules.filter(x=>x.status==='Draft'),[rules]),published=useMemo(()=>rules.filter(x=>x.status==='Published'),[rules])
   const selectedTrigger=triggerCatalog.find(x=>x.code===trigger),fields=triggerCatalog.flatMap(x=>x.fields).filter((field,index,array)=>array.findIndex(other=>other.code===field.code)===index),selectedFields=selectedTrigger?.fields??[]
   const fieldType=(field:string)=>selectedFields.find(x=>x.code===field)?.type??'text',operatorsFor=(field:string)=>operators[fieldType(field)]??operators.text
   const triggerLabel=(value:string)=>triggerCatalog.find(x=>x.code===value)?.label??value
-  function defaultCondition(value:string){return value==='sales-quote.accepted'?{field:'grandTotal',operator:'GreaterThan',value:'10000'}:{field:'lineCount',operator:'GreaterThan',value:'5'}}
+  function defaultCondition(value:string){if(value==='sales-quote.accepted')return{field:'grandTotal',operator:'GreaterThan',value:'10000'};if(value==='project.task-completed')return{field:'plannedHours',operator:'GreaterThanOrEqual',value:'8'};return{field:'lineCount',operator:'GreaterThan',value:'5'}}
   function newRule(){const first=triggerCatalog.find(x=>x.code===defaultTrigger)?.code??triggerCatalog[0]?.code??defaultTrigger;setEditing(null);setBuilderOpen(true);setCode('');setName('');setDescription('');setTrigger(first);setWorkflowCode(publishedWorkflows[0]?.code??'');setConditions([defaultCondition(first)])}
   function editRule(rule:Rule){setEditing(rule);setBuilderOpen(true);setCode(rule.code);setName(rule.name);setDescription(rule.description??'');setTrigger(rule.trigger);setWorkflowCode(rule.workflowCode);setConditions(rule.conditions.map(x=>({...x})))}
   function updateCondition(index:number,patch:Partial<Condition>){setConditions(current=>current.map((condition,i)=>i===index?{...condition,...patch}:condition))}

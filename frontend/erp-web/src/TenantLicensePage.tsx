@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { authenticatedFetch } from './authApi';
 import { BadgeCheck, Database, KeyRound, Layers3, ShieldCheck, Users } from 'lucide-react'
 import './license.css'
 
@@ -35,7 +36,7 @@ export default function TenantLicensePage({ token, role, onBack }: { token: stri
   const [notice, setNotice] = useState('')
 
   async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
-    const response = await fetch(path, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+    const response = await authenticatedFetch(path, token, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
     if (!response.ok) {
       const payload = await response.json().catch(() => null) as { error?: string; title?: string } | null
       throw new Error(response.status === 403 ? 'Bu işlem için firma yöneticisi yetkisi gerekir.' : payload?.error || payload?.title || `İstek başarısız (${response.status}).`)

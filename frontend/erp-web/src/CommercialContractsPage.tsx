@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { authenticatedFetch } from './authApi';
 import { ArrowLeft, FileSignature, Plus, RefreshCw, ShieldCheck, X } from 'lucide-react'
 import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import './commercial-contracts.css'
@@ -22,7 +23,7 @@ const defaultScreenFields:ScreenField[]=[
 ]
 
 async function request<T>(url:string, token:string, init?:RequestInit):Promise<T> {
-  const response=await fetch(url,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}})
+  const response=await authenticatedFetch(url, token, {...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}})
   if(!response.ok){const body=await response.json().catch(()=>null) as {error?:string;title?:string;errors?:Record<string,string[]>}|null;const validation=Object.values(body?.errors??{}).flat().join(' ');throw new Error(response.status===403?'Bu işlem için yetkiniz yok.':body?.error||validation||body?.title||`İstek başarısız (${response.status}).`)}
   if(response.status===204)return undefined as T
   return response.json() as Promise<T>
