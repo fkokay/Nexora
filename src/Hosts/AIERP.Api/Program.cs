@@ -7096,12 +7096,16 @@ bankStatements.MapPost("/{id:guid}/lines/{lineId:guid}/create-book-entry", async
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var statement = await db.BankStatements.FromSqlInterpolated($"SELECT * FROM [dbo].[BankStatements] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (statement is null) return Results.NotFound();
     if (statement.Status != BankStatementStatus.Imported) return Results.Conflict(new { error = "Mutabakatı tamamlanmış ekstre değiştirilemez." });
     var line = await db.BankStatementLines.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.StatementId == id && x.Id == lineId);
     if (line is null) return Results.NotFound();
     if (line.FinancialAccountTransactionId is not null) return Results.Conflict(new { error = "Ekstre satırı zaten bir finans hareketine bağlanmış." });
+    var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, line.TransactionDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedPeriod, "banka ekstresi finans hareketi") is { } closedPeriodConflict)
+        return closedPeriodConflict;
     var account = await db.FinancialAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[FinancialAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {statement.AccountId}").SingleOrDefaultAsync();
     if (account is null || account.Type != FinancialAccountType.Bank) return Results.Conflict(new { error = "Ekstre banka hesabı bulunamadı." });
     var movement = new FinancialAccountTransaction { TenantId = tenantId, FinancialAccount = account, CurrencyCode = statement.CurrencyCode,

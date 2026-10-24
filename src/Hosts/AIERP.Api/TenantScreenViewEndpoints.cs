@@ -152,6 +152,13 @@ internal static class TenantScreenViewEndpoints
         new("actualHours", "Gerçekleşen saat", true), new("nextTaskDate", "Sıradaki görev", true),
         new("actions", "İşlemler", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] DirectCashBudgetFields =
+    [
+        new("name", "Plan adı", true), new("fiscalYear", "Mali yıl", true),
+        new("currencyCode", "Döviz", true), new("status", "Durum", true),
+        new("lineCount", "Satır", true), new("revision", "Sürüm", true),
+        new("actions", "Aç", true, Fixed: true)
+    ];
 
     public static void MapTenantScreenViewEndpoints(this WebApplication app)
     {
@@ -178,7 +185,8 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("crm-opportunities", "CRM fırsatları", CrmOpportunityFields),
             new ScreenViewCatalog("payment-instruments", "Çek/senet portföyü", PaymentInstrumentFields),
             new ScreenViewCatalog("commercial-contracts", "Ticari sözleşmeler", CommercialContractFields),
-            new ScreenViewCatalog("operational-projects", "Proje listesi", OperationalProjectFields)
+            new ScreenViewCatalog("operational-projects", "Proje listesi", OperationalProjectFields),
+            new ScreenViewCatalog("direct-cash-budgets", "Doğrudan nakit bütçeleri", DirectCashBudgetFields)
         }));
 
         views.MapGet("/{screenKey}/active", async (string screenKey, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -417,6 +425,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "operational-projects", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("operational-projects", "Proje listesi", OperationalProjectFields);
+            return true;
+        }
+        if (string.Equals(key, "direct-cash-budgets", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("direct-cash-budgets", "Doğrudan nakit bütçeleri", DirectCashBudgetFields);
             return true;
         }
         catalog = null!;

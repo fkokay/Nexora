@@ -1088,6 +1088,75 @@ public sealed class CustomFormEndpointsIntegrationTests
         Assert.Empty((await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/hr-attendance/history"))!);
     }
 
+    [Fact]
+    public async Task Direct_cash_budget_screen_view_is_allowlisted_fixed_and_tenant_scoped()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "direct-cash-budgets");
+        var allowedFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal(new[] { "name", "fiscalYear", "currencyCode", "status", "lineCount", "revision", "actions" },
+            allowedFields.Select(field => field.GetProperty("key").GetString()).ToArray());
+        Assert.True(allowedFields[^1].GetProperty("fixed").GetBoolean());
+
+        var create = await client.PostAsJsonAsync("/api/screen-views/direct-cash-budgets/draft", new { name = "Nakit bütçesi kartları" });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        using var created = JsonDocument.Parse(await create.Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+
+        var hiddenActionFields = allowedFields.Select((field, position) => new
+        {
+            key = field.GetProperty("key").GetString(),
+            label = field.GetProperty("label").GetString(),
+            visible = field.GetProperty("key").GetString() != "actions",
+            position
+        }).ToArray();
+        var hiddenAction = await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new
+        {
+            expectedRevision = 1,
+            name = "İşlemi gizle",
+            fields = hiddenActionFields
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, hiddenAction.StatusCode);
+
+        var update = await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new
+        {
+            expectedRevision = 1,
+            name = "Nakit bütçesi kartları",
+            fields = new[]
+            {
+                new { key = "fiscalYear", label = "Bütçe yılı", visible = true, position = 0 },
+                new { key = "name", label = "Plan başlığı", visible = true, position = 1 },
+                new { key = "currencyCode", label = "Para birimi", visible = true, position = 2 },
+                new { key = "status", label = "Durum", visible = true, position = 3 },
+                new { key = "lineCount", label = "Satır", visible = false, position = 4 },
+                new { key = "revision", label = "Sürüm", visible = true, position = 5 },
+                new { key = "actions", label = "Planı aç", visible = true, position = 6 }
+            }
+        });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        var active = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/direct-cash-budgets/active");
+        var activeFields = active!.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal("fiscalYear", activeFields[0].GetProperty("key").GetString());
+        Assert.Equal("Bütçe yılı", activeFields[0].GetProperty("label").GetString());
+        Assert.False(activeFields.Single(field => field.GetProperty("key").GetString() == "lineCount").GetProperty("visible").GetBoolean());
+        var fixedAction = activeFields.Single(field => field.GetProperty("key").GetString() == "actions");
+        Assert.True(fixedAction.GetProperty("visible").GetBoolean());
+        Assert.True(fixedAction.GetProperty("fixed").GetBoolean());
+        Assert.Equal("Planı aç", fixedAction.GetProperty("label").GetString());
+
+        SetIdentity(client, TenantB, UserB, "TenantAdmin");
+        var otherTenant = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/direct-cash-budgets/active");
+        Assert.False(otherTenant!.GetProperty("isPublished").GetBoolean());
+        Assert.Equal("Plan adı", otherTenant.GetProperty("fields")[0].GetProperty("label").GetString());
+        Assert.Empty((await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/direct-cash-budgets/history"))!);
+    }
+
     private static void SetIdentity(HttpClient client, Guid tenantId, Guid userId, string role)
     {
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");

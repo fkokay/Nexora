@@ -15,6 +15,7 @@ type PlanSummary = {
   revision: number
   lineCount: number
 }
+type PlanScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean }
 type BudgetLine = { id?: string; periodStart: string; direction: 'Inflow' | 'Outflow'; category: string; description: string; amount: number }
 type PlanView = Omit<PlanSummary, 'lineCount'> & { lines: BudgetLine[] }
 type ForecastMonth = { periodStart: string; directCashBudgetInflows: number; directCashBudgetOutflows: number; netChange: number }
@@ -46,6 +47,16 @@ const money = (value: number, currency: string) => {
 }
 const isApproved = (status: PlanSummary['status']) => status === 'Approved' || status === 2
 const formatMonth = (value: string) => new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(new Date(`${value}T00:00:00`))
+const defaultPlanScreenFields: PlanScreenField[] = [
+  { key: 'name', label: 'Plan adı', visible: true, position: 0 },
+  { key: 'fiscalYear', label: 'Mali yıl', visible: true, position: 1 },
+  { key: 'currencyCode', label: 'Döviz', visible: true, position: 2 },
+  { key: 'status', label: 'Durum', visible: true, position: 3 },
+  { key: 'lineCount', label: 'Satır', visible: true, position: 4 },
+  { key: 'revision', label: 'Sürüm', visible: true, position: 5 },
+  { key: 'actions', label: 'Aç', visible: true, position: 6, fixed: true }
+]
+const planScreenKeys = new Set(defaultPlanScreenFields.map(field => field.key))
 
 export default function DirectCashBudgetPage({ token, role }: { token: string; role: string }) {
   const admin = role === 'TenantAdmin'
@@ -61,6 +72,25 @@ export default function DirectCashBudgetPage({ token, role }: { token: string; r
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [planScreenFields, setPlanScreenFields] = useState(defaultPlanScreenFields)
+
+  useEffect(() => {
+    let current = true
+    void request<{ fields?: PlanScreenField[] }>('/api/screen-views/direct-cash-budgets/active', token)
+      .then(view => {
+        if (!current || !Array.isArray(view.fields)) return
+        const allowed = view.fields.filter(field => planScreenKeys.has(field.key))
+        const configured = defaultPlanScreenFields.map(fallback => {
+          const field = allowed.find(candidate => candidate.key === fallback.key)
+          return fallback.key === 'actions'
+            ? { ...fallback, ...(field ?? {}), visible: true, fixed: true }
+            : { ...fallback, ...(field ?? {}) }
+        }).sort((left, right) => left.position - right.position)
+        setPlanScreenFields(configured)
+      })
+      .catch(() => { if (current) setPlanScreenFields(defaultPlanScreenFields) })
+    return () => { current = false }
+  }, [token])
 
   async function load() {
     setLoading(true); setError('')
@@ -143,10 +173,17 @@ export default function DirectCashBudgetPage({ token, role }: { token: string; r
       <section className="panel direct-cash-budget-list" aria-labelledby="direct-cash-budget-list-title">
         <div className="panel-heading"><div><h2 id="direct-cash-budget-list-title">Bütçe planları</h2><p>{loading ? 'Planlar yükleniyor…' : `${plans.length} kayıt · firma kapsamlı`}</p></div></div>
         {loading ? <div className="budget-state" role="status">Nakit bütçeleri yükleniyor…</div> : plans.length === 0 ? <div className="budget-state budget-empty"><strong>Henüz plan yok</strong><span>{admin ? 'Bir taslak oluşturarak başlayın.' : 'Firma yöneticisi bir nakit bütçesi oluşturduğunda burada görünür.'}</span></div> : <div className="budget-plan-list" aria-label="Nakit bütçesi planları">
-          {plans.map(plan => <button type="button" key={plan.id} className={`budget-plan-item ${selected?.id === plan.id && !editing ? 'active' : ''}`} onClick={() => void open(plan)} disabled={busy}>
-            <span className="budget-plan-top"><span className="budget-plan-title">{plan.name}</span><span className={`quote-status ${isApproved(plan.status) ? 'accepted' : 'pending'}`}>{isApproved(plan.status) ? 'Onaylı' : 'Taslak'}</span></span>
-            <span className="budget-plan-meta">{plan.fiscalYear} · {plan.currencyCode} · {plan.lineCount} satır · Sürüm {plan.revision}</span>
-          </button>)}
+          {plans.map(plan => <article key={plan.id} className={`budget-plan-item direct-cash-budget-plan-card ${selected?.id === plan.id && !editing ? 'active' : ''}`}>
+            <div className="direct-cash-budget-plan-fields">
+              {planScreenFields.filter(field => field.visible && field.key !== 'actions').map(field => <span className={`direct-cash-budget-plan-field direct-cash-budget-field-${field.key}`} key={field.key}>
+                <small>{field.label}</small>
+                {field.key === 'status'
+                  ? <span className={`quote-status ${isApproved(plan.status) ? 'accepted' : 'pending'}`}>{isApproved(plan.status) ? 'Onaylı' : 'Taslak'}</span>
+                  : <strong>{field.key === 'name' ? plan.name : field.key === 'fiscalYear' ? plan.fiscalYear : field.key === 'currencyCode' ? plan.currencyCode : field.key === 'lineCount' ? `${plan.lineCount} satır` : `Sürüm ${plan.revision}`}</strong>}
+              </span>)}
+            </div>
+            <button type="button" className="secondary small-button direct-cash-budget-open" onClick={() => void open(plan)} disabled={busy} aria-label={`${planScreenFields.find(field => field.key === 'actions')?.label ?? 'Aç'}: ${plan.name}`}>{planScreenFields.find(field => field.key === 'actions')?.label ?? 'Aç'}</button>
+          </article>)}
         </div>}
       </section>
       {editing && admin && <section className="panel direct-cash-budget-editor" aria-labelledby="direct-cash-budget-editor-title">
