@@ -19,9 +19,9 @@ Do not proceed to either host installation gate while this validator fails or pa
 
 The source-r1 output was built from the dirty checkout at base revision `b0e201c54bdf0391bccef1c541784fae12b1706f`; that base revision alone does not identify its uncommitted contents. The release owner must rebuild from the approved clean source revision or provide an approved provenance attestation, then copy the packages to the controlled release store before staging promotion.
 
-The newest source-generated package is `artifacts/migrations/2026-10-23-r4/` with 136 Platform, 48 Tenant and 11 AIStudio migration IDs. It is marked `generated-not-applied`; Platform and Tenant scripts were regenerated from corrected context models, and independent review confirmed table ownership stays in the correct databases. Incrementals use the documented r3 history baseline and contain 12 Platform, 4 Tenant and 1 AIStudio migrations beyond that prefix. A previous `dotnet ef migrations list` command may have read `__EFMigrationsHistory`; its all-Pending Platform result is not authoritative target-history evidence. No migrations were applied or rehearsed. Do not treat the historical baseline or package generation as current target history or schema/data compatibility evidence.
+The current source-generated package is `artifacts/migrations/2026-10-24-r5/` with 136 Platform, 49 Tenant and 11 AIStudio migration IDs. The exact package passed checksum-verified restored-backup rehearsals and was applied to local development targets, where direct SQL confirmed histories at 136/49/11. The Platform and AIStudio incrementals are unchanged from r4; r5 adds the Tenant `20261024130650_AddDirectCashBudgetPlans` migration. Against the documented r3 prefixes, incrementals contain 12 Platform, 5 Tenant and 1 AIStudio migration. A previous `dotnet ef migrations list` command may have read `__EFMigrationsHistory`; its all-Pending Platform result is not authoritative target-history evidence. Production target histories and compatibility remain unverified; use actual target history exports and a target-specific restored-backup rehearsal before release.
 
-The last locally applied and verified package remains `artifacts/migrations/2026-10-22-r3/` at the documented local histories 124/44/10. Its Tenant incremental was applied only to local Docker development after a verified D: COPY_ONLY CHECKSUM backup; full scripts passed twice on fresh scratch databases and incrementals passed twice on isolated restored copies. See the package application record and README. Current-source r4 adds 12 Platform, 4 Tenant and 1 AIStudio migration relative to those documented r3 prefixes; this does not establish actual target histories. Read actual target histories and rehearse r4 against isolated verified restores before release. No production database was accessed or migrated; production-target staging rehearsal remains required.
+The r3 histories 124/44/10 are historical prefixes only; they were superseded on local development by the r5 package at 136/49/11 after fresh checksum-verified backups and restored-copy rehearsals. See `docs/migration-r5-restored-backup-rehearsal.md`. Those local results do not establish a production target's history, topology, schema or data compatibility. No production database was accessed or migrated; production-target staging rehearsal remains required.
 
 Offline package checks do not establish Windows Server or native Linux behavior, target SQL compatibility, backup recoverability, DNS/TLS, production credentials, or multi-node coordination. Keep these as staging acceptance gates.
 
@@ -167,12 +167,12 @@ Use the migration readiness check on each database history file and the exact re
 
 ```powershell
 ./tests/deployment/Test-MigrationReleaseReadiness.ps1 `
-  -BundlePath ./artifacts/migrations/2026-10-23-r4 `
+  -BundlePath ./artifacts/migrations/2026-10-24-r5 `
   -TargetHistoryPath <exported-target-history.json> `
   | Tee-Object <release-evidence>/migration-preflight.json
 ```
 
-This checks package integrity and ordered history only. It does not connect to SQL Server or establish schema/data compatibility. Run it with actual exported histories for Platform and AIStudio, and separately for every tenant database. r4 is `generated-not-applied`; its historical r3 baseline evidence is not a substitute for current target histories. Never apply Tenant or AIStudio scripts to PlatformDB or a legacy shared database.
+This checks package integrity and ordered history only. It does not connect to SQL Server or establish schema/data compatibility. Run it with actual exported histories for Platform and AIStudio, and separately for every tenant database. The r5 package's recorded local application is not a substitute for current production-target histories. Never apply Tenant or AIStudio scripts to PlatformDB or a legacy shared database.
 
 Before migration rehearsal, the DBA takes a checksum-protected full backup of every affected database and verifies each source backup with `RESTORE VERIFYONLY WITH CHECKSUM`. Confirm `@@SERVERNAME` and the database list before running the template; use a unique file name for each database and make sure the SQL Server service identity can write to the backup path.
 
@@ -215,25 +215,25 @@ GO
 
 Add `MOVE` entries for any additional files and use the target SQL Server's approved data/log directories. Never use `WITH REPLACE` or a production database name for a recovery drill. Verify `DBCC CHECKDB` and representative ERP reads against each restored copy. [Microsoft Learn: restore files to a new location](https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/restore-a-database-to-a-new-location-sql-server), [DBCC CHECKDB](https://learn.microsoft.com/en-us/sql/t-sql/database-console-commands/dbcc-checkdb-transact-sql?view=sql-server-linux-ver17).
 
-Rehearse the exact reviewed r4 SQL against the isolated restored copies using the target SQL Server version and the migration order approved for the compatibility plan. The r4 package contains 136 Platform, 48 Tenant and 11 AIStudio migrations. Its incremental scripts are usable only when the isolated database history exactly matches the documented r3 prefix: Platform 124 migrations through `20261022130452_AddIntradayManufacturingScheduling`, Tenant 44 migrations through `20261022145500_AddAnnualWorkCenterCapacityRules`, and AIStudio 10 migrations through `20261017134712_AddStudioKnowledgeRefreshConsentAIStudio`. First capture before histories and validate each prefix; if any target differs, stop and have the DBA choose and review the appropriate full idempotent or other recovery plan. Never edit history exports to force a prefix match.
+Rehearse the exact reviewed r5 SQL against the isolated restored copies using the target SQL Server version and the migration order approved for the compatibility plan. The r5 package contains 136 Platform, 49 Tenant and 11 AIStudio migrations. Its incremental scripts are usable only when the isolated database history exactly matches the documented r3 prefix: Platform 124 migrations through `20261022130452_AddIntradayManufacturingScheduling`, Tenant 44 migrations through `20261022145500_AddAnnualWorkCenterCapacityRules`, and AIStudio 10 migrations through `20261017134712_AddStudioKnowledgeRefreshConsentAIStudio`. First capture before histories and validate each prefix; if any target differs, stop and have the DBA choose and review the appropriate full idempotent or other recovery plan. Never edit history exports to force a prefix match.
 
 After static history preflight and SQL review, the examples below rehearse incremental scripts only if the isolated restored databases exactly match their recorded prefixes:
 
 ```powershell
 sqlcmd -S <isolated-sql-instance> -d <isolated-platform-database> -E -b `
-  -i .\artifacts\migrations\2026-10-23-r4\platform-incremental.sql `
+  -i .\artifacts\migrations\2026-10-24-r5\platform-incremental.sql `
   -o <release-evidence>\platform-migration-rehearsal.log
 
 sqlcmd -S <isolated-sql-instance> -d <isolated-tenant-database> -E -b `
-  -i .\artifacts\migrations\2026-10-23-r4\tenant-incremental.sql `
+  -i .\artifacts\migrations\2026-10-24-r5\tenant-incremental.sql `
   -o <release-evidence>\tenant-migration-rehearsal.log
 
 sqlcmd -S <isolated-sql-instance> -d <isolated-aistudio-database> -E -b `
-  -i .\artifacts\migrations\2026-10-23-r4\aistudio-incremental.sql `
+  -i .\artifacts\migrations\2026-10-24-r5\aistudio-incremental.sql `
   -o <release-evidence>\aistudio-migration-rehearsal.log
 ```
 
-The incrementals contain 9 pending Platform, 3 pending Tenant and 1 pending AIStudio migration against those exact r3 prefixes. They do not prove that a staging target has those prefixes. Use full idempotent scripts only when the DBA has reviewed their history guards and confirmed the intended target database. Run Tenant preflight and rehearsal for every tenant database. Include AIStudio in identity, backup, restore and application checks. Capture SQL output/errors, lock and blocking duration, before/after histories, schema/data checks, app compatibility results and DBA review. Do not infer migration safety from connectivity health.
+The incrementals contain 12 pending Platform, 5 pending Tenant and 1 pending AIStudio migration against those exact r3 prefixes. They do not prove that a staging target has those prefixes. Use full idempotent scripts only when the DBA has reviewed their history guards and confirmed the intended target database. Run Tenant preflight and rehearsal for every tenant database. Include AIStudio in identity, backup, restore and application checks. Capture SQL output/errors, lock and blocking duration, before/after histories, schema/data checks, app compatibility results and DBA review. Do not infer migration safety from connectivity health.
 
 After rehearsal, start the matching application package on the isolated staging topology and validate readiness plus representative tenant-scoped reads/writes agreed for the rehearsal. Record any compatibility issue and stop before production if an unreviewed schema difference, unexpected migration, failed check, or failed restore appears. This runbook does not authorize production migration or restore.
 
@@ -262,7 +262,7 @@ Attach one redacted evidence folder to the release record with this index:
 - [ ] SQL topology, per-database histories, static migration preflight, SQL review and compatibility plan
 - [ ] Full and incremental migration script hashes, ordered migration IDs and exact r3 prefix match where incrementals are selected
 - [ ] Current approved-source package validator report and source provenance attached; historical package reports are not used for a newer build
-- [ ] r4 manifest and `SHA256SUMS.txt` verified; target history exports and r4 static preflight reports attached per Platform, AIStudio and every Tenant database
+- [ ] r5 manifest and `SHA256SUMS.txt` verified; target history exports and r5 static preflight reports attached per Platform, AIStudio and every Tenant database
 - [ ] Full checksummed backup set, independent-copy hashes, isolated restore, DBCC and representative application reads
 - [ ] Migration rehearsal output, before/after histories, schema/data checks, blocking duration and DBA sign-off
 - [ ] HA topology, lock/fencing, node and SQL failover, alert delivery, measured RTO/RPO and operations sign-off
