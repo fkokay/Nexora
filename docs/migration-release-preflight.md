@@ -18,11 +18,11 @@ Example shape:
 }
 ```
 
-Run from the repository root. The contract smoke test discovers the newest generated bundle manifest by `generatedAtUtc`; it no longer defaults to a historical 2026-10-19 snapshot. For an operator preflight, use the exact package selected for the release. **r3 is the last locally verified and applied package.** Current-source candidate `2026-10-23-r4` contains 136 Platform, 48 Tenant and 11 AIStudio migrations and is generated-not-applied. Its incrementals are based on the last documented r3 prefix, with 12/4/1 migrations respectively; obtain and validate authoritative target histories before use. During earlier source verification, a `dotnet ef migrations list` invocation may have read `__EFMigrationsHistory`; its all-Pending Platform result is not target-history evidence. No migrations were applied and r4 has not been rehearsed. A passing history preflight alone does not change that status.
+Run from the repository root. The contract smoke test discovers the newest generated bundle manifest by `generatedAtUtc`; it no longer defaults to a historical 2026-10-19 snapshot. For an operator preflight, use the exact package selected for the release. **r3 is the last locally applied and verified package.** Current-source candidate `2026-10-24-r5` contains 136 Platform, 49 Tenant and 11 AIStudio migrations, with 12/5/1 pending against directly exported local histories of 124/44/10. The exact package passed static prefix/checksum preflight and its scripts passed isolated restore rehearsals on one current local backup per context; see `docs/migration-r5-restored-backup-rehearsal.md`. Earlier all-Pending output from one `dotnet ef migrations list` invocation is not target-history evidence. No r5 migration has been applied to a live database. A passing preflight and one-tenant rehearsal do not prove every target tenant or production compatibility.
 
 ```powershell
 ./tests/deployment/Test-MigrationReleaseReadiness.ps1 `
-  -BundlePath ./artifacts/migrations/2026-10-23-r4 `
+  -BundlePath ./artifacts/migrations/2026-10-24-r5 `
   -TargetHistoryPath ./path/to/target-history.json
 ```
 
