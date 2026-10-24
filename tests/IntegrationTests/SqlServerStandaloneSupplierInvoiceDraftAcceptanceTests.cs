@@ -96,7 +96,8 @@ public sealed class SqlServerStandaloneSupplierInvoiceDraftAcceptanceTests
                 "INV-DRAFT-001-REV1", create.InvoiceDate, create.DueDate, create.CurrencyCode,
                 "Corrected source document", create.Subtotal, create.DiscountTotal, create.TaxTotal, create.GrandTotal, create.Lines);
             using var updateResponse = await client.PutAsJsonAsync($"/api/purchasing/standalone-invoices/{created.Id}", update);
-            Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+            Assert.True(updateResponse.StatusCode == HttpStatusCode.OK,
+                $"Expected 200 but received {(int)updateResponse.StatusCode}: {await updateResponse.Content.ReadAsStringAsync()}");
             var updated = await updateResponse.Content.ReadFromJsonAsync<StandaloneSupplierInvoiceDraftDetail>();
             Assert.NotNull(updated);
             Assert.Equal("Draft", updated.Status);

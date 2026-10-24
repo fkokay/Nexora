@@ -119,10 +119,10 @@ public static class PurchaseInvoiceDraftEndpoints
             draft.GrandTotal = request.GrandTotal;
             draft.UpdatedAt = DateTimeOffset.UtcNow;
             foreach (var line in request.Lines.OrderBy(x => x.LineNumber))
-                draft.Lines.Add(new StandaloneSupplierInvoiceDraftLine
+                db.PurchaseInvoiceDraftLines.Add(new StandaloneSupplierInvoiceDraftLine
                 {
                     TenantId = tenantId,
-                    PurchaseInvoiceDraft = draft,
+                    PurchaseInvoiceDraftId = draft.Id,
                     LineNumber = line.LineNumber,
                     Description = line.Description.Trim(),
                     Quantity = line.Quantity,
