@@ -127,6 +127,28 @@ try {
         throw 'An absolute path in the full migration script field did not fail on path validation.'
     }
 
+    $outsideDirectory = Join-Path $tempRoot 'outside-bundle'
+    New-Item -ItemType Directory -Path $outsideDirectory | Out-Null
+    $outsideScriptPath = Join-Path $outsideDirectory 'platform.sql'
+    Set-Content -LiteralPath $outsideScriptPath -Value '-- outside bundle SQL' -Encoding utf8
+    $linkPath = Join-Path $unsafeBundle 'linked-scripts'
+    if ([OperatingSystem]::IsWindows()) {
+        New-Item -ItemType Junction -Path $linkPath -Target $outsideDirectory | Out-Null
+    } else {
+        New-Item -ItemType SymbolicLink -Path $linkPath -Target $outsideDirectory | Out-Null
+    }
+    $unsafeManifest = Get-Content -LiteralPath (Join-Path $bundle 'manifest.json') -Raw | ConvertFrom-Json -AsHashtable
+    $unsafeManifest.contexts[0].file = 'linked-scripts/platform.sql'
+    $unsafeManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $unsafeManifestPath -Encoding utf8
+    $linkedFileFailure = ''
+    try {
+        [void](& $PreflightScript -BundlePath $unsafeBundle -TargetHistoryPath $historyPath)
+        throw 'A link to SQL outside the migration bundle was accepted.'
+    } catch { $linkedFileFailure = $_.Exception.Message }
+    if ($linkedFileFailure -notmatch 'follows a link outside') {
+        throw 'A linked migration path outside the bundle did not fail on physical path validation.'
+    }
+
     $unsafeManifest = Get-Content -LiteralPath (Join-Path $bundle 'manifest.json') -Raw | ConvertFrom-Json -AsHashtable
     $incrementalPathContext = @($unsafeManifest.contexts | Where-Object { $_.incrementalFile } | Select-Object -First 1)
     if ($incrementalPathContext.Count -gt 0) {

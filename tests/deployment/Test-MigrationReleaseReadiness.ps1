@@ -17,13 +17,31 @@ function Resolve-BundleFile([string]$RelativePath, [string]$Description) {
         Fail "$Description contains an unsafe path segment."
     }
 
-    try { $resolvedPath = [IO.Path]::GetFullPath((Join-Path $bundle $RelativePath)) }
-    catch { Fail "$Description is not a valid bundle-relative path." }
-
-    $bundlePrefix = $bundle.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    try { $bundleRoot = [IO.Path]::GetFullPath($bundle) }
+    catch { Fail 'migration bundle root is not a valid filesystem path.' }
+    $bundlePrefix = $bundleRoot.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
     $pathComparison = if ([IO.Path]::DirectorySeparatorChar -eq '\') { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
-    if (-not $resolvedPath.StartsWith($bundlePrefix, $pathComparison)) {
-        Fail "$Description resolves outside the migration bundle."
+
+    $resolvedPath = $bundleRoot
+    foreach ($segment in $segments) {
+        try { $resolvedPath = [IO.Path]::GetFullPath((Join-Path $resolvedPath $segment)) }
+        catch { Fail "$Description is not a valid bundle-relative path." }
+        if (-not $resolvedPath.StartsWith($bundlePrefix, $pathComparison)) {
+            Fail "$Description resolves outside the migration bundle."
+        }
+
+        if (Test-Path -LiteralPath $resolvedPath) {
+            $item = Get-Item -LiteralPath $resolvedPath -Force
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                try { $target = $item.ResolveLinkTarget($true) }
+                catch { Fail "$Description contains an unresolved link." }
+                if ($null -eq $target) { Fail "$Description contains an unresolved link." }
+                $resolvedPath = [IO.Path]::GetFullPath($target.FullName)
+                if (-not $resolvedPath.StartsWith($bundlePrefix, $pathComparison)) {
+                    Fail "$Description follows a link outside the migration bundle."
+                }
+            }
+        }
     }
 
     return $resolvedPath
