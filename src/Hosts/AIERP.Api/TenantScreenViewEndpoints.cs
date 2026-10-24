@@ -83,6 +83,13 @@ internal static class TenantScreenViewEndpoints
         new("grandTotal", "Genel toplam", true), new("currencyCode", "Döviz", true),
         new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] PurchaseDeliveryNoteFields =
+    [
+        new("documentNumber", "Tedarikçi irsaliye no", true), new("documentDate", "Belge tarihi", true),
+        new("purchaseOrderCode", "Satın alma siparişi", true), new("supplierName", "Tedarikçi", true),
+        new("lineCount", "Satır", true), new("purchaseReceiptCode", "Mal kabul", true),
+        new("actions", "İşlemler", true, Fixed: true)
+    ];
     private static readonly ScreenViewField[] FixedAssetFields =
     [
         new("assetCode", "Kıymet kodu", true), new("name", "Kıymet", true), new("category", "Kategori", true),
@@ -143,6 +150,7 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("purchase-invoices", "Alış faturaları", PurchaseInvoiceFields),
             new ScreenViewCatalog("standalone-invoice-drafts", "Bağımsız alış faturası taslakları", StandalonePurchaseInvoiceDraftFields),
             new ScreenViewCatalog("purchase-orders", "Satın alma siparişleri", PurchaseOrderFields),
+            new ScreenViewCatalog("purchase-delivery-notes", "Tedarikçi irsaliyeleri", PurchaseDeliveryNoteFields),
             new ScreenViewCatalog("fixed-assets", "Sabit kıymetler", FixedAssetFields),
             new ScreenViewCatalog("crm-opportunities", "CRM fırsatları", CrmOpportunityFields),
             new ScreenViewCatalog("payment-instruments", "Çek/senet portföyü", PaymentInstrumentFields),
@@ -341,6 +349,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "purchase-orders", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("purchase-orders", "Satın alma siparişleri", PurchaseOrderFields);
+            return true;
+        }
+        if (string.Equals(key, "purchase-delivery-notes", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("purchase-delivery-notes", "Tedarikçi irsaliyeleri", PurchaseDeliveryNoteFields);
             return true;
         }
         if (string.Equals(key, "fixed-assets", StringComparison.OrdinalIgnoreCase))
