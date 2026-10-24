@@ -1,3 +1,4 @@
+using System.Data;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
@@ -23,6 +24,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using System.Text.Encodings.Web;
 using Xunit;
@@ -538,6 +540,122 @@ public sealed class TenantLicenseIntegrationTests
         }
     }
 
+    [SqlServerAcceptanceFact]
+    public async Task License_activation_endpoint_waits_for_a_tenant_write_holding_the_storage_quota_lock()
+    {
+        var configuredConnection = Environment.GetEnvironmentVariable("AIERP_REPORT_TEST_SQL_CONNECTION_STRING");
+        Assert.False(string.IsNullOrWhiteSpace(configuredConnection));
+        using var rsa = RSA.Create(2048);
+        var tenantId = Guid.NewGuid();
+        var suffix = Guid.NewGuid().ToString("N");
+        var platformConnection = new SqlConnectionStringBuilder(configuredConnection)
+        {
+            InitialCatalog = $"AIERP_LicenseStorageRace_{suffix}",
+            ConnectTimeout = 15,
+            TrustServerCertificate = true
+        }.ConnectionString;
+        var tenantConnection = new SqlConnectionStringBuilder(configuredConnection)
+        {
+            InitialCatalog = $"AIERPTenant_{tenantId:N}",
+            ConnectTimeout = 15,
+            TrustServerCertificate = true
+        }.ConnectionString;
+        var platformOptions = new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options;
+        var tenantOptions = new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(tenantConnection).Options;
+        await using var seedDb = new PlatformDbContext(platformOptions);
+        await using var tenantSeedDb = new TenantDbContext(tenantOptions);
+        var platformCreated = false;
+        var tenantCreated = false;
+        PlatformDbContext? quotaPlatformDb = null;
+        TenantStorageQuotaInterceptor? interceptor = null;
+        WebApplication? app = null;
+        try
+        {
+            platformCreated = await seedDb.Database.EnsureCreatedAsync();
+            tenantCreated = await tenantSeedDb.Database.EnsureCreatedAsync();
+            Assert.True(platformCreated);
+            Assert.True(tenantCreated);
+
+            var tenant = new Tenant { Id = tenantId, Name = "Storage license race", Slug = $"storage-license-race-{suffix}" };
+            seedDb.Tenants.Add(tenant);
+            seedDb.Users.Add(new AppUser
+            {
+                Id = UserId, Email = $"storage-license-race-{suffix}@example.invalid",
+                DisplayName = "Storage license race", PasswordHash = "not-used", IsActive = true
+            });
+            seedDb.TenantMemberships.Add(new TenantMembership { TenantId = tenantId, UserId = UserId, Role = "TenantAdmin" });
+            seedDb.TenantDatabaseCatalog.Add(new TenantDatabaseCatalogEntry
+            {
+                TenantId = tenantId, Tenant = tenant, DatabaseName = $"AIERPTenant_{tenantId:N}",
+                State = TenantDatabaseProvisioningState.Ready
+            });
+            var currentLicense = new TenantLicense
+            {
+                TenantId = tenantId, LicenseId = Guid.NewGuid(), Tier = "Large",
+                MaxUsers = LicenseTierCatalog.All["Large"].MaxUsers,
+                MaxCustomModules = LicenseTierCatalog.All["Large"].MaxCustomModules,
+                MaxStorageGb = LicenseTierCatalog.All["Large"].MaxStorageGb, IssuedAt = DateTimeOffset.UtcNow.AddDays(-1),
+                ExpiresAt = DateTimeOffset.UtcNow.AddDays(30), GrantSha256 = new string('A', 64)
+            };
+            seedDb.TenantLicenses.Add(currentLicense);
+            await seedDb.SaveChangesAsync();
+            tenantSeedDb.Tenants.Add(new Tenant { Id = tenantId, Name = tenant.Name, Slug = tenant.Slug });
+            await tenantSeedDb.SaveChangesAsync();
+
+            app = await StartSqlServerApplicationAsync(rsa, platformConnection, tenantConnection, tenantId);
+            using var client = app.GetTestClient();
+            quotaPlatformDb = new PlatformDbContext(platformOptions);
+            interceptor = new TenantStorageQuotaInterceptor(quotaPlatformDb,
+                new TenantStorageLimitProvider(quotaPlatformDb), NullLogger<TenantStorageQuotaInterceptor>.Instance);
+
+            await quotaPlatformDb.Database.OpenConnectionAsync();
+            await using var blockerCommand = quotaPlatformDb.Database.GetDbConnection().CreateCommand();
+            blockerCommand.CommandText = "SELECT @@SPID;";
+            var blockerSessionId = Convert.ToInt32(await blockerCommand.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
+            await using (var writeDb = new TenantDbContext(new DbContextOptionsBuilder<TenantDbContext>()
+                .UseSqlServer(tenantConnection).AddInterceptors(interceptor).Options))
+            await using (var tenantTransaction = await writeDb.Database.BeginTransactionAsync(IsolationLevel.Serializable))
+            {
+                writeDb.TenantSavedReports.Add(new TenantSavedReport
+                {
+                    TenantId = tenantId, Name = "license-race-write", DefinitionJson = "{}",
+                    CreatedByUserId = UserId, UpdatedByUserId = UserId
+                });
+                await writeDb.SaveChangesAsync();
+
+                using var requestTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+                var activationTask = client.PostAsJsonAsync("/api/tenant-license/activate", new
+                {
+                    signedGrant = SignGrant(rsa, tenantId, "Small"),
+                    rowVersion = Convert.ToBase64String(currentLicense.RowVersion)
+                }, requestTimeout.Token);
+                await WaitForQuotaLockWaitersAsync(platformConnection, blockerSessionId, expectedWaiters: 1,
+                    requestTimeout.Token, activationTask);
+                await tenantTransaction.CommitAsync(requestTimeout.Token);
+                await interceptor.DisposeAsync();
+                interceptor = null;
+
+                using var activation = await activationTask;
+                Assert.Equal(HttpStatusCode.OK, activation.StatusCode);
+                var result = await activation.Content.ReadFromJsonAsync<JsonElement>();
+                Assert.Equal("Small", result.GetProperty("tier").GetString());
+            }
+
+            await using var verificationDb = new PlatformDbContext(platformOptions);
+            Assert.Equal("Small", (await verificationDb.TenantLicenses.SingleAsync(x => x.TenantId == tenantId)).Tier);
+            await using var verificationTenantDb = new TenantDbContext(tenantOptions);
+            Assert.True(await verificationTenantDb.TenantSavedReports.AnyAsync(x => x.TenantId == tenantId && x.Name == "license-race-write"));
+        }
+        finally
+        {
+            if (app is not null) await app.DisposeAsync();
+            if (interceptor is not null) await interceptor.DisposeAsync();
+            if (quotaPlatformDb is not null) await quotaPlatformDb.DisposeAsync();
+            if (tenantCreated) await tenantSeedDb.Database.EnsureDeletedAsync();
+            if (platformCreated) await seedDb.Database.EnsureDeletedAsync();
+        }
+    }
+
     private static async Task<WebApplication> StartApplicationAsync(RSA rsa, int memberCount, int moduleCount = 0)
     {
         var databaseName = $"tenant-license-{Guid.NewGuid():N}";
@@ -575,13 +693,14 @@ public sealed class TenantLicenseIntegrationTests
     }
 
     private static async Task<WebApplication> StartSqlServerApplicationAsync(RSA rsa, string connectionString,
-        string? tenantConnectionString = null)
+        string? tenantConnectionString = null, Guid? tenantId = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Licensing:PublicKeys:test-key"] = rsa.ExportSubjectPublicKeyInfoPem()
+            ["Licensing:PublicKeys:test-key"] = rsa.ExportSubjectPublicKeyInfoPem(),
+            ["TestAuthentication:TenantId"] = tenantId?.ToString()
         });
         builder.Services.AddDbContext<PlatformDbContext>(options => options.UseSqlServer(connectionString));
         builder.Services.AddDbContext<TenantDbContext>(options => options.UseSqlServer(tenantConnectionString ?? connectionString));
@@ -853,7 +972,8 @@ public sealed class TenantLicenseIntegrationTests
     private sealed class LicenseAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
-        UrlEncoder encoder)
+        UrlEncoder encoder,
+        IConfiguration configuration)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -861,7 +981,8 @@ public sealed class TenantLicenseIntegrationTests
             var claims = new[]
             {
                 new Claim("sub", UserId.ToString()),
-                new Claim("tenant_id", TenantId.ToString()),
+                new Claim("tenant_id", Guid.TryParse(configuration["TestAuthentication:TenantId"], out var tenantId)
+                    ? tenantId.ToString() : TenantId.ToString()),
                 new Claim("role", "TenantAdmin")
             };
             var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name));
