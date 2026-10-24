@@ -140,6 +140,44 @@ public sealed class TenantStorageQuotaAcceptanceTests
         }
     }
 
+    [SqlServerAcceptanceFact]
+    public async Task License_quota_change_waits_for_an_in_flight_tenant_write()
+    {
+        await using var databases = await CreateDatabasesAsync();
+        var interceptor = new TenantStorageQuotaInterceptor(databases.PlatformDb,
+            new FixedStorageLimitProvider(long.MaxValue), NullLogger<TenantStorageQuotaInterceptor>.Instance);
+        var licenseDb = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseSqlServer(databases.PlatformConnection).Options);
+        try
+        {
+            await using (var writeDb = CreateTenantDb(databases.TenantConnection, interceptor))
+            await using (var tenantTransaction = await writeDb.Database.BeginTransactionAsync())
+            {
+                writeDb.TenantSavedReports.Add(NewReport(databases.TenantId, "license-race", "{}"));
+                await writeDb.SaveChangesAsync();
+
+                await using var licenseTransaction = await licenseDb.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+                var licenseChange = TenantLicenseEndpoints.AcquireTenantQuotaLockAsync(
+                    licenseDb, databases.TenantId, CancellationToken.None);
+                await Task.Delay(TimeSpan.FromMilliseconds(200));
+                Assert.False(licenseChange.IsCompleted,
+                    "License replacement must wait while a tenant write still holds the storage-quota profile lock.");
+
+                await tenantTransaction.CommitAsync();
+                await interceptor.DisposeAsync();
+
+                Assert.True(await licenseChange >= 0,
+                    "The license lock should become available when the in-flight tenant transaction and scope complete.");
+                await licenseTransaction.CommitAsync();
+            }
+        }
+        finally
+        {
+            await interceptor.DisposeAsync();
+            await licenseDb.DisposeAsync();
+        }
+    }
+
     private static TenantDbContext CreateTenantDb(string connectionString, TenantStorageQuotaInterceptor interceptor)
     {
         var options = new DbContextOptionsBuilder<TenantDbContext>()
