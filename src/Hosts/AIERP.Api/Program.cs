@@ -50,10 +50,13 @@ builder.Services.AddHttpClient("ai-service", client =>
 });
 builder.Services.AddHostedService<IntegrationOperationWorker>();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ITenantStorageLimitProvider, TenantStorageLimitProvider>();
+builder.Services.AddScoped<TenantStorageQuotaInterceptor>();
 builder.Services.AddDbContext<TenantDbContext>((services, options) =>
 {
     var http = services.GetRequiredService<IHttpContextAccessor>().HttpContext;
     options.UseSqlServer(TenantDatabaseRouting.Resolve(http));
+    options.AddInterceptors(services.GetRequiredService<TenantStorageQuotaInterceptor>());
 });
 builder.Services.AddScoped<IAuditExecutionContext>(services =>
 {

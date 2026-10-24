@@ -129,7 +129,9 @@ internal sealed class TcmbExchangeRateWorker(
                         if (entry.DatabaseName != $"AIERPTenant_{entry.TenantId:N}")
                             throw new InvalidOperationException("Tenant database catalog entry does not match its tenant identity.");
                         var connection = new SqlConnectionStringBuilder(configuredConnection) { InitialCatalog = entry.DatabaseName }.ConnectionString;
-                        await using var tenantDb = CreateTenantDb(connection);
+                        await using var tenantScope = scope.ServiceProvider.CreateAsyncScope();
+                        var storageQuota = tenantScope.ServiceProvider.GetRequiredService<TenantStorageQuotaInterceptor>();
+                        await using var tenantDb = CreateTenantDb(connection, storageQuota, entry.TenantId);
                         await ImportTenantAsync(tenantDb, entry.TenantId, snapshot, tenantToken);
                     },
                     (entry, exception) => logger.LogError("TCMB rates could not be imported for tenant {TenantId} ({FailureType}).",
@@ -183,10 +185,10 @@ internal sealed class TcmbExchangeRateWorker(
             tenantId, result.RateDate, result.Imported, result.Skipped, result.BaseCurrencyCode);
     }
 
-    private static TenantDbContext CreateTenantDb(string connectionString)
+    private static TenantDbContext CreateTenantDb(string connectionString, TenantStorageQuotaInterceptor storageQuota, Guid tenantId)
     {
-        var options = new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(connectionString).Options;
-        return new TenantDbContext(options);
+        var options = new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(connectionString).AddInterceptors(storageQuota).Options;
+        return new TenantDbContext(options, new AuditExecutionContext(tenantId, null, "tcmb-rate-import"));
     }
 
     private static TimeOnly ParseRunTime(string? value) =>

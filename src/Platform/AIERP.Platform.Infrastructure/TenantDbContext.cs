@@ -7,6 +7,9 @@ namespace AIERP.Platform.Infrastructure;
 public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, IAuditExecutionContext? auditExecutionContext = null)
     : PlatformDbContextBase<TenantDbContext>(options, auditExecutionContext)
 {
+    /// <summary>The signed-in tenant identity when this context serves an HTTP request.</summary>
+    public Guid? ExecutionTenantId => auditExecutionContext?.TenantId;
+
     public DbSet<ManufacturingWorkCenterAnnualCapacityRule> ManufacturingWorkCenterAnnualCapacityRules => Set<ManufacturingWorkCenterAnnualCapacityRule>();
     public DbSet<ManufacturingWorkCenterShiftRotation> ManufacturingWorkCenterShiftRotations => Set<ManufacturingWorkCenterShiftRotation>();
     public DbSet<ManufacturingWorkCenterShiftRotationDay> ManufacturingWorkCenterShiftRotationDays => Set<ManufacturingWorkCenterShiftRotationDay>();
