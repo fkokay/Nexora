@@ -8,16 +8,6 @@ type ReportColumn = { code: string; label: string }
 type Group = { groupValue: unknown; groupValues?: unknown[]; rowCount: number; value: number | null }
 type ReportResult = { columns: ReportColumn[]; rows: Record<string, unknown>[]; groups: Group[]; aggregate: string | null }
 
-async function request<T>(token: string, url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers } })
-  if (!response.ok) {
-    const body = await response.json().catch(() => null) as { error?: string; title?: string } | null
-    throw new Error(body?.error || body?.title || `İstek başarısız (${response.status}).`)
-  }
-  if (response.status === 204) return undefined as T
-  return response.json() as Promise<T>
-}
-
 function display(value: unknown) {
   if (value == null || value === '') return '—'
   if (typeof value === 'boolean') return value ? 'Evet' : 'Hayır'
@@ -25,7 +15,11 @@ function display(value: unknown) {
   return String(value)
 }
 
-export default function DashboardWidgets({ token, role }: { token: string; role: string }) {
+export default function DashboardWidgets({ token, role, requestApi }: {
+  token: string
+  role: string
+  requestApi: <T>(url: string, token?: string, init?: RequestInit) => Promise<T>
+}) {
   const [widgets, setWidgets] = useState<Widget[]>([])
   const [reports, setReports] = useState<SavedReport[]>([])
   const [previews, setPreviews] = useState<Record<string, ReportResult>>({})
@@ -41,7 +35,7 @@ export default function DashboardWidgets({ token, role }: { token: string; role:
     previewRequestSequence.current[widget.id] = requestSequence
     setPreviewStatus(current => ({ ...current, [widget.id]: 'loading' }))
     try {
-      const result = await request<ReportResult>(token, `/api/reports/${widget.savedReportId}/run`, {
+      const result = await requestApi<ReportResult>(`/api/reports/${widget.savedReportId}/run`, token, {
         method: 'POST', body: JSON.stringify({ page: 1, pageSize: 5 })
       })
       if (previewRequestSequence.current[widget.id] !== requestSequence) return
@@ -67,8 +61,8 @@ export default function DashboardWidgets({ token, role }: { token: string; role:
     setError('')
     try {
       const [nextWidgets, savedReports] = await Promise.all([
-        request<Widget[]>(token, '/api/dashboard/widgets/'),
-        request<SavedReport[]>(token, '/api/reports/')
+        requestApi<Widget[]>('/api/dashboard/widgets/', token),
+        requestApi<SavedReport[]>('/api/reports/', token)
       ])
       setWidgets(nextWidgets)
       setReports(savedReports)
@@ -85,7 +79,7 @@ export default function DashboardWidgets({ token, role }: { token: string; role:
     if (!selectedReport) return
     setBusy(true); setError('')
     try {
-      await request<Widget>(token, '/api/dashboard/widgets/', { method: 'POST', body: JSON.stringify({ savedReportId: selectedReport }) })
+      await requestApi<Widget>('/api/dashboard/widgets/', token, { method: 'POST', body: JSON.stringify({ savedReportId: selectedReport }) })
       setSelectedReport('')
       await load()
     } catch (e) { setError((e as Error).message); setBusy(false) }
@@ -94,7 +88,7 @@ export default function DashboardWidgets({ token, role }: { token: string; role:
   async function removeWidget(widget: Widget) {
     setBusy(true); setError('')
     try {
-      await request<void>(token, `/api/dashboard/widgets/${widget.id}`, { method: 'DELETE' })
+      await requestApi<void>(`/api/dashboard/widgets/${widget.id}`, token, { method: 'DELETE' })
       await load()
     } catch (e) { setError((e as Error).message); setBusy(false) }
   }
@@ -107,7 +101,7 @@ export default function DashboardWidgets({ token, role }: { token: string; role:
     ;[ordered[index], ordered[target]] = [ordered[target], ordered[index]]
     setBusy(true); setError('')
     try {
-      await request<string[]>(token, '/api/dashboard/widgets/order', { method: 'PUT', body: JSON.stringify({ widgetIds: ordered.map(item => item.id) }) })
+      await requestApi<string[]>('/api/dashboard/widgets/order', token, { method: 'PUT', body: JSON.stringify({ widgetIds: ordered.map(item => item.id) }) })
       await load()
     } catch (e) { setError((e as Error).message); setBusy(false) }
   }
