@@ -139,6 +139,8 @@ public sealed class StandaloneSupplierInvoiceDraftIntegrationTests
         Assert.Equal(0, await verifyDb.CustomerLedgerEntries.CountAsync(x => x.TenantId == tenantId));
         Assert.Equal(0, await verifyDb.JournalEntries.CountAsync(x => x.TenantId == tenantId));
         Assert.Equal(0, await verifyDb.SupplierPayments.CountAsync(x => x.TenantId == tenantId));
+        Assert.Equal(1, await verifyDb.PurchaseInvoiceDrafts.CountAsync(x => x.TenantId == tenantId));
+        Assert.Equal(1, await verifyDb.PurchaseInvoiceDraftLines.CountAsync(x => x.TenantId == tenantId));
 
         // Tenant scope is enforced on both draft reads and supplier selection.
         using var foreignDraftResponse = await client.GetAsync($"/api/purchasing/standalone-invoices/{otherTenantDraft.Id}");

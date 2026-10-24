@@ -100,6 +100,14 @@ internal static class TenantScreenViewEndpoints
         new("currencyCode", "Döviz", true), new("status", "Durum", true),
         new("actions", "İşlemler", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] CommercialContractFields =
+    [
+        new("code", "Sözleşme kodu", true), new("type", "Tür", true),
+        new("counterpartyName", "Cari hesap", true), new("effectiveFrom", "Başlangıç", true),
+        new("effectiveThrough", "Bitiş", true), new("currencyCode", "Döviz", true),
+        new("status", "Durum", true), new("revision", "Sürüm", true),
+        new("actions", "İşlemler", true, Fixed: true)
+    ];
 
     public static void MapTenantScreenViewEndpoints(this WebApplication app)
     {
@@ -119,7 +127,8 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("purchase-orders", "Satın alma siparişleri", PurchaseOrderFields),
             new ScreenViewCatalog("fixed-assets", "Sabit kıymetler", FixedAssetFields),
             new ScreenViewCatalog("crm-opportunities", "CRM fırsatları", CrmOpportunityFields),
-            new ScreenViewCatalog("payment-instruments", "Çek/senet portföyü", PaymentInstrumentFields)
+            new ScreenViewCatalog("payment-instruments", "Çek/senet portföyü", PaymentInstrumentFields),
+            new ScreenViewCatalog("commercial-contracts", "Ticari sözleşmeler", CommercialContractFields)
         }));
 
         views.MapGet("/{screenKey}/active", async (string screenKey, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -323,6 +332,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "payment-instruments", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("payment-instruments", "Çek/senet portföyü", PaymentInstrumentFields);
+            return true;
+        }
+        if (string.Equals(key, "commercial-contracts", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("commercial-contracts", "Ticari sözleşmeler", CommercialContractFields);
             return true;
         }
         catalog = null!;

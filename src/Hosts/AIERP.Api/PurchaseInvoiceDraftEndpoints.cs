@@ -58,12 +58,95 @@ public static class PurchaseInvoiceDraftEndpoints
             return Results.Ok(new StandaloneSupplierInvoiceDraftPage(items, page, pageSize, total));
         });
 
-        group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db,
+            PlatformDbContext platformDb, CancellationToken ct) =>
         {
-            if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
-            var item = await db.PurchaseInvoiceDrafts.AsNoTracking().Include(x => x.Supplier).Include(x => x.Lines)
-                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var query = db.PurchaseInvoiceDrafts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id);
+            query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, user.FindFirstValue("role")!,
+                "erp.purchase-invoices.read", "erp.purchase-invoices", query, x => x.Status, null, x => x.SupplierId,
+                cancellationToken: ct) ?? query;
+            var item = await query.Include(x => x.Supplier).Include(x => x.Lines).SingleOrDefaultAsync(ct);
             return item is null ? Results.NotFound() : Results.Ok(ToDetail(item));
+        });
+
+        group.MapPut("/{id:guid}", async (Guid id, StandaloneSupplierInvoiceDraftUpdateRequest request,
+            ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            if (!TryReadRowVersion(request.ExpectedRowVersion, out var expectedRowVersion))
+                return Results.BadRequest(new { error = "Geçerli taslak sürümü gereklidir." });
+
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var query = db.PurchaseInvoiceDrafts.AsQueryable();
+            if (db.Database.IsSqlServer())
+                query = db.PurchaseInvoiceDrafts.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseInvoiceDrafts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}");
+            query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, user.FindFirstValue("role")!,
+                "erp.purchase-invoices.create", "erp.purchase-invoices", query, x => x.Status, null, x => x.SupplierId,
+                cancellationToken: ct) ?? query;
+            var draft = await query.Include(x => x.Supplier).Include(x => x.Lines)
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (draft is null) return Results.NotFound();
+            if (draft.Status != PurchaseInvoiceDraftStatus.Draft)
+                return Results.Conflict(new { error = "Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir." });
+            if (!draft.RowVersion.AsSpan().SequenceEqual(expectedRowVersion))
+                return Results.Conflict(new { error = "Taslağın gönderilen sürümü güncel değil. Yenileyip tekrar deneyin." });
+
+            var validation = Validate(new StandaloneSupplierInvoiceDraftCreateRequest(draft.RequestId, request.SupplierId,
+                request.InvoiceNumber, request.InvoiceDate, request.DueDate, request.CurrencyCode, request.Notes,
+                request.Subtotal, request.DiscountTotal, request.TaxTotal, request.GrandTotal, request.Lines));
+            if (validation is not null) return Results.ValidationProblem(validation);
+
+            var supplierQuery = db.CustomerAccounts.AsQueryable();
+            if (db.Database.IsSqlServer())
+                supplierQuery = db.CustomerAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {request.SupplierId}");
+            var supplier = await supplierQuery.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SupplierId, ct);
+            if (supplier is null || !supplier.IsActive || supplier.Type is not (CounterpartyType.Supplier or CounterpartyType.Both))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["supplierId"] = ["Aynı firmaya ait etkin tedarikçi hesabı seçilmelidir."] });
+
+            db.PurchaseInvoiceDraftLines.RemoveRange(draft.Lines);
+            draft.Lines.Clear();
+            draft.SupplierId = supplier.Id;
+            draft.Supplier = supplier;
+            draft.InvoiceNumber = request.InvoiceNumber.Trim();
+            draft.InvoiceDate = request.InvoiceDate;
+            draft.DueDate = request.DueDate;
+            draft.CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
+            draft.Notes = Clean(request.Notes);
+            draft.Subtotal = request.Subtotal;
+            draft.DiscountTotal = request.DiscountTotal;
+            draft.TaxTotal = request.TaxTotal;
+            draft.GrandTotal = request.GrandTotal;
+            draft.UpdatedAt = DateTimeOffset.UtcNow;
+            foreach (var line in request.Lines.OrderBy(x => x.LineNumber))
+                draft.Lines.Add(new StandaloneSupplierInvoiceDraftLine
+                {
+                    TenantId = tenantId,
+                    PurchaseInvoiceDraft = draft,
+                    LineNumber = line.LineNumber,
+                    Description = line.Description.Trim(),
+                    Quantity = line.Quantity,
+                    UnitCode = Clean(line.UnitCode),
+                    UnitPrice = line.UnitPrice,
+                    Subtotal = line.Subtotal,
+                    DiscountAmount = line.DiscountAmount,
+                    TaxAmount = line.TaxAmount,
+                    Total = line.Total,
+                });
+            db.Entry(draft).Property(x => x.RowVersion).OriginalValue = expectedRowVersion;
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId,
+                Action = "standalone-supplier-invoice.draft-updated", Resource = draft.InvoiceNumber });
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                await transaction.RollbackAsync(ct);
+                return Results.Conflict(new { error = "Taslak kaydedilirken başka bir güncelleme yapıldı. Yenileyip tekrar deneyin." });
+            }
+            return Results.Ok(ToDetail(draft));
         });
 
         group.MapPost("/", async (StandaloneSupplierInvoiceDraftCreateRequest request, ClaimsPrincipal user,
@@ -164,6 +247,18 @@ public static class PurchaseInvoiceDraftEndpoints
             && !string.IsNullOrWhiteSpace(user.FindFirstValue("role"));
     }
 
+    private static bool TryReadRowVersion(string? value, out byte[] rowVersion)
+    {
+        rowVersion = [];
+        if (value is null || value.Length > 24) return false;
+        try
+        {
+            rowVersion = Convert.FromBase64String(value);
+            return rowVersion.Length == 8 || rowVersion.Length == 0;
+        }
+        catch (FormatException) { return false; }
+    }
+
     private static Dictionary<string, string[]>? Validate(StandaloneSupplierInvoiceDraftCreateRequest request)
     {
         var errors = new Dictionary<string, string[]>();
@@ -237,6 +332,9 @@ public static class PurchaseInvoiceDraftEndpoints
 }
 
 public sealed record StandaloneSupplierInvoiceDraftCreateRequest(Guid RequestId, Guid SupplierId, string InvoiceNumber,
+    DateOnly InvoiceDate, DateOnly? DueDate, string CurrencyCode, string? Notes, decimal Subtotal,
+    decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, IReadOnlyList<StandaloneSupplierInvoiceDraftLineCreateRequest> Lines);
+public sealed record StandaloneSupplierInvoiceDraftUpdateRequest(string ExpectedRowVersion, Guid SupplierId, string InvoiceNumber,
     DateOnly InvoiceDate, DateOnly? DueDate, string CurrencyCode, string? Notes, decimal Subtotal,
     decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, IReadOnlyList<StandaloneSupplierInvoiceDraftLineCreateRequest> Lines);
 public sealed record StandaloneSupplierInvoiceDraftLineCreateRequest(int LineNumber, string Description,

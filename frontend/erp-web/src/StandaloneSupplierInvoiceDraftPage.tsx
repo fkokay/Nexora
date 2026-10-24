@@ -8,6 +8,7 @@ type DraftLineInput = { description: string; quantity: string; unitCode: string;
 type DraftInput = { requestId: string; supplierId: string; invoiceNumber: string; invoiceDate: string; dueDate: string; currencyCode: string; notes: string; subtotal: string; discountTotal: string; taxTotal: string; grandTotal: string; lines: DraftLineInput[] }
 type DraftSummary = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; grandTotal: number; lineCount: number; createdAt: string }
 type DraftPage = { items: DraftSummary[]; page: number; pageSize: number; totalCount: number }
+type DraftDetail = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; notes: string | null; subtotal: number; discountTotal: number; taxTotal: number; grandTotal: number; status: string; rowVersion: string; lines: Array<{ lineNumber: number; description: string; quantity: number | null; unitCode: string | null; unitPrice: number | null; subtotal: number; discountAmount: number; taxAmount: number; total: number }> }
 
 export type StandaloneSupplierInvoiceDraftPageProps = { token: string; role: string }
 
@@ -41,6 +42,7 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [supplierSearch, setSupplierSearch] = useState('')
+  const [editing, setEditing] = useState<{ id: string; rowVersion: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -78,11 +80,31 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
   function addLine() { setDraft(current => ({ ...current, lines: [...current.lines, blankLine()] })) }
   function removeLine(index: number) { setDraft(current => ({ ...current, lines: current.lines.length <= 1 ? current.lines : current.lines.filter((_, i) => i !== index) })) }
 
+  async function beginEdit(id: string) {
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const saved = await request<DraftDetail>(`/api/purchasing/standalone-invoices/${id}`, token)
+      if (saved.status !== 'Draft') throw new Error('Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir.')
+      setEditing({ id: saved.id, rowVersion: saved.rowVersion })
+      setSelectedSupplier({ id: saved.supplierId, code: '', name: saved.supplierName, currencyCode: saved.currencyCode })
+      setSupplierSearch('')
+      setDraft({ requestId: crypto.randomUUID(), supplierId: saved.supplierId, invoiceNumber: saved.invoiceNumber,
+        invoiceDate: saved.invoiceDate, dueDate: saved.dueDate || '', currencyCode: saved.currencyCode, notes: saved.notes || '',
+        subtotal: String(saved.subtotal), discountTotal: String(saved.discountTotal), taxTotal: String(saved.taxTotal), grandTotal: String(saved.grandTotal),
+        lines: saved.lines.map(line => ({ description: line.description, quantity: line.quantity == null ? '' : String(line.quantity),
+          unitCode: line.unitCode || '', unitPrice: line.unitPrice == null ? '' : String(line.unitPrice), subtotal: String(line.subtotal),
+          discountAmount: String(line.discountAmount), taxAmount: String(line.taxAmount), total: String(line.total) })) })
+      setNotice(`${saved.invoiceNumber} taslağı düzenleniyor.`)
+      document.querySelector('.sid-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
+
+  function cancelEdit() { setEditing(null); setSelectedSupplier(null); setSupplierSearch(''); setDraft(blankDraft()); setError(''); setNotice('') }
+
   async function save(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError(''); setNotice('')
     try {
-      const payload = {
-        requestId: draft.requestId,
+      const fields = {
         supplierId: draft.supplierId,
         invoiceNumber: draft.invoiceNumber.trim(),
         invoiceDate: draft.invoiceDate,
@@ -98,9 +120,16 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
           taxAmount: requiredNumber(line.taxAmount), total: requiredNumber(line.total),
         })),
       }
-      const created = await request<{ id: string; invoiceNumber: string }>('/api/purchasing/standalone-invoices/', token, { method: 'POST', body: JSON.stringify(payload) })
-      setNotice(`${created.invoiceNumber} taslak olarak kaydedildi. Cari borç, stok, ödeme veya yevmiye kaydı oluşturulmadı.`)
-      setDraft(blankDraft()); setSelectedSupplier(null); setSupplierSearch(''); await load()
+      if (editing) {
+        const updated = await request<{ id: string; invoiceNumber: string }>(`/api/purchasing/standalone-invoices/${editing.id}`, token,
+          { method: 'PUT', body: JSON.stringify({ ...fields, expectedRowVersion: editing.rowVersion }) })
+        setNotice(`${updated.invoiceNumber} taslağı güncellendi. Muhasebe veya stok kaydı oluşturulmadı.`)
+      } else {
+        const created = await request<{ id: string; invoiceNumber: string }>('/api/purchasing/standalone-invoices/', token,
+          { method: 'POST', body: JSON.stringify({ ...fields, requestId: draft.requestId }) })
+        setNotice(`${created.invoiceNumber} taslak olarak kaydedildi. Cari borç, stok, ödeme veya yevmiye kaydı oluşturulmadı.`)
+      }
+      setEditing(null); setDraft(blankDraft()); setSelectedSupplier(null); setSupplierSearch(''); await load()
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
 
@@ -112,7 +141,7 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
 
     <form className="sid-form" onSubmit={save}>
       <section className="sid-card">
-        <div className="sid-card-heading"><div><h2>Belge bilgileri</h2><p>Tedarikçi faturasında görünen değerleri girin.</p></div><span>Taslak</span></div>
+        <div className="sid-card-heading"><div><h2>Belge bilgileri</h2><p>Tedarikçi faturasında görünen değerleri girin.</p></div><span>{editing ? 'Taslak düzenleniyor' : 'Taslak'}</span></div>
         <div className="sid-fields">
           <label>Tedarikçi ara<input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="Kod veya ad"/></label>
           <label>Tedarikçi *<select value={draft.supplierId} onChange={e => selectSupplier(e.target.value)} required><option value="">Tedarikçi seçin</option>{visibleSuppliers.map(x => <option key={x.id} value={x.id}>{x.code ? `${x.code} · ` : ''}{x.name}</option>)}</select></label>
@@ -142,12 +171,12 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
       <section className="sid-card">
         <div className="sid-card-heading"><div><h2>Belge toplamları</h2><p>Toplamları tedarikçi belgesinden aynen aktarın.</p></div></div>
         <div className="sid-fields sid-totals"><label>Ara toplam *<input type="number" min="0" step="0.01" value={draft.subtotal} onChange={e => update('subtotal', e.target.value)} required/></label><label>İskonto toplamı *<input type="number" min="0" step="0.01" value={draft.discountTotal} onChange={e => update('discountTotal', e.target.value)} required/></label><label>Vergi toplamı *<input type="number" min="0" step="0.01" value={draft.taxTotal} onChange={e => update('taxTotal', e.target.value)} required/></label><label>Genel toplam *<input type="number" min="0" step="0.01" value={draft.grandTotal} onChange={e => update('grandTotal', e.target.value)} required/></label></div>
-        <footer className="sid-form-footer"><span>Tutarlar kaydedildiği haliyle korunur; bu işlem muhasebe veya stok kaydı oluşturmaz.</span><button className="sid-primary" disabled={busy || suppliers.length === 0}>{busy ? 'Kaydediliyor…' : <><FilePlus2 size={16}/> Taslağı kaydet</>}</button></footer>
+        <footer className="sid-form-footer"><span>Tutarlar kaydedildiği haliyle korunur; bu işlem muhasebe veya stok kaydı oluşturmaz.</span><div className="sid-form-actions">{editing && <button type="button" className="sid-secondary" disabled={busy} onClick={cancelEdit}>Düzenlemeyi iptal et</button>}<button className="sid-primary" disabled={busy || suppliers.length === 0}>{busy ? 'Kaydediliyor…' : <><FilePlus2 size={16}/> {editing ? 'Taslağı güncelle' : 'Taslağı kaydet'}</>}</button></div></footer>
       </section>
     </form>
 
     <section className="sid-card sid-list-card"><div className="sid-card-heading"><div><h2>Kaydedilmiş taslaklar</h2><p>Yalnızca bu firmaya ait, muhasebeleştirilmemiş belgeler.</p></div><button type="button" className="sid-secondary" onClick={() => void load()} disabled={loading}><RotateCw size={15}/> Yenile</button></div>
-      <div className="sid-table-wrap"><table><thead><tr><th>Fatura no</th><th>Tedarikçi</th><th>Tarih</th><th>Satır</th><th>Toplam</th><th>Durum</th></tr></thead><tbody>{loading ? <tr><td colSpan={6} className="sid-empty">Taslaklar yükleniyor…</td></tr> : drafts.length === 0 ? <tr><td colSpan={6} className="sid-empty">Henüz bağımsız fatura taslağı yok.</td></tr> : drafts.map(item => <tr key={item.id}><td><b>{item.invoiceNumber}</b></td><td>{item.supplierName}</td><td>{item.invoiceDate}</td><td>{item.lineCount}</td><td>{item.grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {item.currencyCode}</td><td><span className="sid-status">Taslak · muhasebeleştirilmedi</span></td></tr>)}</tbody></table></div>
+      <div className="sid-table-wrap"><table><thead><tr><th>Fatura no</th><th>Tedarikçi</th><th>Tarih</th><th>Satır</th><th>Toplam</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>{loading ? <tr><td colSpan={7} className="sid-empty">Taslaklar yükleniyor…</td></tr> : drafts.length === 0 ? <tr><td colSpan={7} className="sid-empty">Henüz bağımsız fatura taslağı yok.</td></tr> : drafts.map(item => <tr key={item.id}><td><b>{item.invoiceNumber}</b></td><td>{item.supplierName}</td><td>{item.invoiceDate}</td><td>{item.lineCount}</td><td>{item.grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {item.currencyCode}</td><td><span className="sid-status">Taslak · muhasebeleştirilmedi</span></td><td><button type="button" className="sid-secondary" disabled={busy} onClick={() => void beginEdit(item.id)}>Düzenle</button></td></tr>)}</tbody></table></div>
     </section>
   </main>
 }

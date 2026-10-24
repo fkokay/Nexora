@@ -820,6 +820,50 @@ public sealed class CustomFormEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Commercial_contract_layout_is_allowlisted_tenant_scoped_and_keeps_details_action_fixed()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "commercial-contracts");
+        var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal(new[] { "code", "type", "counterpartyName", "effectiveFrom", "effectiveThrough", "currencyCode", "status", "revision", "actions" },
+            catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
+        Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
+
+        var create = await client.PostAsJsonAsync("/api/screen-views/commercial-contracts/draft", new { name = "Ticari sözleşmeler" });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        using var created = JsonDocument.Parse(await create.Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().ToArray();
+        var customized = fields.Select((field, index) => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == "counterpartyName" ? "Firma" : field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("key").GetString() != "revision" && field.GetProperty("visible").GetBoolean(),
+            position = field.GetProperty("key").GetString() == "code" ? 0 : index + 1
+        }).ToArray();
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Ticari sözleşmeler", fields = customized })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        SetIdentity(client, TenantA, UserA, "TenantUser");
+        var active = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/commercial-contracts/active");
+        var activeFields = active.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal("Firma", activeFields.Single(x => x.GetProperty("key").GetString() == "counterpartyName").GetProperty("label").GetString());
+        Assert.False(activeFields.Single(x => x.GetProperty("key").GetString() == "revision").GetProperty("visible").GetBoolean());
+        Assert.Equal("actions", activeFields[^1].GetProperty("key").GetString());
+        Assert.True(activeFields[^1].GetProperty("visible").GetBoolean());
+        Assert.True(activeFields[^1].GetProperty("fixed").GetBoolean());
+
+        SetIdentity(client, TenantB, UserB, "TenantAdmin");
+        var otherTenant = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/commercial-contracts/active");
+        Assert.False(otherTenant.GetProperty("isPublished").GetBoolean());
+        Assert.Equal("Sözleşme kodu", otherTenant.GetProperty("fields")[0].GetProperty("label").GetString());
+    }
+
+    [Fact]
     public async Task Hr_employee_screen_view_limits_fields_keeps_actions_fixed_and_is_tenant_scoped()
     {
         await using var app = await StartApplicationAsync();
