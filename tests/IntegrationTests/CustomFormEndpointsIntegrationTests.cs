@@ -1161,6 +1161,78 @@ public sealed class CustomFormEndpointsIntegrationTests
         Assert.Equal("Tedarikçi irsaliye no", otherTenant.GetProperty("fields")[0].GetProperty("label").GetString());
     }
 
+    [Fact]
+    public async Task Manufacturing_order_list_layout_is_customizable_tenant_scoped_and_keeps_actions_fixed()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var screen = Assert.Single(catalog!, item => item.GetProperty("key").GetString() == "manufacturing-orders");
+        var catalogFields = screen.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal(new[] { "code", "plannedDate", "billOfMaterialName", "warehouseName", "plannedQuantity", "components", "status", "actions" },
+            catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
+        Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
+
+        var created = await client.PostAsJsonAsync("/api/screen-views/manufacturing-orders/draft", new { name = "Üretim panosu" });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        using var draft = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        var draftId = draft.RootElement.GetProperty("id").GetGuid();
+        var fields = draft.RootElement.GetProperty("fields").EnumerateArray()
+            .Select(field => new
+            {
+                key = field.GetProperty("key").GetString()!,
+                label = field.GetProperty("label").GetString()!,
+                visible = field.GetProperty("visible").GetBoolean(),
+                position = field.GetProperty("position").GetInt32()
+            }).ToArray();
+
+        var hiddenActions = fields.Select(field => field.key == "actions"
+            ? new { field.key, label = field.label, visible = false, position = field.position }
+            : new { field.key, label = field.label, visible = field.visible, position = field.position }).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new
+        {
+            expectedRevision = 1, name = "İşlemler gizli", fields = hiddenActions
+        })).StatusCode);
+
+        var movedActions = fields.Select(field => field.key == "actions"
+            ? new { field.key, label = field.label, visible = field.visible, position = 0 }
+            : new { field.key, label = field.label, visible = field.visible, position = field.key == "code" ? 1 : field.position }).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new
+        {
+            expectedRevision = 1, name = "İşlemler taşındı", fields = movedActions
+        })).StatusCode);
+
+        var customized = fields.Select(field => field.key switch
+        {
+            "code" => new { field.key, label = "Emir no", visible = true, position = 0, section = (string?)"Plan" },
+            "plannedDate" => new { field.key, label = "Termin", visible = true, position = 1, section = (string?)"Plan" },
+            "warehouseName" => new { field.key, label = "Üretim deposu", visible = false, position = 2, section = (string?)"Üretim" },
+            "actions" => new { field.key, label = field.label, visible = field.visible, position = field.position, section = (string?)null },
+            _ => new { field.key, label = field.label, visible = field.visible, position = field.position, section = (string?)"Üretim" }
+        }).ToArray();
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new
+        {
+            expectedRevision = 1, name = "Üretim panosu", fields = customized
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        SetIdentity(client, TenantA, UserA, "TenantUser");
+        var active = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/manufacturing-orders/active");
+        var activeFields = active.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal("Emir no", activeFields[0].GetProperty("label").GetString());
+        Assert.Equal("Plan", activeFields[0].GetProperty("section").GetString());
+        Assert.False(activeFields.Single(field => field.GetProperty("key").GetString() == "warehouseName").GetProperty("visible").GetBoolean());
+        Assert.Equal("actions", activeFields[^1].GetProperty("key").GetString());
+        Assert.True(activeFields[^1].GetProperty("fixed").GetBoolean());
+
+        SetIdentity(client, TenantB, UserB, "TenantUser");
+        var otherTenant = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/manufacturing-orders/active");
+        Assert.False(otherTenant.GetProperty("isPublished").GetBoolean());
+        Assert.Equal("Üretim emri", otherTenant.GetProperty("fields")[0].GetProperty("label").GetString());
+    }
+
     private static async Task<WebApplication> StartApplicationAsync()
     {
         var builder = WebApplication.CreateBuilder();

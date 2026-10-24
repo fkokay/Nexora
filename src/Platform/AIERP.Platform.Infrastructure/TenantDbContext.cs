@@ -16,6 +16,8 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
     public DbSet<OperationalProjectTimeEntry> OperationalProjectTimeEntries => Set<OperationalProjectTimeEntry>();
     public DbSet<PurchaseInvoiceDraft> PurchaseInvoiceDrafts => Set<PurchaseInvoiceDraft>();
     public DbSet<PurchaseInvoiceDraftLine> PurchaseInvoiceDraftLines => Set<PurchaseInvoiceDraftLine>();
+    public DbSet<DirectCashBudgetPlan> DirectCashBudgetPlans => Set<DirectCashBudgetPlan>();
+    public DbSet<DirectCashBudgetLine> DirectCashBudgetLines => Set<DirectCashBudgetLine>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -121,6 +123,36 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Account).WithMany().HasForeignKey(x => new { x.TenantId, x.AccountId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<DirectCashBudgetPlan>(e =>
+        {
+            e.ToTable("DirectCashBudgetPlans", table =>
+                table.HasCheckConstraint("CK_DirectCashBudgetPlans_FiscalYear", "[FiscalYear] BETWEEN 2000 AND 2100"));
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.FiscalYear, x.CurrencyCode }).IsUnique().HasFilter("[Status] = 2");
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.CurrencyCode).HasMaxLength(3).IsUnicode(false).IsRequired();
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<DirectCashBudgetLine>(e =>
+        {
+            e.ToTable("DirectCashBudgetLines", table =>
+            {
+                table.HasCheckConstraint("CK_DirectCashBudgetLines_Direction", "[Direction] IN (1,2)");
+                table.HasCheckConstraint("CK_DirectCashBudgetLines_Amount", "[Amount] >= 0");
+            });
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.PlanId, x.PeriodStart });
+            e.Property(x => x.Direction).HasConversion<int>();
+            e.Property(x => x.Category).HasMaxLength(40).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(240).IsRequired();
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.HasOne(x => x.Plan).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.PlanId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<ForeignTradeCase>(e =>
         {

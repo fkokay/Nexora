@@ -198,6 +198,7 @@ app.MapTenantOperationalSettingsEndpoints();
 app.MapTenantCompanyProfileEndpoints();
 app.MapTenantBudgetEndpoints();
 app.MapTenantCashForecastEndpoints();
+app.MapDirectCashBudgetEndpoints();
 app.MapFinanceCreditFacilityEndpoints();
 app.MapTenantLicenseEndpoints();
 app.MapPaymentInstrumentEndpoints();

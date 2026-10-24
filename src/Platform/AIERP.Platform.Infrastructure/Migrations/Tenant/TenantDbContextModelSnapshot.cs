@@ -1321,6 +1321,106 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.DirectCashBudgetLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("nvarchar(240)");
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("PeriodStart")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "PlanId", "PeriodStart");
+
+                    b.ToTable("DirectCashBudgetLines", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DirectCashBudgetLines_Amount", "[Amount] >= 0");
+
+                            t.HasCheckConstraint("CK_DirectCashBudgetLines_Direction", "[Direction] IN (1,2)");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.DirectCashBudgetPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<int>("FiscalYear")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "FiscalYear", "CurrencyCode")
+                        .IsUnique()
+                        .HasFilter("[Status] = 2");
+
+                    b.ToTable("DirectCashBudgetPlans", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DirectCashBudgetPlans_FiscalYear", "[FiscalYear] BETWEEN 2000 AND 2100");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.EmployeeAttendanceRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9524,6 +9624,27 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Navigation("SupplierReturn");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.DirectCashBudgetLine", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.DirectCashBudgetPlan", "Plan")
+                        .WithMany("Lines")
+                        .HasForeignKey("TenantId", "PlanId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.DirectCashBudgetPlan", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.EmployeeAttendanceRecord", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", null)
@@ -12020,6 +12141,11 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
             modelBuilder.Entity("AIERP.Platform.Domain.CustomerLedgerEntry", b =>
                 {
                     b.Navigation("ReversalEntry");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.DirectCashBudgetPlan", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.FinancialAccount", b =>

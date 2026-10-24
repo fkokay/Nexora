@@ -90,6 +90,13 @@ internal static class TenantScreenViewEndpoints
         new("lineCount", "Satır", true), new("purchaseReceiptCode", "Mal kabul", true),
         new("actions", "İşlemler", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] ManufacturingOrderFields =
+    [
+        new("code", "Üretim emri", true), new("plannedDate", "Plan tarihi", true),
+        new("billOfMaterialName", "Reçete / rota ve fiili süre", true), new("warehouseName", "Depo", true),
+        new("plannedQuantity", "Planlanan miktar", true), new("components", "Bileşenler", true),
+        new("status", "Durum", true), new("actions", "İşlem", true, Fixed: true)
+    ];
     private static readonly ScreenViewField[] FixedAssetFields =
     [
         new("assetCode", "Kıymet kodu", true), new("name", "Kıymet", true), new("category", "Kategori", true),
@@ -151,6 +158,7 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("standalone-invoice-drafts", "Bağımsız alış faturası taslakları", StandalonePurchaseInvoiceDraftFields),
             new ScreenViewCatalog("purchase-orders", "Satın alma siparişleri", PurchaseOrderFields),
             new ScreenViewCatalog("purchase-delivery-notes", "Tedarikçi irsaliyeleri", PurchaseDeliveryNoteFields),
+            new ScreenViewCatalog("manufacturing-orders", "Üretim emirleri", ManufacturingOrderFields),
             new ScreenViewCatalog("fixed-assets", "Sabit kıymetler", FixedAssetFields),
             new ScreenViewCatalog("crm-opportunities", "CRM fırsatları", CrmOpportunityFields),
             new ScreenViewCatalog("payment-instruments", "Çek/senet portföyü", PaymentInstrumentFields),
@@ -354,6 +362,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "purchase-delivery-notes", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("purchase-delivery-notes", "Tedarikçi irsaliyeleri", PurchaseDeliveryNoteFields);
+            return true;
+        }
+        if (string.Equals(key, "manufacturing-orders", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("manufacturing-orders", "Üretim emirleri", ManufacturingOrderFields);
             return true;
         }
         if (string.Equals(key, "fixed-assets", StringComparison.OrdinalIgnoreCase))

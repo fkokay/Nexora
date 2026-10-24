@@ -11,6 +11,8 @@ type Month = {
   creditFacilityPayments: number
   postedMovements: number
   postedMovementCount: number
+  directCashBudgetInflows: number
+  directCashBudgetOutflows: number
   overdueReceivables: number
   overduePayables: number
   overdueInstrumentReceivables: number
@@ -178,7 +180,7 @@ export default function CashForecastPanel({ token }: { token: string }) {
               <thead><tr>
                 <th scope="col">Dönem</th><th scope="col">Açılış</th><th scope="col">Alacak faturaları</th><th scope="col">Borç faturaları</th>
                 <th scope="col">Çek/senet tahsilat</th><th scope="col">Çek/senet ödeme</th><th scope="col">Kredi taksidi</th>
-                <th scope="col">İleri tarihli kayıt</th><th scope="col">Net değişim</th><th scope="col">Kapanış tahmini</th><th scope="col">Vadesi geçmiş toplam</th>
+                <th scope="col">Planlı tahsilat</th><th scope="col">Planlı ödeme</th><th scope="col">İleri tarihli kayıt</th><th scope="col">Net değişim</th><th scope="col">Kapanış tahmini</th><th scope="col">Vadesi geçmiş toplam</th>
               </tr></thead>
               <tbody>{currency.months.map(row => {
                 const overdueTotal = row.overdueReceivables + row.overduePayables + row.overdueInstrumentReceivables + row.overdueInstrumentPayables + row.overdueCreditFacilityPayments
@@ -190,6 +192,8 @@ export default function CashForecastPanel({ token }: { token: string }) {
                   <AmountCell label="Çek/senet tahsilat" amount={row.instrumentReceivables} currency={currency.currencyCode} overdue={row.overdueInstrumentReceivables} />
                   <AmountCell label="Çek/senet ödeme" amount={row.instrumentPayables} currency={currency.currencyCode} overdue={row.overdueInstrumentPayables} />
                   <AmountCell label="Kredi taksidi" amount={row.creditFacilityPayments} currency={currency.currencyCode} overdue={row.overdueCreditFacilityPayments} />
+                  <AmountCell label="Planlı tahsilat" amount={row.directCashBudgetInflows} currency={currency.currencyCode} />
+                  <AmountCell label="Planlı ödeme" amount={row.directCashBudgetOutflows} currency={currency.currencyCode} />
                   <td data-label="İleri tarihli kayıt">{money(row.postedMovements, currency.currencyCode)}<small className="cash-forecast-detail">{row.postedMovementCount} kayıt</small></td>
                   <td data-label="Net değişim" className={row.netChange < 0 ? 'cash-forecast-negative' : 'cash-forecast-positive'}>{money(row.netChange, currency.currencyCode)}</td>
                   <td data-label="Kapanış tahmini" className="cash-forecast-closing"><strong>{money(row.closingBalance, currency.currencyCode)}</strong>

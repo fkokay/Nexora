@@ -63,6 +63,14 @@ public static class TenantCashForecastEndpoints
                 .Where(x => x.TenantId == tenantId && x.Status == CreditFacilityScheduleStatus.Planned && x.CreditFacility.Status == CreditFacilityStatus.Active)
                 .Select(x => new { x.DueDate, x.CreditFacility.CurrencyCode, Amount = x.PrincipalAmount + x.InterestAmount + x.FeeAmount })
                 .ToListAsync(ct);
+            // Only the separately modeled direct cash plans are forecast. Accrual budget
+            // plans are intentionally excluded because they do not specify cash timing.
+            var directCashBudgetRows = await (from plan in db.DirectCashBudgetPlans.AsNoTracking()
+                join line in db.DirectCashBudgetLines.AsNoTracking() on new { plan.TenantId, PlanId = plan.Id } equals new { line.TenantId, line.PlanId }
+                where plan.TenantId == tenantId && plan.Status == DirectCashBudgetPlanStatus.Approved &&
+                      line.PeriodStart >= firstMonth && line.PeriodStart < endExclusive
+                group line by new { plan.CurrencyCode, line.PeriodStart, line.Direction } into g
+                select new { g.Key.CurrencyCode, g.Key.PeriodStart, g.Key.Direction, Amount = g.Sum(x => x.Amount) }).ToListAsync(ct);
 
             var currencies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in openingRows) currencies.Add(row.Currency);
@@ -71,6 +79,7 @@ public static class TenantCashForecastEndpoints
             foreach (var invoice in purchases) currencies.Add(invoice.CurrencyCode);
             foreach (var instrument in instruments) currencies.Add(instrument.CurrencyCode);
             foreach (var payment in creditPayments) currencies.Add(payment.CurrencyCode);
+            foreach (var row in directCashBudgetRows) currencies.Add(row.CurrencyCode);
             if (requestedCurrency is not null) currencies.IntersectWith([requestedCurrency]);
 
             var exchangeRates = await db.TenantExchangeRates.AsNoTracking()
@@ -138,6 +147,12 @@ public static class TenantCashForecastEndpoints
                 var row = Get(movement.CurrencyCode, new DateOnly(movement.Year, movement.Month, 1));
                 row.PostedMovements += movement.Amount; row.PostedMovementCount += movement.Count;
             }
+            foreach (var budget in directCashBudgetRows)
+            {
+                var row = Get(budget.CurrencyCode, budget.PeriodStart);
+                if (budget.Direction == DirectCashBudgetDirection.Inflow) row.DirectCashBudgetInflows += budget.Amount;
+                else row.DirectCashBudgetOutflows += budget.Amount;
+            }
 
             var output = new List<CashForecastCurrencyView>();
             foreach (var currency in currencies.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
@@ -149,12 +164,14 @@ public static class TenantCashForecastEndpoints
                     var month = firstMonth.AddMonths(i);
                     flows.TryGetValue((currency, month), out var flow);
                     flow ??= new ForecastMonthAccumulator();
-                    var net = flow.Receivables + flow.InstrumentReceivables - flow.Payables - flow.InstrumentPayables - flow.CreditFacilityPayments + flow.PostedMovements;
+                    var net = flow.Receivables + flow.InstrumentReceivables - flow.Payables - flow.InstrumentPayables - flow.CreditFacilityPayments + flow.PostedMovements +
+                              flow.DirectCashBudgetInflows - flow.DirectCashBudgetOutflows;
                     var closing = opening + net;
                     var rate = RateAt(currency, month);
                     var rateDate = RateDateAt(currency, month);
                     monthsOut.Add(new CashForecastMonthView(month, opening, flow.Receivables, flow.Payables,
                         flow.InstrumentReceivables, flow.InstrumentPayables, flow.CreditFacilityPayments, flow.PostedMovements, flow.PostedMovementCount,
+                        flow.DirectCashBudgetInflows, flow.DirectCashBudgetOutflows,
                         flow.OverdueReceivables, flow.OverduePayables, flow.OverdueInstrumentReceivables,
                         flow.OverdueInstrumentPayables, flow.OverdueCreditFacilityPayments, net, closing,
                         rate is null ? null : decimal.Round(closing * rate.Value, 2, MidpointRounding.AwayFromZero), rate, rateDate));
@@ -163,7 +180,7 @@ public static class TenantCashForecastEndpoints
                 output.Add(new CashForecastCurrencyView(currency, monthsOut));
             }
             return Results.Ok(new CashForecastView(start, horizon, endExclusive.AddDays(-1), baseCurrency,
-                "Baz para birimi karşılığı, her tahmin ayının ilk gününde geçerli son tenant kuru ile yalnızca gösterim amacıyla hesaplanır; muhasebe değerlemesi değildir. Kur bulunmayan para birimlerinin baz para karşılığı boş kalır. Bütçe tahakkukları dahil değildir; yalnız açık fatura bakiyeleri, portföy enstrümanları, aktif kredi taksitleri ve ileri tarihli kayıtlı kasa/banka hareketleri dahil edilir. Gecikmiş kalemler ilk tahmin ayına yerleştirilir.", output));
+                "Baz para birimi karşılığı, her tahmin ayının ilk gününde geçerli son tenant kuru ile yalnızca gösterim amacıyla hesaplanır; muhasebe değerlemesi değildir. Kur bulunmayan para birimlerinin baz para karşılığı boş kalır. Yalnız onaylı doğrudan nakit bütçeleri ayrı giriş/çıkış alanlarıyla dahil edilir; tahakkuk bütçeleri nakit olarak sayılmaz. Nakit bütçe satırları açık fatura veya portföy enstrümanı tahminleriyle çakışıyorsa çift sayımı önlemek için aynı planı bir kez kullanın. Gecikmiş fatura ve enstrüman kalemleri ilk tahmin ayına yerleştirilir.", output));
         });
     }
 
@@ -176,6 +193,8 @@ public static class TenantCashForecastEndpoints
         public decimal CreditFacilityPayments { get; set; }
         public decimal PostedMovements { get; set; }
         public int PostedMovementCount { get; set; }
+        public decimal DirectCashBudgetInflows { get; set; }
+        public decimal DirectCashBudgetOutflows { get; set; }
         public decimal OverdueReceivables { get; set; }
         public decimal OverduePayables { get; set; }
         public decimal OverdueInstrumentReceivables { get; set; }
@@ -188,6 +207,7 @@ public sealed record CashForecastView(DateOnly From, int Months, DateOnly Throug
 public sealed record CashForecastCurrencyView(string CurrencyCode, IReadOnlyList<CashForecastMonthView> Months);
 public sealed record CashForecastMonthView(DateOnly PeriodStart, decimal OpeningBalance, decimal Receivables, decimal Payables,
     decimal InstrumentReceivables, decimal InstrumentPayables, decimal CreditFacilityPayments, decimal PostedMovements, int PostedMovementCount,
+    decimal DirectCashBudgetInflows, decimal DirectCashBudgetOutflows,
     decimal OverdueReceivables, decimal OverduePayables, decimal OverdueInstrumentReceivables, decimal OverdueInstrumentPayables,
     decimal OverdueCreditFacilityPayments, decimal NetChange, decimal ClosingBalance, decimal? BaseCurrencyClosingBalance,
     decimal? AppliedExchangeRate, DateOnly? AppliedExchangeRateDate);

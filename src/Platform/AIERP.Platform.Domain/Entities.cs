@@ -335,6 +335,39 @@ public sealed class TenantBudgetLine
     public string? Notes { get; set; }
 }
 
+public enum DirectCashBudgetPlanStatus { Draft = 1, Approved = 2 }
+public enum DirectCashBudgetDirection { Inflow = 1, Outflow = 2 }
+
+/// <summary>Planning-only cash scenario. It does not represent a journal or cash transaction.</summary>
+public sealed class DirectCashBudgetPlan
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Name { get; set; } = "";
+    public int FiscalYear { get; set; }
+    public string CurrencyCode { get; set; } = "TRY";
+    public DirectCashBudgetPlanStatus Status { get; set; } = DirectCashBudgetPlanStatus.Draft;
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? ApprovedByUserId { get; set; }
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public int Revision { get; set; } = 1;
+    public ICollection<DirectCashBudgetLine> Lines { get; set; } = new List<DirectCashBudgetLine>();
+}
+
+public sealed class DirectCashBudgetLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid PlanId { get; set; }
+    public DirectCashBudgetPlan Plan { get; set; } = null!;
+    public DateOnly PeriodStart { get; set; }
+    public DirectCashBudgetDirection Direction { get; set; }
+    public string Category { get; set; } = "Other";
+    public string Description { get; set; } = "";
+    public decimal Amount { get; set; }
+}
+
 public enum LedgerAccountStatementSection
 {
     Unclassified = 0,
