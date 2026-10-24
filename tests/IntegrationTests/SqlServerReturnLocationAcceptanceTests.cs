@@ -167,6 +167,10 @@ public sealed class SqlServerReturnLocationAcceptanceTests
                 (x.Action == "customer-ledger.created" || x.Action == "customer-ledger.reversed"));
             var invoiceAuditCount = await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
                 (x.Action == "sales-invoice.posted" || x.Action == "purchase-invoice.posted"));
+            var fxVoucherCount = await readbackTenant.FxRevaluationVouchers.CountAsync(x => x.TenantId == TenantId);
+            var costAdjustmentCount = await readbackTenant.InventoryCostAdjustments.CountAsync(x => x.TenantId == TenantId);
+            var valuationAuditCount = await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
+                (x.Action == "finance.fx-revaluation.created" || x.Action == "inventory-landed-cost.posted"));
 
             using var closedManualLedger = await client.PostAsJsonAsync($"/api/customers/{data.CustomerId:D}/ledger", new
             {
@@ -209,6 +213,17 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             Assert.Equal(HttpStatusCode.Conflict, closedPurchaseInvoice.StatusCode);
             Assert.Contains("dönemi kapalı", await closedPurchaseInvoice.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
 
+            using var closedFxValuation = await client.PostAsJsonAsync("/api/finance/fx-revaluations/", new { asOfDate = "2026-10-21" });
+            Assert.Equal(HttpStatusCode.Conflict, closedFxValuation.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedFxValuation.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+            using var closedLandedCost = await client.PostAsJsonAsync($"/api/purchasing/receipts/{data.PurchaseReceiptId:D}/landed-costs", new
+            {
+                entryDate = "2026-10-21", amountBase = 25m, allocationMethod = "EQUAL", description = "Closed-period landed cost"
+            });
+            Assert.Equal(HttpStatusCode.Conflict, closedLandedCost.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedLandedCost.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
             Assert.Equal(salesReturnCount, await readbackTenant.SalesReturns.CountAsync(x => x.TenantId == TenantId));
             Assert.Equal(supplierReturnCount, await readbackTenant.SupplierReturns.CountAsync(x => x.TenantId == TenantId));
             Assert.Equal(salesInvoiceCount, await readbackTenant.SalesInvoices.CountAsync(x => x.TenantId == TenantId));
@@ -221,6 +236,10 @@ public sealed class SqlServerReturnLocationAcceptanceTests
                 (x.Action == "customer-ledger.created" || x.Action == "customer-ledger.reversed")));
             Assert.Equal(invoiceAuditCount, await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
                 (x.Action == "sales-invoice.posted" || x.Action == "purchase-invoice.posted")));
+            Assert.Equal(fxVoucherCount, await readbackTenant.FxRevaluationVouchers.CountAsync(x => x.TenantId == TenantId));
+            Assert.Equal(costAdjustmentCount, await readbackTenant.InventoryCostAdjustments.CountAsync(x => x.TenantId == TenantId));
+            Assert.Equal(valuationAuditCount, await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
+                (x.Action == "finance.fx-revaluation.created" || x.Action == "inventory-landed-cost.posted")));
         }
         finally
         {
@@ -367,12 +386,12 @@ public sealed class SqlServerReturnLocationAcceptanceTests
         tenantDb.JournalEntries.Add(opening);
         await tenantDb.SaveChangesAsync();
         return new SeedIds(customer.Id, warehouse.Id, salesLocation.Id, purchaseLocation.Id, inactiveLocation.Id, salesInvoice.Id, salesInvoiceLine.Id,
-            purchaseInvoice.Id, purchaseInvoiceLine.Id, retainedEarnings.Id, unbilledDelivery.Id, unbilledPurchaseReceipt.Id);
+            purchaseInvoice.Id, purchaseInvoiceLine.Id, retainedEarnings.Id, unbilledDelivery.Id, purchaseReceipt.Id, unbilledPurchaseReceipt.Id);
     }
 
     private sealed record SeedIds(Guid CustomerId, Guid WarehouseId, Guid SalesReturnLocationId, Guid PurchaseReturnLocationId, Guid InactiveLocationId,
         Guid SalesInvoiceId, Guid SalesInvoiceLineId, Guid PurchaseInvoiceId, Guid PurchaseInvoiceLineId, Guid RetainedEarningsAccountId,
-        Guid UnbilledSalesDeliveryId, Guid UnbilledPurchaseReceiptId);
+        Guid UnbilledSalesDeliveryId, Guid PurchaseReceiptId, Guid UnbilledPurchaseReceiptId);
 
     private sealed class ProcessEnvironmentOverride(IReadOnlyDictionary<string, string?> previousValues) : IDisposable
     {

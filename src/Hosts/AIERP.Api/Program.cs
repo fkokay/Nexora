@@ -5064,6 +5064,10 @@ purchaseReceipts.MapPost("/{id:guid}/landed-costs", async (Guid id, LandedCostWr
         method is not ("VALUE" or "QUANTITY" or "EQUAL") || string.IsNullOrWhiteSpace(request.Description) || request.Description.Trim().Length > 240)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["landedCost"] = ["Tutar pozitif ve iki ondalık basamaklı olmalı; dağıtım yöntemi Value, Quantity veya Equal olmalı; açıklama en fazla 240 karakter olmalıdır."] });
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var closedLandedCostPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.EntryDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedLandedCostPeriod, "stok ek maliyeti") is { } closedLandedCostConflict)
+        return closedLandedCostConflict;
     var receipt = await db.PurchaseReceipts.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseReceipts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (receipt is null) return Results.NotFound();
     if (receipt.Status != PurchaseReceiptStatus.Posted) return Results.Conflict(new { error = "Yalnızca işlenmiş mal kabullere ek maliyet dağıtılabilir." });
@@ -5830,6 +5834,9 @@ fxRevaluations.MapPost("/", async (FxRevaluationCreateRequest request, ClaimsPri
     // Serialize tenant valuation runs so the prior-period snapshot cannot change during calculation.
     var tenant = await db.Tenants.FromSqlInterpolated($"SELECT * FROM [dbo].[Tenants] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {tenantId}").SingleOrDefaultAsync();
     if (tenant is null) return Results.NotFound();
+    var closedRevaluationPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.AsOfDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedRevaluationPeriod, "kur değerleme") is { } closedRevaluationConflict)
+        return closedRevaluationConflict;
     if (await db.FxRevaluationVouchers.AnyAsync(x => x.TenantId == tenantId && x.AsOfDate == request.AsOfDate))
         return Results.Conflict(new { error = "Bu dönem tarihi için değerleme fişi zaten oluşturulmuş. Fişler değiştirilemez." });
     if (await db.FxRevaluationVouchers.AnyAsync(x => x.TenantId == tenantId && x.AsOfDate > request.AsOfDate))
