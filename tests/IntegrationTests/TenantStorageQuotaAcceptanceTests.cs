@@ -57,12 +57,12 @@ public sealed class TenantStorageQuotaAcceptanceTests
             Assert.False(await ReadReportExistsAsync(databases.TenantConnection, overLimit.Id));
 
             // Removing rows is allowed at/over the threshold so a company can recover space.
-            limits.MaxBytes = usedBytes;
+            limits.MaxBytes = usedBytes - 1;
             await using (var deleteDb = CreateTenantDb(databases.TenantConnection, interceptor))
             {
                 var stored = await deleteDb.TenantSavedReports.SingleAsync(x => x.Id == original.Id);
                 deleteDb.TenantSavedReports.Remove(stored);
-                Assert.Equal(1, await deleteDb.SaveChangesAsync());
+                Assert.Equal(2, await deleteDb.SaveChangesAsync()); // The row deletion and its required audit entry.
             }
             Assert.False(await ReadReportExistsAsync(databases.TenantConnection, original.Id));
         }

@@ -70,6 +70,7 @@ internal sealed class TenantStorageQuotaInterceptor(
 
         var tenantId = ResolveTenantId(tenantDb);
         var state = GetOrCreate(tenantDb, tenantId);
+        state.DeletionOnly = IsDeletionOnly(tenantDb);
         try
         {
             await AcquirePlatformLicenseLockAsync(tenantId, state, cancellationToken);
@@ -90,7 +91,8 @@ internal sealed class TenantStorageQuotaInterceptor(
 
             await AcquireTenantWriteLockAsync(tenantDb, tenantId, state, cancellationToken);
             var usedBytes = await ReadSqlDataBytesAsync(tenantDb, state.TenantTransaction, cancellationToken);
-            if (usedBytes >= maxBytes)
+            state.PreWriteBytes = usedBytes;
+            if (usedBytes >= maxBytes && !state.DeletionOnly)
                 throw new TenantStorageQuotaExceededException(usedBytes, maxBytes);
 
             state.MaxBytes = maxBytes;
@@ -111,7 +113,12 @@ internal sealed class TenantStorageQuotaInterceptor(
         try
         {
             var usedBytes = await ReadSqlDataBytesAsync(tenantDb, state.TenantTransaction, cancellationToken);
-            if (usedBytes >= state.MaxBytes)
+            if (state.DeletionOnly && usedBytes > state.PreWriteBytes)
+            {
+                await RollbackAndReleaseAfterRejectedWriteAsync(tenantDb, state, cancellationToken);
+                throw new TenantStorageQuotaExceededException(usedBytes, state.MaxBytes);
+            }
+            if (!state.DeletionOnly && usedBytes >= state.MaxBytes)
             {
                 await RollbackAndReleaseAfterRejectedWriteAsync(tenantDb, state, cancellationToken);
                 throw new TenantStorageQuotaExceededException(usedBytes, state.MaxBytes);
@@ -159,7 +166,18 @@ internal sealed class TenantStorageQuotaInterceptor(
     }
 
     private static bool HasGrowthWrites(TenantDbContext db) => db.ChangeTracker.Entries()
-        .Any(entry => entry.State is EntityState.Added or EntityState.Modified);
+        .Any(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+
+    private static bool IsDeletionOnly(TenantDbContext db)
+    {
+        var entries = db.ChangeTracker.Entries()
+            .Where(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .ToArray();
+        var hasBusinessGrowth = entries.Any(entry => entry.Entity is not AuditEvent &&
+            entry.State is EntityState.Added or EntityState.Modified);
+        var hasDeletion = entries.Any(entry => entry.Entity is not AuditEvent && entry.State == EntityState.Deleted);
+        return !hasBusinessGrowth && hasDeletion;
+    }
 
     private static Guid ResolveTenantId(TenantDbContext tenantDb)
     {
@@ -219,7 +237,7 @@ internal sealed class TenantStorageQuotaInterceptor(
     {
         await using var command = db.Database.GetDbConnection().CreateCommand();
         command.Transaction = transaction?.GetDbTransaction();
-        command.CommandText = "SELECT COUNT_BIG(*), COALESCE(SUM(CASE WHEN FILEPROPERTY([name], 'SpaceUsed') IS NULL THEN 1 ELSE 0 END), 0), COALESCE(SUM(CONVERT(bigint, FILEPROPERTY([name], 'SpaceUsed')) * CONVERT(bigint, 8192)), 0) FROM sys.database_files WHERE [type_desc] = N'ROWS';";
+        command.CommandText = "SELECT COUNT_BIG(*), COALESCE(SUM(CONVERT(bigint, CASE WHEN FILEPROPERTY([name], 'SpaceUsed') IS NULL THEN 1 ELSE 0 END)), CONVERT(bigint, 0)), COALESCE(SUM(CONVERT(bigint, FILEPROPERTY([name], 'SpaceUsed')) * CONVERT(bigint, 8192)), CONVERT(bigint, 0)) FROM sys.database_files WHERE [type_desc] = N'ROWS';";
         command.CommandTimeout = 15;
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken) || reader.GetInt64(0) < 1 || reader.GetInt64(1) != 0 || reader.IsDBNull(2))
@@ -350,6 +368,8 @@ internal sealed class TenantStorageQuotaInterceptor(
         public bool PlatformLockHeld { get; set; }
         public IDbContextTransaction? TenantTransaction { get; set; }
         public bool OwnsTenantTransaction { get; set; }
+        public bool DeletionOnly { get; set; }
+        public long PreWriteBytes { get; set; }
         public long MaxBytes { get; set; }
     }
 }
