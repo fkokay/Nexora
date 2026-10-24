@@ -960,6 +960,77 @@ public sealed class CustomFormEndpointsIntegrationTests
         client.DefaultRequestHeaders.Add("X-Test-Role", role);
     }
 
+    [Fact]
+    public async Task Operational_project_list_layout_is_allowlisted_live_ready_and_tenant_scoped()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "operational-projects");
+        var fields = catalog.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal(new[] { "code", "name", "status", "startDate", "endDate", "budgetAmount", "currencyCode", "taskCount", "completedTaskCount", "overdueTaskCount", "actualHours", "nextTaskDate", "actions" },
+            fields.Select(field => field.GetProperty("key").GetString()).ToArray());
+        Assert.True(fields[^1].GetProperty("fixed").GetBoolean());
+
+        var create = await client.PostAsJsonAsync("/api/screen-views/operational-projects/draft", new { name = "Proje listem" });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        using var created = JsonDocument.Parse(await create.Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var layoutFields = created.RootElement.GetProperty("fields").EnumerateArray()
+            .Select(field => new
+            {
+                key = field.GetProperty("key").GetString()!,
+                label = field.GetProperty("label").GetString()!,
+                visible = field.GetProperty("visible").GetBoolean(),
+                position = field.GetProperty("position").GetInt32()
+            }).ToArray();
+
+        var invalidAction = layoutFields.Select(field => field.key == "actions"
+            ? new { field.key, field.label, visible = false, position = field.position }
+            : new { field.key, field.label, visible = field.visible, position = field.position }).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new
+        {
+            expectedRevision = 1,
+            name = "İşlemler gizlendi",
+            fields = invalidAction
+        })).StatusCode);
+
+        var customized = layoutFields.Select(field => field.key switch
+        {
+            "name" => new { field.key, label = "Proje başlığı", visible = true, position = 0, section = (string?)"Genel" },
+            "status" => new { field.key, label = field.label, visible = true, position = 1, section = (string?)"Genel" },
+            "budgetAmount" => new { field.key, label = "Plan bütçesi", visible = true, position = 2, section = (string?)"Finans" },
+            "code" => new { field.key, label = field.label, visible = false, position = 3, section = (string?)"Genel" },
+            "actions" => new { field.key, label = field.label, visible = field.visible, position = field.position, section = (string?)null },
+            _ => new { field.key, label = field.label, visible = field.visible, position = field.position, section = (string?)"Diğer" }
+        }).ToArray();
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new
+        {
+            expectedRevision = 1,
+            name = "Proje listem",
+            fields = customized
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        SetIdentity(client, TenantA, UserA, "TenantUser");
+        var active = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/operational-projects/active");
+        var activeFields = active.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal("name", activeFields[0].GetProperty("key").GetString());
+        Assert.Equal("Proje başlığı", activeFields[0].GetProperty("label").GetString());
+        Assert.Equal("Genel", activeFields[0].GetProperty("section").GetString());
+        Assert.False(activeFields.Single(field => field.GetProperty("key").GetString() == "code").GetProperty("visible").GetBoolean());
+        Assert.Equal("actions", activeFields[^1].GetProperty("key").GetString());
+        Assert.True(activeFields[^1].GetProperty("visible").GetBoolean());
+        Assert.True(activeFields[^1].GetProperty("fixed").GetBoolean());
+
+        SetIdentity(client, TenantB, UserB, "TenantUser");
+        var otherTenant = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/operational-projects/active");
+        Assert.False(otherTenant.GetProperty("isPublished").GetBoolean());
+        Assert.Equal("Proje kodu", otherTenant.GetProperty("fields")[0].GetProperty("label").GetString());
+    }
+
     private static async Task<WebApplication> StartApplicationAsync()
     {
         var builder = WebApplication.CreateBuilder();

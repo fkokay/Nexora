@@ -16,3 +16,20 @@
 .op-project-pagination{flex-wrap:wrap}
 @media(max-width:1050px){.op-project-layout{grid-template-columns:minmax(0,1fr)}.op-project-list{order:1}.op-project-detail{order:2}.op-project-items{max-height:320px}.op-project-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.op-project-filters{grid-template-columns:1fr}.op-project-heading{gap:12px}.op-project-heading h1{font-size:27px}.op-project-cost>.panel-heading{flex-direction:column}.op-project-cost-actual{text-align:left}.op-project-detail>.panel-heading{flex-direction:column}.op-project-detail>.panel-heading select{width:100%}.op-project-pagination{justify-content:flex-start}.op-project-pagination>span{width:100%}.op-project-item{grid-template-columns:minmax(0,1fr)}.op-project-status{justify-self:start}}
+
+.op-project-register-wrap{max-height:390px;overflow:auto;border:1px solid #e7ebf3;border-radius:10px}
+.op-project-register{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;white-space:nowrap}
+.op-project-register th,.op-project-register td{padding:10px 12px;text-align:left;border-bottom:1px solid #edf0f5;background:#fff}
+.op-project-register thead th{position:sticky;top:0;z-index:1;background:#f8f9fc;color:#65728a;font-size:11px}
+.op-project-register thead .screen-view-group-row th{top:0;background:#f0efff;color:#6254cd;font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.op-project-register:has(.screen-view-group-row) thead tr:not(.screen-view-group-row) th{top:30px}
+.op-project-register tbody tr{cursor:pointer}
+.op-project-register tbody tr:hover td,.op-project-register tbody tr.selected td{background:#f8f7ff}
+.op-project-register tbody tr:last-child td{border-bottom:0}
+.op-project-register th:last-child,.op-project-register td:last-child{position:sticky;right:0;z-index:2;background:#fff;box-shadow:-8px 0 12px rgba(28,42,70,.05)}
+.op-project-register thead th:last-child{z-index:3;background:#f8f9fc}
+.op-project-register tbody tr:hover td:last-child,.op-project-register tbody tr.selected td:last-child{background:#f8f7ff}
+.op-project-open{border:1px solid #dce3ee;border-radius:8px;background:#fff;color:#5144c6;padding:6px 10px;font:inherit;font-weight:650;cursor:pointer}
+.op-project-open:hover{border-color:#9384ff;background:#f3f1ff}
+.op-project-open:focus-visible{outline:3px solid #7764f5;outline-offset:2px}
+@media(max-width:1050px){.op-project-register-wrap{max-height:340px}}
