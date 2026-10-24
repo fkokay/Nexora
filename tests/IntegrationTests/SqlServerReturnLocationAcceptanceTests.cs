@@ -141,6 +141,41 @@ public sealed class SqlServerReturnLocationAcceptanceTests
                 .SingleAsync(x => x.SupplierReturnLine != null && x.SupplierReturnLine.SupplierReturnId == purchaseReturnId && x.ReversalOfId == null);
             Assert.Equal(data.PurchaseReturnLocationId, purchaseMovement.StorageLocationId);
             Assert.Equal(7m, purchaseMovement.UnitCostBase);
+
+            using var closeResponse = await client.PostAsJsonAsync("/api/finance/general-ledger/fiscal-year-close", new
+            {
+                fromDate = "2026-01-01", toDate = "2026-12-31", retainedEarningsAccountId = data.RetainedEarningsAccountId
+            });
+            Assert.Equal(HttpStatusCode.Created, closeResponse.StatusCode);
+            var salesReturnCount = await readbackTenant.SalesReturns.CountAsync(x => x.TenantId == TenantId);
+            var supplierReturnCount = await readbackTenant.SupplierReturns.CountAsync(x => x.TenantId == TenantId);
+            var movementCount = await readbackTenant.InventoryTransactions.CountAsync(x => x.TenantId == TenantId);
+            var ledgerCount = await readbackTenant.CustomerLedgerEntries.CountAsync(x => x.TenantId == TenantId);
+            var returnAuditCount = await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
+                (x.Action == "sales-return.posted" || x.Action == "supplier-return.posted"));
+
+            using var closedSalesReturn = await client.PostAsJsonAsync($"/api/sales/invoices/{data.SalesInvoiceId:D}/returns", new
+            {
+                requestId = Guid.NewGuid(), warehouseId = data.WarehouseId, returnDate = "2026-10-21",
+                lines = new[] { new { salesInvoiceLineId = data.SalesInvoiceLineId, quantity = 1m, storageLocationId = data.SalesReturnLocationId } }
+            });
+            Assert.Equal(HttpStatusCode.Conflict, closedSalesReturn.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedSalesReturn.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+            using var closedSupplierReturn = await client.PostAsJsonAsync($"/api/purchasing/invoices/{data.PurchaseInvoiceId:D}/returns", new
+            {
+                requestId = Guid.NewGuid(), warehouseId = data.WarehouseId, returnDate = "2026-10-21",
+                lines = new[] { new { purchaseInvoiceLineId = data.PurchaseInvoiceLineId, quantity = 1m, storageLocationId = data.PurchaseReturnLocationId } }
+            });
+            Assert.Equal(HttpStatusCode.Conflict, closedSupplierReturn.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedSupplierReturn.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+            Assert.Equal(salesReturnCount, await readbackTenant.SalesReturns.CountAsync(x => x.TenantId == TenantId));
+            Assert.Equal(supplierReturnCount, await readbackTenant.SupplierReturns.CountAsync(x => x.TenantId == TenantId));
+            Assert.Equal(movementCount, await readbackTenant.InventoryTransactions.CountAsync(x => x.TenantId == TenantId));
+            Assert.Equal(ledgerCount, await readbackTenant.CustomerLedgerEntries.CountAsync(x => x.TenantId == TenantId));
+            Assert.Equal(returnAuditCount, await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
+                (x.Action == "sales-return.posted" || x.Action == "supplier-return.posted")));
         }
         finally
         {
@@ -245,13 +280,23 @@ public sealed class SqlServerReturnLocationAcceptanceTests
                 Quantity = 1m, UnitCostBase = 5m, Description = "Located purchase receipt" },
             new InventoryTransaction { TenantId = TenantId, WarehouseId = warehouse.Id, StockItemId = item.Id, PurchaseReceiptLineId = purchaseReceiptLine.Id,
                 EntryDate = new DateOnly(2026, 10, 2), Direction = InventoryDirection.Receipt, Quantity = 2m, UnitCostBase = 8m, Description = "Unlocated purchase receipt" });
+        var cashAccount = new LedgerAccount { TenantId = TenantId, Code = "A100", Name = "Synthetic cash", StatementSection = LedgerAccountStatementSection.Asset };
+        var retainedEarnings = new LedgerAccount { TenantId = TenantId, Code = "E390", Name = "Synthetic retained earnings", StatementSection = LedgerAccountStatementSection.Equity };
+        var opening = new JournalEntry { TenantId = TenantId, Code = "OPEN-RETURN-2026", EntryDate = new DateOnly(2026, 1, 1),
+            Description = "Synthetic opening balances", SourceType = "Manual", SourceId = Guid.NewGuid() };
+        opening.Lines.Add(new JournalEntryLine { TenantId = TenantId, JournalEntryId = opening.Id, AccountId = cashAccount.Id,
+            LineNumber = 1, Description = "Synthetic cash", Debit = 1000m, Credit = 0m });
+        opening.Lines.Add(new JournalEntryLine { TenantId = TenantId, JournalEntryId = opening.Id, AccountId = retainedEarnings.Id,
+            LineNumber = 2, Description = "Synthetic equity", Debit = 0m, Credit = 1000m });
+        tenantDb.LedgerAccounts.AddRange(cashAccount, retainedEarnings);
+        tenantDb.JournalEntries.Add(opening);
         await tenantDb.SaveChangesAsync();
         return new SeedIds(warehouse.Id, salesLocation.Id, purchaseLocation.Id, inactiveLocation.Id, salesInvoice.Id, salesInvoiceLine.Id,
-            purchaseInvoice.Id, purchaseInvoiceLine.Id);
+            purchaseInvoice.Id, purchaseInvoiceLine.Id, retainedEarnings.Id);
     }
 
     private sealed record SeedIds(Guid WarehouseId, Guid SalesReturnLocationId, Guid PurchaseReturnLocationId, Guid InactiveLocationId,
-        Guid SalesInvoiceId, Guid SalesInvoiceLineId, Guid PurchaseInvoiceId, Guid PurchaseInvoiceLineId);
+        Guid SalesInvoiceId, Guid SalesInvoiceLineId, Guid PurchaseInvoiceId, Guid PurchaseInvoiceLineId, Guid RetainedEarningsAccountId);
 
     private sealed class ProcessEnvironmentOverride(IReadOnlyDictionary<string, string?> previousValues) : IDisposable
     {

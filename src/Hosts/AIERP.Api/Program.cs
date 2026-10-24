@@ -3653,6 +3653,7 @@ salesInvoices.MapPost("/{id:guid}/returns", async (Guid id, SalesReturnWriteRequ
     if (errors.Count > 0) return Results.ValidationProblem(errors);
     var returnRequests = request.Lines ?? Array.Empty<SalesReturnLineWriteRequest>();
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var invoice = await db.SalesInvoices.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesInvoices] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (invoice is null) return Results.NotFound();
     var existing = await db.SalesReturns.AsNoTracking().Include(x => x.Warehouse).Include(x => x.Lines)
@@ -3685,6 +3686,9 @@ salesInvoices.MapPost("/{id:guid}/returns", async (Guid id, SalesReturnWriteRequ
             existing.WarehouseId, existing.Warehouse.Name, existing.ReturnDate, existing.Status, existing.GrandTotal,
             existing.Lines.Count, existing.CreatedAt, existingLines));
     }
+    var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.ReturnDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedPeriod, "satış iadesi") is { } closedReturnConflict)
+        return closedReturnConflict;
     if (invoice.Status != SalesInvoiceStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş faturadan iade oluşturulamaz." });
     var customer = await db.CustomerAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {invoice.CustomerId}").SingleOrDefaultAsync();
     if (customer is null) return Results.NotFound();
@@ -5399,6 +5403,7 @@ purchaseInvoices.MapPost("/{id:guid}/returns", async (Guid id, SupplierReturnWri
     if (errors.Count > 0) return Results.ValidationProblem(errors);
     var returnRequests = request.Lines ?? Array.Empty<SupplierReturnLineWriteRequest>();
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var invoice = await db.PurchaseInvoices.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseInvoices] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (invoice is null) return Results.NotFound();
     var existing = await db.SupplierReturns.AsNoTracking().Include(x => x.Warehouse).Include(x => x.Lines)
@@ -5432,6 +5437,9 @@ purchaseInvoices.MapPost("/{id:guid}/returns", async (Guid id, SupplierReturnWri
             existing.WarehouseId, existing.Warehouse.Name, existing.ReturnDate, existing.Status, existing.GrandTotal,
             existing.Lines.Count, existing.CreatedAt, oldLines));
     }
+    var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.ReturnDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedPeriod, "alış iadesi") is { } closedReturnConflict)
+        return closedReturnConflict;
     if (invoice.Status != PurchaseInvoiceStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş alış faturasından iade oluşturulamaz." });
     var supplier = await db.CustomerAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {invoice.SupplierId}").SingleOrDefaultAsync();
     if (supplier is null) return Results.NotFound();
