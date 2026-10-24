@@ -23,7 +23,7 @@ namespace AIERP.Api.IntegrationTests;
 public sealed class SqlServerAccessControlAcceptanceTests
 {
     [SqlServerAcceptanceFact]
-    public async Task Members_endpoint_projects_sql_fields_before_dto_and_scopes_results_to_active_tenant()
+    public async Task Access_control_get_endpoints_project_sql_fields_and_scope_tenant_data()
     {
         var configuredConnection = Environment.GetEnvironmentVariable("AIERP_REPORT_TEST_SQL_CONNECTION_STRING");
         Assert.False(string.IsNullOrWhiteSpace(configuredConnection));
@@ -58,6 +58,17 @@ public sealed class SqlServerAccessControlAcceptanceTests
                 new TenantMembership { TenantId = tenantAId, Tenant = tenantA, UserId = adminId, User = admin, Role = "TenantAdmin" },
                 new TenantMembership { TenantId = tenantAId, Tenant = tenantA, UserId = memberAId, User = memberA, Role = "TenantUser" },
                 new TenantMembership { TenantId = tenantBId, Tenant = tenantB, UserId = memberBId, User = memberB, Role = "TenantUser" });
+            var manufacturingRead = await seedDb.PermissionDefinitions.SingleAsync(x => x.Code == "erp.manufacturing.read");
+            seedDb.TenantPermissionRules.Add(new TenantPermissionRule
+            {
+                TenantId = tenantBId,
+                Tenant = tenantB,
+                SubjectType = TenantPermissionSubjectType.Role,
+                SubjectRole = "TenantUser",
+                PermissionCode = manufacturingRead.Code,
+                Permission = manufacturingRead,
+                Effect = TenantPermissionEffect.Deny
+            });
             await seedDb.SaveChangesAsync();
 
             var builder = WebApplication.CreateBuilder();
@@ -94,6 +105,19 @@ public sealed class SqlServerAccessControlAcceptanceTests
                     Assert.Equal("TenantAdmin", member.Role);
                 });
             Assert.DoesNotContain(members, member => member.UserId == memberBId);
+
+            using var permissionsResponse = await client.GetAsync("/api/access-control/permissions");
+            Assert.Equal(HttpStatusCode.OK, permissionsResponse.StatusCode);
+            var permissions = await permissionsResponse.Content.ReadFromJsonAsync<PlatformPermissionDefinition[]>();
+            Assert.NotNull(permissions);
+            Assert.Contains(permissions, permission => permission.Code == "erp.manufacturing.read");
+
+            using var rulesResponse = await client.GetAsync("/api/access-control/rules");
+            Assert.Equal(HttpStatusCode.OK, rulesResponse.StatusCode);
+            var rules = await rulesResponse.Content.ReadFromJsonAsync<TenantPermissionRuleView[]>();
+            Assert.NotNull(rules);
+            Assert.Empty(rules);
+            Assert.Equal(1, await seedDb.TenantPermissionRules.CountAsync(x => x.TenantId == tenantBId));
         }
         finally
         {
