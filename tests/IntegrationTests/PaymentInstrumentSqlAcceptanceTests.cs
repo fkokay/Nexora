@@ -211,34 +211,43 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
                 instrumentNumber = "CHK-CLOSE-001", counterpartyName = "Synthetic customer", bankName = "Synthetic bank", currencyCode = "TRY",
                 amount = 50m, issueDate = "2026-01-10", dueDate = "2026-02-10", portfolioDate = "2026-01-10", notes = "Fiscal-close route acceptance"
             };
+            using var outstandingInstrument = await client.PostAsJsonAsync("/api/finance/payment-instruments/", outstandingCreatePayload);
+            Assert.Equal(HttpStatusCode.Created, outstandingInstrument.StatusCode);
+            using var outstandingJson = JsonDocument.Parse(await outstandingInstrument.Content.ReadAsStringAsync());
+            var outstandingId = outstandingJson.RootElement.GetProperty("id").GetGuid();
+            var outstandingVersion = outstandingJson.RootElement.GetProperty("rowVersion").GetString();
             await seedDb.Database.ExecuteSqlRawAsync("""
-                CREATE OR ALTER TRIGGER [dbo].[TR_TestFiscalCloseAcceptance_HoldCreatedEvent]
+                CREATE OR ALTER TRIGGER [dbo].[TR_TestFiscalCloseAcceptance_HoldCollectedEvent]
                 ON [dbo].[PaymentInstrumentEvents]
                 AFTER INSERT
                 AS
                 BEGIN
                     SET NOCOUNT ON;
-                    IF EXISTS (SELECT 1 FROM inserted WHERE [EventType] = 'Created')
+                    IF EXISTS (SELECT 1 FROM inserted WHERE [EventType] = 'Collected')
                         WAITFOR DELAY '00:00:04';
                 END;
                 """);
-            var outstandingCreateTask = client.PostAsJsonAsync("/api/finance/payment-instruments/", outstandingCreatePayload);
+            var collectRequestIdForClose = Guid.NewGuid();
+            var outstandingCollectTask = client.PostAsJsonAsync($"/api/finance/payment-instruments/{outstandingId}/collect", new
+            {
+                requestId = collectRequestIdForClose, rowVersion = outstandingVersion, financialAccountId = bank.Id,
+                eventDate = "2026-07-10", note = "Fiscal-close route acceptance"
+            });
             await Task.Delay(TimeSpan.FromMilliseconds(750));
-            Assert.False(outstandingCreateTask.IsCompleted, "The SQL acceptance trigger did not hold the posting transaction as expected.");
+            Assert.False(outstandingCollectTask.IsCompleted, "The SQL acceptance trigger did not hold the collection posting transaction as expected.");
             var closeTask = client.PostAsJsonAsync("/api/finance/general-ledger/fiscal-year-close", new
             {
                 fromDate = "2026-01-01", toDate = "2026-12-31", retainedEarningsAccountId = ledgerAccounts[8].Id
             });
             var closeBeforePostingFinishes = await Task.WhenAny(closeTask, Task.Delay(TimeSpan.FromMilliseconds(500)));
             Assert.NotSame(closeTask, closeBeforePostingFinishes);
-            using var outstandingInstrument = await outstandingCreateTask;
-            Assert.Equal(HttpStatusCode.Created, outstandingInstrument.StatusCode);
-            using var outstandingJson = JsonDocument.Parse(await outstandingInstrument.Content.ReadAsStringAsync());
-            var outstandingId = outstandingJson.RootElement.GetProperty("id").GetGuid();
-            var outstandingVersion = outstandingJson.RootElement.GetProperty("rowVersion").GetString();
+            using var outstandingCollected = await outstandingCollectTask;
+            Assert.Equal(HttpStatusCode.OK, outstandingCollected.StatusCode);
+            using var outstandingCollectedJson = JsonDocument.Parse(await outstandingCollected.Content.ReadAsStringAsync());
+            outstandingVersion = outstandingCollectedJson.RootElement.GetProperty("rowVersion").GetString();
             using var close = await closeTask;
             Assert.Equal(HttpStatusCode.Created, close.StatusCode);
-            await seedDb.Database.ExecuteSqlRawAsync("DROP TRIGGER [dbo].[TR_TestFiscalCloseAcceptance_HoldCreatedEvent];");
+            await seedDb.Database.ExecuteSqlRawAsync("DROP TRIGGER [dbo].[TR_TestFiscalCloseAcceptance_HoldCollectedEvent];");
 
             var creditMovementCountBeforeClosedWrites = await seedDb.CreditFacilityMovements.CountAsync(x => x.TenantId == tenantA);
             var creditTransactionCountBeforeClosedWrites = await seedDb.FinancialAccountTransactions.CountAsync(x => x.TenantId == tenantA);
@@ -265,6 +274,10 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
             Assert.Equal(creditJournalCountBeforeClosedWrites, await seedDb.JournalEntries.CountAsync(x => x.TenantId == tenantA && x.SourceType.StartsWith("CreditFacility")));
             Assert.Equal(creditAuditCountBeforeClosedWrites, await seedDb.AuditEvents.CountAsync(x => x.TenantId == tenantA && x.Action.StartsWith("finance.credit-facility.")));
 
+            var instrumentEventCountBeforeClosedWrites = await seedDb.PaymentInstrumentEvents.CountAsync(x => x.TenantId == tenantA);
+            var instrumentMovementCountBeforeClosedWrites = await seedDb.FinancialAccountTransactions.CountAsync(x => x.TenantId == tenantA);
+            var instrumentJournalCountBeforeClosedWrites = await seedDb.JournalEntries.CountAsync(x => x.TenantId == tenantA && x.SourceType == "PaymentInstrumentEvent");
+            var instrumentAuditCountBeforeClosedWrites = await seedDb.AuditEvents.CountAsync(x => x.TenantId == tenantA && x.Action.StartsWith("finance.instrument."));
             using var createAfterClose = await client.PostAsJsonAsync("/api/finance/payment-instruments/", new
             {
                 requestId = Guid.NewGuid(), type = PaymentInstrumentType.Check, direction = PaymentInstrumentDirection.Receivable,
@@ -299,10 +312,15 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
                 eventDate = "2026-07-10", invoiceId = Guid.NewGuid(), amount = 10m
             });
             Assert.Equal(HttpStatusCode.Conflict, applyAfterClose.StatusCode);
+            Assert.Equal(instrumentEventCountBeforeClosedWrites, await seedDb.PaymentInstrumentEvents.CountAsync(x => x.TenantId == tenantA));
+            Assert.Equal(instrumentMovementCountBeforeClosedWrites, await seedDb.FinancialAccountTransactions.CountAsync(x => x.TenantId == tenantA));
+            Assert.Equal(instrumentJournalCountBeforeClosedWrites, await seedDb.JournalEntries.CountAsync(x => x.TenantId == tenantA && x.SourceType == "PaymentInstrumentEvent"));
+            Assert.Equal(instrumentAuditCountBeforeClosedWrites, await seedDb.AuditEvents.CountAsync(x => x.TenantId == tenantA && x.Action.StartsWith("finance.instrument.")));
 
             await using var closedDb = new TenantDbContext(options);
-            Assert.Equal(PaymentInstrumentStatus.Portfolio, (await closedDb.PaymentInstruments.SingleAsync(x => x.TenantId == tenantA && x.Id == outstandingId)).Status);
-            Assert.Equal(0, await closedDb.PaymentInstrumentEvents.CountAsync(x => x.TenantId == tenantA && x.PaymentInstrumentId == outstandingId && x.EventType != "Created"));
+            Assert.Equal(PaymentInstrumentStatus.Collected, (await closedDb.PaymentInstruments.SingleAsync(x => x.TenantId == tenantA && x.Id == outstandingId)).Status);
+            Assert.Equal(new[] { "Created", "Collected" }, await closedDb.PaymentInstrumentEvents.Where(x => x.TenantId == tenantA && x.PaymentInstrumentId == outstandingId)
+                .OrderBy(x => x.CreatedAt).Select(x => x.EventType).ToArrayAsync());
         }
         finally
         {
