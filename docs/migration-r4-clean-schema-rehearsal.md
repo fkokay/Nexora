@@ -1,7 +1,7 @@
 # r4 clean-schema migration rehearsal
 
-**Date:** 2026-10-24  
-**Environment:** local SQL Server 2025 Developer, version 17.0.1145.4  
+**Date:** 2026-10-24
+**Environment:** local SQL Server 2025 Developer, version 17.0.1145.4
 **Scope:** isolated clean-schema incremental rehearsal only
 
 For each context, a uniquely named temporary database was created, the matching r3 idempotent SQL was applied to establish the 124/44/10 baseline, and the r4 incremental SQL was applied. The run enabled SQLCMD quoted identifiers (`-I`), which is required by migrations that create filtered indexes. Each resulting migration history was checked against the r4 latest migration, and `DBCC CHECKDB` completed with zero allocation and consistency errors. All three temporary databases were dropped after verification.
