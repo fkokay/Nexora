@@ -8,11 +8,19 @@ type DraftLineInput = { description: string; quantity: string; unitCode: string;
 type DraftInput = { requestId: string; supplierId: string; invoiceNumber: string; invoiceDate: string; dueDate: string; currencyCode: string; notes: string; subtotal: string; discountTotal: string; taxTotal: string; grandTotal: string; lines: DraftLineInput[] }
 type DraftSummary = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; grandTotal: number; lineCount: number; createdAt: string }
 type DraftPage = { items: DraftSummary[]; page: number; pageSize: number; totalCount: number }
+type DraftScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null }
 type DraftDetail = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; notes: string | null; subtotal: number; discountTotal: number; taxTotal: number; grandTotal: number; status: string; rowVersion: string; lines: Array<{ lineNumber: number; description: string; quantity: number | null; unitCode: string | null; unitPrice: number | null; subtotal: number; discountAmount: number; taxAmount: number; total: number }> }
 
 export type StandaloneSupplierInvoiceDraftPageProps = { token: string; role: string }
 
 const blankLine = (): DraftLineInput => ({ description: '', quantity: '', unitCode: '', unitPrice: '', subtotal: '', discountAmount: '0', taxAmount: '', total: '' })
+const defaultDraftScreenFields: DraftScreenField[] = [
+  { key: 'invoiceNumber', label: 'Fatura no', visible: true, position: 0 }, { key: 'supplierName', label: 'Tedarikçi', visible: true, position: 1 },
+  { key: 'invoiceDate', label: 'Fatura tarihi', visible: true, position: 2 }, { key: 'dueDate', label: 'Vade tarihi', visible: true, position: 3 },
+  { key: 'currencyCode', label: 'Döviz', visible: true, position: 4 }, { key: 'grandTotal', label: 'Genel toplam', visible: true, position: 5 },
+  { key: 'lineCount', label: 'Satır', visible: true, position: 6 }, { key: 'createdAt', label: 'Kaydedilme', visible: true, position: 7 },
+  { key: 'status', label: 'Durum', visible: true, position: 8 }, { key: 'actions', label: 'İşlemler', visible: true, position: 9, fixed: true },
+]
 function localDate(): string {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -36,6 +44,7 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [drafts, setDrafts] = useState<DraftSummary[]>([])
+  const [draftScreenFields, setDraftScreenFields] = useState(defaultDraftScreenFields)
   const [draft, setDraft] = useState<DraftInput>(() => blankDraft())
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -52,6 +61,14 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
     } catch (e) { setError((e as Error).message) } finally { setLoading(false) }
   }, [token])
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    let active = true
+    void request<{ fields: DraftScreenField[] }>('/api/screen-views/standalone-invoice-drafts/active', token)
+      .then(view => { if (active && view.fields?.length) setDraftScreenFields(view.fields.map((field, position) => ({ ...field, fixed: field.key === 'actions', position: field.position ?? position }))) })
+      .catch(() => { /* keep the default list when layout settings are unavailable */ })
+    return () => { active = false }
+  }, [token])
 
   useEffect(() => {
     let active = true
@@ -176,7 +193,37 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
     </form>
 
     <section className="sid-card sid-list-card"><div className="sid-card-heading"><div><h2>Kaydedilmiş taslaklar</h2><p>Yalnızca bu firmaya ait, muhasebeleştirilmemiş belgeler.</p></div><button type="button" className="sid-secondary" onClick={() => void load()} disabled={loading}><RotateCw size={15}/> Yenile</button></div>
-      <div className="sid-table-wrap"><table><thead><tr><th>Fatura no</th><th>Tedarikçi</th><th>Tarih</th><th>Satır</th><th>Toplam</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>{loading ? <tr><td colSpan={7} className="sid-empty">Taslaklar yükleniyor…</td></tr> : drafts.length === 0 ? <tr><td colSpan={7} className="sid-empty">Henüz bağımsız fatura taslağı yok.</td></tr> : drafts.map(item => <tr key={item.id}><td><b>{item.invoiceNumber}</b></td><td>{item.supplierName}</td><td>{item.invoiceDate}</td><td>{item.lineCount}</td><td>{item.grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {item.currencyCode}</td><td><span className="sid-status">Taslak · muhasebeleştirilmedi</span></td><td><button type="button" className="sid-secondary" disabled={busy} onClick={() => void beginEdit(item.id)}>Düzenle</button></td></tr>)}</tbody></table></div>
+      <div className="sid-table-wrap"><table><thead>{draftFieldGroups(draftScreenFields).map((group, index) => <tr className="sid-group-row" key={`${group.label}-${index}`}><th colSpan={group.count}>{group.label}</th></tr>)}<tr>{visibleDraftFields(draftScreenFields).map(field => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{loading ? <tr><td colSpan={visibleDraftFields(draftScreenFields).length} className="sid-empty">Taslaklar yükleniyor…</td></tr> : drafts.length === 0 ? <tr><td colSpan={visibleDraftFields(draftScreenFields).length} className="sid-empty">Henüz bağımsız fatura taslağı yok.</td></tr> : drafts.map(item => <tr key={item.id}>{visibleDraftFields(draftScreenFields).map(field => <td key={field.key}>{draftFieldValue(item, field.key, () => void beginEdit(item.id))}</td>)}</tr>)}</tbody></table></div>
     </section>
   </main>
+}
+
+function visibleDraftFields(fields: DraftScreenField[]) { return fields.filter(field => field.visible).sort((a, b) => a.position - b.position) }
+
+function draftFieldGroups(fields: DraftScreenField[]) {
+  const visible = visibleDraftFields(fields)
+  if (!visible.some(field => field.section?.trim())) return []
+  return visible.reduce<{ label: string; count: number }[]>((groups, field) => {
+    const label = field.section?.trim() || 'Belge'
+    const current = groups[groups.length - 1]
+    if (current?.label === label) current.count++
+    else groups.push({ label, count: 1 })
+    return groups
+  }, [])
+}
+
+function draftFieldValue(item: DraftSummary, key: string, edit: () => void) {
+  switch (key) {
+    case 'invoiceNumber': return <b>{item.invoiceNumber}</b>
+    case 'supplierName': return item.supplierName
+    case 'invoiceDate': return item.invoiceDate
+    case 'dueDate': return item.dueDate || '—'
+    case 'currencyCode': return item.currencyCode
+    case 'grandTotal': return <>{item.grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {item.currencyCode}</>
+    case 'lineCount': return item.lineCount
+    case 'createdAt': return new Date(item.createdAt).toLocaleString('tr-TR')
+    case 'status': return <span className="sid-status">Taslak · muhasebeleştirilmedi</span>
+    case 'actions': return <button type="button" className="sid-secondary" onClick={edit}>Düzenle</button>
+    default: return '—'
+  }
 }

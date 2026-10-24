@@ -67,6 +67,14 @@ internal static class TenantScreenViewEndpoints
         new("lineCount", "Satır", true), new("status", "Durum", true),
         new("actions", "İşlemler", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] StandalonePurchaseInvoiceDraftFields =
+    [
+        new("invoiceNumber", "Fatura no", true), new("supplierName", "Tedarikçi", true),
+        new("invoiceDate", "Fatura tarihi", true), new("dueDate", "Vade tarihi", true),
+        new("currencyCode", "Döviz", true), new("grandTotal", "Genel toplam", true),
+        new("lineCount", "Satır", true), new("createdAt", "Kaydedilme", true),
+        new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
+    ];
     private static readonly ScreenViewField[] PurchaseOrderFields =
     [
         new("code", "Sipariş no", true), new("supplierName", "Tedarikçi", true),
@@ -133,6 +141,7 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("sales-deliveries", "Satış irsaliyeleri", SalesDeliveryFields),
             new ScreenViewCatalog("sales-invoices", "Satış faturaları", SalesInvoiceFields),
             new ScreenViewCatalog("purchase-invoices", "Alış faturaları", PurchaseInvoiceFields),
+            new ScreenViewCatalog("standalone-invoice-drafts", "Bağımsız alış faturası taslakları", StandalonePurchaseInvoiceDraftFields),
             new ScreenViewCatalog("purchase-orders", "Satın alma siparişleri", PurchaseOrderFields),
             new ScreenViewCatalog("fixed-assets", "Sabit kıymetler", FixedAssetFields),
             new ScreenViewCatalog("crm-opportunities", "CRM fırsatları", CrmOpportunityFields),
@@ -322,6 +331,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "purchase-invoices", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("purchase-invoices", "Alış faturaları", PurchaseInvoiceFields);
+            return true;
+        }
+        if (string.Equals(key, "standalone-invoice-drafts", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("standalone-invoice-drafts", "Bağımsız alış faturası taslakları", StandalonePurchaseInvoiceDraftFields);
             return true;
         }
         if (string.Equals(key, "purchase-orders", StringComparison.OrdinalIgnoreCase))
