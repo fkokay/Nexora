@@ -17,9 +17,10 @@ extensions:
       pack: codeql/csharp-all
       extensible: barrierGuardModel
     data:
-      # The out path is consumed only on the true branch, after the resolver
-      # proves workspace containment and rejects traversal and reparse points.
-      - ["", WorkspaceSecurity, false, TryResolveStorageChild, "(System.String,System.String,System.String&)", "", "Argument[1]", "true", path-injection, manual]
-      - ["", WorkspaceSecurity, false, TryResolveDirectory, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[2]", "true", path-injection, manual]
-      - ["", WorkspaceSecurity, false, TryResolveFile, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[2]", "true", path-injection, manual]
-      - ["", WorkspaceSecurity, false, TryResolveNewFile, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[2]", "true", path-injection, manual]
+      # These guards model the validated out-path value, not the raw path input.
+      # Each resolver assigns its out path only after containment and reparse-point
+      # checks pass, and callers use it only when the bool result is true.
+      - ["", WorkspaceSecurity, false, TryResolveStorageChild, "(System.String,System.String,System.String&)", "", "Argument[2]", "true", path-injection, manual]
+      - ["", WorkspaceSecurity, false, TryResolveDirectory, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[3]", "true", path-injection, manual]
+      - ["", WorkspaceSecurity, false, TryResolveFile, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[3]", "true", path-injection, manual]
+      - ["", WorkspaceSecurity, false, TryResolveNewFile, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[3]", "true", path-injection, manual]
