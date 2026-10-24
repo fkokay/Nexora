@@ -55,7 +55,7 @@ try {
         }
         $manifestPath = Join-Path $jobDirectory 'job.json'
         $manifest | ConvertTo-Json -Compress | Set-Content -LiteralPath $manifestPath -Encoding utf8
-        & $docker exec --user 0 $RunnerContainer mkdir -m 700 -p "/test-jobs/$jobId"
+        & $docker exec $RunnerContainer mkdir -m 700 -p "/test-jobs/$jobId"
         if ($LASTEXITCODE -ne 0) { throw 'Could not create an isolated sandbox smoke job.' }
         & $docker cp $archivePath "${RunnerContainer}:/test-jobs/$jobId/source.zip"
         if ($LASTEXITCODE -ne 0) { throw 'Could not copy the smoke source snapshot into the test queue.' }
@@ -64,7 +64,7 @@ try {
         $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
         $result = $null
         while ([DateTimeOffset]::UtcNow -lt $deadline) {
-            $json = & $docker exec --user 0 $RunnerContainer sh -c "cat /test-jobs/$jobId/result.json 2>/dev/null"
+            $json = & $docker exec $RunnerContainer sh -c "cat /test-jobs/$jobId/result.json 2>/dev/null"
             if ($LASTEXITCODE -eq 0 -and $json) { $jsonText = ($json -join "`n").TrimStart([char]0xFEFF); $result = $jsonText | ConvertFrom-Json; break }
             Start-Sleep -Milliseconds 500
         }
@@ -74,7 +74,7 @@ try {
 }
 finally {
     foreach ($jobId in $jobIds) {
-        & $docker exec --user 0 $RunnerContainer rm -rf -- "/test-jobs/$jobId" 2>$null | Out-Null
+        & $docker exec $RunnerContainer rm -rf -- "/test-jobs/$jobId" 2>$null | Out-Null
     }
     if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }
 }

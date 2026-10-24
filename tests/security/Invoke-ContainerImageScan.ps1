@@ -7,7 +7,8 @@ param(
         'docker-release-deployer:latest',
         'docker-plugin-host:latest',
         'docker-integration-host:latest',
-        'docker-development-studio:latest'
+        'docker-development-studio:latest',
+        'docker-erp-web:latest'
     ),
     [string]$ReportPath = 'docs/container-image-scan.json'
 )

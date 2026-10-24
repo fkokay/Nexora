@@ -43,9 +43,11 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
       ConnectionStrings__Tenant: Server=sqlserver,1433;Database=AIERPPlatform;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD:-${MSSQL_SA_PASSWORD}};Encrypt=True;TrustServerCertificate=True
-      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
+      ConnectionStrings__AIStudio: Server=sqlserver,1433;Database=AIERPStudio;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD:-${MSSQL_SA_PASSWORD}};Encrypt=True;TrustServerCertificate=True
+      Database__SeparationEnabled: "true"
       Database__SeparationBackupPath: ${DATABASE_SEPARATION_BACKUP_PATH:-}
       Database__DataRuntimeLogin: aierp_data_runtime
+      Licensing__PublicKeys__issuer-2026: ${LICENSING_PUBLIC_KEY_ISSUER_2026:-}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       PluginHost__SigningKey: ${PLUGIN_HOST_SIGNING_KEY:?Set PLUGIN_HOST_SIGNING_KEY in .env}
       PluginHost__Issuer: AIERP
@@ -66,6 +68,10 @@ services:
       Frontend__Origins__1: http://localhost:5174
       Frontend__Origins__2: http://localhost:5175
       Frontend__Origins__3: ${PUBLIC_INGRESS_ORIGIN:-http://localhost:5174}
+      Authentication__StudioRefreshCookieSecure: ${STUDIO_REFRESH_COOKIE_SECURE:-true}
+      Studio__Origins__0: http://localhost:5174
+      Studio__Origins__1: http://localhost:5175
+      Studio__Origins__2: ${PUBLIC_INGRESS_ORIGIN:-http://localhost:5174}
     ports:
       - "127.0.0.1:5080:8080"
     volumes:
@@ -166,7 +172,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
       ConnectionStrings__AIStudio: Server=sqlserver,1433;Database=AIERPStudio;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD:-${MSSQL_SA_PASSWORD}};Encrypt=True;TrustServerCertificate=True
-      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
+      Database__SeparationEnabled: "true"
       StudioKnowledge__RetentionDays: ${STUDIO_KNOWLEDGE_RETENTION_DAYS:-180}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       Frontend__Origins__0: http://localhost:5173
@@ -217,6 +223,30 @@ services:
       dockerfile: deploy/docker/DevelopmentStudio.Dockerfile
     ports:
       - "127.0.0.1:5174:80"
+    networks:
+      - default
+      - public-ingress
+    depends_on:
+      platform-api:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  erp-web:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/ErpWeb.Dockerfile
+      args:
+        VITE_STUDIO_URL: ${VITE_STUDIO_URL:-http://localhost:5174/}
+    ports:
+      - "127.0.0.1:5173:80"
     networks:
       - default
       - public-ingress
@@ -425,7 +455,7 @@ services:
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       Authentication__Issuer: AIERP
       Authentication__Audience: AIERP.ReleaseDeployer
-      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
+      Database__SeparationEnabled: "true"
       ReleaseDeployer__PackageRoot: /release-packages
       ReleaseDeployer__ReleaseRoot: /staging-releases
       ReleaseDeployer__ProductionRoot: /production-releases
@@ -494,6 +524,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/WorkspaceSandbox.Dockerfile
+    user: "0:0"
     environment:
       WorkspaceSandbox__JobRoot: /test-jobs
       WorkspaceSandbox__TempRoot: /tmp/test-jobs
@@ -502,6 +533,8 @@ services:
     depends_on:
       workspace-runner:
         condition: service_started
+      workspace-test-jobs-init:
+        condition: service_completed_successfully
     network_mode: none
     read_only: true
     tmpfs:
@@ -509,11 +542,11 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - DAC_OVERRIDE
       - KILL
       - SETPCAP
       - SETUID
       - SETGID
+      - DAC_OVERRIDE
     security_opt:
       - no-new-privileges:true
     pids_limit: 256

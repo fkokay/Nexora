@@ -1,0 +1,34 @@
+{
+  "observedAtUtc": "2026-10-20T07:03:07Z",
+  "evaluationSet": "erp-assistant-synthetic-chat-smoke",
+  "version": "1.0.0",
+  "provider": "OpenAI",
+  "model": "gpt-6-luna",
+  "requests": 3,
+  "successfulHttpResponses": 3,
+  "tenantDataUsed": true,
+  "consentConfirmed": true,
+  "erpToolCallsObserved": 1,
+  "cases": [
+    {
+      "name": "synthetic-arithmetic",
+      "expectedResult": "5",
+      "passed": true
+    },
+    {
+      "name": "synthetic-available-quantity",
+      "expectedResult": "17",
+      "passed": true
+    },
+    {
+      "name": "authorized-read-only-warehouse-list",
+      "tool": "list_warehouses",
+      "toolCallsObserved": 1,
+      "passed": true,
+      "responseValuesRecorded": false
+    }
+  ],
+  "passed": true,
+  "answerTextRecorded": false,
+  "notes": "Three live HTTP 200 chat completions were observed in the authenticated ERP Assistant UI. Two prompts used synthetic facts. One explicitly authorized read-only warehouse-list query returned successfully; AI Service telemetry recorded one successful list_warehouses tool call. No ERP names, IDs, prompt text, or response values were retained. This smoke is limited to one ERP read path and does not establish semantic quality across ERP reports."
+}

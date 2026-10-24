@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-22",
+  "engine": "Docker SQL Server 2022",
+  "status": "passed-isolated-rehearsal",
+  "fullIdempotentRuns": 2,
+  "fullScriptResults": [
+    {
+      "history": "0 to 124",
+      "latest": "20261022130452_AddIntradayManufacturingScheduling",
+      "dbcc": "passed",
+      "context": "PlatformDbContext"
+    },
+    {
+      "history": "0 to 43",
+      "latest": "20261022130311_AddIntradayManufacturingScheduling",
+      "dbcc": "passed",
+      "context": "TenantDbContext"
+    },
+    {
+      "history": "0 to 10",
+      "latest": "20261017134712_AddStudioKnowledgeRefreshConsentAIStudio",
+      "dbcc": "passed",
+      "context": "AIStudioDbContext"
+    }
+  ],
+  "incrementalRestoredCopyRuns": 2,
+  "incrementalResults": [
+    {
+      "history": "123 to 124",
+      "isolatedCopies": 2,
+      "latest": "20261022130452_AddIntradayManufacturingScheduling",
+      "dbcc": "passed",
+      "context": "PlatformDbContext"
+    },
+    {
+      "history": "42 to 43",
+      "isolatedCopies": 2,
+      "latest": "20261022130311_AddIntradayManufacturingScheduling",
+      "dbcc": "passed",
+      "context": "TenantDbContext"
+    }
+  ],
+  "backfillCompatibility": "Existing work centers remain 00:00–24:00 and prior capacity allocations are mapped to minute ranges before constraints are added.",
+  "sourceCorrection": "Backfill and check-constraint statements that reference newly added columns execute dynamically to avoid same-batch SQL Server column binding errors.",
+  "scratchDatabasesRemoved": true,
+  "productionQueried": false,
+  "productionChanged": false,
+  "limitations": [
+    "Rehearsal used local Docker database snapshots only.",
+    "No production or external customer database was queried or changed.",
+    "This does not prove compatibility with unrelated database topology or production data."
+  ]
+}

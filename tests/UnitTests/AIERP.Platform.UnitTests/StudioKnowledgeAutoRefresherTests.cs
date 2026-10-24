@@ -13,6 +13,30 @@ namespace AIERP.Platform.UnitTests;
 public sealed class StudioKnowledgeAutoRefresherTests
 {
     [Fact]
+    public void Latest_knowledge_documents_query_compiles_for_sql_server()
+    {
+        var options = new DbContextOptionsBuilder<AIStudioDbContext>()
+            .UseSqlServer("Server=localhost;Database=AIERPStudio;User Id=test;Password=test;TrustServerCertificate=True")
+            .Options;
+        using var db = new AIStudioDbContext(options);
+
+        var source = db.StudioKnowledgeDocuments.AsNoTracking()
+            .Where(x => x.TenantId == Guid.Empty && x.ProjectId == Guid.Empty && x.WorkspaceRequestId == Guid.Empty)
+            .GroupBy(x => x.Path)
+            .Select(group => group.OrderByDescending(x => x.IndexedAt).ThenByDescending(x => x.Id).Select(x => x.Id).First());
+        var query = db.StudioKnowledgeDocuments.AsNoTracking()
+            .Where(x => x.TenantId == Guid.Empty && x.ProjectId == Guid.Empty && x.WorkspaceRequestId == Guid.Empty &&
+                source.Contains(x.Id) && x.Content.Length > 0)
+            .OrderBy(x => x.Path)
+            .Select(x => new { x.Id, x.Path, x.ContentSha256, x.CommitSha, x.IndexedAt, x.EmbeddingModel, CharacterCount = x.Content.Length })
+            .Take(50);
+
+        var sql = query.ToQueryString();
+
+        Assert.Contains("StudioKnowledgeDocuments", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Refresh_reads_only_consented_workspace_paths_and_saves_changed_snapshot()
     {
         var (db, tenantId, projectId, requestId, userId) = await CreateContextAsync();

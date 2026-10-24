@@ -433,12 +433,23 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<Guid>("BillOfMaterialId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("MinimumWaitDaysAfterPrevious")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("RunMinutesPerOutputUnit")
                         .HasPrecision(12, 4)
                         .HasColumnType("decimal(12,4)");
 
                     b.Property<int>("Sequence")
                         .HasColumnType("int");
+
+                    b.Property<string>("SetupFamilyCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(48)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(48)")
+                        .HasDefaultValue("");
 
                     b.Property<decimal>("SetupMinutes")
                         .HasPrecision(12, 2)
@@ -452,8 +463,6 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasAlternateKey("TenantId", "Id");
-
                     b.HasIndex("TenantId", "WorkCenterId");
 
                     b.HasIndex("TenantId", "BillOfMaterialId", "Sequence")
@@ -462,6 +471,235 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("BillOfMaterialOperations", t =>
                         {
                             t.HasCheckConstraint("CK_BillOfMaterialOperations_Minutes", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutesPerOutputUnit] >= 0 AND ([SetupMinutes] + [RunMinutesPerOutputUnit]) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.BillOfMaterialOperationWorkCenterOption", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("BillOfMaterialOperationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsPreferred")
+                        .HasColumnType("bit");
+
+                    b.HasKey("TenantId", "BillOfMaterialOperationId", "WorkCenterId");
+
+                    b.HasIndex("TenantId", "WorkCenterId");
+
+                    b.HasIndex("TenantId", "BillOfMaterialOperationId", "IsPreferred")
+                        .IsUnique()
+                        .HasFilter("[IsPreferred] = 1");
+
+                    b.ToTable("BillOfMaterialOperationWorkCenterOptions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditFacility", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("AnnualInterestRatePercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal>("ApprovedLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nchar(3)")
+                        .IsFixedLength();
+
+                    b.Property<string>("FacilityType")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<string>("LenderName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateOnly?>("MaturityDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Status", "MaturityDate");
+
+                    b.ToTable("CreditFacilities", t =>
+                        {
+                            t.HasCheckConstraint("CK_CreditFacilities_ApprovedLimit", "[ApprovedLimit] > 0");
+
+                            t.HasCheckConstraint("CK_CreditFacilities_Rate", "[AnnualInterestRatePercent] IS NULL OR [AnnualInterestRatePercent] >= 0");
+
+                            t.HasCheckConstraint("CK_CreditFacilities_Status", "[Status] IN (1,2)");
+
+                            t.HasCheckConstraint("CK_CreditFacilities_ValidDates", "[MaturityDate] IS NULL OR [MaturityDate] >= [StartDate]");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditFacilityMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreditFacilityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreditFacilityScheduleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("FeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("FinancialAccountTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("InterestAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("PrincipalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ReversesMovementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("TransactionDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreditFacilityScheduleId")
+                        .HasFilter("[CreditFacilityScheduleId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "FinancialAccountTransactionId");
+
+                    b.HasIndex("TenantId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ReversesMovementId")
+                        .IsUnique()
+                        .HasFilter("[ReversesMovementId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "CreditFacilityId", "TransactionDate", "CreatedAt");
+
+                    b.ToTable("CreditFacilityMovements", t =>
+                        {
+                            t.HasCheckConstraint("CK_CreditFacilityMovements_Amounts", "[PrincipalAmount] > 0 AND [InterestAmount] >= 0 AND [FeeAmount] >= 0");
+
+                            t.HasCheckConstraint("CK_CreditFacilityMovements_Drawdown", "[Type] <> 1 OR ([InterestAmount] = 0 AND [FeeAmount] = 0)");
+
+                            t.HasCheckConstraint("CK_CreditFacilityMovements_Reversal", "([Type] = 3 AND [ReversesMovementId] IS NOT NULL AND [CreditFacilityScheduleId] IS NULL) OR ([Type] <> 3 AND [ReversesMovementId] IS NULL)");
+
+                            t.HasCheckConstraint("CK_CreditFacilityMovements_Type", "[Type] IN (1,2,3)");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditFacilitySchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreditFacilityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("FeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("InterestAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateOnly?>("PaidDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("PrincipalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreditFacilityId", "DueDate");
+
+                    b.ToTable("CreditFacilitySchedules", t =>
+                        {
+                            t.HasCheckConstraint("CK_CreditFacilitySchedules_Amounts", "[PrincipalAmount] >= 0 AND [InterestAmount] >= 0 AND [FeeAmount] >= 0 AND ([PrincipalAmount] + [InterestAmount] + [FeeAmount]) > 0");
+
+                            t.HasCheckConstraint("CK_CreditFacilitySchedules_PaidDate", "([Status] = 2 AND [PaidDate] IS NOT NULL) OR ([Status] <> 2 AND [PaidDate] IS NULL)");
+
+                            t.HasCheckConstraint("CK_CreditFacilitySchedules_Status", "[Status] IN (1,2,3)");
                         });
                 });
 
@@ -1297,6 +1535,201 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("DevelopmentWorkspaceRequests");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.EmployeeAttendanceRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("OvertimeMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("RecordedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("WorkDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("WorkedMinutes")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "EmployeeId", "WorkDate")
+                        .IsUnique();
+
+                    b.ToTable("EmployeeAttendanceRecords", t =>
+                        {
+                            t.HasCheckConstraint("CK_EmployeeAttendanceRecords_Minutes", "[WorkedMinutes] BETWEEN 0 AND 1440 AND [OvertimeMinutes] BETWEEN 0 AND 1440");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.EmployeeLeaveRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("LeaveType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("RequestedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("RequestedDays")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("decimal(8,2)");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "EmployeeId", "StartDate", "EndDate");
+
+                    b.ToTable("EmployeeLeaveRequests", t =>
+                        {
+                            t.HasCheckConstraint("CK_EmployeeLeaveRequests_DatesAndDays", "[EndDate] >= [StartDate] AND [RequestedDays] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.EmployeeRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Department")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateOnly>("HireDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("JobTitle")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("PersonnelCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly?>("TerminationDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("WorkEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "PersonnelCode")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "UserId")
+                        .IsUnique()
+                        .HasFilter("[UserId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "Status", "FullName");
+
+                    b.ToTable("EmployeeRecords", t =>
+                        {
+                            t.HasCheckConstraint("CK_EmployeeRecords_EmploymentDates", "[TerminationDate] IS NULL OR [TerminationDate] >= [HireDate]");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.FinancialAccount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1350,6 +1783,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CashFlowCategory")
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -1518,6 +1954,267 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_FinancialAccountTransfers_ExchangeRatePositive", "[ExchangeRate] > 0");
 
                             t.HasCheckConstraint("CK_FinancialAccountTransfers_SameCurrencyRate", "[CurrencyCode] <> [ToCurrencyCode] OR [ExchangeRate] = 1");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.FixedAsset", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AccumulatedDepreciationBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("AcquisitionCostBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly>("AcquisitionDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("AssetCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateOnly>("InServiceDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<Guid?>("PurchaseInvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("ResidualValueBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SourceReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<Guid?>("SupplierAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("UsefulLifeMonths")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AssetCode")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "PurchaseInvoiceId");
+
+                    b.HasIndex("TenantId", "SupplierAccountId");
+
+                    b.HasIndex("TenantId", "Status", "InServiceDate");
+
+                    b.ToTable("FixedAssets", t =>
+                        {
+                            t.HasCheckConstraint("CK_FixedAssets_CostAndLife", "[AcquisitionCostBase] > 0 AND [ResidualValueBase] >= 0 AND [ResidualValueBase] < [AcquisitionCostBase] AND [UsefulLifeMonths] BETWEEN 1 AND 1200 AND [InServiceDate] >= [AcquisitionDate] AND [AccumulatedDepreciationBase] >= 0 AND [AccumulatedDepreciationBase] <= [AcquisitionCostBase] - [ResidualValueBase]");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.FixedAssetAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AssignedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("AssignedDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateOnly?>("ReturnedDate")
+                        .HasColumnType("date");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "AssetId")
+                        .IsUnique()
+                        .HasFilter("[ReturnedDate] IS NULL");
+
+                    b.HasIndex("TenantId", "EmployeeId");
+
+                    b.HasIndex("TenantId", "AssetId", "ReturnedDate");
+
+                    b.ToTable("FixedAssetAssignments", t =>
+                        {
+                            t.HasCheckConstraint("CK_FixedAssetAssignments_ReturnDate", "[ReturnedDate] IS NULL OR [ReturnedDate] >= [AssignedDate]");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.FixedAssetDepreciationPosting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AmountBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("JournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("PeriodEnd")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("PeriodStart")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("PostedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("PostedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "JournalEntryId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "AssetId", "PeriodStart")
+                        .IsUnique();
+
+                    b.ToTable("FixedAssetDepreciationPostings", t =>
+                        {
+                            t.HasCheckConstraint("CK_FixedAssetDepreciationPostings_PeriodAmount", "[PeriodEnd] >= [PeriodStart] AND [AmountBase] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.FixedAssetDisposal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("BookValueBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly>("DisposalDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("DisposedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("DisposedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("GainLossBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("PostedAccumulatedDepreciationBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ProceedsBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("ScheduleAccumulatedDepreciationBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly?>("ScheduleThroughPeriod")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "AssetId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.ToTable("FixedAssetDisposals", t =>
+                        {
+                            t.HasCheckConstraint("CK_FixedAssetDisposals_Amounts", "[ProceedsBase] >= 0 AND [PostedAccumulatedDepreciationBase] >= 0 AND [ScheduleAccumulatedDepreciationBase] >= 0 AND [BookValueBase] >= 0 AND [GainLossBase] = [ProceedsBase] - [BookValueBase]");
                         });
                 });
 
@@ -1920,6 +2617,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<Guid?>("InventoryTransferId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("ManufacturingOrderId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("PurchaseReceiptLineId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1937,6 +2637,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("StockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("StorageLocationId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("SupplierReturnLineId")
@@ -1968,9 +2671,13 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "SupplierReturnLineId");
 
+                    b.HasIndex("TenantId", "WarehouseId", "StorageLocationId");
+
                     b.HasIndex("TenantId", "InventoryTransferId", "WarehouseId", "StockItemId")
                         .IsUnique()
                         .HasFilter("[InventoryTransferId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "ManufacturingOrderId", "Direction", "ReversalOfId");
 
                     b.HasIndex("TenantId", "WarehouseId", "StockItemId", "EntryDate", "CreatedAt");
 
@@ -2191,6 +2898,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasMaxLength(160)
                         .HasColumnType("nvarchar(160)");
 
+                    b.Property<int>("StatementSection")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2243,11 +2955,17 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrecision(12, 2)
                         .HasColumnType("decimal(12,2)");
 
+                    b.Property<int>("EndMinuteOfDay")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("ManufacturingOrderOperationId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateOnly>("ScheduledDate")
                         .HasColumnType("date");
+
+                    b.Property<int>("StartMinuteOfDay")
+                        .HasColumnType("int");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -2267,6 +2985,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("ManufacturingCapacityAllocations", t =>
                         {
                             t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_Minutes", "[AllocatedMinutes] > 0");
+
+                            t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_TimeRange", "[StartMinuteOfDay] BETWEEN 0 AND 1439 AND [EndMinuteOfDay] BETWEEN 1 AND 1440 AND [EndMinuteOfDay] > [StartMinuteOfDay]");
                         });
                 });
 
@@ -2386,6 +3106,18 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<decimal?>("ActualEnergyCostBase")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("ActualEnergyCostPerKwhBase")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal?>("ActualEnergyQuantityKwh")
+                        .HasPrecision(14, 3)
+                        .HasColumnType("decimal(14,3)");
+
                     b.Property<decimal?>("ActualRunMinutes")
                         .HasPrecision(12, 2)
                         .HasColumnType("decimal(12,2)");
@@ -2404,6 +3136,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<Guid>("ManufacturingOrderId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("MinimumWaitDaysAfterPrevious")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("OverheadCostPerHourBase")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -2419,15 +3154,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<DateOnly?>("ScheduledEndDate")
                         .HasColumnType("date");
 
+                    b.Property<int?>("ScheduledEndMinuteOfDay")
+                        .HasColumnType("int");
+
                     b.Property<DateOnly?>("ScheduledStartDate")
                         .HasColumnType("date");
+
+                    b.Property<int?>("ScheduledStartMinuteOfDay")
+                        .HasColumnType("int");
 
                     b.Property<int>("Sequence")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("SequenceSetupMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<string>("SetupFamilyCodeSnapshot")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(48)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(48)")
+                        .HasDefaultValue("");
+
                     b.Property<decimal>("SetupMinutes")
                         .HasPrecision(12, 2)
                         .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("SetupTransitionRulesSnapshotJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("[]");
 
                     b.Property<DateTimeOffset?>("StartedAt")
                         .HasColumnType("datetimeoffset");
@@ -2463,9 +3224,78 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.ToTable("ManufacturingOrderOperations", t =>
                         {
-                            t.HasCheckConstraint("CK_ManufacturingOrderOperations_Actuals", "([ActualSetupMinutes] IS NULL OR [ActualSetupMinutes] >= 0) AND ([ActualRunMinutes] IS NULL OR [ActualRunMinutes] >= 0) AND ([ActualCostBase] IS NULL OR [ActualCostBase] >= 0)");
+                            t.HasCheckConstraint("CK_ManufacturingOrderOperations_Actuals", "([ActualSetupMinutes] IS NULL OR [ActualSetupMinutes] >= 0) AND ([ActualRunMinutes] IS NULL OR [ActualRunMinutes] >= 0) AND ([ActualEnergyQuantityKwh] IS NULL OR [ActualEnergyQuantityKwh] >= 0) AND ([ActualEnergyCostPerKwhBase] IS NULL OR [ActualEnergyCostPerKwhBase] >= 0) AND ([ActualEnergyCostBase] IS NULL OR [ActualEnergyCostBase] >= 0) AND ([ActualCostBase] IS NULL OR [ActualCostBase] >= 0)");
 
                             t.HasCheckConstraint("CK_ManufacturingOrderOperations_MinutesAndCost", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutes] >= 0 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0 AND [PlannedCostBase] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingOrderOperationWorkCenterOption", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ManufacturingOrderOperationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsPreferred")
+                        .HasColumnType("bit");
+
+                    b.HasKey("TenantId", "ManufacturingOrderOperationId", "WorkCenterId");
+
+                    b.HasIndex("TenantId", "WorkCenterId");
+
+                    b.HasIndex("TenantId", "ManufacturingOrderOperationId", "IsPreferred")
+                        .IsUnique()
+                        .HasFilter("[IsPreferred] = 1");
+
+                    b.ToTable("ManufacturingOrderOperationWorkCenterOptions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingSetupTransitionRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FromSetupFamilyCode")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(48)");
+
+                    b.Property<bool>("IsTransitionAllowed")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("SetupMinutes")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ToSetupFamilyCode")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(48)");
+
+                    b.Property<Guid>("WorkCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "WorkCenterId", "FromSetupFamilyCode", "ToSetupFamilyCode")
+                        .IsUnique();
+
+                    b.ToTable("ManufacturingSetupTransitionRules", t =>
+                        {
+                            t.HasCheckConstraint("CK_ManufacturingSetupTransitionRules_SetupMinutes", "[SetupMinutes] >= 0");
                         });
                 });
 
@@ -2503,8 +3333,23 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int>("ShiftEndMinuteOfDay")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(960);
+
+                    b.Property<int>("ShiftStartMinuteOfDay")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(480);
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("WorkingDaysMask")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(127);
 
                     b.HasKey("Id");
 
@@ -2514,6 +3359,45 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("ManufacturingWorkCenters", t =>
                         {
                             t.HasCheckConstraint("CK_ManufacturingWorkCenters_Capacity", "[CapacityMinutesPerDay] > 0 AND [CapacityMinutesPerDay] <= 1440 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0");
+
+                            t.HasCheckConstraint("CK_ManufacturingWorkCenters_ShiftWindow", "[ShiftStartMinuteOfDay] BETWEEN 0 AND 1439 AND [ShiftEndMinuteOfDay] BETWEEN 1 AND 1440 AND [ShiftEndMinuteOfDay] > [ShiftStartMinuteOfDay]");
+
+                            t.HasCheckConstraint("CK_ManufacturingWorkCenters_WorkingDaysMask", "[WorkingDaysMask] BETWEEN 0 AND 127");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingWorkCenterCapacityOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("CapacityMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkCenterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("WorkDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "WorkCenterId", "WorkDate")
+                        .IsUnique();
+
+                    b.ToTable("ManufacturingWorkCenterCapacityOverrides", t =>
+                        {
+                            t.HasCheckConstraint("CK_ManufacturingWorkCenterCapacityOverrides_Capacity", "[CapacityMinutes] BETWEEN 0 AND 1440");
                         });
                 });
 
@@ -2569,6 +3453,266 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("TenantId", "WarehouseId");
 
                     b.ToTable("MrpPlanSnapshots");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PaymentInstrument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset?>("CollectedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CounterpartyAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CounterpartyName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nchar(3)")
+                        .IsFixedLength();
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("EndorsedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("EndorsedTo")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<Guid?>("FinancialAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("FinancialAccountTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InstrumentNumber")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateOnly>("IssueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateOnly>("PortfolioDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "CounterpartyAccountId");
+
+                    b.HasIndex("TenantId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "FinancialAccountId", "CurrencyCode");
+
+                    b.HasIndex("TenantId", "Status", "DueDate");
+
+                    b.HasIndex("TenantId", "FinancialAccountTransactionId", "FinancialAccountId", "CurrencyCode");
+
+                    b.ToTable("PaymentInstruments", t =>
+                        {
+                            t.HasCheckConstraint("CK_PaymentInstruments_AmountPositive", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_PaymentInstruments_DueDate", "[DueDate] >= [IssueDate]");
+
+                            t.HasCheckConstraint("CK_PaymentInstruments_ValidDirection", "[Direction] IN (1,2)");
+
+                            t.HasCheckConstraint("CK_PaymentInstruments_ValidStatus", "[Status] IN (1,2,3,4,5)");
+
+                            t.HasCheckConstraint("CK_PaymentInstruments_ValidType", "[Type] IN (1,2)");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PaymentInstrumentEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("EventDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("FinancialAccountTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("NewStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("PaymentInstrumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("PreviousStatus")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "FinancialAccountTransactionId");
+
+                    b.HasIndex("TenantId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "PaymentInstrumentId", "CreatedAt");
+
+                    b.ToTable("PaymentInstrumentEvents", t =>
+                        {
+                            t.HasCheckConstraint("CK_PaymentInstrumentEvents_Status", "[NewStatus] IN (1,2,3,4,5)");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollRuleSet", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<string>("JurisdictionCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(8)");
+
+                    b.Property<string>("OfficialSourceUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("RulesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<string>("TaxYear")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "JurisdictionCode", "EffectiveFrom", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PayrollRuleSets", t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollRuleSets_EffectiveDates", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+                        });
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PermissionDefinition", b =>
@@ -3162,6 +4306,216 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         },
                         new
                         {
+                            Code = "erp.manufacturing.read",
+                            Action = "read",
+                            Description = "read · Manufacturing recipes, work centers, orders and material planning",
+                            ResourceType = "erp.manufacturing"
+                        },
+                        new
+                        {
+                            Code = "erp.manufacturing.create",
+                            Action = "create",
+                            Description = "create · Manufacturing recipes, work centers, orders and material planning",
+                            ResourceType = "erp.manufacturing"
+                        },
+                        new
+                        {
+                            Code = "erp.manufacturing.update",
+                            Action = "update",
+                            Description = "update · Manufacturing recipes, work centers, orders and material planning",
+                            ResourceType = "erp.manufacturing"
+                        },
+                        new
+                        {
+                            Code = "erp.manufacturing.delete",
+                            Action = "delete",
+                            Description = "delete · Manufacturing recipes, work centers, orders and material planning",
+                            ResourceType = "erp.manufacturing"
+                        },
+                        new
+                        {
+                            Code = "erp.manufacturing.execute",
+                            Action = "execute",
+                            Description = "execute · Manufacturing recipes, work centers, orders and material planning",
+                            ResourceType = "erp.manufacturing"
+                        },
+                        new
+                        {
+                            Code = "erp.human-resources.read",
+                            Action = "read",
+                            Description = "read · Tenant-scoped personnel, leave, attendance, and payroll rule administration",
+                            ResourceType = "erp.human-resources"
+                        },
+                        new
+                        {
+                            Code = "erp.human-resources.create",
+                            Action = "create",
+                            Description = "create · Tenant-scoped personnel, leave, attendance, and payroll rule administration",
+                            ResourceType = "erp.human-resources"
+                        },
+                        new
+                        {
+                            Code = "erp.human-resources.update",
+                            Action = "update",
+                            Description = "update · Tenant-scoped personnel, leave, attendance, and payroll rule administration",
+                            ResourceType = "erp.human-resources"
+                        },
+                        new
+                        {
+                            Code = "erp.human-resources.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant-scoped personnel, leave, attendance, and payroll rule administration",
+                            ResourceType = "erp.human-resources"
+                        },
+                        new
+                        {
+                            Code = "erp.human-resources.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant-scoped personnel, leave, attendance, and payroll rule administration",
+                            ResourceType = "erp.human-resources"
+                        },
+                        new
+                        {
+                            Code = "erp.fixed-assets.read",
+                            Action = "read",
+                            Description = "read · Tenant fixed-asset register, depreciation, and custody",
+                            ResourceType = "erp.fixed-assets"
+                        },
+                        new
+                        {
+                            Code = "erp.fixed-assets.create",
+                            Action = "create",
+                            Description = "create · Tenant fixed-asset register, depreciation, and custody",
+                            ResourceType = "erp.fixed-assets"
+                        },
+                        new
+                        {
+                            Code = "erp.fixed-assets.update",
+                            Action = "update",
+                            Description = "update · Tenant fixed-asset register, depreciation, and custody",
+                            ResourceType = "erp.fixed-assets"
+                        },
+                        new
+                        {
+                            Code = "erp.fixed-assets.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant fixed-asset register, depreciation, and custody",
+                            ResourceType = "erp.fixed-assets"
+                        },
+                        new
+                        {
+                            Code = "erp.fixed-assets.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant fixed-asset register, depreciation, and custody",
+                            ResourceType = "erp.fixed-assets"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-settings.read",
+                            Action = "read",
+                            Description = "read · Company-specific operational policies and behavior",
+                            ResourceType = "erp.tenant-settings"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-settings.create",
+                            Action = "create",
+                            Description = "create · Company-specific operational policies and behavior",
+                            ResourceType = "erp.tenant-settings"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-settings.update",
+                            Action = "update",
+                            Description = "update · Company-specific operational policies and behavior",
+                            ResourceType = "erp.tenant-settings"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-settings.delete",
+                            Action = "delete",
+                            Description = "delete · Company-specific operational policies and behavior",
+                            ResourceType = "erp.tenant-settings"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-settings.execute",
+                            Action = "execute",
+                            Description = "execute · Company-specific operational policies and behavior",
+                            ResourceType = "erp.tenant-settings"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-company-profile.read",
+                            Action = "read",
+                            Description = "read · Tenant legal company profile",
+                            ResourceType = "erp.tenant-company-profile"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-company-profile.create",
+                            Action = "create",
+                            Description = "create · Tenant legal company profile",
+                            ResourceType = "erp.tenant-company-profile"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-company-profile.update",
+                            Action = "update",
+                            Description = "update · Tenant legal company profile",
+                            ResourceType = "erp.tenant-company-profile"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-company-profile.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant legal company profile",
+                            ResourceType = "erp.tenant-company-profile"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-company-profile.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant legal company profile",
+                            ResourceType = "erp.tenant-company-profile"
+                        },
+                        new
+                        {
+                            Code = "erp.screen-views.read",
+                            Action = "read",
+                            Description = "read · Tenant built-in ERP screen layouts",
+                            ResourceType = "erp.screen-views"
+                        },
+                        new
+                        {
+                            Code = "erp.screen-views.create",
+                            Action = "create",
+                            Description = "create · Tenant built-in ERP screen layouts",
+                            ResourceType = "erp.screen-views"
+                        },
+                        new
+                        {
+                            Code = "erp.screen-views.update",
+                            Action = "update",
+                            Description = "update · Tenant built-in ERP screen layouts",
+                            ResourceType = "erp.screen-views"
+                        },
+                        new
+                        {
+                            Code = "erp.screen-views.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant built-in ERP screen layouts",
+                            ResourceType = "erp.screen-views"
+                        },
+                        new
+                        {
+                            Code = "erp.screen-views.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant built-in ERP screen layouts",
+                            ResourceType = "erp.screen-views"
+                        },
+                        new
+                        {
                             Code = "erp.inventory-transfers.read",
                             Action = "read",
                             Description = "read · Warehouse transfers",
@@ -3264,6 +4618,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             Action = "execute",
                             Description = "execute · Sales quotes",
                             ResourceType = "erp.sales-quotes"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-promotions.read",
+                            Action = "read",
+                            Description = "read · Sales promotion campaigns and applications",
+                            ResourceType = "erp.sales-promotions"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-promotions.create",
+                            Action = "create",
+                            Description = "create · Sales promotion campaigns and applications",
+                            ResourceType = "erp.sales-promotions"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-promotions.update",
+                            Action = "update",
+                            Description = "update · Sales promotion campaigns and applications",
+                            ResourceType = "erp.sales-promotions"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-promotions.delete",
+                            Action = "delete",
+                            Description = "delete · Sales promotion campaigns and applications",
+                            ResourceType = "erp.sales-promotions"
+                        },
+                        new
+                        {
+                            Code = "erp.sales-promotions.execute",
+                            Action = "execute",
+                            Description = "execute · Sales promotion campaigns and applications",
+                            ResourceType = "erp.sales-promotions"
                         },
                         new
                         {
@@ -3582,6 +4971,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         },
                         new
                         {
+                            Code = "erp.purchase-delivery-notes.read",
+                            Action = "read",
+                            Description = "read · Supplier delivery note records and receipt reconciliation",
+                            ResourceType = "erp.purchase-delivery-notes"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-delivery-notes.create",
+                            Action = "create",
+                            Description = "create · Supplier delivery note records and receipt reconciliation",
+                            ResourceType = "erp.purchase-delivery-notes"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-delivery-notes.update",
+                            Action = "update",
+                            Description = "update · Supplier delivery note records and receipt reconciliation",
+                            ResourceType = "erp.purchase-delivery-notes"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-delivery-notes.delete",
+                            Action = "delete",
+                            Description = "delete · Supplier delivery note records and receipt reconciliation",
+                            ResourceType = "erp.purchase-delivery-notes"
+                        },
+                        new
+                        {
+                            Code = "erp.purchase-delivery-notes.execute",
+                            Action = "execute",
+                            Description = "execute · Supplier delivery note records and receipt reconciliation",
+                            ResourceType = "erp.purchase-delivery-notes"
+                        },
+                        new
+                        {
                             Code = "erp.purchase-invoices.read",
                             Action = "read",
                             Description = "read · Purchase invoices",
@@ -3614,6 +5038,146 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             Action = "execute",
                             Description = "execute · Purchase invoices",
                             ResourceType = "erp.purchase-invoices"
+                        },
+                        new
+                        {
+                            Code = "erp.foreign-trade.read",
+                            Action = "read",
+                            Description = "read · Foreign trade cases and logistics status",
+                            ResourceType = "erp.foreign-trade"
+                        },
+                        new
+                        {
+                            Code = "erp.foreign-trade.create",
+                            Action = "create",
+                            Description = "create · Foreign trade cases and logistics status",
+                            ResourceType = "erp.foreign-trade"
+                        },
+                        new
+                        {
+                            Code = "erp.foreign-trade.update",
+                            Action = "update",
+                            Description = "update · Foreign trade cases and logistics status",
+                            ResourceType = "erp.foreign-trade"
+                        },
+                        new
+                        {
+                            Code = "erp.foreign-trade.delete",
+                            Action = "delete",
+                            Description = "delete · Foreign trade cases and logistics status",
+                            ResourceType = "erp.foreign-trade"
+                        },
+                        new
+                        {
+                            Code = "erp.foreign-trade.execute",
+                            Action = "execute",
+                            Description = "execute · Foreign trade cases and logistics status",
+                            ResourceType = "erp.foreign-trade"
+                        },
+                        new
+                        {
+                            Code = "erp.commercial-contracts.read",
+                            Action = "read",
+                            Description = "read · Tenant commercial sales and purchase contracts",
+                            ResourceType = "erp.commercial-contracts"
+                        },
+                        new
+                        {
+                            Code = "erp.commercial-contracts.create",
+                            Action = "create",
+                            Description = "create · Tenant commercial sales and purchase contracts",
+                            ResourceType = "erp.commercial-contracts"
+                        },
+                        new
+                        {
+                            Code = "erp.commercial-contracts.update",
+                            Action = "update",
+                            Description = "update · Tenant commercial sales and purchase contracts",
+                            ResourceType = "erp.commercial-contracts"
+                        },
+                        new
+                        {
+                            Code = "erp.commercial-contracts.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant commercial sales and purchase contracts",
+                            ResourceType = "erp.commercial-contracts"
+                        },
+                        new
+                        {
+                            Code = "erp.commercial-contracts.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant commercial sales and purchase contracts",
+                            ResourceType = "erp.commercial-contracts"
+                        },
+                        new
+                        {
+                            Code = "erp.operational-projects.read",
+                            Action = "read",
+                            Description = "read · Tenant operational projects, tasks, allocations, and time entries",
+                            ResourceType = "erp.operational-projects"
+                        },
+                        new
+                        {
+                            Code = "erp.operational-projects.create",
+                            Action = "create",
+                            Description = "create · Tenant operational projects, tasks, allocations, and time entries",
+                            ResourceType = "erp.operational-projects"
+                        },
+                        new
+                        {
+                            Code = "erp.operational-projects.update",
+                            Action = "update",
+                            Description = "update · Tenant operational projects, tasks, allocations, and time entries",
+                            ResourceType = "erp.operational-projects"
+                        },
+                        new
+                        {
+                            Code = "erp.operational-projects.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant operational projects, tasks, allocations, and time entries",
+                            ResourceType = "erp.operational-projects"
+                        },
+                        new
+                        {
+                            Code = "erp.operational-projects.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant operational projects, tasks, allocations, and time entries",
+                            ResourceType = "erp.operational-projects"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-tracking.read",
+                            Action = "read",
+                            Description = "read · Tenant lot and serial inventory traceability inquiries",
+                            ResourceType = "erp.inventory-tracking"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-tracking.create",
+                            Action = "create",
+                            Description = "create · Tenant lot and serial inventory traceability inquiries",
+                            ResourceType = "erp.inventory-tracking"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-tracking.update",
+                            Action = "update",
+                            Description = "update · Tenant lot and serial inventory traceability inquiries",
+                            ResourceType = "erp.inventory-tracking"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-tracking.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant lot and serial inventory traceability inquiries",
+                            ResourceType = "erp.inventory-tracking"
+                        },
+                        new
+                        {
+                            Code = "erp.inventory-tracking.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant lot and serial inventory traceability inquiries",
+                            ResourceType = "erp.inventory-tracking"
                         },
                         new
                         {
@@ -3897,6 +5461,146 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         },
                         new
                         {
+                            Code = "erp.finance.credit-facilities.read",
+                            Action = "read",
+                            Description = "read · Credit facilities and repayment schedules",
+                            ResourceType = "erp.finance.credit-facilities"
+                        },
+                        new
+                        {
+                            Code = "erp.finance.credit-facilities.create",
+                            Action = "create",
+                            Description = "create · Credit facilities and repayment schedules",
+                            ResourceType = "erp.finance.credit-facilities"
+                        },
+                        new
+                        {
+                            Code = "erp.finance.credit-facilities.update",
+                            Action = "update",
+                            Description = "update · Credit facilities and repayment schedules",
+                            ResourceType = "erp.finance.credit-facilities"
+                        },
+                        new
+                        {
+                            Code = "erp.finance.credit-facilities.delete",
+                            Action = "delete",
+                            Description = "delete · Credit facilities and repayment schedules",
+                            ResourceType = "erp.finance.credit-facilities"
+                        },
+                        new
+                        {
+                            Code = "erp.finance.credit-facilities.execute",
+                            Action = "execute",
+                            Description = "execute · Credit facilities and repayment schedules",
+                            ResourceType = "erp.finance.credit-facilities"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-budgets.read",
+                            Action = "read",
+                            Description = "read · Tenant financial budgets and actuals",
+                            ResourceType = "erp.finance-budgets"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-budgets.create",
+                            Action = "create",
+                            Description = "create · Tenant financial budgets and actuals",
+                            ResourceType = "erp.finance-budgets"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-budgets.update",
+                            Action = "update",
+                            Description = "update · Tenant financial budgets and actuals",
+                            ResourceType = "erp.finance-budgets"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-budgets.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant financial budgets and actuals",
+                            ResourceType = "erp.finance-budgets"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-budgets.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant financial budgets and actuals",
+                            ResourceType = "erp.finance-budgets"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-cash-flow.read",
+                            Action = "read",
+                            Description = "read · Cash-flow forecast aggregated from tenant financial activity",
+                            ResourceType = "erp.finance-cash-flow"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-cash-flow.create",
+                            Action = "create",
+                            Description = "create · Cash-flow forecast aggregated from tenant financial activity",
+                            ResourceType = "erp.finance-cash-flow"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-cash-flow.update",
+                            Action = "update",
+                            Description = "update · Cash-flow forecast aggregated from tenant financial activity",
+                            ResourceType = "erp.finance-cash-flow"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-cash-flow.delete",
+                            Action = "delete",
+                            Description = "delete · Cash-flow forecast aggregated from tenant financial activity",
+                            ResourceType = "erp.finance-cash-flow"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-cash-flow.execute",
+                            Action = "execute",
+                            Description = "execute · Cash-flow forecast aggregated from tenant financial activity",
+                            ResourceType = "erp.finance-cash-flow"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-payment-instruments.read",
+                            Action = "read",
+                            Description = "read · Tenant checks and promissory notes",
+                            ResourceType = "erp.finance-payment-instruments"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-payment-instruments.create",
+                            Action = "create",
+                            Description = "create · Tenant checks and promissory notes",
+                            ResourceType = "erp.finance-payment-instruments"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-payment-instruments.update",
+                            Action = "update",
+                            Description = "update · Tenant checks and promissory notes",
+                            ResourceType = "erp.finance-payment-instruments"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-payment-instruments.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant checks and promissory notes",
+                            ResourceType = "erp.finance-payment-instruments"
+                        },
+                        new
+                        {
+                            Code = "erp.finance-payment-instruments.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant checks and promissory notes",
+                            ResourceType = "erp.finance-payment-instruments"
+                        },
+                        new
+                        {
                             Code = "erp.financial-transfers.read",
                             Action = "read",
                             Description = "read · Financial account transfers",
@@ -4069,6 +5773,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             Action = "execute",
                             Description = "execute · Tenant integration execution",
                             ResourceType = "erp.integrations"
+                        },
+                        new
+                        {
+                            Code = "erp.e-documents.read",
+                            Action = "read",
+                            Description = "read · Electronic document preparation and submission approvals",
+                            ResourceType = "erp.e-documents"
+                        },
+                        new
+                        {
+                            Code = "erp.e-documents.create",
+                            Action = "create",
+                            Description = "create · Electronic document preparation and submission approvals",
+                            ResourceType = "erp.e-documents"
+                        },
+                        new
+                        {
+                            Code = "erp.e-documents.update",
+                            Action = "update",
+                            Description = "update · Electronic document preparation and submission approvals",
+                            ResourceType = "erp.e-documents"
+                        },
+                        new
+                        {
+                            Code = "erp.e-documents.delete",
+                            Action = "delete",
+                            Description = "delete · Electronic document preparation and submission approvals",
+                            ResourceType = "erp.e-documents"
+                        },
+                        new
+                        {
+                            Code = "erp.e-documents.execute",
+                            Action = "execute",
+                            Description = "execute · Electronic document preparation and submission approvals",
+                            ResourceType = "erp.e-documents"
                         },
                         new
                         {
@@ -4594,7 +6333,55 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             Action = "execute",
                             Description = "execute · AI code suggestions and changes",
                             ResourceType = "studio.code-suggestions"
+                        },
+                        new
+                        {
+                            Code = "erp.operational-projects.time-entries.create",
+                            Action = "create",
+                            Description = "Create own operational project time entries",
+                            ResourceType = "erp.operational-projects"
                         });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PlatformAdminRefreshSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "ExpiresAt");
+
+                    b.ToTable("PlatformAdminRefreshSessions");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PlatformModulePublisherKey", b =>
@@ -4730,6 +6517,52 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("Status", "ModuleCode");
 
                     b.ToTable("PlatformModuleReleases");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PlatformRefreshSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "TenantId", "ExpiresAt");
+
+                    b.ToTable("PlatformRefreshSessions");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PlatformUserRole", b =>
@@ -7111,6 +8944,103 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesPromotionApplication", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AppliedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("AppliedOn")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("CampaignId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<Guid>("QuoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "QuoteId");
+
+                    b.HasIndex("TenantId", "CampaignId", "QuoteId")
+                        .IsUnique();
+
+                    b.ToTable("SalesPromotionApplications");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesPromotionCampaign", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("DiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("EffectiveThrough")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "IsActive", "EffectiveFrom", "EffectiveThrough");
+
+                    b.ToTable("SalesPromotionCampaigns", t =>
+                        {
+                            t.HasCheckConstraint("CK_SalesPromotionCampaigns_DiscountRange", "[DiscountPercent] > 0 AND [DiscountPercent] <= 100");
+
+                            t.HasCheckConstraint("CK_SalesPromotionCampaigns_EffectiveRange", "[EffectiveThrough] >= [EffectiveFrom]");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.SalesQuote", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8181,6 +10111,50 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("StudioKnowledgeRefreshConsents");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioModuleSourceMapping", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ModuleCode")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(60)");
+
+                    b.Property<string>("PathAllowlistJson")
+                        .IsRequired()
+                        .HasMaxLength(12000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Ref")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ModuleCode")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ProjectId");
+
+                    b.ToTable("StudioModuleSourceMappings");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.StudioProductionPromotionApprovalRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8884,6 +10858,36 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("TenantBusinessRuleEvaluations");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCompanyProfile", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("LegalName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TaxNumber")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<string>("TaxOffice")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("TenantId");
+
+                    b.ToTable("TenantCompanyProfiles", (string)null);
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomFormDefinition", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8934,6 +10938,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasFilter("[Status] = 'Published'");
 
                     b.HasIndex("TenantId", "Code", "Version")
                         .IsUnique();
@@ -9228,6 +11236,62 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("TenantExchangeRates");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantLicense", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ActivatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("GrantSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("MaxCustomModules")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxStorageGb")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxUsers")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.HasKey("TenantId");
+
+                    b.HasIndex("LicenseId")
+                        .IsUnique();
+
+                    b.ToTable("TenantLicenses", t =>
+                        {
+                            t.HasCheckConstraint("CK_TenantLicenses_Tier", "[Tier] IN ('Small','Medium','Large')");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantMembership", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -9352,6 +11416,84 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantProvisioningJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(80)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<string>("IdempotencyKeyHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LeaseOwner")
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PayloadSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("RequestedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKeyHash")
+                        .IsUnique();
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "NextAttemptAt", "CreatedAt");
+
+                    b.ToTable("TenantProvisioningJobs");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantSavedReport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9367,6 +11509,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<string>("DefinitionJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DefinitionRevision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
 
                     b.Property<string>("Kind")
                         .IsRequired()
@@ -9402,6 +11550,170 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("TenantSavedReports");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantSavedReportRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DefinitionJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(12)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SavedReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "SavedReportId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("TenantSavedReportRevisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantScreenView", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LayoutJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
+                    b.Property<string>("ScreenKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ScreenKey", "IsPublished")
+                        .IsUnique()
+                        .HasFilter("[IsPublished] = 1");
+
+                    b.HasIndex("TenantId", "ScreenKey", "UpdatedAt");
+
+                    b.ToTable("TenantScreenViews", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TenantScreenViews_Revision", "[Revision] >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantScreenViewRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangeKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LayoutJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ScreenKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<Guid>("ScreenViewId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "ScreenViewId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("TenantScreenViewRevisions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TenantScreenViewRevisions_Revision", "[Revision] >= 1");
+                        });
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.TenantWorkflowAction", b =>
@@ -9812,6 +12124,50 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("WarehouseCustomFieldValueRevisions");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.WarehouseLocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<Guid?>("ParentLocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "WarehouseId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "WarehouseId", "ParentLocationId", "Code");
+
+                    b.ToTable("WarehouseLocations");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.AITestPlanRecord", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.TenantMembership", null)
@@ -9948,6 +12304,83 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.BillOfMaterialOperationWorkCenterOption", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.BillOfMaterialOperation", null)
+                        .WithMany("EligibleWorkCenters")
+                        .HasForeignKey("TenantId", "BillOfMaterialOperationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingWorkCenter", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WorkCenterId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditFacility", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditFacilityMovement", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.CreditFacility", "CreditFacility")
+                        .WithMany("Movements")
+                        .HasForeignKey("TenantId", "CreditFacilityId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.CreditFacilitySchedule", "CreditFacilitySchedule")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CreditFacilityScheduleId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.FinancialAccountTransaction", "FinancialAccountTransaction")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "FinancialAccountTransactionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.CreditFacilityMovement", "ReversesMovement")
+                        .WithMany("Reversals")
+                        .HasForeignKey("TenantId", "ReversesMovementId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CreditFacility");
+
+                    b.Navigation("CreditFacilitySchedule");
+
+                    b.Navigation("FinancialAccountTransaction");
+
+                    b.Navigation("ReversesMovement");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditFacilitySchedule", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.CreditFacility", "CreditFacility")
+                        .WithMany("Schedule")
+                        .HasForeignKey("TenantId", "CreditFacilityId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreditFacility");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.CrmOpportunity", b =>
@@ -10273,6 +12706,47 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("DevelopmentRequest");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.EmployeeAttendanceRecord", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.EmployeeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.EmployeeLeaveRequest", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.EmployeeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.EmployeeRecord", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.FinancialAccount", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
@@ -10350,6 +12824,77 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.FixedAsset", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseInvoice", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PurchaseInvoiceId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.CustomerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SupplierAccountId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.FixedAssetAssignment", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.FixedAsset", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AssetId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.EmployeeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.FixedAssetDepreciationPosting", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.FixedAsset", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AssetId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.JournalEntry", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "JournalEntryId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.FixedAssetDisposal", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.FixedAsset", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AssetId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.FxRevaluationVoucher", b =>
@@ -10468,6 +13013,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingOrder", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ManufacturingOrderId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AIERP.Platform.Domain.PurchaseReceiptLine", "PurchaseReceiptLine")
                         .WithMany("InventoryTransactions")
                         .HasForeignKey("TenantId", "PurchaseReceiptLineId")
@@ -10511,6 +13062,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AIERP.Platform.Domain.WarehouseLocation", "StorageLocation")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WarehouseId", "StorageLocationId")
+                        .HasPrincipalKey("TenantId", "WarehouseId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("InventoryTransfer");
 
                     b.Navigation("PurchaseReceiptLine");
@@ -10522,6 +13079,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("SalesReturnLine");
 
                     b.Navigation("StockItem");
+
+                    b.Navigation("StorageLocation");
 
                     b.Navigation("SupplierReturnLine");
 
@@ -10683,12 +13242,61 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingOrderOperationWorkCenterOption", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingOrderOperation", null)
+                        .WithMany("EligibleWorkCenters")
+                        .HasForeignKey("TenantId", "ManufacturingOrderOperationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingWorkCenter", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WorkCenterId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingSetupTransitionRule", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingWorkCenter", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WorkCenterId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingWorkCenter", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", null)
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingWorkCenterCapacityOverride", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.ManufacturingWorkCenter", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WorkCenterId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -10705,6 +13313,92 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasForeignKey("TenantId", "WarehouseId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PaymentInstrument", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.CustomerAccount", "CounterpartyAccount")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CounterpartyAccountId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.FinancialAccount", "FinancialAccount")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "FinancialAccountId", "CurrencyCode")
+                        .HasPrincipalKey("TenantId", "Id", "CurrencyCode")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.FinancialAccountTransaction", "FinancialAccountTransaction")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "FinancialAccountTransactionId", "FinancialAccountId", "CurrencyCode")
+                        .HasPrincipalKey("TenantId", "Id", "FinancialAccountId", "CurrencyCode")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CounterpartyAccount");
+
+                    b.Navigation("FinancialAccount");
+
+                    b.Navigation("FinancialAccountTransaction");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PaymentInstrumentEvent", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.FinancialAccountTransaction", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "FinancialAccountTransactionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.PaymentInstrument", "PaymentInstrument")
+                        .WithMany("Events")
+                        .HasForeignKey("TenantId", "PaymentInstrumentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PaymentInstrument");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollRuleSet", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PlatformAdminRefreshSession", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PlatformRefreshSession", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -11651,6 +14345,38 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Warehouse");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesPromotionApplication", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesPromotionCampaign", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CampaignId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesQuote", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "QuoteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesPromotionCampaign", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.SalesQuote", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
@@ -11994,6 +14720,22 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioModuleSourceMapping", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.DevelopmentProject", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ProjectId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.StudioProductionPromotionApprovalRecord", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.DevelopmentProject", null)
@@ -12249,6 +14991,15 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("WorkflowInstance");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCompanyProfile", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithOne()
+                        .HasForeignKey("AIERP.Platform.Domain.TenantCompanyProfile", "TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomFormDefinition", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
@@ -12333,6 +15084,15 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantLicense", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithOne()
+                        .HasForeignKey("AIERP.Platform.Domain.TenantLicense", "TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantMembership", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
@@ -12392,6 +15152,21 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantProvisioningJob", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantSavedReport", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", null)
@@ -12399,6 +15174,39 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantSavedReportRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.TenantSavedReport", "SavedReport")
+                        .WithMany("Revisions")
+                        .HasForeignKey("TenantId", "SavedReportId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SavedReport");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantScreenView", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantScreenViewRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.TenantScreenView", "ScreenView")
+                        .WithMany("Revisions")
+                        .HasForeignKey("TenantId", "ScreenViewId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ScreenView");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.TenantWorkflowAction", b =>
@@ -12510,6 +15318,26 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.WarehouseLocation", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WarehouseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.WarehouseLocation", "ParentLocation")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WarehouseId", "ParentLocationId")
+                        .HasPrincipalKey("TenantId", "WarehouseId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ParentLocation");
+
+                    b.Navigation("Warehouse");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.AppUser", b =>
                 {
                     b.Navigation("Memberships");
@@ -12525,6 +15353,23 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Lines");
 
                     b.Navigation("Operations");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.BillOfMaterialOperation", b =>
+                {
+                    b.Navigation("EligibleWorkCenters");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditFacility", b =>
+                {
+                    b.Navigation("Movements");
+
+                    b.Navigation("Schedule");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditFacilityMovement", b =>
+                {
+                    b.Navigation("Reversals");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.CustomerAccount", b =>
@@ -12604,6 +15449,16 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Lines");
 
                     b.Navigation("Operations");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingOrderOperation", b =>
+                {
+                    b.Navigation("EligibleWorkCenters");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PaymentInstrument", b =>
+                {
+                    b.Navigation("Events");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseInvoice", b =>
@@ -12780,6 +15635,16 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("SupplierPayments");
 
                     b.Navigation("Warehouses");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantSavedReport", b =>
+                {
+                    b.Navigation("Revisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantScreenView", b =>
+                {
+                    b.Navigation("Revisions");
                 });
 #pragma warning restore 612, 618
         }

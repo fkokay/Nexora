@@ -1,10 +1,17 @@
 .git
+.vs
+/artifacts
 .env
 **/.env
 **/bin
 **/obj
 **/node_modules
 **/dist
+**/TestResults
+**/*.trx
+**/*.coverage
 **/.vite
 .local-scout-cache/
+.codeql-model-check/
+.codex-build/
 deploy/docker/sandbox-package-cache/

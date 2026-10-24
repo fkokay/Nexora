@@ -5,11 +5,21 @@ using System.Text.RegularExpressions;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 public static class ManufacturingEndpoints
 {
+    private static bool HasOverlappingRotations(IReadOnlyList<WorkCenterShiftRotationWriteRequest> rotations)
+    {
+        var ordered = rotations.OrderBy(x => x.EffectiveFromDate).ToArray();
+        for (var i = 1; i < ordered.Length; i++)
+            if (ordered[i - 1].EffectiveToDate is null || ordered[i].EffectiveFromDate <= ordered[i - 1].EffectiveToDate)
+                return true;
+        return false;
+    }
+
     public static void MapManufacturingEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/manufacturing").WithTags("Üretim").RequireAuthorization();
@@ -22,7 +32,171 @@ public static class ManufacturingEndpoints
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
             return Results.Ok(await db.ManufacturingWorkCenters.AsNoTracking().Where(x => x.TenantId == tenantId)
                 .OrderBy(x => x.Code).Take(200).Select(x => new WorkCenterView(x.Id, x.Code, x.Name, x.CapacityMinutesPerDay,
-                    x.LaborCostPerHourBase, x.OverheadCostPerHourBase, x.IsActive)).ToListAsync(ct));
+                    x.LaborCostPerHourBase, x.OverheadCostPerHourBase, x.IsActive, x.WorkingDaysMask,
+                    x.ShiftStartMinuteOfDay, x.ShiftEndMinuteOfDay)).ToListAsync(ct));
+        });
+
+        workCenters.MapGet("/{id:guid}/calendar", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
+            var center = await db.ManufacturingWorkCenters.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (center is null) return Results.NotFound();
+            var overrides = await db.ManufacturingWorkCenterCapacityOverrides.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.WorkCenterId == id).OrderBy(x => x.WorkDate)
+                .Select(x => new WorkCenterCapacityOverrideView(x.WorkDate, x.CapacityMinutes, x.Note)).ToListAsync(ct);
+            var annualRules = await db.ManufacturingWorkCenterAnnualCapacityRules.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.WorkCenterId == id).OrderBy(x => x.Month).ThenBy(x => x.Day)
+                .Select(x => new WorkCenterAnnualCapacityRuleView(x.Month, x.Day, x.CapacityMinutes, x.Note)).ToListAsync(ct);
+            var rotations = await db.ManufacturingWorkCenterShiftRotations.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.WorkCenterId == id).OrderBy(x => x.EffectiveFromDate)
+                .Select(x => new WorkCenterShiftRotationView(x.EffectiveFromDate, x.EffectiveToDate, x.Note,
+                    x.Days.OrderBy(d => d.DayIndex).Select(d => new WorkCenterShiftRotationDayView(d.DayIndex, d.CapacityMinutes,
+                        d.ShiftStartMinuteOfDay, d.ShiftEndMinuteOfDay)).ToArray())).ToListAsync(ct);
+            return Results.Ok(new WorkCenterCalendarView(center.Id, center.WorkingDaysMask, center.ShiftStartMinuteOfDay,
+                center.ShiftEndMinuteOfDay, overrides, annualRules, rotations));
+        });
+
+        workCenters.MapGet("/{id:guid}/setup-rules", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
+            if (!await db.ManufacturingWorkCenters.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == id, ct)) return Results.NotFound();
+            var rules = await db.ManufacturingSetupTransitionRules.AsNoTracking().Where(x => x.TenantId == tenantId && x.WorkCenterId == id)
+                .OrderBy(x => x.FromSetupFamilyCode).ThenBy(x => x.ToSetupFamilyCode)
+                .Select(x => new SetupTransitionRuleView(x.FromSetupFamilyCode, x.ToSetupFamilyCode, x.SetupMinutes, x.IsTransitionAllowed)).ToListAsync(ct);
+            return Results.Ok(rules);
+        });
+
+        workCenters.MapPut("/{id:guid}/setup-rules", async (Guid id, SetupTransitionRulesWriteRequest request,
+            ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var rules = request.Rules ?? [];
+            static string? NormalizeFamily(string? value)
+            {
+                var normalized = value?.Trim().ToUpperInvariant() ?? "";
+                return normalized.Length <= 48 && (normalized.Length == 0 || Regex.IsMatch(normalized, "^[A-Z0-9][A-Z0-9._-]*$")) ? normalized : null;
+            }
+            var normalizedRules = rules.Select(x => (From: NormalizeFamily(x.FromSetupFamilyCode), To: NormalizeFamily(x.ToSetupFamilyCode), x.SetupMinutes, x.IsTransitionAllowed)).ToArray();
+            if (rules.Count > 500 || normalizedRules.Any(x => x.From is null || x.To is null || (x.From == "" && x.To == "") ||
+                    x.SetupMinutes is < 0m or > 9999999999.99m || (!x.IsTransitionAllowed && x.SetupMinutes != 0m)) ||
+                normalizedRules.GroupBy(x => (x.From, x.To)).Any(x => x.Count() > 1))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["rules"] = ["En fazla 500 benzersiz aile geçişi tanımlayın. Aile kodları 48 karakteri aşamaz; yasak geçişte setup süresi 0 olmalıdır."] });
+            var center = await db.ManufacturingWorkCenters.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (center is null) return Results.NotFound();
+            var current = await db.ManufacturingSetupTransitionRules.Where(x => x.TenantId == tenantId && x.WorkCenterId == id).ToListAsync(ct);
+            db.ManufacturingSetupTransitionRules.RemoveRange(current);
+            var replacements = normalizedRules.Select(x => new ManufacturingSetupTransitionRule { TenantId = tenantId, WorkCenterId = id,
+                FromSetupFamilyCode = x.From!, ToSetupFamilyCode = x.To!, SetupMinutes = decimal.Round(x.SetupMinutes, 2, MidpointRounding.AwayFromZero),
+                IsTransitionAllowed = x.IsTransitionAllowed }).ToArray();
+            db.ManufacturingSetupTransitionRules.AddRange(replacements);
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.work-center.setup-rules-updated", Resource = $"{center.Code}:{replacements.Length}" });
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(replacements.OrderBy(x => x.FromSetupFamilyCode).ThenBy(x => x.ToSetupFamilyCode)
+                .Select(x => new SetupTransitionRuleView(x.FromSetupFamilyCode, x.ToSetupFamilyCode, x.SetupMinutes, x.IsTransitionAllowed)).ToArray());
+        });
+
+        workCenters.MapPut("/{id:guid}/calendar", async (Guid id, WorkCenterCalendarWriteRequest request,
+            ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var overrides = request.CapacityOverrides ?? [];
+            var annualRules = request.AnnualCapacityRules;
+            var rotations = request.ShiftRotations;
+            static bool ValidMonthDay(int month, int day) => month is >= 1 and <= 12 && day >= 1 && day <= DateTime.DaysInMonth(2000, month);
+            if (request.WorkingDaysMask is < 0 or > 127 || overrides.Count > 366 || (annualRules?.Count ?? 0) > 366 || (rotations?.Count ?? 0) > 100 ||
+                request.ShiftStartMinuteOfDay is < 0 or > 1439 || request.ShiftEndMinuteOfDay is < 1 or > 1440 ||
+                (request.ShiftStartMinuteOfDay ?? 480) >= (request.ShiftEndMinuteOfDay ?? 1440) ||
+                overrides.Any(x => x.CapacityMinutes is < 0 or > 1440 || x.Note?.Length > 200) ||
+                overrides.GroupBy(x => x.WorkDate).Any(x => x.Count() > 1) ||
+                (annualRules?.Any(x => !ValidMonthDay(x.Month, x.Day) || x.CapacityMinutes is < 0 or > 1440 || x.Note?.Length > 200) ?? false) ||
+                (annualRules?.GroupBy(x => (x.Month, x.Day)).Any(x => x.Count() > 1) ?? false) ||
+                (rotations?.Any(r => r.EffectiveToDate is { } to && to < r.EffectiveFromDate || r.Note?.Length > 200 || r.Days is null ||
+                    r.Days.Count is < 1 or > 366 || r.Days.Select(d => d.DayIndex).Distinct().Count() != r.Days.Count ||
+                    !r.Days.Select(d => d.DayIndex).Order().SequenceEqual(Enumerable.Range(0, r.Days.Count)) ||
+                    r.Days.Any(d => d.CapacityMinutes is < 0 or > 1440 || d.ShiftStartMinuteOfDay is < 0 or > 1439 ||
+                        d.ShiftEndMinuteOfDay is < 1 or > 1440 || d.ShiftEndMinuteOfDay <= d.ShiftStartMinuteOfDay)) ?? false) ||
+                (rotations is not null && HasOverlappingRotations(rotations)))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["calendar"] = ["Çalışma günü maskesi 0–127; kapasite 0–1440 dakika olmalıdır. Döngü 1–366 günlük, ardışık indeksli vardiya günlerinden oluşmalı; vardiya saatleri geçerli ve etkin tarih aralıkları çakışmasız olmalıdır."] });
+
+            await using var transaction = await BeginMutationAsync(db, ct);
+            var center = db.Database.IsSqlServer()
+                ? await db.ManufacturingWorkCenters.FromSqlInterpolated($"SELECT * FROM [dbo].[ManufacturingWorkCenters] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync(ct)
+                : await db.ManufacturingWorkCenters.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (center is null) return Results.NotFound();
+            center.WorkingDaysMask = request.WorkingDaysMask;
+            if (request.ShiftStartMinuteOfDay is { } shiftStart) center.ShiftStartMinuteOfDay = shiftStart;
+            if (request.ShiftEndMinuteOfDay is { } shiftEnd) center.ShiftEndMinuteOfDay = shiftEnd;
+            if (center.ShiftEndMinuteOfDay <= center.ShiftStartMinuteOfDay)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["calendar"] = ["Vardiya bitiş dakikası başlangıç dakikasından sonra ve 1440 veya önce olmalıdır."] });
+            var current = await db.ManufacturingWorkCenterCapacityOverrides
+                .Where(x => x.TenantId == tenantId && x.WorkCenterId == id).ToListAsync(ct);
+            db.ManufacturingWorkCenterCapacityOverrides.RemoveRange(current);
+            var replacements = overrides.Select(x => new ManufacturingWorkCenterCapacityOverride
+            {
+                TenantId = tenantId, WorkCenterId = id, WorkDate = x.WorkDate, CapacityMinutes = x.CapacityMinutes,
+                Note = string.IsNullOrWhiteSpace(x.Note) ? null : x.Note.Trim()
+            }).ToArray();
+            db.ManufacturingWorkCenterCapacityOverrides.AddRange(replacements);
+            ManufacturingWorkCenterAnnualCapacityRule[] annualResponseRows;
+            if (annualRules is not null)
+            {
+                var currentAnnualRules = await db.ManufacturingWorkCenterAnnualCapacityRules
+                    .Where(x => x.TenantId == tenantId && x.WorkCenterId == id).ToListAsync(ct);
+                db.ManufacturingWorkCenterAnnualCapacityRules.RemoveRange(currentAnnualRules);
+                annualResponseRows = annualRules.Select(x => new ManufacturingWorkCenterAnnualCapacityRule
+                {
+                    TenantId = tenantId, WorkCenterId = id, Month = x.Month, Day = x.Day, CapacityMinutes = x.CapacityMinutes,
+                    Note = string.IsNullOrWhiteSpace(x.Note) ? null : x.Note.Trim()
+                }).ToArray();
+                db.ManufacturingWorkCenterAnnualCapacityRules.AddRange(annualResponseRows);
+            }
+            else
+            {
+                // Preserve compatibility with older calendar clients that do not know
+                // about annual rules, while still returning the complete calendar state.
+                annualResponseRows = await db.ManufacturingWorkCenterAnnualCapacityRules
+                    .Where(x => x.TenantId == tenantId && x.WorkCenterId == id).OrderBy(x => x.Month).ThenBy(x => x.Day).ToArrayAsync(ct);
+            }
+            WorkCenterShiftRotationView[] rotationResponseRows;
+            if (rotations is not null)
+            {
+                var currentRotations = await db.ManufacturingWorkCenterShiftRotations
+                    .Where(x => x.TenantId == tenantId && x.WorkCenterId == id).ToListAsync(ct);
+                db.ManufacturingWorkCenterShiftRotations.RemoveRange(currentRotations);
+                var replacementRotations = rotations.Select(r => new ManufacturingWorkCenterShiftRotation
+                {
+                    TenantId = tenantId, WorkCenterId = id, EffectiveFromDate = r.EffectiveFromDate,
+                    EffectiveToDate = r.EffectiveToDate, Note = string.IsNullOrWhiteSpace(r.Note) ? null : r.Note.Trim(),
+                    Days = r.Days.OrderBy(d => d.DayIndex).Select(d => new ManufacturingWorkCenterShiftRotationDay
+                    {
+                        TenantId = tenantId, DayIndex = d.DayIndex, CapacityMinutes = d.CapacityMinutes,
+                        ShiftStartMinuteOfDay = d.ShiftStartMinuteOfDay, ShiftEndMinuteOfDay = d.ShiftEndMinuteOfDay
+                    }).ToArray()
+                }).ToArray();
+                db.ManufacturingWorkCenterShiftRotations.AddRange(replacementRotations);
+                rotationResponseRows = replacementRotations.OrderBy(x => x.EffectiveFromDate).Select(x => new WorkCenterShiftRotationView(x.EffectiveFromDate,
+                    x.EffectiveToDate, x.Note, x.Days.OrderBy(d => d.DayIndex).Select(d => new WorkCenterShiftRotationDayView(d.DayIndex,
+                        d.CapacityMinutes, d.ShiftStartMinuteOfDay, d.ShiftEndMinuteOfDay)).ToArray())).ToArray();
+            }
+            else
+            {
+                rotationResponseRows = await db.ManufacturingWorkCenterShiftRotations.AsNoTracking()
+                    .Where(x => x.TenantId == tenantId && x.WorkCenterId == id).OrderBy(x => x.EffectiveFromDate)
+                    .Select(x => new WorkCenterShiftRotationView(x.EffectiveFromDate, x.EffectiveToDate, x.Note,
+                        x.Days.OrderBy(d => d.DayIndex).Select(d => new WorkCenterShiftRotationDayView(d.DayIndex, d.CapacityMinutes,
+                            d.ShiftStartMinuteOfDay, d.ShiftEndMinuteOfDay)).ToArray())).ToArrayAsync(ct);
+            }
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.work-center.calendar-updated",
+                Resource = $"{center.Code}:{request.WorkingDaysMask}:{replacements.Length}:annual:{annualResponseRows.Length}" });
+            try { await db.SaveChangesAsync(ct); }
+            catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+            { return Results.Conflict(new { error = "Takvimde aynı iş merkezi için yinelenen tarih veya yıllık kural var." }); }
+            if (transaction is not null) await transaction.CommitAsync(ct);
+            return Results.Ok(new WorkCenterCalendarView(center.Id, center.WorkingDaysMask, center.ShiftStartMinuteOfDay, center.ShiftEndMinuteOfDay,
+                replacements.OrderBy(x => x.WorkDate).Select(x => new WorkCenterCapacityOverrideView(x.WorkDate, x.CapacityMinutes, x.Note)).ToArray(),
+                annualResponseRows.OrderBy(x => x.Month).ThenBy(x => x.Day)
+                    .Select(x => new WorkCenterAnnualCapacityRuleView(x.Month, x.Day, x.CapacityMinutes, x.Note)).ToArray(), rotationResponseRows));
         });
 
         workCenters.MapPost("/", async (WorkCenterWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -30,18 +204,25 @@ public static class ManufacturingEndpoints
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
             var code = request.Code?.Trim().ToUpperInvariant(); var name = request.Name?.Trim();
             if (!ValidCode(code) || string.IsNullOrWhiteSpace(name) || name.Length > 160 || request.CapacityMinutesPerDay is < 1 or > 1440 ||
+                request.WorkingDaysMask is < 0 or > 127 ||
+                request.ShiftStartMinuteOfDay is < 0 or > 1439 || request.ShiftEndMinuteOfDay is < 1 or > 1440 ||
+                (request.ShiftStartMinuteOfDay ?? 480) >= (request.ShiftEndMinuteOfDay ?? Math.Min(1440, (request.ShiftStartMinuteOfDay ?? 480) + request.CapacityMinutesPerDay)) ||
                 request.LaborCostPerHourBase is < 0m or > 99999999999999.9999m || request.OverheadCostPerHourBase is < 0m or > 99999999999999.9999m)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["workCenter"] = ["Kod, ad, günlük kapasite (1–1440 dakika) ve geçerli saatlik maliyetler zorunludur."] });
             if (await db.ManufacturingWorkCenters.AnyAsync(x => x.TenantId == tenantId && x.Code == code, ct))
                 return Results.Conflict(new { error = "Bu tenant için iş merkezi kodu zaten kullanımda." });
             var center = new ManufacturingWorkCenter { TenantId = tenantId, Code = code!, Name = name!, CapacityMinutesPerDay = request.CapacityMinutesPerDay,
+                WorkingDaysMask = request.WorkingDaysMask ?? 127,
+                ShiftStartMinuteOfDay = request.ShiftStartMinuteOfDay ?? 480,
+                ShiftEndMinuteOfDay = request.ShiftEndMinuteOfDay ?? Math.Min(1440, (request.ShiftStartMinuteOfDay ?? 480) + request.CapacityMinutesPerDay),
                 LaborCostPerHourBase = decimal.Round(request.LaborCostPerHourBase, 4, MidpointRounding.AwayFromZero),
                 OverheadCostPerHourBase = decimal.Round(request.OverheadCostPerHourBase, 4, MidpointRounding.AwayFromZero) };
             db.ManufacturingWorkCenters.Add(center);
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.work-center.created", Resource = code! });
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/manufacturing/work-centers/{center.Id}", new WorkCenterView(center.Id, center.Code, center.Name,
-                center.CapacityMinutesPerDay, center.LaborCostPerHourBase, center.OverheadCostPerHourBase, center.IsActive));
+                center.CapacityMinutesPerDay, center.LaborCostPerHourBase, center.OverheadCostPerHourBase, center.IsActive, center.WorkingDaysMask,
+                center.ShiftStartMinuteOfDay, center.ShiftEndMinuteOfDay));
         });
 
         group.MapPost("/mrp/plan", async (MrpPlanRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -217,16 +398,18 @@ public static class ManufacturingEndpoints
                     }
                     else
                     {
-                        var bom = await db.BillOfMaterials.Include(x => x.Lines).Include(x => x.Operations)
+                        var bom = await db.BillOfMaterials.Include(x => x.Lines).Include(x => x.Operations).ThenInclude(x => x.EligibleWorkCenters)
                             .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == suggestion.Choice.BillOfMaterialId ||
                                 x.TenantId == tenantId && suggestion.Choice.BillOfMaterialId == null && x.IsActive && x.ProductStockItemId == suggestion.Line.StockItemId, ct);
                         if (bom is null || !bom.IsActive || bom.ProductStockItemId != suggestion.Line.StockItemId)
                             return Results.Conflict(new { error = $"{suggestion.Line.StockCode} için reçete değişti; planı yeniden hesaplayın." });
                         if (await db.ManufacturingOrders.AnyAsync(x => x.TenantId == tenantId && x.Code == code, ct))
                             return Results.Conflict(new { error = $"Oluşturma kodu {code} zaten kullanılıyor." });
-                        var centers = await db.ManufacturingWorkCenters.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && bom.Operations.Select(o => o.WorkCenterId).Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
-                        if (centers.Count != bom.Operations.Select(x => x.WorkCenterId).Distinct().Count())
+                        var candidateCenterIds = bom.Operations.SelectMany(o => o.EligibleWorkCenters.Select(c => c.WorkCenterId).Append(o.WorkCenterId)).Distinct().ToArray();
+                        var centers = await db.ManufacturingWorkCenters.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && candidateCenterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+                        if (centers.Count != candidateCenterIds.Length)
                             return Results.Conflict(new { error = $"{bom.Code} reçetesindeki bir iş merkezi etkin değil." });
+                        var transitionSnapshots = await SnapshotSetupTransitionsAsync(db, tenantId, bom.Operations, ct);
                         var componentIds = bom.Lines.Select(x => x.ComponentStockItemId).Distinct().ToArray();
                         var items = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && componentIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
                         if (items.Count != componentIds.Length) return Results.Conflict(new { error = $"{bom.Code} reçetesinde etkin olmayan bir bileşen var." });
@@ -252,7 +435,12 @@ public static class ManufacturingEndpoints
                                 if (runMinutes > 9999999999.99m || cost > 99999999999999.9999m) throw new OverflowException();
                                 return new ManufacturingOrderOperation { TenantId = tenantId, Sequence = operation.Sequence, WorkCenterId = center.Id,
                                     WorkCenterCodeSnapshot = center.Code, WorkCenterNameSnapshot = center.Name, SetupMinutes = operation.SetupMinutes,
-                                    RunMinutes = runMinutes, LaborCostPerHourBase = center.LaborCostPerHourBase, OverheadCostPerHourBase = center.OverheadCostPerHourBase, PlannedCostBase = cost };
+                                    RunMinutes = runMinutes, MinimumWaitDaysAfterPrevious = operation.MinimumWaitDaysAfterPrevious,
+                                    SetupFamilyCodeSnapshot = NormalizeSetupFamily(operation.SetupFamilyCode)!,
+                                    SetupTransitionRulesSnapshotJson = transitionSnapshots[operation.Id],
+                                    EligibleWorkCenters = GetEligibleWorkCenterIds(operation).Select(id => new ManufacturingOrderOperationWorkCenterOption
+                                    { TenantId = tenantId, WorkCenterId = id, IsPreferred = id == operation.WorkCenterId }).ToList(),
+                                    LaborCostPerHourBase = center.LaborCostPerHourBase, OverheadCostPerHourBase = center.OverheadCostPerHourBase, PlannedCostBase = cost };
                             }).ToList();
                         }
                         catch (OverflowException) { return Results.Conflict(new { error = "Üretim önerisinin operasyon süresi veya maliyeti desteklenen aralığı aşıyor." }); }
@@ -291,7 +479,8 @@ public static class ManufacturingEndpoints
                         l.Quantity, l.ScrapPercent)).ToList(), Convert.ToBase64String(x.RowVersion),
                     x.Operations.OrderBy(o => o.Sequence).Select(o => new BomOperationView(o.Sequence, o.WorkCenterId,
                         db.ManufacturingWorkCenters.Where(w => w.TenantId == tenantId && w.Id == o.WorkCenterId).Select(w => w.Code + " · " + w.Name).FirstOrDefault() ?? "",
-                        o.SetupMinutes, o.RunMinutesPerOutputUnit)).ToList()))
+                        o.SetupMinutes, o.RunMinutesPerOutputUnit, o.MinimumWaitDaysAfterPrevious, o.SetupFamilyCode,
+                        o.EligibleWorkCenters.Select(c => c.WorkCenterId).ToList())).ToList()))
                 .ToListAsync(ct);
             return Results.Ok(rows);
         });
@@ -302,10 +491,13 @@ public static class ManufacturingEndpoints
             if (!ValidateBom(request, out var code, out var name, out var error)) return Results.ValidationProblem(error!);
             var operations = request.Operations ?? [];
             if (operations.Count > 50 || operations.Any(x => x.Sequence <= 0 || x.WorkCenterId == Guid.Empty || x.SetupMinutes is < 0m or > 9999999999.99m ||
-                    x.RunMinutesPerOutputUnit is < 0m or > 99999999.9999m || x.SetupMinutes + x.RunMinutesPerOutputUnit <= 0m) ||
+                    x.RunMinutesPerOutputUnit is < 0m or > 99999999.9999m || x.MinimumWaitDaysAfterPrevious is < 0 or > 365 || NormalizeSetupFamily(x.SetupFamilyCode) is null ||
+                    (x.EligibleWorkCenterIds is { Count: > 20 } || x.EligibleWorkCenterIds is not null &&
+                        (x.EligibleWorkCenterIds.Distinct().Count() != x.EligibleWorkCenterIds.Count || !x.EligibleWorkCenterIds.Contains(x.WorkCenterId))) ||
+                    x.SetupMinutes + x.RunMinutesPerOutputUnit <= 0m) ||
                 operations.Select(x => x.Sequence).Distinct().Count() != operations.Count)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["operations"] = ["Operasyon sırası benzersiz olmalı; süreler negatif olamaz ve en az bir süre pozitif olmalıdır (en fazla 50 operasyon)."] });
-            var workCenterIds = operations.Select(x => x.WorkCenterId).Distinct().ToArray();
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["operations"] = ["Operasyon sırası benzersiz olmalı; makine listesi tercih edilen merkezi içermeli (en fazla 20 makine); bekleme 0–365 gün olmalı; süreler negatif olamaz ve en az bir süre pozitif olmalıdır (en fazla 50 operasyon)."] });
+            var workCenterIds = operations.SelectMany(x => GetEligibleWorkCenterIds(x)).Distinct().ToArray();
             var activeCenters = await db.ManufacturingWorkCenters.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && workCenterIds.Contains(x.Id)).ToListAsync(ct);
             if (activeCenters.Count != workCenterIds.Length)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["operations"] = ["Operasyonlardan biri için aktif iş merkezi bulunamadı."] });
@@ -325,7 +517,11 @@ public static class ManufacturingEndpoints
                 Quantity = x.Quantity, ScrapPercent = x.ScrapPercent }).ToList();
             bom.Operations = operations.OrderBy(x => x.Sequence).Select(x => new BillOfMaterialOperation { TenantId = tenantId, Sequence = x.Sequence,
                 WorkCenterId = x.WorkCenterId, SetupMinutes = decimal.Round(x.SetupMinutes, 2, MidpointRounding.AwayFromZero),
-                RunMinutesPerOutputUnit = decimal.Round(x.RunMinutesPerOutputUnit, 4, MidpointRounding.AwayFromZero) }).ToList();
+                RunMinutesPerOutputUnit = decimal.Round(x.RunMinutesPerOutputUnit, 4, MidpointRounding.AwayFromZero),
+                MinimumWaitDaysAfterPrevious = x.MinimumWaitDaysAfterPrevious,
+                SetupFamilyCode = NormalizeSetupFamily(x.SetupFamilyCode)!,
+                EligibleWorkCenters = GetEligibleWorkCenterIds(x).Select(id => new BillOfMaterialOperationWorkCenterOption
+                { TenantId = tenantId, WorkCenterId = id, IsPreferred = id == x.WorkCenterId }).ToList() }).ToList();
             db.BillOfMaterials.Add(bom);
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.bom.created", Resource = code! });
             await db.SaveChangesAsync(ct);
@@ -363,11 +559,13 @@ public static class ManufacturingEndpoints
                 x.PlannedQuantity, x.Status.ToString(), x.PlannedDate, x.CompletedAt,
                 x.Lines.OrderBy(l => l.ComponentCodeSnapshot).Select(l => new OrderLineView(l.ComponentStockItemId, l.ComponentCodeSnapshot, l.ComponentNameSnapshot, l.RequiredQuantity)).ToList(),
                 x.Operations.OrderBy(o => o.Sequence).Select(o => new ManufacturingOrderOperationView(o.Id, o.Sequence, o.WorkCenterId,
-                    o.WorkCenterCodeSnapshot, o.WorkCenterNameSnapshot, o.SetupMinutes, o.RunMinutes, o.PlannedCostBase,
-                    o.ScheduledStartDate, o.ScheduledEndDate, o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.Status.ToString(),
-                    o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualCostBase, o.StartedAt, o.CompletedAt,
+                    o.WorkCenterCodeSnapshot, o.WorkCenterNameSnapshot, o.SetupMinutes, o.RunMinutes, o.MinimumWaitDaysAfterPrevious,
+                    o.SetupFamilyCodeSnapshot, o.SequenceSetupMinutes, o.PlannedCostBase,
+                    o.ScheduledStartDate, o.ScheduledEndDate, o.ScheduledStartMinuteOfDay, o.ScheduledEndMinuteOfDay,
+                    o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.Status.ToString(),
+                    o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase, o.StartedAt, o.CompletedAt,
                     db.ManufacturingCapacityAllocations.Where(a => a.TenantId == tenantId && a.ManufacturingOrderOperationId == o.Id)
-                        .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes)).ToList())).ToList(),
+                        .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay)).ToList())).ToList(),
                 Convert.ToBase64String(x.RowVersion))).ToListAsync(ct);
             return Results.Ok(rows);
         });
@@ -380,7 +578,7 @@ public static class ManufacturingEndpoints
             var code = request.Code!.Trim().ToUpperInvariant();
             if (await db.ManufacturingOrders.AnyAsync(x => x.TenantId == tenantId && x.Code == code, ct))
                 return Results.Conflict(new { error = "Bu tenant için üretim emri kodu zaten kullanımda." });
-            var bom = await db.BillOfMaterials.AsNoTracking().Include(x => x.Lines).Include(x => x.Operations)
+            var bom = await db.BillOfMaterials.AsNoTracking().Include(x => x.Lines).Include(x => x.Operations).ThenInclude(x => x.EligibleWorkCenters)
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.BillOfMaterialId && x.IsActive, ct);
             if (bom is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["billOfMaterialId"] = ["Aktif reçete bulunamadı."] });
             if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == request.WarehouseId && x.IsActive, ct))
@@ -388,6 +586,7 @@ public static class ManufacturingEndpoints
             var centerIds = bom.Operations.Select(x => x.WorkCenterId).Distinct().ToArray();
             var centers = await db.ManufacturingWorkCenters.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && centerIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
             if (centers.Count != centerIds.Length) return Results.Conflict(new { error = "Reçetedeki operasyon iş merkezlerinden biri pasif veya bulunamıyor." });
+            var transitionSnapshotsForOrder = await SnapshotSetupTransitionsAsync(db, tenantId, bom.Operations, ct);
             var items = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive &&
                 (x.Id == bom.ProductStockItemId || bom.Lines.Select(l => l.ComponentStockItemId).Contains(x.Id))).ToListAsync(ct);
             if (items.Select(x => x.Id).Distinct().Count() != bom.Lines.Select(x => x.ComponentStockItemId).Append(bom.ProductStockItemId).Distinct().Count())
@@ -423,7 +622,12 @@ public static class ManufacturingEndpoints
                     if (runMinutes > 9999999999.99m || cost > 99999999999999.9999m) throw new OverflowException();
                     return new ManufacturingOrderOperation { TenantId = tenantId, Sequence = operation.Sequence, WorkCenterId = center.Id,
                         WorkCenterCodeSnapshot = center.Code, WorkCenterNameSnapshot = center.Name, SetupMinutes = operation.SetupMinutes,
-                        RunMinutes = runMinutes, LaborCostPerHourBase = center.LaborCostPerHourBase,
+                    RunMinutes = runMinutes, MinimumWaitDaysAfterPrevious = operation.MinimumWaitDaysAfterPrevious,
+                    SetupFamilyCodeSnapshot = NormalizeSetupFamily(operation.SetupFamilyCode)!,
+                    SetupTransitionRulesSnapshotJson = transitionSnapshotsForOrder[operation.Id],
+                    EligibleWorkCenters = GetEligibleWorkCenterIds(operation).Select(id => new ManufacturingOrderOperationWorkCenterOption
+                    { TenantId = tenantId, WorkCenterId = id, IsPreferred = id == operation.WorkCenterId }).ToList(),
+                    LaborCostPerHourBase = center.LaborCostPerHourBase,
                         OverheadCostPerHourBase = center.OverheadCostPerHourBase, PlannedCostBase = cost };
                 }).ToList();
             }
@@ -443,45 +647,185 @@ public static class ManufacturingEndpoints
             if (order.Status != ManufacturingOrderStatus.Planned) return Results.Conflict(new { error = "Yalnız planlı üretim emirleri kapasiteye çizelgelenebilir." });
             var operations = await db.ManufacturingOrderOperations.Where(x => x.TenantId == tenantId && x.ManufacturingOrderId == id).OrderBy(x => x.Sequence).ToListAsync(ct);
             if (operations.Count == 0) return Results.Conflict(new { error = "Emrin reçetesinde çizelgelenecek operasyon bulunmuyor." });
-            var workCenterIds = operations.Select(x => x.WorkCenterId).Distinct().Order().ToArray();
+            var eligibility = await db.ManufacturingOrderOperationWorkCenterOptions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && operations.Select(o => o.Id).Contains(x.ManufacturingOrderOperationId)).ToListAsync(ct);
+            var eligibleByOperation = eligibility.GroupBy(x => x.ManufacturingOrderOperationId)
+                .ToDictionary(x => x.Key, x => x.OrderByDescending(option => option.IsPreferred).ThenBy(option => option.WorkCenterId).ToArray());
+            var workCenterIds = operations.SelectMany(x => eligibleByOperation.TryGetValue(x.Id, out var options)
+                    ? options.Select(option => option.WorkCenterId).Append(x.WorkCenterId)
+                    : [x.WorkCenterId])
+                .Distinct().Order().ToArray();
             var centers = new Dictionary<Guid, ManufacturingWorkCenter>();
             foreach (var workCenterId in workCenterIds)
             {
                 var center = db.Database.IsSqlServer()
                     ? await db.ManufacturingWorkCenters.FromSqlInterpolated($"SELECT * FROM [dbo].[ManufacturingWorkCenters] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {workCenterId}").SingleOrDefaultAsync(ct)
                     : await db.ManufacturingWorkCenters.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == workCenterId, ct);
-                if (center is null || !center.IsActive) return Results.Conflict(new { error = "Operasyon iş merkezlerinden biri pasif veya bulunamıyor." });
-                centers[center.Id] = center;
+                // Inactive or removed alternatives are ignored; the scheduler can still use
+                // another currently active machine from the snapshotted eligibility matrix.
+                if (center is not null) centers[center.Id] = center;
             }
             var operationIds = operations.Select(x => x.Id).ToArray();
             var previous = await db.ManufacturingCapacityAllocations.Where(x => x.TenantId == tenantId && operationIds.Contains(x.ManufacturingOrderOperationId)).ToListAsync(ct);
-            db.ManufacturingCapacityAllocations.RemoveRange(previous);
-            foreach (var operation in operations) { operation.ScheduledStartDate = null; operation.ScheduledEndDate = null; }
             var startDate = DateOnly.FromDateTime(DateTime.UtcNow);
             if (order.PlannedDate > startDate) startDate = order.PlannedDate;
-            var loads = await db.ManufacturingCapacityAllocations.AsNoTracking().Where(x => x.TenantId == tenantId && workCenterIds.Contains(x.WorkCenterId) &&
-                    !operationIds.Contains(x.ManufacturingOrderOperationId) && x.ScheduledDate >= startDate)
-                .GroupBy(x => new { x.WorkCenterId, x.ScheduledDate }).Select(g => new { g.Key.WorkCenterId, g.Key.ScheduledDate, Minutes = g.Sum(x => x.AllocatedMinutes) })
-                .ToDictionaryAsync(x => (x.WorkCenterId, x.ScheduledDate), x => x.Minutes, ct);
+            var horizonEnd = startDate.AddDays(365);
+            var existingAllocations = await db.ManufacturingCapacityAllocations.AsNoTracking().Where(x => x.TenantId == tenantId && workCenterIds.Contains(x.WorkCenterId) &&
+                    !operationIds.Contains(x.ManufacturingOrderOperationId) && x.ScheduledDate >= startDate && x.ScheduledDate <= horizonEnd)
+                .Select(x => new { x.WorkCenterId, x.ScheduledDate, x.AllocatedMinutes, x.StartMinuteOfDay, x.EndMinuteOfDay })
+                .ToListAsync(ct);
+            var loads = existingAllocations.GroupBy(x => (x.WorkCenterId, x.ScheduledDate))
+                .ToDictionary(x => x.Key, x => x.Sum(a => a.AllocatedMinutes));
+            // New allocations append to a deterministic machine queue. Existing intervals are
+            // authoritative, so a later scheduled order cannot overlap an earlier one.
+            var queueEnds = existingAllocations.GroupBy(x => (x.WorkCenterId, x.ScheduledDate))
+                .ToDictionary(x => x.Key, x => x.Max(a => a.EndMinuteOfDay));
+            var scheduledOperations = await db.ManufacturingOrderOperations.AsNoTracking().Where(x => x.TenantId == tenantId &&
+                    workCenterIds.Contains(x.WorkCenterId) && x.ManufacturingOrderId != id && x.ScheduledEndDate != null)
+                .Select(x => new { x.Id, x.WorkCenterId, x.SetupFamilyCodeSnapshot, EndDate = x.ScheduledEndDate!.Value,
+                    EndMinute = x.ScheduledEndMinuteOfDay ?? 1440 }).ToListAsync(ct);
+            var capacityOverrides = await db.ManufacturingWorkCenterCapacityOverrides.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && workCenterIds.Contains(x.WorkCenterId) && x.WorkDate >= startDate && x.WorkDate <= horizonEnd)
+                .ToDictionaryAsync(x => (x.WorkCenterId, x.WorkDate), x => x.CapacityMinutes, ct);
+            var annualCapacityRules = await db.ManufacturingWorkCenterAnnualCapacityRules.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && workCenterIds.Contains(x.WorkCenterId))
+                .ToDictionaryAsync(x => (x.WorkCenterId, x.Month, x.Day), x => x.CapacityMinutes, ct);
+            var shiftRotations = await db.ManufacturingWorkCenterShiftRotations.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && workCenterIds.Contains(x.WorkCenterId) &&
+                    x.EffectiveFromDate <= horizonEnd && (x.EffectiveToDate == null || x.EffectiveToDate >= startDate))
+                .Include(x => x.Days).ToListAsync(ct);
+            var proposedAllocations = new List<ManufacturingCapacityAllocation>();
+            var proposedDates = new Dictionary<Guid, (DateOnly? First, DateOnly? Last, int? StartMinute, int? EndMinute)>();
             var earliestDate = startDate;
+            DateOnly? predecessorEndDate = null;
+            int? predecessorEndMinute = null;
             foreach (var operation in operations)
             {
-                var remaining = operation.SetupMinutes + operation.RunMinutes;
-                DateOnly? first = null; DateOnly? last = null;
-                for (var day = earliestDate; remaining > 0m && day.DayNumber <= startDate.AddDays(365).DayNumber; day = day.AddDays(1))
+                if (predecessorEndDate is { } handoffDate)
+                    earliestDate = handoffDate.AddDays(operation.MinimumWaitDaysAfterPrevious == 0
+                        ? 0
+                        : operation.MinimumWaitDaysAfterPrevious + 1);
+                var earliestMinute = predecessorEndDate == earliestDate ? predecessorEndMinute ?? 0 : 0;
+                var candidateIds = eligibleByOperation.TryGetValue(operation.Id, out var options)
+                    ? options.Select(option => option.WorkCenterId).Append(operation.WorkCenterId).Distinct().ToArray()
+                    : [operation.WorkCenterId];
+                var candidatePlans = new List<(ManufacturingWorkCenter Center, List<ManufacturingCapacityAllocation> Allocations, DateOnly First, DateOnly Last,
+                    int FirstMinute, int LastMinute, decimal PlannedCostBase, bool Preferred, decimal SequenceSetup)>();
+                foreach (var candidateId in candidateIds)
                 {
-                    var center = centers[operation.WorkCenterId];
-                    var key = (center.Id, day);
-                    var free = Math.Max(0m, center.CapacityMinutesPerDay - loads.GetValueOrDefault(key));
-                    var take = Math.Min(remaining, free);
-                    if (take <= 0m) continue;
-                    db.ManufacturingCapacityAllocations.Add(new ManufacturingCapacityAllocation { TenantId = tenantId,
-                        ManufacturingOrderOperationId = operation.Id, WorkCenterId = center.Id, ScheduledDate = day, AllocatedMinutes = take });
-                    loads[key] = loads.GetValueOrDefault(key) + take; remaining -= take;
-                    first ??= day; last = day;
+                    if (!centers.TryGetValue(candidateId, out var candidateCenter) || !candidateCenter.IsActive) continue;
+                    var sequenceSetup = 0m;
+                    var candidateLoads = new Dictionary<(Guid WorkCenterId, DateOnly ScheduledDate), decimal>(loads);
+                    var candidateAllocations = new List<ManufacturingCapacityAllocation>();
+                    var remaining = operation.SetupMinutes + operation.RunMinutes;
+                    var setupResolved = false;
+                    var transitionBlocked = false;
+                    DateOnly? first = null; DateOnly? last = null;
+                    int? firstMinute = null; int? lastMinute = null;
+                    for (var day = earliestDate; remaining > 0m && day.DayNumber <= horizonEnd.DayNumber; day = day.AddDays(1))
+                    {
+                        var key = (candidateCenter.Id, day);
+                        // Calendar precedence is deliberate: an explicit date always wins,
+                        // then an annual month/day rule, then the legacy weekly default.
+                        // A February 29 annual rule naturally matches leap years only.
+                        int? capacity = capacityOverrides.TryGetValue(key, out var overrideCapacity)
+                            ? overrideCapacity
+                            : annualCapacityRules.TryGetValue((candidateCenter.Id, day.Month, day.Day), out var annualCapacity)
+                                ? annualCapacity
+                                : null;
+                        var rotation = shiftRotations.Where(x => x.WorkCenterId == candidateCenter.Id && x.EffectiveFromDate <= day &&
+                                (x.EffectiveToDate == null || x.EffectiveToDate >= day))
+                            .OrderByDescending(x => x.EffectiveFromDate).FirstOrDefault();
+                        var rotationDay = rotation is null || rotation.Days.Count == 0 ? null : rotation.Days
+                            .SingleOrDefault(x => x.DayIndex == (day.DayNumber - rotation.EffectiveFromDate.DayNumber) % rotation.Days.Count);
+                        var shiftStartMinute = rotationDay?.ShiftStartMinuteOfDay ?? candidateCenter.ShiftStartMinuteOfDay;
+                        var shiftEndMinute = rotationDay?.ShiftEndMinuteOfDay ?? candidateCenter.ShiftEndMinuteOfDay;
+                        capacity ??= rotationDay?.CapacityMinutes ??
+                            ((candidateCenter.WorkingDaysMask & (1 << (int)day.DayOfWeek)) != 0 ? candidateCenter.CapacityMinutesPerDay : 0);
+                        var shiftCapacity = Math.Max(0, shiftEndMinute - shiftStartMinute);
+                        var effectiveCapacity = Math.Min(capacity!.Value, shiftCapacity);
+                        var dayStartMinute = Math.Max(shiftStartMinute, day == earliestDate ? earliestMinute : 0);
+                        var queueMinute = Math.Max(dayStartMinute, queueEnds.GetValueOrDefault(key, shiftStartMinute));
+                        var availableEndMinute = Math.Min(shiftEndMinute, shiftStartMinute + effectiveCapacity);
+                        var free = Math.Max(0m, Math.Min(availableEndMinute - queueMinute,
+                            effectiveCapacity - candidateLoads.GetValueOrDefault(key)));
+                        if (free <= 0m) continue;
+                        if (!setupResolved)
+                        {
+                            var predecessorCandidates = scheduledOperations.Where(x => x.WorkCenterId == candidateId &&
+                                    (x.EndDate < day || (x.EndDate == day && x.EndMinute <= queueMinute)))
+                                .Select(x => (Date: x.EndDate, Minute: x.EndMinute, x.Id, x.SetupFamilyCodeSnapshot))
+                                .Concat(operations.Where(x => x.WorkCenterId == candidateId && proposedDates.TryGetValue(x.Id, out var dates) && dates.Last is { } end &&
+                                        (end < day || (end == day && (dates.EndMinute ?? 0) <= queueMinute)))
+                                    .Select(x => (Date: proposedDates[x.Id].Last!.Value, Minute: proposedDates[x.Id].EndMinute ?? 0, x.Id, x.SetupFamilyCodeSnapshot)))
+                                .OrderByDescending(x => x.Date).ThenByDescending(x => x.Minute).ThenByDescending(x => x.Id).ToArray();
+                            var previousFamily = predecessorCandidates.FirstOrDefault().SetupFamilyCodeSnapshot;
+                            if (!string.IsNullOrEmpty(previousFamily) && !string.IsNullOrEmpty(operation.SetupFamilyCodeSnapshot))
+                            {
+                                var snapshotRules = JsonSerializer.Deserialize<SetupTransitionRuleSnapshot[]>(operation.SetupTransitionRulesSnapshotJson) ?? [];
+                                var transition = snapshotRules.SingleOrDefault(x => x.WorkCenterId == candidateId && x.FromSetupFamilyCode == previousFamily &&
+                                    x.ToSetupFamilyCode == operation.SetupFamilyCodeSnapshot);
+                                if (transition is { IsTransitionAllowed: false }) { transitionBlocked = true; break; }
+                                sequenceSetup = transition?.SetupMinutes ?? 0m;
+                                remaining += sequenceSetup;
+                            }
+                            setupResolved = true;
+                        }
+                        var allocationStartMinute = queueMinute;
+                        var take = Math.Min(remaining, free);
+                        var allocationEndMinute = allocationStartMinute + decimal.ToInt32(decimal.Ceiling(take));
+                        if (take != decimal.Truncate(take)) take = allocationEndMinute - allocationStartMinute;
+                        if (take <= 0m) continue;
+                        candidateAllocations.Add(new ManufacturingCapacityAllocation { TenantId = tenantId,
+                            ManufacturingOrderOperationId = operation.Id, WorkCenterId = candidateCenter.Id, ScheduledDate = day, AllocatedMinutes = take,
+                            StartMinuteOfDay = allocationStartMinute, EndMinuteOfDay = allocationEndMinute });
+                        candidateLoads[key] = candidateLoads.GetValueOrDefault(key) + take; remaining -= take;
+                        first ??= day; firstMinute ??= allocationStartMinute; last = day; lastMinute = allocationEndMinute;
+                        queueEnds[key] = allocationEndMinute;
+                    }
+                    // Candidate exploration must not reserve machine time until selected.
+                    foreach (var allocation in candidateAllocations) queueEnds.Remove((allocation.WorkCenterId, allocation.ScheduledDate));
+                    foreach (var allocation in existingAllocations.Where(x => x.WorkCenterId == candidateCenter.Id))
+                        queueEnds[(allocation.WorkCenterId, allocation.ScheduledDate)] = Math.Max(queueEnds.GetValueOrDefault((allocation.WorkCenterId, allocation.ScheduledDate)), allocation.EndMinuteOfDay);
+                    foreach (var allocation in proposedAllocations.Where(x => x.WorkCenterId == candidateCenter.Id))
+                        queueEnds[(allocation.WorkCenterId, allocation.ScheduledDate)] = Math.Max(queueEnds.GetValueOrDefault((allocation.WorkCenterId, allocation.ScheduledDate)), allocation.EndMinuteOfDay);
+                    if (!transitionBlocked && setupResolved && remaining == 0m && first is { } firstDate && last is { } lastDate && firstMinute is { } firstStartMinute && lastMinute is { } lastEndMinute)
+                    {
+                        var candidateCost = decimal.Round((operation.SetupMinutes + operation.RunMinutes + sequenceSetup) / 60m *
+                            (candidateCenter.LaborCostPerHourBase + candidateCenter.OverheadCostPerHourBase), 4, MidpointRounding.AwayFromZero);
+                        if (candidateCost <= 99999999999999.9999m)
+                            candidatePlans.Add((candidateCenter, candidateAllocations, firstDate, lastDate, firstStartMinute, lastEndMinute, candidateCost,
+                                eligibleByOperation.TryGetValue(operation.Id, out var preference) && preference.Any(x => x.WorkCenterId == candidateCenter.Id && x.IsPreferred), sequenceSetup));
+                    }
                 }
-                if (remaining > 0m) return Results.Conflict(new { error = $"{operation.WorkCenterCodeSnapshot} için 365 gün içinde yeterli günlük kapasite yok; çizelge kaydedilmedi." });
-                operation.ScheduledStartDate = first; operation.ScheduledEndDate = last; earliestDate = last!.Value;
+                var selected = candidatePlans.OrderBy(x => x.Last).ThenBy(x => x.LastMinute).ThenBy(x => x.First).ThenBy(x => x.FirstMinute).ThenByDescending(x => x.Preferred)
+                    .ThenBy(x => x.Center.Code, StringComparer.Ordinal).FirstOrDefault();
+                if (selected.Center is null) return Results.Conflict(new { error = $"{operation.WorkCenterCodeSnapshot} veya alternatif makineleri 365 gün içinde kapasite bulamadı ya da sıralı kurulum kuralı geçişi engelledi; çizelge kaydedilmedi." });
+                proposedAllocations.AddRange(selected.Allocations);
+                foreach (var allocation in selected.Allocations)
+                {
+                    var key = (allocation.WorkCenterId, allocation.ScheduledDate);
+                    loads[key] = loads.GetValueOrDefault(key) + allocation.AllocatedMinutes;
+                    queueEnds[key] = Math.Max(queueEnds.GetValueOrDefault(key, centers[allocation.WorkCenterId].ShiftStartMinuteOfDay), allocation.EndMinuteOfDay);
+                }
+                operation.WorkCenterId = selected.Center.Id;
+                operation.WorkCenterCodeSnapshot = selected.Center.Code;
+                operation.WorkCenterNameSnapshot = selected.Center.Name;
+                operation.LaborCostPerHourBase = selected.Center.LaborCostPerHourBase;
+                operation.OverheadCostPerHourBase = selected.Center.OverheadCostPerHourBase;
+                operation.PlannedCostBase = selected.PlannedCostBase;
+                operation.SequenceSetupMinutes = selected.SequenceSetup;
+                proposedDates[operation.Id] = (selected.First, selected.Last, selected.FirstMinute, selected.LastMinute);
+                predecessorEndDate = selected.Last;
+                predecessorEndMinute = selected.LastMinute;
+            }
+            db.ManufacturingCapacityAllocations.RemoveRange(previous);
+            db.ManufacturingCapacityAllocations.AddRange(proposedAllocations);
+            foreach (var operation in operations)
+            {
+                var dates = proposedDates[operation.Id];
+                operation.ScheduledStartDate = dates.First; operation.ScheduledEndDate = dates.Last;
+                operation.ScheduledStartMinuteOfDay = dates.StartMinute; operation.ScheduledEndMinuteOfDay = dates.EndMinute;
             }
             await db.SaveChangesAsync(ct); if (transaction is not null) await transaction.CommitAsync(ct);
             return Results.Ok(await ReadOrderAsync(db, tenantId, id, ct));
@@ -530,8 +874,12 @@ public static class ManufacturingEndpoints
         {
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
             if (request.ActualSetupMinutes is < 0m or > 9999999999.99m || request.ActualRunMinutes is < 0m or > 9999999999.99m ||
+                request.ActualEnergyQuantityKwh is < 0m or > 99999999999.999m || request.ActualEnergyCostPerKwhBase is < 0m or > 999999999999.999999m ||
+                request.ActualEnergyQuantityKwh == 0m && request.ActualEnergyCostPerKwhBase != 0m ||
+                decimal.Round(request.ActualEnergyQuantityKwh, 3) != request.ActualEnergyQuantityKwh ||
+                decimal.Round(request.ActualEnergyCostPerKwhBase, 6) != request.ActualEnergyCostPerKwhBase ||
                 request.ActualSetupMinutes + request.ActualRunMinutes <= 0m)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["actualMinutes"] = ["Gerçek kurulum/çalışma süreleri negatif olamaz, desteklenen aralıkta olmalı ve toplam süre pozitif olmalıdır."] });
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["actuals"] = ["Gerçek süreler pozitif toplam oluşturmalı; enerji tüketimi ve baz para birimindeki kWh bedeli sıfır veya desteklenen aralıkta olmalıdır."] });
             await using var transaction = await BeginMutationAsync(db, ct);
             var order = await LockOrderAsync(db, tenantId, id, ct);
             if (order is null) return Results.NotFound();
@@ -539,14 +887,21 @@ public static class ManufacturingEndpoints
             var operation = await db.ManufacturingOrderOperations.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ManufacturingOrderId == id && x.Id == operationId, ct);
             if (operation is null) return Results.NotFound();
             if (operation.Status != ManufacturingOperationStatus.InProgress) return Results.Conflict(new { error = "Yalnız başlatılmış operasyonlar tamamlanabilir." });
-            decimal actualCost;
-            try { actualCost = decimal.Round((request.ActualSetupMinutes + request.ActualRunMinutes) / 60m *
-                (operation.LaborCostPerHourBase + operation.OverheadCostPerHourBase), 4, MidpointRounding.AwayFromZero); }
+            decimal actualCost, actualEnergyCost;
+            try
+            {
+                actualEnergyCost = decimal.Round(request.ActualEnergyQuantityKwh * request.ActualEnergyCostPerKwhBase, 4, MidpointRounding.AwayFromZero);
+                actualCost = decimal.Round((request.ActualSetupMinutes + request.ActualRunMinutes) / 60m *
+                    (operation.LaborCostPerHourBase + operation.OverheadCostPerHourBase) + actualEnergyCost, 4, MidpointRounding.AwayFromZero);
+            }
             catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["actualMinutes"] = ["Gerçek operasyon maliyeti desteklenen aralığı aşıyor."] }); }
-            if (actualCost > 99999999999999.9999m)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["actualMinutes"] = ["Gerçek operasyon maliyeti desteklenen aralığı aşıyor."] });
+            if (actualEnergyCost > 99999999999999.9999m || actualCost > 99999999999999.9999m)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["actuals"] = ["Gerçek operasyon veya enerji maliyeti desteklenen aralığı aşıyor."] });
             operation.ActualSetupMinutes = decimal.Round(request.ActualSetupMinutes, 2, MidpointRounding.AwayFromZero);
             operation.ActualRunMinutes = decimal.Round(request.ActualRunMinutes, 2, MidpointRounding.AwayFromZero);
+            operation.ActualEnergyQuantityKwh = request.ActualEnergyQuantityKwh;
+            operation.ActualEnergyCostPerKwhBase = request.ActualEnergyCostPerKwhBase;
+            operation.ActualEnergyCostBase = actualEnergyCost;
             operation.ActualCostBase = actualCost; operation.Status = ManufacturingOperationStatus.Completed; operation.CompletedAt = DateTimeOffset.UtcNow;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.operation.completed", Resource = $"{order.Code}/{operation.Sequence}" });
             await db.SaveChangesAsync(ct); if (transaction is not null) await transaction.CommitAsync(ct);
@@ -568,6 +923,22 @@ public static class ManufacturingEndpoints
                 ? await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {order.WarehouseId}").SingleOrDefaultAsync(ct)
                 : await db.Warehouses.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == order.WarehouseId, ct);
             if (warehouse is null || !warehouse.IsActive) return Results.Conflict(new { error = "Üretim deposu bulunamadı veya pasif." });
+            WarehouseLocation? componentLocation = null;
+            if (request.ComponentStorageLocationId is { } componentLocationId)
+            {
+                componentLocation = await db.WarehouseLocations.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId
+                    && x.WarehouseId == warehouse.Id && x.Id == componentLocationId && x.IsActive, ct);
+                if (componentLocation is null)
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["componentStorageLocationId"] = ["Aktif üretim deposu konumu bulunamadı."] });
+            }
+            WarehouseLocation? finishedGoodsLocation = null;
+            if (request.FinishedGoodsStorageLocationId is { } finishedGoodsLocationId)
+            {
+                finishedGoodsLocation = await db.WarehouseLocations.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId
+                    && x.WarehouseId == warehouse.Id && x.Id == finishedGoodsLocationId && x.IsActive, ct);
+                if (finishedGoodsLocation is null)
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["finishedGoodsStorageLocationId"] = ["Aktif üretim deposu konumu bulunamadı."] });
+            }
             var bom = await db.BillOfMaterials.AsNoTracking().SingleAsync(x => x.TenantId == tenantId && x.Id == order.BillOfMaterialId, ct);
             var itemIds = lines.Select(x => x.ComponentStockItemId).Append(bom.ProductStockItemId).Distinct().Order().ToArray();
             var stockItems = new List<StockItem>();
@@ -605,25 +976,30 @@ public static class ManufacturingEndpoints
                         return Results.Conflict(new { error = $"Seri numarası {allocation.TrackingCode} daha önce kullanılmış." });
             }
             var componentIds = lines.Select(x => x.ComponentStockItemId).ToArray();
-            var balances = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == order.WarehouseId && componentIds.Contains(x.StockItemId))
+            var balances = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == order.WarehouseId
+                    && (componentLocation == null || x.StorageLocationId == componentLocation.Id) && componentIds.Contains(x.StockItemId))
                 .GroupBy(x => x.StockItemId).Select(g => new { Id = g.Key, Quantity = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) })
                 .ToDictionaryAsync(x => x.Id, x => x.Quantity, ct);
             var reserved = await db.SalesOrderReservations.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == order.WarehouseId &&
                     x.Status == SalesOrderReservationStatus.Active && componentIds.Contains(x.OrderLine.StockItemId))
                 .GroupBy(x => x.OrderLine.StockItemId).Select(g => new { Id = g.Key, Quantity = g.Sum(x => x.Quantity - x.FulfilledQuantity) })
                 .ToDictionaryAsync(x => x.Id, x => x.Quantity, ct);
-            var shortLines = lines.Where(x => balances.GetValueOrDefault(x.ComponentStockItemId) - reserved.GetValueOrDefault(x.ComponentStockItemId) < x.RequiredQuantity).ToList();
+            var allowNegativeStock = await TenantOperationalSettingsEndpoints.AllowsNegativeStockAsync(db, tenantId, ct);
+            var trackingItems = stockItems.ToDictionary(x => x.Id);
+            var shortLines = lines.Where(x => balances.GetValueOrDefault(x.ComponentStockItemId) - reserved.GetValueOrDefault(x.ComponentStockItemId) < x.RequiredQuantity &&
+                !TenantOperationalSettingsEndpoints.CanPostNegativeBalance(allowNegativeStock, reserved.GetValueOrDefault(x.ComponentStockItemId),
+                    trackingItems[x.ComponentStockItemId].TrackingMode, componentLocation is not null)).ToList();
             if (shortLines.Count > 0) return Results.Conflict(new { error = "Bileşen stokları açık satış rezervasyonları düşüldükten sonra yetersiz.", shortages = shortLines.Select(x => new {
                 x.ComponentStockItemId, x.ComponentCodeSnapshot, requiredQuantity = x.RequiredQuantity,
                 availableQuantity = balances.GetValueOrDefault(x.ComponentStockItemId) - reserved.GetValueOrDefault(x.ComponentStockItemId) }) });
 
-            var trackingItems = stockItems.ToDictionary(x => x.Id);
             var allocationsByLine = new Dictionary<Guid, List<InventoryTrackingAllocationRequest>>();
             foreach (var line in lines)
             {
                 var component = trackingItems[line.ComponentStockItemId];
                 if (component.TrackingMode == InventoryTrackingMode.None) continue;
-                var allocations = await AllocateAvailableTrackingAsync(db, tenantId, order.WarehouseId, component, line.RequiredQuantity, movementDate: DateOnly.FromDateTime(DateTime.UtcNow), ct);
+                var allocations = await AllocateAvailableTrackingAsync(db, tenantId, order.WarehouseId, component, line.RequiredQuantity,
+                    movementDate: movementDate, ct: ct, storageLocationId: componentLocation?.Id);
                 if (allocations is null)
                     return Results.Conflict(new { error = $"{line.ComponentCodeSnapshot} için son kullanma tarihi geçmemiş, izlenen miktar yetersiz.", requiredQuantity = line.RequiredQuantity });
                 allocationsByLine[line.Id] = allocations;
@@ -637,7 +1013,8 @@ public static class ManufacturingEndpoints
                     var unitCost = await WeightedCostAsync(db, tenantId, line.ComponentStockItemId, movementDate, ct);
                     if (unitCost is null) totalCost = null;
                     else if (totalCost.HasValue) totalCost += decimal.Round(line.RequiredQuantity * unitCost.Value, 8, MidpointRounding.AwayFromZero);
-                    db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = line.ComponentStockItemId,
+                    db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StorageLocationId = componentLocation?.Id, StockItemId = line.ComponentStockItemId,
+                        ManufacturingOrderId = order.Id,
                         EntryDate = movementDate, Direction = InventoryDirection.Issue, Quantity = line.RequiredQuantity, UnitCostBase = unitCost,
                         Description = $"Üretim {order.Code} bileşen tüketimi",
                         Tracking = allocationsByLine.GetValueOrDefault(line.Id, []).Select(x => new InventoryTransactionTrace { TenantId = tenantId,
@@ -654,7 +1031,7 @@ public static class ManufacturingEndpoints
             decimal? outputUnitCost;
             try { outputUnitCost = totalCost is null ? null : decimal.Round(totalCost.Value / order.PlannedQuantity, 8, MidpointRounding.AwayFromZero); }
             catch (OverflowException) { return Results.Conflict(new { error = "Mamul birim maliyeti desteklenen decimal aralığını aşıyor; stok hareketi kaydedilmedi." }); }
-            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = product.Id,
+            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StorageLocationId = finishedGoodsLocation?.Id, StockItemId = product.Id,
                 EntryDate = movementDate, Direction = InventoryDirection.Receipt, Quantity = order.PlannedQuantity, UnitCostBase = outputUnitCost,
                 Description = $"Üretim {order.Code} mamul girişi",
                 Tracking = finishedTracking.Select(x => new InventoryTransactionTrace { TenantId = tenantId, StockItemId = product.Id,
@@ -680,6 +1057,12 @@ public static class ManufacturingEndpoints
                 .Select(x => x.Id).ToArrayAsync(ct);
             var capacityAllocations = await db.ManufacturingCapacityAllocations.Where(x => x.TenantId == tenantId && operationIds.Contains(x.ManufacturingOrderOperationId)).ToListAsync(ct);
             db.ManufacturingCapacityAllocations.RemoveRange(capacityAllocations);
+            var operations = await db.ManufacturingOrderOperations.Where(x => x.TenantId == tenantId && x.ManufacturingOrderId == id).ToListAsync(ct);
+            foreach (var operation in operations)
+            {
+                operation.ScheduledStartDate = null;
+                operation.ScheduledEndDate = null;
+            }
             order.Status = ManufacturingOrderStatus.Cancelled;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.order.cancelled", Resource = order.Code });
             await db.SaveChangesAsync(ct); if (transaction is not null) await transaction.CommitAsync(ct);
@@ -716,7 +1099,7 @@ public static class ManufacturingEndpoints
             .Where(x => x.TenantId == tenantId && x.IsActive).ToListAsync(ct);
         var bomsByProduct = boms.GroupBy(x => x.ProductStockItemId).ToDictionary(x => x.Key, x => x.OrderBy(b => b.Code).ToArray());
 
-        var balances = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == request.WarehouseId)
+        var balances = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == request.WarehouseId && x.EntryDate <= planDate)
             .GroupBy(x => x.StockItemId).Select(g => new { Id = g.Key, Quantity = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) })
             .ToDictionaryAsync(x => x.Id, x => x.Quantity, ct);
         var reserved = await db.SalesOrderReservations.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == request.WarehouseId && x.Status == SalesOrderReservationStatus.Active)
@@ -751,7 +1134,12 @@ public static class ManufacturingEndpoints
         var openOrders = await db.ManufacturingOrders.AsNoTracking().Include(x => x.Lines)
             .Where(x => x.TenantId == tenantId && x.WarehouseId == request.WarehouseId &&
                 (x.Status == ManufacturingOrderStatus.Planned || x.Status == ManufacturingOrderStatus.Released)).ToListAsync(ct);
-        var bomProduct = boms.ToDictionary(x => x.Id, x => x.ProductStockItemId);
+        // New recommendations use active BOMs, but an already-created open order
+        // remains supply even if its BOM is later deactivated.
+        var openOrderBomIds = openOrders.Select(x => x.BillOfMaterialId).Distinct().ToArray();
+        var bomProduct = await db.BillOfMaterials.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && openOrderBomIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.ProductStockItemId, ct);
         var nodes = new List<MrpDemandNode>();
         foreach (var demand in request.Demand ?? [])
             nodes.Add(new MrpDemandNode(demand.StockItemId, demand.Quantity, demand.RequiredByDate ?? planDate, 0, [demand.StockItemId], "Ek talep"));
@@ -866,6 +1254,37 @@ public static class ManufacturingEndpoints
         if (allocations.Sum(x => x.Quantity) != quantity) return "Mamul takip satırlarının toplamı üretim miktarına eşit olmalıdır.";
         return null;
     }
+    private static IReadOnlyList<Guid> GetEligibleWorkCenterIds(BomOperationWriteRequest operation) =>
+        operation.EligibleWorkCenterIds is { Count: > 0 } ids ? ids : [operation.WorkCenterId];
+
+    private static IReadOnlyList<Guid> GetEligibleWorkCenterIds(BillOfMaterialOperation operation) =>
+        operation.EligibleWorkCenters.Count > 0 ? operation.EligibleWorkCenters.Select(x => x.WorkCenterId).ToArray() : [operation.WorkCenterId];
+
+    private static string? NormalizeSetupFamily(string? value)
+    {
+        var normalized = value?.Trim().ToUpperInvariant() ?? "";
+        return normalized.Length <= 48 && (normalized.Length == 0 || Regex.IsMatch(normalized, "^[A-Z0-9][A-Z0-9._-]*$")) ? normalized : null;
+    }
+
+    private static async Task<Dictionary<Guid, string>> SnapshotSetupTransitionsAsync(TenantDbContext db, Guid tenantId,
+        IEnumerable<BillOfMaterialOperation> operations, CancellationToken ct)
+    {
+        var operationRows = operations.ToArray();
+        var workCenterIds = operationRows.SelectMany(GetEligibleWorkCenterIds).Distinct().ToArray();
+        var rules = await db.ManufacturingSetupTransitionRules.AsNoTracking().Where(x => x.TenantId == tenantId && workCenterIds.Contains(x.WorkCenterId))
+            .Select(x => new SetupTransitionRuleSnapshot(x.WorkCenterId, x.FromSetupFamilyCode, x.ToSetupFamilyCode, x.SetupMinutes, x.IsTransitionAllowed))
+            .ToListAsync(ct);
+        return operationRows.ToDictionary(operation => operation.Id, operation =>
+        {
+            var eligibleIds = GetEligibleWorkCenterIds(operation).ToHashSet();
+            var family = NormalizeSetupFamily(operation.SetupFamilyCode) ?? "";
+            return JsonSerializer.Serialize(rules.Where(rule => eligibleIds.Contains(rule.WorkCenterId) && rule.ToSetupFamilyCode == family).ToArray());
+        });
+    }
+
+    private sealed record SetupTransitionRuleSnapshot(Guid WorkCenterId, string FromSetupFamilyCode, string ToSetupFamilyCode,
+        decimal SetupMinutes, bool IsTransitionAllowed);
+
     private static async Task<BomView?> ReadBomAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) =>
         await db.BillOfMaterials.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
             .Select(x => new BomView(x.Id, x.Code, x.Name, x.ProductStockItemId,
@@ -876,7 +1295,8 @@ public static class ManufacturingEndpoints
                     l.Quantity, l.ScrapPercent)).ToList(), Convert.ToBase64String(x.RowVersion),
                 x.Operations.OrderBy(o => o.Sequence).Select(o => new BomOperationView(o.Sequence, o.WorkCenterId,
                     db.ManufacturingWorkCenters.Where(w => w.TenantId == tenantId && w.Id == o.WorkCenterId).Select(w => w.Code + " · " + w.Name).FirstOrDefault() ?? "",
-                    o.SetupMinutes, o.RunMinutesPerOutputUnit)).ToList())).SingleOrDefaultAsync(ct);
+                    o.SetupMinutes, o.RunMinutesPerOutputUnit, o.MinimumWaitDaysAfterPrevious, o.SetupFamilyCode,
+                    o.EligibleWorkCenters.Select(c => c.WorkCenterId).ToList())).ToList())).SingleOrDefaultAsync(ct);
     private static async Task<object?> ReadOrderAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) =>
         await db.ManufacturingOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id).Select(x => new OrderView(x.Id, x.Code,
             x.BillOfMaterialId, db.BillOfMaterials.Where(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId).Select(b => b.Code + " · " + b.Name).FirstOrDefault() ?? "",
@@ -884,11 +1304,13 @@ public static class ManufacturingEndpoints
             x.PlannedQuantity, x.Status.ToString(), x.PlannedDate, x.CompletedAt, x.Lines.OrderBy(l => l.ComponentCodeSnapshot)
                 .Select(l => new OrderLineView(l.ComponentStockItemId, l.ComponentCodeSnapshot, l.ComponentNameSnapshot, l.RequiredQuantity)).ToList(),
             x.Operations.OrderBy(o => o.Sequence).Select(o => new ManufacturingOrderOperationView(o.Id, o.Sequence, o.WorkCenterId,
-                o.WorkCenterCodeSnapshot, o.WorkCenterNameSnapshot, o.SetupMinutes, o.RunMinutes, o.PlannedCostBase,
-                o.ScheduledStartDate, o.ScheduledEndDate, o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.Status.ToString(),
-                o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualCostBase, o.StartedAt, o.CompletedAt,
+                o.WorkCenterCodeSnapshot, o.WorkCenterNameSnapshot, o.SetupMinutes, o.RunMinutes, o.MinimumWaitDaysAfterPrevious,
+                o.SetupFamilyCodeSnapshot, o.SequenceSetupMinutes, o.PlannedCostBase,
+                o.ScheduledStartDate, o.ScheduledEndDate, o.ScheduledStartMinuteOfDay, o.ScheduledEndMinuteOfDay,
+                o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.Status.ToString(),
+                o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase, o.StartedAt, o.CompletedAt,
                 db.ManufacturingCapacityAllocations.Where(a => a.TenantId == tenantId && a.ManufacturingOrderOperationId == o.Id)
-                    .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes)).ToList())).ToList(),
+                    .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay)).ToList())).ToList(),
             Convert.ToBase64String(x.RowVersion))).SingleOrDefaultAsync(ct);
     private static async Task<IDbContextTransaction?> BeginMutationAsync(TenantDbContext db, CancellationToken ct) => db.Database.IsRelational()
         ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
@@ -907,13 +1329,14 @@ public static class ManufacturingEndpoints
         return decimal.Round((totals.Value + adjustments) / totals.Quantity, 8, MidpointRounding.AwayFromZero);
     }
     private static async Task<List<InventoryTrackingAllocationRequest>?> AllocateAvailableTrackingAsync(TenantDbContext db, Guid tenantId,
-        Guid warehouseId, StockItem item, decimal quantity, DateOnly movementDate, CancellationToken ct)
+        Guid warehouseId, StockItem item, decimal quantity, DateOnly movementDate, CancellationToken ct, Guid? storageLocationId = null)
     {
         if (item.TrackingMode == InventoryTrackingMode.None) return [];
         var available = await (from trace in db.InventoryTransactionTraces.AsNoTracking()
             join movement in db.InventoryTransactions.AsNoTracking()
                 on new { trace.TenantId, trace.InventoryTransactionId } equals new { movement.TenantId, InventoryTransactionId = movement.Id }
-            where trace.TenantId == tenantId && movement.WarehouseId == warehouseId && trace.StockItemId == item.Id
+            where trace.TenantId == tenantId && movement.WarehouseId == warehouseId && (storageLocationId == null || movement.StorageLocationId == storageLocationId)
+                && trace.StockItemId == item.Id
                 && (trace.ExpiryDate == null || trace.ExpiryDate >= movementDate)
             group new { trace, movement } by new { trace.TrackingCode, trace.ExpiryDate } into grouped
             select new { grouped.Key.TrackingCode, grouped.Key.ExpiryDate,
@@ -934,28 +1357,57 @@ public static class ManufacturingEndpoints
     }
 }
 
-public sealed record WorkCenterWriteRequest(string? Code, string? Name, int CapacityMinutesPerDay, decimal LaborCostPerHourBase, decimal OverheadCostPerHourBase);
-public sealed record WorkCenterView(Guid Id, string Code, string Name, int CapacityMinutesPerDay, decimal LaborCostPerHourBase, decimal OverheadCostPerHourBase, bool IsActive);
+public sealed record WorkCenterWriteRequest(string? Code, string? Name, int CapacityMinutesPerDay, decimal LaborCostPerHourBase,
+    decimal OverheadCostPerHourBase, int? WorkingDaysMask = null, int? ShiftStartMinuteOfDay = null, int? ShiftEndMinuteOfDay = null);
+public sealed record WorkCenterView(Guid Id, string Code, string Name, int CapacityMinutesPerDay, decimal LaborCostPerHourBase,
+    decimal OverheadCostPerHourBase, bool IsActive, int WorkingDaysMask, int ShiftStartMinuteOfDay = 480, int ShiftEndMinuteOfDay = 960);
+public sealed record WorkCenterCapacityOverrideWriteRequest(DateOnly WorkDate, int CapacityMinutes, string? Note = null);
+public sealed record WorkCenterCapacityOverrideView(DateOnly WorkDate, int CapacityMinutes, string? Note);
+public sealed record WorkCenterAnnualCapacityRuleWriteRequest(int Month, int Day, int CapacityMinutes, string? Note = null);
+public sealed record WorkCenterAnnualCapacityRuleView(int Month, int Day, int CapacityMinutes, string? Note);
+public sealed record WorkCenterShiftRotationDayWriteRequest(int DayIndex, int CapacityMinutes, int ShiftStartMinuteOfDay, int ShiftEndMinuteOfDay);
+public sealed record WorkCenterShiftRotationDayView(int DayIndex, int CapacityMinutes, int ShiftStartMinuteOfDay, int ShiftEndMinuteOfDay);
+public sealed record WorkCenterShiftRotationWriteRequest(DateOnly EffectiveFromDate, DateOnly? EffectiveToDate,
+    IReadOnlyList<WorkCenterShiftRotationDayWriteRequest> Days, string? Note = null);
+public sealed record WorkCenterShiftRotationView(DateOnly EffectiveFromDate, DateOnly? EffectiveToDate,
+    string? Note, IReadOnlyList<WorkCenterShiftRotationDayView> Days);
+public sealed record WorkCenterCalendarWriteRequest(int WorkingDaysMask, IReadOnlyList<WorkCenterCapacityOverrideWriteRequest>? CapacityOverrides = null,
+    int? ShiftStartMinuteOfDay = null, int? ShiftEndMinuteOfDay = null,
+    IReadOnlyList<WorkCenterAnnualCapacityRuleWriteRequest>? AnnualCapacityRules = null,
+    IReadOnlyList<WorkCenterShiftRotationWriteRequest>? ShiftRotations = null);
+public sealed record WorkCenterCalendarView(Guid WorkCenterId, int WorkingDaysMask, int ShiftStartMinuteOfDay, int ShiftEndMinuteOfDay,
+    IReadOnlyList<WorkCenterCapacityOverrideView> CapacityOverrides,
+    IReadOnlyList<WorkCenterAnnualCapacityRuleView> AnnualCapacityRules,
+    IReadOnlyList<WorkCenterShiftRotationView> ShiftRotations);
+public sealed record SetupTransitionRuleWriteRequest(string FromSetupFamilyCode, string ToSetupFamilyCode, decimal SetupMinutes = 0m, bool IsTransitionAllowed = true);
+public sealed record SetupTransitionRulesWriteRequest(IReadOnlyList<SetupTransitionRuleWriteRequest>? Rules);
+public sealed record SetupTransitionRuleView(string FromSetupFamilyCode, string ToSetupFamilyCode, decimal SetupMinutes, bool IsTransitionAllowed);
 public sealed record BomWriteRequest(string? Code, string? Name, Guid ProductStockItemId, decimal OutputQuantity, IReadOnlyList<BomLineWriteRequest> Lines,
     IReadOnlyList<BomOperationWriteRequest>? Operations = null);
 public sealed record BomLineWriteRequest(Guid ComponentStockItemId, decimal Quantity, decimal ScrapPercent = 0m);
-public sealed record BomOperationWriteRequest(int Sequence, Guid WorkCenterId, decimal SetupMinutes, decimal RunMinutesPerOutputUnit);
+public sealed record BomOperationWriteRequest(int Sequence, Guid WorkCenterId, decimal SetupMinutes, decimal RunMinutesPerOutputUnit,
+    int MinimumWaitDaysAfterPrevious = 0, IReadOnlyList<Guid>? EligibleWorkCenterIds = null, string? SetupFamilyCode = null);
 public sealed record BomView(Guid Id, string Code, string Name, Guid ProductStockItemId, string ProductName, string ProductTrackingMode, decimal OutputQuantity,
     bool IsActive, IReadOnlyList<BomLineView> Lines, string RowVersion, IReadOnlyList<BomOperationView> Operations);
 public sealed record BomLineView(Guid ComponentStockItemId, string ComponentName, decimal Quantity, decimal ScrapPercent);
-public sealed record BomOperationView(int Sequence, Guid WorkCenterId, string WorkCenterName, decimal SetupMinutes, decimal RunMinutesPerOutputUnit);
+public sealed record BomOperationView(int Sequence, Guid WorkCenterId, string WorkCenterName, decimal SetupMinutes, decimal RunMinutesPerOutputUnit,
+    int MinimumWaitDaysAfterPrevious, string SetupFamilyCode, IReadOnlyList<Guid> EligibleWorkCenterIds);
 public sealed record ManufacturingOrderWriteRequest(string? Code, Guid BillOfMaterialId, Guid WarehouseId, decimal PlannedQuantity, DateOnly PlannedDate);
 public sealed record OrderView(Guid Id, string Code, Guid BillOfMaterialId, string BillOfMaterialName, Guid WarehouseId, string WarehouseName,
     decimal PlannedQuantity, string Status, DateOnly PlannedDate, DateTimeOffset? CompletedAt, IReadOnlyList<OrderLineView> Lines,
     IReadOnlyList<ManufacturingOrderOperationView> Operations, string RowVersion);
 public sealed record OrderLineView(Guid ComponentStockItemId, string ComponentCode, string ComponentName, decimal RequiredQuantity);
-public sealed record CapacityDayView(DateOnly Date, decimal Minutes);
+public sealed record CapacityDayView(DateOnly Date, decimal Minutes, int StartMinuteOfDay, int EndMinuteOfDay);
 public sealed record ManufacturingOrderOperationView(Guid Id, int Sequence, Guid WorkCenterId, string WorkCenterCode, string WorkCenterName,
-    decimal SetupMinutes, decimal RunMinutes, decimal PlannedCostBase, DateOnly? ScheduledStartDate, DateOnly? ScheduledEndDate,
+    decimal SetupMinutes, decimal RunMinutes, int MinimumWaitDaysAfterPrevious, string SetupFamilyCode, decimal SequenceSetupMinutes,
+    decimal PlannedCostBase, DateOnly? ScheduledStartDate, DateOnly? ScheduledEndDate, int? ScheduledStartMinuteOfDay, int? ScheduledEndMinuteOfDay,
     decimal LaborCostPerHourBase, decimal OverheadCostPerHourBase, string Status, decimal? ActualSetupMinutes, decimal? ActualRunMinutes,
+    decimal? ActualEnergyQuantityKwh, decimal? ActualEnergyCostPerKwhBase, decimal? ActualEnergyCostBase,
     decimal? ActualCostBase, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt, IReadOnlyList<CapacityDayView> CapacityDays);
-public sealed record ManufacturingCompleteRequest(IReadOnlyList<InventoryTrackingAllocationRequest>? FinishedGoodsTracking = null);
-public sealed record ManufacturingOperationCompleteRequest(decimal ActualSetupMinutes, decimal ActualRunMinutes);
+public sealed record ManufacturingCompleteRequest(IReadOnlyList<InventoryTrackingAllocationRequest>? FinishedGoodsTracking = null,
+    Guid? ComponentStorageLocationId = null, Guid? FinishedGoodsStorageLocationId = null);
+public sealed record ManufacturingOperationCompleteRequest(decimal ActualSetupMinutes, decimal ActualRunMinutes,
+    decimal ActualEnergyQuantityKwh = 0m, decimal ActualEnergyCostPerKwhBase = 0m);
 public sealed record MrpDemandRequest(Guid StockItemId, decimal Quantity, DateOnly? RequiredByDate = null);
 public sealed record MrpPlanRequest(Guid WarehouseId, IReadOnlyList<MrpDemandRequest>? Demand = null, bool IncludeOpenSalesOrders = true, DateOnly? PlanDate = null);
 public sealed record MrpPlanConvertLineRequest(int LineIndex, Guid? BillOfMaterialId = null);

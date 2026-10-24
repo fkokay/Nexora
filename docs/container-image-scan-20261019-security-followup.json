@@ -1,0 +1,79 @@
+{
+  "scannedAtUtc": "2026-10-19T08:18:20.6620308+00:00",
+  "scanner": "Docker Scout CLI",
+  "imagesScanned": 2,
+  "totals": {
+    "critical": 0,
+    "high": 1,
+    "medium": 23,
+    "low": 12,
+    "unspecified": 1
+  },
+  "images": [
+    {
+      "image": "docker-workspace-runner:latest",
+      "digest": "sha256:c2ce8d90b1706553468de408ee605894678bbfed8ee9a4ac7e3dd3abcd4d9876",
+      "vulnerabilityCount": 35,
+      "bySeverity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 23,
+        "low": 12,
+        "unspecified": 0
+      },
+      "cves": [
+        "CVE-2024-52005",
+        "CVE-2024-56433",
+        "CVE-2025-5222",
+        "CVE-2025-66382",
+        "CVE-2026-102473",
+        "CVE-2026-102474",
+        "CVE-2026-103111",
+        "CVE-2026-107161",
+        "CVE-2026-18374",
+        "CVE-2026-18477",
+        "CVE-2026-18508",
+        "CVE-2026-2219",
+        "CVE-2026-40228",
+        "CVE-2026-67693",
+        "CVE-2026-85091",
+        "CVE-2026-86145",
+        "CVE-2026-86409",
+        "CVE-2026-86414",
+        "CVE-2026-87862",
+        "CVE-2026-87863",
+        "CVE-2026-87864",
+        "CVE-2026-88647",
+        "CVE-2026-89092",
+        "CVE-2026-89156",
+        "CVE-2026-89157",
+        "CVE-2026-89158",
+        "CVE-2026-89160",
+        "CVE-2026-89161",
+        "CVE-2026-92388",
+        "CVE-2026-92389",
+        "CVE-2026-92391",
+        "CVE-2026-94266",
+        "CVE-2026-95184",
+        "CVE-2026-95209",
+        "CVE-2026-95210"
+      ]
+    },
+    {
+      "image": "docker-release-deployer:latest",
+      "digest": "sha256:f2321da33466810683ad4c3a17cf2e5126d2b01d967d5bb4e80dad7b696b86bf",
+      "vulnerabilityCount": 2,
+      "bySeverity": {
+        "critical": 0,
+        "high": 1,
+        "medium": 0,
+        "low": 0,
+        "unspecified": 1
+      },
+      "cves": [
+        "CVE-2025-15558",
+        "GO-2026-5932"
+      ]
+    }
+  ]
+}

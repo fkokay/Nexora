@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "scenario": "synthetic-authenticated-read-paths",
+  "expectedLocalOnly": true,
+  "credentials": {
+    "email": "load-test@example.invalid",
+    "password": "synthetic-load-test-password"
+  },
+  "syntheticTenant": {
+    "id": "synthetic-tenant-id",
+    "name": "Synthetic Load Tenant",
+    "slug": "synthetic-load-00000000000000000000000000000000",
+    "accessToken": "synthetic-selection-token"
+  },
+  "datasets": {
+    "stockItems": {
+      "rows": 125,
+      "recordMarker": "SYNTHETIC-STOCK-DO-NOT-STORE"
+    },
+    "crmOpportunities": {
+      "rows": 137,
+      "recordMarker": "SYNTHETIC-CRM-DO-NOT-STORE"
+    }
+  },
+  "load": {
+    "requestsPerEndpoint": 12,
+    "concurrency": 3,
+    "minimumRowsPerDataset": 100,
+    "p95ThresholdMs": 10000,
+    "maxErrorRatePercent": 0
+  }
+}

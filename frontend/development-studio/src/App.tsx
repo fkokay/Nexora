@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Activity, ArrowUpRight, ChevronRight, CircleHelp, Code2, FileText, FolderKanban, GitBranch, ListTodo, LogOut, Plus, ShieldCheck, Sparkles, X } from 'lucide-react'
-import { api } from './api'
+import { api, migrateLegacyRefreshToken } from './api'
 import { StudioProjects } from './StudioProjects'
 import './studio-dashboard.css'
 
@@ -14,6 +14,7 @@ const tokenKey = 'aierp.accessToken'
 const activeTenantKey = 'aierp.tenant'
 const tenantSelectionKey = 'aierp.studioSelectionToken'
 const tenantListKey = 'aierp.studioTenants'
+const refreshTokenKey = 'aierp.studioRefreshToken'
 
 function readTenant(): Tenant | null {
   try { return JSON.parse(localStorage.getItem(activeTenantKey) || 'null') as Tenant | null }
@@ -39,6 +40,10 @@ export default function App() {
   const [requestTitle, setRequestTitle] = useState('')
   const [requestDescription, setRequestDescription] = useState('')
   const [requestProjectId, setRequestProjectId] = useState('')
+  const contextParams = new URLSearchParams(window.location.search)
+  const contextPage = (contextParams.get('contextPage') || '').trim().slice(0, 100)
+  const contextualScreen = (contextParams.get('contextLabel') || contextPage.replace(/^(inventory|sales|finance|manufacturing)-/, '').replaceAll('-', ' ')).trim().slice(0, 100)
+  const contextualModuleCode = /^module:([a-z][a-z0-9]*(?:[.-][a-z0-9]+)*):/i.exec(contextPage)?.[1] || ''
 
   useEffect(() => {
     if (!token || !tenant) return
@@ -56,6 +61,7 @@ export default function App() {
         method: 'POST', body: JSON.stringify({ email, password })
       })
       localStorage.setItem(tokenKey, result.accessToken)
+      localStorage.removeItem(refreshTokenKey)
       localStorage.setItem('aierp.user', result.displayName)
       localStorage.setItem(tenantSelectionKey, result.accessToken)
       localStorage.setItem(tenantListKey, JSON.stringify(result.tenants))
@@ -68,18 +74,45 @@ export default function App() {
     setBusy(true); setError('')
     try {
       const result = await api<TenantSelectionResponse>('/api/auth/select-tenant', access, {
-        method: 'POST', body: JSON.stringify({ tenantId: item.id })
+        method: 'POST', headers: { 'X-Studio-Session': 'cookie' }, body: JSON.stringify({ tenantId: item.id })
       })
       localStorage.setItem(tokenKey, result.accessToken)
+      localStorage.removeItem(refreshTokenKey)
       localStorage.setItem(activeTenantKey, JSON.stringify(result.tenant))
       setTenant(result.tenant); setToken(result.accessToken)
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
 
   function logout() {
-    for (const key of [tokenKey, activeTenantKey, tenantSelectionKey, tenantListKey, 'aierp.user']) localStorage.removeItem(key)
-    setToken(''); setSelectionToken(''); setTenant(null); setTenants([])
+    void fetch('/api/auth/logout', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Studio-Session': 'cookie' },
+      body: '{}'
+    }).catch(() => undefined)
+    for (const key of [tokenKey, refreshTokenKey, activeTenantKey, tenantSelectionKey, tenantListKey, 'aierp.user']) localStorage.removeItem(key)
+    setToken(''); setSelectionToken(''); setTenant(null); setTenants([]); setError('')
   }
+
+  useEffect(() => {
+    const onSessionExpired = () => {
+      logout()
+      setError('Oturum süresi doldu. Lütfen yeniden giriş yapın.')
+    }
+    const onAccessTokenRefreshed = (event: Event) => {
+      const refreshedToken = (event as CustomEvent<string>).detail
+      if (refreshedToken) setToken(refreshedToken)
+    }
+    window.addEventListener('aierp:session-expired', onSessionExpired)
+    window.addEventListener('aierp:access-token-refreshed', onAccessTokenRefreshed)
+    return () => {
+      window.removeEventListener('aierp:session-expired', onSessionExpired)
+      window.removeEventListener('aierp:access-token-refreshed', onAccessTokenRefreshed)
+    }
+  }, [])
+
+  useEffect(() => {
+    void migrateLegacyRefreshToken().catch(e => setError((e as Error).message))
+  }, [])
 
   async function createRequest(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(''); setNotice('')
@@ -125,6 +158,7 @@ export default function App() {
 
       <main className="studio-main studio-dashboard-main" id="overview">
         {error&&<div className="alert">{error}</div>}{notice&&<div className="notice">{notice}</div>}
+        {contextualScreen&&<section className="studio-context-launch"><span><Code2 size={18}/></span><div><small>ERP GELİŞTİRİCİ MODU · AKTİF EKRAN</small><b>{contextualScreen}{contextualModuleCode&&<code className="studio-context-module-code">{contextualModuleCode}</code>}</b><p>Modül kodu talebe taşınır. İlgili kaynak deposunu ayrıca seçin; Project Explorer’da kodu düzenleyip farkları inceleyerek onaylayabilirsiniz.</p></div><button className="secondary small-button" onClick={()=>{setRequestTitle(`${contextualScreen} ekranını uyarlama`);setRequestDescription(`${contextualScreen} ekranı için istenen değişiklikleri açıklayın.${contextualModuleCode?` Modül kodu: ${contextualModuleCode}.`:''} İlgili kaynak deposunu seçin; değişiklikler onaylı izole çalışma alanında hazırlanır.`);setShowRequest(true)}}><Plus size={14}/>Uyarlama talebi</button></section>}
         <section className="studio-hero">
           <div className="studio-hero-copy"><span className="studio-hero-kicker"><Sparkles size={14}/> GELİŞTİRME ORTAMINIZ</span><h1>Fikirden çalışan koda,<br/><em>güvenle ve birlikte.</em></h1><p>{tenant.name} için projeleri keşfedin, geliştirme talebi oluşturun ve yetkili çalışma alanlarında ilerleyin.</p><div className="studio-hero-actions"><button className="primary" onClick={()=>{setError('');setShowRequest(true)}}><Plus size={16}/>Geliştirme talebi oluştur</button><a className="secondary" href="#projects"><FolderKanban size={16}/>Projeleri görüntüle<ArrowUpRight size={14}/></a></div><div className="studio-hero-trust"><ShieldCheck size={15}/><span>İnsan onayı ve izole çalışma alanlarıyla korunan geliştirme akışı</span></div></div>
           <div className="studio-hero-art" aria-hidden="true"><div className="studio-art-orbit studio-art-orbit-one"/><div className="studio-art-orbit studio-art-orbit-two"/><div className="studio-code-window"><div className="studio-code-title"><span/><span/><span/><b>studio.flow</b><Code2 size={15}/></div><pre><i>01</i> <b>const</b> project = <strong>"{projects[0]?.name || 'your-next-idea'}"</strong>{'\n'}<i>02</i> <b>await</b> workspace.<em>prepare</em>(){'\n'}<i>03</i> <b>await</b> review.<em>withApproval</em>(){'\n'}<i>04</i> deploy.<em>whenReady</em>()</pre><div className="studio-code-status"><span><i/>İzole ortam</span><span>● Onay akışı açık</span></div></div><div className="studio-hero-float"><span><ShieldCheck size={17}/></span><div><b>Yetki denetimi</b><small>Her adım kayıt altında</small></div><i>✓</i></div><span className="studio-hero-spark studio-hero-spark-a">✳</span><span className="studio-hero-spark studio-hero-spark-b">✦</span></div>

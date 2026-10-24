@@ -46,6 +46,30 @@ public sealed class WorkspaceTestDiscoveryTests
     }
 
     [Fact]
+    public void Discovery_lists_each_python_test_file_and_ignores_non_python_test_names()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-python-tests-{Guid.NewGuid():N}");
+        var workspaceId = Guid.NewGuid();
+        var workspace = Path.Combine(root, workspaceId.ToString("N"));
+        Directory.CreateDirectory(Path.Combine(workspace, ".git"));
+        Directory.CreateDirectory(Path.Combine(workspace, "tests", "unit"));
+        File.WriteAllText(Path.Combine(workspace, "tests", "test_orders.py"), "def test_orders(): pass\n");
+        File.WriteAllText(Path.Combine(workspace, "tests", "unit", "orders_test.py"), "def test_order(): pass\n");
+        File.WriteAllText(Path.Combine(workspace, "test_readme.md"), "not a Python test\n");
+        try
+        {
+            var discovery = WorkspaceSecurity.DiscoverTests(root, workspaceId);
+            var pythonTargets = discovery.Targets.Where(target => target.Ecosystem == "Python").ToList();
+
+            Assert.Equal(2, pythonTargets.Count);
+            Assert.Contains(pythonTargets, target => target.Path == "tests/test_orders.py" && target.CanTest);
+            Assert.Contains(pythonTargets, target => target.Path == "tests/unit/orders_test.py" && target.CanTest);
+            Assert.DoesNotContain(pythonTargets, target => target.Path == "test_readme.md");
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
     public void Discovery_exposes_fixed_offline_build_targets_for_supported_languages()
     {
         var root = Path.Combine(Path.GetTempPath(), $"aierp-build-discovery-{Guid.NewGuid():N}");

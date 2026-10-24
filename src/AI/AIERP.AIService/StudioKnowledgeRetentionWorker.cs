@@ -15,7 +15,6 @@ public sealed class StudioKnowledgeRetentionWorker : BackgroundService
     private readonly ILogger<StudioKnowledgeRetentionWorker> _logger;
     private readonly int _retentionDays;
     private readonly string _platformConnection;
-    private readonly bool _separationEnabled;
     private readonly string _studioConnection;
 
     public StudioKnowledgeRetentionWorker(IConfiguration configuration, ILogger<StudioKnowledgeRetentionWorker> logger)
@@ -24,10 +23,8 @@ public sealed class StudioKnowledgeRetentionWorker : BackgroundService
         _retentionDays = ReadRetentionDays(configuration);
         _platformConnection = configuration.GetConnectionString("Platform")
             ?? throw new InvalidOperationException("ConnectionStrings:Platform is required for Studio knowledge retention.");
-        _separationEnabled = configuration.GetValue<bool>("Database:SeparationEnabled");
-        _studioConnection = _separationEnabled
-            ? configuration.GetConnectionString("AIStudio") ?? _platformConnection
-            : _platformConnection;
+        _studioConnection = configuration.GetConnectionString("AIStudio")
+            ?? throw new InvalidOperationException("ConnectionStrings:AIStudio is required for Studio knowledge retention.");
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -86,15 +83,13 @@ public sealed class StudioKnowledgeRetentionWorker : BackgroundService
 
     private async Task<string?> ResolveStudioConnectionAsync(CancellationToken cancellationToken)
     {
-        if (!_separationEnabled) return _studioConnection;
-
         var platformOptions = new DbContextOptionsBuilder<PlatformDbContext>()
             .UseSqlServer(_platformConnection)
             .Options;
         await using var platform = new PlatformDbContext(platformOptions);
         var state = await platform.DatabaseSeparationComponentStates.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Component == "AIStudio", cancellationToken);
-        if (state is null || state.State != TenantDatabaseProvisioningState.Ready)
+        if (state is null || state.State != TenantDatabaseProvisioningState.Ready || state.DatabaseName != "AIERPStudio")
         {
             _logger.LogInformation("Studio source index retention skipped because the separated AIStudio database is not ready.");
             return null;

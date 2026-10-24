@@ -16,6 +16,7 @@ public sealed class IntegrationOperationWorker(
     ILogger<IntegrationOperationWorker> logger) : BackgroundService
 {
     private const int MaximumDeliveryAttempts = 3;
+    private const int MaximumIntegrationHostResponseBytes = 1024 * 1024;
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
     private DateTimeOffset nextRetentionSweep = DateTimeOffset.UtcNow.AddHours(6);
 
@@ -116,10 +117,30 @@ public sealed class IntegrationOperationWorker(
                 delivery = new DeliveryOutcome("Failed", "integration_host_authentication_failed", null, false, false);
             else
             {
-                var result = await response.Content.ReadFromJsonAsync<IntegrationHostExecuteResponse>(cancellationToken: stoppingToken);
+                IntegrationHostExecuteResponse? result;
+                var invalidResponse = false;
+                try
+                {
+                    var responseBytes = await ReadBoundedResponseAsync(response.Content, MaximumIntegrationHostResponseBytes, stoppingToken);
+                    result = JsonSerializer.Deserialize<IntegrationHostExecuteResponse>(responseBytes);
+                }
+                catch (InvalidDataException)
+                {
+                    result = null;
+                    invalidResponse = true;
+                }
+                catch (JsonException)
+                {
+                    result = null;
+                    invalidResponse = true;
+                }
                 if (result is null)
-                    delivery = new DeliveryOutcome("Failed", "integration_host_invalid_response", null, !response.IsSuccessStatusCode, true);
-            else if (result.Succeeded && response.IsSuccessStatusCode)
+                {
+                    delivery = invalidResponse
+                        ? new DeliveryOutcome("Failed", "integration_host_invalid_response", null, false, false)
+                        : new DeliveryOutcome("Failed", "integration_host_invalid_response", null, !response.IsSuccessStatusCode, true);
+                }
+                else if (result.Succeeded && response.IsSuccessStatusCode)
                     delivery = new DeliveryOutcome("Succeeded", null, JsonSerializer.Serialize(result), false, false);
                 else
                 {
@@ -241,6 +262,26 @@ public sealed class IntegrationOperationWorker(
 
     private static string SanitizeErrorCode(string? value) => value is { Length: > 0 and <= 48 } && value.All(c => char.IsAsciiLetterOrDigit(c) || c == '_')
         ? value : "integration_failed";
+
+    internal static async Task<byte[]> ReadBoundedResponseAsync(HttpContent content, int maximumBytes, CancellationToken cancellationToken)
+    {
+        if (maximumBytes <= 0) throw new ArgumentOutOfRangeException(nameof(maximumBytes));
+        if (content.Headers.ContentLength is long contentLength && contentLength > maximumBytes)
+            throw new InvalidDataException("IntegrationHost response exceeded the configured limit.");
+
+        await using var stream = await content.ReadAsStreamAsync(cancellationToken);
+        using var buffer = new MemoryStream(Math.Min(maximumBytes, content.Headers.ContentLength is long length ? (int)length : 8192));
+        var chunk = new byte[8192];
+        while (true)
+        {
+            var read = await stream.ReadAsync(chunk.AsMemory(), cancellationToken);
+            if (read == 0) break;
+            if (buffer.Length + read > maximumBytes)
+                throw new InvalidDataException("IntegrationHost response exceeded the configured limit.");
+            await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken);
+        }
+        return buffer.ToArray();
+    }
 
     private sealed record DeliveryOutcome(string Status, string? ErrorCode, string? ResultJson, bool Retryable, bool Ambiguous);
 }

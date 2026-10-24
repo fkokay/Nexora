@@ -10,6 +10,7 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.13" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.13" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.13" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -17,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Hosts\AIERP.Api\AIERP.Api.csproj" />
+    <ProjectReference Include="..\..\src\Hosts\AIERP.Api\AIERP.Api.csproj" Aliases="global,Api" />
     <ProjectReference Include="..\..\src\AI\AIERP.AIService\AIERP.AIService.csproj" />
     <ProjectReference Include="..\..\src\Extensions\AIERP.IntegrationHost\AIERP.IntegrationHost.csproj" />
   </ItemGroup>

@@ -1,0 +1,108 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "fullName": "Docker Scout",
+          "informationUri": "https://docker.com/products/docker-scout",
+          "name": "docker scout",
+          "rules": [
+            {
+              "id": "CVE-2026-59890",
+              "name": "OsPackageVulnerability",
+              "shortDescription": {
+                "text": "CVE-2026-59890: Improper Handling of Unicode Encoding"
+              },
+              "helpUri": "https://scout.docker.com/v/CVE-2026-59890?s=github&n=setuptools&t=pypi&vr=%3C83.0.0",
+              "help": {
+                "text": "## Summary\n\nWhen building a source distribution (`python -m build --sdist` / `setup.py sdist`), setuptools' `FileList` applies `MANIFEST.in` directives (`exclude`, `global-exclude`, `recursive-exclude`, `prune`) by matching a compiled glob against on-disk file names **byte-for-byte, with no Unicode normalization**. On normalization-preserving filesystems (notably macOS APFS and HFS+), a file written in NFD and a `MANIFEST.in` rule written in NFC refer to the same file but are byte-distinct, so the exclusion silently fails to match. A file the maintainer intended to exclude is then packed into the `.tar.gz` and, if published, uploaded to the public, immutable PyPI index.\n\n## Details\n\nFile names in `FileList.files` come from `os.walk` (`setuptools/_distutils/filelist.py`, `_find_all_simple`), so on APFS a file written NFD is offered to the matcher in NFD, while the `MANIFEST.in` pattern carries the author's editor form (typically NFC). The matching path performs no canonicalization:\n\n```python\n# setuptools/command/egg_info.py  (FileList.global_exclude)\ndef global_exclude(self, pattern):\n    match = translate_pattern(os.path.join('**', pattern))   # fnmatch.translate -> regex, no NFC/NFD\n    return self._remove_files(match.match)                   # byte-level regex over raw os.walk names\n```\n\nA rule written NFC (`café` = `63 61 66 c3 a9`) does not match an on-disk name written NFD (`café` = `63 61 66 65 cc 81`), even though the filesystem treats the two as one file.\n\nA `unicodedata.normalize('NFD', ...)` helper exists in `setuptools/unicode_utils.py` (`decompose()`), but it is **never called in the manifest matching path**, so neither the pattern nor the walked path is normalized before matching. The only normalization in this area, `EggInfoCommand._manifest_normalize`, uses `filesys_decode` (bytes→str decode only, no NFC/NFD) and runs when writing `SOURCES.txt`, after matching has already occurred.\n\n## Impact\n\n`MANIFEST.in` exclusions are the documented mechanism maintainers use to keep secrets, local configs, and private fixtures out of the published sdist. A non-ASCII excluded file may be published to the public, immutable PyPI index despite the rule — an irreversible disclosure with no visual cue (NFC and NFD forms render identically). Exposure is filesystem-dependent and most relevant on macOS APFS/HFS+, where many maintainers build and publish. Pure-ASCII rules are unaffected.\n\n## Proof of concept\n\nWith a project containing `MANIFEST.in`:\n\n```\nglobal-include *.txt *.json\nglobal-exclude secret_café.txt    # rule saved NFC\n```\n\nand an on-disk file `secret_café.txt` written in NFD, `python -m build --sdist` packs the secret file into the resulting `.tar.gz`, while an ASCII control file excluded by the same directive is correctly dropped — isolating the bypass to the NFC-pattern vs. NFD-name mismatch. Reproduced on macOS APFS with setuptools 82.0.1.\n\n## Remediation\n\nNormalize both the walked path and each `MANIFEST.in` pattern to a single canonical form before matching, in both `setuptools/command/egg_info.py` (`FileList`) and the vendored `setuptools/_distutils/filelist.py`. For an exclusion list, err toward excluding more, and document that `MANIFEST.in` matching is normalization-insensitive on macOS.\n\n## Credit\n\nReported by Tomas Illuminati. Coordinated via CERT/CC VINCE VU#604762.\n",
+                "markdown": "> ## Summary\n\nWhen building a source distribution (`python -m build --sdist` / `setup.py sdist`), setuptools' `FileList` applies `MANIFEST.in` directives (`exclude`, `global-exclude`, `recursive-exclude`, `prune`) by matching a compiled glob against on-disk file names **byte-for-byte, with no Unicode normalization**. On normalization-preserving filesystems (notably macOS APFS and HFS+), a file written in NFD and a `MANIFEST.in` rule written in NFC refer to the same file but are byte-distinct, so the exclusion silently fails to match. A file the maintainer intended to exclude is then packed into the `.tar.gz` and, if published, uploaded to the public, immutable PyPI index.\n\n## Details\n\nFile names in `FileList.files` come from `os.walk` (`setuptools/_distutils/filelist.py`, `_find_all_simple`), so on APFS a file written NFD is offered to the matcher in NFD, while the `MANIFEST.in` pattern carries the author's editor form (typically NFC). The matching path performs no canonicalization:\n\n```python\n# setuptools/command/egg_info.py  (FileList.global_exclude)\ndef global_exclude(self, pattern):\n    match = translate_pattern(os.path.join('**', pattern))   # fnmatch.translate -> regex, no NFC/NFD\n    return self._remove_files(match.match)                   # byte-level regex over raw os.walk names\n```\n\nA rule written NFC (`café` = `63 61 66 c3 a9`) does not match an on-disk name written NFD (`café` = `63 61 66 65 cc 81`), even though the filesystem treats the two as one file.\n\nA `unicodedata.normalize('NFD', ...)` helper exists in `setuptools/unicode_utils.py` (`decompose()`), but it is **never called in the manifest matching path**, so neither the pattern nor the walked path is normalized before matching. The only normalization in this area, `EggInfoCommand._manifest_normalize`, uses `filesys_decode` (bytes→str decode only, no NFC/NFD) and runs when writing `SOURCES.txt`, after matching has already occurred.\n\n## Impact\n\n`MANIFEST.in` exclusions are the documented mechanism maintainers use to keep secrets, local configs, and private fixtures out of the published sdist. A non-ASCII excluded file may be published to the public, immutable PyPI index despite the rule — an irreversible disclosure with no visual cue (NFC and NFD forms render identically). Exposure is filesystem-dependent and most relevant on macOS APFS/HFS+, where many maintainers build and publish. Pure-ASCII rules are unaffected.\n\n## Proof of concept\n\nWith a project containing `MANIFEST.in`:\n\n```\nglobal-include *.txt *.json\nglobal-exclude secret_café.txt    # rule saved NFC\n```\n\nand an on-disk file `secret_café.txt` written in NFD, `python -m build --sdist` packs the secret file into the resulting `.tar.gz`, while an ASCII control file excluded by the same directive is correctly dropped — isolating the bypass to the NFC-pattern vs. NFD-name mismatch. Reproduced on macOS APFS with setuptools 82.0.1.\n\n## Remediation\n\nNormalize both the walked path and each `MANIFEST.in` pattern to a single canonical form before matching, in both `setuptools/command/egg_info.py` (`FileList`) and the vendored `setuptools/_distutils/filelist.py`. For an exclusion list, err toward excluding more, and document that `MANIFEST.in` matching is normalization-insensitive on macOS.\n\n## Credit\n\nReported by Tomas Illuminati. Coordinated via CERT/CC VINCE VU#604762.\n\n|                                                                                                           |\n|Package                                                                        pkg:pypi/setuptools@70.3.0  |\n|Affected range                                                                 <83.0.0                     |\n|Fixed version                                                                  83.0.0                      |\n|[[CVSS Score 6.1] [CVSS Vector CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N]]                              |\n"
+              },
+              "properties": {
+                "affected_version": "<83.0.0",
+                "cvssV3": 6.1,
+                "cvssV3_severity": "MEDIUM",
+                "cvssV3_vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N",
+                "fixed_version": "83.0.0",
+                "purls": [
+                  "pkg:pypi/setuptools@70.3.0"
+                ],
+                "security-severity": "6.1",
+                "tags": [
+                  "MEDIUM"
+                ]
+              }
+            },
+            {
+              "id": "CVE-2025-47273",
+              "name": "OsPackageVulnerability",
+              "shortDescription": {
+                "text": "CVE-2025-47273: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+              },
+              "helpUri": "https://scout.docker.com/v/CVE-2025-47273?s=github&n=setuptools&t=pypi&vr=%3C78.1.1",
+              "help": {
+                "text": "### Summary \nA path traversal vulnerability in `PackageIndex` was fixed in setuptools version 78.1.1\n\n### Details\n```\n    def _download_url(self, url, tmpdir):\n        # Determine download filename\n        #\n        name, _fragment = egg_info_for_url(url)\n        if name:\n            while '..' in name:\n                name = name.replace('..', '.').replace('\\\\', '_')\n        else:\n            name = \"__downloaded__\"  # default if URL has no path contents\n\n        if name.endswith('.[egg.zip](http://egg.zip/)'):\n            name = name[:-4]  # strip the extra .zip before download\n\n -->       filename = os.path.join(tmpdir, name)\n```\n\nHere: https://github.com/pypa/setuptools/blob/6ead555c5fb29bc57fe6105b1bffc163f56fd558/setuptools/package_index.py#L810C1-L825C88\n\n`os.path.join()` discards the first argument `tmpdir` if the second begins with a slash or drive letter.\n`name` is derived from a URL without sufficient sanitization. While there is some attempt to sanitize by replacing instances of '..' with '.', it is insufficient.\n\n### Risk Assessment\nAs easy_install and package_index are deprecated, the exploitation surface is reduced.\nHowever, it seems this could be exploited in a similar fashion like https://github.com/advisories/GHSA-r9hx-vwmv-q579, and as described by POC 4 in https://github.com/advisories/GHSA-cx63-2mw6-8hw5 report: via malicious URLs present on the pages of a package index.\n\n### Impact\nAn attacker would be allowed to write files to arbitrary locations on the filesystem with the permissions of the process running the Python code, which could escalate to RCE depending on the context.\n\n### References\nhttps://huntr.com/bounties/d6362117-ad57-4e83-951f-b8141c6e7ca5\nhttps://github.com/pypa/setuptools/issues/4946\n",
+                "markdown": "> ### Summary \nA path traversal vulnerability in `PackageIndex` was fixed in setuptools version 78.1.1\n\n### Details\n```\n    def _download_url(self, url, tmpdir):\n        # Determine download filename\n        #\n        name, _fragment = egg_info_for_url(url)\n        if name:\n            while '..' in name:\n                name = name.replace('..', '.').replace('\\\\', '_')\n        else:\n            name = \"__downloaded__\"  # default if URL has no path contents\n\n        if name.endswith('.[egg.zip](http://egg.zip/)'):\n            name = name[:-4]  # strip the extra .zip before download\n\n -->       filename = os.path.join(tmpdir, name)\n```\n\nHere: https://github.com/pypa/setuptools/blob/6ead555c5fb29bc57fe6105b1bffc163f56fd558/setuptools/package_index.py#L810C1-L825C88\n\n`os.path.join()` discards the first argument `tmpdir` if the second begins with a slash or drive letter.\n`name` is derived from a URL without sufficient sanitization. While there is some attempt to sanitize by replacing instances of '..' with '.', it is insufficient.\n\n### Risk Assessment\nAs easy_install and package_index are deprecated, the exploitation surface is reduced.\nHowever, it seems this could be exploited in a similar fashion like https://github.com/advisories/GHSA-r9hx-vwmv-q579, and as described by POC 4 in https://github.com/advisories/GHSA-cx63-2mw6-8hw5 report: via malicious URLs present on the pages of a package index.\n\n### Impact\nAn attacker would be allowed to write files to arbitrary locations on the filesystem with the permissions of the process running the Python code, which could escalate to RCE depending on the context.\n\n### References\nhttps://huntr.com/bounties/d6362117-ad57-4e83-951f-b8141c6e7ca5\nhttps://github.com/pypa/setuptools/issues/4946\n\n|                                                                                                                                  |\n|Package                                                                                               pkg:pypi/setuptools@70.3.0  |\n|Affected range                                                                                        <78.1.1                     |\n|Fixed version                                                                                         78.1.1                      |\n|[[CVSS Score 7.7] [CVSS Vector CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N/E:P]]                              |\n"
+              },
+              "properties": {
+                "affected_version": "<78.1.1",
+                "cvssV3": 7.7,
+                "cvssV3_severity": "HIGH",
+                "cvssV3_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N/E:P",
+                "fixed_version": "78.1.1",
+                "purls": [
+                  "pkg:pypi/setuptools@70.3.0"
+                ],
+                "security-severity": "7.7",
+                "tags": [
+                  "HIGH"
+                ]
+              }
+            }
+          ],
+          "version": "1.26.0"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "CVE-2026-59890",
+          "ruleIndex": 0,
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Vulnerability    :CVE-2026-59890                                \nSeverity         :MEDIUM                                        \nPackage          :pkg:pypi/setuptools@70.3.0                    \nAffected range   :<83.0.0                                       \nFixed version    :83.0.0                                        \nCVSS Score       :6.1                                           \nCVSS Vector      :CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N  \nEPSS Score       :0.004050                                      \nEPSS Percentile  :0.333430                                      \n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/python3.14/site-packages/pip/_vendor/bom.cdx.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2025-47273",
+          "ruleIndex": 1,
+          "kind": "fail",
+          "level": "error",
+          "message": {
+            "text": "Vulnerability    :CVE-2025-47273                                                       \nSeverity         :HIGH                                                                 \nPackage          :pkg:pypi/setuptools@70.3.0                                           \nAffected range   :<78.1.1                                                              \nFixed version    :78.1.1                                                               \nCVSS Score       :7.7                                                                  \nCVSS Vector      :CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N/E:P  \nEPSS Score       :0.015920                                                             \nEPSS Percentile  :0.753220                                                             \n"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/usr/lib/python3.14/site-packages/pip/_vendor/bom.cdx.json"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

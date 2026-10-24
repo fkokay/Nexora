@@ -1,24 +1,34 @@
 {
-  "generatedAtUtc": "2026-10-18T22:14:21.9907138Z",
+  "generatedAtUtc": "2026-10-21T04:57:42Z",
   "entityFrameworkToolsVersion": "10.0.13",
-  "generation": "dotnet ef migrations script --idempotent --no-build",
+  "generation": "dotnet ef migrations script --idempotent --no-build; incremental warehouse-location scripts generated from the immediately preceding Platform/Tenant migrations",
   "status": "generated-not-applied",
   "contexts": [
     {
       "name": "PlatformDbContext",
-      "migrationCount": 106,
-      "latestMigration": "20261018190001_AddCrmOpportunityPermissions",
+      "migrationCount": 115,
+      "latestMigration": "20261020232844_AddWarehouseLocations",
       "database": "AIERPPlatform",
       "file": "platform-idempotent.sql",
-      "sha256": "092B551BD41FB3F745B08FBEA99CAC94799FFE57793D3D0D86142E0DCF27A786"
+      "sha256": "74a9f3467ba1833f8c501f4b17d11c4b36dd1515ae40c8647e490682bc87c165",
+      "incrementalFile": "platform-warehouse-locations.sql",
+      "incrementalSha256": "5ea2edec468ebad0b3643874289ebaa876869a3d4647682d09a7552e7fb6ca2c",
+      "previouslyAppliedIncrementals": [
+        {
+          "file": "platform-saved-report-revision-history.sql",
+          "sha256": "A25F7B81BCBE643C074B5007398B25D26625E82EAD290A599E17F623451834EF"
+        }
+      ]
     },
     {
       "name": "TenantDbContext",
-      "migrationCount": 22,
-      "latestMigration": "20261018115254_SetEnteredQuantityPrecisionTenant",
+      "migrationCount": 29,
+      "latestMigration": "20261020232726_AddTenantWarehouseLocations",
       "database": "AIERPTenant_<tenant-guid>",
       "file": "tenant-idempotent.sql",
-      "sha256": "0FFE76770FA5A78D5C8E9E6F7A1E5D8688FCE849DC06D721DC59E0FE4A3EC009"
+      "sha256": "2be895a3a4b29633701ca65edd9b248ea8d0dec9eeda08b3ad88ab2a47cfddb8",
+      "incrementalFile": "tenant-warehouse-locations.sql",
+      "incrementalSha256": "84a27cb9bd08d56eb124fece1abb20b759c6d8bca4da0c6bcfc34abc4e8389f6"
     },
     {
       "name": "AIStudioDbContext",
@@ -32,7 +42,8 @@
   "verification": {
     "uniqueMigrationIdsMatchSourceCounts": true,
     "historyInsertCountMatchesMigrationCount": true,
-    "databaseExecution": "not-run",
-    "targetSchemaVerification": "not-run"
-  }
+    "databaseExecution": "Platform and Tenant warehouse-location migrations were applied through the API migrator after checksum-protected COPY_ONLY backups. RESTORE VERIFYONLY WITH CHECKSUM passed for Platform, tenant and AIStudio backups. Local post-migration histories are Platform 115, Tenant 29 and AIStudio 10; both target databases contain WarehouseLocations and InventoryTransactions.StorageLocationId. Production was not changed.",
+    "targetSchemaVerification": "Local Compose separated databases: AIERPPlatform 115/115 source history rows with latest 20261020232844_AddWarehouseLocations; AIERPTenant_912df12f4e3144bea20735cca5834485 29/29 source rows with latest 20261020232726_AddTenantWarehouseLocations; AIERPStudio 10/10. StorageLocationId and WarehouseLocations exist in Platform and tenant databases."
+  },
+  "statusNote": "The full idempotent SQL bundle has not been executed as a package. Local migrations were applied through the API migrator; production remains unapplied."
 }

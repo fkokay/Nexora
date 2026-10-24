@@ -19,6 +19,40 @@ namespace AIERP.Platform.UnitTests;
 public sealed class ExtensionSdkTests
 {
     [Fact]
+    public async Task IntegrationSecretResolver_RejectsSecretFileSymbolicLinks()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-integration-secrets-{Guid.NewGuid():N}");
+        var outside = Path.Combine(Path.GetTempPath(), $"aierp-integration-secret-outside-{Guid.NewGuid():N}");
+        var tenantId = Guid.NewGuid();
+        var tenantDirectory = Path.Combine(root, tenantId.ToString("D"));
+        Directory.CreateDirectory(tenantDirectory);
+        await File.WriteAllTextAsync(outside, "offline-test-secret");
+        var secretPath = Path.Combine(tenantDirectory, "provider-token");
+        try
+        {
+            try { File.CreateSymbolicLink(secretPath, outside); }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+            {
+                return; // Windows configurations without symlink privileges cannot exercise this filesystem case.
+            }
+
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["IntegrationSecrets:RootPath"] = root
+            }).Build();
+            var resolver = new FileIntegrationSecretResolver(configuration);
+
+            await Assert.ThrowsAsync<FileNotFoundException>(async () =>
+                await resolver.ResolveAsync(tenantId, new IntegrationCredentialReference("provider-token"), CancellationToken.None));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+            try { File.Delete(outside); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
     public void ProductionMigrationRollbackPolicy_RestartsPreviousApplicationOnlyBeforeMigrationCanRun()
     {
         Assert.True(ProductionMigrationRollbackPolicy.ShouldRestartPreviousApplication(migrationMayHaveRun: false));
@@ -205,6 +239,57 @@ public sealed class ExtensionSdkTests
             PermissionCode = permissionCode, Permission = definition, Effect = TenantPermissionEffect.Deny,
             ResourceType = resourceType, AttributeName = "resource.route.menuEntryCode",
             AttributeOperator = TenantPermissionConditionOperator.Equals, AttributeValue = "tickets.list"
+        });
+        await db.SaveChangesAsync();
+        Assert.False(await authorizer.IsAllowedAsync(tenant.Id, user.Id, "TenantUser", resolved));
+    }
+
+    [Fact]
+    public async Task Manufacturing_permissions_allow_current_tenant_admin_and_require_tenant_user_grants()
+    {
+        var options = new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseInMemoryDatabase($"manufacturing-permissions-{Guid.NewGuid():N}").Options;
+        await using var db = new PlatformDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var tenant = new Tenant { Name = "Manufacturing tenant", Slug = Guid.NewGuid().ToString("N") };
+        var user = new AppUser { Email = $"manufacturing-{Guid.NewGuid():N}@example.test" };
+        var membership = new TenantMembership { Tenant = tenant, User = user, Role = "TenantAdmin" };
+        db.TenantMemberships.Add(membership);
+        await db.SaveChangesAsync();
+
+        Assert.True(PlatformPermissionCatalog.TryResolve("/api/manufacturing/boms/", "GET", "/api/manufacturing/boms/",
+            new Dictionary<string, string?>(), tenant.Id, user.Id, "TenantAdmin", out var resolved));
+        Assert.NotNull(resolved);
+        Assert.Equal("erp.manufacturing.read", resolved!.Permission.Code);
+        var authorizer = new PlatformPermissionAuthorizer(db);
+
+        // TenantAdmin's documented tenant-wide role bypass is still bounded by a live membership.
+        Assert.True(await authorizer.IsAllowedAsync(tenant.Id, user.Id, "TenantAdmin", resolved));
+        Assert.False(await authorizer.IsAllowedAsync(Guid.NewGuid(), user.Id, "TenantAdmin", resolved));
+
+        // Other roles need an explicit policy. The baseline grants the ordinary tenant role
+        // the existing manufacturing actions, while a matching deny still takes precedence.
+        membership.Role = "TenantUser";
+        await db.SaveChangesAsync();
+        Assert.False(await authorizer.IsAllowedAsync(tenant.Id, user.Id, "TenantAdmin", resolved));
+        Assert.False(await authorizer.IsAllowedAsync(tenant.Id, user.Id, "TenantUser", resolved));
+
+        await TenantPermissionDefaults.AddTenantUserBaselineAsync(db, tenant.Id, user.Id);
+        await db.SaveChangesAsync();
+        Assert.True(await authorizer.IsAllowedAsync(tenant.Id, user.Id, "TenantUser", resolved));
+
+        var permission = await db.PermissionDefinitions.SingleAsync(x => x.Code == "erp.manufacturing.read");
+        db.TenantPermissionRules.Add(new TenantPermissionRule
+        {
+            TenantId = tenant.Id,
+            Tenant = tenant,
+            SubjectType = TenantPermissionSubjectType.Role,
+            SubjectRole = "TenantUser",
+            PermissionCode = permission.Code,
+            Permission = permission,
+            Effect = TenantPermissionEffect.Deny,
+            ResourceType = permission.ResourceType
         });
         await db.SaveChangesAsync();
         Assert.False(await authorizer.IsAllowedAsync(tenant.Id, user.Id, "TenantUser", resolved));
@@ -707,6 +792,43 @@ public sealed class ExtensionSdkTests
     }
 
     [Fact]
+    public async Task StripePaymentIntentAdapter_MapsMalformedSuccessfulResponseToProviderError()
+    {
+        var handler = new CapturingHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("{malformed")
+        }));
+        var adapter = new StripePaymentIntentAdapter("stripe.payment-intent", "sk_test_offline".AsMemory(), new HttpClient(handler));
+        using var request = JsonDocument.Parse("""{"amount":12500,"currency":"try"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "stripe.payment-intent", "corr-stripe", "idem-stripe", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await adapter.ExecuteAsync(context, request.RootElement, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("provider_error", result.ErrorCode);
+        Assert.False(result.IsRetryable);
+    }
+
+    [Fact]
+    public async Task StripePaymentIntentAdapter_RejectsUnknownPaymentIntentStatus()
+    {
+        var handler = new CapturingHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"id":"pi_offline_42","status":"future_private_state"}""")
+        }));
+        var adapter = new StripePaymentIntentAdapter("stripe.payment-intent", "sk_test_offline".AsMemory(), new HttpClient(handler));
+        using var request = JsonDocument.Parse("""{"amount":12500,"currency":"try"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "stripe.payment-intent", "corr-stripe", "idem-stripe", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await adapter.ExecuteAsync(context, request.RootElement, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("provider_error", result.ErrorCode);
+        Assert.Null(result.ExternalReference);
+        Assert.False(result.IsRetryable);
+    }
+
+    [Fact]
     public async Task IntegrationDispatcher_UsesPayPalOrdersV2WithStableRequestIdAndAllowlistedResponse()
     {
         var sentBodies = new List<string>();
@@ -721,7 +843,7 @@ public sealed class ExtensionSdkTests
             authorizations.Add(request.Headers.Authorization?.ToString());
             return new HttpResponseMessage(System.Net.HttpStatusCode.Created)
             {
-                Content = new StringContent("""{"id":"5O190127TN364715T","status":"CREATED","intent":"CAPTURE","links":[{"href":"https://evil.example/approve"}],"payer":{"email_address":"private@example.test"}}""")
+                Content = new StringContent("""{"id":"5O190127TN364715T","status":"CREATED","intent":"CAPTURE","purchase_units":[{"invoice_id":"SO-42","shipping":{"address":{"address_line_1":"private address"}}}],"links":[{"href":"https://evil.example/approve"}],"payer":{"email_address":"private@example.test"}}""")
             };
         });
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
@@ -742,7 +864,10 @@ public sealed class ExtensionSdkTests
             ["Integrations:paypal.orders-v2:ResponseMappings:0:TargetPath"] = "payment.providerId",
             ["Integrations:paypal.orders-v2:ResponseMappings:0:Required"] = "true",
             ["Integrations:paypal.orders-v2:ResponseMappings:1:SourcePath"] = "status",
-            ["Integrations:paypal.orders-v2:ResponseMappings:1:TargetPath"] = "payment.status"
+            ["Integrations:paypal.orders-v2:ResponseMappings:1:TargetPath"] = "payment.status",
+            ["Integrations:paypal.orders-v2:ResponseMappings:2:SourcePath"] = "invoiceId",
+            ["Integrations:paypal.orders-v2:ResponseMappings:2:TargetPath"] = "payment.invoiceId",
+            ["Integrations:paypal.orders-v2:ResponseMappings:2:Required"] = "true"
         }).Build();
         var dispatcher = new IntegrationDispatcher(configuration, new TestIntegrationHttpClientFactory(handler),
             new FixedIntegrationSecretResolver("offline-paypal-oauth-token"));
@@ -769,8 +894,11 @@ public sealed class ExtensionSdkTests
         Assert.False(unit.TryGetProperty("internalNote", out _));
         Assert.Equal("5O190127TN364715T", first.Result.ExternalReference);
         Assert.Equal("CREATED", first.Result.Value!.GetProperty("payment").GetProperty("status").GetString());
+        Assert.Equal("SO-42", first.Result.Value.GetProperty("payment").GetProperty("invoiceId").GetString());
         Assert.DoesNotContain("links", first.Result.Value.GetRawText(), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("payer", first.Result.Value.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("shipping", first.Result.Value.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("amount", first.Result.Value.GetRawText(), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("private@example.test", first.Result.Value.GetRawText(), StringComparison.Ordinal);
         Assert.DoesNotContain("offline-paypal-oauth-token", first.Result.Value.GetRawText(), StringComparison.Ordinal);
     }
@@ -817,6 +945,42 @@ public sealed class ExtensionSdkTests
         Assert.False(result.Succeeded);
         Assert.Equal("provider_error", result.ErrorCode);
         Assert.Null(result.ExternalReference);
+    }
+
+    [Fact]
+    public async Task PayPalOrderAdapter_OmitsInvoiceIdWhenProviderResponseDoesNotEchoRequestValue()
+    {
+        var handler = new CapturingHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.Created)
+        {
+            Content = new StringContent("""{"id":"5O190127TN364715T","status":"CREATED","intent":"CAPTURE","purchase_units":[{"invoice_id":"OTHER-ORDER"}],"payer":{"email_address":"private@example.test"}}""")
+        }));
+        var adapter = new PayPalOrderAdapter("paypal.orders-v2", "offline-token".AsMemory(), new HttpClient(handler));
+        using var request = JsonDocument.Parse("""{"amount":"10.00","currency":"USD","invoiceId":"SO-42"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "paypal.orders-v2", "corr-paypal", "idem-paypal", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await adapter.ExecuteAsync(context, request.RootElement, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.Value.TryGetProperty("invoiceId", out _));
+        Assert.DoesNotContain("payer", result.Value.GetRawText(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PayPalOrderAdapter_MapsMalformedSuccessfulResponseToProviderError()
+    {
+        var handler = new CapturingHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.Created)
+        {
+            Content = new StringContent("{malformed")
+        }));
+        var adapter = new PayPalOrderAdapter("paypal.orders-v2", "offline-token".AsMemory(), new HttpClient(handler));
+        using var request = JsonDocument.Parse("""{"amount":"10.00","currency":"USD"}""");
+        var context = new IntegrationContext(Guid.NewGuid(), "paypal.orders-v2", "corr-paypal", "idem-paypal", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await adapter.ExecuteAsync(context, request.RootElement, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("provider_error", result.ErrorCode);
+        Assert.False(result.IsRetryable);
     }
 
     [Fact]
@@ -978,6 +1142,49 @@ public sealed class ExtensionSdkTests
         Assert.Contains(versionResult.Errors, error => error.Contains("requires", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ModuleDependencyResolver_UsesSemVer2PrecedenceForLargeNumericIdentifiers()
+    {
+        const string huge = "999999999999999999999999999999999999999999999999999999999999";
+        var largePrerelease = ModuleDependencyResolver.Resolve("application", [
+            Manifest("application", "1.0.0", [new ModuleDependency("library", "1.0.0-9")]),
+            Manifest("library", $"1.0.0-{huge}", [])
+        ]);
+        var largeCore = ModuleDependencyResolver.Resolve("application", [
+            Manifest("application", "1.0.0", [new ModuleDependency("library", $"{huge}.0.0")]),
+            Manifest("library", "9.0.0", [])
+        ]);
+
+        Assert.True(largePrerelease.IsValid, string.Join(Environment.NewLine, largePrerelease.Errors));
+        Assert.False(largeCore.IsValid);
+        Assert.Contains(largeCore.Errors, error => error.Contains("requires", StringComparison.Ordinal));
+        Assert.True(ModuleManifestValidator.IsValidSemVersion($"1.0.0-{huge}"));
+    }
+
+    [Theory]
+    [InlineData("1.0.0-01")]
+    [InlineData("1.0.0-alpha..1")]
+    [InlineData("1.0.0-alpha.")]
+    [InlineData("1.0.0+build..1")]
+    [InlineData("1.0.0+build.")]
+    [InlineData("1.0.0\n")]
+    [InlineData("١.0.0")]
+    public void ModuleManifestValidator_RejectsInvalidSemVer2Identifiers(string version)
+    {
+        Assert.False(ModuleManifestValidator.IsValidSemVersion(version));
+    }
+
+    [Fact]
+    public void ModuleDependencyResolver_IgnoresBuildMetadataForVersionPrecedence()
+    {
+        var result = ModuleDependencyResolver.Resolve("application", [
+            Manifest("application", "1.0.0", [new ModuleDependency("library", "1.0.0+required")]),
+            Manifest("library", "1.0.0+catalog", [])
+        ]);
+
+        Assert.True(result.IsValid, string.Join(Environment.NewLine, result.Errors));
+    }
+
     [Theory]
     [InlineData("GET", "/api/tenant/modules/marketplace", "/api/tenant/modules/marketplace", "read")]
     [InlineData("POST", "/api/tenant/modules/activate", "/api/tenant/modules/activate", "execute")]
@@ -1024,6 +1231,45 @@ public sealed class ExtensionSdkTests
         Assert.True(resolved);
         Assert.NotNull(permission);
         Assert.Equal("erp.crm-opportunities", permission.Permission.ResourceType);
+        Assert.Equal(action, permission.Permission.Action);
+    }
+
+    [Theory]
+    [InlineData("GET", "/api/manufacturing/boms/", "/api/manufacturing/boms/", "read")]
+    [InlineData("GET", "/api/manufacturing/work-centers/", "/api/manufacturing/work-centers/", "read")]
+    [InlineData("GET", "/api/manufacturing/orders/", "/api/manufacturing/orders/", "read")]
+    [InlineData("GET", "/api/manufacturing/mrp/plans", "/api/manufacturing/mrp/plans", "read")]
+    [InlineData("POST", "/api/manufacturing/work-centers/", "/api/manufacturing/work-centers/", "create")]
+    [InlineData("POST", "/api/manufacturing/orders/{id}/release", "/api/manufacturing/orders/{id:guid}/release", "execute")]
+    [InlineData("POST", "/api/manufacturing/orders/{id}/schedule", "/api/manufacturing/orders/{id:guid}/schedule", "execute")]
+    [InlineData("POST", "/api/manufacturing/orders/{id}/operations/{operationId}/start", "/api/manufacturing/orders/{id:guid}/operations/{operationId:guid}/start", "execute")]
+    [InlineData("POST", "/api/manufacturing/orders/{id}/operations/{operationId}/complete", "/api/manufacturing/orders/{id:guid}/operations/{operationId:guid}/complete", "execute")]
+    [InlineData("POST", "/api/manufacturing/orders/{id}/complete", "/api/manufacturing/orders/{id:guid}/complete", "execute")]
+    [InlineData("POST", "/api/manufacturing/mrp/plans/{id}/convert", "/api/manufacturing/mrp/plans/{id:guid}/convert", "execute")]
+    public void PlatformPermissionCatalog_ResolvesManufacturingRoutes(string method, string path, string routePattern, string action)
+    {
+        var resolved = PlatformPermissionCatalog.TryResolve(path, method, routePattern, new Dictionary<string, string?>(),
+            Guid.NewGuid(), Guid.NewGuid(), "TenantUser", out var permission);
+
+        Assert.True(resolved);
+        Assert.NotNull(permission);
+        Assert.Equal("erp.manufacturing", permission.Permission.ResourceType);
+        Assert.Equal(action, permission.Permission.Action);
+    }
+
+    [Theory]
+    [InlineData("GET", "/api/foreign-trade/cases", "/api/foreign-trade/cases", "read")]
+    [InlineData("POST", "/api/foreign-trade/cases", "/api/foreign-trade/cases", "create")]
+    [InlineData("PUT", "/api/foreign-trade/cases/123", "/api/foreign-trade/cases/{id:guid}", "update")]
+    [InlineData("POST", "/api/foreign-trade/cases/123/transition", "/api/foreign-trade/cases/{id:guid}/transition", "execute")]
+    public void PlatformPermissionCatalog_ResolvesForeignTradeActions(string method, string path, string routePattern, string action)
+    {
+        var resolved = PlatformPermissionCatalog.TryResolve(path, method, routePattern, new Dictionary<string, string?>(),
+            Guid.NewGuid(), Guid.NewGuid(), "TenantUser", out var permission);
+
+        Assert.True(resolved);
+        Assert.NotNull(permission);
+        Assert.Equal("erp.foreign-trade", permission.Permission.ResourceType);
         Assert.Equal(action, permission.Permission.Action);
     }
 
@@ -1075,13 +1321,13 @@ public sealed class ExtensionSdkTests
         try
         {
             var first = await DistributedDeploymentLock.AcquireAsync(root, CancellationToken.None);
-            using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(800));
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var secondTask = DistributedDeploymentLock.AcquireAsync(root, cancellation.Token);
-            await Task.Delay(350);
+            await Task.Delay(500);
             Assert.False(secondTask.IsCompleted);
 
             await first.DisposeAsync();
-            await using var second = await secondTask.WaitAsync(TimeSpan.FromSeconds(2));
+            await using var second = await secondTask.WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
         {

@@ -22,6 +22,17 @@ public sealed class IntegrationQueueIntegrationTests
     private static readonly Guid TenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     [Fact]
+    public async Task Integration_host_response_reader_rejects_oversized_stream_without_content_length()
+    {
+        using var content = new StreamContent(new RepeatingReadStream(1024 * 1024 + 1));
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            IntegrationOperationWorker.ReadBoundedResponseAsync(content, 1024 * 1024, CancellationToken.None));
+
+        Assert.Contains("exceeded", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Integration_requests_are_encrypted_idempotent_and_tenant_scoped()
     {
         await using var app = await StartApplicationAsync();
@@ -142,6 +153,115 @@ public sealed class IntegrationQueueIntegrationTests
         Assert.Equal("Running", (await cancel.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
     }
 
+    [Fact]
+    public async Task E_document_draft_is_built_from_a_posted_tenant_invoice_and_requires_another_admin()
+    {
+        await using var app = await StartApplicationAsync();
+        var invoiceId = Guid.NewGuid();
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            var tenant = await db.Tenants.SingleAsync(x => x.Id == TenantA);
+            var customer = new CustomerAccount { TenantId = TenantA, Tenant = tenant, Code = "C-1", Name = "Contoso", TaxNumber = "1234567890" };
+            var quote = new SalesQuote { TenantId = TenantA, Tenant = tenant, Customer = customer, Code = "Q-1", QuoteDate = new DateOnly(2026, 10, 1), ValidUntil = new DateOnly(2026, 10, 31) };
+            var order = new SalesOrder { TenantId = TenantA, Tenant = tenant, Customer = customer, Quote = quote, Code = "SO-1", OrderDate = new DateOnly(2026, 10, 2), CurrencyCode = "TRY" };
+            var warehouse = new Warehouse { TenantId = TenantA, Tenant = tenant, Code = "WH-1", Name = "Main" };
+            var delivery = new SalesDelivery { TenantId = TenantA, Order = order, Warehouse = warehouse, Code = "DN-1", DeliveryDate = new DateOnly(2026, 10, 3) };
+            var invoice = new SalesInvoice { Id = invoiceId, TenantId = TenantA, Tenant = tenant, Customer = customer, Order = order, Delivery = delivery, Code = "INV-1", InvoiceDate = new DateOnly(2026, 10, 4), CurrencyCode = "TRY", GrandTotal = 120m, Subtotal = 100m, TaxTotal = 20m };
+            invoice.Lines.Add(new SalesInvoiceLine { TenantId = TenantA, Invoice = invoice, OrderLineNumber = 1, StockCode = "ITEM-1", StockName = "Widget", UnitCode = "EA", Quantity = 2, UnitPrice = 50m, VatPercent = 20m, LineSubtotal = 100m, TaxAmount = 20m, LineTotal = 120m });
+            db.SalesInvoices.Add(invoice);
+            await db.SaveChangesAsync();
+        }
+
+        using var creator = app.GetTestClient();
+        creator.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString("D"));
+        creator.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
+        creator.DefaultRequestHeaders.Add("Idempotency-Key", "invoice-prepare-1");
+        var sources = await creator.GetFromJsonAsync<JsonElement>("/api/e-documents/source-documents?documentType=e-invoice");
+        Assert.Equal("INV-1", sources[0].GetProperty("number").GetString());
+        var preview = await creator.GetFromJsonAsync<JsonElement>($"/api/e-documents/source-documents/e-invoice/{invoiceId:D}/preview");
+        Assert.Equal("INV-1", preview.GetProperty("documentNumber").GetString());
+        Assert.Equal("Contoso", preview.GetProperty("document").GetProperty("customer").GetProperty("name").GetString());
+        Assert.Equal("ITEM-1", preview.GetProperty("document").GetProperty("lines")[0].GetProperty("stockCode").GetString());
+        var response = await creator.PostAsJsonAsync("/api/e-documents/submissions", new { documentType = "e-invoice", documentId = invoiceId });
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var operationId = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("operationId").GetGuid();
+
+        using var sameUser = app.GetTestClient();
+        sameUser.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString("D"));
+        sameUser.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
+        Assert.Equal(HttpStatusCode.Conflict, (await sameUser.PostAsync($"/api/e-documents/submissions/{operationId:D}/approve", null)).StatusCode);
+
+        using var otherAdmin = app.GetTestClient();
+        otherAdmin.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString("D"));
+        otherAdmin.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
+        otherAdmin.DefaultRequestHeaders.Add("X-Test-User", Guid.NewGuid().ToString("D"));
+        var detail = await otherAdmin.GetFromJsonAsync<JsonElement>($"/api/e-documents/submissions/{operationId:D}");
+        Assert.Equal("INV-1", detail.GetProperty("documentNumber").GetString());
+        Assert.Equal("Widget", detail.GetProperty("document").GetProperty("lines")[0].GetProperty("stockName").GetString());
+        Assert.Equal(HttpStatusCode.Accepted, (await otherAdmin.PostAsync($"/api/e-documents/submissions/{operationId:D}/approve", null)).StatusCode);
+
+        using var anotherTenant = app.GetTestClient();
+        anotherTenant.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString("D"));
+        anotherTenant.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
+        Assert.Equal(HttpStatusCode.NotFound, (await anotherTenant.PostAsJsonAsync("/api/e-documents/submissions", new { documentType = "e-invoice", documentId = invoiceId })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await anotherTenant.GetAsync($"/api/e-documents/submissions/{operationId:D}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await anotherTenant.GetAsync($"/api/e-documents/source-documents/e-invoice/{invoiceId:D}/preview")).StatusCode);
+    }
+
+    [Fact]
+    public async Task E_dispatch_draft_is_built_from_a_posted_tenant_delivery_and_requires_another_admin()
+    {
+        await using var app = await StartApplicationAsync();
+        var deliveryId = Guid.NewGuid();
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            var tenant = await db.Tenants.SingleAsync(x => x.Id == TenantA);
+            var customer = new CustomerAccount { TenantId = TenantA, Tenant = tenant, Code = "C-DISP-1", Name = "Synthetic Buyer", TaxNumber = "1111111111" };
+            var quote = new SalesQuote { TenantId = TenantA, Tenant = tenant, Customer = customer, Code = "Q-DISP-1", QuoteDate = new DateOnly(2026, 10, 1), ValidUntil = new DateOnly(2026, 10, 31) };
+            var order = new SalesOrder { TenantId = TenantA, Tenant = tenant, Customer = customer, Quote = quote, Code = "SO-DISP-1", OrderDate = new DateOnly(2026, 10, 2), CurrencyCode = "TRY" };
+            var orderLine = new SalesOrderLine { TenantId = TenantA, Order = order, LineNumber = 1, StockCode = "SYN-ITEM-1", StockName = "Synthetic Item", UnitCode = "EA", Quantity = 2 };
+            order.Lines.Add(orderLine);
+            var warehouse = new Warehouse { TenantId = TenantA, Tenant = tenant, Code = "WH-DISP-1", Name = "Synthetic Warehouse" };
+            var delivery = new SalesDelivery { Id = deliveryId, TenantId = TenantA, Order = order, Warehouse = warehouse, Code = "DN-DISP-1", DeliveryDate = new DateOnly(2026, 10, 3) };
+            delivery.Lines.Add(new SalesDeliveryLine
+            {
+                TenantId = TenantA, Delivery = delivery, OrderLine = orderLine, OrderLineNumber = 1,
+                StockCode = "SYN-ITEM-1", StockName = "Synthetic Item", UnitCode = "EA", Quantity = 2
+            });
+            db.SalesDeliveries.Add(delivery);
+            await db.SaveChangesAsync();
+        }
+
+        using var creator = app.GetTestClient();
+        creator.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString("D"));
+        creator.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
+        creator.DefaultRequestHeaders.Add("Idempotency-Key", "dispatch-prepare-synthetic-1");
+        var sources = await creator.GetFromJsonAsync<JsonElement>("/api/e-documents/source-documents?documentType=e-dispatch");
+        Assert.Equal("DN-DISP-1", sources[0].GetProperty("number").GetString());
+        var preview = await creator.GetFromJsonAsync<JsonElement>($"/api/e-documents/source-documents/e-dispatch/{deliveryId:D}/preview");
+        Assert.Equal("e-dispatch", preview.GetProperty("documentType").GetString());
+        Assert.Equal("Synthetic Buyer", preview.GetProperty("document").GetProperty("customer").GetProperty("name").GetString());
+        Assert.Equal("SYN-ITEM-1", preview.GetProperty("document").GetProperty("lines")[0].GetProperty("stockCode").GetString());
+        var response = await creator.PostAsJsonAsync("/api/e-documents/submissions", new { documentType = "e-dispatch", documentId = deliveryId });
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var operationId = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("operationId").GetGuid();
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            Assert.Equal("AwaitingApproval", (await db.IntegrationOperations.SingleAsync(x => x.Id == operationId)).Status);
+        }
+
+        Assert.Equal(HttpStatusCode.Conflict, (await creator.PostAsync($"/api/e-documents/submissions/{operationId:D}/approve", null)).StatusCode);
+        using var otherAdmin = app.GetTestClient();
+        otherAdmin.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString("D"));
+        otherAdmin.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
+        otherAdmin.DefaultRequestHeaders.Add("X-Test-User", Guid.NewGuid().ToString("D"));
+        Assert.Equal("DN-DISP-1", (await otherAdmin.GetFromJsonAsync<JsonElement>($"/api/e-documents/submissions/{operationId:D}")).GetProperty("documentNumber").GetString());
+        Assert.Equal(HttpStatusCode.Accepted, (await otherAdmin.PostAsync($"/api/e-documents/submissions/{operationId:D}/approve", null)).StatusCode);
+    }
+
     private static async Task<WebApplication> StartApplicationAsync()
     {
         var databaseName = $"integration-queue-{Guid.NewGuid():N}";
@@ -152,6 +272,7 @@ public sealed class IntegrationQueueIntegrationTests
             ["IntegrationQueue:EncryptionKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
         });
         builder.Services.AddDbContext<PlatformDbContext>(options => options.UseInMemoryDatabase(databaseName));
+        builder.Services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase(databaseName));
         builder.Services.AddAuthentication("report-test")
             .AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
         builder.Services.AddAuthorization();
@@ -176,5 +297,28 @@ public sealed class IntegrationQueueIntegrationTests
             new Tenant { Id = TenantB, Name = "Tenant B", Slug = "tenant-b" });
         await db.SaveChangesAsync();
         return app;
+    }
+
+    private sealed class RepeatingReadStream(long length) : Stream
+    {
+        private long position;
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => length;
+        public override long Position { get => position; set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var read = (int)Math.Min(buffer.Length, length - position);
+            buffer.Span[..read].Fill((byte)'x');
+            position += read;
+            return ValueTask.FromResult(read);
+        }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() { }
     }
 }

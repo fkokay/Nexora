@@ -1,0 +1,45 @@
+{
+  "status": "passed-restored-local-database-migration-rehearsal-and-apply",
+  "completedAtUtc": "2026-10-21T11:15:49Z",
+  "sourceBackups": [
+    {
+      "database": "AIERPPlatform",
+      "path": "D:\\Nexora-Migration-Backups\\20261021T110639Z_before_credit-energy-reversals\\Nexora_20261021T110639Z_AIERPPlatform.bak",
+      "sha256": "0AD92E18F00B133A2E0D7F489D21690430E0C25E2ECD5D29F3E66CD5A7949F45",
+      "restoreVerifyOnlyWithChecksum": true
+    },
+    {
+      "database": "AIERPTenant_912df12f4e3144bea20735cca5834485",
+      "path": "D:\\Nexora-Migration-Backups\\20261021T110639Z_before_credit-energy-reversals\\Nexora_20261021T110639Z_AIERPTenant_912df12f4e3144bea20735cca5834485.bak",
+      "sha256": "A74EB4B74F483E4CD902AB3E0BBECBB450952BD2603EFDE13E1793BEFD3FB02B",
+      "restoreVerifyOnlyWithChecksum": true
+    }
+  ],
+  "rehearsal": {
+    "platformDatabase": "NexoraPlatformRehearsal20261021",
+    "tenantDatabase": "NexoraTenantRehearsal20261021",
+    "platformMigrations": "115 to 119; latest 20261021104746_AddCreditFacilityMovementReversals",
+    "tenantMigrations": "30 to 34; latest 20261021104757_AddCreditFacilityMovementReversalsTenant",
+    "result": "Both incremental scripts applied successfully to restored databases; new energy columns and credit movement tables were present. Credit reversal check constraints were present in the Platform rehearsal.",
+    "cleanup": "Both temporary rehearsal databases were dropped after verification."
+  },
+  "localApply": {
+    "platformDatabase": "AIERPPlatform",
+    "platformHistory": "119/119",
+    "tenantDatabase": "AIERPTenant_912df12f4e3144bea20735cca5834485",
+    "tenantHistory": "34/34",
+    "result": "Both local incremental scripts applied; columns and movement tables verified.",
+    "productionChanged": false
+  },
+  "limits": [
+    "The restored rehearsal used current local development backups, not production data.",
+    "Production SQL Server version, production tenant topology, application/schema rollback compatibility, and DBA approval remain external release gates."
+  ],
+  "applicationChecks": {
+    "focusedCreditAndStockTests": "8/8 passed",
+    "apiBuild": "passed; zero warnings and errors",
+    "erpWebProductionBuild": "passed; Vite reported an advisory for a bundle chunk larger than 500 kB",
+    "dockerApiImage": "built and recreated; /health returned HTTP 200 and database dependency ready",
+    "dockerErpWebImage": "built and recreated; / returned HTTP 200; service healthy"
+  }
+}

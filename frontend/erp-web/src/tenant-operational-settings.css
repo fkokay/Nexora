@@ -1,0 +1,42 @@
+.tenant-operational-settings-page .company-setting-card { display: flex; flex-direction: column; }
+.stock-policy-state {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--erp-line);
+  border-radius: 10px;
+}
+.stock-policy-copy { display: grid; gap: 3px; }
+.stock-policy-state b { color: var(--erp-ink); font-size: 12px; }
+.stock-policy-state small { color: var(--erp-muted-ink); font-size: 10px; line-height: 1.45; }
+.stock-policy-state.is-blocked { background: #f5f7fa; }
+.stock-policy-state.is-enabled { border-color: #f0d9a8; background: #fff9eb; }
+.stock-policy-indicator { width: 9px; height: 9px; flex: none; border-radius: 50%; background: #77849a; }
+.is-enabled .stock-policy-indicator { background: #d69322; box-shadow: 0 0 0 4px rgb(214 147 34 / 13%); }
+.stock-policy-draft-badge { flex: none; padding: 4px 7px; border: 1px solid #dec47e; border-radius: 999px; background: #fff2c9; color: #75570c; font-size: 9px; font-weight: 750; }
+.stock-policy-state.is-draft { border-style: dashed; }
+.company-setting-card .company-setting-option { margin-top: 12px; }
+.company-setting-card .setting-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.company-setting-card .setting-actions .primary,
+.company-setting-card .setting-actions .secondary { white-space: nowrap; }
+.company-setting-card .setting-actions .secondary { min-height: 34px; }
+.company-identity-card .company-identity-values { margin: 2px 0 14px; }
+.company-profile-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.company-profile-fields .company-setting-field { display: grid; align-content: start; gap: 7px; color: var(--erp-muted, #858c9b); font-size: 10px; font-weight: 600; }
+.company-profile-fields input { width: 100%; min-height: 38px; border: 1px solid var(--erp-border, #e5e7ee); border-radius: 7px; padding: 9px 10px; color: var(--erp-text, #293144); background: var(--erp-surface, #fff); outline: none; font-size: 11px; }
+.company-profile-fields input:focus { border-color: #9789ec; box-shadow: 0 0 0 3px #8171df19; }
+.company-profile-fields input:disabled { opacity: .7; cursor: not-allowed; }
+.company-profile-fields small { color: var(--erp-muted, #858c9b); font-size: 9px; font-weight: 400; line-height: 1.5; }
+.company-profile-fields .field-optional { margin-left: 4px; color: var(--erp-muted, #858c9b); font-size: 9px; font-weight: 400; }
+.company-identity-card > .modal-foot { margin: 13px 0; }
+html[data-theme="dark"] .stock-policy-state { background: #151d2c; border-color: #303b50; }
+html[data-theme="dark"] .stock-policy-state.is-enabled { background: #2b2619; border-color: #66512d; }
+html[data-theme="dark"] .stock-policy-state b { color: #e4eaf4; }
+html[data-theme="dark"] .stock-policy-draft-badge { border-color: #66512d; background: #3b311d; color: #f0d68e; }
+@media (max-width: 620px) {
+  .company-profile-fields { grid-template-columns: 1fr; }
+  .company-setting-card .setting-actions { width: 100%; justify-content: flex-start; }
+  .company-setting-card .modal-foot .setting-actions .primary { align-self: auto; }
+}

@@ -115,16 +115,18 @@ namespace AIERP.Platform.Infrastructure.Migrations
                 columns: new[] { "TenantId", "DefinitionId" });
 
             migrationBuilder.Sql("""
+                EXEC(N'
                 UPDATE [dbo].[CustomerCustomFieldDefinitions] SET [Version] = 1 WHERE [Version] = 0;
                 UPDATE [dbo].[CustomerCustomFieldValues] SET [DefinitionVersion] = 1 WHERE [DefinitionVersion] = 0;
                 INSERT INTO [dbo].[CustomerCustomFieldDefinitionRevisions]
                     ([Id], [TenantId], [DefinitionId], [Version], [Code], [Label], [DataType], [MaxLength], [IsRequired], [IsActive], [ChangeKind], [ChangedByUserId], [CreatedAt])
-                SELECT NEWID(), [TenantId], [Id], [Version], [Code], [Label], [DataType], [MaxLength], [IsRequired], [IsActive], N'Baseline', NULL, [CreatedAt]
+                SELECT NEWID(), [TenantId], [Id], [Version], [Code], [Label], [DataType], [MaxLength], [IsRequired], [IsActive], N''Baseline'', NULL, [CreatedAt]
                 FROM [dbo].[CustomerCustomFieldDefinitions];
                 INSERT INTO [dbo].[CustomerCustomFieldValueRevisions]
                     ([Id], [TenantId], [CustomerId], [DefinitionId], [PreviousValue], [NewValue], [DefinitionVersion], [ChangedByUserId], [CreatedAt])
                 SELECT NEWID(), [TenantId], [CustomerId], [DefinitionId], NULL, [Value], [DefinitionVersion], NULL, [UpdatedAt]
                 FROM [dbo].[CustomerCustomFieldValues];
+                ')
                 """);
         }
 

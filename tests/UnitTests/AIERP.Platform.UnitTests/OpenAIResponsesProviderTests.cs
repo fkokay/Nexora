@@ -1,6 +1,8 @@
 using System.Net;
+using System.Security.Claims;
 using System.Text;
 using AIERP.AIService.AI;
+using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -194,6 +196,8 @@ public sealed class OpenAIResponsesProviderTests
     {
         var handler = new StubHandler(async request =>
         {
+            Assert.Equal("Bearer", request.Headers.Authorization!.Scheme);
+            Assert.Equal("test-key", request.Headers.Authorization.Parameter);
             var body = await request.Content!.ReadAsStringAsync();
             Assert.Contains("\"store\":false", body);
             Assert.Contains("task-based AI assistant", body);
@@ -213,6 +217,70 @@ public sealed class OpenAIResponsesProviderTests
             [new StudioChatTurn("user", "user asks about validation"), new StudioChatTurn("assistant", "assistant suggested review")], CancellationToken.None);
 
         Assert.Equal("Review the validation rule and add a focused test.", reply);
+    }
+
+    [Fact]
+    public async Task Tenant_request_without_saved_settings_does_not_use_global_provider_key()
+    {
+        var tenantId = Guid.NewGuid();
+        var handler = new StubHandler(_ => throw new Xunit.Sdk.XunitException("HTTP call must not be sent without tenant provider settings."));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AI:OpenAI:ApiKey"] = "platform-test-key",
+            ["AI:OpenAI:Model"] = "platform-test-model"
+        }).Build();
+        var dbOptions = new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseInMemoryDatabase($"provider-settings-missing-{Guid.NewGuid():N}")
+            .Options;
+        using var platformDb = new PlatformDbContext(dbOptions);
+        var provider = CreateProvider(handler, configuration, platformDb, tenantId);
+
+        await Assert.ThrowsAsync<AIProviderNotConfiguredException>(() => provider.ReplyToStudioChatAsync(
+            "Nexora", "main", [new StudioChatTurn("user", "Say hello")], CancellationToken.None));
+
+        Assert.False(handler.Called);
+    }
+
+    [Fact]
+    public async Task Tenant_request_keeps_using_its_saved_key_and_model()
+    {
+        var tenantId = Guid.NewGuid();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AI:OpenAI:ApiKey"] = "platform-test-key",
+            ["AI:OpenAI:Model"] = "platform-test-model",
+            ["AI:SettingsEncryptionKey"] = Convert.ToBase64String(Enumerable.Range(0, 32).Select(value => (byte)value).ToArray())
+        }).Build();
+        var dbOptions = new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseInMemoryDatabase($"provider-settings-tenant-{Guid.NewGuid():N}")
+            .Options;
+        using var platformDb = new PlatformDbContext(dbOptions);
+        platformDb.Tenants.Add(new Tenant { Id = tenantId, Name = "Test tenant", Slug = $"test-{tenantId:N}" });
+        platformDb.TenantAIProviderSettings.Add(new TenantAIProviderSettings
+        {
+            TenantId = tenantId,
+            Provider = "OpenAI",
+            OpenAIKeyCipherText = ApiKeyCipher.Encrypt("tenant-test-key", tenantId, ApiKeyPurpose.OpenAiApiKey, configuration),
+            OpenAIModel = "tenant-test-model"
+        });
+        await platformDb.SaveChangesAsync();
+        var handler = new StubHandler(async request =>
+        {
+            Assert.Equal("tenant-test-key", request.Headers.Authorization!.Parameter);
+            var body = await request.Content!.ReadAsStringAsync();
+            Assert.Contains("tenant-test-model", body);
+            return JsonResponse(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                status = "completed",
+                output = new[] { new { type = "message", content = new[] { new { type = "output_text", text = "Hello." } } } }
+            }));
+        });
+        var provider = CreateProvider(handler, configuration, platformDb, tenantId);
+
+        var reply = await provider.ReplyToStudioChatAsync("Nexora", "main",
+            [new StudioChatTurn("user", "Say hello")], CancellationToken.None);
+
+        Assert.Equal("Hello.", reply);
     }
 
     [Fact]
@@ -328,7 +396,7 @@ public sealed class OpenAIResponsesProviderTests
     [Fact]
     public async Task ERP_assistant_exposes_read_only_report_tool_and_executes_typed_request()
     {
-        const string arguments = "{\"source\":\"purchaseInvoices\",\"columns\":[\"invoiceCode\",\"supplierName\",\"currencyCode\",\"grandTotal\"],\"filters\":[{\"field\":\"status\",\"operator\":\"equals\",\"value\":\"posted\"}],\"sortBy\":\"invoiceCode\",\"descending\":false}";
+        const string arguments = "{\"source\":\"bankStatementLines\",\"columns\":[\"transactionDate\",\"amount\",\"currencyCode\"],\"filters\":[{\"field\":\"matchedAt\",\"operator\":\"isNull\",\"value\":\"\"}],\"sortBy\":\"transactionDate\",\"descending\":false}";
         var callCount = 0;
         var handler = new StubHandler(async request =>
         {
@@ -336,23 +404,40 @@ public sealed class OpenAIResponsesProviderTests
             callCount++;
             if (callCount == 1)
             {
+                Assert.Contains("get_report_schema", body);
                 Assert.Contains("generate_report", body);
                 using var document = System.Text.Json.JsonDocument.Parse(body);
+                var schemaTool = document.RootElement.GetProperty("tools").EnumerateArray()
+                    .Single(tool => tool.GetProperty("name").GetString() == "get_report_schema");
+                Assert.True(schemaTool.GetProperty("strict").GetBoolean());
+                Assert.False(schemaTool.GetProperty("parameters").GetProperty("additionalProperties").GetBoolean());
                 var reportTool = document.RootElement.GetProperty("tools").EnumerateArray()
                     .Single(tool => tool.GetProperty("name").GetString() == "generate_report");
+                var cashFlowTool = document.RootElement.GetProperty("tools").EnumerateArray()
+                    .Single(tool => tool.GetProperty("name").GetString() == "get_cash_flow_forecast");
+                Assert.True(cashFlowTool.GetProperty("strict").GetBoolean());
+                var cashFlowParameters = cashFlowTool.GetProperty("parameters").GetProperty("properties");
+                Assert.Equal(12, cashFlowParameters.GetProperty("months").GetProperty("maximum").GetInt32());
+                Assert.Contains("direct cash-budget inflows/outflows", cashFlowTool.GetProperty("description").GetString(), StringComparison.OrdinalIgnoreCase);
                 Assert.True(reportTool.GetProperty("strict").GetBoolean());
                 var parameters = reportTool.GetProperty("parameters");
                 Assert.True(parameters.GetProperty("additionalProperties").GetBoolean() == false);
                 var sourceValues = parameters.GetProperty("properties").GetProperty("source").GetProperty("enum")
                     .EnumerateArray().Select(value => value.GetString()).ToArray();
-                Assert.Equal(new[]
+                Assert.Equal(ErpReportSources.All, sourceValues.Select(value => value!));
+                Assert.Contains("workflowInstances", sourceValues);
+                Assert.Contains("bankStatementLines", sourceValues);
+                return JsonResponse(System.Text.Json.JsonSerializer.Serialize(new
                 {
-                    "customers", "salesInvoices", "purchaseOrders", "purchaseInvoices", "purchaseReceipts",
-                    "manufacturingOrders", "inventoryTransactions", "salesOrders", "salesQuotes", "salesDeliveries",
-                    "salesReturns", "supplierReturns", "purchaseRequests", "stockItems", "bankStatements",
-                    "financialAccountTransactions", "supplierPayments", "crmOpportunities"
-                }, sourceValues);
-                Assert.DoesNotContain("workflowInstances", sourceValues);
+                    status = "completed",
+                    output = new[] { new { type = "function_call", name = "get_report_schema", arguments = "{\"source\":\"bankStatementLines\"}", call_id = "schema_call" } }
+                }));
+            }
+
+            if (callCount == 2)
+            {
+                Assert.Contains("bankStatementLines", body);
+                Assert.Contains("transactionDate", body);
                 return JsonResponse(System.Text.Json.JsonSerializer.Serialize(new
                 {
                     status = "completed",
@@ -361,26 +446,29 @@ public sealed class OpenAIResponsesProviderTests
             }
 
             Assert.Contains("function_call_output", body);
-            Assert.Contains("Supplier Ltd.", body);
+            Assert.Contains("bankStatementLines", body);
+            Assert.Contains("2026-10-20", body);
             Assert.Contains("totalCount", body);
             return JsonResponse(System.Text.Json.JsonSerializer.Serialize(new
             {
                 status = "completed",
-                output = new[] { new { type = "message", content = new[] { new { type = "output_text", text = "Bir alış faturası bulundu." } } } }
+                output = new[] { new { type = "message", content = new[] { new { type = "output_text", text = "Bir eşleşmemiş banka hareketi bulundu." } } } }
             }));
         });
         var provider = CreateProvider(handler, "test-key");
         (string Name, string Arguments)? executed = null;
 
-        var answer = await provider.ReplyToERPDataQuestionAsync("Yayınlanmış alış faturalarını raporla.", [], CancellationToken.None,
+        var answer = await provider.ReplyToERPDataQuestionAsync("Eşleşmemiş banka hareketlerini raporla.", [], CancellationToken.None,
             (name, toolArguments, _) =>
             {
                 executed = (name, toolArguments);
-                return Task.FromResult("{\"source\":\"purchaseInvoices\",\"columns\":[{\"code\":\"invoiceCode\"}],\"rows\":[{\"invoiceCode\":\"PI-100\",\"supplierName\":\"Supplier Ltd.\",\"currencyCode\":\"TRY\",\"grandTotal\":1250}],\"totalCount\":1,\"page\":1}");
+                return Task.FromResult(name == "get_report_schema"
+                    ? "{\"source\":\"bankStatementLines\",\"columns\":[{\"code\":\"transactionDate\"}],\"aggregates\":[]}"
+                    : "{\"source\":\"bankStatementLines\",\"columns\":[{\"code\":\"transactionDate\"}],\"rows\":[{\"transactionDate\":\"2026-10-20\",\"amount\":1250,\"currencyCode\":\"TRY\"}],\"totalCount\":1,\"page\":1}");
             });
 
-        Assert.Equal("Bir alış faturası bulundu.", answer);
-        Assert.Equal(2, callCount);
+        Assert.Equal("Bir eşleşmemiş banka hareketi bulundu.", answer);
+        Assert.Equal(3, callCount);
         Assert.Equal(("generate_report", arguments), executed);
     }
 
@@ -494,6 +582,45 @@ public sealed class OpenAIResponsesProviderTests
             "Nexora", "feature", "main", new string('a', 40), "tests/app", "Change summary"), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Provider_preserves_bounded_retry_after_for_rate_limit_responses()
+    {
+        var handler = new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+        {
+            Headers = { RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(7)) }
+        }));
+        var provider = CreateProvider(handler, "test-key");
+
+        var exception = await Assert.ThrowsAsync<AIProviderRateLimitException>(() => provider.CreateArchitecturePlanAsync(
+            "Plan", "Nexora", "main", [], [], CancellationToken.None));
+
+        Assert.Equal(7, exception.RetryAfterSeconds);
+    }
+
+    [Fact]
+    public async Task Provider_caps_untrusted_retry_after_and_ignores_malformed_values()
+    {
+        var tooLongHandler = new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+        {
+            Headers = { RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromHours(1)) }
+        }));
+        var tooLongProvider = CreateProvider(tooLongHandler, "test-key");
+        var tooLong = await Assert.ThrowsAsync<AIProviderRateLimitException>(() => tooLongProvider.CreateArchitecturePlanAsync(
+            "Plan", "Nexora", "main", [], [], CancellationToken.None));
+        Assert.Equal(120, tooLong.RetryAfterSeconds);
+
+        var malformedHandler = new StubHandler(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            response.Headers.TryAddWithoutValidation("Retry-After", "not-a-delay");
+            return Task.FromResult(response);
+        });
+        var malformedProvider = CreateProvider(malformedHandler, "test-key");
+        var malformed = await Assert.ThrowsAsync<AIProviderRateLimitException>(() => malformedProvider.CreateArchitecturePlanAsync(
+            "Plan", "Nexora", "main", [], [], CancellationToken.None));
+        Assert.Null(malformed.RetryAfterSeconds);
+    }
+
     private static OpenAIResponsesProvider CreateProvider(StubHandler handler, string? apiKey)
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
@@ -505,6 +632,14 @@ public sealed class OpenAIResponsesProviderTests
             .UseSqlServer("Server=localhost;Database=AIERPPlatform;User Id=test;Password=test;TrustServerCertificate=True")
             .Options;
         return new OpenAIResponsesProvider(new HttpClient(handler), config, new PlatformDbContext(dbOptions), new HttpContextAccessor());
+    }
+
+    private static OpenAIResponsesProvider CreateProvider(StubHandler handler, IConfiguration configuration,
+        PlatformDbContext platformDb, Guid tenantId)
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("tenant_id", tenantId.ToString())], "test"));
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = principal } };
+        return new OpenAIResponsesProvider(new HttpClient(handler), configuration, platformDb, accessor);
     }
 
     private static HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK)
