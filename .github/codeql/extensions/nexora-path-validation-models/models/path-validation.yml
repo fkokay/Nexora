@@ -1,0 +1,25 @@
+extensions:
+  - addsTo:
+      pack: codeql/csharp-all
+      extensible: barrierModel
+    data:
+      # Guid text formats contain only hex digits and formatting punctuation;
+      # they cannot contribute separators, drive prefixes, or traversal segments.
+      - [System, Guid, false, ToString, "()", "", ReturnValue, path-injection, manual]
+      - [System, Guid, false, ToString, "(System.String)", "", ReturnValue, path-injection, manual]
+      - [System, Guid, false, ToString, "(System.String,System.IFormatProvider)", "", ReturnValue, path-injection, manual]
+      # These resolvers return a canonical contained path only after validating
+      # traversal, platform path syntax, and existing reparse points.
+      - [AIERP.ReleaseDeployer, ReleaseDeployerPath, false, SafeChild, "(System.String,System.String)", "", ReturnValue, path-injection, manual]
+      - [AIERP.ModuleSDK, ModulePackageStoragePath, false, ResolvePackage, "(System.String,System.String)", "", ReturnValue, path-injection, manual]
+      - [AIERP.ModuleSDK, ModulePackageStoragePath, false, ResolveChild, "(System.String,System.String)", "", ReturnValue, path-injection, manual]
+  - addsTo:
+      pack: codeql/csharp-all
+      extensible: barrierGuardModel
+    data:
+      # The out path is consumed only on the true branch, after the resolver
+      # proves workspace containment and rejects traversal and reparse points.
+      - ["", WorkspaceSecurity, false, TryResolveStorageChild, "(System.String,System.String,System.String&)", "", "Argument[1]", "true", path-injection, manual]
+      - ["", WorkspaceSecurity, false, TryResolveDirectory, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[2]", "true", path-injection, manual]
+      - ["", WorkspaceSecurity, false, TryResolveFile, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[2]", "true", path-injection, manual]
+      - ["", WorkspaceSecurity, false, TryResolveNewFile, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[2]", "true", path-injection, manual]
