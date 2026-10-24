@@ -18,10 +18,11 @@ using Xunit;
 
 namespace AIERP.Api.IntegrationTests;
 
+[Collection("SQL Server acceptance")]
 public sealed class SqlServerReturnLocationAcceptanceTests
 {
-    private static readonly Guid TenantId = Guid.Parse("8e8c617c-6ac0-4ed4-aad4-c91ad8ca8d3b");
-    private static readonly Guid UserId = Guid.Parse("ef9d8790-9822-472a-932b-1f7925831e4c");
+    private static readonly Guid TenantId = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.NewGuid();
 
     [SqlServerAcceptanceFact]
     public async Task Sales_and_purchase_return_endpoints_post_validate_and_read_back_storage_locations()
@@ -30,7 +31,7 @@ public sealed class SqlServerReturnLocationAcceptanceTests
         Assert.False(string.IsNullOrWhiteSpace(configuredConnection));
         var suffix = Guid.NewGuid().ToString("N");
         var platformName = $"AIERP_ReturnLocationPlatform_{suffix}";
-        var tenantName = $"AIERP_ReturnLocationTenant_{suffix}";
+        var tenantName = $"AIERPTenant_{TenantId:N}";
         var platformConnection = BuildDatabaseConnection(configuredConnection!, platformName);
         var tenantConnection = BuildDatabaseConnection(configuredConnection!, tenantName);
         var studioConnection = BuildDatabaseConnection(configuredConnection!, $"AIERP_ReturnLocationStudio_{suffix}");

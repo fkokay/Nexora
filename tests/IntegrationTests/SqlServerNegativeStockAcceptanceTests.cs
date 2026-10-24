@@ -17,10 +17,11 @@ using Xunit;
 
 namespace AIERP.Api.IntegrationTests;
 
+[Collection("SQL Server acceptance")]
 public sealed class SqlServerNegativeStockAcceptanceTests
 {
-    private static readonly Guid TenantId = Guid.Parse("d6afec65-3418-4b4a-9d84-b8c352efad55");
-    private static readonly Guid UserId = Guid.Parse("7cac183e-305a-43c6-aa17-c19d110f6a19");
+    private static readonly Guid TenantId = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.NewGuid();
 
     [SqlServerAcceptanceFact]
     public async Task Company_negative_stock_setting_controls_manual_issues_deliveries_purchase_returns_and_transfers()
@@ -29,7 +30,7 @@ public sealed class SqlServerNegativeStockAcceptanceTests
         Assert.False(string.IsNullOrWhiteSpace(configuredConnection));
         var suffix = Guid.NewGuid().ToString("N");
         var platformConnection = BuildDatabaseConnection(configuredConnection!, $"AIERP_NegativeStockPlatform_{suffix}");
-        var tenantConnection = BuildDatabaseConnection(configuredConnection!, $"AIERP_NegativeStockTenant_{suffix}");
+        var tenantConnection = BuildDatabaseConnection(configuredConnection!, $"AIERPTenant_{TenantId:N}");
         var studioConnection = BuildDatabaseConnection(configuredConnection!, $"AIERP_NegativeStockStudio_{suffix}");
         var platformCreated = false;
         var tenantCreated = false;

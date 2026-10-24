@@ -2,7 +2,7 @@
 
 ## Scope
 
-Implementation update (2026-10-24): the draft-only slice is present in `PurchaseInvoiceDraft` / `PurchaseInvoiceDraftLine`, `PurchaseInvoiceDraftEndpoints`, ERP Web, and Tenant migration r4. The focused regression test passed for create, idempotent replay, and absence of order, receipt, posted invoice, inventory, supplier-ledger, journal, and payment records. The API uses SQL Server key-range locks and the migration remains generated-not-applied and unrehearsed. Tenant isolation, inactive-supplier rejection, alternate role visibility, and migration-backed SQL acceptance still need focused coverage.
+Implementation update (2026-10-24): the draft-only slice is present in `PurchaseInvoiceDraft` / `PurchaseInvoiceDraftLine`, `PurchaseInvoiceDraftEndpoints`, ERP Web, and Tenant migration r4. The focused regression test passed for create, idempotent replay, and absence of order, receipt, posted invoice, inventory, supplier-ledger, journal, and payment records. The API uses SQL Server key-range locks. The r4 Tenant migration passed a clean-schema incremental rehearsal, but remains unapplied to development/production and has not been rehearsed on a restored non-empty database. Tenant isolation, inactive-supplier rejection, and alternate role visibility still need focused coverage.
 
 This is a separate supplier-document capture flow. It does not change the existing purchase invoice flow, which remains sourced from a posted goods receipt and its purchase-order lines. The new flow must not create inventory transactions, receipts, orders, or synthetic stock lines.
 

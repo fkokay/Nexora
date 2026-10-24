@@ -29,6 +29,7 @@ using Xunit;
 
 namespace AIERP.Api.IntegrationTests;
 
+[Collection("SQL Server acceptance")]
 public sealed class TenantLicenseIntegrationTests
 {
     private static readonly Guid TenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");

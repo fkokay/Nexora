@@ -15,6 +15,7 @@ using Xunit;
 
 namespace AIERP.Api.IntegrationTests;
 
+[Collection("SQL Server acceptance")]
 public sealed class PaymentInstrumentSqlAcceptanceTests
 {
     [SqlServerAcceptanceFact]
