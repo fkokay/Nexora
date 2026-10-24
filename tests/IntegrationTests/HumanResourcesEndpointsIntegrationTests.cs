@@ -187,6 +187,42 @@ public sealed class HumanResourcesEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Payroll_rule_drafts_require_a_json_object_and_remain_tenant_scoped()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+
+        async Task<HttpResponseMessage> CreateRuleDraft(JsonElement rules) => await client.PostAsJsonAsync("/api/hr/payroll/rule-sets/", new
+        {
+            taxYear = "2026",
+            effectiveFrom = "2026-01-01",
+            effectiveTo = (string?)null,
+            officialSourceUrl = "https://example.gov.tr/payroll/rules",
+            rules
+        });
+
+        using var arrayRules = await CreateRuleDraft(JsonDocument.Parse("[]").RootElement);
+        using var stringRules = await CreateRuleDraft(JsonDocument.Parse("\"not-a-rule-object\"").RootElement);
+        using var nullRules = await CreateRuleDraft(JsonDocument.Parse("null").RootElement);
+        Assert.Equal(HttpStatusCode.BadRequest, arrayRules.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, stringRules.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, nullRules.StatusCode);
+
+        using var validDraft = await CreateRuleDraft(JsonDocument.Parse("{}").RootElement);
+        Assert.Equal(HttpStatusCode.Created, validDraft.StatusCode);
+        var created = await validDraft.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Draft", created.GetProperty("status").GetString());
+        var tenantDrafts = await client.GetFromJsonAsync<JsonElement[]>("/api/hr/payroll/rule-sets/");
+        Assert.Single(tenantDrafts!);
+        Assert.Equal("{}", tenantDrafts![0].GetProperty("rulesJson").GetString());
+
+        SetIdentity(client, TenantB, Admin, "TenantAdmin");
+        var otherTenantDrafts = await client.GetFromJsonAsync<JsonElement[]>("/api/hr/payroll/rule-sets/");
+        Assert.Empty(otherTenantDrafts!);
+    }
+
+    [Fact]
     public async Task Period_summary_is_tenant_admin_only_aggregate_and_csv_access_is_audited()
     {
         await using var app = await StartApplicationAsync();

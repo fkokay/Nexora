@@ -228,8 +228,9 @@ public static partial class HumanResourcesEndpoints
             if (request.TaxYear is null || !Regex.IsMatch(request.TaxYear, "^20[0-9]{2}$") || request.EffectiveTo is not null && request.EffectiveTo < request.EffectiveFrom ||
                 string.IsNullOrWhiteSpace(request.OfficialSourceUrl) || request.OfficialSourceUrl.Length > 1000 ||
                 !Uri.TryCreate(request.OfficialSourceUrl, UriKind.Absolute, out var sourceUri) || sourceUri.Scheme != Uri.UriSchemeHttps ||
-                request.Rules is null || JsonSerializer.SerializeToUtf8Bytes(request.Rules).Length > 65536)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["ruleSet"] = ["Türkiye kural seti için vergi yılı, geçerli tarih aralığı, HTTPS kaynak bağlantısı ve 64 KiB sınırındaki JSON kurallar zorunludur."] });
+                request.Rules is null || request.Rules.Value.ValueKind != JsonValueKind.Object ||
+                JsonSerializer.SerializeToUtf8Bytes(request.Rules.Value).Length > 65536)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["ruleSet"] = ["Türkiye kural taslağı için vergi yılı, geçerli tarih aralığı, HTTPS kaynak bağlantısı ve 64 KiB sınırında bir JSON nesnesi zorunludur."] });
             var nextVersion = (await db.PayrollRuleSets.Where(x => x.TenantId == tenantId && x.JurisdictionCode == "TR" && x.EffectiveFrom == request.EffectiveFrom)
                 .Select(x => (int?)x.Version).MaxAsync(ct) ?? 0) + 1;
             var ruleSet = new PayrollRuleSet { TenantId = tenantId, JurisdictionCode = "TR", TaxYear = request.TaxYear,
