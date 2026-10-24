@@ -55,6 +55,7 @@ public sealed class TenantLicenseIntegrationTests
         Assert.Equal("Active", current.GetProperty("status").GetString());
         Assert.Equal(50, current.GetProperty("maxUsers").GetInt32());
         Assert.True(current.GetProperty("features").GetProperty("advancedWorkflow").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, current.GetProperty("usage").GetProperty("sqlDataBytes").ValueKind);
     }
 
     [Fact]
@@ -79,6 +80,71 @@ public sealed class TenantLicenseIntegrationTests
             Assert.Equal(policy.AdvancedWorkflow, body.GetProperty("features").GetProperty("advancedWorkflow").GetBoolean());
             Assert.Equal(policy.CustomModuleSource, body.GetProperty("features").GetProperty("customModuleSource").GetBoolean());
             Assert.Equal(policy.HighAvailability, body.GetProperty("features").GetProperty("highAvailability").GetBoolean());
+        }
+    }
+
+    [SqlServerAcceptanceFact]
+    public async Task License_storage_meter_reads_the_selected_tenant_database_and_tracks_allocated_data_pages()
+    {
+        var configuredConnection = Environment.GetEnvironmentVariable("AIERP_REPORT_TEST_SQL_CONNECTION_STRING");
+        Assert.False(string.IsNullOrWhiteSpace(configuredConnection));
+        using var rsa = RSA.Create(2048);
+        var suffix = Guid.NewGuid().ToString("N");
+        var platformConnection = new SqlConnectionStringBuilder(configuredConnection)
+        {
+            InitialCatalog = $"AIERP_LicenseMeter_Platform_{suffix}",
+            ConnectTimeout = 15,
+            TrustServerCertificate = true
+        }.ConnectionString;
+        var tenantConnection = new SqlConnectionStringBuilder(configuredConnection)
+        {
+            InitialCatalog = $"AIERP_LicenseMeter_Tenant_{suffix}",
+            ConnectTimeout = 15,
+            TrustServerCertificate = true
+        }.ConnectionString;
+        await using var platformDb = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options);
+        await using var tenantDb = new TenantDbContext(new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(tenantConnection).Options);
+        var platformCreated = false;
+        var tenantCreated = false;
+        WebApplication? app = null;
+        try
+        {
+            platformCreated = await platformDb.Database.EnsureCreatedAsync();
+            tenantCreated = await tenantDb.Database.EnsureCreatedAsync();
+            Assert.True(platformCreated);
+            Assert.True(tenantCreated);
+
+            var tenant = new Tenant { Id = TenantId, Name = "License meter", Slug = $"license-meter-{suffix}" };
+            var user = new AppUser { Id = UserId, Email = $"license-meter-{suffix}@example.invalid", DisplayName = "License meter user", IsActive = true };
+            platformDb.Tenants.Add(tenant);
+            platformDb.Users.Add(user);
+            platformDb.TenantMemberships.Add(new TenantMembership { TenantId = TenantId, UserId = UserId, Role = "TenantAdmin" });
+            await platformDb.SaveChangesAsync();
+
+            app = await StartSqlServerApplicationAsync(rsa, platformConnection, tenantConnection);
+            using var client = app.GetTestClient();
+            var before = await client.GetFromJsonAsync<JsonElement>("/api/tenant-license/");
+            var beforeBytes = before.GetProperty("usage").GetProperty("sqlDataBytes").GetInt64();
+
+            await using (var connection = new SqlConnection(tenantConnection))
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText = "CREATE TABLE [dbo].[StorageProbe] ([Payload] varbinary(max) NOT NULL); INSERT INTO [dbo].[StorageProbe] ([Payload]) VALUES (@payload);";
+                command.Parameters.Add(new SqlParameter("@payload", System.Data.SqlDbType.VarBinary, -1) { Value = new byte[1_000_000] });
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var after = await client.GetFromJsonAsync<JsonElement>("/api/tenant-license/");
+            var afterBytes = after.GetProperty("usage").GetProperty("sqlDataBytes").GetInt64();
+            Assert.True(beforeBytes > 0);
+            Assert.True(afterBytes > beforeBytes, $"Expected the selected tenant database usage to increase after adding 1 MB; before={beforeBytes}, after={afterBytes}.");
+        }
+        finally
+        {
+            if (app is not null) await app.DisposeAsync();
+            if (tenantCreated) await tenantDb.Database.EnsureDeletedAsync();
+            if (platformCreated) await platformDb.Database.EnsureDeletedAsync();
         }
     }
 
@@ -482,6 +548,7 @@ public sealed class TenantLicenseIntegrationTests
             ["Licensing:PublicKeys:test-key"] = rsa.ExportSubjectPublicKeyInfoPem()
         });
         builder.Services.AddDbContext<PlatformDbContext>(options => options.UseInMemoryDatabase(databaseName));
+        builder.Services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase($"{databaseName}-tenant"));
         builder.Services.AddAuthentication("license-test").AddScheme<AuthenticationSchemeOptions, LicenseAuthenticationHandler>("license-test", _ => { });
         builder.Services.AddAuthorization();
         var app = builder.Build();
@@ -507,7 +574,8 @@ public sealed class TenantLicenseIntegrationTests
         return app;
     }
 
-    private static async Task<WebApplication> StartSqlServerApplicationAsync(RSA rsa, string connectionString)
+    private static async Task<WebApplication> StartSqlServerApplicationAsync(RSA rsa, string connectionString,
+        string? tenantConnectionString = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -516,6 +584,7 @@ public sealed class TenantLicenseIntegrationTests
             ["Licensing:PublicKeys:test-key"] = rsa.ExportSubjectPublicKeyInfoPem()
         });
         builder.Services.AddDbContext<PlatformDbContext>(options => options.UseSqlServer(connectionString));
+        builder.Services.AddDbContext<TenantDbContext>(options => options.UseSqlServer(tenantConnectionString ?? connectionString));
         builder.Services.AddAuthentication("license-test").AddScheme<AuthenticationSchemeOptions, LicenseAuthenticationHandler>("license-test", _ => { });
         builder.Services.AddAuthorization();
         var app = builder.Build();

@@ -15,13 +15,14 @@ public static class TenantLicenseEndpoints
     public static void MapTenantLicenseEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/tenant-license").WithTags("Firma lisansı").RequireAuthorization();
-        group.MapGet("/", async (ClaimsPrincipal user, PlatformDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (ClaimsPrincipal user, PlatformDbContext db, TenantDbContext tenantDb, CancellationToken ct) =>
         {
             if (!TryTenant(user, out var tenantId)) return Results.Forbid();
             var license = await db.TenantLicenses.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId, ct);
             var userCount = await db.TenantMemberships.CountAsync(x => x.TenantId == tenantId, ct);
             var moduleCount = await db.TenantModuleActivations.CountAsync(x => x.TenantId == tenantId, ct);
-            var usage = new TenantLicenseUsage(userCount, moduleCount);
+            var sqlDataBytes = await ReadTenantSqlDataBytesAsync(tenantDb, ct);
+            var usage = new TenantLicenseUsage(userCount, moduleCount, sqlDataBytes);
             if (license is null)
             {
                 var defaultPolicy = LicenseTierCatalog.All["Small"];
@@ -129,6 +130,26 @@ public static class TenantLicenseEndpoints
         return Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    private static async Task<long?> ReadTenantSqlDataBytesAsync(TenantDbContext db, CancellationToken ct)
+    {
+        // TenantDbContext is routed to the selected company's dedicated database. This
+        // reports allocated SQL data pages only; it is not a write-time quota or file-store meter.
+        if (!db.Database.IsSqlServer()) return null;
+        var wasClosed = db.Database.GetDbConnection().State != ConnectionState.Open;
+        if (wasClosed) await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            await using var command = db.Database.GetDbConnection().CreateCommand();
+            command.CommandText = "SELECT COALESCE(SUM(CONVERT(bigint, FILEPROPERTY([name], 'SpaceUsed')) * CONVERT(bigint, 8192)), CONVERT(bigint, 0)) FROM sys.database_files WHERE [type_desc] = N'ROWS';";
+            var result = await command.ExecuteScalarAsync(ct);
+            return result is null or DBNull ? null : Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture);
+        }
+        finally
+        {
+            if (wasClosed) await db.Database.CloseConnectionAsync();
+        }
+    }
+
     private static bool TryValidateGrant(string token, Guid tenantId, IConfiguration configuration,
         out SignedLicenseGrant grant, out string error)
     {
@@ -184,4 +205,4 @@ public sealed record TenantLicenseFeatures(bool AdvancedWorkflow, bool CustomMod
 public sealed record TenantLicenseView(string Status, Guid? LicenseId, string? Tier, DateTimeOffset? ExpiresAt,
     int? MaxUsers, int? MaxCustomModules, int? MaxStorageGb, TenantLicenseFeatures? Features = null,
     string? RowVersion = null, TenantLicenseUsage? Usage = null);
-public sealed record TenantLicenseUsage(int Users, int CustomModules);
+public sealed record TenantLicenseUsage(int Users, int CustomModules, long? SqlDataBytes = null);
