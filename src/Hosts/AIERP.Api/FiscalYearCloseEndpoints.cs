@@ -32,6 +32,18 @@ internal static class FiscalYearCloseEndpoints
         return null;
     }
 
+    public static IResult? CreateClosedPeriodConflict(
+        (DateOnly FromDate, DateOnly ToDate)? closedPeriod, string postingLabel)
+    {
+        if (closedPeriod is not { } closed) return null;
+        return Results.Conflict(new
+        {
+            error = $"{closed.FromDate:yyyy-MM-dd}–{closed.ToDate:yyyy-MM-dd} dönemi kapalı; {postingLabel} bu tarihe kaydedilemez.",
+            fromDate = closed.FromDate,
+            toDate = closed.ToDate
+        });
+    }
+
     /// <summary>
     /// Acquires the same tenant-row lock used by fiscal-year close. Every journal posting must call
     /// this inside its write transaction before checking the date or creating ledger effects, so a

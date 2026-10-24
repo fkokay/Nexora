@@ -6762,6 +6762,10 @@ financeAccounts.MapPost("/{id:guid}/movements", async (Guid id, FinancialAccount
             prior.CurrencyCode, prior.Description, prior.Reference, "Manuel hareket", null, prior.ReversalOfId, prior.CreatedAt, null, prior.CashFlowCategory));
     }
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var closedMovementPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.TransactionDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedMovementPeriod, "finans hareketi") is { } movementConflict)
+        return movementConflict;
     var account = await db.FinancialAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[FinancialAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (account is null) return Results.NotFound();
     if (!account.IsActive) return Results.Conflict(new { error = "Pasif hesaba hareket kaydedilemez." });
@@ -6787,6 +6791,11 @@ financeAccounts.MapPost("/{id:guid}/transactions/{transactionId:guid}/void", asy
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "finans hareketi ters kaydı") is { } movementReversalConflict)
+        return movementReversalConflict;
     var account = await db.FinancialAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[FinancialAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (account is null) return Results.NotFound();
     var original = await db.FinancialAccountTransactions.FromSqlInterpolated($"SELECT * FROM [dbo].[FinancialAccountTransactions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {transactionId} AND [FinancialAccountId] = {id}").SingleOrDefaultAsync();
@@ -6805,7 +6814,7 @@ financeAccounts.MapPost("/{id:guid}/transactions/{transactionId:guid}/void", asy
         if (balance < original.Amount) return Results.Conflict(new { error = "Kasa bakiyesi bu hareketi ters kayıtla iptal etmek için yetersiz." });
     }
     db.FinancialAccountTransactions.Add(new FinancialAccountTransaction { TenantId = tenantId, FinancialAccount = account,
-        CurrencyCode = account.CurrencyCode, TransactionDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = reverseDirection,
+        CurrencyCode = account.CurrencyCode, TransactionDate = reversalDate, Direction = reverseDirection,
         CashFlowCategory = original.CashFlowCategory, Amount = original.Amount, Description = $"Finans hareketi iptali {original.Id:N}", Reference = original.Reference, ReversalOfId = original.Id });
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "financial-account.movement-voided", Resource = account.Code });
     await db.SaveChangesAsync(); await transaction.CommitAsync();
@@ -6854,6 +6863,10 @@ financialTransfers.MapPost("/", async (FinancialAccountTransferWriteRequest requ
             prior.Status, prior.CreatedAt, prior.ToCurrencyCode, prior.DestinationAmount, prior.ExchangeRate));
     }
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var closedTransferPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.TransferDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedTransferPeriod, "hesap transferi") is { } transferConflict)
+        return transferConflict;
     FinancialAccount? fromAccount = null;
     FinancialAccount? toAccount = null;
     foreach (var accountId in new[] { request.FromAccountId, request.ToAccountId }.OrderBy(x => x))
@@ -6902,6 +6915,11 @@ financialTransfers.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal pr
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "hesap transferi ters kaydı") is { } transferReversalConflict)
+        return transferReversalConflict;
     var transfer = await db.FinancialAccountTransfers.FromSqlInterpolated($"SELECT * FROM [dbo].[FinancialAccountTransfers] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (transfer is null) return Results.NotFound();
     if (transfer.Status != FinancialTransferStatus.Posted) return Results.Conflict(new { error = "Transfer daha önce iptal edilmiş." });
@@ -6927,7 +6945,7 @@ financialTransfers.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal pr
     }
     foreach (var movement in originals)
         db.FinancialAccountTransactions.Add(new FinancialAccountTransaction { TenantId = tenantId, FinancialAccount = accounts[movement.FinancialAccountId],
-            CurrencyCode = movement.CurrencyCode, TransactionDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            CurrencyCode = movement.CurrencyCode, TransactionDate = reversalDate,
             Direction = movement.Direction == FinancialDirection.Inflow ? FinancialDirection.Outflow : FinancialDirection.Inflow,
             CashFlowCategory = movement.CashFlowCategory, Amount = movement.Amount, Description = $"Transfer iptali {transfer.Code}", Reference = transfer.Reference, ReversalOfId = movement.Id });
     transfer.Status = FinancialTransferStatus.Voided;

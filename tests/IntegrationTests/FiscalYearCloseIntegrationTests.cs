@@ -58,6 +58,12 @@ public sealed class FiscalYearCloseIntegrationTests
             var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
             var closed = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, TenantA, new DateOnly(2026, 6, 15));
             Assert.Equal((new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)), closed);
+            var movementConflict = FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closed, "finans hareketi");
+            Assert.NotNull(movementConflict);
+            Assert.Equal((int)HttpStatusCode.Conflict,
+                Assert.IsAssignableFrom<Microsoft.AspNetCore.Http.IStatusCodeHttpResult>(movementConflict).StatusCode);
+            Assert.Null(FiscalYearCloseEndpoints.CreateClosedPeriodConflict(
+                await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, TenantA, new DateOnly(2027, 1, 1)), "finans hareketi"));
             Assert.Null(await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, TenantA, new DateOnly(2027, 1, 1)));
             Assert.Null(await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, TenantB, new DateOnly(2026, 6, 15)));
         }
