@@ -1330,6 +1330,10 @@ customers.MapPost("/{id:guid}/ledger", async (Guid id, CustomerLedgerWriteReques
     var errors = CustomerLedgerValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.EntryDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedPeriod, "cari hareketi") is { } closedLedgerConflict)
+        return closedLedgerConflict;
     var customer = await db.CustomerAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (customer is null) return Results.NotFound();
     if (!customer.IsActive) return Results.Conflict(new { error = "Pasif cari hesaba yeni hareket eklenemez." });
@@ -1356,6 +1360,7 @@ customers.MapPost("/{id:guid}/ledger/{entryId:guid}/reverse", async (Guid id, Gu
     var errors = CustomerLedgerValidation.ValidateReversal(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var original = await db.CustomerLedgerEntries.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerLedgerEntries] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [CustomerId] = {id} AND [Id] = {entryId}").SingleOrDefaultAsync();
     if (original is null) return Results.NotFound();
     if (original.ReversalOfId is not null) return Results.Conflict(new { error = "Bir ters kayıt yeniden ters çevrilemez." });
@@ -1367,7 +1372,11 @@ customers.MapPost("/{id:guid}/ledger/{entryId:guid}/reverse", async (Guid id, Gu
     if (original.SupplierReturnId is not null) return Results.Conflict(new { error = "Alış iadesi kaynaklı cari hareket, alış iadesi iptal işlemiyle geri alınmalıdır." });
     if (await db.CustomerLedgerEntries.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == original.Id))
         return Results.Conflict(new { error = "Bu hareket daha önce ters kayıtla iptal edildi." });
-    var reversal = new CustomerLedgerEntry { TenantId = tenantId, CustomerId = id, EntryDate = DateOnly.FromDateTime(DateTime.UtcNow),
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedPeriod, "cari hareket ters kaydı") is { } closedReversalConflict)
+        return closedReversalConflict;
+    var reversal = new CustomerLedgerEntry { TenantId = tenantId, CustomerId = id, EntryDate = reversalDate,
         Direction = original.Direction == CustomerLedgerDirection.Debit ? CustomerLedgerDirection.Credit : CustomerLedgerDirection.Debit,
         Amount = original.Amount, CurrencyCode = original.CurrencyCode, Description = $"Ters kayıt: {request.Reason.Trim()}", ReversalOfId = original.Id };
     db.CustomerLedgerEntries.Add(reversal);

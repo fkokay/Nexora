@@ -142,6 +142,14 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             Assert.Equal(data.PurchaseReturnLocationId, purchaseMovement.StorageLocationId);
             Assert.Equal(7m, purchaseMovement.UnitCostBase);
 
+            using var manualLedgerResponse = await client.PostAsJsonAsync($"/api/customers/{data.CustomerId:D}/ledger", new
+            {
+                entryDate = "2026-10-20", direction = "Debit", amount = 1m, currencyCode = "TRY", description = "Synthetic manual ledger entry"
+            });
+            Assert.Equal(HttpStatusCode.Created, manualLedgerResponse.StatusCode);
+            using var manualLedgerJson = JsonDocument.Parse(await manualLedgerResponse.Content.ReadAsStringAsync());
+            var manualLedgerEntryId = manualLedgerJson.RootElement.GetProperty("id").GetGuid();
+
             using var closeResponse = await client.PostAsJsonAsync("/api/finance/general-ledger/fiscal-year-close", new
             {
                 fromDate = "2026-01-01", toDate = "2026-12-31", retainedEarningsAccountId = data.RetainedEarningsAccountId
@@ -153,6 +161,22 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             var ledgerCount = await readbackTenant.CustomerLedgerEntries.CountAsync(x => x.TenantId == TenantId);
             var returnAuditCount = await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
                 (x.Action == "sales-return.posted" || x.Action == "supplier-return.posted"));
+            var manualLedgerAuditCount = await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
+                (x.Action == "customer-ledger.created" || x.Action == "customer-ledger.reversed"));
+
+            using var closedManualLedger = await client.PostAsJsonAsync($"/api/customers/{data.CustomerId:D}/ledger", new
+            {
+                entryDate = "2026-10-21", direction = "Credit", amount = 1m, currencyCode = "TRY", description = "Closed-period manual ledger entry"
+            });
+            Assert.Equal(HttpStatusCode.Conflict, closedManualLedger.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedManualLedger.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+            using var closedManualReversal = await client.PostAsJsonAsync($"/api/customers/{data.CustomerId:D}/ledger/{manualLedgerEntryId:D}/reverse", new
+            {
+                reason = "Closed-period reversal"
+            });
+            Assert.Equal(HttpStatusCode.Conflict, closedManualReversal.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedManualReversal.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
 
             using var closedSalesReturn = await client.PostAsJsonAsync($"/api/sales/invoices/{data.SalesInvoiceId:D}/returns", new
             {
@@ -176,6 +200,8 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             Assert.Equal(ledgerCount, await readbackTenant.CustomerLedgerEntries.CountAsync(x => x.TenantId == TenantId));
             Assert.Equal(returnAuditCount, await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
                 (x.Action == "sales-return.posted" || x.Action == "supplier-return.posted")));
+            Assert.Equal(manualLedgerAuditCount, await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
+                (x.Action == "customer-ledger.created" || x.Action == "customer-ledger.reversed")));
         }
         finally
         {
@@ -291,11 +317,11 @@ public sealed class SqlServerReturnLocationAcceptanceTests
         tenantDb.LedgerAccounts.AddRange(cashAccount, retainedEarnings);
         tenantDb.JournalEntries.Add(opening);
         await tenantDb.SaveChangesAsync();
-        return new SeedIds(warehouse.Id, salesLocation.Id, purchaseLocation.Id, inactiveLocation.Id, salesInvoice.Id, salesInvoiceLine.Id,
+        return new SeedIds(customer.Id, warehouse.Id, salesLocation.Id, purchaseLocation.Id, inactiveLocation.Id, salesInvoice.Id, salesInvoiceLine.Id,
             purchaseInvoice.Id, purchaseInvoiceLine.Id, retainedEarnings.Id);
     }
 
-    private sealed record SeedIds(Guid WarehouseId, Guid SalesReturnLocationId, Guid PurchaseReturnLocationId, Guid InactiveLocationId,
+    private sealed record SeedIds(Guid CustomerId, Guid WarehouseId, Guid SalesReturnLocationId, Guid PurchaseReturnLocationId, Guid InactiveLocationId,
         Guid SalesInvoiceId, Guid SalesInvoiceLineId, Guid PurchaseInvoiceId, Guid PurchaseInvoiceLineId, Guid RetainedEarningsAccountId);
 
     private sealed class ProcessEnvironmentOverride(IReadOnlyDictionary<string, string?> previousValues) : IDisposable
