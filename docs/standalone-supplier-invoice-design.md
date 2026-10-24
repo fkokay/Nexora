@@ -2,11 +2,13 @@
 
 ## Scope
 
-Implementation update (2026-10-24): the draft-only slice is present in `PurchaseInvoiceDraft` / `PurchaseInvoiceDraftLine`, `PurchaseInvoiceDraftEndpoints`, ERP Web, and Tenant migration r4. The focused regression test passed for create, idempotent replay, and absence of order, receipt, posted invoice, inventory, supplier-ledger, journal, and payment records. The API uses SQL Server key-range locks. The r4 Tenant migration passed a clean-schema incremental rehearsal, but remains unapplied to development/production and has not been rehearsed on a restored non-empty database. Tenant isolation, inactive-supplier rejection, and alternate role visibility still need focused coverage.
+Product owner decision (2026-10-24): supplier invoices without an order or goods receipt are captured as drafts first; accounting is a later, separate step. This confirms the current draft-only slice and does not authorize immediate posting or any automatic ledger, tax, or stock effects.
+
+Implementation update (2026-10-24): the draft-only slice is present in `PurchaseInvoiceDraft` / `PurchaseInvoiceDraftLine`, `PurchaseInvoiceDraftEndpoints`, ERP Web, and Tenant migration r4. Focused regression coverage verifies create, idempotent replay, absence of order, receipt, posted invoice, inventory, supplier-ledger, journal, and payment records, cross-tenant draft isolation, and rejection of inactive or foreign-tenant suppliers. The API uses SQL Server key-range locks. The targeted integration test passed 1/1. Alternate-role visibility still needs focused coverage. The r4 Tenant migration passed a clean-schema incremental rehearsal, but remains unapplied to development/production and has not been rehearsed on a restored non-empty database.
 
 This is a separate supplier-document capture flow. It does not change the existing purchase invoice flow, which remains sourced from a posted goods receipt and its purchase-order lines. The new flow must not create inventory transactions, receipts, orders, or synthetic stock lines.
 
-The agreed first deliverable is **draft capture only**. A standalone document records supplier-provided invoice data and is clearly labelled as unaccounted. A draft must never create a supplier ledger entry/payable, inventory movement, payment, return, or general-ledger journal. Draft data stays out of balances and aging reports. Accounting and later posting are out of scope for this slice.
+The agreed first deliverable is **draft capture only**. A standalone document records supplier-provided invoice data and is clearly labelled as unaccounted. A draft must never create a supplier ledger entry/payable, inventory movement, payment, return, or general-ledger journal. Draft data stays out of balances and aging reports. Later accounting/posting is a separate follow-up lifecycle; it requires its own reviewed workflow and must not silently convert this draft-only capture into a liability.
 
 ## Domain and tenant persistence
 
