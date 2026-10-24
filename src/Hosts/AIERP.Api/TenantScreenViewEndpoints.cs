@@ -19,6 +19,13 @@ internal static class TenantScreenViewEndpoints
         new("department", "Departman", true), new("jobTitle", "Görev", true),
         new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] HrLeaveRequestFields =
+    [
+        new("employee", "Personel", true), new("leaveType", "Tür", true),
+        new("startDate", "Başlangıç", true), new("endDate", "Bitiş", true),
+        new("requestedDays", "Gün", true), new("status", "Durum", true),
+        new("actions", "İşlem", true, Fixed: true)
+    ];
     private static readonly ScreenViewField[] StockItemFields =
     [
         new("code", "Stok kodu", true), new("name", "Stok adı", true), new("category", "Kategori", true),
@@ -147,6 +154,7 @@ internal static class TenantScreenViewEndpoints
         views.MapGet("/catalog", () => Results.Ok(new[]
         {
             new ScreenViewCatalog("hr-employees", "Personel listesi", HrEmployeeFields),
+            new ScreenViewCatalog("hr-leave-requests", "İzin talepleri", HrLeaveRequestFields),
             new ScreenViewCatalog("customers", "Cari listesi", CustomerFields),
             new ScreenViewCatalog("inventory-stock", "Stok kartları", StockItemFields),
             new ScreenViewCatalog("exchange-rates", "Döviz kurları", ExchangeRateFields),
@@ -307,6 +315,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "hr-employees", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("hr-employees", "Personel listesi", HrEmployeeFields);
+            return true;
+        }
+        if (string.Equals(key, "hr-leave-requests", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("hr-leave-requests", "İzin talepleri", HrLeaveRequestFields);
             return true;
         }
         if (string.Equals(key, "customers", StringComparison.OrdinalIgnoreCase))

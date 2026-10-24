@@ -950,6 +950,76 @@ public sealed class CustomFormEndpointsIntegrationTests
         Assert.Empty((await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/hr-employees/history"))!);
     }
 
+    [Fact]
+    public async Task Hr_leave_request_screen_view_is_allowlisted_fixed_and_tenant_scoped()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "hr-leave-requests");
+        var allowedFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal(new[] { "employee", "leaveType", "startDate", "endDate", "requestedDays", "status", "actions" },
+            allowedFields.Select(field => field.GetProperty("key").GetString()).ToArray());
+        Assert.True(allowedFields[^1].GetProperty("fixed").GetBoolean());
+
+        var create = await client.PostAsJsonAsync("/api/screen-views/hr-leave-requests/draft", new { name = "İzin listesi" });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        using var created = JsonDocument.Parse(await create.Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+
+        var hiddenActions = await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new
+        {
+            expectedRevision = 1,
+            name = "İşlemleri gizle",
+            fields = new[]
+            {
+                new { key = "employee", label = "Personel", visible = true, position = 0 },
+                new { key = "leaveType", label = "Tür", visible = true, position = 1 },
+                new { key = "startDate", label = "Başlangıç", visible = true, position = 2 },
+                new { key = "endDate", label = "Bitiş", visible = true, position = 3 },
+                new { key = "requestedDays", label = "Gün", visible = true, position = 4 },
+                new { key = "status", label = "Durum", visible = true, position = 5 },
+                new { key = "actions", label = "İşlem", visible = false, position = 6 }
+            }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, hiddenActions.StatusCode);
+
+        var update = await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new
+        {
+            expectedRevision = 1,
+            name = "İzin listesi",
+            fields = new[]
+            {
+                new { key = "leaveType", label = "İzin türü", visible = true, position = 0 },
+                new { key = "employee", label = "Çalışan", visible = true, position = 1 },
+                new { key = "startDate", label = "Başlangıç", visible = false, position = 2 },
+                new { key = "endDate", label = "Bitiş", visible = true, position = 3 },
+                new { key = "requestedDays", label = "Gün", visible = true, position = 4 },
+                new { key = "status", label = "Durum", visible = true, position = 5 },
+                new { key = "actions", label = "İşlem", visible = true, position = 6 }
+            }
+        });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        var active = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/hr-leave-requests/active");
+        var activeFields = active!.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal("leaveType", activeFields[0].GetProperty("key").GetString());
+        Assert.Equal("İzin türü", activeFields[0].GetProperty("label").GetString());
+        Assert.False(activeFields.Single(field => field.GetProperty("key").GetString() == "startDate").GetProperty("visible").GetBoolean());
+        Assert.Equal("actions", activeFields[^1].GetProperty("key").GetString());
+        Assert.True(activeFields[^1].GetProperty("visible").GetBoolean());
+        Assert.True(activeFields[^1].GetProperty("fixed").GetBoolean());
+
+        SetIdentity(client, TenantB, UserB, "TenantAdmin");
+        var otherTenant = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/hr-leave-requests/active");
+        Assert.False(otherTenant!.GetProperty("isPublished").GetBoolean());
+        Assert.Equal("Personel", otherTenant.GetProperty("fields")[0].GetProperty("label").GetString());
+        Assert.Empty((await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/hr-leave-requests/history"))!);
+    }
+
     private static void SetIdentity(HttpClient client, Guid tenantId, Guid userId, string role)
     {
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");
