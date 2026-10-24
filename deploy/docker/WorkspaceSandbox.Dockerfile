@@ -66,8 +66,7 @@ COPY deploy/pip-patches/requirements.txt /tmp/pip-patches-requirements.txt
 COPY deploy/pip-patches/update-vendored-sbom.py /tmp/update-pip-vendored-sbom.py
 RUN apk upgrade --no-cache && apk add --no-cache util-linux ca-certificates nodejs npm python3 py3-pip py3-pytest rust cargo build-base && \
     rm -rf /usr/share/powershell /usr/bin/pwsh && \
-    addgroup -S -g 1654 sandbox && adduser -S -D -H -u 1654 -G sandbox sandbox && \
-    mkdir -p /test-jobs /tmp/test-jobs /opt/nuget-feed && chown sandbox:sandbox /test-jobs /tmp/test-jobs && chmod 0750 /test-jobs /tmp/test-jobs && \
+    mkdir -p /test-jobs /tmp/test-jobs /opt/nuget-feed && chown app:app /test-jobs /tmp/test-jobs && chmod 0750 /test-jobs /tmp/test-jobs && \
     npm install --global npm@12.2.0 --ignore-scripts --no-audit --no-fund --loglevel=error && \
     test "$(/usr/local/bin/npm --version)" = "12.2.0" && \
     rm -rf /usr/lib/node_modules/npm && \

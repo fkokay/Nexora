@@ -524,7 +524,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/WorkspaceSandbox.Dockerfile
-    user: "1654:1654"
+    user: "0:0"
     environment:
       WorkspaceSandbox__JobRoot: /test-jobs
       WorkspaceSandbox__TempRoot: /tmp/test-jobs
@@ -546,6 +546,7 @@ services:
       - SETPCAP
       - SETUID
       - SETGID
+      - DAC_OVERRIDE
     security_opt:
       - no-new-privileges:true
     pids_limit: 256

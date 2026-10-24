@@ -25,10 +25,10 @@ $serviceMatch = [regex]::Match($compose, '(?ms)^  workspace-sandbox:\s*\r?\n(?<b
 if (-not $serviceMatch.Success) { throw 'Compose service workspace-sandbox was not found.' }
 $service = $serviceMatch.Groups['body'].Value
 
-if ($service -notmatch '(?m)^    user:\s*["'']?1654:1654["'']?\s*$') {
-    throw 'Compose workspace-sandbox runtime user must match the image UID:GID 1654:1654.'
+if ($service -notmatch '(?m)^    user:\s*["'']?0:0["'']?\s*$') {
+    throw 'Compose workspace-sandbox trusted worker must run as root to drop child jobs to the restricted UID.'
 }
-$assertions.Add('Compose runtime user matches image UID:GID 1654:1654')
+$assertions.Add('trusted queue worker runs as root; child build/test processes drop to UID/GID 65532')
 
 if ($service -notmatch '(?m)^    network_mode:\s*none\s*$') { throw 'Compose workspace-sandbox must use network_mode: none.' }
 if ($service -notmatch '(?m)^    read_only:\s*true\s*$') { throw 'Compose workspace-sandbox root filesystem must be read-only.' }
@@ -43,13 +43,13 @@ if ($service -notmatch '(?ms)^    cap_drop:\s*\r?\n      -\s*ALL\s*(?:\r?\n|\z)'
 $capAdd = [regex]::Match($service, '(?ms)^    cap_add:\s*\r?\n(?<list>.*?)(?=^    [A-Za-z_][A-Za-z0-9_-]*:|\z)')
 if (-not $capAdd.Success) { throw 'Compose workspace-sandbox must explicitly declare its required capabilities.' }
 $capabilities = @([regex]::Matches($capAdd.Groups['list'].Value, '(?m)^      -\s*([A-Z_]+)\s*$') | ForEach-Object { $_.Groups[1].Value })
-$expectedCapabilities = @('KILL', 'SETPCAP', 'SETUID', 'SETGID')
+$expectedCapabilities = @('KILL', 'SETPCAP', 'SETUID', 'SETGID', 'DAC_OVERRIDE')
 if ($capabilities.Count -ne $expectedCapabilities.Count -or
     @($capabilities | Where-Object { $_ -notin $expectedCapabilities }).Count -ne 0 -or
     @($expectedCapabilities | Where-Object { $_ -notin $capabilities }).Count -ne 0) {
     throw "Compose workspace-sandbox capabilities must be exactly: $($expectedCapabilities -join ', ')."
 }
-$assertions.Add('Compose drops ALL capabilities and adds only KILL, SETPCAP, SETUID, and SETGID')
+$assertions.Add('Compose drops ALL capabilities and adds only KILL, SETPCAP, SETUID, SETGID, and DAC_OVERRIDE')
 
 $worker = Get-Content -LiteralPath $workerPath -Raw
 foreach ($argument in @('--reuid=65532', '--regid=65532', '--clear-groups', '--bounding-set=-all', '--inh-caps=-all', '--ambient-caps=-all')) {
