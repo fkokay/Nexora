@@ -94,7 +94,55 @@ try {
         }
     }
 
-    Write-Output "Migration readiness contract passed: exact histories pass across $(@($manifest.contexts).Count) contexts; orphan and non-prefix histories fail closed; incremental SQL checksums are enforced when packaged."
+    $unsafeBundle = Join-Path $tempRoot 'unsafe-path-bundle'
+    New-Item -ItemType Directory -Path $unsafeBundle | Out-Null
+    Copy-Item -LiteralPath (Join-Path $bundle 'manifest.json') -Destination $unsafeBundle
+    foreach ($entry in $manifest.contexts) {
+        Copy-Item -LiteralPath (Join-Path $bundle ([string]$entry.file)) -Destination $unsafeBundle
+        if ($entry.incrementalFile) { Copy-Item -LiteralPath (Join-Path $bundle ([string]$entry.incrementalFile)) -Destination $unsafeBundle }
+    }
+
+    $unsafeManifestPath = Join-Path $unsafeBundle 'manifest.json'
+    $unsafeManifest = Get-Content -LiteralPath $unsafeManifestPath -Raw | ConvertFrom-Json -AsHashtable
+    $unsafeManifest.contexts[0].file = '..\outside.sql'
+    $unsafeManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $unsafeManifestPath -Encoding utf8
+    $unsafeFileFailure = ''
+    try {
+        [void](& $PreflightScript -BundlePath $unsafeBundle -TargetHistoryPath $historyPath)
+        throw 'A parent traversal in the full migration script path was accepted.'
+    } catch { $unsafeFileFailure = $_.Exception.Message }
+    if ($unsafeFileFailure -notmatch 'unsafe path segment|relative path inside') {
+        throw 'A parent traversal in the full migration script path did not fail on path validation.'
+    }
+
+    $unsafeManifest = Get-Content -LiteralPath (Join-Path $bundle 'manifest.json') -Raw | ConvertFrom-Json -AsHashtable
+    $unsafeManifest.contexts[0].file = Join-Path $tempRoot 'outside.sql'
+    $unsafeManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $unsafeManifestPath -Encoding utf8
+    $absoluteFileFailure = ''
+    try {
+        [void](& $PreflightScript -BundlePath $unsafeBundle -TargetHistoryPath $historyPath)
+        throw 'An absolute path in the full migration script field was accepted.'
+    } catch { $absoluteFileFailure = $_.Exception.Message }
+    if ($absoluteFileFailure -notmatch 'relative path inside') {
+        throw 'An absolute path in the full migration script field did not fail on path validation.'
+    }
+
+    $unsafeManifest = Get-Content -LiteralPath (Join-Path $bundle 'manifest.json') -Raw | ConvertFrom-Json -AsHashtable
+    $incrementalPathContext = @($unsafeManifest.contexts | Where-Object { $_.incrementalFile } | Select-Object -First 1)
+    if ($incrementalPathContext.Count -gt 0) {
+        $incrementalPathContext[0].incrementalFile = '..\outside-incremental.sql'
+        $unsafeManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $unsafeManifestPath -Encoding utf8
+        $unsafeIncrementalFailure = ''
+        try {
+            [void](& $PreflightScript -BundlePath $unsafeBundle -TargetHistoryPath $historyPath)
+            throw 'A parent traversal in the incremental migration script path was accepted.'
+        } catch { $unsafeIncrementalFailure = $_.Exception.Message }
+        if ($unsafeIncrementalFailure -notmatch 'unsafe path segment|relative path inside') {
+            throw 'A parent traversal in the incremental migration script path did not fail on path validation.'
+        }
+    }
+
+    Write-Output "Migration readiness contract passed: exact histories pass across $(@($manifest.contexts).Count) contexts; orphan, non-prefix, and escaping manifest paths fail closed; incremental SQL checksums are enforced when packaged."
 }
 finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force

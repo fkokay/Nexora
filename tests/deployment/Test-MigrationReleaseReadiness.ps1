@@ -7,6 +7,28 @@ $ErrorActionPreference = 'Stop'
 
 function Fail([string]$Message) { throw "Migration release preflight failed: $Message" }
 
+function Resolve-BundleFile([string]$RelativePath, [string]$Description) {
+    if ([string]::IsNullOrWhiteSpace($RelativePath) -or [IO.Path]::IsPathRooted($RelativePath)) {
+        Fail "$Description must be a relative path inside the migration bundle."
+    }
+
+    $segments = $RelativePath.Replace('\', '/') -split '/'
+    if (@($segments | Where-Object { [string]::IsNullOrWhiteSpace($_) -or $_ -in @('.', '..') }).Count -gt 0) {
+        Fail "$Description contains an unsafe path segment."
+    }
+
+    try { $resolvedPath = [IO.Path]::GetFullPath((Join-Path $bundle $RelativePath)) }
+    catch { Fail "$Description is not a valid bundle-relative path." }
+
+    $bundlePrefix = $bundle.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    $pathComparison = if ([IO.Path]::DirectorySeparatorChar -eq '\') { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+    if (-not $resolvedPath.StartsWith($bundlePrefix, $pathComparison)) {
+        Fail "$Description resolves outside the migration bundle."
+    }
+
+    return $resolvedPath
+}
+
 $bundle = (Resolve-Path -LiteralPath $BundlePath).Path
 $manifestPath = Join-Path $bundle 'manifest.json'
 $history = Get-Content -LiteralPath $TargetHistoryPath -Raw | ConvertFrom-Json -AsHashtable
@@ -31,7 +53,7 @@ $summary = [System.Collections.Generic.List[object]]::new()
 foreach ($context in $contexts) {
     $name = [string]$context.name
     if (-not $expectedTargets.ContainsKey($name) -or $context.database -ne $expectedTargets[$name]) { Fail "unexpected database mapping for $name." }
-    $sqlPath = Join-Path $bundle ([string]$context.file)
+    $sqlPath = Resolve-BundleFile ([string]$context.file) "$name script path"
     if (-not (Test-Path -LiteralPath $sqlPath -PathType Leaf)) { Fail "script missing for $name." }
     $sqlBytes = [IO.File]::ReadAllBytes($sqlPath)
     $sha = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($sqlBytes))
@@ -43,7 +65,7 @@ foreach ($context in $contexts) {
 
     if ($context.Contains('incrementalFile') -or $context.Contains('incrementalSha256')) {
         if (-not $context.Contains('incrementalFile') -or -not $context.Contains('incrementalSha256')) { Fail "$name incremental script metadata is incomplete." }
-        $incrementalPath = Join-Path $bundle ([string]$context.incrementalFile)
+        $incrementalPath = Resolve-BundleFile ([string]$context.incrementalFile) "$name incremental script path"
         if (-not (Test-Path -LiteralPath $incrementalPath -PathType Leaf)) { Fail "incremental script missing for $name." }
         $incrementalSha = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([IO.File]::ReadAllBytes($incrementalPath)))
         if ($incrementalSha -ne [string]$context.incrementalSha256) { Fail "incremental script checksum mismatch for $name." }
