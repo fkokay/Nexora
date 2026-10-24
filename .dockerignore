@@ -12,4 +12,6 @@
 **/*.coverage
 **/.vite
 .local-scout-cache/
+.codeql-model-check/
+.codex-build/
 deploy/docker/sandbox-package-cache/
