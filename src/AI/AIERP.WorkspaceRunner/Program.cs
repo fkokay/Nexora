@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using AIERP.Observability;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
@@ -73,6 +74,7 @@ builder.Services.AddAuthorization(options =>
         .RequireClaim("service", "AIERP.AIService").RequireClaim("operation", "workspace.list-branches").RequireClaim("project_id"));
 });
 var app = builder.Build();
+app.UseAierpSecurityHeaders();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "workspace-runner", mode = "approved-checkout-inspection-and-approved-file-apply-create-restore" }));
@@ -1447,13 +1449,25 @@ internal static class WorkspaceSecurity
             catch (IOException) { }
         }
 
-        var pythonTestFile = files.FirstOrDefault(path => Path.GetFileName(path).StartsWith("test_", StringComparison.OrdinalIgnoreCase) ||
-                                                           Path.GetFileName(path).EndsWith("_test.py", StringComparison.OrdinalIgnoreCase));
-        var pythonBuildFile = pythonTestFile ?? files.FirstOrDefault(path => Path.GetExtension(path).Equals(".py", StringComparison.OrdinalIgnoreCase));
-        if (pythonBuildFile is not null && targets.Count < maxTargets)
-            targets.Add(new WorkspaceTestTarget(pythonBuildFile, "Python",
-                pythonTestFile is not null ? "test_*.py or *_test.py files" : "Python source file",
-                pythonTestFile is not null ? "python3 -m pytest (offline; requirements.txt uses the operator wheelhouse)" : "python3 -m py_compile", pythonTestFile is not null, true));
+        var pythonTestFiles = files.Where(path => Path.GetExtension(path).Equals(".py", StringComparison.OrdinalIgnoreCase) &&
+            (Path.GetFileName(path).StartsWith("test_", StringComparison.OrdinalIgnoreCase) ||
+             Path.GetFileName(path).EndsWith("_test.py", StringComparison.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (pythonTestFiles.Count > 0)
+        {
+            foreach (var path in pythonTestFiles)
+            {
+                if (targets.Count >= maxTargets) { truncated = true; break; }
+                targets.Add(new WorkspaceTestTarget(path, "Python", "test_*.py or *_test.py file",
+                    "python3 -m pytest (offline; requirements.txt uses the operator wheelhouse)", true, true));
+            }
+        }
+        else
+        {
+            var pythonSourceFile = files.FirstOrDefault(path => Path.GetExtension(path).Equals(".py", StringComparison.OrdinalIgnoreCase));
+            if (pythonSourceFile is not null && targets.Count < maxTargets)
+                targets.Add(new WorkspaceTestTarget(pythonSourceFile, "Python", "Python source file", "python3 -m py_compile", false, true));
+        }
         var goTestFile = files.FirstOrDefault(path => Path.GetFileName(path).EndsWith("_test.go", StringComparison.OrdinalIgnoreCase) &&
             files.Any(candidate => Path.GetFileName(candidate).Equals("go.mod", StringComparison.OrdinalIgnoreCase) &&
                 (path.StartsWith(candidate[..(candidate.LastIndexOf('/') + 1)], StringComparison.Ordinal) || !candidate.Contains('/'))));
@@ -1537,12 +1551,24 @@ internal static class WorkspaceSecurity
             : now - manifest.CreatedAt > TimeSpan.FromMinutes(20);
         if (!expired) return;
 
-        var temporaryResultPath = resultPath + ".runner.tmp";
+        var temporaryResultPath = resultPath + ".runner." + Guid.NewGuid().ToString("N") + ".tmp";
         var result = new WorkspaceSandboxTestResult(false, "QueueExpired", "Test işi sandbox kuyruğunda veya çalışırken zaman sınırını aştı.", -1, "", 0);
-        await File.WriteAllTextAsync(temporaryResultPath, System.Text.Json.JsonSerializer.Serialize(result, options), cancellationToken);
-        try { File.Move(temporaryResultPath, resultPath, overwrite: false); }
-        catch (IOException) when (File.Exists(resultPath)) { File.Delete(temporaryResultPath); }
-        if (File.Exists(resultPath) && File.Exists(Path.Combine(jobDirectory, "source.zip"))) File.Delete(Path.Combine(jobDirectory, "source.zip"));
+        try
+        {
+            await File.WriteAllTextAsync(temporaryResultPath, System.Text.Json.JsonSerializer.Serialize(result, options), cancellationToken);
+            try { File.Move(temporaryResultPath, resultPath, overwrite: false); }
+            catch (IOException) when (File.Exists(resultPath)) { }
+            if (File.Exists(resultPath))
+            {
+                try { File.Delete(Path.Combine(jobDirectory, "source.zip")); }
+                catch (FileNotFoundException) { }
+            }
+        }
+        finally
+        {
+            try { File.Delete(temporaryResultPath); }
+            catch (FileNotFoundException) { }
+        }
     }
     internal static async Task<ReleasePackageResponse> CreateReleasePackageAsync(string root, Guid workspaceId, string packageRoot,
         CreateReleasePackageRequest request, CancellationToken cancellationToken)

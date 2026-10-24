@@ -1,0 +1,11 @@
+{
+  "attemptedAtUtc": "2026-10-20",
+  "image": "nexora-workspace-sandbox-candidate:local",
+  "imageDigest": "sha256:24dbc7a18e61ab9f952dbf477c4a92a14b84ccd1e7900f98e7da5a9e4b6c372d",
+  "scanner": "Docker Scout v1.26.0",
+  "command": "docker scout cves --format sarif --output docs/docker-scout-workspace-sandbox-20261020-candidate.sarif.json local://nexora-workspace-sandbox-candidate:local",
+  "status": "cancelled-before-results",
+  "reason": "Docker Scout local image indexing produced no SARIF on either attempt. The initial scan ran for several minutes without results; a second isolated retry also remained at “Storing image for indexing” and was interrupted after approximately 70 seconds. Candidate vulnerability counts are unknown.",
+  "sarifProduced": false,
+  "attemptCount": 2
+}

@@ -89,3 +89,7 @@ public sealed class AIProviderResponseException : Exception
 {
     public AIProviderResponseException(string message) : base(message) { }
 }
+public sealed class ERPAssistantAccessDeniedException(string toolName) : Exception
+{
+    public string ToolName { get; } = toolName;
+}

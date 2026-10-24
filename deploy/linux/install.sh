@@ -30,38 +30,7 @@ if [[ ! -e "$CONFIG/platform-api.env" ]]; then install -m 0600 "$SCRIPT_DIR/conf
 if [[ ! -e "$CONFIG/ai-service.env" ]]; then install -m 0600 "$SCRIPT_DIR/config/ai-service.env.example" "$CONFIG/ai-service.env"; fi
 chown root:nexora "$CONFIG/platform-api.env" "$CONFIG/ai-service.env"
 chmod 0640 "$CONFIG/platform-api.env" "$CONFIG/ai-service.env"
-if grep -Eq 'CHANGE_ME|^ConnectionStrings__Platform=$|^Authentication__SigningKey=$' "$CONFIG/platform-api.env" \
-  || grep -Eq 'CHANGE_ME|^ConnectionStrings__Platform=$|^Authentication__SigningKey=$' "$CONFIG/ai-service.env"; then
-  echo "Secret templates were installed under $CONFIG. Configure SQL and secrets there, then rerun install.sh." >&2
-  exit 2
-fi
-read_env_value() {
-  local file="$1" key="$2"
-  awk -v key="$key" 'index($0, key "=") == 1 { sub(/^[^=]*=/, ""); print; exit }' "$file"
-}
-platform_signing_key="$(read_env_value "$CONFIG/platform-api.env" Authentication__SigningKey)"
-ai_signing_key="$(read_env_value "$CONFIG/ai-service.env" Authentication__SigningKey)"
-plugin_signing_key="$(read_env_value "$CONFIG/platform-api.env" PluginHost__SigningKey)"
-if [[ "$(printf %s "$platform_signing_key" | wc -c)" -lt 32 || "$(printf %s "$ai_signing_key" | wc -c)" -lt 32 ]]; then
-  echo "Authentication__SigningKey must contain at least 32 bytes in both service environment files." >&2
-  exit 2
-fi
-if [[ "$platform_signing_key" != "$ai_signing_key" ]]; then
-  echo "Platform API and AI Service must use the same Authentication__SigningKey." >&2
-  exit 2
-fi
-if [[ "$(printf %s "$plugin_signing_key" | wc -c)" -lt 32 || "$plugin_signing_key" == "$platform_signing_key" ]]; then
-  echo "PluginHost__SigningKey must be a separate secret containing at least 32 bytes." >&2
-  exit 2
-fi
-integration_key="$(read_env_value "$CONFIG/platform-api.env" IntegrationQueue__EncryptionKey)"
-if [[ -n "$integration_key" ]]; then
-  decoded_integration_key="$(printf %s "$integration_key" | base64 --decode 2>/dev/null || true)"
-  if [[ "$(printf %s "$decoded_integration_key" | wc -c)" -ne 32 ]]; then
-    echo "IntegrationQueue__EncryptionKey must be base64 for exactly 32 bytes when configured." >&2
-    exit 2
-  fi
-fi
+"$SCRIPT_DIR/config-preflight.sh" "$CONFIG"
 if [[ ! -f "$SCRIPT_DIR/nginx/nexora.conf" ]]; then echo "nginx site configuration is missing." >&2; exit 1; fi
 if grep -Eq '(^|[[:space:]])(erp|studio)\.example\.com([[:space:];]|$)' "$SCRIPT_DIR/nginx/nexora.conf"; then
   echo "Replace both example server names in $SCRIPT_DIR/nginx/nexora.conf before installing." >&2

@@ -1,19 +1,42 @@
 [CmdletBinding()]
 param(
-    [string]$RunnerContainer = 'docker-workspace-runner-1',
-    [string]$SandboxContainer = 'docker-workspace-sandbox-1',
     [string]$ReportPath = (Join-Path $PSScriptRoot '..\..\docs\workspace-sandbox-package-cache-smoke.json'),
-    [string]$PackageCacheRoot = '',
+    [switch]$PreserveArtifacts,
     [int]$TimeoutSeconds = 240
 )
 
 $ErrorActionPreference = 'Stop'
 $docker = (Get-Command docker -ErrorAction Stop).Source
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$cacheRoot = if ([string]::IsNullOrWhiteSpace($PackageCacheRoot)) { Join-Path $repoRoot 'deploy\docker\sandbox-package-cache-runtime' } else { [IO.Path]::GetFullPath($PackageCacheRoot, $repoRoot) }
-$cacheRoot = (Resolve-Path -LiteralPath $cacheRoot -ErrorAction SilentlyContinue)?.Path ?? $cacheRoot
-$repoPrefix = $repoRoot.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
-if (-not $cacheRoot.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw "Package cache test path must stay within the repository: $cacheRoot" }
+$tempRoot = Join-Path ([IO.Path]::GetTempPath()) ('aierp-sandbox-cache-matrix-' + [Guid]::NewGuid().ToString('N'))
+$cacheRoot = Join-Path $tempRoot 'package-cache'
+$composeProject = 'aierp-cache-smoke-' + [Guid]::NewGuid().ToString('N')
+$composeFile = Join-Path $PSScriptRoot 'docker-compose.package-cache-smoke.yml'
+$composeArgs = @('compose', '--project-name', $composeProject, '--project-directory', $PSScriptRoot, '--file', $composeFile)
+$runnerContainer = $null
+$sandboxContainer = $null
+$composeMayExist = $false
+$composeStopped = $false
+$oldCachePath = $env:WORKSPACE_SANDBOX_PACKAGE_CACHE_PATH
+$oldSigningKey = $env:CACHE_SMOKE_AUTH_SIGNING_KEY
+$env:WORKSPACE_SANDBOX_PACKAGE_CACHE_PATH = $cacheRoot
+$env:CACHE_SMOKE_AUTH_SIGNING_KEY = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
+$manifestPath = Join-Path $cacheRoot 'package-cache-manifest.json'
+$lockIdentity = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($composeProject))).ToLowerInvariant()
+$lockPath = Join-Path ([IO.Path]::GetTempPath()) "aierp-sandbox-cache-matrix-$lockIdentity.lock"
+$cacheSmokeLock = $null
+try {
+    [IO.Directory]::CreateDirectory($tempRoot) | Out-Null
+    [IO.Directory]::CreateDirectory($cacheRoot) | Out-Null
+    $cacheSmokeLock = [IO.File]::Open($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+} catch [IO.IOException] {
+    if ($null -eq $oldCachePath) { Remove-Item Env:WORKSPACE_SANDBOX_PACKAGE_CACHE_PATH -ErrorAction SilentlyContinue } else { $env:WORKSPACE_SANDBOX_PACKAGE_CACHE_PATH = $oldCachePath }
+    if ($null -eq $oldSigningKey) { Remove-Item Env:CACHE_SMOKE_AUTH_SIGNING_KEY -ErrorAction SilentlyContinue } else { $env:CACHE_SMOKE_AUTH_SIGNING_KEY = $oldSigningKey }
+    if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $lockPath) { Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue }
+    throw "Could not reserve a private package-cache matrix smoke directory: $tempRoot"
+}
+$manifestCreated = $false
 $cacheTargets = @{
     'npm' = Join-Path $cacheRoot 'npm'
     'go-mod' = Join-Path $cacheRoot 'go-mod'
@@ -21,20 +44,24 @@ $cacheTargets = @{
     'nuget' = Join-Path $cacheRoot 'nuget'
 }
 
-foreach ($container in @($RunnerContainer, $SandboxContainer)) {
-    $running = & $docker inspect --format '{{.State.Running}}' $container 2>$null
-    if ($LASTEXITCODE -ne 0 -or $running.Trim() -ne 'true') { throw "Required running container is unavailable: $container" }
+try {
+    if (Test-Path -LiteralPath $manifestPath) { throw "Package cache manifest already exists; refusing to overwrite operator content: $manifestPath" }
+    foreach ($path in $cacheTargets.Values) {
+        New-Item -ItemType Directory -Force -Path $path | Out-Null
+        $resolved = (Resolve-Path -LiteralPath $path).Path
+        $expectedPrefix = (Resolve-Path -LiteralPath $cacheRoot).Path + [IO.Path]::DirectorySeparatorChar
+        if (-not $resolved.StartsWith($expectedPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw "Cache path resolved outside the package cache root: $resolved" }
+        if (@(Get-ChildItem -LiteralPath $resolved -Force).Count -gt 0) { throw "Package cache is not empty; refusing to overwrite operator content: $resolved" }
+    }
+} catch {
+    $cacheSmokeLock.Dispose()
+    Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    if ($null -eq $oldCachePath) { Remove-Item Env:WORKSPACE_SANDBOX_PACKAGE_CACHE_PATH -ErrorAction SilentlyContinue } else { $env:WORKSPACE_SANDBOX_PACKAGE_CACHE_PATH = $oldCachePath }
+    if ($null -eq $oldSigningKey) { Remove-Item Env:CACHE_SMOKE_AUTH_SIGNING_KEY -ErrorAction SilentlyContinue } else { $env:CACHE_SMOKE_AUTH_SIGNING_KEY = $oldSigningKey }
+    throw
 }
 
-foreach ($path in $cacheTargets.Values) {
-    New-Item -ItemType Directory -Force -Path $path | Out-Null
-    $resolved = (Resolve-Path -LiteralPath $path).Path
-    $expectedPrefix = (Resolve-Path -LiteralPath $cacheRoot).Path + [IO.Path]::DirectorySeparatorChar
-    if (-not $resolved.StartsWith($expectedPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw "Cache path resolved outside the package cache root: $resolved" }
-    if (@(Get-ChildItem -LiteralPath $resolved -Force).Count -gt 0) { throw "Package cache is not empty; refusing to overwrite operator content: $resolved" }
-}
-
-$tempRoot = Join-Path ([IO.Path]::GetTempPath()) ('aierp-sandbox-cache-matrix-' + [Guid]::NewGuid().ToString('N'))
 $sourceRoot = Join-Path $tempRoot 'source'
 $npmLockRoot = Join-Path $tempRoot 'npm-lock-project'
 $nugetPackageProject = Join-Path $tempRoot 'nuget-package'
@@ -49,9 +76,59 @@ function Write-Utf8([string]$Path, [string]$Content) {
     [IO.File]::WriteAllText($Path, $Content, [Text.UTF8Encoding]::new($false))
 }
 
+function Invoke-Compose([string[]]$Arguments) {
+    & $docker @composeArgs @Arguments
+    if ($LASTEXITCODE -ne 0) { throw "Isolated package-cache Compose command failed: docker compose $($Arguments -join ' ')" }
+}
+
+function Write-PackageCacheManifest {
+    $cacheNames = @('npm', 'python-wheels', 'go-mod', 'cargo-home', 'nuget')
+    $caches = [ordered]@{}
+    foreach ($cacheName in $cacheNames) {
+        $cachePath = Join-Path $cacheRoot $cacheName
+        $entries = [Collections.Generic.List[object]]::new()
+        if (Test-Path -LiteralPath $cachePath -PathType Container) {
+            foreach ($item in Get-ChildItem -LiteralPath $cachePath -Force -Recurse | Sort-Object FullName) {
+                if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                    throw "Package cache manifest cannot include linked entries: $($item.FullName)"
+                }
+                if ($item.PSIsContainer) { continue }
+                $relativePath = [IO.Path]::GetRelativePath($cachePath, $item.FullName).Replace([IO.Path]::DirectorySeparatorChar, '/')
+                if ([IO.Path]::AltDirectorySeparatorChar -ne [IO.Path]::DirectorySeparatorChar) {
+                    $relativePath = $relativePath.Replace([IO.Path]::AltDirectorySeparatorChar, '/')
+                }
+                $entries.Add([ordered]@{
+                    path = $relativePath
+                    sha256 = (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                })
+            }
+        }
+        $caches[$cacheName] = @($entries.ToArray())
+    }
+
+    $manifest = [ordered]@{
+        schemaVersion = 1
+        caches = $caches
+    }
+    $temporaryManifestPath = Join-Path $cacheRoot ('.package-cache-manifest.' + [Guid]::NewGuid().ToString('N') + '.tmp')
+    Write-Utf8 -Path $temporaryManifestPath -Content ($manifest | ConvertTo-Json -Depth 6)
+    try {
+        [IO.File]::Move($temporaryManifestPath, $manifestPath)
+        $script:manifestCreated = $true
+    } finally {
+        if (Test-Path -LiteralPath $temporaryManifestPath) { Remove-Item -LiteralPath $temporaryManifestPath -Force }
+    }
+}
+
 function New-Zip([string]$Directory, [string]$ArchivePath) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::CreateFromDirectory($Directory, $ArchivePath)
+}
+
+function Copy-FileToContainer([string]$Path, [string]$ContainerPath) {
+    $encoded = [Convert]::ToBase64String([IO.File]::ReadAllBytes($Path))
+    & $docker exec $runnerContainer sh -c "printf '%s' '$encoded' | base64 -d > '$ContainerPath'"
+    if ($LASTEXITCODE -ne 0) { throw "Could not transfer a staged file into the isolated sandbox queue: $ContainerPath" }
 }
 
 function Invoke-SandboxJob([string]$Ecosystem, [string]$Target, [string]$ProjectDirectory) {
@@ -75,19 +152,19 @@ function Invoke-SandboxJob([string]$Ecosystem, [string]$Target, [string]$Project
     $manifestPath = Join-Path $jobTemp 'job.json'
     Write-Utf8 -Path $manifestPath -Content ($manifest | ConvertTo-Json -Compress)
     $containerPath = "/test-jobs/$jobId"
-    & $docker exec $RunnerContainer mkdir -m 700 -p $containerPath
+    & $docker exec $runnerContainer mkdir -m 700 -p $containerPath
     if ($LASTEXITCODE -ne 0) { throw "Could not create isolated $Ecosystem sandbox job." }
-    & $docker cp $archivePath "${RunnerContainer}:$containerPath/source.zip"
+    Copy-FileToContainer -Path $archivePath -ContainerPath "$containerPath/source.zip"
     if ($LASTEXITCODE -ne 0) { throw "Could not copy the $Ecosystem source snapshot to the job queue." }
-    & $docker cp $manifestPath "${RunnerContainer}:$containerPath/job.json.upload"
+    Copy-FileToContainer -Path $manifestPath -ContainerPath "$containerPath/job.json.upload"
     if ($LASTEXITCODE -ne 0) { throw "Could not copy the $Ecosystem job manifest to the job queue." }
-    & $docker exec $RunnerContainer mv "$containerPath/job.json.upload" "$containerPath/job.json"
+    & $docker exec $runnerContainer mv "$containerPath/job.json.upload" "$containerPath/job.json"
     if ($LASTEXITCODE -ne 0) { throw "Could not atomically publish the $Ecosystem job manifest." }
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     $result = $null
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
-        $json = & $docker exec $RunnerContainer sh -c "cat $containerPath/result.json 2>/dev/null"
+        $json = & $docker exec $runnerContainer sh -c "cat $containerPath/result.json 2>/dev/null"
         if ($LASTEXITCODE -eq 0 -and $json) {
             $jsonText = ($json -join "`n").TrimStart([char]0xFEFF)
             $result = $jsonText | ConvertFrom-Json
@@ -164,7 +241,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-aierp-cache-dep = { path = ".cargo/aierp-cache-dep" }
+aierp-cache-dep = { path = "../.cargo/aierp-cache-dep" }
 '@
     Write-Utf8 (Join-Path $rustProject 'Cargo.lock') @'
 version = 4
@@ -242,40 +319,65 @@ public sealed class CacheSmokeTests
 }
 '@
 
-    $pending = & $docker exec $RunnerContainer sh -c 'find /test-jobs -mindepth 2 -maxdepth 2 -type f -name job.json | while read f; do d=$(dirname "$f"); if [ ! -f "$d/result.json" ]; then echo pending; fi; done | wc -l'
-    if ($LASTEXITCODE -ne 0 -or [int]($pending -join '') -gt 0) { throw 'Workspace Runner already has pending work; cache smoke was not queued.' }
+    # The sandbox accepts only an exact file list with per-file SHA-256 digests.
+    # Generate the v1 manifest after staging every cache and before the first runner job.
+    Write-PackageCacheManifest
+
+    # This stack gets a random Compose project name, private named queue volumes, and a
+    # temporary read-only package-cache bind mount. It never touches the operator stack.
+    $composeMayExist = $true
+    Invoke-Compose -Arguments @('up', '--detach', '--build', 'workspace-runner', 'workspace-sandbox')
+    $runnerContainer = (& $docker @composeArgs ps --quiet workspace-runner).Trim()
+    $sandboxContainer = (& $docker @composeArgs ps --quiet workspace-sandbox).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($runnerContainer) -or [string]::IsNullOrWhiteSpace($sandboxContainer)) {
+        throw 'The isolated package-cache Compose services did not start.'
+    }
 
     Invoke-SandboxJob -Ecosystem 'Node.js' -Target 'package.json' -ProjectDirectory $nodeProject
     Invoke-SandboxJob -Ecosystem 'Go' -Target 'go/cache_test.go' -ProjectDirectory $sourceRoot
     Invoke-SandboxJob -Ecosystem 'Rust' -Target 'Cargo.toml' -ProjectDirectory $rustProject
     Invoke-SandboxJob -Ecosystem '.NET' -Target 'CacheSmoke.Tests.csproj' -ProjectDirectory $dotnetProject
+
+    $sandboxWorkerUid = (& $docker exec $sandboxContainer id -u 2>$null).Trim()
+    $sandboxCapabilities = (& $docker inspect --format '{{json .HostConfig.CapAdd}}' $sandboxContainer 2>$null).Trim()
+    $sandboxCapabilityList = if ($sandboxCapabilities) { @($sandboxCapabilities | ConvertFrom-Json) } else { @() }
+    $privilegeDropPath = (& $docker exec $sandboxContainer sh -c 'if [ -x /usr/bin/setpriv ]; then echo /usr/bin/setpriv; else echo /bin/setpriv; fi' 2>$null).Trim()
+    $childUid = (& $docker exec $sandboxContainer $privilegeDropPath --reuid=65532 --regid=65532 --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all /usr/bin/id -u 2>$null).Trim()
+    if ($sandboxWorkerUid -ne '1654' -or $childUid -ne '65532') { throw "Sandbox worker/process UID boundary failed (worker=$sandboxWorkerUid child=$childUid)." }
+    $expectedCapabilities = @('CAP_KILL', 'CAP_SETGID', 'CAP_SETPCAP', 'CAP_SETUID')
+    if (@($sandboxCapabilityList | Where-Object { $_ -notin $expectedCapabilities }).Count -gt 0 -or @($expectedCapabilities | Where-Object { $_ -notin $sandboxCapabilityList }).Count -gt 0) { throw "Sandbox capability set changed unexpectedly: $($sandboxCapabilityList -join ', ')" }
+
     $succeeded = $true
-}
-finally {
-    if ($succeeded) {
-        foreach ($jobId in $jobIds) { & $docker exec $RunnerContainer rm -rf -- "/test-jobs/$jobId" 2>$null | Out-Null }
-        foreach ($path in $cacheTargets.Values) { Get-ChildItem -LiteralPath $path -Force | Remove-Item -Recurse -Force }
-        if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }
+} catch {
+    throw
+} finally {
+    if ($composeMayExist -and $succeeded -and -not $PreserveArtifacts) {
+        & $docker @composeArgs down --volumes --remove-orphans
+        $composeStopped = $LASTEXITCODE -eq 0
+        if (-not $composeStopped) { Write-Warning "Could not stop isolated smoke project '$composeProject'; preserving its private resources at $tempRoot." }
+    } elseif ($composeMayExist -and -not $succeeded) {
+        Write-Warning "Smoke failed; preserving isolated Compose project '$composeProject' and its private cache at $tempRoot for diagnosis. Remove only this project later with the same Compose file and project name."
     }
+    if (-not $PreserveArtifacts -and ($composeStopped -or -not $composeMayExist) -and (Test-Path -LiteralPath $tempRoot)) {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $cacheSmokeLock) { $cacheSmokeLock.Dispose() }
+    if ($null -eq $oldCachePath) { Remove-Item Env:WORKSPACE_SANDBOX_PACKAGE_CACHE_PATH -ErrorAction SilentlyContinue } else { $env:WORKSPACE_SANDBOX_PACKAGE_CACHE_PATH = $oldCachePath }
+    if ($null -eq $oldSigningKey) { Remove-Item Env:CACHE_SMOKE_AUTH_SIGNING_KEY -ErrorAction SilentlyContinue } else { $env:CACHE_SMOKE_AUTH_SIGNING_KEY = $oldSigningKey }
 }
 
+try {
 $passed = $succeeded -and $results.Count -eq 4 -and @($results | Where-Object { -not $_.success -or $_.status -ne 'Passed' }).Count -eq 0
-$sandboxWorkerUid = (& $docker exec $SandboxContainer id -u 2>$null).Trim()
-$sandboxCapabilities = (& $docker inspect --format '{{json .HostConfig.CapAdd}}' $SandboxContainer 2>$null).Trim()
-$sandboxCapabilityList = if ($sandboxCapabilities) { @($sandboxCapabilities | ConvertFrom-Json) } else { @() }
-$privilegeDropPath = (& $docker exec $SandboxContainer sh -c 'if [ -x /usr/bin/setpriv ]; then echo /usr/bin/setpriv; else echo /bin/setpriv; fi' 2>$null).Trim()
-$childUid = (& $docker exec $SandboxContainer $privilegeDropPath --reuid=65532 --regid=65532 --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all /usr/bin/id -u 2>$null).Trim()
-if ($sandboxWorkerUid -ne '0' -or $childUid -ne '65532') { throw "Sandbox worker/process UID boundary failed (worker=$sandboxWorkerUid child=$childUid)." }
-$expectedCapabilities = @('CAP_DAC_OVERRIDE', 'CAP_KILL', 'CAP_SETGID', 'CAP_SETPCAP', 'CAP_SETUID')
-if (@($sandboxCapabilityList | Where-Object { $_ -notin $expectedCapabilities }).Count -gt 0 -or @($expectedCapabilities | Where-Object { $_ -notin $sandboxCapabilityList }).Count -gt 0) { throw "Sandbox capability set changed unexpectedly: $($sandboxCapabilityList -join ', ')" }
 $report = [ordered]@{
     completedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
-    runnerContainer = $RunnerContainer
-    sandboxContainer = $SandboxContainer
+    composeProject = $composeProject
+    runnerContainer = $runnerContainer
+    sandboxContainer = $sandboxContainer
     sandboxWorkerUid = $sandboxWorkerUid
     sandboxWorkerCapabilities = $sandboxCapabilityList
-    packageCacheRoot = [IO.Path]::GetRelativePath($repoRoot, $cacheRoot)
-    networkDisabled = $true
+    packageCacheRoot = $cacheRoot
+    sandboxNetworkDisabled = $true
+    runnerNetworkInternal = $true
     operatorCaches = @('npm', 'go-mod', 'cargo-home', 'nuget')
     results = @($results)
     status = if ($passed) { 'passed' } else { 'failed' }
@@ -286,3 +388,6 @@ New-Item -ItemType Directory -Force -Path $reportDirectory | Out-Null
 $report | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $fullReportPath -Encoding utf8
 if (-not $passed) { throw "One or more offline sandbox package-cache checks failed. See $fullReportPath" }
 Write-Output ($report | ConvertTo-Json -Depth 6)
+} finally {
+    if ($null -ne $cacheSmokeLock) { $cacheSmokeLock.Dispose() }
+}

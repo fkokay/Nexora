@@ -10,34 +10,46 @@ public static class TenantDatabaseRouting
 {
     public const string ConnectionItemKey = "AIERP.TenantDatabaseConnection";
     public const string StudioConnectionItemKey = "AIERP.AIStudioConnection";
-    public const string LegacyModeUnavailableKey = "AIERP.DatabaseModeUnavailable";
+    public const string TenantSelectionRequiredKey = "AIERP.TenantSelectionRequired";
 
-    public static string Resolve(HttpContext? context, string legacyConnection, bool separated)
+    public static string Resolve(HttpContext? context)
     {
-        if (!separated) return legacyConnection;
-        return context?.Items[ConnectionItemKey] as string
+        var tenantId = ResolveTenantId(context);
+        var connection = context?.Items[ConnectionItemKey] as string
             ?? throw new InvalidOperationException("A Ready tenant database connection was not resolved for this request.");
+        var databaseName = new SqlConnectionStringBuilder(connection).InitialCatalog;
+        if (!string.Equals(databaseName, $"AIERPTenant_{tenantId:N}", StringComparison.Ordinal))
+            throw new InvalidOperationException("The resolved database does not match the selected tenant.");
+        return connection;
     }
 
-    public static string ResolveStudio(HttpContext? context, string legacyConnection, bool separated)
+    public static string ResolveStudio(HttpContext? context)
     {
-        if (!separated) return legacyConnection;
-        return context?.Items[StudioConnectionItemKey] as string
+        _ = ResolveTenantId(context);
+        var connection = context?.Items[StudioConnectionItemKey] as string
             ?? throw new InvalidOperationException("The Ready AIStudio database connection was not resolved for this request.");
+        if (!string.Equals(new SqlConnectionStringBuilder(connection).InitialCatalog, "AIERPStudio", StringComparison.Ordinal))
+            throw new InvalidOperationException("The resolved database is not the AIStudio database.");
+        return connection;
     }
 
-    public static async Task ResolveRequestAsync(HttpContext context, IServiceProvider services, string legacyConnection, bool separated)
+    private static Guid ResolveTenantId(HttpContext? context)
     {
-        if (!separated)
+        var raw = context?.User.FindFirst("tenant_id")?.Value;
+        if (!Guid.TryParse(raw, out var tenantId))
+            throw new InvalidOperationException("A tenant selection is required to resolve a separated database connection.");
+        return tenantId;
+    }
+
+    public static async Task ResolveRequestAsync(HttpContext context, IServiceProvider services, string tenantRuntimeConnection)
+    {
+        var raw = context.User.FindFirst("tenant_id")?.Value;
+        if (!Guid.TryParse(raw, out var tenantId))
         {
-            using var legacyScope = services.CreateScope();
-            var legacyPlatform = legacyScope.ServiceProvider.GetRequiredService<PlatformDbContext>();
-            if (await legacyPlatform.TenantDatabaseCatalog.AsNoTracking().AnyAsync(x => x.State == TenantDatabaseProvisioningState.Ready, context.RequestAborted))
-                context.Items[LegacyModeUnavailableKey] = true;
+            if (context.User.Identity?.IsAuthenticated == true && RequiresTenantScope(context.Request.Path))
+                context.Items[TenantSelectionRequiredKey] = true;
             return;
         }
-        var raw = context.User.FindFirst("tenant_id")?.Value;
-        if (!Guid.TryParse(raw, out var tenantId)) return;
         using var scope = services.CreateScope();
         var platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
         var entry = await platform.TenantDatabaseCatalog.AsNoTracking().Where(x => x.TenantId == tenantId).SingleOrDefaultAsync(context.RequestAborted);
@@ -46,22 +58,31 @@ public static class TenantDatabaseRouting
             context.Items["AIERP.TenantDatabaseUnavailable"] = true;
             return;
         }
-        var builder = new SqlConnectionStringBuilder(legacyConnection) { InitialCatalog = entry.DatabaseName };
+        var expectedDatabaseName = $"AIERPTenant_{tenantId:N}";
+        if (!string.Equals(entry.DatabaseName, expectedDatabaseName, StringComparison.Ordinal))
+        {
+            context.Items["AIERP.TenantDatabaseUnavailable"] = true;
+            return;
+        }
+        var builder = new SqlConnectionStringBuilder(tenantRuntimeConnection) { InitialCatalog = entry.DatabaseName };
         context.Items[ConnectionItemKey] = builder.ConnectionString;
     }
 
-    public static async Task ResolveAIStudioRequestAsync(HttpContext context, IServiceProvider services, string legacyConnection, bool separated)
+    private static bool RequiresTenantScope(PathString path) =>
+        path.StartsWithSegments("/studio", StringComparison.OrdinalIgnoreCase)
+        || (path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWithSegments("/api/auth", StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWithSegments("/api/platform", StringComparison.OrdinalIgnoreCase));
+
+    public static async Task ResolveAIStudioRequestAsync(HttpContext context, IServiceProvider services, string studioConnection)
     {
-        if (!separated)
+        var raw = context.User.FindFirst("tenant_id")?.Value;
+        if (!Guid.TryParse(raw, out var tenantId))
         {
-            using var legacyScope = services.CreateScope();
-            var legacyPlatform = legacyScope.ServiceProvider.GetRequiredService<PlatformDbContext>();
-            if (await legacyPlatform.DatabaseSeparationComponentStates.AsNoTracking().AnyAsync(x => x.Component == "AIStudio" && x.State == TenantDatabaseProvisioningState.Ready, context.RequestAborted))
-                context.Items[LegacyModeUnavailableKey] = true;
+            if (context.User.Identity?.IsAuthenticated == true && RequiresTenantScope(context.Request.Path))
+                context.Items[TenantSelectionRequiredKey] = true;
             return;
         }
-        var raw = context.User.FindFirst("tenant_id")?.Value;
-        if (!Guid.TryParse(raw, out var tenantId)) return;
         using var scope = services.CreateScope();
         var platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
         var state = await platform.DatabaseSeparationComponentStates.AsNoTracking()
@@ -71,7 +92,12 @@ public static class TenantDatabaseRouting
             context.Items["AIERP.AIStudioDatabaseUnavailable"] = true;
             return;
         }
-        var builder = new SqlConnectionStringBuilder(legacyConnection) { InitialCatalog = state.DatabaseName };
+        if (!string.Equals(state.DatabaseName, "AIERPStudio", StringComparison.Ordinal))
+        {
+            context.Items["AIERP.AIStudioDatabaseUnavailable"] = true;
+            return;
+        }
+        var builder = new SqlConnectionStringBuilder(studioConnection) { InitialCatalog = state.DatabaseName };
         context.Items[StudioConnectionItemKey] = builder.ConnectionString;
     }
 }

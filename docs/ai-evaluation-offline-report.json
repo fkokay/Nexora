@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAtUtc": "2026-10-18T23:10:48.6691343+00:00",
+  "generatedAtUtc": "2026-10-20T20:05:25.0124105+00:00",
   "evaluationSet": {
     "id": "erp-assistant-orchestration",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "schemaVersion": "1.0.0",
-    "sha256": "e9c330271c49d9eee7d86874af57dbd8ceba774cdd1043bb445e8441dc32f27a"
+    "sha256": "ed2fd02c20fde71d4879a4ba186760f614e7bf75804e0a752501d02da9ed6615"
   },
   "execution": {
     "mode": "offline-mocked",
@@ -17,8 +17,8 @@
     "testExitCode": 0
   },
   "summary": {
-    "total": 13,
-    "passed": 13,
+    "total": 20,
+    "passed": 20,
     "failed": 0,
     "skipped": 0
   },
@@ -78,12 +78,32 @@
       ]
     },
     {
+      "id": "customer-search-to-balance",
+      "kind": "read-tool-chain",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "customer-is-selected-from-authorized-search-results",
+        "balance-tool-uses-selected-account-id",
+        "both-tool-results-remain-in-conversation"
+      ]
+    },
+    {
       "id": "four-call-budget-rejection",
       "kind": "tool-budget",
       "outcome": "Passed",
       "declaredAssertions": [
         "reject-before-any-tool-side-effect",
         "maximum-three-calls-per-response"
+      ]
+    },
+    {
+      "id": "live-quality-contract-validation",
+      "kind": "live-quality-dataset-contract",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "one-request-synthetic-only-limits",
+        "unique-case-and-rubric-contracts",
+        "case-specific-applicable-dimensions"
       ]
     },
     {
@@ -94,6 +114,50 @@
         "http-429-classified-without-response-body",
         "rate-limit-versus-quota-remains-unknown",
         "no-automatic-retry"
+      ]
+    },
+    {
+      "id": "purchase-order-fulfillment-report",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "ordered-minus-received-reconciles-to-outstanding"
+      ]
+    },
+    {
+      "id": "purchase-order-fulfillment-semantic",
+      "kind": "synthetic-semantic-contract",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "intent-selects-operational-report",
+        "authorized-quantity-facts-are-preserved",
+        "ordered-minus-received-equals-outstanding",
+        "synthetic-sample-scope-is-disclosed",
+        "no-external-provider-request"
+      ]
+    },
+    {
+      "id": "report-schema-source-isolation",
+      "kind": "report-schema-boundary",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "only-requested-source-is-returned",
+        "available-columns-and-aggregates-are-preserved"
+      ]
+    },
+    {
+      "id": "report-schema-to-query",
+      "kind": "report-schema-chain",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "schema-read-precedes-report-query",
+        "report-columns-and-filters-are-schema-constrained",
+        "both-tool-results-remain-in-conversation",
+        "synthetic-report-page-limit-is-disclosed"
       ]
     },
     {
@@ -156,6 +220,16 @@
         "strict-schema",
         "single-tool-call",
         "tool-result-handoff"
+      ]
+    },
+    {
+      "id": "warehouse-result-bounds",
+      "kind": "result-bounds",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "row-count-is-bounded",
+        "field-size-is-bounded",
+        "serialized-size-is-bounded"
       ]
     }
   ],

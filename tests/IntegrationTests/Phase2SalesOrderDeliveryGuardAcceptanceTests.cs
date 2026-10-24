@@ -23,6 +23,20 @@ public sealed class Phase2SalesOrderDeliveryGuardAcceptanceTests
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantId.ToString());
 
+        var acceptedDate = new DateOnly(2026, 10, 20);
+        var accepted = await client.PutAsJsonAsync($"/api/sales/orders/{OpenOrderId:D}/delivery-date", new
+        {
+            requestedDeliveryDate = acceptedDate
+        });
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+
+        // The identifier is valid, but the record belongs to another tenant.
+        var foreignOrder = await client.PutAsJsonAsync($"/api/sales/orders/{OtherTenantOrderId:D}/delivery-date", new
+        {
+            requestedDeliveryDate = acceptedDate
+        });
+        Assert.Equal(HttpStatusCode.NotFound, foreignOrder.StatusCode);
+
         var beforeOrderDate = await client.PutAsJsonAsync($"/api/sales/orders/{OpenOrderId:D}/delivery-date", new
         {
             requestedDeliveryDate = "2026-10-14"
@@ -38,13 +52,20 @@ public sealed class Phase2SalesOrderDeliveryGuardAcceptanceTests
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
         var orders = await db.SalesOrders.AsNoTracking().Where(x => x.TenantId == TenantId).ToDictionaryAsync(x => x.Id);
-        Assert.Null(orders[OpenOrderId].RequestedDeliveryDate);
+        Assert.Equal(acceptedDate, orders[OpenOrderId].RequestedDeliveryDate);
         Assert.Null(orders[FulfilledOrderId].RequestedDeliveryDate);
-        Assert.Empty(await db.AuditEvents.Where(x => x.TenantId == TenantId && x.Action == "sales-order.delivery-date-updated").ToListAsync());
+        var audit = Assert.Single(await db.AuditEvents.Where(x => x.TenantId == TenantId && x.Action == "sales-order.delivery-date-updated").ToListAsync());
+        Assert.Equal($"SO-OPEN:unspecified->{acceptedDate:yyyy-MM-dd}", audit.Resource);
+
+        var otherTenantOrder = await db.SalesOrders.AsNoTracking().SingleAsync(x => x.Id == OtherTenantOrderId);
+        Assert.Null(otherTenantOrder.RequestedDeliveryDate);
+        Assert.Empty(await db.AuditEvents.Where(x => x.TenantId != TenantId && x.Action == "sales-order.delivery-date-updated").ToListAsync());
     }
 
     private static readonly Guid OpenOrderId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid FulfilledOrderId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    private static readonly Guid OtherTenantId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private static readonly Guid OtherTenantOrderId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
 
     private static async Task<WebApplication> StartAsync()
     {
@@ -82,6 +103,16 @@ public sealed class Phase2SalesOrderDeliveryGuardAcceptanceTests
                 CustomerId = customer.Id, Customer = customer, Code = "SO-OPEN", OrderDate = new DateOnly(2026, 10, 15), Status = SalesOrderStatus.Open },
             new SalesOrder { Id = FulfilledOrderId, TenantId = TenantId, Tenant = tenant, QuoteId = closedOrderQuote.Id, Quote = closedOrderQuote,
                 CustomerId = customer.Id, Customer = customer, Code = "SO-CLOSED", OrderDate = new DateOnly(2026, 10, 15), Status = SalesOrderStatus.Fulfilled });
+        var otherTenant = new Tenant { Id = OtherTenantId, Name = "Other tenant", Slug = "other-tenant" };
+        var otherCustomer = new CustomerAccount { TenantId = OtherTenantId, Tenant = otherTenant, Code = "C-OTHER", Name = "Other customer", Type = CounterpartyType.Customer };
+        var otherQuote = new SalesQuote
+        {
+            TenantId = OtherTenantId, Tenant = otherTenant, CustomerId = otherCustomer.Id, Customer = otherCustomer,
+            Code = "Q-OTHER", QuoteDate = new DateOnly(2026, 10, 15), ValidUntil = new DateOnly(2026, 11, 15), Status = SalesQuoteStatus.Accepted
+        };
+        db.SalesOrders.Add(new SalesOrder { Id = OtherTenantOrderId, TenantId = OtherTenantId, Tenant = otherTenant,
+            QuoteId = otherQuote.Id, Quote = otherQuote, CustomerId = otherCustomer.Id, Customer = otherCustomer,
+            Code = "SO-OTHER", OrderDate = new DateOnly(2026, 10, 15), Status = SalesOrderStatus.Open });
         await db.SaveChangesAsync();
         return app;
     }

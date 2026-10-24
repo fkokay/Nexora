@@ -28,9 +28,16 @@ public sealed class GitHubPullRequestLifecycleTests
 
     [Theory]
     [InlineData("{\"errors\":[{\"message\":\"Resource not accessible by integration\"}]}")]
+    [InlineData("{\"errors\":{},\"data\":{\"markPullRequestReadyForReview\":{\"pullRequest\":{\"id\":\"PR_node_42\",\"isDraft\":false,\"state\":\"OPEN\"}}}}")]
     [InlineData("{\"data\":{\"markPullRequestReadyForReview\":{\"pullRequest\":{\"id\":\"OTHER\",\"isDraft\":false,\"state\":\"OPEN\"}}}}")]
     [InlineData("{\"data\":{\"markPullRequestReadyForReview\":{\"pullRequest\":{\"id\":\"PR_node_42\",\"isDraft\":true,\"state\":\"OPEN\"}}}}")]
     [InlineData("{\"data\":{\"markPullRequestReadyForReview\":{\"pullRequest\":{\"id\":\"PR_node_42\",\"isDraft\":false,\"state\":\"CLOSED\"}}}}")]
+    [InlineData("{\"data\":[]}")]
+    [InlineData("{\"data\":{\"markPullRequestReadyForReview\":[]}}")]
+    [InlineData("{\"data\":{\"markPullRequestReadyForReview\":{\"pullRequest\":[]}}}")]
+    [InlineData("{\"data\":{\"markPullRequestReadyForReview\":{\"pullRequest\":{\"id\":42,\"isDraft\":false,\"state\":\"OPEN\"}}}}")]
+    [InlineData("{\"data\":{\"markPullRequestReadyForReview\":{\"pullRequest\":{\"id\":\"PR_node_42\",\"isDraft\":false,\"state\":42}}}}")]
+    [InlineData("not-json")]
     public async Task Rejects_graphql_errors_and_unverified_transitions(string payload)
     {
         var handler = new ResponseHandler(_ => Json(HttpStatusCode.OK, payload));

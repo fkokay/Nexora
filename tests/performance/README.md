@@ -32,10 +32,18 @@ For a tenant with representative data already seeded, run the multi-endpoint rea
 
 ```powershell
 try {
-  .\tests\performance\Invoke-SeededReadPathLoadTest.ps1 -TenantName 'Nexora Demo'
+  .\tests\performance\Invoke-SeededReadPathLoadTest.ps1 -TenantSlug 'synthetic-load-<32-hex-guid>'
 } finally {
   Remove-Item Env:\AIERP_LOADTEST_EMAIL, Env:\AIERP_LOADTEST_PASSWORD -ErrorAction SilentlyContinue
 }
 ```
 
-This uses the same process-scoped credential variables described above. Before sending load it checks that the selected tenant has at least 100 stock items and 100 CRM opportunities; use `-MinimumRowsPerDataset` to set a different explicit floor. If either dataset is below the floor, it stops before load. It then measures only authenticated `GET` requests to the dashboard, stock-item list and CRM opportunity list. No fixture data is created, no row values are written to the report, and the API query endpoints do not create business records. Use a dedicated local load-test tenant that has been seeded independently; this scenario is not a production SLA.
+This uses the same process-scoped credential variables described above. The API URL must be loopback-only, and `-TenantSlug` is required and must exactly match a synthetic tenant slug in the `synthetic-load-<32-hex-guid>` namespace; the script never defaults to the first tenant. Before sending load it checks that the selected tenant has at least 100 stock items and 100 CRM opportunities; use `-MinimumRowsPerDataset` to set a different explicit floor. If either dataset is below the floor, it stops before load. It then measures only authenticated `GET` requests to the dashboard, stock-item list and CRM opportunity list. No fixture data is created, no row values are written to the report, and the API query endpoints do not create business records. Use a dedicated local load-test tenant in an isolated disposable database stack that has been seeded independently; this scenario is not a production SLA.
+
+To exercise the harness and its preflight/sanitization contract without a seeded database or API data, run its synthetic acceptance fixture:
+
+```powershell
+.\tests\performance\Invoke-SyntheticReadPathLoadAcceptance.ps1
+```
+
+This starts an in-process mock API bound to `127.0.0.1`, with synthetic credentials, tenant metadata, and stock/CRM record markers from `fixtures/synthetic-read-path-load.json`. It runs the regular load script against that mock and verifies both row-count gates, all three GET endpoints, successful request counts, and removal of credentials, tokens, tenant IDs, and record values from the report. It sends no requests to Compose or other live services and removes its temporary report when complete. The result checks the load harness contract; it is not an ERP API performance measurement.

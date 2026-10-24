@@ -113,7 +113,7 @@ services:
       ConnectionStrings__Tenant: Server=sqlserver,1433;Database=AIERPPlatform;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD};Encrypt=True;TrustServerCertificate=True
       Database__PlatformRuntimeLogin: aierp_platform_runtime
       Database__DataRuntimeLogin: aierp_data_runtime
-      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
+      Database__SeparationEnabled: "true"
       Database__SeparationBackupPath: ${DATABASE_SEPARATION_BACKUP_PATH:-}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY}
       PluginHost__SigningKey: ${PLUGIN_HOST_SIGNING_KEY}
@@ -181,7 +181,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Staging
       ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
-      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
+      Database__SeparationEnabled: "true"
       Database__SeparationBackupPath: ${DATABASE_SEPARATION_BACKUP_PATH:-}
       Database__PlatformRuntimeLogin: aierp_platform_runtime
       Database__DataRuntimeLogin: aierp_data_runtime
@@ -239,7 +239,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=aierp_platform_runtime;Password=${AIERP_PLATFORM_RUNTIME_PASSWORD};Encrypt=True;TrustServerCertificate=True
       ConnectionStrings__AIStudio: Server=sqlserver,1433;Database=AIERPStudio;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD};Encrypt=True;TrustServerCertificate=True
-      Database__SeparationEnabled: ${DATABASE_SEPARATION_ENABLED:-false}
+      Database__SeparationEnabled: "true"
       Authentication__SigningKey: ${AUTH_SIGNING_KEY}
       Authentication__Issuer: AIERP
       Authentication__Audience: AIERP

@@ -67,6 +67,10 @@ public sealed record StockItemUpdateRequest(string Code, string Name, string? Ba
     InventoryTrackingMode? TrackingMode = null, int ProcurementLeadTimeDays = 0, int ManufacturingLeadTimeDays = 0);
 public sealed record StockItemStateChangeRequest(byte[]? RowVersion, bool Confirmation);
 public sealed record WarehouseView(Guid Id, string Code, string Name, bool IsActive, byte[] RowVersion);
+public sealed record WarehouseLocationView(Guid Id, Guid WarehouseId, string Code, string Name, Guid? ParentLocationId, bool IsActive, byte[] RowVersion);
+public sealed record WarehouseLocationWriteRequest(string? Code, string? Name, Guid? ParentLocationId = null);
+public sealed record WarehouseLocationUpdateRequest(string? Code, string? Name, Guid? ParentLocationId, bool IsActive, byte[]? RowVersion);
+public sealed record WarehouseLocationBalanceView(Guid StockItemId, string StockItemCode, string StockItemName, string UnitCode, decimal Quantity);
 public sealed record WarehouseCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record WarehouseCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -85,10 +89,11 @@ public sealed record InventoryBalanceView(Guid StockItemId, string Code, string 
     decimal ValuationAmountBase = 0, decimal UnvaluedQuantity = 0, string BaseCurrencyCode = "TRY");
 public sealed record InventoryTransactionView(Guid Id, DateOnly EntryDate, InventoryDirection Direction,
     decimal Quantity, string Description, Guid? ReversalOfId, bool IsReversal, bool HasReversal, decimal? UnitCostBase = null,
-    decimal? EnteredQuantity = null, string? EnteredUnitCode = null, IReadOnlyList<InventoryTrackingAllocationView>? Tracking = null);
+    decimal? EnteredQuantity = null, string? EnteredUnitCode = null, IReadOnlyList<InventoryTrackingAllocationView>? Tracking = null,
+    Guid? StorageLocationId = null, string? StorageLocationCode = null, string? StorageLocationName = null);
 public sealed record InventoryTransactionWriteRequest(DateOnly EntryDate, InventoryDirection Direction,
     decimal Quantity, string Description, decimal? UnitCostBase = null, string? UnitCode = null,
-    IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null);
+    IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null, Guid? StorageLocationId = null);
 public sealed record InventoryCostRevaluationRequest(DateOnly EntryDate, decimal AmountBase, string Reason);
 public sealed record InventoryCostAdjustmentLineView(Guid Id, Guid StockItemId, string StockCode, string StockName,
     Guid WarehouseId, string WarehouseCode, decimal QuantitySnapshot, decimal? UnitCostSnapshotBase, decimal AmountBase,
@@ -98,7 +103,8 @@ public sealed record InventoryCostAdjustmentView(Guid Id, string Code, DateOnly 
     IReadOnlyList<InventoryCostAdjustmentLineView> Lines);
 public sealed record LandedCostWriteRequest(DateOnly EntryDate, decimal AmountBase, string AllocationMethod, string Description);
 public sealed record InventoryReverseRequest(string Reason);
-public sealed record InventoryTransferLineWriteRequest(Guid StockItemId, decimal Quantity, string? UnitCode = null);
+public sealed record InventoryTransferLineWriteRequest(Guid StockItemId, decimal Quantity, string? UnitCode = null,
+    Guid? FromStorageLocationId = null, Guid? ToStorageLocationId = null);
 public sealed record InventoryTransferWriteRequest(Guid RequestId, Guid FromWarehouseId, Guid ToWarehouseId, DateOnly TransferDate,
     IReadOnlyList<InventoryTransferLineWriteRequest> Lines);
 public sealed record InventoryTransferVoidRequest(string Reason, bool Confirmation);
@@ -106,7 +112,9 @@ public sealed record InventoryTransferSummary(Guid Id, string Code, Guid FromWar
     Guid ToWarehouseId, string ToWarehouseName, DateOnly TransferDate, InventoryTransferStatus Status,
     int LineCount, DateTimeOffset CreatedAt);
 public sealed record InventoryTransferLineView(Guid StockItemId, string Code, string Name, string UnitCode, decimal Quantity,
-    decimal? EnteredQuantity = null, string? EnteredUnitCode = null);
+    decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? FromStorageLocationId = null,
+    string? FromStorageLocationCode = null, string? FromStorageLocationName = null, Guid? ToStorageLocationId = null,
+    string? ToStorageLocationCode = null, string? ToStorageLocationName = null);
 public sealed record InventoryTransferDetailView(InventoryTransferSummary Transfer, IReadOnlyList<InventoryTransferLineView> Lines);
 public sealed record StockItemPage(IReadOnlyList<StockItemView> Items, int Page, int PageSize, int TotalCount);
 public sealed record InventoryTransactionPage(IReadOnlyList<InventoryTransactionView> Items, int Page, int PageSize, int TotalCount);
@@ -166,10 +174,10 @@ public sealed record SalesOrderReservationReleaseRequest(string Reason, bool Con
 public sealed record SalesOrderReservationSummary(Guid Id, Guid OrderId, int OrderLineNumber, Guid WarehouseId,
     string WarehouseName, Guid StockItemId, string StockCode, decimal ReservedQuantity, decimal FulfilledQuantity,
     decimal RemainingReservedQuantity, SalesOrderReservationStatus Status, DateTimeOffset CreatedAt, DateTimeOffset? ReleasedAt);
-public sealed record SalesDeliveryLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null);
+public sealed record SalesDeliveryLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null, Guid? StorageLocationId = null);
 public sealed record SalesDeliveryWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly DeliveryDate, IReadOnlyList<SalesDeliveryLineWriteRequest> Lines);
 public sealed record SalesDeliveryLineView(int OrderLineNumber, Guid StockItemId, string StockCode, string StockName,
-    string UnitCode, decimal Quantity, decimal? EnteredQuantity = null, string? EnteredUnitCode = null);
+    string UnitCode, decimal Quantity, decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? StorageLocationId = null);
 public sealed record SalesDeliverySummary(Guid Id, string Code, Guid OrderId, string OrderCode, Guid WarehouseId,
     string WarehouseName, DateOnly DeliveryDate, SalesDeliveryStatus Status, int LineCount, DateTimeOffset CreatedAt,
     bool HasSalesInvoice = false, SalesInvoiceStatus? InvoiceStatus = null, Guid? InvoiceId = null);
@@ -206,12 +214,12 @@ public sealed record CustomerCollectionSummary(Guid Id, string Code, Guid Custom
     Guid SalesInvoiceId, string InvoiceCode, DateOnly CollectionDate, decimal Amount, string CurrencyCode,
     string PaymentMethod, string? Reference, CustomerCollectionStatus Status, DateTimeOffset CreatedAt,
     Guid? FinancialAccountId = null, string? FinancialAccountName = null);
-public sealed record SalesReturnLineWriteRequest(Guid SalesInvoiceLineId, decimal Quantity, string? UnitCode = null);
+public sealed record SalesReturnLineWriteRequest(Guid SalesInvoiceLineId, decimal Quantity, string? UnitCode = null, Guid? StorageLocationId = null);
 public sealed record SalesReturnWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly ReturnDate, IReadOnlyList<SalesReturnLineWriteRequest> Lines);
 public sealed record SalesReturnLineView(Guid SalesInvoiceLineId, int OrderLineNumber, string StockCode, string StockName,
     string UnitCode, decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent,
     decimal LineSubtotal, decimal DiscountAmount, decimal TaxAmount, decimal LineTotal,
-    decimal? EnteredQuantity = null, string? EnteredUnitCode = null);
+    decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? StorageLocationId = null);
 public sealed record SalesReturnSummary(Guid Id, string Code, Guid SalesInvoiceId, string InvoiceCode, Guid WarehouseId,
     string WarehouseName, DateOnly ReturnDate, SalesReturnStatus Status, decimal GrandTotal, int LineCount,
     DateTimeOffset CreatedAt, IReadOnlyList<SalesReturnLineView> Lines);
@@ -276,8 +284,17 @@ public sealed record FxRevaluationVoucherLineView(Guid Id, FxRevaluationDirectio
 public sealed record FxRevaluationVoucherView(Guid Id, string Code, DateOnly AsOfDate, string BaseCurrencyCode,
     DateTimeOffset CreatedAt, Guid? CreatedByUserId, decimal TotalDebit, decimal TotalCredit,
     IReadOnlyList<FxRevaluationVoucherLineView> Lines);
-public sealed record LedgerAccountWriteRequest(string Code, string Name, bool IsActive = true);
-public sealed record LedgerAccountView(Guid Id, string Code, string Name, bool IsActive);
+public sealed record LedgerAccountWriteRequest(string Code, string Name, bool IsActive = true, string? StatementSection = null);
+public sealed record LedgerAccountView(Guid Id, string Code, string Name, bool IsActive, string StatementSection);
+public sealed record TenantBudgetLineWriteRequest(Guid AccountId, DateOnly PeriodStart, decimal PlannedAmount, string? Notes = null);
+public sealed record TenantBudgetPlanWriteRequest(string Name, int FiscalYear, IReadOnlyList<TenantBudgetLineWriteRequest> Lines,
+    string CurrencyCode = "TRY", int Revision = 0);
+public sealed record TenantBudgetPlanLineView(Guid Id, Guid AccountId, string AccountCode, string AccountName, string StatementSection,
+    DateOnly PeriodStart, decimal PlannedAmount, decimal ActualAmount, decimal? Variance, string? Notes);
+public sealed record TenantBudgetPlanSummary(Guid Id, string Name, int FiscalYear, string CurrencyCode, string BaseCurrencyCode, TenantBudgetPlanStatus Status,
+    int LineCount, decimal PlannedTotal, decimal ActualTotal, DateTimeOffset CreatedAt, Guid CreatedByUserId,
+    Guid? ApprovedByUserId, DateTimeOffset? ApprovedAt, int Revision);
+public sealed record TenantBudgetPlanView(TenantBudgetPlanSummary Plan, IReadOnlyList<TenantBudgetPlanLineView> Lines);
 public sealed record LedgerMappingWriteRequest(string MappingKey, Guid AccountId);
 public sealed record LedgerMappingView(string MappingKey, string Label, Guid? AccountId, string? AccountCode, string? AccountName);
 public sealed record JournalEntryLineView(int LineNumber, Guid AccountId, string AccountCode, string AccountName,
@@ -327,7 +344,7 @@ public sealed record PurchaseOrderView(Guid Id, string Code, Guid SupplierId, st
     DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null);
 public sealed record PurchaseOrderPage(IReadOnlyList<PurchaseOrderSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record PurchaseReceiptLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null,
-    IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null);
+    IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null, Guid? StorageLocationId = null);
 public sealed record PurchaseReceiptWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly ReceiptDate,
     IReadOnlyList<PurchaseReceiptLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
 public sealed record PurchaseReceiptCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
@@ -338,7 +355,7 @@ public sealed record PurchaseReceiptCustomFieldCreateRequest(string? Code, strin
 public sealed record PurchaseReceiptCustomFieldUpdateRequest(string? Label, int MaxLength, bool? IsRequired = null);
 public sealed record PurchaseReceiptLineView(int OrderLineNumber, Guid StockItemId, string StockCode, string StockName,
     string UnitCode, decimal Quantity, IReadOnlyList<InventoryTrackingAllocationView>? Tracking = null,
-    decimal? EnteredQuantity = null, string? EnteredUnitCode = null);
+    decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? StorageLocationId = null);
 public sealed record PurchaseReceiptSummary(Guid Id, string Code, Guid PurchaseOrderId, string PurchaseOrderCode,
     Guid WarehouseId, string WarehouseName, DateOnly ReceiptDate, PurchaseReceiptStatus Status, int LineCount,
     DateTimeOffset CreatedAt, IReadOnlyList<PurchaseReceiptLineView>? Lines = null, PurchaseInvoiceSummary? Invoice = null,
@@ -351,13 +368,13 @@ public sealed record PurchaseInvoiceLineView(Guid Id, Guid PurchaseReceiptLineId
 public sealed record SupplierPaymentSummary(Guid Id, string Code, Guid PurchaseInvoiceId, string InvoiceCode,
     DateOnly PaymentDate, decimal Amount, string CurrencyCode, string PaymentMethod, string? Reference,
     SupplierPaymentStatus Status, DateTimeOffset CreatedAt, Guid? FinancialAccountId = null, string? FinancialAccountName = null);
-public sealed record SupplierReturnLineWriteRequest(Guid PurchaseInvoiceLineId, decimal Quantity, string? UnitCode = null);
+public sealed record SupplierReturnLineWriteRequest(Guid PurchaseInvoiceLineId, decimal Quantity, string? UnitCode = null, Guid? StorageLocationId = null);
 public sealed record SupplierReturnWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly ReturnDate,
     IReadOnlyList<SupplierReturnLineWriteRequest> Lines);
 public sealed record SupplierReturnLineView(Guid PurchaseInvoiceLineId, int OrderLineNumber, string StockCode, string StockName,
     string UnitCode, decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent,
     decimal LineSubtotal, decimal DiscountAmount, decimal TaxAmount, decimal LineTotal,
-    decimal? EnteredQuantity = null, string? EnteredUnitCode = null);
+    decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? StorageLocationId = null);
 public sealed record SupplierReturnSummary(Guid Id, string Code, Guid PurchaseInvoiceId, string InvoiceCode,
     Guid WarehouseId, string WarehouseName, DateOnly ReturnDate, SupplierReturnStatus Status, decimal GrandTotal,
     int LineCount, DateTimeOffset CreatedAt, IReadOnlyList<SupplierReturnLineView> Lines);
@@ -376,7 +393,8 @@ public sealed record SupplierPaymentWriteRequest(Guid RequestId, DateOnly Paymen
     string PaymentMethod, string? Reference = null, Guid? FinancialAccountId = null);
 public sealed record FinancialAccountWriteRequest(string Code, string Name, FinancialAccountType Type, string CurrencyCode, decimal OpeningBalance = 0m);
 public sealed record FinancialAccountMovementWriteRequest(Guid RequestId, DateOnly TransactionDate, FinancialDirection Direction,
-    decimal Amount, string Description, string? Reference = null);
+    decimal Amount, string Description, string? Reference = null, CashFlowCategory CashFlowCategory = CashFlowCategory.Unclassified);
+public sealed record CashFlowCategoryUpdateRequest(CashFlowCategory CashFlowCategory);
 public sealed record FinancialAccountTransferWriteRequest(Guid RequestId, Guid FromAccountId, Guid ToAccountId,
     DateOnly TransferDate, decimal Amount, string? Reference = null, string Description = "Hesaplar arası transfer", decimal ExchangeRate = 1m);
 public sealed record FinancialAccountSummary(Guid Id, string Code, string Name, FinancialAccountType Type, string CurrencyCode,
@@ -403,7 +421,7 @@ public sealed record BankStatementDetail(Guid Id, string Code, Guid AccountId, s
     DateTimeOffset CreatedAt, IReadOnlyList<BankStatementLineView> Lines);
 public sealed record FinancialAccountTransactionView(Guid Id, DateOnly TransactionDate, FinancialDirection Direction,
     decimal Amount, string CurrencyCode, string Description, string? Reference, string? SourceType, string? SourceCode,
-    Guid? ReversalOfId, DateTimeOffset CreatedAt, Guid? TransferId = null);
+    Guid? ReversalOfId, DateTimeOffset CreatedAt, Guid? TransferId = null, CashFlowCategory CashFlowCategory = CashFlowCategory.Unclassified);
 public sealed record FinancialAccountDetail(Guid Id, string Code, string Name, FinancialAccountType Type, string CurrencyCode,
     bool IsActive, decimal Balance, DateTimeOffset CreatedAt, IReadOnlyList<FinancialAccountTransactionView> Transactions);
 
@@ -414,6 +432,8 @@ public static class FinancialMovementValidation
         var errors = new Dictionary<string, string[]>();
         if (request.RequestId == Guid.Empty) errors["requestId"] = ["Tekrar gönderim anahtarı zorunludur."];
         if (!Enum.IsDefined(request.Direction)) errors["direction"] = ["Hareket yönü Inflow veya Outflow olmalıdır."];
+        if (!Enum.IsDefined(request.CashFlowCategory) || request.CashFlowCategory is CashFlowCategory.InternalTransfer or CashFlowCategory.OpeningBalance)
+            errors["cashFlowCategory"] = ["Manuel hareket için İşletme, Yatırım, Finansman veya Sınıflandırılmamış seçin."];
         if (request.Amount <= 0 || request.Amount > 9999999999999999.99m || request.Amount != decimal.Round(request.Amount, 2))
             errors["amount"] = ["Tutar pozitif olmalı, decimal(18,2) sınırını aşmamalı ve en fazla iki ondalık basamak içermelidir."];
         if (string.IsNullOrWhiteSpace(request.Description) || request.Description.Trim().Length > 240) errors["description"] = ["Açıklama zorunludur ve en fazla 240 karakter olabilir."];
@@ -588,6 +608,22 @@ public static class InventoryValidation
         return errors.Count == 0 ? null : errors;
     }
 
+    public static Dictionary<string, string[]>? Validate(WarehouseLocationWriteRequest request)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 40) errors["code"] = ["Konum kodu zorunludur ve en fazla 40 karakter olabilir."];
+        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 120) errors["name"] = ["Konum adı zorunludur ve en fazla 120 karakter olabilir."];
+        if (request.ParentLocationId == Guid.Empty) errors["parentLocationId"] = ["Üst konum boş GUID olamaz."];
+        return errors.Count == 0 ? null : errors;
+    }
+
+    public static Dictionary<string, string[]>? Validate(WarehouseLocationUpdateRequest request)
+    {
+        var errors = Validate(new WarehouseLocationWriteRequest(request.Code, request.Name, request.ParentLocationId)) ?? new Dictionary<string, string[]>();
+        if (request.RowVersion is null || request.RowVersion.Length != 8) errors["rowVersion"] = ["Konum güncellemesi için geçerli sürüm bilgisi zorunludur."];
+        return errors.Count == 0 ? null : errors;
+    }
+
     public static Dictionary<string, string[]>? Validate(WarehouseStateChangeRequest request)
     {
         if (request.Confirmation) return null;
@@ -603,6 +639,7 @@ public static class InventoryValidation
         if (string.IsNullOrWhiteSpace(request.Description) || request.Description.Trim().Length > 240) errors["description"] = ["Açıklama zorunludur ve en fazla 240 karakter olabilir."];
         if (request.UnitCostBase is < 0 or > 9999999999.99999999m || request.UnitCostBase is { } cost && cost != decimal.Round(cost, 8)) errors["unitCostBase"] = ["Birim maliyet negatif olamaz ve decimal(18,8) sınırında en fazla sekiz ondalık basamak içermelidir."];
         if (request.Direction == InventoryDirection.Issue && request.UnitCostBase is not null) errors["unitCostBase"] = ["Çıkış maliyeti sistem tarafından mevcut ağırlıklı ortalama maliyetten belirlenir."];
+        if (request.StorageLocationId == Guid.Empty) errors["storageLocationId"] = ["Konum boş GUID olamaz."];
         return errors.Count == 0 ? null : errors;
     }
 
@@ -620,6 +657,8 @@ public static class InventoryValidation
             if (request.Lines.Select(x => x.StockItemId).Distinct().Count() != request.Lines.Count) errors["lines"] = ["Aynı stok kartı transferde birden fazla satırda bulunamaz."];
             if (request.Lines.Any(x => x.Quantity <= 0 || x.Quantity > 99999999999999.9999m || x.Quantity != decimal.Round(x.Quantity, 4)))
                 errors["lines"] = ["Transfer miktarları 0'dan büyük olmalı ve en fazla 4 ondalık basamak içermelidir."];
+            if (request.Lines.Any(x => x.FromStorageLocationId == Guid.Empty || x.ToStorageLocationId == Guid.Empty))
+                errors["lines"] = ["Kaynak ve hedef konumlar boş GUID olamaz."];
         }
         return errors.Count == 0 ? null : errors;
     }

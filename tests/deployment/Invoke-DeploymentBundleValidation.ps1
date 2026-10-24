@@ -9,9 +9,12 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $linuxArchivePath = (Resolve-Path -LiteralPath $LinuxArchive).Path
 $iisBundleRoot = (Resolve-Path -LiteralPath $IisBundlePath).Path
-$bashCommand = (Get-Command bash -ErrorAction Stop).Source
+$bashCommand = Get-Command bash -ErrorAction SilentlyContinue
 $gitBash = Join-Path ${env:ProgramFiles} 'Git\bin\bash.exe'
-$bash = if (Test-Path -LiteralPath $gitBash) { $gitBash } else { $bashCommand }
+$dockerCommand = Get-Command docker -ErrorAction SilentlyContinue
+$bash = if (Test-Path -LiteralPath $gitBash) { $gitBash } elseif ($bashCommand -and $bashCommand.Source -notmatch '\\WindowsApps\\bash\.exe$|\\system32\\bash\.exe$') { $bashCommand.Source } else { $null }
+$useDockerBash = -not $bash -and [bool]$dockerCommand
+if (-not $bash -and -not $useDockerBash) { throw 'Bash validation requires Git Bash, a usable Bash executable, or Docker with the .NET SDK image.' }
 $tar = (Get-Command tar -ErrorAction Stop).Source
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("Nexora-bundle-validation-" + [Guid]::NewGuid().ToString('N'))
 $checks = [System.Collections.Generic.List[object]]::new()
@@ -27,6 +30,25 @@ function Assert-File([string]$Root, [string]$RelativePath) {
     $path = Join-Path $Root $RelativePath
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required package file missing: $RelativePath" }
     return $path
+}
+
+function Assert-IisFrameOptionsDeny([xml]$Config, [string]$Component) {
+    $frameOptions = @($Config.configuration.'system.webServer'.httpProtocol.customHeaders.add |
+        Where-Object { $_.name -eq 'X-Frame-Options' -and $_.value -eq 'DENY' })
+    if ($frameOptions.Count -ne 1) { throw "Deployable IIS host template '$Component/web.config' must set exactly one X-Frame-Options: DENY header." }
+}
+
+function Assert-SecurityHeaderMiddleware([string]$RepoRoot) {
+    $programs = @(
+        @{ path = 'src/Hosts/AIERP.Api/Program.cs'; host = 'Platform API' },
+        @{ path = 'src/AI/AIERP.AIService/Program.cs'; host = 'AI service' }
+    )
+    foreach ($entry in $programs) {
+        $source = Get-Content -LiteralPath (Join-Path $RepoRoot $entry.path) -Raw
+        if ($source -notmatch '(?m)(?:^|;)\s*app\.UseAierpSecurityHeaders\(\);') {
+            throw "$($entry.host) source is missing the active UseAierpSecurityHeaders middleware."
+        }
+    }
 }
 
 function Test-ChecksumManifest([string]$ReleaseRoot) {
@@ -50,6 +72,30 @@ function Test-ChecksumManifest([string]$ReleaseRoot) {
     $expectedFiles = @($actualFiles | Where-Object { $_ -ne 'SHA256SUMS' })
     foreach ($file in $expectedFiles) { if (-not $listed.Contains($file)) { throw "Unmanifested release file: $file" } }
     if ($listed.Count -ne $expectedFiles.Count) { throw 'Linux checksum manifest contains an unexpected file count.' }
+    return $listed.Count
+}
+
+function Test-BundleChecksumManifest([string]$BundleRoot) {
+    $manifestPath = Assert-File $BundleRoot 'BUNDLE-SHA256SUMS'
+    $manifestLines = @(Get-Content -LiteralPath $manifestPath)
+    if ($manifestLines.Count -lt 10) { throw 'Linux BUNDLE-SHA256SUMS is unexpectedly short.' }
+    $listed = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($line in $manifestLines) {
+        if ($line -notmatch '^([0-9a-fA-F]{64})\s+\*?(.+)$') { throw 'Linux BUNDLE-SHA256SUMS contains a malformed line.' }
+        $relative = $Matches[2].Replace('\', '/')
+        if ([IO.Path]::IsPathRooted($relative) -or $relative.Split('/') -contains '..' -or $relative.Split('/') -contains '.' -or $relative.StartsWith('/')) {
+            throw "Unsafe path in Linux BUNDLE-SHA256SUMS: $relative"
+        }
+        if ($relative -eq 'BUNDLE-SHA256SUMS' -or -not $listed.Add($relative)) { throw "Duplicate or recursive path in Linux BUNDLE-SHA256SUMS: $relative" }
+        $file = Join-Path $BundleRoot ($relative.Replace('/', [IO.Path]::DirectorySeparatorChar))
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Bundle checksum entry points to missing file: $relative" }
+        $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
+        if ($actual -ne $Matches[1]) { throw "Bundle checksum mismatch: $relative" }
+    }
+    $actualFiles = @(Get-ChildItem -LiteralPath $BundleRoot -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($BundleRoot, $_.FullName).Replace('\', '/') })
+    $expectedFiles = @($actualFiles | Where-Object { $_ -ne 'BUNDLE-SHA256SUMS' })
+    foreach ($file in $expectedFiles) { if (-not $listed.Contains($file)) { throw "Unmanifested bundle file: $file" } }
+    if ($listed.Count -ne $expectedFiles.Count) { throw 'Linux bundle checksum manifest contains an unexpected file count.' }
     return $listed.Count
 }
 
@@ -80,9 +126,11 @@ function Test-IisBundle([string]$Root) {
     }
     if ($apiConfig.configuration.'system.webServer'.aspNetCore.arguments -ne '.\AIERP.Api.dll' -or
         $aiConfig.configuration.'system.webServer'.aspNetCore.arguments -ne '.\AIERP.AIService.dll') { throw 'IIS ANCM DLL arguments do not match their components.' }
-    foreach ($config in @($apiConfig, $aiConfig)) {
-        $frameOptions = @($config.configuration.'system.webServer'.httpProtocol.customHeaders.add | Where-Object { $_.name -eq 'X-Frame-Options' -and $_.value -eq 'DENY' })
-        if ($frameOptions.Count -ne 1) { throw 'Packaged IIS service config must set exactly one X-Frame-Options: DENY header.' }
+    Assert-IisFrameOptionsDeny $apiConfig 'platform-api'
+    Assert-IisFrameOptionsDeny $aiConfig 'ai-service'
+    foreach ($component in @('erp-web', 'development-studio')) {
+        $webConfig = [xml](Get-Content -LiteralPath (Join-Path $Root "$component\web.config") -Raw)
+        Assert-IisFrameOptionsDeny $webConfig $component
     }
     foreach ($component in @('erp-web', 'development-studio')) {
         $webConfig = [xml](Get-Content -LiteralPath (Join-Path $Root "$component\web.config") -Raw)
@@ -109,29 +157,45 @@ try {
     }
     Add-Check 'IIS PowerShell syntax' $true "$($powershellScripts.Count) deployment scripts/data files parsed without errors."
 
-    $linuxScripts = @('package.sh','preflight.sh','install.sh','health-check.sh','switch-release.sh','rollback.sh') | ForEach-Object { Join-Path $repoRoot "deploy/linux/$_" }
+    Assert-SecurityHeaderMiddleware $repoRoot
+    Add-Check 'ASP.NET security header middleware' $true 'Platform API and AI service source both wire UseAierpSecurityHeaders into their active request pipelines.'
+
+    $linuxScripts = @('package.sh','preflight.sh','config-preflight.sh','install.sh','health-check.sh','switch-release.sh','rollback.sh') | ForEach-Object { Join-Path $repoRoot "deploy/linux/$_" }
     foreach ($script in $linuxScripts) {
-        & $bash -n $script
+        if ($useDockerBash) {
+            $relativeScript = [IO.Path]::GetRelativePath($repoRoot, $script).Replace('\', '/')
+            $dockerArgs = @('run', '--rm', '--mount', "type=bind,source=$repoRoot,target=/repo,readonly", 'mcr.microsoft.com/dotnet/sdk:10.0', 'bash', '-n', "/repo/$relativeScript")
+            & $dockerCommand.Source @dockerArgs
+        } else {
+            & $bash -n $script
+        }
         if ($LASTEXITCODE -ne 0) { throw "Bash syntax check failed: $script" }
     }
-    Add-Check 'Linux Bash syntax' $true "$($linuxScripts.Count) deployment scripts pass bash -n."
+    $bashMode = if ($useDockerBash) { 'Docker-hosted Bash' } else { 'local Bash' }
+    Add-Check 'Linux Bash syntax' $true "$($linuxScripts.Count) deployment scripts pass bash -n using $bashMode."
 
     $linuxInstaller = Get-Content -LiteralPath (Join-Path $repoRoot 'deploy/linux/install.sh') -Raw
     $linuxPackage = Get-Content -LiteralPath (Join-Path $repoRoot 'deploy/linux/package.sh') -Raw
     if ($linuxInstaller.IndexOf('preflight.sh') -lt 0 -or $linuxInstaller.IndexOf('preflight.sh') -gt $linuxInstaller.IndexOf('install -d -m 0750 "$CONFIG"') -or
-        $linuxPackage -notmatch 'cp "\$SCRIPT_DIR/preflight\.sh" "\$BUNDLE_DIR/preflight\.sh"') {
-        throw 'Linux installer must run packaged preflight before host changes, and the package builder must include it.'
+        $linuxInstaller.IndexOf('config-preflight.sh') -lt 0 -or $linuxPackage -notmatch 'cp "\$SCRIPT_DIR/preflight\.sh" "\$BUNDLE_DIR/preflight\.sh"' -or
+        $linuxPackage -notmatch 'cp "\$SCRIPT_DIR/config-preflight\.sh" "\$BUNDLE_DIR/config-preflight\.sh"' -or
+        $linuxPackage -notmatch 'BUNDLE-SHA256SUMS' -or $linuxInstaller -notmatch 'config-preflight\.sh') {
+        throw 'Linux installer must validate the packaged config templates before host changes, and the package builder must include both preflight scripts and the full-bundle manifest.'
     }
-    Add-Check 'Linux installer preflight wiring' $true 'The bundle builder packages preflight.sh and install.sh invokes it before host configuration changes.'
+    $linuxPreflight = Get-Content -LiteralPath (Join-Path $repoRoot 'deploy/linux/preflight.sh') -Raw
+    if ($linuxPreflight -notmatch 'BUNDLE-SHA256SUMS' -or $linuxPreflight -notmatch 'ConnectionStrings__AIStudio') { throw 'Linux bundle preflight must verify the full bundle and required environment-template contract.' }
+    Add-Check 'Linux installer preflight wiring' $true 'The builder writes a full-bundle manifest; install verifies it and checks mandatory examples before changing the host, then validates protected runtime config.'
 
     $iisInstaller = Get-Content -LiteralPath (Join-Path $repoRoot 'deploy/iis/Install-IisBundle.ps1') -Raw
     if ($iisInstaller -notmatch 'Assert-Administrator' -or $iisInstaller -notmatch 'Assert-ProtectedSecretsFile' -or
         $iisInstaller -notmatch 'Database__ApplyMigrationsOnStartup' -or $iisInstaller -notmatch "'false'" -or
+        $iisInstaller -notmatch 'Database__SeparationEnabled.*true' -or $iisInstaller -notmatch 'Shared company databases are unsupported' -or
+        $iisInstaller -notmatch 'ConnectionStrings__Tenant' -or $iisInstaller -notmatch 'ConnectionStrings__AIStudio' -or
         $iisInstaller -notmatch 'Versioned release paths are immutable' -or
         $iisInstaller -notmatch 'Secrets file must remain outside the bundle and release directories') {
-        throw 'IIS installer static safety contract is incomplete (elevation, protected external secrets, immutable release path, or migrations-off).'
+        throw 'IIS installer static safety contract is incomplete (isolation, database connections, elevation, protected secrets, immutable release path, or migrations-off).'
     }
-    Add-Check 'IIS installer safety contract' $true 'Elevation, protected external secrets, immutable release path and startup migrations disabled verified statically.'
+    Add-Check 'IIS installer safety contract' $true 'Mandatory database isolation, tenant/Studio connections, elevation, protected external secrets, immutable release path and startup migrations disabled verified statically.'
 
     $iis = Test-IisBundle $iisBundleRoot
     Add-Check 'IIS bundle manifest/components/config' $true "Version $($iis.version); four required components and routing/ANCM configuration verified."
@@ -160,6 +224,7 @@ try {
     & $tar -xzf $linuxArchivePath -C $extractRoot
     if ($LASTEXITCODE -ne 0) { throw 'Linux package extraction failed.' }
     $linuxRoot = Join-Path $extractRoot $topNames[0]
+    $bundleChecksumCount = Test-BundleChecksumManifest $linuxRoot
     [void](Assert-File $linuxRoot 'preflight.sh')
     $releaseRoot = Join-Path $linuxRoot 'release'
     $version = [IO.File]::ReadAllText((Assert-File $releaseRoot 'VERSION')).Trim()
@@ -170,14 +235,19 @@ try {
             throw "Linux package component is missing or empty: $component"
         }
     }
+    foreach ($serviceConfig in @('api/web.config', 'ai-service/web.config')) {
+        if (Test-Path -LiteralPath (Join-Path $releaseRoot $serviceConfig) -PathType Leaf) {
+            throw "Linux package contains obsolete IIS-only service config '$serviceConfig'; this legacy artifact is NO-GO and must be rebuilt from the current source package builder."
+        }
+    }
     $linuxPackaging = Get-Content -LiteralPath (Join-Path $repoRoot 'deploy/linux/package.sh') -Raw
     if ($linuxPackaging -notmatch 'rm -f -- "\$RELEASE_DIR/api/web\.config" "\$RELEASE_DIR/ai-service/web\.config"') { throw 'Linux packaging must remove SDK-generated IIS-only web.config files.' }
     $checksumCount = Test-ChecksumManifest $releaseRoot
-    Add-Check 'Linux archive checksum/version/components' $true "Version $version; outer SHA-256 matches; four components present; $checksumCount release file checksums verified with exact manifest coverage."
+    Add-Check 'Linux archive checksum/version/components' $true "Version $version; outer SHA-256 matches; $bundleChecksumCount full-bundle and $checksumCount release file checksums verified with exact manifest coverage."
 
     $expectedEnv = @{
-        'config/platform-api.env.example' = @('ASPNETCORE_URLS=http://127.0.0.1:5080','ConnectionStrings__Platform=','Authentication__SigningKey=','PluginHost__SigningKey=','AIService__BaseUrl=http://127.0.0.1:5081')
-        'config/ai-service.env.example' = @('ASPNETCORE_URLS=http://127.0.0.1:5081','ConnectionStrings__Platform=','Authentication__SigningKey=','PlatformApi__BaseUrl=http://127.0.0.1:5080')
+        'config/platform-api.env.example' = @('ASPNETCORE_URLS=http://127.0.0.1:5080','ConnectionStrings__Platform=','ConnectionStrings__Tenant=','ConnectionStrings__AIStudio=','Database__SeparationEnabled=true','Authentication__SigningKey=','PluginHost__SigningKey=','AIService__BaseUrl=http://127.0.0.1:5081')
+        'config/ai-service.env.example' = @('ASPNETCORE_URLS=http://127.0.0.1:5081','ConnectionStrings__Platform=','ConnectionStrings__AIStudio=','Database__SeparationEnabled=true','Authentication__SigningKey=','PlatformApi__BaseUrl=http://127.0.0.1:5080')
     }
     foreach ($entry in $expectedEnv.GetEnumerator()) {
         $content = Get-Content -LiteralPath (Assert-File $linuxRoot $entry.Key) -Raw
@@ -188,16 +258,18 @@ try {
     if ($apiEnv -notmatch 'PluginHost__SigningKey=CHANGE_ME_DIFFERENT_SECRET' -or $apiEnv -notmatch 'IntegrationQueue__EncryptionKey=') { throw 'Linux API example must mark separate plugin signing key and optional encryption key.' }
     if ($aiEnv -notmatch 'Authentication__SigningKey=CHANGE_ME_USE_THE_SAME_VALUE_AS_PLATFORM_API') { throw 'Linux AI example must state that signing key is shared with Platform API.' }
     $nginx = Get-Content -LiteralPath (Assert-File $linuxRoot 'nginx/nexora.conf') -Raw
+    $frameHeaderCount = ([regex]::Matches($nginx, '(?im)^\s*add_header\s+X-Frame-Options\s+DENY\s+always;\s*$')).Count
+    $serverBlockCount = ([regex]::Matches($nginx, '(?m)^\s*server\s*\{')).Count
     if ($nginx -notmatch 'server_name erp\.example\.com' -or $nginx -notmatch 'server_name studio\.example\.com' -or
         $nginx -notmatch 'root /opt/nexora/current/web' -or $nginx -notmatch 'root /opt/nexora/current/studio' -or
         $nginx -notmatch 'location /studio/' -or $nginx -notmatch 'try_files \$uri \$uri/ /index\.html' -or
-        ([regex]::Matches($nginx, 'add_header X-Frame-Options DENY always;')).Count -lt 2) { throw 'Linux nginx template is missing separate ERP/Studio routing, SPA fallback, or frame protection.' }
+        $frameHeaderCount -ne $serverBlockCount -or $serverBlockCount -ne 2) { throw 'Linux nginx template must give each active ERP/Studio server block exactly one X-Frame-Options DENY header and retain expected routing.' }
     foreach ($service in @('aierp-platform-api.service', 'aierp-ai-service.service')) {
         $serviceText = Get-Content -LiteralPath (Assert-File $linuxRoot "systemd/$service") -Raw
         if ($serviceText -notmatch 'User=nexora' -or $serviceText -notmatch 'EnvironmentFile=/etc/nexora/' -or
             $serviceText -notmatch 'NoNewPrivileges=true' -or $serviceText -notmatch 'ProtectSystem=strict') { throw "Linux systemd service is missing expected hardening: $service" }
     }
-    Add-Check 'Linux config semantics' $true 'Environment examples, loopback service URLs, separate signing-key intent, dual-site nginx routes and systemd hardening verified.'
+    Add-Check 'Linux config semantics' $true 'Environment examples, loopback service URLs, separate signing-key intent, exactly one X-Frame-Options DENY header per active nginx server, dual-site routes and systemd hardening verified.'
 
     $report = [ordered]@{
         completedAtUtc = [DateTime]::UtcNow.ToString('o')

@@ -1,0 +1,51 @@
+pkgname=patch
+pkgver=2.8
+pkgrel=1
+maintainer="Nexora Build <build@nexora.invalid>"
+pkgdesc="GNU patch with upstream fixes for CVE-2026-56288 and CVE-2026-56289"
+url="https://www.gnu.org/software/patch/patch.html"
+arch="all"
+license="GPL-3.0-or-later"
+checkdepends="diffutils ed"
+subpackages="$pkgname-doc"
+source="https://ftp.gnu.org/gnu/patch/patch-$pkgver.tar.xz
+	CVE-2026-56288.patch
+	CVE-2026-56289.patch
+	"
+builddir="$srcdir/patch-$pkgver"
+
+# Upstream fixes from GNU patch commits e6d6a4e021660679d7fc9150f981d4920f722313
+# and faba04ef4f2b410257f76c1b9dc85e350929c4b9.
+prepare() {
+	default_prepare
+}
+
+build() {
+	gl_cv_func_gettimeofday_clobber=no \
+	gl_cv_func_tzset_clobber=no \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	if ! make check; then
+		cat tests/test-suite.log
+		return 1
+	fi
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+d689d696660a662753e8660792733c3be0a94c76abfe7a28b0f9f70300c3a42d6437d081553a59bfde6e1b0d5ee13ed89be48d0b00b6da2cadbfc14a15ada603  patch-2.8.tar.xz
+E62DE5A8E89F29A0DBEBE0CDDD11408B35FA18308FAC91DCC7D704AB9759BCE4B2C62EF079B2ADAD378317AFE5C15832A6455E27FDF6711622C1B06025E9D04A  CVE-2026-56288.patch
+266ADB9BA28131459BEE854AE3467E9CF7AC90CB797CE8B9F6BC6BB3717AFCD66AA404696B4659BFA7AF3EAA167872A9DA6C7458AFB4858EA51ECA6BF9D21185  CVE-2026-56289.patch
+"

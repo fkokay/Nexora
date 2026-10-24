@@ -13,18 +13,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<DateTimeOffset>(
-                name: "AuditLastPurgeAt",
-                table: "Tenants",
-                type: "datetimeoffset",
-                nullable: true);
-
-            migrationBuilder.AddColumn<int>(
-                name: "AuditRetentionDays",
-                table: "Tenants",
-                type: "int",
-                nullable: false,
-                defaultValue: 365);
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [Tenants] ADD [AuditLastPurgeAt] datetimeoffset NULL')");
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [Tenants] ADD [AuditRetentionDays] int NOT NULL DEFAULT 365')");
 
             migrationBuilder.InsertData(
                 table: "PermissionDefinitions",
@@ -38,12 +28,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     { "erp.audit-retention.update", "update", "update · Tenant audit retention policy", "erp.audit-retention" }
                 });
 
-            migrationBuilder.AddCheckConstraint(
-                name: "CK_Tenants_AuditRetentionDays",
-                table: "Tenants",
-                sql: "[AuditRetentionDays] >= 30 AND [AuditRetentionDays] <= 3650");
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [Tenants] ADD CONSTRAINT [CK_Tenants_AuditRetentionDays] CHECK ([AuditRetentionDays] >= 30 AND [AuditRetentionDays] <= 3650)')");
 
-            migrationBuilder.Sql("""
+            var appendOnlyTriggerSql = """
                 CREATE OR ALTER TRIGGER dbo.TR_AuditEvents_AppendOnly
                 ON dbo.AuditEvents
                 AFTER UPDATE, DELETE
@@ -53,9 +40,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     IF ISNULL(TRY_CONVERT(int, SESSION_CONTEXT(N'AIERP_AuditRetentionPurge')), 0) <> 1
                         THROW 51001, 'Audit events are append-only outside the retention purge procedure.', 1;
                 END;
-                """);
+                """;
+            migrationBuilder.Sql($"EXEC(N'{appendOnlyTriggerSql.Replace("'", "''", StringComparison.Ordinal)}')");
 
-            migrationBuilder.Sql("""
+            var purgeProcedureSql = """
                 CREATE OR ALTER PROCEDURE dbo.PurgeExpiredAuditEvents
                     @BatchSize int = 500,
                     @TenantId uniqueidentifier = NULL,
@@ -165,7 +153,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         THROW;
                     END CATCH;
                 END;
-                """);
+                """;
+            migrationBuilder.Sql($"EXEC(N'{purgeProcedureSql.Replace("'", "''", StringComparison.Ordinal)}')");
         }
 
         /// <inheritdoc />

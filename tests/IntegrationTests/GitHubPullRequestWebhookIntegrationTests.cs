@@ -41,7 +41,7 @@ public sealed class GitHubPullRequestWebhookIntegrationTests
         Assert.Null(audit);
         Assert.Equal("open", candidate.GitHubPullRequestState);
         Assert.Equal(latest, candidate.GitHubPullRequestUpdatedAt);
-        Assert.True(GitHubPullRequestReleaseRules.CanRelease(candidate));
+        Assert.True(AIERP.Platform.Domain.GitHubPullRequestReleaseRules.CanRelease(candidate));
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class GitHubPullRequestWebhookIntegrationTests
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(client, "synchronize", "open", false, false, ChangedSha, time)).StatusCode);
         var candidate = await studioDb.ReleaseCandidateRecords.SingleAsync();
         Assert.Equal("head-changed", candidate.GitHubPullRequestState);
-        Assert.False(GitHubPullRequestReleaseRules.CanRelease(candidate));
+        Assert.False(AIERP.Platform.Domain.GitHubPullRequestReleaseRules.CanRelease(candidate));
 
         time = time.AddMinutes(1);
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(client, "synchronize", "open", false, false, TestedSha, time)).StatusCode);

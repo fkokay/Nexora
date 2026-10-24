@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using AIERP.ReleaseDeployer;
 using AIERP.Platform.Domain;
+using AIERP.Platform.Infrastructure;
 using AIERP.Observability;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -16,7 +17,8 @@ var builder = WebApplication.CreateBuilder(args);
 DeployerState.AllowTestDockerOverride = ReleaseDeployerDockerExecutionPolicy.IsTestOverrideAllowed(builder.Environment.EnvironmentName);
 builder.Services.AddAierpHttpMetrics();
 var signingKey = builder.Configuration["Authentication:SigningKey"];
-var separationEnabled = builder.Configuration.GetValue<bool>("Database:SeparationEnabled");
+DatabaseIsolationConfiguration.RequireEnabled(builder.Configuration, "Release Deployer");
+const bool separationEnabled = true;
 if (string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32)
     throw new InvalidOperationException("Authentication:SigningKey must contain at least 32 bytes.");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
@@ -32,6 +34,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 });
 builder.Services.AddAuthorization();
 var app = builder.Build();
+app.UseAierpSecurityHeaders();
 app.UseAierpHttpMetrics();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -277,6 +280,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
     var migrationRollbackPath = Path.Combine(deploymentDirectory, "migration-rollback.json");
     Guid? previousDeploymentId = null;
     var succeeded = false;
+    var attemptStarted = false;
     var migrationMayHaveRun = false;
     var migrationStatus = "not_started";
     await DeployerState.Gate.WaitAsync(cancellationToken);
@@ -293,6 +297,8 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
             succeeded = true;
             return Results.Ok(existing);
         }
+        if (File.Exists(migrationRollbackPath))
+            return Results.Conflict(new { error = "Bu deployment kimliği daha önce kullanılmış; güvenli tekrar için yeni bir deployment oluşturun." });
         Directory.CreateDirectory(projectDirectory);
         var currentPath = Path.Combine(projectDirectory, "current.json");
         if (File.Exists(currentPath))
@@ -302,7 +308,10 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
         }
         if (previousDeploymentId != body.ExpectedActiveDeploymentId)
             return Results.Conflict(new { error = "Üretim sürümü değişti; dağıtım geçmişini yenileyip tekrar deneyin." });
-        if (Directory.Exists(deploymentDirectory)) Directory.Delete(deploymentDirectory, recursive: true);
+        // A failed attempt may have started a database migration. Keep its
+        // recovery record and require a fresh deployment ID for every retry.
+        if (Directory.Exists(deploymentDirectory))
+            return Results.Conflict(new { error = "Bu deployment kimliği daha önce kullanılmış; güvenli tekrar için yeni bir deployment oluşturun." });
         if (!string.Equals(await HashFileAsync(packagePath, cancellationToken), body.PackageSha256, StringComparison.OrdinalIgnoreCase))
             return Results.Conflict(new { error = "Paket SHA-256 doğrulaması başarısız." });
         PackageMetadata? metadata;
@@ -310,6 +319,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
         if (metadata is null || metadata.PackageId != body.PackageId || metadata.Version != body.Version || metadata.CommitSha != body.CommitSha ||
             metadata.SizeBytes != new FileInfo(packagePath).Length || metadata.FileCount is <= 0 or > 20_000 || !string.Equals(metadata.PackageSha256, body.PackageSha256, StringComparison.OrdinalIgnoreCase))
             return Results.Conflict(new { error = "Paket metadata'sı beklenen sürümle eşleşmiyor." });
+        attemptStarted = true;
         Directory.CreateDirectory(deploymentDirectory);
         var sourceDirectory = Path.Combine(deploymentDirectory, "source");
         Directory.CreateDirectory(sourceDirectory);
@@ -393,7 +403,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
     catch (IOException) { return Results.Problem("Production paket veya dağıtım dosyaları okunamadı.", statusCode: StatusCodes.Status500InternalServerError); }
     finally
     {
-        if (!succeeded && previousDeploymentId is Guid previousId && ProductionMigrationRollbackPolicy.ShouldRestartPreviousApplication(migrationMayHaveRun))
+        if (!succeeded && attemptStarted && previousDeploymentId is Guid previousId && ProductionMigrationRollbackPolicy.ShouldRestartPreviousApplication(migrationMayHaveRun))
         {
             var rollbackOutcome = "previous_application_restart_failed";
             var rollbackMessage = "Previous application was not confirmed healthy.";
@@ -432,7 +442,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
             catch (Exception exception) { app.Logger.LogError(exception, "Could not persist production rollback state for deployment {DeploymentId}.", body.DeploymentId); }
             app.Logger.LogWarning("Production deployment {DeploymentId} failed before migration; rollback outcome: {RollbackOutcome}. {RollbackMessage}", body.DeploymentId, rollbackOutcome, rollbackMessage);
         }
-        else if (!succeeded && previousDeploymentId is Guid blockedPreviousId)
+        else if (!succeeded && attemptStarted && previousDeploymentId is Guid blockedPreviousId)
         {
             const string outcome = "blocked_migration_may_have_run";
             const string message = "Previous application was not restarted because the new migration may have changed the database. Database restore is a separate operator decision.";
@@ -444,7 +454,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
             catch (Exception exception) { app.Logger.LogError(exception, "Could not persist production migration safety state for deployment {DeploymentId}.", body.DeploymentId); }
             app.Logger.LogError("Production deployment {DeploymentId} failed after migration may have started. Previous application restart is blocked; migration status {MigrationStatus}.", body.DeploymentId, migrationStatus);
         }
-        else if (!succeeded && Directory.Exists(deploymentDirectory))
+        else if (!succeeded && attemptStarted && Directory.Exists(deploymentDirectory))
         {
             try
             {
@@ -519,12 +529,21 @@ app.MapPost("/internal/deployments/production/restore", async (RestoreProduction
             backupNames = ["AIERPPlatform"]; // Compatibility with backups created before database-set manifests.
         if (backupNames is null || backupNames.Count == 0 || !await VerifyDatabaseSetAsync(activePrefix, sqlcmd, backupNames, body.ProjectId, body.BackupDeploymentId, backupRoot, cancellationToken))
             return Results.Conflict(new { error = "Geri yüklenecek veritabanı yedek seti doğrulanamadı; production değişmeden bırakıldı." });
+        var currentDatabaseNames = await ListAierpDatabasesAsync(activePrefix, sqlcmd, cancellationToken);
+        if (!DatabaseBackupSetPolicy.MatchesCurrentSet(currentDatabaseNames, backupNames))
+            return Results.Conflict(new { error = "Geri yükleme yedeğinin veritabanı kümesi mevcut production ile eşleşmiyor; farklı zamana ait veritabanları karışmaması için production değiştirilmedi." });
         safetyDatabaseNames = await ListAierpDatabasesAsync(activePrefix, sqlcmd, cancellationToken);
         if (safetyDatabaseNames.Count == 0 || !await BackupDatabaseSetAsync(activePrefix, sqlcmd, safetyDatabaseNames, body.ProjectId, body.DeploymentId, backupRoot, cancellationToken))
             return Results.Problem("Geri yükleme öncesi mevcut veritabanı yedek seti alınamadı; production değişmeden bırakıldı.", statusCode: StatusCodes.Status503ServiceUnavailable);
         var stopped = await RunDockerAsync(activePrefix.Concat(["stop", "platform-api", "ai-service", "platform-migrator"]), TimeSpan.FromMinutes(2), cancellationToken);
         if (stopped.ExitCode != 0) return Results.Problem("Production API durdurulamadı; veritabanı geri yüklenmedi.", statusCode: StatusCodes.Status503ServiceUnavailable);
         applicationStopped = true;
+        // Tenant creation can race with the earlier preflight while the live application is
+        // still serving requests. Recheck after all database writers are stopped so a set
+        // mismatch cannot turn into a partial point-in-time restore.
+        var stoppedDatabaseNames = await ListAierpDatabasesAsync(activePrefix, sqlcmd, cancellationToken);
+        if (!DatabaseBackupSetPolicy.MatchesCurrentSet(stoppedDatabaseNames, backupNames))
+            return Results.Conflict(new { error = "Production veritabanı kümesi yedek doğrulamasından sonra değişti; geri yükleme iptal edildi." });
         databaseRestoreAttempted = true;
         if (!await RestoreDatabaseSetAsync(activePrefix, sqlcmd, backupNames, body.ProjectId, body.BackupDeploymentId, backupRoot, cancellationToken))
             return Results.Problem("Veritabanı yedek seti geri yüklenemedi; Deployer mevcut uygulama ve veriyi kurtarmayı deneyecek.", statusCode: StatusCodes.Status502BadGateway);

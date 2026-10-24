@@ -45,8 +45,17 @@ internal static class GitHubPullRequestPublisher
         }
         else if (createResponse.IsSuccessStatusCode)
         {
-            var created = await createResponse.Content.ReadFromJsonAsync<global::GitHubPullRequestResponse>(cancellationToken: cancellationToken);
-            if (IsValid(created)) return new(created, true, null);
+            global::GitHubPullRequestResponse? created;
+            try
+            {
+                created = await createResponse.Content.ReadFromJsonAsync<global::GitHubPullRequestResponse>(cancellationToken: cancellationToken);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return new(null, false, "GitHub geçersiz PR yanıtı döndürdü.");
+            }
+
+            if (IsValid(created) && created!.Draft) return new(created, true, null);
             return new(null, false, "GitHub geçersiz PR yanıtı döndürdü.");
         }
 
@@ -61,10 +70,19 @@ internal static class GitHubPullRequestPublisher
     {
         using var response = await github.GetAsync(lookupPath, cancellationToken);
         if (!response.IsSuccessStatusCode) return (null, true);
-        var openPullRequests = await response.Content.ReadFromJsonAsync<List<global::GitHubPullRequestResponse>>(cancellationToken: cancellationToken) ?? [];
-        return (openPullRequests.FirstOrDefault(IsValid), false);
+        try
+        {
+            var openPullRequests = await response.Content.ReadFromJsonAsync<List<global::GitHubPullRequestResponse>>(cancellationToken: cancellationToken) ?? [];
+            if (openPullRequests.Count == 0) return (null, false);
+            var matchingPullRequest = openPullRequests.FirstOrDefault(IsValid);
+            return matchingPullRequest is null ? (null, true) : (matchingPullRequest, false);
+        }
+        catch (System.Text.Json.JsonException) { return (null, true); }
     }
 
     private static bool IsValid(global::GitHubPullRequestResponse? pullRequest) =>
-        pullRequest is { Number: > 0 } && !string.IsNullOrWhiteSpace(pullRequest.HtmlUrl);
+        pullRequest is { Number: > 0, State: "open" } &&
+        Uri.TryCreate(pullRequest.HtmlUrl, UriKind.Absolute, out var uri) &&
+        uri.Scheme == Uri.UriSchemeHttps &&
+        string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase);
 }

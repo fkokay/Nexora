@@ -8,6 +8,8 @@ public static class SandboxFailureTriage
 {
     public static bool RequiresAiAnalysis(SandboxFailureTriageResult triage) => triage.SourceRepairCandidate;
 
+    public static bool RequiresAISharingConsent(SandboxFailureTriageResult triage) => RequiresAiAnalysis(triage);
+
     public static SandboxFailureTriageResult Classify(string operation, string status, string? message, string? output)
     {
         var text = string.Concat(message, "\n", output);
@@ -16,12 +18,12 @@ public static class SandboxFailureTriage
             ContainsAny(text, "NU1301", "NU1101", "NU1102", "npm ERR! code ERESOLVE", "npm ERR! code E404", "npm ERR! code ETARGET",
                 "npm ERR! code ENOTFOUND", "npm ERR! fetch failed", "npm ERR! network", "npm ERR! 404 Not Found",
                 "ModuleNotFoundError", "No matching distribution found", "no matching package", "failed to download", "failed to lookup module",
-                "Could not resolve all files for configuration", "Could not resolve dependencies for project", "Could not resolve \"", "Failed to resolve import",
+                "Could not resolve all files for configuration", "Could not resolve dependencies for project",
                 "no required module provides package", "go: updates to go.mod needed", "failed to select a version for",
                 "Could not find artifact", "Could not find group:", "cannot access ",
                 "can't find crate for", "cannot find package ", "No package metadata was found for",
                 "unable to find valid certification path", "Temporary failure in name resolution", "ECONNRESET", "EAI_AGAIN") ||
-            IsMissingNodePackage(text))
+            IsMissingNodePackage(text) || IsMissingExternalImport(text))
             return new("dependency", "Bağımlılık veya çevrimdışı paket kaynağı eksik.", false,
                 "Önce onaylı paket önbelleğini/lock dosyasını doğrulayın; bağımlılık hazır olmadan kaynak kodu onarmayın.");
 
@@ -43,6 +45,10 @@ public static class SandboxFailureTriage
                 "No SDKs were found", "A compatible .NET SDK was not found", "The command could not be loaded"))
             return new("build-configuration", "Derleme için gereken SDK, hedef framework veya MSBuild import'u bulunamadı.", false,
                 "Sandbox imajındaki SDK ve hedef framework kurulumunu, global.json dosyasını ve build komutunun proje yolunu doğrulayın; kaynak onarımı önermeyin.");
+
+        if (IsMissingLocalImport(text))
+            return new("source-diagnostic", "Çıktıda çözümlenemeyen yerel kaynak import'u bulundu.", true,
+                "Import yolunu çalışma dalındaki dosyalarla eşleştirip yalnız ilgili kaynak dosyası için onarım önerisi hazırlayın.");
 
         if (IsMissingNodePath(text) || ContainsAny(text, "error CS", " error TS", "SyntaxError", "IndentationError", "TabError", "Syntax Error", "syntax error", "undefined reference", "undefined:",
                 "cannot find symbol", "declared and not used", "cannot use", "no new variables on left side of :=",
@@ -69,6 +75,43 @@ public static class SandboxFailureTriage
 
     private static bool IsMissingNodePath(string text) =>
         TryGetMissingNodeSpecifier(text, out var specifier) && IsLocalNodeSpecifier(specifier);
+
+    private static bool IsMissingLocalImport(string text) =>
+        TryGetImportSpecifier(text, "Could not resolve", out var specifier) && IsLocalNodeSpecifier(specifier) ||
+        TryGetImportSpecifier(text, "Failed to resolve import", out specifier) && IsLocalNodeSpecifier(specifier);
+
+    private static bool IsMissingExternalImport(string text) =>
+        TryGetImportSpecifier(text, "Could not resolve", out var specifier) && !IsLocalNodeSpecifier(specifier) ||
+        TryGetImportSpecifier(text, "Failed to resolve import", out specifier) && !IsLocalNodeSpecifier(specifier);
+
+    private static bool TryGetImportSpecifier(string text, string marker, out string specifier)
+    {
+        var markerIndex = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex < 0)
+        {
+            specifier = "";
+            return false;
+        }
+
+        var start = markerIndex + marker.Length;
+        while (start < text.Length && char.IsWhiteSpace(text[start])) start++;
+        if (start >= text.Length || text[start] is not ('\'' or '"' or '`'))
+        {
+            specifier = "";
+            return false;
+        }
+
+        var quote = text[start++];
+        var end = text.IndexOf(quote, start);
+        if (end <= start)
+        {
+            specifier = "";
+            return false;
+        }
+
+        specifier = text[start..end];
+        return true;
+    }
 
     private static bool TryGetMissingNodeSpecifier(string text, out string specifier)
     {

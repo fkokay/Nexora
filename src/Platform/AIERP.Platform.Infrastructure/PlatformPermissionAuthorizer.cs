@@ -27,7 +27,7 @@ public sealed class PlatformPermissionAuthorizer(PlatformDbContext db) : IPlatfo
         {
             var scopedRules = rules.Where(rule => rule.ResourceType is null
                 || string.Equals(rule.ResourceType, permission.Permission.ResourceType, StringComparison.OrdinalIgnoreCase)).ToList();
-            var rowAttributes = new[] { "resource.status", "resource.customerId", "resource.supplierId", "resource.ownerUserId" };
+            var rowAttributes = new[] { "resource.status", "resource.customerId", "resource.customerType", "resource.customerActive", "resource.supplierId", "resource.ownerUserId" };
             var routeMatched = scopedRules.Where(rule => !rowAttributes.Contains(rule.AttributeName, StringComparer.OrdinalIgnoreCase)
                 && MatchesAttribute(rule, permission.Attributes)).ToList();
             if (routeMatched.Any(x => x.Effect == TenantPermissionEffect.Deny)) return false;

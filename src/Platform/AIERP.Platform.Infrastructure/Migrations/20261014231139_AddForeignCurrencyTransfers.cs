@@ -18,63 +18,21 @@ namespace AIERP.Platform.Infrastructure.Migrations
                 name: "IX_FinancialAccountTransfers_TenantId_ToAccountId_CurrencyCode",
                 table: "FinancialAccountTransfers");
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "DestinationAmount",
-                table: "FinancialAccountTransfers",
-                type: "decimal(18,2)",
-                precision: 18,
-                scale: 2,
-                nullable: true);
-
-            migrationBuilder.AddColumn<decimal>(
-                name: "ExchangeRate",
-                table: "FinancialAccountTransfers",
-                type: "decimal(18,8)",
-                precision: 18,
-                scale: 8,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "ToCurrencyCode",
-                table: "FinancialAccountTransfers",
-                type: "nchar(3)",
-                fixedLength: true,
-                maxLength: 3,
-                nullable: true);
-
-            migrationBuilder.Sql("UPDATE [FinancialAccountTransfers] SET [ToCurrencyCode] = [CurrencyCode], [DestinationAmount] = [Amount], [ExchangeRate] = 1");
-
-            migrationBuilder.AlterColumn<decimal>(name: "DestinationAmount", table: "FinancialAccountTransfers", type: "decimal(18,2)", precision: 18, scale: 2, nullable: false, oldClrType: typeof(decimal), oldType: "decimal(18,2)", oldPrecision: 18, oldScale: 2, oldNullable: true);
-            migrationBuilder.AlterColumn<decimal>(name: "ExchangeRate", table: "FinancialAccountTransfers", type: "decimal(18,8)", precision: 18, scale: 8, nullable: false, oldClrType: typeof(decimal), oldType: "decimal(18,8)", oldPrecision: 18, oldScale: 8, oldNullable: true);
-            migrationBuilder.AlterColumn<string>(name: "ToCurrencyCode", table: "FinancialAccountTransfers", type: "nchar(3)", fixedLength: true, maxLength: 3, nullable: false, oldClrType: typeof(string), oldType: "nchar(3)", oldFixedLength: true, oldMaxLength: 3, oldNullable: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_FinancialAccountTransfers_TenantId_ToAccountId_ToCurrencyCode",
-                table: "FinancialAccountTransfers",
-                columns: new[] { "TenantId", "ToAccountId", "ToCurrencyCode" });
-
-            migrationBuilder.AddCheckConstraint(
-                name: "CK_FinancialAccountTransfers_DestinationAmountPositive",
-                table: "FinancialAccountTransfers",
-                sql: "[DestinationAmount] > 0");
-
-            migrationBuilder.AddCheckConstraint(
-                name: "CK_FinancialAccountTransfers_ExchangeRatePositive",
-                table: "FinancialAccountTransfers",
-                sql: "[ExchangeRate] > 0");
-
-            migrationBuilder.AddCheckConstraint(
-                name: "CK_FinancialAccountTransfers_SameCurrencyRate",
-                table: "FinancialAccountTransfers",
-                sql: "[CurrencyCode] <> [ToCurrencyCode] OR [ExchangeRate] = 1");
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_FinancialAccountTransfers_FinancialAccounts_TenantId_ToAccountId_ToCurrencyCode",
-                table: "FinancialAccountTransfers",
-                columns: new[] { "TenantId", "ToAccountId", "ToCurrencyCode" },
-                principalTable: "FinancialAccounts",
-                principalColumns: new[] { "TenantId", "Id", "CurrencyCode" },
-                onDelete: ReferentialAction.Restrict);
+            // Keep each operation that refers to the new columns in its own dynamic
+            // batch. SQL Server compiles the contents of an idempotent migration's IF
+            // block before executing its preceding ADD COLUMN statements otherwise.
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD [DestinationAmount] decimal(18,2) NULL')");
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD [ExchangeRate] decimal(18,8) NULL')");
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD [ToCurrencyCode] nchar(3) NULL')");
+            migrationBuilder.Sql("EXEC(N'UPDATE [FinancialAccountTransfers] SET [ToCurrencyCode] = [CurrencyCode], [DestinationAmount] = [Amount], [ExchangeRate] = 1')");
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [FinancialAccountTransfers] ALTER COLUMN [DestinationAmount] decimal(18,2) NOT NULL')");
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [FinancialAccountTransfers] ALTER COLUMN [ExchangeRate] decimal(18,8) NOT NULL')");
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [FinancialAccountTransfers] ALTER COLUMN [ToCurrencyCode] nchar(3) NOT NULL')");
+            migrationBuilder.Sql("EXEC(N'CREATE INDEX [IX_FinancialAccountTransfers_TenantId_ToAccountId_ToCurrencyCode] ON [FinancialAccountTransfers] ([TenantId], [ToAccountId], [ToCurrencyCode])')");
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [CK_FinancialAccountTransfers_DestinationAmountPositive] CHECK ([DestinationAmount] > 0)')");
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [CK_FinancialAccountTransfers_ExchangeRatePositive] CHECK ([ExchangeRate] > 0)')");
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [CK_FinancialAccountTransfers_SameCurrencyRate] CHECK ([CurrencyCode] <> [ToCurrencyCode] OR [ExchangeRate] = 1)')");
+            migrationBuilder.Sql("EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [FK_FinancialAccountTransfers_FinancialAccounts_TenantId_ToAccountId_ToCurrencyCode] FOREIGN KEY ([TenantId], [ToAccountId], [ToCurrencyCode]) REFERENCES [FinancialAccounts] ([TenantId], [Id], [CurrencyCode]) ON DELETE NO ACTION')");
         }
 
         /// <inheritdoc />

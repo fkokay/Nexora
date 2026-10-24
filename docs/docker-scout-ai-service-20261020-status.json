@@ -1,0 +1,21 @@
+{
+  "scannedAtUtc": "2026-10-20",
+  "image": "docker-ai-service:latest",
+  "imageId": "sha256:51b925d3b4cb9f392f2226d243c48a1cd208c57b3b879522d8ef7dbc8d085e99",
+  "previousRollbackTag": "docker-ai-service:rollback-bank-statement-lines-20261020",
+  "scanner": "Docker Scout v1.26.0",
+  "indexedPackages": 195,
+  "vulnerabilityRecords": 33,
+  "severity": {
+    "critical": 0,
+    "high": 0,
+    "medium": 21,
+    "low": 12
+  },
+  "comparedWith": "docs/docker-scout-ai-service-20261019-msbuild-triage.sarif.json",
+  "addedCveIds": [],
+  "resolvedCveIds": [],
+  "sarif": "docs/docker-scout-ai-service-20261020-bank-statement-lines.sarif.json",
+  "sarifSha256": "FE9428F9309F5F637B89B40A26C47399CFD8D1191232F661C73790022ABDDC6F",
+  "healthHttp": 200
+}

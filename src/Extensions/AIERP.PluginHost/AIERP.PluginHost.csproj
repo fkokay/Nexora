@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AIERP.ModuleSDK\AIERP.ModuleSDK.csproj" />
+    <ProjectReference Include="..\..\Observability\AIERP.Observability\AIERP.Observability.csproj" />
   </ItemGroup>
 
   <ItemGroup>

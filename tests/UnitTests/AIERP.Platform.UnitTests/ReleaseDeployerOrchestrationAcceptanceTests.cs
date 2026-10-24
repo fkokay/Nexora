@@ -18,6 +18,20 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public void Restore_requires_the_backup_to_cover_the_exact_current_database_set()
+    {
+        Assert.True(global::AIERP.ReleaseDeployer.DatabaseBackupSetPolicy.MatchesCurrentSet(
+            ["AIERPPlatform", "AIERPStudio", "AIERPTenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+            ["AIERPTenant_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "AIERPStudio", "AIERPPlatform"]));
+        Assert.False(global::AIERP.ReleaseDeployer.DatabaseBackupSetPolicy.MatchesCurrentSet(
+            ["AIERPPlatform", "AIERPStudio", "AIERPTenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "AIERPTenant_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+            ["AIERPPlatform", "AIERPStudio", "AIERPTenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]));
+        Assert.False(global::AIERP.ReleaseDeployer.DatabaseBackupSetPolicy.MatchesCurrentSet(
+            ["AIERPPlatform", "AIERPStudio"], ["AIERPPlatform"]));
+        Assert.False(global::AIERP.ReleaseDeployer.DatabaseBackupSetPolicy.MatchesCurrentSet([], ["AIERPPlatform"]));
+    }
+
+    [Fact]
     public void Safe_child_rejects_traversal_and_reparse_point_ancestors()
     {
         var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-path-{Guid.NewGuid():N}");
@@ -202,6 +216,23 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
                             state.RootElement.GetProperty("migrationStatus").GetString());
                         Assert.Equal("blocked_migration_may_have_run", state.RootElement.GetProperty("rollbackStatus").GetString());
                     }
+
+                    if (scenario.Name == "production-start-failure")
+                    {
+                        var statePath = Path.Combine(projectRoot, deployment.Body.DeploymentId.ToString("N"), "migration-rollback.json");
+                        var savedState = await File.ReadAllTextAsync(statePath);
+                        var dockerCallsBeforeRetry = await File.ReadAllLinesAsync(fakeLog);
+                        await File.WriteAllTextAsync(modeFile, "success");
+                        using var retry = new HttpRequestMessage(HttpMethod.Post, "/internal/deployments/production")
+                        {
+                            Content = JsonContent.Create(deployment.Body, options: WebJson)
+                        };
+                        retry.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateToken(deployment.Body, "production"));
+                        using var retryResponse = await client.SendAsync(retry);
+                        Assert.Equal(HttpStatusCode.Conflict, retryResponse.StatusCode);
+                        Assert.Equal(savedState, await File.ReadAllTextAsync(statePath));
+                        Assert.Equal(dockerCallsBeforeRetry, await File.ReadAllLinesAsync(fakeLog));
+                    }
                 }
             }
 
@@ -255,7 +286,7 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
         start.Environment["ReleaseDeployer__ProductionBackupRoot"] = Path.Combine(root, "production-backups");
         start.Environment["ReleaseDeployer__HealthCheckTimeoutSeconds"] = "1";
         start.Environment["ReleaseDeployer__HealthCheckIntervalMilliseconds"] = "10";
-        start.Environment["Database__SeparationEnabled"] = "false";
+        start.Environment["Database__SeparationEnabled"] = "true";
         start.Environment["AIERP_RELEASE_DEPLOYER_FAKE_DOCKER_LOG"] = fakeLog;
         start.Environment["AIERP_RELEASE_DEPLOYER_FAKE_DOCKER_MODE_FILE"] = modeFile;
         start.Environment["AIERP_RELEASE_DEPLOYER_FAKE_BACKUP_ROOT"] = Path.Combine(root, "production-backups");
@@ -279,7 +310,13 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
             try
             {
                 using var response = await client.GetAsync("/health");
-                if (response.StatusCode == HttpStatusCode.OK) return client;
+                if (response.StatusCode == HttpStatusCode.OK)
+                {
+                    Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
+                    Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+                    Assert.Equal("no-referrer", response.Headers.GetValues("Referrer-Policy").Single());
+                    return client;
+                }
             }
             catch (HttpRequestException) { }
             await Task.Delay(100);

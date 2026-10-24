@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using AIERP.ModuleSDK;
+using AIERP.Observability;
 using AIERP.PluginHost;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -42,11 +43,25 @@ builder.Services.AddRateLimiter(options => options.AddFixedWindowLimiter("module
     limiter.QueueLimit = 0;
 }));
 var app = builder.Build();
+app.UseAierpSecurityHeaders();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "plugin-host", runtime = "wasm-core-no-imports" }));
+app.MapGet("/health", (IConfiguration configuration, WasmModuleRuntime runtime) =>
+{
+    _ = runtime; // Resolving the singleton confirms that the WASM engine initialized successfully.
+    var packageStoreReadable = PluginHostHealth.IsPackageStoreReadable(configuration["ModulePackages:RootPath"] ?? "/module-packages");
+    var status = packageStoreReadable ? "healthy" : "degraded";
+    var response = new
+    {
+        status,
+        service = "plugin-host",
+        runtime = "wasm-core-no-imports",
+        packageStore = packageStoreReadable ? "readable" : "unavailable"
+    };
+    return packageStoreReadable ? Results.Ok(response) : Results.Json(response, statusCode: StatusCodes.Status503ServiceUnavailable);
+});
 app.MapPost("/internal/modules/validate", async (ClaimsPrincipal caller, IConfiguration configuration, WasmModuleRuntime runtime, CancellationToken cancellationToken) =>
 {
     if (!TryReleaseClaims(caller, out var release)) return Results.Forbid();
@@ -60,7 +75,7 @@ app.MapPost("/internal/modules/validate", async (ClaimsPrincipal caller, IConfig
     catch (InvalidDataException exception) { return Results.UnprocessableEntity(new { error = exception.Message }); }
     catch (WasmtimeException) { return Results.UnprocessableEntity(new { error = "Modül WebAssembly dosyası veya AIERP ABI sözleşmesi geçersiz." }); }
 }).RequireAuthorization("ModuleValidation").RequireRateLimiting("module-runtime");
-app.MapPost("/internal/modules/invoke", async (ModuleInvocationRequest request, ClaimsPrincipal caller, IConfiguration configuration, WasmModuleRuntime runtime, CancellationToken cancellationToken) =>
+app.MapPost("/internal/modules/invoke", async (ModuleInvocationRequest request, ClaimsPrincipal caller, IConfiguration configuration, WasmModuleRuntime runtime, HttpContext httpContext, CancellationToken cancellationToken) =>
 {
     if (!TryReleaseClaims(caller, out var release) || !Guid.TryParse(caller.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
     if (string.IsNullOrWhiteSpace(request.Action) || request.Action.Length > 80 || request.Action.Any(char.IsControl) ||
@@ -73,6 +88,11 @@ app.MapPost("/internal/modules/invoke", async (ModuleInvocationRequest request, 
         return Results.Ok(new ModuleInvocationResponse(release.ModuleCode, release.Version, result, DateTimeOffset.UtcNow));
     }
     catch (FileNotFoundException) { return Results.NotFound(new { error = "Modül paketi bulunamadı." }); }
+    catch (ModuleRuntimeBusyException)
+    {
+        httpContext.Response.Headers.RetryAfter = "1";
+        return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+    }
     catch (InvalidDataException exception) { return Results.UnprocessableEntity(new { error = exception.Message }); }
     catch (WasmtimeException) { return Results.UnprocessableEntity(new { error = "Modül çağrısı sandbox sınırını aştı veya geçersiz çıktı üretti." }); }
 }).RequireAuthorization("ModuleInvocation").RequireRateLimiting("module-runtime");

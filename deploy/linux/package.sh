@@ -52,6 +52,7 @@ build_frontend "$REPO_ROOT/frontend/development-studio" "$RELEASE_DIR/studio" "$
 printf '%s\n' "$VERSION" > "$RELEASE_DIR/VERSION"
 cp "$SCRIPT_DIR/install.sh" "$BUNDLE_DIR/install.sh"
 cp "$SCRIPT_DIR/preflight.sh" "$BUNDLE_DIR/preflight.sh"
+cp "$SCRIPT_DIR/config-preflight.sh" "$BUNDLE_DIR/config-preflight.sh"
 cp "$SCRIPT_DIR/health-check.sh" "$BUNDLE_DIR/health-check.sh"
 cp "$SCRIPT_DIR/switch-release.sh" "$BUNDLE_DIR/switch-release.sh"
 cp "$SCRIPT_DIR/rollback.sh" "$BUNDLE_DIR/rollback.sh"
@@ -62,6 +63,7 @@ cp "$SCRIPT_DIR/config/"*.env.example "$BUNDLE_DIR/config/"
 chmod 0755 "$BUNDLE_DIR/"*.sh
 
 (cd "$RELEASE_DIR" && find api ai-service web studio -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS && sha256sum VERSION >> SHA256SUMS)
+(cd "$BUNDLE_DIR" && find . -type f ! -name BUNDLE-SHA256SUMS -printf '%P\0' | sort -z | xargs -0 sha256sum > BUNDLE-SHA256SUMS)
 (cd "$WORK_DIR" && tar -czf "$OUTPUT_DIR/aierp-linux-$VERSION.tar.gz" "aierp-linux-$VERSION")
 (cd "$OUTPUT_DIR" && sha256sum "aierp-linux-$VERSION.tar.gz" > "aierp-linux-$VERSION.tar.gz.sha256")
 echo "Created $OUTPUT_DIR/aierp-linux-$VERSION.tar.gz"

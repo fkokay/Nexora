@@ -28,6 +28,8 @@ Supplier returns can be partial by invoice line and reduce both warehouse stock 
 
 See [docs/architecture.md](docs/architecture.md) for the architecture boundary, tenant security model, and current limitations.
 
+Tenant administrators can review and export a bounded, aggregate HR period summary for employees, attendance, and leave. See [docs/human-resources-operations.md](docs/human-resources-operations.md) for access, period semantics, audit events, and scope.
+
 
 The AI Development Studio has its own Vite frontend at `frontend/development-studio` and a separate Compose-served Nginx host on port 5174. The ERP login can open this client in a new tab; sign-in is performed against the same Platform API.
 

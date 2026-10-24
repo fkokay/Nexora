@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using AIERP.AIService.AI;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -33,6 +34,134 @@ public sealed class ReportEndpointsIntegrationTests
         var response = await client.GetAsync("/api/reports/catalog");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Tenant_report_catalog_matches_the_read_only_assistant_source_allowlist()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+
+        var response = await client.GetAsync("/api/reports/catalog");
+        response.EnsureSuccessStatusCode();
+        var catalog = await response.Content.ReadFromJsonAsync<JsonElement[]>();
+        var sources = catalog!.Select(source => source.GetProperty("code").GetString()!).ToArray();
+
+        Assert.Equal(ErpReportSources.All.OrderBy(source => source, StringComparer.Ordinal),
+            sources.OrderBy(source => source, StringComparer.Ordinal));
+        Assert.Contains("bankStatementLines", sources);
+    }
+
+    [Fact]
+    public async Task Saved_report_can_be_duplicated_without_overwriting_and_duplicate_is_tenant_scoped_and_audited()
+    {
+        await using var app = await StartApplicationAsync();
+        var reportId = Guid.NewGuid();
+        var otherTenantReportId = Guid.NewGuid();
+        var longNameReportId = Guid.NewGuid();
+        const string definitionJson = "{\"source\":\"customers\",\"columns\":[\"code\",\"name\"],\"filters\":[{\"field\":\"isActive\",\"operator\":\"equals\",\"value\":\"true\"}],\"sortBy\":\"name\",\"descending\":true,\"page\":1,\"pageSize\":25}";
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.TenantSavedReports.AddRange(
+                new TenantSavedReport { Id = reportId, TenantId = TenantA, Name = "Active customers", Kind = "Report", Source = "customers", DefinitionJson = definitionJson },
+                new TenantSavedReport { TenantId = TenantA, Name = "Active customers (copy)", Kind = "Report", Source = "customers", DefinitionJson = definitionJson },
+                new TenantSavedReport { Id = longNameReportId, TenantId = TenantA, Name = new string('n', 120), Kind = "List", Source = "customers", DefinitionJson = definitionJson },
+                new TenantSavedReport { Id = otherTenantReportId, TenantId = TenantB, Name = "Other tenant report", Kind = "List", Source = "customers", DefinitionJson = definitionJson });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var response = await client.PostAsync($"/api/reports/{reportId}/duplicate", content: null);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var copy = await response.Content.ReadFromJsonAsync<ReportView>();
+        Assert.NotNull(copy);
+        Assert.NotEqual(reportId, copy.Id);
+        Assert.Equal("Active customers (copy 2)", copy.Name);
+        Assert.Equal("Report", copy.Kind);
+        Assert.Equal("customers", copy.Source);
+        Assert.Equal("isActive", Assert.Single(copy.Definition.Filters!).Field);
+        Assert.Equal("true", Assert.Single(copy.Definition.Filters!).Value);
+        Assert.Equal("name", copy.Definition.SortBy);
+        Assert.True(copy.Definition.Descending);
+        Assert.Equal(25, copy.Definition.PageSize);
+
+        var longNameResponse = await client.PostAsync($"/api/reports/{longNameReportId}/duplicate", content: null);
+        longNameResponse.EnsureSuccessStatusCode();
+        var longNameCopy = await longNameResponse.Content.ReadFromJsonAsync<ReportView>();
+        Assert.NotNull(longNameCopy);
+        Assert.Equal(120, longNameCopy.Name.Length);
+        Assert.Equal("List", longNameCopy.Kind);
+
+        var crossTenantResponse = await client.PostAsync($"/api/reports/{otherTenantReportId}/duplicate", content: null);
+        Assert.Equal(HttpStatusCode.NotFound, crossTenantResponse.StatusCode);
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var unauthorizedResponse = await client.PostAsync($"/api/reports/{reportId}/duplicate", content: null);
+        Assert.Equal(HttpStatusCode.Forbidden, unauthorizedResponse.StatusCode);
+
+        await using var verifyScope = app.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        var persisted = await verifyDb.TenantSavedReports.SingleAsync(x => x.Id == copy.Id);
+        Assert.Equal(TenantA, persisted.TenantId);
+        Assert.Equal("true", JsonDocument.Parse(persisted.DefinitionJson).RootElement.GetProperty("filters")[0].GetProperty("value").GetString());
+        Assert.True(await verifyDb.AuditEvents.AnyAsync(x => x.TenantId == TenantA && x.Action == "erp.report.duplicated" && x.Resource == copy.Name));
+        Assert.False(await verifyDb.TenantSavedReports.AnyAsync(x => x.TenantId == TenantA && x.Name == "Other tenant report"));
+    }
+
+    [Fact]
+    public async Task Saved_report_history_is_tenant_scoped_and_restore_appends_a_revision_with_concurrency_and_authorization()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var firstDefinition = new { source = "customers", columns = new[] { "code", "name" }, filters = Array.Empty<object>(), sortBy = "code", descending = false, page = 1, pageSize = 50 };
+        var create = await client.PostAsJsonAsync("/api/reports/", new { name = "Customers", definition = firstDefinition });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        using var createdJson = JsonDocument.Parse(await create.Content.ReadAsStringAsync());
+        var reportId = createdJson.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal(1, createdJson.RootElement.GetProperty("definitionRevision").GetInt32());
+
+        var duplicateName = await client.PostAsJsonAsync("/api/reports/", new { name = "Customers", definition = firstDefinition });
+        Assert.Equal(HttpStatusCode.Conflict, duplicateName.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/reports/", new { name = "Other report", definition = firstDefinition })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"/api/reports/{reportId}", new { name = "Other report", definition = firstDefinition, expectedRevision = 1 })).StatusCode);
+        var secondDefinition = new { source = "customers", columns = new[] { "code" }, filters = Array.Empty<object>(), sortBy = "name", descending = true, page = 1, pageSize = 25 };
+        var update = await client.PutAsJsonAsync($"/api/reports/{reportId}", new { name = "Customers", definition = secondDefinition, expectedRevision = 1 });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        using var updatedJson = JsonDocument.Parse(await update.Content.ReadAsStringAsync());
+        Assert.Equal(2, updatedJson.RootElement.GetProperty("definitionRevision").GetInt32());
+
+        var staleUpdate = await client.PutAsJsonAsync($"/api/reports/{reportId}", new { name = "Customers", definition = firstDefinition, expectedRevision = 1 });
+        Assert.Equal(HttpStatusCode.Conflict, staleUpdate.StatusCode);
+        var history = await client.GetFromJsonAsync<JsonElement[]>($"/api/reports/{reportId}/history");
+        Assert.Equal(new[] { 2, 1 }, history!.Select(x => x.GetProperty("revision").GetInt32()));
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/reports/{reportId}/history")).StatusCode);
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"/api/reports/{reportId}/history/1/restore", new { expectedRevision = 2 })).StatusCode);
+        client.DefaultRequestHeaders.Remove("X-Test-Role");
+
+        var staleRestore = await client.PostAsJsonAsync($"/api/reports/{reportId}/history/1/restore", new { expectedRevision = 1 });
+        Assert.Equal(HttpStatusCode.Conflict, staleRestore.StatusCode);
+        var restore = await client.PostAsJsonAsync($"/api/reports/{reportId}/history/1/restore", new { expectedRevision = 2 });
+        Assert.Equal(HttpStatusCode.OK, restore.StatusCode);
+        using var restoredJson = JsonDocument.Parse(await restore.Content.ReadAsStringAsync());
+        Assert.Equal(3, restoredJson.RootElement.GetProperty("definitionRevision").GetInt32());
+        Assert.Equal("Customers", restoredJson.RootElement.GetProperty("name").GetString());
+        Assert.Equal(new[] { "code", "name" }, restoredJson.RootElement.GetProperty("definition").GetProperty("columns").EnumerateArray().Select(x => x.GetString()));
+        var restoredHistory = await client.GetFromJsonAsync<JsonElement[]>($"/api/reports/{reportId}/history");
+        Assert.Equal(new[] { 3, 2, 1 }, restoredHistory!.Select(x => x.GetProperty("revision").GetInt32()));
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        Assert.True(await db.AuditEvents.AnyAsync(x => x.TenantId == TenantA && x.Action == "erp.report.history-viewed" && x.Resource == "Customers"));
+        Assert.True(await db.AuditEvents.AnyAsync(x => x.TenantId == TenantA && x.Action == "erp.report.restored" && x.Resource.Contains("revision=1;newRevision=3")));
     }
 
     [Fact]
@@ -175,6 +304,79 @@ public sealed class ReportEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Bank_statement_line_report_is_tenant_scoped_filterable_pageable_and_exportable()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/reports/catalog");
+        var source = Assert.Single(catalog!, item => item.GetProperty("code").GetString() == "bankStatementLines");
+        Assert.Empty(source.GetProperty("aggregates").EnumerateArray());
+        Assert.Contains(source.GetProperty("columns").EnumerateArray(), column => column.GetProperty("code").GetString() == "isMatched");
+
+        var definition = new
+        {
+            source = "bankStatementLines",
+            columns = new[] { "statementCode", "lineNumber", "transactionDate", "direction", "currencyCode", "amount", "description", "reference", "isMatched", "transactionId", "bookEntryCreated", "matchedAt" },
+            filters = new[] { new { field = "isMatched", @operator = "equals", value = "false" } },
+            sortBy = "lineNumber", descending = false, page = 1, pageSize = 1
+        };
+        var response = await client.PostAsJsonAsync("/api/reports/run", definition);
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        using var result = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(1, result.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Single(result.RootElement.GetProperty("rows").EnumerateArray());
+        var row = result.RootElement.GetProperty("rows")[0];
+        Assert.Equal("BANK-A", row.GetProperty("statementCode").GetString());
+        Assert.Equal(2, row.GetProperty("lineNumber").GetInt32());
+        Assert.Equal("2026-10-03", row.GetProperty("transactionDate").GetString());
+        Assert.Equal("Inflow", row.GetProperty("direction").GetString());
+        Assert.Equal(100m, row.GetProperty("amount").GetDecimal());
+        Assert.Equal("Unmatched line", row.GetProperty("description").GetString());
+        Assert.False(row.GetProperty("isMatched").GetBoolean());
+        Assert.Null(row.GetProperty("transactionId").GetString());
+        Assert.False(row.GetProperty("bookEntryCreated").GetBoolean());
+        Assert.True(row.GetProperty("matchedAt").ValueKind is JsonValueKind.Null or JsonValueKind.Undefined);
+
+        var secondPageResponse = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "bankStatementLines", columns = new[] { "statementCode", "lineNumber" }, filters = Array.Empty<object>(),
+            sortBy = "lineNumber", descending = false, page = 2, pageSize = 1
+        });
+        secondPageResponse.EnsureSuccessStatusCode();
+        using var secondPage = JsonDocument.Parse(await secondPageResponse.Content.ReadAsStringAsync());
+        Assert.Equal(2, secondPage.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal(2, secondPage.RootElement.GetProperty("rows")[0].GetProperty("lineNumber").GetInt32());
+
+        var grouped = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "bankStatementLines", columns = new[] { "direction" }, filters = Array.Empty<object>(), sortBy = "direction",
+            descending = false, page = 1, pageSize = 50, groupByFields = new[] { "direction" }, aggregate = "count"
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, grouped.StatusCode);
+
+        var csvResponse = await client.PostAsJsonAsync("/api/reports/export", definition);
+        csvResponse.EnsureSuccessStatusCode();
+        var csv = await csvResponse.Content.ReadAsStringAsync();
+        Assert.Contains("BANK-A", csv);
+        Assert.Contains("Unmatched line", csv);
+        Assert.DoesNotContain("BANK-B", csv);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var otherTenantResponse = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "bankStatementLines", columns = new[] { "statementCode", "lineNumber", "amount" }, filters = Array.Empty<object>(),
+            sortBy = "statementCode", descending = false, page = 1, pageSize = 50
+        });
+        otherTenantResponse.EnsureSuccessStatusCode();
+        using var otherTenant = JsonDocument.Parse(await otherTenantResponse.Content.ReadAsStringAsync());
+        Assert.Equal(1, otherTenant.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal("BANK-B", otherTenant.RootElement.GetProperty("rows")[0].GetProperty("statementCode").GetString());
+    }
+
+    [Fact]
     public async Task Customer_ledger_report_is_tenant_scoped_filtered_traceable_and_exportable()
     {
         await using var app = await StartApplicationAsync();
@@ -187,9 +389,23 @@ public sealed class ReportEndpointsIntegrationTests
             var customerB = await db.CustomerAccounts.SingleAsync(x => x.TenantId == TenantB && x.Code == "CUST-B");
             var invoiceA = await db.SalesInvoices.SingleAsync(x => x.TenantId == TenantA && x.Code == "INV-A");
             var invoiceB = await db.SalesInvoices.SingleAsync(x => x.TenantId == TenantB && x.Code == "INV-B");
+            var collectionAccount = new FinancialAccount
+            {
+                TenantId = TenantA, Code = "COL-BANK-A", Name = "Collections Bank A", Type = FinancialAccountType.Bank, CurrencyCode = "USD"
+            };
+            var collection = new CustomerCollection
+            {
+                TenantId = TenantA, CustomerId = customerA.Id, Customer = customerA, RequestId = Guid.NewGuid(),
+                Code = "COL-A", CollectionDate = new DateOnly(2026, 10, 16), CurrencyCode = "USD", Amount = 100m,
+                PaymentMethod = "Bank transfer", Reference = "BANK-REF-A", FinancialAccount = collectionAccount
+            };
+            db.FinancialAccounts.Add(collectionAccount);
+            db.CustomerCollections.Add(collection);
             db.CustomerLedgerEntries.AddRange(
                 new CustomerLedgerEntry { TenantId = TenantA, CustomerId = customerA.Id, Customer = customerA, SalesInvoiceId = invoiceA.Id, SalesInvoice = invoiceA,
                     EntryDate = new DateOnly(2026, 10, 15), Direction = CustomerLedgerDirection.Debit, Amount = 250m, CurrencyCode = "USD", Description = "Tenant A invoice ledger" },
+                new CustomerLedgerEntry { TenantId = TenantA, CustomerId = customerA.Id, Customer = customerA, CustomerCollectionId = collection.Id, CustomerCollection = collection,
+                    EntryDate = new DateOnly(2026, 10, 16), Direction = CustomerLedgerDirection.Credit, Amount = 100m, CurrencyCode = "USD", Description = "Tenant A collection ledger" },
                 new CustomerLedgerEntry { TenantId = TenantB, CustomerId = customerB.Id, Customer = customerB, SalesInvoiceId = invoiceB.Id, SalesInvoice = invoiceB,
                     EntryDate = new DateOnly(2026, 10, 16), Direction = CustomerLedgerDirection.Debit, Amount = 900_000m, CurrencyCode = "EUR", Description = "Tenant B invoice ledger" });
             await db.SaveChangesAsync();
@@ -199,10 +415,11 @@ public sealed class ReportEndpointsIntegrationTests
         var source = Assert.Single(catalog!, item => item.GetProperty("code").GetString() == "customerLedgerEntries");
         Assert.Empty(source.GetProperty("aggregates").EnumerateArray());
         Assert.Contains(source.GetProperty("columns").EnumerateArray(), column => column.GetProperty("code").GetString() == "sourceCode");
+        Assert.Contains(source.GetProperty("columns").EnumerateArray(), column => column.GetProperty("code").GetString() == "collectionPaymentMethod");
         var definition = new
         {
             source = "customerLedgerEntries",
-            columns = new[] { "entryDate", "customerCode", "customerName", "direction", "amount", "currencyCode", "description", "sourceType", "sourceCode", "reversalOfId" },
+            columns = new[] { "entryDate", "customerCode", "customerName", "direction", "amount", "currencyCode", "description", "sourceType", "sourceCode", "collectionPaymentMethod", "collectionAccountCode", "collectionReference" },
             filters = new[] { new { field = "currencyCode", @operator = "equals", value = "USD" }, new { field = "direction", @operator = "equals", value = "Debit" } },
             sortBy = "entryDate", descending = true, page = 1, pageSize = 10
         };
@@ -218,12 +435,48 @@ public sealed class ReportEndpointsIntegrationTests
         Assert.Equal("USD", row.GetProperty("currencyCode").GetString());
         Assert.Equal("SalesInvoice", row.GetProperty("sourceType").GetString());
         Assert.Equal("INV-A", row.GetProperty("sourceCode").GetString());
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("collectionPaymentMethod").ValueKind);
+
+        var collectionDefinition = new
+        {
+            source = "customerLedgerEntries",
+            columns = definition.columns,
+            filters = new[] { new { field = "collectionPaymentMethod", @operator = "contains", value = "transfer" }, new { field = "collectionAccountCode", @operator = "equals", value = "COL-BANK-A" } },
+            sortBy = "collectionReference", descending = true, page = 1, pageSize = 1
+        };
+        var collectionResponse = await client.PostAsJsonAsync("/api/reports/run", collectionDefinition);
+        Assert.True(collectionResponse.IsSuccessStatusCode, await collectionResponse.Content.ReadAsStringAsync());
+        using var collectionResult = JsonDocument.Parse(await collectionResponse.Content.ReadAsStringAsync());
+        Assert.Equal(1, collectionResult.RootElement.GetProperty("totalCount").GetInt32());
+        var collectionRow = collectionResult.RootElement.GetProperty("rows")[0];
+        Assert.Equal("COL-A", collectionRow.GetProperty("sourceCode").GetString());
+        Assert.Equal("Bank transfer", collectionRow.GetProperty("collectionPaymentMethod").GetString());
+        Assert.Equal("COL-BANK-A", collectionRow.GetProperty("collectionAccountCode").GetString());
+        Assert.Equal("BANK-REF-A", collectionRow.GetProperty("collectionReference").GetString());
+
+        var nonCollectionResponse = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "customerLedgerEntries", columns = definition.columns,
+            filters = new[] { new { field = "collectionAccountCode", @operator = "isNull", value = "" } },
+            sortBy = "customerCode", descending = false, page = 1, pageSize = 1
+        });
+        nonCollectionResponse.EnsureSuccessStatusCode();
+        using var nonCollectionResult = JsonDocument.Parse(await nonCollectionResponse.Content.ReadAsStringAsync());
+        Assert.Equal(1, nonCollectionResult.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal(JsonValueKind.Null, nonCollectionResult.RootElement.GetProperty("rows")[0].GetProperty("collectionAccountCode").ValueKind);
 
         var csvResponse = await client.PostAsJsonAsync("/api/reports/export", definition);
         csvResponse.EnsureSuccessStatusCode();
         var csv = await csvResponse.Content.ReadAsStringAsync();
         Assert.Contains("INV-A", csv);
         Assert.DoesNotContain("INV-B", csv);
+
+        var collectionCsvResponse = await client.PostAsJsonAsync("/api/reports/export", collectionDefinition);
+        collectionCsvResponse.EnsureSuccessStatusCode();
+        var collectionCsv = await collectionCsvResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Bank transfer", collectionCsv);
+        Assert.Contains("COL-BANK-A", collectionCsv);
+        Assert.Contains("BANK-REF-A", collectionCsv);
 
         var invalidGrouping = await client.PostAsJsonAsync("/api/reports/run", new
         {
@@ -561,6 +814,71 @@ public sealed class ReportEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Purchase_order_fulfillment_report_shows_received_and_outstanding_quantities_and_is_tenant_scoped()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var order = await db.PurchaseOrders.SingleAsync(x => x.TenantId == TenantA && x.Code == "PO-A");
+            order.Status = PurchaseOrderStatus.PartiallyReceived;
+            order.ExpectedReceiptDate = new DateOnly(2026, 10, 30);
+            await db.SaveChangesAsync();
+        }
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/reports/catalog");
+        var source = Assert.Single(catalog!, item => item.GetProperty("code").GetString() == "purchaseOrderFulfillment");
+        Assert.Contains(source.GetProperty("columns").EnumerateArray(), column => column.GetProperty("code").GetString() == "outstandingQuantity");
+        var definition = new
+        {
+            source = "purchaseOrderFulfillment",
+            columns = new[] { "orderCode", "supplierCode", "stockCode", "orderedQuantity", "receivedQuantity", "outstandingQuantity" },
+            filters = new[] { new { field = "outstandingQuantity", @operator = "gt", value = "0" } },
+            sortBy = "orderCode", descending = false, page = 1, pageSize = 10
+        };
+        var response = await client.PostAsJsonAsync("/api/reports/run", definition);
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        using var result = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(1, result.RootElement.GetProperty("totalCount").GetInt32());
+        var row = result.RootElement.GetProperty("rows")[0];
+        Assert.Equal("PO-A", row.GetProperty("orderCode").GetString());
+        Assert.Equal("STOCK-A", row.GetProperty("stockCode").GetString());
+        Assert.Equal(10m, row.GetProperty("orderedQuantity").GetDecimal());
+        Assert.Equal(7m, row.GetProperty("receivedQuantity").GetDecimal());
+        Assert.Equal(3m, row.GetProperty("outstandingQuantity").GetDecimal());
+
+        var csvResponse = await client.PostAsJsonAsync("/api/reports/export", definition);
+        csvResponse.EnsureSuccessStatusCode();
+        var csv = await csvResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Bekleyen miktar", csv);
+        Assert.Contains("PO-A", csv);
+        Assert.DoesNotContain("PO-B", csv);
+
+        var grouped = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "purchaseOrderFulfillment", columns = new[] { "orderCode" }, filters = Array.Empty<object>(), sortBy = "orderCode",
+            descending = false, page = 1, pageSize = 50, groupByFields = new[] { "orderCode" }, aggregate = "count"
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, grouped.StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var otherTenant = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "purchaseOrderFulfillment", columns = new[] { "orderCode", "stockCode", "receivedQuantity", "outstandingQuantity" },
+            filters = Array.Empty<object>(), sortBy = "orderCode", descending = false, page = 1, pageSize = 50
+        });
+        otherTenant.EnsureSuccessStatusCode();
+        using var otherTenantResult = JsonDocument.Parse(await otherTenant.Content.ReadAsStringAsync());
+        Assert.Equal("PO-B", otherTenantResult.RootElement.GetProperty("rows")[0].GetProperty("orderCode").GetString());
+        Assert.Equal("STOCK-B", otherTenantResult.RootElement.GetProperty("rows")[0].GetProperty("stockCode").GetString());
+        Assert.Equal(70m, otherTenantResult.RootElement.GetProperty("rows")[0].GetProperty("receivedQuantity").GetDecimal());
+        Assert.Equal(30m, otherTenantResult.RootElement.GetProperty("rows")[0].GetProperty("outstandingQuantity").GetDecimal());
+    }
+
+    [Fact]
     public async Task Sales_quote_reports_are_tenant_scoped_filterable_pageable_and_exportable()
     {
         await using var app = await StartApplicationAsync();
@@ -820,6 +1138,88 @@ public sealed class ReportEndpointsIntegrationTests
         tenantBResponse.EnsureSuccessStatusCode();
         using var tenantBResult = JsonDocument.Parse(await tenantBResponse.Content.ReadAsStringAsync());
         Assert.Equal("MO-B", tenantBResult.RootElement.GetProperty("rows")[0].GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task Manufacturing_cost_variance_is_period_bounded_tenant_scoped_and_reports_base_currency_components()
+    {
+        await using var app = await StartApplicationAsync();
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var operation = await db.ManufacturingOrderOperations.SingleAsync(x => x.TenantId == TenantA &&
+                x.ManufacturingOrderId == db.ManufacturingOrders.Where(o => o.TenantId == TenantA && o.Code == "MO-A").Select(o => o.Id).Single());
+            operation.SetupMinutes = 30m;
+            operation.RunMinutes = 60m;
+            operation.LaborCostPerHourBase = 60m;
+            operation.OverheadCostPerHourBase = 20m;
+            operation.ActualSetupMinutes = 30m;
+            operation.ActualRunMinutes = 90m;
+            operation.ActualEnergyQuantityKwh = 10m;
+            operation.ActualEnergyCostPerKwhBase = 5m;
+            operation.ActualEnergyCostBase = 50m;
+            operation.ActualCostBase = 210m;
+            var orderA = await db.ManufacturingOrders.SingleAsync(o => o.TenantId == TenantA && o.Code == "MO-A");
+            var stockItemId = await db.BillOfMaterials.Where(b => b.TenantId == TenantA && b.Code == "BOM-A").Select(b => b.ProductStockItemId).SingleAsync();
+            var bomId = await db.BillOfMaterials.Where(b => b.TenantId == TenantA && b.Code == "BOM-A").Select(b => b.Id).SingleAsync();
+            var tenantBStockItemId = await db.BillOfMaterials.Where(b => b.TenantId == TenantB && b.Code == "BOM-B").Select(b => b.ProductStockItemId).SingleAsync();
+            var orderC = new ManufacturingOrder { TenantId = TenantA, Code = "MO-C", BillOfMaterialId = bomId,
+                WarehouseId = orderA.WarehouseId, PlannedQuantity = 1m, PlannedDate = orderA.PlannedDate };
+            db.ManufacturingOrders.Add(orderC);
+            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantA, WarehouseId = orderA.WarehouseId, StockItemId = stockItemId,
+                EntryDate = new DateOnly(2026, 10, 22), Direction = InventoryDirection.Issue, Quantity = 2m, UnitCostBase = 3m,
+                ManufacturingOrderId = orderA.Id, Description = "Free text deliberately unrelated to identity" });
+            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantA, WarehouseId = orderA.WarehouseId, StockItemId = stockItemId,
+                EntryDate = new DateOnly(2026, 10, 22), Direction = InventoryDirection.Issue, Quantity = 1m, UnitCostBase = 999m,
+                Description = "Üretim MO-A bileşen tüketimi" });
+            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantA, WarehouseId = orderA.WarehouseId, StockItemId = stockItemId,
+                EntryDate = new DateOnly(2026, 10, 22), Direction = InventoryDirection.Issue, Quantity = 1m, UnitCostBase = 7m,
+                ManufacturingOrderId = orderC.Id, Description = "Untrusted text says MO-A" });
+            var tenantBOrder = new ManufacturingOrder { TenantId = TenantB, Code = "MO-VAR-B", BillOfMaterialId = Guid.NewGuid(), WarehouseId = Guid.NewGuid(),
+                PlannedQuantity = 1m, PlannedDate = new DateOnly(2026, 10, 20), Status = ManufacturingOrderStatus.Completed };
+            db.ManufacturingOrders.Add(tenantBOrder);
+            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantB, WarehouseId = tenantBOrder.WarehouseId, StockItemId = tenantBStockItemId,
+                EntryDate = new DateOnly(2026, 10, 22), Direction = InventoryDirection.Issue, Quantity = 1m, UnitCostBase = 9000m,
+                ManufacturingOrderId = tenantBOrder.Id, Description = "Tenant B only" });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var response = await client.GetAsync("/api/reports/manufacturing-cost-variance?from=2026-10-20&to=2026-10-20&page=1&pageSize=10");
+        response.EnsureSuccessStatusCode();
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("TRY", json.RootElement.GetProperty("baseCurrencyCode").GetString());
+        Assert.Equal("plannedDate", json.RootElement.GetProperty("periodBasis").GetString());
+        var rows = json.RootElement.GetProperty("orders").EnumerateArray().ToArray();
+        var row = Assert.Single(rows, x => x.GetProperty("orderCode").GetString() == "MO-A");
+        Assert.Equal("MO-A", row.GetProperty("orderCode").GetString());
+        Assert.Equal(90m, row.GetProperty("plannedLaborBase").GetDecimal());
+        Assert.Equal(30m, row.GetProperty("plannedOverheadBase").GetDecimal());
+        Assert.Equal(120m, row.GetProperty("plannedConversionBase").GetDecimal());
+        Assert.Equal(120m, row.GetProperty("actualLaborBase").GetDecimal());
+        Assert.Equal(40m, row.GetProperty("actualOverheadBase").GetDecimal());
+        Assert.Equal(50m, row.GetProperty("actualEnergyBase").GetDecimal());
+        Assert.Equal(6m, row.GetProperty("actualMaterialBase").GetDecimal());
+        Assert.Equal(90m, row.GetProperty("conversionVarianceBase").GetDecimal());
+        Assert.True(row.GetProperty("actualTotalCostBase").ValueKind == JsonValueKind.Null);
+        Assert.True(row.GetProperty("plannedMaterialBase").ValueKind == JsonValueKind.Null);
+        Assert.True(row.GetProperty("totalVarianceBase").ValueKind == JsonValueKind.Null);
+        var otherOrder = Assert.Single(rows, x => x.GetProperty("orderCode").GetString() == "MO-C");
+        Assert.Equal(7m, otherOrder.GetProperty("actualMaterialBase").GetDecimal());
+        Assert.True(otherOrder.GetProperty("actualTotalCostBase").ValueKind == JsonValueKind.Null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/reports/manufacturing-cost-variance?from=2026-10-22&to=2026-10-20")).StatusCode);
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var tenantBResponse = await client.GetAsync("/api/reports/manufacturing-cost-variance?from=2026-10-20&to=2026-10-20");
+        tenantBResponse.EnsureSuccessStatusCode();
+        using var tenantBJson = JsonDocument.Parse(await tenantBResponse.Content.ReadAsStringAsync());
+        var tenantBRow = Assert.Single(tenantBJson.RootElement.GetProperty("orders").EnumerateArray());
+        Assert.Equal("MO-VAR-B", tenantBRow.GetProperty("orderCode").GetString());
+        Assert.Equal(9000m, tenantBRow.GetProperty("actualMaterialBase").GetDecimal());
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantDeveloper");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/reports/manufacturing-cost-variance?from=2026-10-20&to=2026-10-20")).StatusCode);
     }
 
     [Fact]
@@ -2268,6 +2668,10 @@ public sealed class ReportEndpointsIntegrationTests
         var bankStatementB = new BankStatement { TenantId = TenantB, Tenant = tenantB, AccountId = bankAccountB.Id, Account = bankAccountB,
             CurrencyCode = "USD", RequestId = Guid.NewGuid(), Code = "BANK-B", StartDate = new DateOnly(2026, 10, 1), EndDate = new DateOnly(2026, 10, 31),
             OpeningBalance = 1000m, ClosingBalance = 2000m, Status = BankStatementStatus.Reconciled };
+        bankStatementB.Lines.Add(new BankStatementLine { TenantId = TenantB, Statement = bankStatementB, StatementId = bankStatementB.Id,
+            FinancialAccountId = bankAccountB.Id, CurrencyCode = "USD", LineNumber = 1, TransactionDate = new DateOnly(2026, 10, 2),
+            Direction = FinancialDirection.Inflow, Amount = 75m, Description = "Tenant B statement line", FinancialAccountTransactionId = tenantBTransaction.Id,
+            FinancialAccountTransaction = tenantBTransaction, MatchedAt = DateTimeOffset.Parse("2026-10-18T08:20:00Z") });
         db.Tenants.AddRange(tenantA, tenantB);
         db.CustomerAccounts.AddRange(customerA, customerANoLimit, customerB);
         var stockA = new StockItem { TenantId = TenantA, Tenant = tenantA, Code = "STOCK-A", Name = "A item", Category = null, MinimumStock = 5.5m };
@@ -2331,6 +2735,10 @@ public sealed class ReportEndpointsIntegrationTests
         db.AddRange(crmOpportunityA, crmOpportunityC, crmOpportunityB, bankAccountA, bankAccountB, euroAccountA, reversalTransaction, euroTransaction, tenantBTransaction, bankStatementA, bankStatementB, ownedRequest, otherRequest, requestTenantB, bomA, bomB, productionOrderA, productionOrderB, supplierReturnA, supplierReturnB,
             warehouseA, quoteA, orderA, orderLineA, reservationA, deliveryA, invoiceA, salesReturnA, receiptA, issueA, warehouseB, receiptB, quoteB, orderB, deliveryB, invoiceB, salesReturnB, purchaseOrderA, purchaseOrderB, purchaseReceiptA, purchaseReceiptB, purchaseInvoiceA, purchaseInvoiceB, supplierPaymentA, supplierPaymentB);
         platformDb.Tenants.AddRange(new Tenant { Id = TenantA, Name = "Tenant A", Slug = "tenant-a" }, new Tenant { Id = TenantB, Name = "Tenant B", Slug = "tenant-b" });
+        var mediumLicense = LicenseTierCatalog.All["Medium"];
+        platformDb.TenantLicenses.Add(new TenantLicense { TenantId = TenantA, LicenseId = Guid.NewGuid(), Tier = mediumLicense.Code,
+            MaxUsers = mediumLicense.MaxUsers, MaxCustomModules = mediumLicense.MaxCustomModules, MaxStorageGb = mediumLicense.MaxStorageGb,
+            IssuedAt = DateTimeOffset.UtcNow.AddDays(-1), ExpiresAt = DateTimeOffset.UtcNow.AddDays(30), GrantSha256 = new string('A', 64) });
         platformDb.TenantPermissionRules.Add(new TenantPermissionRule
         {
             TenantId = TenantA, SubjectType = TenantPermissionSubjectType.Role, SubjectRole = "TenantUser",

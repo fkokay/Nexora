@@ -1,10 +1,15 @@
 .git
+.vs
+/artifacts
 .env
 **/.env
 **/bin
 **/obj
 **/node_modules
 **/dist
+**/TestResults
+**/*.trx
+**/*.coverage
 **/.vite
 .local-scout-cache/
 deploy/docker/sandbox-package-cache/

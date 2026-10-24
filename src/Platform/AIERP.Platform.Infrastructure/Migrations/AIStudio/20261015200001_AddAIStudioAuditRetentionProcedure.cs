@@ -10,7 +10,13 @@ public sealed class AddAIStudioAuditRetentionProcedure : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        foreach (var batch in Sql.Split("\nGO\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) migrationBuilder.Sql(batch);
+        foreach (var batch in Sql.Split("\nGO\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            // CREATE OR ALTER TRIGGER/PROCEDURE must start a SQL Server batch. The
+            // idempotent EF script wraps each migration operation in IF/BEGIN, so
+            // execute each DDL batch dynamically to keep it legal in that wrapper.
+            migrationBuilder.Sql($"EXEC(N'{batch.Replace("'", "''")}')");
+        }
     }
     protected override void Down(MigrationBuilder migrationBuilder) { migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.PurgeExpiredAuditEvents; DROP TRIGGER IF EXISTS dbo.TR_AuditEvents_AppendOnly;"); }
     private const string Sql = """

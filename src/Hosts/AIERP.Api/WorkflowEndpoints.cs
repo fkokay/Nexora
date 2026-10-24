@@ -22,9 +22,11 @@ internal static class WorkflowEndpoints
             return Results.Ok(definitions.Select(ToDefinitionView));
         });
 
-        workflows.MapPost("/definitions", async (WorkflowDefinitionWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        workflows.MapPost("/definitions", async (WorkflowDefinitionWriteRequest request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
         {
             if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            var licenseError = await CheckAdvancedWorkflowLicenseAsync(platformDb, tenantId, ct);
+            if (licenseError is not null) return licenseError;
             if (!ValidateDefinition(request.Code, request.Name, request.Description, request.Steps, out var steps, out var errors))
                 return Results.ValidationProblem(errors!);
             var code = request.Code!.Trim();
@@ -43,9 +45,11 @@ internal static class WorkflowEndpoints
             return Results.Created($"/api/workflows/definitions/{definition.Id}", ToDefinitionView(definition));
         });
 
-        workflows.MapPut("/definitions/{id:guid}", async (Guid id, WorkflowDefinitionWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        workflows.MapPut("/definitions/{id:guid}", async (Guid id, WorkflowDefinitionWriteRequest request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
         {
             if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            var licenseError = await CheckAdvancedWorkflowLicenseAsync(platformDb, tenantId, ct);
+            if (licenseError is not null) return licenseError;
             var definition = await db.TenantWorkflowDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (definition is null) return Results.NotFound();
             if (definition.Status != "Draft") return Results.Conflict(new { error = "Yalnızca taslak iş akışı düzenlenebilir." });
@@ -59,9 +63,11 @@ internal static class WorkflowEndpoints
             return Results.Ok(ToDefinitionView(definition));
         });
 
-        workflows.MapPost("/definitions/{id:guid}/publish", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        workflows.MapPost("/definitions/{id:guid}/publish", async (Guid id, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
         {
             if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            var licenseError = await CheckAdvancedWorkflowLicenseAsync(platformDb, tenantId, ct);
+            if (licenseError is not null) return licenseError;
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             var definition = await db.TenantWorkflowDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (definition is null) return Results.NotFound();
@@ -79,9 +85,11 @@ internal static class WorkflowEndpoints
             return Results.Ok(ToDefinitionView(definition));
         });
 
-        workflows.MapPost("/definitions/{id:guid}/draft", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        workflows.MapPost("/definitions/{id:guid}/draft", async (Guid id, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
         {
             if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            var licenseError = await CheckAdvancedWorkflowLicenseAsync(platformDb, tenantId, ct);
+            if (licenseError is not null) return licenseError;
             var source = await db.TenantWorkflowDefinitions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.Status == "Published", ct);
             if (source is null) return Results.NotFound();
             var next = (await db.TenantWorkflowDefinitions.Where(x => x.TenantId == tenantId && x.Code == source.Code).Select(x => (int?)x.Version).MaxAsync(ct) ?? source.Version) + 1;
@@ -263,6 +271,22 @@ internal static class WorkflowEndpoints
     private static string? CleanDescription(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static void Audit(TenantDbContext db, Guid tenantId, Guid userId, string action, string resource) =>
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = action, Resource = resource });
+
+    private static async Task<IResult?> CheckAdvancedWorkflowLicenseAsync(PlatformDbContext db, Guid tenantId, CancellationToken ct)
+    {
+        var license = await db.TenantLicenses.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId, ct);
+        if (license is null)
+            return Results.Conflict(new { error = "Gelişmiş iş akışı tasarlamak için en az Medium lisansı gerekir.", code = "license.feature_unavailable", feature = "advancedWorkflow", requiredTier = "Medium", tier = "Small" });
+        if (license.ExpiresAt <= DateTimeOffset.UtcNow)
+            return Results.Conflict(new { error = "Firma lisansının süresi dolmuş. İş akışlarını düzenlemek için lisansı yenileyin.", code = "license.expired" });
+        if (!LicenseTierCatalog.IsValidStoredLicense(license))
+            return Results.Conflict(new { error = "Firma lisansı geçersiz. İş akışlarını düzenlemeden önce geçerli bir lisans etkinleştirin.", code = "license.invalid" });
+        if (!LicenseTierCatalog.TryGet(license.Tier, out var policy))
+            return Results.Conflict(new { error = "Firma lisansı geçersiz. İş akışlarını düzenlemeden önce geçerli bir lisans etkinleştirin.", code = "license.invalid" });
+        if (!policy.AdvancedWorkflow)
+            return Results.Conflict(new { error = "Gelişmiş iş akışı tasarlamak için en az Medium lisansı gerekir.", code = "license.feature_unavailable", feature = "advancedWorkflow", requiredTier = "Medium", tier = policy.Code });
+        return null;
+    }
     private static bool IsUniqueViolation(DbUpdateException exception) =>
         exception.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 };
 }

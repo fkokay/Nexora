@@ -11,7 +11,9 @@ $bundle = (Resolve-Path -LiteralPath $BundlePath).Path
 $manifestPath = Join-Path $bundle 'manifest.json'
 $history = Get-Content -LiteralPath $TargetHistoryPath -Raw | ConvertFrom-Json -AsHashtable
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -AsHashtable
-if ($manifest.status -ne 'generated-not-applied') { Fail 'manifest status is not generated-not-applied.' }
+if ($manifest.status -notin @('generated-not-applied', 'generated-applied-local')) {
+    Fail 'manifest status must identify a generated package, optionally applied only to local development databases.'
+}
 
 $expectedTargets = @{
     PlatformDbContext = 'AIERPPlatform'
@@ -38,6 +40,14 @@ foreach ($context in $contexts) {
     $releaseIds = @([regex]::Matches($sql, "WHERE\s+\[MigrationId\]\s*=\s*N'([^']+)'", [Text.RegularExpressions.RegexOptions]::IgnoreCase) | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
     if ($releaseIds.Count -ne [int]$context.migrationCount) { Fail "$name script contains $($releaseIds.Count) distinct migration guards, expected $($context.migrationCount)." }
     if ($releaseIds[-1] -ne [string]$context.latestMigration) { Fail "$name latest script ID does not match its manifest." }
+
+    if ($context.Contains('incrementalFile') -or $context.Contains('incrementalSha256')) {
+        if (-not $context.Contains('incrementalFile') -or -not $context.Contains('incrementalSha256')) { Fail "$name incremental script metadata is incomplete." }
+        $incrementalPath = Join-Path $bundle ([string]$context.incrementalFile)
+        if (-not (Test-Path -LiteralPath $incrementalPath -PathType Leaf)) { Fail "incremental script missing for $name." }
+        $incrementalSha = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([IO.File]::ReadAllBytes($incrementalPath)))
+        if ($incrementalSha -ne [string]$context.incrementalSha256) { Fail "incremental script checksum mismatch for $name." }
+    }
 
     $installed = @($history[$name] | ForEach-Object { [string]$_ })
     $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)

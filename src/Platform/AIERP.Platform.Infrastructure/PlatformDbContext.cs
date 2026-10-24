@@ -13,12 +13,16 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
 
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<PlatformUserRole> PlatformUserRoles => Set<PlatformUserRole>();
+    public DbSet<PlatformRefreshSession> PlatformRefreshSessions => Set<PlatformRefreshSession>();
+    public DbSet<PlatformAdminRefreshSession> PlatformAdminRefreshSessions => Set<PlatformAdminRefreshSession>();
     public DbSet<PlatformModulePublisherKey> PlatformModulePublisherKeys => Set<PlatformModulePublisherKey>();
     public DbSet<PlatformModuleRelease> PlatformModuleReleases => Set<PlatformModuleRelease>();
     public DbSet<TenantModuleActivation> TenantModuleActivations => Set<TenantModuleActivation>();
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TenantLicense> TenantLicenses => Set<TenantLicense>();
     public DbSet<TenantAIProviderSettings> TenantAIProviderSettings => Set<TenantAIProviderSettings>();
     public DbSet<TenantDatabaseCatalogEntry> TenantDatabaseCatalog => Set<TenantDatabaseCatalogEntry>();
+    public DbSet<TenantProvisioningJob> TenantProvisioningJobs => Set<TenantProvisioningJob>();
     public DbSet<DatabaseSeparationComponentState> DatabaseSeparationComponentStates => Set<DatabaseSeparationComponentState>();
     public DbSet<TenantMembership> TenantMemberships => Set<TenantMembership>();
     public DbSet<PermissionDefinition> PermissionDefinitions => Set<PermissionDefinition>();
@@ -26,19 +30,27 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<TenantCustomFormDefinition> TenantCustomFormDefinitions => Set<TenantCustomFormDefinition>();
     public DbSet<TenantCustomFormRevision> TenantCustomFormRevisions => Set<TenantCustomFormRevision>();
     public DbSet<TenantCustomFormSubmission> TenantCustomFormSubmissions => Set<TenantCustomFormSubmission>();
+    public DbSet<TenantScreenView> TenantScreenViews => Set<TenantScreenView>();
+    public DbSet<TenantScreenViewRevision> TenantScreenViewRevisions => Set<TenantScreenViewRevision>();
     public DbSet<TenantWorkflowDefinition> TenantWorkflowDefinitions => Set<TenantWorkflowDefinition>();
     public DbSet<TenantWorkflowInstance> TenantWorkflowInstances => Set<TenantWorkflowInstance>();
     public DbSet<TenantWorkflowAction> TenantWorkflowActions => Set<TenantWorkflowAction>();
     public DbSet<TenantBusinessRuleDefinition> TenantBusinessRuleDefinitions => Set<TenantBusinessRuleDefinition>();
     public DbSet<TenantBusinessRuleEvaluation> TenantBusinessRuleEvaluations => Set<TenantBusinessRuleEvaluation>();
     public DbSet<TenantSavedReport> TenantSavedReports => Set<TenantSavedReport>();
+    public DbSet<TenantSavedReportRevision> TenantSavedReportRevisions => Set<TenantSavedReportRevision>();
     public DbSet<TenantDashboardWidget> TenantDashboardWidgets => Set<TenantDashboardWidget>();
     public DbSet<TenantCustomMenuEntry> TenantCustomMenuEntries => Set<TenantCustomMenuEntry>();
     public DbSet<TenantExchangeRate> TenantExchangeRates => Set<TenantExchangeRate>();
     public DbSet<FxRevaluationVoucher> FxRevaluationVouchers => Set<FxRevaluationVoucher>();
     public DbSet<FxRevaluationVoucherLine> FxRevaluationVoucherLines => Set<FxRevaluationVoucherLine>();
     public DbSet<LedgerAccount> LedgerAccounts => Set<LedgerAccount>();
+    public DbSet<CreditFacility> CreditFacilities => Set<CreditFacility>();
+    public DbSet<CreditFacilitySchedule> CreditFacilitySchedules => Set<CreditFacilitySchedule>();
+    public DbSet<CreditFacilityMovement> CreditFacilityMovements => Set<CreditFacilityMovement>();
     public DbSet<LedgerAccountMapping> LedgerAccountMappings => Set<LedgerAccountMapping>();
+    public DbSet<TenantBudgetPlan> TenantBudgetPlans => Set<TenantBudgetPlan>();
+    public DbSet<TenantBudgetLine> TenantBudgetLines => Set<TenantBudgetLine>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<JournalEntryLine> JournalEntryLines => Set<JournalEntryLine>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
@@ -60,6 +72,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<StudioConversationMessage> StudioConversationMessages => Set<StudioConversationMessage>();
     public DbSet<StudioKnowledgeDocument> StudioKnowledgeDocuments => Set<StudioKnowledgeDocument>();
     public DbSet<StudioKnowledgeRefreshConsent> StudioKnowledgeRefreshConsents => Set<StudioKnowledgeRefreshConsent>();
+    public DbSet<StudioModuleSourceMapping> StudioModuleSourceMappings => Set<StudioModuleSourceMapping>();
     public DbSet<StudioCodeReviewThread> StudioCodeReviewThreads => Set<StudioCodeReviewThread>();
     public DbSet<StudioCodeReviewComment> StudioCodeReviewComments => Set<StudioCodeReviewComment>();
     public DbSet<CustomerAccount> CustomerAccounts => Set<CustomerAccount>();
@@ -75,11 +88,15 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<BillOfMaterial> BillOfMaterials => Set<BillOfMaterial>();
     public DbSet<BillOfMaterialLine> BillOfMaterialLines => Set<BillOfMaterialLine>();
     public DbSet<ManufacturingWorkCenter> ManufacturingWorkCenters => Set<ManufacturingWorkCenter>();
+    public DbSet<ManufacturingWorkCenterCapacityOverride> ManufacturingWorkCenterCapacityOverrides => Set<ManufacturingWorkCenterCapacityOverride>();
+    public DbSet<ManufacturingSetupTransitionRule> ManufacturingSetupTransitionRules => Set<ManufacturingSetupTransitionRule>();
     public DbSet<BillOfMaterialOperation> BillOfMaterialOperations => Set<BillOfMaterialOperation>();
+    public DbSet<BillOfMaterialOperationWorkCenterOption> BillOfMaterialOperationWorkCenterOptions => Set<BillOfMaterialOperationWorkCenterOption>();
     public DbSet<ManufacturingOrder> ManufacturingOrders => Set<ManufacturingOrder>();
     public DbSet<MrpPlanSnapshot> MrpPlanSnapshots => Set<MrpPlanSnapshot>();
     public DbSet<ManufacturingOrderLine> ManufacturingOrderLines => Set<ManufacturingOrderLine>();
     public DbSet<ManufacturingOrderOperation> ManufacturingOrderOperations => Set<ManufacturingOrderOperation>();
+    public DbSet<ManufacturingOrderOperationWorkCenterOption> ManufacturingOrderOperationWorkCenterOptions => Set<ManufacturingOrderOperationWorkCenterOption>();
     public DbSet<ManufacturingCapacityAllocation> ManufacturingCapacityAllocations => Set<ManufacturingCapacityAllocation>();
     public DbSet<StockItemUnitConversion> StockItemUnitConversions => Set<StockItemUnitConversion>();
     public DbSet<StockItemCustomFieldDefinition> StockItemCustomFieldDefinitions => Set<StockItemCustomFieldDefinition>();
@@ -87,6 +104,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<StockItemCustomFieldValue> StockItemCustomFieldValues => Set<StockItemCustomFieldValue>();
     public DbSet<StockItemCustomFieldValueRevision> StockItemCustomFieldValueRevisions => Set<StockItemCustomFieldValueRevision>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<WarehouseLocation> WarehouseLocations => Set<WarehouseLocation>();
     public DbSet<WarehouseCustomFieldDefinition> WarehouseCustomFieldDefinitions => Set<WarehouseCustomFieldDefinition>();
     public DbSet<WarehouseCustomFieldDefinitionRevision> WarehouseCustomFieldDefinitionRevisions => Set<WarehouseCustomFieldDefinitionRevision>();
     public DbSet<WarehouseCustomFieldValue> WarehouseCustomFieldValues => Set<WarehouseCustomFieldValue>();
@@ -97,6 +115,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<InventoryCostAdjustment> InventoryCostAdjustments => Set<InventoryCostAdjustment>();
     public DbSet<InventoryCostAdjustmentLine> InventoryCostAdjustmentLines => Set<InventoryCostAdjustmentLine>();
     public DbSet<SalesQuote> SalesQuotes => Set<SalesQuote>();
+    public DbSet<SalesPromotionCampaign> SalesPromotionCampaigns => Set<SalesPromotionCampaign>();
+    public DbSet<SalesPromotionApplication> SalesPromotionApplications => Set<SalesPromotionApplication>();
     public DbSet<SalesQuoteLine> SalesQuoteLines => Set<SalesQuoteLine>();
     public DbSet<SalesQuoteCustomFieldDefinition> SalesQuoteCustomFieldDefinitions => Set<SalesQuoteCustomFieldDefinition>();
     public DbSet<SalesQuoteCustomFieldDefinitionRevision> SalesQuoteCustomFieldDefinitionRevisions => Set<SalesQuoteCustomFieldDefinitionRevision>();
@@ -141,6 +161,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<PurchaseSupplierQuoteCustomFieldValueRevision> PurchaseSupplierQuoteCustomFieldValueRevisions => Set<PurchaseSupplierQuoteCustomFieldValueRevision>();
     public DbSet<PurchaseReceipt> PurchaseReceipts => Set<PurchaseReceipt>();
     public DbSet<PurchaseReceiptLine> PurchaseReceiptLines => Set<PurchaseReceiptLine>();
+    public DbSet<PurchaseDeliveryNote> PurchaseDeliveryNotes => Set<PurchaseDeliveryNote>();
+    public DbSet<PurchaseDeliveryNoteLine> PurchaseDeliveryNoteLines => Set<PurchaseDeliveryNoteLine>();
     public DbSet<PurchaseReceiptCustomFieldDefinition> PurchaseReceiptCustomFieldDefinitions => Set<PurchaseReceiptCustomFieldDefinition>();
     public DbSet<PurchaseReceiptCustomFieldDefinitionRevision> PurchaseReceiptCustomFieldDefinitionRevisions => Set<PurchaseReceiptCustomFieldDefinitionRevision>();
     public DbSet<PurchaseReceiptCustomFieldValue> PurchaseReceiptCustomFieldValues => Set<PurchaseReceiptCustomFieldValue>();
@@ -151,10 +173,21 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<SupplierReturn> SupplierReturns => Set<SupplierReturn>();
     public DbSet<SupplierReturnLine> SupplierReturnLines => Set<SupplierReturnLine>();
     public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
+    public DbSet<EmployeeRecord> EmployeeRecords => Set<EmployeeRecord>();
+    public DbSet<EmployeeLeaveRequest> EmployeeLeaveRequests => Set<EmployeeLeaveRequest>();
+    public DbSet<EmployeeAttendanceRecord> EmployeeAttendanceRecords => Set<EmployeeAttendanceRecord>();
+    public DbSet<PayrollRuleSet> PayrollRuleSets => Set<PayrollRuleSet>();
+    public DbSet<FixedAsset> FixedAssets => Set<FixedAsset>();
+    public DbSet<FixedAssetDepreciationPosting> FixedAssetDepreciationPostings => Set<FixedAssetDepreciationPosting>();
+    public DbSet<FixedAssetDisposal> FixedAssetDisposals => Set<FixedAssetDisposal>();
+    public DbSet<FixedAssetAssignment> FixedAssetAssignments => Set<FixedAssetAssignment>();
+    public DbSet<TenantOperationalSettings> TenantOperationalSettings => Set<TenantOperationalSettings>();
     public DbSet<FinancialAccountTransaction> FinancialAccountTransactions => Set<FinancialAccountTransaction>();
     public DbSet<FinancialAccountTransfer> FinancialAccountTransfers => Set<FinancialAccountTransfer>();
     public DbSet<BankStatement> BankStatements => Set<BankStatement>();
     public DbSet<BankStatementLine> BankStatementLines => Set<BankStatementLine>();
+    public DbSet<PaymentInstrument> PaymentInstruments => Set<PaymentInstrument>();
+    public DbSet<PaymentInstrumentEvent> PaymentInstrumentEvents => Set<PaymentInstrumentEvent>();
 
     public override int SaveChanges() => SaveChanges(true);
 
@@ -212,6 +245,10 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Company operation policies live with the isolated tenant database, not the platform catalog.
+        modelBuilder.Ignore<TenantOperationalSettings>();
+        modelBuilder.Ignore<TenantBudgetPlan>();
+        modelBuilder.Ignore<TenantBudgetLine>();
         modelBuilder.Entity<AppUser>(e =>
         {
             e.HasKey(x => x.Id);
@@ -225,6 +262,25 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasKey(x => new { x.UserId, x.Role });
             e.Property(x => x.Role).HasMaxLength(64).IsUnicode(false);
             e.HasIndex(x => x.Role);
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<PlatformRefreshSession>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.HasIndex(x => new { x.UserId, x.TenantId, x.ExpiresAt });
+            e.Property(x => x.TokenHash).HasMaxLength(64).IsUnicode(false).IsFixedLength();
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<PlatformAdminRefreshSession>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.HasIndex(x => new { x.UserId, x.ExpiresAt });
+            e.Property(x => x.TokenHash).HasMaxLength(64).IsUnicode(false).IsFixedLength();
+            e.Property(x => x.RowVersion).IsRowVersion();
             e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<PlatformModulePublisherKey>(e =>
@@ -269,6 +325,16 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.BaseCurrencyCode).HasMaxLength(3).IsFixedLength().HasDefaultValue("TRY");
             e.Property(x => x.AuditRetentionDays).HasDefaultValue(365);
             e.ToTable(t => t.HasCheckConstraint("CK_Tenants_AuditRetentionDays", "[AuditRetentionDays] >= 30 AND [AuditRetentionDays] <= 3650"));
+        });
+        modelBuilder.Entity<TenantLicense>(e =>
+        {
+            e.HasKey(x => x.TenantId);
+            e.HasIndex(x => x.LicenseId).IsUnique();
+            e.Property(x => x.Tier).HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.GrantSha256).HasMaxLength(64).IsUnicode(false).IsFixedLength();
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t => t.HasCheckConstraint("CK_TenantLicenses_Tier", "[Tier] IN ('Small','Medium','Large')"));
+            e.HasOne<Tenant>().WithOne().HasForeignKey<TenantLicense>(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<TenantAIProviderSettings>(e =>
         {
@@ -351,6 +417,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
             e.Property(x => x.Code).HasMaxLength(32);
             e.Property(x => x.Name).HasMaxLength(160);
+            e.Property(x => x.StatementSection).HasConversion<int>().HasDefaultValue(LedgerAccountStatementSection.Unclassified);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<LedgerAccountMapping>(e =>
@@ -457,6 +524,21 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.ErrorCode).HasMaxLength(48).IsUnicode(false);
             e.Property(x => x.RowVersion).IsRowVersion();
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantProvisioningJob>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.TenantId).IsUnique();
+            e.HasIndex(x => x.IdempotencyKeyHash).IsUnique();
+            e.HasIndex(x => new { x.Status, x.NextAttemptAt, x.CreatedAt });
+            e.Property(x => x.IdempotencyKeyHash).HasMaxLength(64).IsUnicode(false).IsFixedLength();
+            e.Property(x => x.PayloadSha256).HasMaxLength(64).IsUnicode(false).IsFixedLength();
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.LeaseOwner).HasMaxLength(64).IsUnicode(false);
+            e.Property(x => x.ErrorCode).HasMaxLength(80).IsUnicode(false);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<DevelopmentRequest>(e =>
         {
@@ -721,6 +803,18 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.RowVersion).IsRowVersion();
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         });
+        modelBuilder.Entity<StudioModuleSourceMapping>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.ModuleCode }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ProjectId });
+            e.Property(x => x.ModuleCode).HasMaxLength(60).IsUnicode(false);
+            e.Property(x => x.Ref).HasMaxLength(256);
+            e.Property(x => x.PathAllowlistJson).HasMaxLength(12000);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<DevelopmentProject>().WithMany().HasForeignKey(x => new { x.TenantId, x.ProjectId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<StudioCodeReviewThread>(e =>
         {
             e.HasKey(x => x.Id);
@@ -762,6 +856,124 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.RowVersion).IsRowVersion();
             e.HasOne(x => x.Tenant).WithMany(x => x.Customers).HasForeignKey(x => x.TenantId);
             e.HasOne(x => x.Group).WithMany(x => x.Customers).HasForeignKey(x => new { x.TenantId, x.GroupId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false);
+        });
+        modelBuilder.Entity<EmployeeRecord>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.PersonnelCode }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.UserId }).IsUnique().HasFilter("[UserId] IS NOT NULL");
+            e.HasIndex(x => new { x.TenantId, x.Status, x.FullName });
+            e.Property(x => x.PersonnelCode).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.FullName).HasMaxLength(160);
+            e.Property(x => x.Department).HasMaxLength(120);
+            e.Property(x => x.JobTitle).HasMaxLength(120);
+            e.Property(x => x.WorkEmail).HasMaxLength(254);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t => t.HasCheckConstraint("CK_EmployeeRecords_EmploymentDates", "[TerminationDate] IS NULL OR [TerminationDate] >= [HireDate]"));
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<EmployeeLeaveRequest>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.StartDate, x.EndDate });
+            e.Property(x => x.LeaveType).HasMaxLength(32).IsUnicode(false);
+            e.Property(x => x.RequestedDays).HasPrecision(8, 2);
+            e.Property(x => x.Note).HasMaxLength(1000);
+            e.Property(x => x.ReviewNote).HasMaxLength(1000);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t => t.HasCheckConstraint("CK_EmployeeLeaveRequests_DatesAndDays", "[EndDate] >= [StartDate] AND [RequestedDays] > 0"));
+            e.HasOne<EmployeeRecord>().WithMany().HasForeignKey(x => new { x.TenantId, x.EmployeeId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<EmployeeAttendanceRecord>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.WorkDate }).IsUnique();
+            e.Property(x => x.Note).HasMaxLength(1000);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t => t.HasCheckConstraint("CK_EmployeeAttendanceRecords_Minutes", "[WorkedMinutes] BETWEEN 0 AND 1440 AND [OvertimeMinutes] BETWEEN 0 AND 1440"));
+            e.HasOne<EmployeeRecord>().WithMany().HasForeignKey(x => new { x.TenantId, x.EmployeeId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PayrollRuleSet>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.JurisdictionCode, x.EffectiveFrom, x.Version }).IsUnique();
+            e.Property(x => x.JurisdictionCode).HasMaxLength(8).IsUnicode(false);
+            e.Property(x => x.TaxYear).HasMaxLength(4).IsUnicode(false);
+            e.Property(x => x.RulesJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.OfficialSourceUrl).HasMaxLength(1000);
+            e.Property(x => x.Status).HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t => t.HasCheckConstraint("CK_PayrollRuleSets_EffectiveDates", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]"));
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<FixedAsset>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.AssetCode }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status, x.InServiceDate });
+            e.Property(x => x.AssetCode).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.Name).HasMaxLength(160);
+            e.Property(x => x.Category).HasMaxLength(80);
+            e.Property(x => x.AcquisitionCostBase).HasPrecision(18, 2);
+            e.Property(x => x.ResidualValueBase).HasPrecision(18, 2);
+            e.Property(x => x.AccumulatedDepreciationBase).HasPrecision(18, 2);
+            e.Property(x => x.SourceReference).HasMaxLength(120);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16).IsUnicode(false);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t => t.HasCheckConstraint("CK_FixedAssets_CostAndLife", "[AcquisitionCostBase] > 0 AND [ResidualValueBase] >= 0 AND [ResidualValueBase] < [AcquisitionCostBase] AND [UsefulLifeMonths] BETWEEN 1 AND 1200 AND [InServiceDate] >= [AcquisitionDate] AND [AccumulatedDepreciationBase] >= 0 AND [AccumulatedDepreciationBase] <= [AcquisitionCostBase] - [ResidualValueBase]"));
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<CustomerAccount>().WithMany().HasForeignKey(x => new { x.TenantId, x.SupplierAccountId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<PurchaseInvoice>().WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseInvoiceId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<FixedAssetDepreciationPosting>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.AssetId, x.PeriodStart }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.JournalEntryId }).IsUnique();
+            e.Property(x => x.AmountBase).HasPrecision(18, 2);
+            e.ToTable(t => t.HasCheckConstraint("CK_FixedAssetDepreciationPostings_PeriodAmount", "[PeriodEnd] >= [PeriodStart] AND [AmountBase] > 0"));
+            e.HasOne<FixedAsset>().WithMany().HasForeignKey(x => new { x.TenantId, x.AssetId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<JournalEntry>().WithMany().HasForeignKey(x => new { x.TenantId, x.JournalEntryId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<FixedAssetDisposal>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.AssetId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique();
+            e.Property(x => x.Reason).HasMaxLength(500).IsRequired();
+            e.Property(x => x.ProceedsBase).HasPrecision(18, 2);
+            e.Property(x => x.PostedAccumulatedDepreciationBase).HasPrecision(18, 2);
+            e.Property(x => x.ScheduleAccumulatedDepreciationBase).HasPrecision(18, 2);
+            e.Property(x => x.BookValueBase).HasPrecision(18, 2);
+            e.Property(x => x.GainLossBase).HasPrecision(18, 2);
+            e.ToTable(t => t.HasCheckConstraint("CK_FixedAssetDisposals_Amounts", "[ProceedsBase] >= 0 AND [PostedAccumulatedDepreciationBase] >= 0 AND [ScheduleAccumulatedDepreciationBase] >= 0 AND [BookValueBase] >= 0 AND [GainLossBase] = [ProceedsBase] - [BookValueBase]"));
+            e.HasOne<FixedAsset>().WithMany().HasForeignKey(x => new { x.TenantId, x.AssetId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<FixedAssetAssignment>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.AssetId, x.ReturnedDate });
+            e.HasIndex(x => new { x.TenantId, x.AssetId }).IsUnique().HasFilter("[ReturnedDate] IS NULL");
+            e.Property(x => x.Location).HasMaxLength(160);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t => t.HasCheckConstraint("CK_FixedAssetAssignments_ReturnDate", "[ReturnedDate] IS NULL OR [ReturnedDate] >= [AssignedDate]"));
+            e.HasOne<FixedAsset>().WithMany().HasForeignKey(x => new { x.TenantId, x.AssetId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<EmployeeRecord>().WithMany().HasForeignKey(x => new { x.TenantId, x.EmployeeId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<CrmOpportunity>(e =>
         {
@@ -956,6 +1168,20 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.RowVersion).IsRowVersion();
             e.HasOne(x => x.Tenant).WithMany(x => x.Warehouses).HasForeignKey(x => x.TenantId);
         });
+        modelBuilder.Entity<WarehouseLocation>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.WarehouseId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.WarehouseId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.WarehouseId, x.ParentLocationId, x.Code });
+            e.Property(x => x.Code).HasMaxLength(40).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.ParentLocation).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId, x.ParentLocationId })
+                .HasPrincipalKey(x => new { x.TenantId, x.WarehouseId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<WarehouseCustomFieldDefinition>(e =>
         {
             e.HasKey(x => x.Id);
@@ -1021,6 +1247,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.SalesReturnLineId });
             e.HasIndex(x => new { x.TenantId, x.PurchaseReceiptLineId });
             e.HasIndex(x => new { x.TenantId, x.SupplierReturnLineId });
+            e.HasIndex(x => new { x.TenantId, x.ManufacturingOrderId, x.Direction, x.ReversalOfId });
             e.HasIndex(x => new { x.TenantId, x.InventoryTransferId, x.WarehouseId, x.StockItemId }).IsUnique().HasFilter("[InventoryTransferId] IS NOT NULL");
             e.Property(x => x.Quantity).HasPrecision(18, 4);
             e.Property(x => x.EnteredQuantity).HasPrecision(18, 4);
@@ -1029,12 +1256,16 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.Description).HasMaxLength(240);
             e.ToTable(t => { t.HasCheckConstraint("CK_InventoryTransactions_QuantityPositive", "[Quantity] > 0"); });
             e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.StorageLocation).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId, x.StorageLocationId })
+                .HasPrincipalKey(x => new { x.TenantId, x.WarehouseId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.StockItem).WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ReversalOf).WithOne(x => x.ReversalEntry).HasForeignKey<InventoryTransaction>(x => new { x.TenantId, x.ReversalOfId }).HasPrincipalKey<InventoryTransaction>(x => new { x.TenantId, x.Id }).IsRequired(false);
             e.HasOne(x => x.SalesDeliveryLine).WithMany(x => x.InventoryTransactions).HasForeignKey(x => new { x.TenantId, x.SalesDeliveryLineId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.SalesReturnLine).WithMany(x => x.InventoryTransactions).HasForeignKey(x => new { x.TenantId, x.SalesReturnLineId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.PurchaseReceiptLine).WithMany(x => x.InventoryTransactions).HasForeignKey(x => new { x.TenantId, x.PurchaseReceiptLineId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.SupplierReturnLine).WithMany(x => x.InventoryTransactions).HasForeignKey(x => new { x.TenantId, x.SupplierReturnLineId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ManufacturingOrder>().WithMany().HasForeignKey(x => new { x.TenantId, x.ManufacturingOrderId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.InventoryTransfer).WithMany().HasForeignKey(x => new { x.TenantId, x.InventoryTransferId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<InventoryTransactionTrace>(e =>
@@ -1138,6 +1369,31 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasOne<SalesQuote>().WithMany().HasForeignKey(x => new { x.TenantId, x.QuoteId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<SalesQuoteCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesPromotionCampaign>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.IsActive, x.EffectiveFrom, x.EffectiveThrough });
+            e.Property(x => x.Code).HasMaxLength(40); e.Property(x => x.Name).HasMaxLength(120);
+            e.Property(x => x.DiscountPercent).HasPrecision(5, 2);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_SalesPromotionCampaigns_DiscountRange", "[DiscountPercent] > 0 AND [DiscountPercent] <= 100");
+                t.HasCheckConstraint("CK_SalesPromotionCampaigns_EffectiveRange", "[EffectiveThrough] >= [EffectiveFrom]");
+            });
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesPromotionApplication>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.CampaignId, x.QuoteId }).IsUnique();
+            e.Property(x => x.DiscountPercent).HasPrecision(5, 2); e.Property(x => x.DiscountAmount).HasPrecision(18, 2);
+            e.HasOne<SalesPromotionCampaign>().WithMany().HasForeignKey(x => new { x.TenantId, x.CampaignId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<SalesQuote>().WithMany().HasForeignKey(x => new { x.TenantId, x.QuoteId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -1714,6 +1970,30 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasOne(x => x.Receipt).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.ReceiptId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.PurchaseOrderId }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.OrderLine).WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId, x.OrderLineNumber }).HasPrincipalKey(x => new { x.TenantId, x.PurchaseOrderId, x.LineNumber }).OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<PurchaseDeliveryNote>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasAlternateKey(x => new { x.TenantId, x.Id, x.PurchaseOrderId });
+            e.HasIndex(x => new { x.TenantId, x.PurchaseOrderId, x.DocumentNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.PurchaseOrderId, x.DocumentDate, x.CreatedAt });
+            e.HasIndex(x => new { x.TenantId, x.PurchaseReceiptId }).IsUnique().HasFilter("[PurchaseReceiptId] IS NOT NULL");
+            e.Property(x => x.DocumentNumber).HasMaxLength(80);
+            e.HasOne(x => x.PurchaseOrder).WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.PurchaseReceipt).WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseReceiptId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.PurchaseOrderId }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseDeliveryNoteLine>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.DeliveryNoteId, x.OrderLineNumber }).IsUnique();
+            e.Property(x => x.Quantity).HasPrecision(18, 4);
+            e.Property(x => x.UnitCode).HasMaxLength(8);
+            e.ToTable(t => t.HasCheckConstraint("CK_PurchaseDeliveryNoteLines_QuantityPositive", "[Quantity] > 0"));
+            e.HasOne(x => x.DeliveryNote).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.DeliveryNoteId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.PurchaseOrderId }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<PurchaseOrderLine>().WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId, x.OrderLineNumber }).HasPrincipalKey(x => new { x.TenantId, x.PurchaseOrderId, x.LineNumber }).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<PurchaseInvoice>(e =>
         {
             e.HasKey(x => x.Id);
@@ -1905,11 +2185,132 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasOne(x => x.SupplierPayment).WithMany(x => x.FinancialTransactions).HasForeignKey(x => new { x.TenantId, x.SupplierPaymentId, x.CurrencyCode }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.CurrencyCode }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Transfer).WithMany(x => x.Transactions).HasForeignKey(x => new { x.TenantId, x.TransferId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<PaymentInstrument>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.RequestId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status, x.DueDate });
+            e.Property(x => x.Code).HasMaxLength(40);
+            e.Property(x => x.InstrumentNumber).HasMaxLength(80);
+            e.Property(x => x.CounterpartyName).HasMaxLength(160);
+            e.Property(x => x.BankName).HasMaxLength(120);
+            e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength();
+            e.HasIndex(x => new { x.TenantId, x.CounterpartyAccountId });
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.Property(x => x.EndorsedTo).HasMaxLength(160);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_PaymentInstruments_AmountPositive", "[Amount] > 0");
+                t.HasCheckConstraint("CK_PaymentInstruments_DueDate", "[DueDate] >= [IssueDate]");
+                t.HasCheckConstraint("CK_PaymentInstruments_ValidType", "[Type] IN (1,2)");
+                t.HasCheckConstraint("CK_PaymentInstruments_ValidDirection", "[Direction] IN (1,2)");
+                t.HasCheckConstraint("CK_PaymentInstruments_ValidStatus", "[Status] IN (1,2,3,4,5)");
+            });
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
+            e.HasOne(x => x.CounterpartyAccount).WithMany().HasForeignKey(x => new { x.TenantId, x.CounterpartyAccountId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.FinancialAccount).WithMany().HasForeignKey(x => new { x.TenantId, x.FinancialAccountId, x.CurrencyCode })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id, x.CurrencyCode }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.FinancialAccountTransaction).WithMany().HasForeignKey(x => new { x.TenantId, x.FinancialAccountTransactionId, x.FinancialAccountId, x.CurrencyCode })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id, x.FinancialAccountId, x.CurrencyCode }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PaymentInstrumentEvent>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.RequestId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.PaymentInstrumentId, x.CreatedAt });
+            e.Property(x => x.EventType).HasMaxLength(24);
+            e.Property(x => x.Note).HasMaxLength(500);
+            e.ToTable(t => t.HasCheckConstraint("CK_PaymentInstrumentEvents_Status", "[NewStatus] IN (1,2,3,4,5)"));
+            e.HasOne(x => x.PaymentInstrument).WithMany(x => x.Events).HasForeignKey(x => new { x.TenantId, x.PaymentInstrumentId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<FinancialAccountTransaction>().WithMany().HasForeignKey(x => new { x.TenantId, x.FinancialAccountTransactionId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<CreditFacility>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status, x.MaturityDate });
+            e.Property(x => x.Code).HasMaxLength(40).IsRequired();
+            e.Property(x => x.LenderName).HasMaxLength(160).IsRequired();
+            e.Property(x => x.FacilityType).HasMaxLength(24).IsRequired();
+            e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength();
+            e.Property(x => x.ApprovedLimit).HasPrecision(18, 2);
+            e.Property(x => x.AnnualInterestRatePercent).HasPrecision(9, 4);
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_CreditFacilities_ApprovedLimit", "[ApprovedLimit] > 0");
+                t.HasCheckConstraint("CK_CreditFacilities_ValidDates", "[MaturityDate] IS NULL OR [MaturityDate] >= [StartDate]");
+                t.HasCheckConstraint("CK_CreditFacilities_Rate", "[AnnualInterestRatePercent] IS NULL OR [AnnualInterestRatePercent] >= 0");
+                t.HasCheckConstraint("CK_CreditFacilities_Status", "[Status] IN (1,2)");
+            });
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<CreditFacilitySchedule>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.CreditFacilityId, x.DueDate });
+            e.Property(x => x.PrincipalAmount).HasPrecision(18, 2);
+            e.Property(x => x.InterestAmount).HasPrecision(18, 2);
+            e.Property(x => x.FeeAmount).HasPrecision(18, 2);
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_CreditFacilitySchedules_Amounts", "[PrincipalAmount] >= 0 AND [InterestAmount] >= 0 AND [FeeAmount] >= 0 AND ([PrincipalAmount] + [InterestAmount] + [FeeAmount]) > 0");
+                t.HasCheckConstraint("CK_CreditFacilitySchedules_Status", "[Status] IN (1,2,3)");
+                t.HasCheckConstraint("CK_CreditFacilitySchedules_PaidDate", "([Status] = 2 AND [PaidDate] IS NOT NULL) OR ([Status] <> 2 AND [PaidDate] IS NULL)");
+            });
+            e.HasOne(x => x.CreditFacility).WithMany(x => x.Schedule)
+                .HasForeignKey(x => new { x.TenantId, x.CreditFacilityId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<CreditFacilityMovement>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.RequestId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.CreditFacilityId, x.TransactionDate, x.CreatedAt });
+            e.HasIndex(x => new { x.TenantId, x.CreditFacilityScheduleId })
+                .HasFilter("[CreditFacilityScheduleId] IS NOT NULL");
+            e.HasIndex(x => new { x.TenantId, x.ReversesMovementId }).IsUnique()
+                .HasFilter("[ReversesMovementId] IS NOT NULL");
+            e.Property(x => x.Type).HasConversion<int>();
+            e.Property(x => x.PrincipalAmount).HasPrecision(18, 2);
+            e.Property(x => x.InterestAmount).HasPrecision(18, 2);
+            e.Property(x => x.FeeAmount).HasPrecision(18, 2);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_CreditFacilityMovements_Amounts", "[PrincipalAmount] > 0 AND [InterestAmount] >= 0 AND [FeeAmount] >= 0");
+                t.HasCheckConstraint("CK_CreditFacilityMovements_Type", "[Type] IN (1,2,3)");
+                t.HasCheckConstraint("CK_CreditFacilityMovements_Drawdown", "[Type] <> 1 OR ([InterestAmount] = 0 AND [FeeAmount] = 0)");
+                t.HasCheckConstraint("CK_CreditFacilityMovements_Reversal", "([Type] = 3 AND [ReversesMovementId] IS NOT NULL AND [CreditFacilityScheduleId] IS NULL) OR ([Type] <> 3 AND [ReversesMovementId] IS NULL)");
+            });
+            e.HasOne(x => x.CreditFacility).WithMany(x => x.Movements)
+                .HasForeignKey(x => new { x.TenantId, x.CreditFacilityId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.FinancialAccountTransaction).WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.FinancialAccountTransactionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.CreditFacilitySchedule).WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.CreditFacilityScheduleId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.ReversesMovement).WithMany(x => x.Reversals)
+                .HasForeignKey(x => new { x.TenantId, x.ReversesMovementId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<TenantCustomFormDefinition>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasIndex(x => new { x.TenantId, x.Code, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Code }).HasFilter("[Status] = 'Published'").IsUnique();
             e.HasIndex(x => new { x.TenantId, x.Status, x.UpdatedAt });
             e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false);
             e.Property(x => x.Name).HasMaxLength(120);
@@ -1999,6 +2400,30 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasOne(x => x.WorkflowInstance).WithMany().HasForeignKey(x => new { x.TenantId, x.WorkflowInstanceId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<TenantScreenView>(e =>
+        {
+            e.ToTable("TenantScreenViews", table => table.HasCheckConstraint("CK_TenantScreenViews_Revision", "[Revision] >= 1"));
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.ScreenKey, x.IsPublished }).IsUnique().HasFilter("[IsPublished] = 1");
+            e.HasIndex(x => new { x.TenantId, x.ScreenKey, x.UpdatedAt });
+            e.Property(x => x.ScreenKey).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.LayoutJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantScreenViewRevision>(e =>
+        {
+            e.ToTable("TenantScreenViewRevisions", table => table.HasCheckConstraint("CK_TenantScreenViewRevisions_Revision", "[Revision] >= 1"));
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.ScreenViewId, x.Revision }).IsUnique();
+            e.Property(x => x.ScreenKey).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.LayoutJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.ChangeKind).HasMaxLength(32).IsUnicode(false).IsRequired();
+            e.HasOne(x => x.ScreenView).WithMany(x => x.Revisions).HasForeignKey(x => new { x.TenantId, x.ScreenViewId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<TenantSavedReport>(e =>
         {
             e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
@@ -2007,7 +2432,19 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.Kind).HasMaxLength(12).IsUnicode(false).HasDefaultValue("Report");
             e.Property(x => x.Source).HasMaxLength(40).IsUnicode(false);
             e.Property(x => x.DefinitionJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.DefinitionRevision).HasDefaultValue(1).IsConcurrencyToken();
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantSavedReportRevision>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.SavedReportId, x.Revision }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(120);
+            e.Property(x => x.Kind).HasMaxLength(12).IsUnicode(false);
+            e.Property(x => x.Source).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.DefinitionJson).HasColumnType("nvarchar(max)");
+            e.HasOne(x => x.SavedReport).WithMany(x => x.Revisions).HasForeignKey(x => new { x.TenantId, x.SavedReportId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<TenantDashboardWidget>(e =>
         {
@@ -2048,10 +2485,40 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
             e.Property(x => x.Code).HasMaxLength(48).IsUnicode(false);
             e.Property(x => x.Name).HasMaxLength(160);
+            e.Property(x => x.WorkingDaysMask).HasDefaultValue(127);
+            e.Property(x => x.ShiftStartMinuteOfDay).HasDefaultValue(480);
+            e.Property(x => x.ShiftEndMinuteOfDay).HasDefaultValue(960);
             e.Property(x => x.LaborCostPerHourBase).HasPrecision(18, 4);
             e.Property(x => x.OverheadCostPerHourBase).HasPrecision(18, 4);
-            e.ToTable(t => t.HasCheckConstraint("CK_ManufacturingWorkCenters_Capacity", "[CapacityMinutesPerDay] > 0 AND [CapacityMinutesPerDay] <= 1440 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0"));
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_ManufacturingWorkCenters_Capacity", "[CapacityMinutesPerDay] > 0 AND [CapacityMinutesPerDay] <= 1440 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0");
+                t.HasCheckConstraint("CK_ManufacturingWorkCenters_WorkingDaysMask", "[WorkingDaysMask] BETWEEN 0 AND 127");
+                t.HasCheckConstraint("CK_ManufacturingWorkCenters_ShiftWindow", "[ShiftStartMinuteOfDay] BETWEEN 0 AND 1439 AND [ShiftEndMinuteOfDay] BETWEEN 1 AND 1440 AND [ShiftEndMinuteOfDay] > [ShiftStartMinuteOfDay]");
+            });
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ManufacturingWorkCenterCapacityOverride>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.WorkCenterId, x.WorkDate }).IsUnique();
+            e.Property(x => x.Note).HasMaxLength(200);
+            e.ToTable(t => t.HasCheckConstraint("CK_ManufacturingWorkCenterCapacityOverrides_Capacity", "[CapacityMinutes] BETWEEN 0 AND 1440"));
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ManufacturingSetupTransitionRule>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.WorkCenterId, x.FromSetupFamilyCode, x.ToSetupFamilyCode }).IsUnique();
+            e.Property(x => x.FromSetupFamilyCode).HasMaxLength(48).IsUnicode(false);
+            e.Property(x => x.ToSetupFamilyCode).HasMaxLength(48).IsUnicode(false);
+            e.Property(x => x.SetupMinutes).HasPrecision(12, 2);
+            e.ToTable(t => t.HasCheckConstraint("CK_ManufacturingSetupTransitionRules_SetupMinutes", "[SetupMinutes] >= 0"));
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<BillOfMaterialOperation>(e =>
         {
@@ -2059,9 +2526,19 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.BillOfMaterialId, x.Sequence }).IsUnique();
             e.Property(x => x.SetupMinutes).HasPrecision(12, 2);
             e.Property(x => x.RunMinutesPerOutputUnit).HasPrecision(12, 4);
+            e.Property(x => x.SetupFamilyCode).HasMaxLength(48).IsUnicode(false).HasDefaultValue("");
             e.ToTable(t => t.HasCheckConstraint("CK_BillOfMaterialOperations_Minutes", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutesPerOutputUnit] >= 0 AND ([SetupMinutes] + [RunMinutesPerOutputUnit]) > 0"));
             e.HasOne<BillOfMaterial>().WithMany(x => x.Operations).HasForeignKey(x => new { x.TenantId, x.BillOfMaterialId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<BillOfMaterialOperationWorkCenterOption>(e =>
+        {
+            e.HasKey(x => new { x.TenantId, x.BillOfMaterialOperationId, x.WorkCenterId });
+            e.HasIndex(x => new { x.TenantId, x.BillOfMaterialOperationId, x.IsPreferred }).IsUnique().HasFilter("[IsPreferred] = 1");
+            e.HasOne<BillOfMaterialOperation>().WithMany(x => x.EligibleWorkCenters)
+                .HasForeignKey(x => new { x.TenantId, x.BillOfMaterialOperationId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
@@ -2127,20 +2604,35 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.WorkCenterNameSnapshot).HasMaxLength(160);
             e.Property(x => x.SetupMinutes).HasPrecision(12, 2);
             e.Property(x => x.RunMinutes).HasPrecision(12, 2);
+            e.Property(x => x.SetupFamilyCodeSnapshot).HasMaxLength(48).IsUnicode(false).HasDefaultValue("");
+            e.Property(x => x.SequenceSetupMinutes).HasPrecision(12, 2).HasDefaultValue(0m);
+            e.Property(x => x.SetupTransitionRulesSnapshotJson).HasColumnType("nvarchar(max)").HasDefaultValue("[]");
             e.Property(x => x.LaborCostPerHourBase).HasPrecision(18, 4);
             e.Property(x => x.OverheadCostPerHourBase).HasPrecision(18, 4);
             e.Property(x => x.PlannedCostBase).HasPrecision(18, 4);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
             e.Property(x => x.ActualSetupMinutes).HasPrecision(12, 2);
             e.Property(x => x.ActualRunMinutes).HasPrecision(12, 2);
+            e.Property(x => x.ActualEnergyQuantityKwh).HasPrecision(14, 3);
+            e.Property(x => x.ActualEnergyCostPerKwhBase).HasPrecision(18, 6);
+            e.Property(x => x.ActualEnergyCostBase).HasPrecision(18, 4);
             e.Property(x => x.ActualCostBase).HasPrecision(18, 4);
             e.ToTable(t =>
             {
                 t.HasCheckConstraint("CK_ManufacturingOrderOperations_MinutesAndCost", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutes] >= 0 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0 AND [PlannedCostBase] >= 0");
-                t.HasCheckConstraint("CK_ManufacturingOrderOperations_Actuals", "([ActualSetupMinutes] IS NULL OR [ActualSetupMinutes] >= 0) AND ([ActualRunMinutes] IS NULL OR [ActualRunMinutes] >= 0) AND ([ActualCostBase] IS NULL OR [ActualCostBase] >= 0)");
+                t.HasCheckConstraint("CK_ManufacturingOrderOperations_Actuals", "([ActualSetupMinutes] IS NULL OR [ActualSetupMinutes] >= 0) AND ([ActualRunMinutes] IS NULL OR [ActualRunMinutes] >= 0) AND ([ActualEnergyQuantityKwh] IS NULL OR [ActualEnergyQuantityKwh] >= 0) AND ([ActualEnergyCostPerKwhBase] IS NULL OR [ActualEnergyCostPerKwhBase] >= 0) AND ([ActualEnergyCostBase] IS NULL OR [ActualEnergyCostBase] >= 0) AND ([ActualCostBase] IS NULL OR [ActualCostBase] >= 0)");
             });
             e.HasOne<ManufacturingOrder>().WithMany(x => x.Operations).HasForeignKey(x => new { x.TenantId, x.ManufacturingOrderId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ManufacturingOrderOperationWorkCenterOption>(e =>
+        {
+            e.HasKey(x => new { x.TenantId, x.ManufacturingOrderOperationId, x.WorkCenterId });
+            e.HasIndex(x => new { x.TenantId, x.ManufacturingOrderOperationId, x.IsPreferred }).IsUnique().HasFilter("[IsPreferred] = 1");
+            e.HasOne<ManufacturingOrderOperation>().WithMany(x => x.EligibleWorkCenters)
+                .HasForeignKey(x => new { x.TenantId, x.ManufacturingOrderOperationId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
@@ -2150,7 +2642,11 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.ManufacturingOrderOperationId, x.ScheduledDate }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.WorkCenterId, x.ScheduledDate });
             e.Property(x => x.AllocatedMinutes).HasPrecision(12, 2);
-            e.ToTable(t => t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_Minutes", "[AllocatedMinutes] > 0"));
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_Minutes", "[AllocatedMinutes] > 0");
+                t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_TimeRange", "[StartMinuteOfDay] BETWEEN 0 AND 1439 AND [EndMinuteOfDay] BETWEEN 1 AND 1440 AND [EndMinuteOfDay] > [StartMinuteOfDay]");
+            });
             e.HasOne<ManufacturingOrderOperation>().WithMany().HasForeignKey(x => new { x.TenantId, x.ManufacturingOrderOperationId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
@@ -2160,4 +2656,24 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
 }
 
 public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> options, IAuditExecutionContext? auditExecutionContext = null)
-    : PlatformDbContextBase<PlatformDbContext>(options, auditExecutionContext);
+    : PlatformDbContextBase<PlatformDbContext>(options, auditExecutionContext)
+{
+    public DbSet<TenantCompanyProfile> TenantCompanyProfiles => Set<TenantCompanyProfile>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        // Tenant operational records belong to each isolated tenant database.
+        modelBuilder.Ignore<PurchaseDeliveryNote>();
+        modelBuilder.Ignore<PurchaseDeliveryNoteLine>();
+        modelBuilder.Entity<TenantCompanyProfile>(e =>
+        {
+            e.ToTable("TenantCompanyProfiles");
+            e.HasKey(x => x.TenantId);
+            e.Property(x => x.LegalName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.TaxOffice).HasMaxLength(100);
+            e.Property(x => x.TaxNumber).HasMaxLength(10).IsUnicode(false);
+            e.HasOne<Tenant>().WithOne().HasForeignKey<TenantCompanyProfile>(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+}

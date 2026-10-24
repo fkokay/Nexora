@@ -10,6 +10,41 @@ namespace AIERP.Platform.UnitTests;
 public sealed class PluginHostTests
 {
     [Fact]
+    public void PluginHostHealth_RequiresReadablePackageDirectory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-module-health-{Guid.NewGuid():N}");
+        var missing = Path.Combine(root, "missing");
+        Directory.CreateDirectory(root);
+        try
+        {
+            Assert.True(PluginHostHealth.IsPackageStoreReadable(root));
+            Assert.False(PluginHostHealth.IsPackageStoreReadable(missing));
+            Assert.False(PluginHostHealth.IsPackageStoreReadable("\0"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ModuleInvocationConcurrencyGate_RejectsOverCapacityWithoutQueueingAndReleasesPermit()
+    {
+        using var gate = new ModuleInvocationConcurrencyGate(1);
+
+        Assert.True(gate.TryAcquire(out var lease));
+        Assert.NotNull(lease);
+        Assert.False(gate.TryAcquire(out var rejectedLease));
+        Assert.Null(rejectedLease);
+
+        lease.Dispose();
+        lease.Dispose();
+
+        Assert.True(gate.TryAcquire(out var nextLease));
+        nextLease!.Dispose();
+    }
+
+    [Fact]
     public void ModulePackageStoragePath_RejectsTraversalAndReparsePointAncestors()
     {
         var root = Path.Combine(Path.GetTempPath(), $"aierp-module-storage-{Guid.NewGuid():N}");
@@ -31,6 +66,40 @@ public sealed class PluginHostTests
             try { Directory.Delete(root, recursive: true); } catch (IOException) { }
             try { Directory.Delete(outside, recursive: true); } catch (IOException) { }
         }
+    }
+
+    [Fact]
+    public void ModulePackageUploadCoordinator_OnlyDeletesPackageOwnedByThisUpload()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-module-cleanup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var hash = new string('c', 64);
+        var package = ModulePackageStoragePath.ResolvePackage(root, hash);
+        File.WriteAllBytes(package, [1, 2, 3]);
+        try
+        {
+            Assert.False(ModulePackageUploadCoordinator.DeleteOwnedPackage(root, hash, createdByThisUpload: false));
+            Assert.True(File.Exists(package));
+            Assert.True(ModulePackageUploadCoordinator.DeleteOwnedPackage(root, hash, createdByThisUpload: true));
+            Assert.False(File.Exists(package));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ModulePackageUploadCoordinator_SerializesSameHashWithinProcess()
+    {
+        var hash = new string('d', 64);
+        using var first = await ModulePackageUploadCoordinator.AcquireAsync(hash);
+        var secondTask = ModulePackageUploadCoordinator.AcquireAsync(hash).AsTask();
+
+        Assert.False(secondTask.IsCompleted);
+        first.Dispose();
+        using var second = await secondTask.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Throws<InvalidDataException>(() => ModulePackageUploadCoordinator.AcquireAsync("../bad").AsTask().GetAwaiter().GetResult());
     }
 
     [Fact]
