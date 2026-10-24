@@ -3329,6 +3329,7 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var delivery = await db.SalesDeliveries.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesDeliveries] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (delivery is null) return Results.NotFound();
     var existing = await db.SalesInvoices.AsNoTracking().Include(x => x.Delivery).Include(x => x.Order).Include(x => x.Customer)
@@ -3337,6 +3338,10 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
         return Results.Ok(new SalesInvoiceSummary(existing.Id, existing.Code, existing.DeliveryId, existing.Delivery.Code, existing.OrderId,
             existing.Order.Code, existing.CustomerId, existing.Customer.Name, existing.InvoiceDate, existing.CurrencyCode,
             existing.Status, existing.GrandTotal, await db.SalesInvoiceLines.CountAsync(x => x.TenantId == tenantId && x.InvoiceId == existing.Id), existing.CreatedAt));
+    var invoiceDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, invoiceDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedPeriod, "satış faturası") is { } closedInvoiceConflict)
+        return closedInvoiceConflict;
     if (delivery.Status != SalesDeliveryStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş irsaliyeden fatura oluşturulamaz." });
     var order = await db.SalesOrders.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == delivery.OrderId);
     if (order is null) return Results.NotFound();
@@ -3366,7 +3371,7 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
     }
     var code = $"INV-{Guid.NewGuid():N}".ToUpperInvariant();
     var invoice = new SalesInvoice { TenantId = tenantId, DeliveryId = id, OrderId = order.Id, CustomerId = customer.Id,
-        Code = code, InvoiceDate = DateOnly.FromDateTime(DateTime.UtcNow), CurrencyCode = order.CurrencyCode,
+        Code = code, InvoiceDate = invoiceDate, CurrencyCode = order.CurrencyCode,
         Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal };
     foreach (var row in invoiceLines)
         invoice.Lines.Add(new SalesInvoiceLine { TenantId = tenantId, Invoice = invoice, DeliveryLineId = row.DeliveryLine.Id,
@@ -5205,6 +5210,7 @@ purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCr
         .Select(x => new { x.PurchaseOrderId, SupplierId = x.PurchaseOrder.SupplierId }).SingleOrDefaultAsync();
     if (receiptIdentity is null) return Results.NotFound();
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var order = await db.PurchaseOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {receiptIdentity.PurchaseOrderId}").SingleOrDefaultAsync();
     if (order is null) return Results.NotFound();
     var receipt = await db.PurchaseReceipts.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseReceipts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
@@ -5226,6 +5232,9 @@ purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCr
             activeInvoice.DueDate, activeInvoice.CurrencyCode, activeInvoice.Status, activeInvoice.GrandTotal, replayPaid,
             Math.Max(0m, activeInvoice.GrandTotal - replayPaid - replayReturned), await db.PurchaseInvoiceLines.CountAsync(x => x.TenantId == tenantId && x.PurchaseInvoiceId == activeInvoice.Id), activeInvoice.CreatedAt));
     }
+    var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.InvoiceDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedPeriod, "alış faturası") is { } closedInvoiceConflict)
+        return closedInvoiceConflict;
     var supplier = await db.CustomerAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {order.SupplierId}").SingleOrDefaultAsync();
     if (supplier is null || supplier.Type is not (CounterpartyType.Supplier or CounterpartyType.Both)) return Results.Conflict(new { error = "Sipariş tedarikçi hesabı kullanılamıyor." });
     if (supplier.CurrencyCode != order.CurrencyCode) return Results.Conflict(new { error = "Tedarikçinin döviz kodu sipariş para birimiyle eşleşmiyor." });

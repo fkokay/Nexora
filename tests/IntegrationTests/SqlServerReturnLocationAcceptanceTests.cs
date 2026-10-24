@@ -157,12 +157,16 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             Assert.Equal(HttpStatusCode.Created, closeResponse.StatusCode);
             var salesReturnCount = await readbackTenant.SalesReturns.CountAsync(x => x.TenantId == TenantId);
             var supplierReturnCount = await readbackTenant.SupplierReturns.CountAsync(x => x.TenantId == TenantId);
+            var salesInvoiceCount = await readbackTenant.SalesInvoices.CountAsync(x => x.TenantId == TenantId);
+            var purchaseInvoiceCount = await readbackTenant.PurchaseInvoices.CountAsync(x => x.TenantId == TenantId);
             var movementCount = await readbackTenant.InventoryTransactions.CountAsync(x => x.TenantId == TenantId);
             var ledgerCount = await readbackTenant.CustomerLedgerEntries.CountAsync(x => x.TenantId == TenantId);
             var returnAuditCount = await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
                 (x.Action == "sales-return.posted" || x.Action == "supplier-return.posted"));
             var manualLedgerAuditCount = await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
                 (x.Action == "customer-ledger.created" || x.Action == "customer-ledger.reversed"));
+            var invoiceAuditCount = await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
+                (x.Action == "sales-invoice.posted" || x.Action == "purchase-invoice.posted"));
 
             using var closedManualLedger = await client.PostAsJsonAsync($"/api/customers/{data.CustomerId:D}/ledger", new
             {
@@ -194,14 +198,29 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             Assert.Equal(HttpStatusCode.Conflict, closedSupplierReturn.StatusCode);
             Assert.Contains("dönemi kapalı", await closedSupplierReturn.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
 
+            using var closedSalesInvoice = await client.PostAsync($"/api/sales/deliveries/{data.UnbilledSalesDeliveryId:D}/invoice", content: null);
+            Assert.Equal(HttpStatusCode.Conflict, closedSalesInvoice.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedSalesInvoice.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+            using var closedPurchaseInvoice = await client.PostAsJsonAsync($"/api/purchasing/receipts/{data.UnbilledPurchaseReceiptId:D}/invoice", new
+            {
+                code = "PINV-CLOSED-TEST", invoiceDate = "2026-10-21"
+            });
+            Assert.Equal(HttpStatusCode.Conflict, closedPurchaseInvoice.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedPurchaseInvoice.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
             Assert.Equal(salesReturnCount, await readbackTenant.SalesReturns.CountAsync(x => x.TenantId == TenantId));
             Assert.Equal(supplierReturnCount, await readbackTenant.SupplierReturns.CountAsync(x => x.TenantId == TenantId));
+            Assert.Equal(salesInvoiceCount, await readbackTenant.SalesInvoices.CountAsync(x => x.TenantId == TenantId));
+            Assert.Equal(purchaseInvoiceCount, await readbackTenant.PurchaseInvoices.CountAsync(x => x.TenantId == TenantId));
             Assert.Equal(movementCount, await readbackTenant.InventoryTransactions.CountAsync(x => x.TenantId == TenantId));
             Assert.Equal(ledgerCount, await readbackTenant.CustomerLedgerEntries.CountAsync(x => x.TenantId == TenantId));
             Assert.Equal(returnAuditCount, await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
                 (x.Action == "sales-return.posted" || x.Action == "supplier-return.posted")));
             Assert.Equal(manualLedgerAuditCount, await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
                 (x.Action == "customer-ledger.created" || x.Action == "customer-ledger.reversed")));
+            Assert.Equal(invoiceAuditCount, await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
+                (x.Action == "sales-invoice.posted" || x.Action == "purchase-invoice.posted")));
         }
         finally
         {
@@ -264,6 +283,21 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             LineSubtotal = 20m, LineTotal = 20m };
         salesInvoice.Lines.Add(salesInvoiceLine);
 
+        var unbilledQuote = new SalesQuote { TenantId = TenantId, Tenant = tenant, CustomerId = customer.Id, Customer = customer,
+            Code = "Q-RETURN-CLOSED", QuoteDate = new DateOnly(2026, 10, 1), ValidUntil = new DateOnly(2026, 11, 1), Status = SalesQuoteStatus.Accepted,
+            Subtotal = 10m, GrandTotal = 10m };
+        var unbilledOrder = new SalesOrder { TenantId = TenantId, Tenant = tenant, QuoteId = unbilledQuote.Id, Quote = unbilledQuote, CustomerId = customer.Id,
+            Customer = customer, Code = "SO-RETURN-CLOSED", OrderDate = new DateOnly(2026, 10, 2), Subtotal = 10m, GrandTotal = 10m };
+        var unbilledOrderLine = new SalesOrderLine { TenantId = TenantId, OrderId = unbilledOrder.Id, Order = unbilledOrder, LineNumber = 1,
+            StockItemId = item.Id, StockItem = item, StockCode = item.Code, StockName = item.Name, UnitCode = item.UnitCode,
+            Quantity = 1m, UnitPrice = 10m, LineSubtotal = 10m, LineTotal = 10m };
+        unbilledOrder.Lines.Add(unbilledOrderLine);
+        var unbilledDelivery = new SalesDelivery { TenantId = TenantId, Tenant = tenant, OrderId = unbilledOrder.Id, Order = unbilledOrder,
+            WarehouseId = warehouse.Id, Warehouse = warehouse, RequestId = Guid.NewGuid(), Code = "DEL-RETURN-CLOSED", DeliveryDate = new DateOnly(2026, 10, 5) };
+        unbilledDelivery.Lines.Add(new SalesDeliveryLine { TenantId = TenantId, DeliveryId = unbilledDelivery.Id, Delivery = unbilledDelivery,
+            OrderId = unbilledOrder.Id, OrderLineNumber = 1, OrderLine = unbilledOrderLine, StockItemId = item.Id,
+            StockCode = item.Code, StockName = item.Name, UnitCode = item.UnitCode, Quantity = 1m });
+
         var purchaseOrder = new PurchaseOrder { TenantId = TenantId, Tenant = tenant, SupplierId = supplier.Id, Supplier = supplier,
             Code = "PO-RETURN", OrderDate = new DateOnly(2026, 10, 1), TargetWarehouseId = warehouse.Id, TargetWarehouse = warehouse };
         var purchaseOrderLine = new PurchaseOrderLine { TenantId = TenantId, PurchaseOrderId = purchaseOrder.Id, PurchaseOrder = purchaseOrder,
@@ -286,6 +320,20 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             Quantity = 3m, UnitPrice = 5m, LineSubtotal = 15m, LineTotal = 15m };
         purchaseInvoice.Lines.Add(purchaseInvoiceLine);
 
+        var unbilledPurchaseOrder = new PurchaseOrder { TenantId = TenantId, Tenant = tenant, SupplierId = supplier.Id, Supplier = supplier,
+            Code = "PO-RETURN-CLOSED", OrderDate = new DateOnly(2026, 10, 1), TargetWarehouseId = warehouse.Id, TargetWarehouse = warehouse };
+        var unbilledPurchaseOrderLine = new PurchaseOrderLine { TenantId = TenantId, PurchaseOrderId = unbilledPurchaseOrder.Id, PurchaseOrder = unbilledPurchaseOrder,
+            LineNumber = 1, StockItemId = item.Id, StockItem = item, StockCode = item.Code, StockName = item.Name, UnitCode = item.UnitCode,
+            Quantity = 1m, UnitPrice = 5m, LineSubtotal = 5m, LineTotal = 5m };
+        unbilledPurchaseOrder.Lines.Add(unbilledPurchaseOrderLine);
+        var unbilledPurchaseReceipt = new PurchaseReceipt { TenantId = TenantId, Tenant = tenant, RequestId = Guid.NewGuid(),
+            PurchaseOrderId = unbilledPurchaseOrder.Id, PurchaseOrder = unbilledPurchaseOrder, WarehouseId = warehouse.Id,
+            Warehouse = warehouse, Code = "GR-RETURN-CLOSED", ReceiptDate = new DateOnly(2026, 10, 6) };
+        unbilledPurchaseReceipt.Lines.Add(new PurchaseReceiptLine { TenantId = TenantId, ReceiptId = unbilledPurchaseReceipt.Id,
+            Receipt = unbilledPurchaseReceipt, PurchaseOrderId = unbilledPurchaseOrder.Id, OrderLineNumber = 1,
+            OrderLine = unbilledPurchaseOrderLine, StockItemId = item.Id, StockCode = item.Code, StockName = item.Name,
+            UnitCode = item.UnitCode, Quantity = 1m });
+
         tenantDb.Tenants.Add(tenant);
         tenantDb.CustomerAccounts.AddRange(customer, supplier);
         tenantDb.Warehouses.Add(warehouse);
@@ -293,10 +341,11 @@ public sealed class SqlServerReturnLocationAcceptanceTests
         tenantDb.StockItems.Add(item);
         tenantDb.SalesQuotes.Add(quote);
         tenantDb.SalesOrders.Add(salesOrder);
-        tenantDb.SalesDeliveries.Add(delivery);
+        tenantDb.SalesOrders.Add(unbilledOrder);
+        tenantDb.SalesDeliveries.AddRange(delivery, unbilledDelivery);
         tenantDb.SalesInvoices.Add(salesInvoice);
-        tenantDb.PurchaseOrders.Add(purchaseOrder);
-        tenantDb.PurchaseReceipts.Add(purchaseReceipt);
+        tenantDb.PurchaseOrders.AddRange(purchaseOrder, unbilledPurchaseOrder);
+        tenantDb.PurchaseReceipts.AddRange(purchaseReceipt, unbilledPurchaseReceipt);
         tenantDb.PurchaseInvoices.Add(purchaseInvoice);
         tenantDb.InventoryTransactions.AddRange(
             new InventoryTransaction { TenantId = TenantId, WarehouseId = warehouse.Id, StockItemId = item.Id, SalesDeliveryLineId = deliveryLine.Id,
@@ -318,11 +367,12 @@ public sealed class SqlServerReturnLocationAcceptanceTests
         tenantDb.JournalEntries.Add(opening);
         await tenantDb.SaveChangesAsync();
         return new SeedIds(customer.Id, warehouse.Id, salesLocation.Id, purchaseLocation.Id, inactiveLocation.Id, salesInvoice.Id, salesInvoiceLine.Id,
-            purchaseInvoice.Id, purchaseInvoiceLine.Id, retainedEarnings.Id);
+            purchaseInvoice.Id, purchaseInvoiceLine.Id, retainedEarnings.Id, unbilledDelivery.Id, unbilledPurchaseReceipt.Id);
     }
 
     private sealed record SeedIds(Guid CustomerId, Guid WarehouseId, Guid SalesReturnLocationId, Guid PurchaseReturnLocationId, Guid InactiveLocationId,
-        Guid SalesInvoiceId, Guid SalesInvoiceLineId, Guid PurchaseInvoiceId, Guid PurchaseInvoiceLineId, Guid RetainedEarningsAccountId);
+        Guid SalesInvoiceId, Guid SalesInvoiceLineId, Guid PurchaseInvoiceId, Guid PurchaseInvoiceLineId, Guid RetainedEarningsAccountId,
+        Guid UnbilledSalesDeliveryId, Guid UnbilledPurchaseReceiptId);
 
     private sealed class ProcessEnvironmentOverride(IReadOnlyDictionary<string, string?> previousValues) : IDisposable
     {
