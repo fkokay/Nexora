@@ -76,15 +76,22 @@ export default function FinanceBudgetPage({token,role}:{token:string;role:string
   const draft=selected&&(selected.plan.status===1||selected.plan.status==='Draft')
   const currencyMismatch=Boolean(selected&&baseCurrency&&selected.plan.currencyCode!==baseCurrency)
   return <div className="finance-page finance-budget-page">
-    <header className="page-heading">
-      <div><p className="eyebrow">FİNANS YÖNETİMİ · PLANLAMA</p><h1>Bütçe planı ve gerçekleşen</h1><p className="muted">Aylık gelir ve gider bütçelerini yevmiye kayıtlarıyla karşılaştırın. Onaylanan bütçeler değiştirilemez.</p></div>
-      <button type="button" className="secondary" onClick={()=>void load()} disabled={controlsLocked} aria-busy={loading}>{loading?'Yenileniyor…':'Yenile'}</button>
+    <header className="page-heading budget-hero">
+      <div className="budget-hero-copy"><p className="eyebrow">FİNANS YÖNETİMİ <span>·</span> PLANLAMA</p><h1>Bütçe planı ve gerçekleşen</h1><p>Aylık gelir ve gider hedeflerini yevmiye gerçekleşenleriyle aynı ekranda izleyin.</p><div className="budget-hero-caption"><span className="budget-hero-dot"/> Onaylanan bütçeler değiştirilemez ve mali yıl bazında takip edilir.</div></div>
+      <button type="button" className="budget-refresh" onClick={()=>void load()} disabled={controlsLocked} aria-busy={loading}>{loading?'Yenileniyor…':'Yenile'}</button>
     </header>
+
+    <section className="budget-overview" aria-label="Bütçe özeti">
+      <article className="budget-overview-card"><span>Toplam senaryo</span><strong>{plans.length}</strong><small>Firma kapsamındaki bütçeler</small></article>
+      <article className="budget-overview-card"><span>Taslak</span><strong>{plans.filter(plan=>!isApproved(plan.status)).length}</strong><small>Onay sürecine hazır</small></article>
+      <article className="budget-overview-card"><span>Onaylı</span><strong>{plans.filter(plan=>isApproved(plan.status)).length}</strong><small>Değiştirilemez planlar</small></article>
+      <article className="budget-overview-card"><span>Uygun hesap</span><strong>{eligible.length}</strong><small>Gelir ve gider hesapları</small></article>
+    </section>
 
     {error&&<div className="alert inline-alert budget-alert" role="alert"><span>{error}</span><button type="button" className="row-action" onClick={()=>void load()} disabled={loading}>Yeniden dene</button></div>}
     {notice&&<div className="notice inline-notice budget-notice" role="status">{notice}</div>}
 
-    <div className="budget-layout">
+    <div className={`budget-layout ${plans.length===0&&!loading&&!loadError&&!editing?'is-empty':''}`}>
       <section className="panel budget-list" aria-labelledby="budget-list-title">
         <div className="panel-heading">
           <div><h2 id="budget-list-title">Bütçe senaryoları</h2><p>{loading?'Senaryolar yükleniyor…':`${plans.length} kayıt · firma kapsamlı`}</p></div>

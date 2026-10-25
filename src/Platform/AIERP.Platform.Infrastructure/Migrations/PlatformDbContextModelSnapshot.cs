@@ -810,6 +810,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<Guid?>("GroupId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("IdentityNumber")
+                        .HasMaxLength(11)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(11)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -834,6 +839,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<string>("TaxNumber")
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("TaxOffice")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -9607,6 +9616,34 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.StockItemCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("StockItemCategories");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.StockItemCustomFieldDefinition", b =>
                 {
                     b.Property<Guid>("Id")
@@ -14558,6 +14595,15 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StockItemCategory", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.StockItemCustomFieldDefinition", b =>

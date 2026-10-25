@@ -1,0 +1,15 @@
+.sidebar > .side-label {
+  margin: 11px 0 1px;
+}
+
+.sidebar > .tenant-switch + .side-label {
+  margin-top: 6px;
+}
+
+.sidebar > .side-label.studio-label {
+  margin-top: 14px;
+}
+
+.sidebar > .side-subsection-toggle {
+  margin-top: 5px;
+}

@@ -35,7 +35,7 @@ const initialLine = (year: number): LineInput => ({ periodStart: `${year}-${curr
 async function request<T>(url: string, token: string, init?: RequestInit): Promise<T> {
   const response = await authenticatedFetch(url, token, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init?.headers || {}) } })
   if (!response.ok) {
-    let message = `İstek başarısız (${response.status})`
+    let message = `İstek başarısız (${response.status}) · ${new URL(url, window.location.origin).pathname}`
     try { const body = await response.json(); message = body.error || message } catch { /* response may be empty */ }
     throw new Error(message)
   }
@@ -95,15 +95,25 @@ export default function DirectCashBudgetPage({ token, role }: { token: string; r
   async function load() {
     setLoading(true); setError('')
     try {
-      const nextPlans = await request<PlanSummary[]>('/api/finance/cash-budgets/', token)
-      setPlans(nextPlans)
-      const nextForecast = await request<Forecast>(`/api/finance/cash-flow/forecast?${new URLSearchParams({ from: `${currentYear}-${currentMonth}-01`, months: '12' })}`, token)
-      setForecast(nextForecast)
-      if (selected) {
-        const current = nextPlans.find(plan => plan.id === selected.id)
-        if (current) setSelected(await request<PlanView>(`/api/finance/cash-budgets/${current.id}`, token))
-        else setSelected(null)
-      }
+      const [plansResult, forecastResult] = await Promise.allSettled([
+        request<PlanSummary[]>('/api/finance/cash-budgets/', token),
+        request<Forecast>(`/api/finance/cash-flow/forecast?${new URLSearchParams({ from: `${currentYear}-${currentMonth}-01`, months: '12' })}`, token),
+      ])
+      const failures: string[] = []
+      if (plansResult.status === 'fulfilled') {
+        const nextPlans = plansResult.value
+        setPlans(nextPlans)
+        if (selected) {
+          const current = nextPlans.find(plan => plan.id === selected.id)
+          if (current) {
+            try { setSelected(await request<PlanView>(`/api/finance/cash-budgets/${current.id}`, token)) }
+            catch (cause) { failures.push(`Seçili plan yüklenemedi: ${cause instanceof Error ? cause.message : 'Bilinmeyen hata'}`) }
+          } else setSelected(null)
+        }
+      } else failures.push(`Bütçe planları yüklenemedi: ${plansResult.reason instanceof Error ? plansResult.reason.message : 'Bilinmeyen hata'}`)
+      if (forecastResult.status === 'fulfilled') setForecast(forecastResult.value)
+      else failures.push(`Nakit tahmini yüklenemedi: ${forecastResult.reason instanceof Error ? forecastResult.reason.message : 'Bilinmeyen hata'}`)
+      if (failures.length) setError(failures.join(' · '))
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Nakit bütçeleri yüklenemedi.') }
     finally { setLoading(false) }
   }
@@ -155,10 +165,16 @@ export default function DirectCashBudgetPage({ token, role }: { token: string; r
   const forecastRows = forecast?.currencies.flatMap(currencyRow => currencyRow.months.map(month => ({ ...month, currencyCode: currencyRow.currencyCode }))) ?? []
   const draft = selected?.status === 'Draft'
   return <div className="finance-page direct-cash-budget-page">
-    <header className="page-heading">
+    <header className="page-heading direct-cash-budget-hero">
       <div><p className="eyebrow">FİNANS YÖNETİMİ · NAKİT PLANLAMA</p><h1>Doğrudan nakit bütçesi</h1><p className="muted">Tahmini tahsilat ve ödemeleri aylara göre planlayın. Onaylı planlar nakit tahmininde görünür; gerçek kasa, banka ve muhasebe kayıtları oluşturulmaz.</p></div>
       <div className="heading-actions"><button type="button" className="secondary" onClick={() => void load()} disabled={loading || busy}>{loading ? 'Yenileniyor…' : 'Yenile'}</button>{admin && <button type="button" className="primary" onClick={newDraft} disabled={busy}>Yeni nakit bütçesi</button>}</div>
     </header>
+    <section className="direct-cash-budget-metrics" aria-label="Bütçe özeti">
+      <article><span>Toplam plan</span><strong>{plans.length}</strong><small>Firma kapsamındaki kayıtlar</small></article>
+      <article><span>Onaylı plan</span><strong>{plans.filter(plan => isApproved(plan.status)).length}</strong><small>Nakit tahminine dahil</small></article>
+      <article><span>Taslak</span><strong>{plans.filter(plan => !isApproved(plan.status)).length}</strong><small>Henüz tahmine dahil değil</small></article>
+      <article><span>Tahmin satırı</span><strong>{forecastRows.length}</strong><small>Önümüzdeki 12 ay</small></article>
+    </section>
     {error && <div className="alert inline-alert" role="alert"><span>{error}</span><button type="button" className="row-action" onClick={() => void load()} disabled={loading}>Yeniden dene</button></div>}
     {notice && <div className="notice inline-notice" role="status">{notice}</div>}
     <section className="panel direct-cash-budget-forecast" aria-labelledby="direct-cash-forecast-title">
@@ -169,7 +185,7 @@ export default function DirectCashBudgetPage({ token, role }: { token: string; r
       </tbody></table></div>
       <div className="boundary-note"><span>Tahmin satırları yalnızca planlama bilgisidir. Onay, tahsilat/ödeme veya yevmiye kaydı başlatmaz.</span></div>
     </section>
-    <div className="direct-cash-budget-layout">
+    <div className={`direct-cash-budget-layout ${editing && admin ? 'has-editor' : ''}`}>
       <section className="panel direct-cash-budget-list" aria-labelledby="direct-cash-budget-list-title">
         <div className="panel-heading"><div><h2 id="direct-cash-budget-list-title">Bütçe planları</h2><p>{loading ? 'Planlar yükleniyor…' : `${plans.length} kayıt · firma kapsamlı`}</p></div></div>
         {loading ? <div className="budget-state" role="status">Nakit bütçeleri yükleniyor…</div> : plans.length === 0 ? <div className="budget-state budget-empty"><strong>Henüz plan yok</strong><span>{admin ? 'Bir taslak oluşturarak başlayın.' : 'Firma yöneticisi bir nakit bütçesi oluşturduğunda burada görünür.'}</span></div> : <div className="budget-plan-list" aria-label="Nakit bütçesi planları">

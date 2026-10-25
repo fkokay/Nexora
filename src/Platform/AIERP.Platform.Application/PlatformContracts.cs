@@ -11,10 +11,12 @@ public sealed record AuditRetentionPolicyWriteRequest(int RetentionDays);
 public sealed record CreateDevelopmentRequest(string Title, string Description);
 public sealed record CustomerView(Guid Id, string Code, string Name, CounterpartyType Type, string? TaxNumber,
     bool IsActive, DateTimeOffset CreatedAt, byte[] RowVersion, Guid? GroupId = null, string? GroupName = null,
-    string CurrencyCode = "TRY", decimal? RiskLimit = null, int PaymentTermDays = 0);
+    string CurrencyCode = "TRY", decimal? RiskLimit = null, int PaymentTermDays = 0,
+    string? IdentityNumber = null, string? TaxOffice = null);
 public sealed record CustomerWriteRequest(string Code, string Name, CounterpartyType Type, string? TaxNumber,
     bool IsActive = true, byte[]? RowVersion = null, Guid? GroupId = null, string CurrencyCode = "TRY",
-    decimal? RiskLimit = null, int PaymentTermDays = 0, IReadOnlyDictionary<string, string?>? CustomFields = null);
+    decimal? RiskLimit = null, int PaymentTermDays = 0, IReadOnlyDictionary<string, string?>? CustomFields = null,
+    string? IdentityNumber = null, string? TaxOffice = null, CustomerAddressWriteRequest? Address = null);
 public sealed record CustomerPage(IReadOnlyList<CustomerView> Items, int Page, int PageSize, int TotalCount);
 public sealed record CustomerGroupView(Guid Id, string Code, string Name, bool IsActive);
 public sealed record CustomerGroupWriteRequest(string Code, string Name);
@@ -50,6 +52,8 @@ public sealed record InventoryTrackingAllocationRequest(string TrackingCode, dec
 public sealed record InventoryTrackingAllocationView(string TrackingCode, decimal Quantity, DateOnly? ExpiryDate);
 public sealed record StockItemUnitConversionView(Guid Id, string UnitCode, decimal FactorToBase, bool IsActive);
 public sealed record StockItemUnitConversionWriteRequest(string UnitCode, decimal FactorToBase);
+public sealed record StockItemCategoryView(Guid Id, string Name, bool IsActive, DateTimeOffset CreatedAt);
+public sealed record StockItemCategoryWriteRequest(string Name);
 public sealed record StockCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record StockCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -523,6 +527,17 @@ public static class CustomerValidation
             errors["type"] = ["Cari türü Customer, Supplier veya Both olmalıdır."];
         if (request.TaxNumber?.Trim().Length > 32)
             errors["taxNumber"] = ["Vergi numarası en fazla 32 karakter olabilir."];
+        if (request.IdentityNumber?.Trim().Length > 11 || (request.IdentityNumber is not null && request.IdentityNumber.Trim().Length > 0 &&
+            (request.IdentityNumber.Trim().Length != 11 || request.IdentityNumber.Any(c => !char.IsAsciiDigit(c)))))
+            errors["identityNumber"] = ["T.C. kimlik numarası 11 rakam olmalıdır."];
+        if (request.TaxOffice?.Trim().Length > 120)
+            errors["taxOffice"] = ["Vergi dairesi en fazla 120 karakter olabilir."];
+        if (request.Address is not null)
+        {
+            var addressErrors = CustomerAddressValidation.Validate(request.Address);
+            if (addressErrors is not null)
+                foreach (var (key, messages) in addressErrors) errors[$"address.{key}"] = messages;
+        }
         if (request.CurrencyCode?.Trim().Length != 3 || request.CurrencyCode.Any(c => !char.IsAsciiLetter(c)))
             errors["currencyCode"] = ["Döviz kodu 3 harfli ISO kodu olmalıdır."];
         if (request.RiskLimit < 0)
@@ -546,6 +561,23 @@ public static class CustomerAddressValidation
         if (request.PostalCode?.Trim().Length > 20) errors["postalCode"] = ["Posta kodu en fazla 20 karakter olabilir."];
         if (request.CountryCode?.Trim().Length != 2 || request.CountryCode.Any(c => !char.IsAsciiLetter(c))) errors["countryCode"] = ["Ülke kodu 2 harfli ISO kodu olmalıdır."];
         return errors.Count == 0 ? null : errors;
+    }
+}
+
+public static class CustomerAddressDefaultPolicy
+{
+    public static void Apply(CustomerAddress address, IEnumerable<CustomerAddress> sameKindAddresses, bool requestedDefault, bool isActive)
+    {
+        var makeDefault = requestedDefault && isActive;
+        if (makeDefault)
+        {
+            foreach (var previous in sameKindAddresses)
+                if (previous.Id != address.Id && previous.IsDefault)
+                    previous.IsDefault = false;
+        }
+
+        address.IsDefault = makeDefault;
+        address.IsActive = isActive;
     }
 }
 

@@ -79,6 +79,32 @@ public sealed class CustomerValidationTests
     }
 
     [Fact]
+    public void Customer_address_default_policy_sets_only_the_requested_active_address_as_default()
+    {
+        var previous = new CustomerAddress { Kind = CustomerAddressKind.Billing, IsDefault = true, IsActive = true };
+        var next = new CustomerAddress { Kind = CustomerAddressKind.Billing };
+
+        CustomerAddressDefaultPolicy.Apply(next, [previous], requestedDefault: true, isActive: true);
+
+        Assert.False(previous.IsDefault);
+        Assert.True(next.IsDefault);
+        Assert.True(next.IsActive);
+    }
+
+    [Fact]
+    public void Customer_address_default_policy_does_not_promote_active_address_when_not_requested()
+    {
+        var previous = new CustomerAddress { Kind = CustomerAddressKind.General, IsDefault = true, IsActive = true };
+        var next = new CustomerAddress { Kind = CustomerAddressKind.General };
+
+        CustomerAddressDefaultPolicy.Apply(next, [previous], requestedDefault: false, isActive: true);
+
+        Assert.True(previous.IsDefault);
+        Assert.False(next.IsDefault);
+        Assert.True(next.IsActive);
+    }
+
+    [Fact]
     public void Validates_ledger_amount_and_direction()
     {
         var errors = CustomerLedgerValidation.Validate(new CustomerLedgerWriteRequest(

@@ -30,6 +30,28 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    private static async Task EnsureTenantIdentityRowAsync(string platformConnection, string tenantDatabase, Guid tenantId, CancellationToken cancellationToken)
+    {
+        var sourceDatabase = new SqlConnectionStringBuilder(platformConnection).InitialCatalog;
+        var targetConnection = new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = tenantDatabase };
+        await using var connection = new SqlConnection(targetConnection.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            IF NOT EXISTS (SELECT 1 FROM [dbo].[Tenants] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = @tenantId)
+            BEGIN
+                INSERT INTO [dbo].[Tenants] ([Id], [Name], [Slug], [IsActive], [BaseCurrencyCode], [AuditRetentionDays], [AuditLastPurgeAt])
+                SELECT [Id], [Name], [Slug], [IsActive], [BaseCurrencyCode], [AuditRetentionDays], [AuditLastPurgeAt]
+                FROM {Q(sourceDatabase)}.[dbo].[Tenants]
+                WHERE [Id] = @tenantId;
+            END;
+            IF NOT EXISTS (SELECT 1 FROM [dbo].[Tenants] WHERE [Id] = @tenantId)
+                THROW 51000, 'Tenant identity row is missing from PlatformDB.', 1;
+            """;
+        command.Parameters.AddWithValue("@tenantId", tenantId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task ProvisionAsync(Guid tenantId, CancellationToken cancellationToken = default,
         bool sourceDatabaseWasCreatedDuringCurrentBootstrap = false)
     {
@@ -66,7 +88,11 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
                             },
                             migrate: migrateToken => readyDatabase.Database.MigrateAsync(migrateToken),
                             grantRuntimeAccess: grantToken => GrantDatabaseRuntimeAccessAsync(platformConnection, entry.DatabaseName, dataRuntimeLogin, cancellationToken: grantToken),
-                            verifyTenant: verifyToken => TenantDatabaseSeparationVerifier.VerifyTenantForProvisioningAsync(platformConnection, tenantId, verifyToken),
+                            verifyTenant: async verifyToken =>
+                            {
+                                await EnsureTenantIdentityRowAsync(platformConnection, entry.DatabaseName, tenantId, verifyToken);
+                                await TenantDatabaseSeparationVerifier.VerifyTenantForProvisioningAsync(platformConnection, tenantId, verifyToken);
+                            },
                             persistState: async (state, error, persistToken) =>
                             {
                                 entry.State = state;
@@ -128,7 +154,11 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
                 },
                 migrate: token => target.Database.MigrateAsync(token),
                 grantRuntimeAccess: token => GrantDatabaseRuntimeAccessAsync(platformConnection, databaseName, dataRuntimeLogin, cancellationToken: token),
-                verifyTenant: token => TenantDatabaseSeparationVerifier.VerifyTenantForProvisioningAsync(platformConnection, tenantId, token),
+                verifyTenant: async token =>
+                {
+                    await EnsureTenantIdentityRowAsync(platformConnection, databaseName, tenantId, token);
+                    await TenantDatabaseSeparationVerifier.VerifyTenantForProvisioningAsync(platformConnection, tenantId, token);
+                },
                 persistState: async (state, error, token) =>
                 {
                     await using var catalog = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options);

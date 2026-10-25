@@ -1,28 +1,42 @@
 .tenant-operational-settings-page .company-setting-card { display: flex; flex-direction: column; }
-.tenant-operational-settings-page .tenant-settings-commandbar { align-items: center; padding: 18px 20px; border: 1px solid #d8e0eb; border-radius: 8px; background: linear-gradient(100deg,#f8fbff,#eef4fc); }
-.tenant-operational-settings-page .tenant-settings-commandbar h1 { margin: 2px 0 4px; color: #172b4d; font-size: 22px; }
-.tenant-operational-settings-page .tenant-settings-commandbar .eyebrow { color: #456b98; }
+.tenant-operational-settings-page .tenant-settings-commandbar { align-items: center; gap: 14px; min-height: 104px; margin-bottom: 16px; padding: 18px 20px; border: 1px solid #d9e4f1; border-radius: 12px; background: radial-gradient(circle at 0 0,#e7f1ff 0,transparent 36%),linear-gradient(110deg,#fff,#f4f8fd); box-shadow: 0 5px 18px #183b650a; }
+.tenant-operational-settings-page .tenant-settings-commandbar h1 { margin: 2px 0 4px; color: #172b4d; font-size: 23px; }
+.tenant-operational-settings-page .tenant-settings-commandbar .eyebrow { color: #1768ac; }
+.tenant-operational-settings-page .tenant-settings-commandbar .eyebrow span { padding: 0 3px; color: #9aaec5; }
 .tenant-operational-settings-page .tenant-settings-commandbar .muted { margin: 0; }
-.tenant-settings-overview { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid #d8e0eb; border-radius: 7px; background: #fff; }
-.tenant-settings-overview>div { display: grid; gap: 4px; min-width: 0; padding: 12px 15px; border-right: 1px solid #e5eaf1; }
+.tenant-settings-title-mark { display: grid; place-items: center; flex: 0 0 46px!important; width: 46px; height: 46px; border: 1px solid #d5e6fa; border-radius: 12px; background: linear-gradient(145deg,#fff,#eaf3ff); color: #0876e8; box-shadow: 0 4px 12px #0b67bc12; }
+.tenant-settings-title-context { display: flex; align-items: center; gap: 9px; min-width: 150px; max-width: 230px; margin-left: auto; padding: 8px 11px; border: 1px solid #e0e8f2; border-radius: 9px; background: #ffffffb8; }
+.tenant-settings-context-icon { display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; border-radius: 8px; background: #edf5ff; color: #1768ac; }
+.tenant-settings-title-context>span:last-child { display: grid; gap: 2px; min-width: 0; }
+.tenant-settings-title-context small { color: #77869a; font-size: 9px; }
+.tenant-settings-title-context b { overflow: hidden; color: #263b58; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-settings-commandbar .company-settings-actions { display: flex; flex: 0 0 auto; gap: 7px; }
+.tenant-settings-commandbar .company-settings-actions .secondary { min-height: 36px; border-color: #dbe4ef; border-radius: 8px; }
+.tenant-settings-overview { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); margin-bottom: 16px; overflow: hidden; border: 1px solid #dce5ef; border-radius: 11px; background: #fff; box-shadow: 0 3px 12px #1c35500a; }
+.tenant-settings-overview>div { display: grid; grid-template-columns: 32px minmax(0,1fr); grid-template-rows: auto auto auto; column-gap: 9px; align-content: center; min-width: 0; min-height: 78px; padding: 12px 15px; border-right: 1px solid #e8edf4; }
 .tenant-settings-overview>div:last-child { border-right: 0; }
-.tenant-settings-overview span,.tenant-settings-overview small { color: #64748b; font-size: 10px; }
-.tenant-settings-overview b { overflow: hidden; color: #1f3556; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.tenant-settings-workbench { display: grid; grid-template-columns: 245px minmax(0,1fr); gap: 14px; align-items: start; }
-.tenant-settings-nav { position: sticky; top: 84px; display: grid; gap: 4px; padding: 10px; border: 1px solid #d8e0eb; border-radius: 7px; background: #fff; }
-.tenant-settings-nav>.eyebrow { margin: 3px 8px 7px; color: #60738d; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
-.tenant-settings-nav>button { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: center; width: 100%; min-width: 0; padding: 10px 9px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #263b58; cursor: pointer; text-align: left; }
-.tenant-settings-nav>button:hover { background: #f3f7fc; }
-.tenant-settings-nav>button.active { border-color: #b7cce5; border-left: 3px solid #1768ac; background: #eaf2fb; }
-.tenant-settings-nav>button span { display: grid; gap: 3px; min-width: 0; }
-.tenant-settings-nav>button b { font-size: 11px; }
-.tenant-settings-nav>button small { color: #687991; font-size: 9px; }
-.tenant-settings-nav>button em { color: #42658e; font-size: 9px; font-style: normal; font-weight: 700; white-space: nowrap; }
+.tenant-settings-overview>div>span:not(.tenant-settings-stat-icon) { grid-column: 2; color: #718198; font-size: 10px; }
+.tenant-settings-overview>div>small { grid-column: 2; color: #8492a4; font-size: 9px; }
+.tenant-settings-overview .tenant-settings-stat-icon { display: grid; grid-row: 1 / 4; place-items: center; align-self: center; width: 30px; height: 30px; border: 1px solid #e1ebf7; border-radius: 9px; background: #f2f7fd; color: #2476bd; }
+.tenant-settings-overview b { grid-column: 2; overflow: hidden; color: #1f3556; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-settings-workbench { display: grid; grid-template-columns: 258px minmax(0,1fr); gap: 16px; align-items: start; }
+.tenant-settings-nav { position: sticky; top: 84px; display: grid; gap: 5px; padding: 11px; border: 1px solid #dce5ef; border-radius: 11px; background: linear-gradient(180deg,#fff,#fbfcfe); box-shadow: 0 3px 12px #1c35500a; }
+.tenant-settings-nav>.eyebrow { margin: 3px 8px 7px; color: #718198; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+.tenant-settings-nav>button { display: grid; grid-template-columns: 34px minmax(0,1fr) auto; gap: 9px; align-items: center; width: 100%; min-width: 0; min-height: 55px; padding: 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #263b58; cursor: pointer; text-align: left; transition: background .16s ease,border-color .16s ease,transform .16s ease; }
+.tenant-settings-nav>button:hover { border-color: #e5edf6; background: #f7faff; }
+.tenant-settings-nav>button:active { transform: translateY(1px); }
+.tenant-settings-nav>button.active { border-color: #c8def5; background: linear-gradient(100deg,#edf6ff,#f6f9ff); box-shadow: inset 3px 0 #1681e8; }
+.tenant-settings-nav>button .tenant-settings-nav-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #e8edf4; border-radius: 8px; background: #f8fafc; color: #718198; }
+.tenant-settings-nav>button.active .tenant-settings-nav-icon { border-color: #d4e7fa; background: #fff; color: #0876e8; }
+.tenant-settings-nav>button .tenant-settings-nav-copy { display: grid; gap: 3px; min-width: 0; }
+.tenant-settings-nav>button b { color: #263b58; font-size: 11px; }
+.tenant-settings-nav>button small { color: #718198; font-size: 9px; }
+.tenant-settings-nav>button em { color: #42658e; font-size: 9px; font-style: normal; font-weight: 700; text-align: right; white-space: nowrap; }
 .tenant-settings-nav-note { display: flex; gap: 7px; align-items: flex-start; margin-top: 8px; padding: 9px; border-top: 1px solid #e6ebf2; color: #59718e; font-size: 9px; line-height: 1.4; }
 .tenant-settings-nav-note svg { flex: none; color: #1768ac; }
 .tenant-settings-detail { min-width: 0; }
-.tenant-settings-detail>.panel { padding: 18px; border-color: #d8e0eb; border-radius: 7px; box-shadow: 0 1px 2px #1f35560c; }
-.tenant-settings-detail .panel-heading { padding-bottom: 12px; border-bottom: 1px solid #e6ebf2; }
+.tenant-settings-detail>.panel { padding: 22px; border-color: #dce5ef; border-radius: 11px; box-shadow: 0 4px 16px #1c35500a; }
+.tenant-settings-detail .panel-heading { padding-bottom: 15px; border-bottom: 1px solid #e8edf4; }
 .tenant-settings-detail .panel-heading h3 { color: #1f3556; }
 .tenant-settings-detail input:not([type=checkbox]) { min-height: 36px; border-radius: 5px; }
 .stock-policy-state {
@@ -49,7 +63,7 @@
 .company-setting-card .setting-actions .secondary { white-space: nowrap; }
 .company-setting-card .setting-actions .secondary { min-height: 34px; }
 .company-identity-card .company-identity-values { margin: 2px 0 14px; }
-.company-profile-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.company-profile-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .company-profile-fields .company-setting-field { display: grid; align-content: start; gap: 7px; color: var(--erp-muted, #858c9b); font-size: 10px; font-weight: 600; }
 .company-profile-fields input { width: 100%; min-height: 38px; border: 1px solid var(--erp-border, #e5e7ee); border-radius: 7px; padding: 9px 10px; color: var(--erp-text, #293144); background: var(--erp-surface, #fff); outline: none; font-size: 11px; }
 .company-profile-fields input:focus { border-color: #9789ec; box-shadow: 0 0 0 3px #8171df19; }
@@ -57,20 +71,53 @@
 .company-profile-fields small { color: var(--erp-muted, #858c9b); font-size: 9px; font-weight: 400; line-height: 1.5; }
 .company-profile-fields .field-optional { margin-left: 4px; color: var(--erp-muted, #858c9b); font-size: 9px; font-weight: 400; }
 .company-identity-card > .modal-foot { margin: 13px 0; }
+.tenant-operational-settings-page .company-identity-values { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 16px 0 18px; }
+.tenant-operational-settings-page .company-identity-values>div { padding: 11px 13px; border: 1px solid #e6edf5; border-radius: 8px; background: #f8fafd; }
+.tenant-operational-settings-page .company-identity-values small { display: block; margin-bottom: 5px; color: #7a899d; font-size: 9px; }
+.tenant-operational-settings-page .company-identity-values b { color: #273c5a; font-size: 12px; }
 html[data-theme="dark"] .stock-policy-state { background: #151d2c; border-color: #303b50; }
 html[data-theme="dark"] .stock-policy-state.is-enabled { background: #2b2619; border-color: #66512d; }
 html[data-theme="dark"] .stock-policy-state b { color: #e4eaf4; }
 html[data-theme="dark"] .stock-policy-draft-badge { border-color: #66512d; background: #3b311d; color: #f0d68e; }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-commandbar { border-color: #29394f; background: radial-gradient(circle at 0 0,#1b3150 0,transparent 40%),linear-gradient(110deg,#171f2e,#1b2636); box-shadow: none; }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-commandbar h1,
+html[data-theme="dark"] .tenant-settings-title-context b,
+html[data-theme="dark"] .tenant-settings-overview b,
+html[data-theme="dark"] .tenant-settings-nav>button b,
+html[data-theme="dark"] .tenant-operational-settings-page .company-identity-values b { color: #e6edf7; }
+html[data-theme="dark"] .tenant-settings-title-mark { border-color: #334963; background: #20334b; color: #7eb9f2; box-shadow: none; }
+html[data-theme="dark"] .tenant-settings-title-context { border-color: #34445a; background: #1b2636; }
+html[data-theme="dark"] .tenant-settings-context-icon,html[data-theme="dark"] .tenant-settings-overview .tenant-settings-stat-icon { border-color: #34445a; background: #202d40; color: #8ec5fa; }
+html[data-theme="dark"] .tenant-settings-overview,html[data-theme="dark"] .tenant-settings-nav { border-color: #34445a; background: #182231; box-shadow: none; }
+html[data-theme="dark"] .tenant-settings-overview>div { border-color: #303d50; }
+html[data-theme="dark"] .tenant-settings-nav>button { color: #dbe4ef; }
+html[data-theme="dark"] .tenant-settings-nav>button:hover { border-color: #34445a; background: #202d40; }
+html[data-theme="dark"] .tenant-settings-nav>button.active { border-color: #345373; background: #1e3045; }
+html[data-theme="dark"] .tenant-settings-nav>button .tenant-settings-nav-icon { border-color: #34445a; background: #202d40; color: #a7b6c9; }
+html[data-theme="dark"] .tenant-settings-nav>button.active .tenant-settings-nav-icon { border-color: #345373; background: #253b55; color: #8ec5fa; }
+html[data-theme="dark"] .tenant-operational-settings-page .company-identity-values>div { border-color: #34445a; background: #1c293a; }
+html[data-theme="dark"] .tenant-operational-settings-page .company-settings-actions .secondary { border-color: #34445a; background: #202d40; color: #dbe4ef; }
+@media (max-width: 1100px) {
+  .tenant-settings-title-context { display: none; }
+  .tenant-settings-workbench { grid-template-columns: 230px minmax(0,1fr); }
+  .tenant-settings-overview>div { padding: 11px 10px; }
+}
 @media (max-width: 620px) {
+  .tenant-operational-settings-page .tenant-settings-commandbar { align-items: flex-start; padding: 15px; }
+  .tenant-operational-settings-page .tenant-settings-commandbar .company-settings-actions { flex: 1 0 100%; width: 100%; margin-left: 0; }
+  .tenant-settings-commandbar .company-settings-actions .secondary { flex: 1; }
   .tenant-settings-overview { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .tenant-settings-overview>div:nth-child(2) { border-right: 0; }
+  .tenant-settings-overview>div:nth-child(even) { border-right: 0; }
   .tenant-settings-overview>div:nth-child(-n+2) { border-bottom: 1px solid #e5eaf1; }
   .tenant-settings-workbench { grid-template-columns: 1fr; }
   .tenant-settings-nav { position: static; grid-template-columns: repeat(2,minmax(0,1fr)); }
   .tenant-settings-nav>.eyebrow,.tenant-settings-nav-note { grid-column: 1/-1; }
-  .tenant-settings-nav>button { grid-template-columns: 1fr; }
-  .tenant-settings-nav>button em { white-space: normal; }
+  .tenant-settings-nav>button { grid-template-columns: 30px minmax(0,1fr); align-items: start; }
+  .tenant-settings-nav>button em { grid-column: 2; text-align: left; white-space: normal; }
+  .tenant-settings-nav>button .tenant-settings-nav-icon { width: 28px; height: 28px; }
   .company-profile-fields { grid-template-columns: 1fr; }
+  .tenant-settings-detail>.panel { padding: 16px; }
+  .tenant-operational-settings-page .company-identity-values { grid-template-columns: 1fr; }
   .company-setting-card .setting-actions { width: 100%; justify-content: flex-start; }
   .company-setting-card .modal-foot .setting-actions .primary { align-self: auto; }
 }

@@ -1159,7 +1159,7 @@ customers.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbConte
     var total = await query.CountAsync();
     var items = await query.OrderBy(x => x.Name).ThenBy(x => x.Code).Skip((page - 1) * pageSize).Take(pageSize)
         .Select(x => new CustomerView(x.Id, x.Code, x.Name, x.Type, x.TaxNumber, x.IsActive, x.CreatedAt, x.RowVersion,
-            x.GroupId, x.Group == null ? null : x.Group.Name, x.CurrencyCode, x.RiskLimit, x.PaymentTermDays)).ToListAsync();
+            x.GroupId, x.Group == null ? null : x.Group.Name, x.CurrencyCode, x.RiskLimit, x.PaymentTermDays, x.IdentityNumber, x.TaxOffice)).ToListAsync();
     return Results.Ok(new CustomerPage(items, page, pageSize, total));
 });
 customers.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -1167,7 +1167,7 @@ customers.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tenant
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var customer = await db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
         .Select(x => new CustomerView(x.Id, x.Code, x.Name, x.Type, x.TaxNumber, x.IsActive, x.CreatedAt, x.RowVersion,
-            x.GroupId, x.Group == null ? null : x.Group.Name, x.CurrencyCode, x.RiskLimit, x.PaymentTermDays)).SingleOrDefaultAsync();
+            x.GroupId, x.Group == null ? null : x.Group.Name, x.CurrencyCode, x.RiskLimit, x.PaymentTermDays, x.IdentityNumber, x.TaxOffice)).SingleOrDefaultAsync();
     return customer is null ? Results.NotFound() : Results.Ok(customer);
 });
 customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -1197,9 +1197,21 @@ customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal prin
     var missingRequired = definitions.FirstOrDefault(x => x.IsRequired && !normalizedValues.ContainsKey(x.Id));
     if (missingRequired is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"customFields.{missingRequired.Code}"] = [$"'{missingRequired.Label}' alanı zorunludur."] });
     var customer = new CustomerAccount { TenantId = tenantId, Code = code, Name = request.Name.Trim(), Type = request.Type,
-        TaxNumber = NormalizeTaxNumber(request.TaxNumber), IsActive = request.IsActive, GroupId = request.GroupId,
+        TaxNumber = NormalizeTaxNumber(request.TaxNumber), IdentityNumber = NormalizeTaxNumber(request.IdentityNumber), TaxOffice = NormalizeTaxNumber(request.TaxOffice), IsActive = request.IsActive, GroupId = request.GroupId,
         CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant(), RiskLimit = request.RiskLimit, PaymentTermDays = request.PaymentTermDays };
     db.CustomerAccounts.Add(customer);
+    if (request.Address is { } addressRequest)
+    {
+        var address = new CustomerAddress { TenantId = tenantId, CustomerId = customer.Id, Kind = addressRequest.Kind,
+            Label = addressRequest.Label.Trim(), AddressLine = addressRequest.AddressLine.Trim(), City = addressRequest.City.Trim(),
+            District = NormalizeTaxNumber(addressRequest.District), PostalCode = NormalizeTaxNumber(addressRequest.PostalCode),
+            CountryCode = addressRequest.CountryCode.Trim().ToUpperInvariant() };
+        List<CustomerAddress> sameKindAddresses = addressRequest.IsDefault && addressRequest.IsActive
+            ? await db.CustomerAddresses.Where(x => x.TenantId == tenantId && x.CustomerId == customer.Id && x.Kind == addressRequest.Kind && x.IsDefault).ToListAsync()
+            : [];
+        CustomerAddressDefaultPolicy.Apply(address, sameKindAddresses, addressRequest.IsDefault, addressRequest.IsActive);
+        db.CustomerAddresses.Add(address);
+    }
     foreach (var (definitionId, entry) in normalizedValues)
     {
         db.CustomerCustomFieldValues.Add(new CustomerCustomFieldValue { TenantId = tenantId, CustomerId = customer.Id, DefinitionId = definitionId, Value = entry.Value, DefinitionVersion = entry.Definition.Version });
@@ -1210,7 +1222,7 @@ customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal prin
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu cari kodu bu firmada zaten kullanılıyor." }); }
     await transaction.CommitAsync();
     var view = new CustomerView(customer.Id, customer.Code, customer.Name, customer.Type, customer.TaxNumber, customer.IsActive, customer.CreatedAt,
-        customer.RowVersion, customer.GroupId, null, customer.CurrencyCode, customer.RiskLimit, customer.PaymentTermDays);
+        customer.RowVersion, customer.GroupId, null, customer.CurrencyCode, customer.RiskLimit, customer.PaymentTermDays, customer.IdentityNumber, customer.TaxOffice);
     return Results.Created($"/api/customers/{customer.Id}", view);
 });
 customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -1228,15 +1240,31 @@ customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, Cla
     if (await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id != id && x.Code == code))
         return Results.Conflict(new { error = "Bu cari kodu bu firmada zaten kullanılıyor." });
     customer.Code = code; customer.Name = request.Name.Trim(); customer.Type = request.Type;
-    customer.TaxNumber = NormalizeTaxNumber(request.TaxNumber); customer.IsActive = request.IsActive; customer.GroupId = request.GroupId;
+    customer.TaxNumber = NormalizeTaxNumber(request.TaxNumber); customer.IdentityNumber = NormalizeTaxNumber(request.IdentityNumber); customer.TaxOffice = NormalizeTaxNumber(request.TaxOffice); customer.IsActive = request.IsActive; customer.GroupId = request.GroupId;
     customer.CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant(); customer.RiskLimit = request.RiskLimit; customer.PaymentTermDays = request.PaymentTermDays;
+    if (request.Address is { } addressRequest)
+    {
+        var address = await db.CustomerAddresses.FirstOrDefaultAsync(x => x.TenantId == tenantId && x.CustomerId == id && x.Kind == addressRequest.Kind && x.IsDefault);
+        if (address is null)
+        {
+            address = new CustomerAddress { TenantId = tenantId, CustomerId = id, Kind = addressRequest.Kind };
+            db.CustomerAddresses.Add(address);
+        }
+        List<CustomerAddress> sameKindAddresses = addressRequest.IsDefault && addressRequest.IsActive
+            ? await db.CustomerAddresses.Where(x => x.TenantId == tenantId && x.CustomerId == id && x.Kind == addressRequest.Kind && x.IsDefault).ToListAsync()
+            : [];
+        CustomerAddressDefaultPolicy.Apply(address, sameKindAddresses, addressRequest.IsDefault, addressRequest.IsActive);
+        address.Label = addressRequest.Label.Trim(); address.AddressLine = addressRequest.AddressLine.Trim();
+        address.City = addressRequest.City.Trim(); address.District = NormalizeTaxNumber(addressRequest.District);
+        address.PostalCode = NormalizeTaxNumber(addressRequest.PostalCode); address.CountryCode = addressRequest.CountryCode.Trim().ToUpperInvariant();
+    }
     db.Entry(customer).Property(x => x.RowVersion).OriginalValue = request.RowVersion;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "customer.updated", Resource = code });
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Cari kart başka bir oturumda değiştirildi. Kaydı yenileyip tekrar deneyin." }); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu cari kodu bu firmada zaten kullanılıyor." }); }
     return Results.Ok(new CustomerView(customer.Id, customer.Code, customer.Name, customer.Type, customer.TaxNumber, customer.IsActive, customer.CreatedAt,
-        customer.RowVersion, customer.GroupId, null, customer.CurrencyCode, customer.RiskLimit, customer.PaymentTermDays));
+        customer.RowVersion, customer.GroupId, null, customer.CurrencyCode, customer.RiskLimit, customer.PaymentTermDays, customer.IdentityNumber, customer.TaxOffice));
 });
 customers.MapGet("/{id:guid}/addresses", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -1393,6 +1421,49 @@ customers.MapPost("/{id:guid}/ledger/{entryId:guid}/reverse", async (Guid id, Gu
 });
 
 var stockItems = app.MapGroup("/api/stock/items").RequireAuthorization();
+var stockCategories = app.MapGroup("/api/stock/categories").RequireAuthorization();
+stockCategories.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var categories = await db.StockItemCategories.AsNoTracking().Where(x => x.TenantId == tenantId)
+        .OrderBy(x => x.Name).Select(x => new StockItemCategoryView(x.Id, x.Name, x.IsActive, x.CreatedAt)).ToListAsync();
+    return Results.Ok(categories);
+});
+stockCategories.MapPost("/", async (StockItemCategoryWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var name = request.Name?.Trim();
+    if (string.IsNullOrWhiteSpace(name) || name.Length > 120)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Kategori adı zorunludur ve en fazla 120 karakter olabilir."] });
+    var category = await db.StockItemCategories.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Name == name);
+    if (category is not null)
+    {
+        if (category.IsActive) return Results.Conflict(new { error = "Bu kategori zaten tanımlı." });
+        category.IsActive = true;
+    }
+    else
+    {
+        category = new StockItemCategory { TenantId = tenantId, Name = name };
+        db.StockItemCategories.Add(category);
+    }
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-category.created", Resource = category.Name });
+    try { await db.SaveChangesAsync(); }
+    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu kategori zaten tanımlı." }); }
+    return Results.Ok(new StockItemCategoryView(category.Id, category.Name, category.IsActive, category.CreatedAt));
+});
+stockCategories.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var category = await db.StockItemCategories.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
+    if (category is null) return Results.NotFound();
+    if (!category.IsActive) return Results.NoContent();
+    category.IsActive = false;
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-category.deactivated", Resource = category.Name });
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
 stockItems.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();

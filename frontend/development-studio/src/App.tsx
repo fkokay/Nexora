@@ -44,6 +44,7 @@ export default function App() {
   const contextPage = (contextParams.get('contextPage') || '').trim().slice(0, 100)
   const contextualScreen = (contextParams.get('contextLabel') || contextPage.replace(/^(inventory|sales|finance|manufacturing)-/, '').replaceAll('-', ' ')).trim().slice(0, 100)
   const contextualModuleCode = /^module:([a-z][a-z0-9]*(?:[.-][a-z0-9]+)*):/i.exec(contextPage)?.[1] || ''
+  const contextSection = window.location.hash.slice(1)
 
   useEffect(() => {
     if (!token || !tenant) return
@@ -53,6 +54,12 @@ export default function App() {
     ]).then(([items, registeredProjects]) => { setRequests(items); setProjects(registeredProjects) })
       .catch(e => setError((e as Error).message))
   }, [token, tenant?.id])
+
+  useEffect(() => {
+    if (contextSection !== 'requests' || !token || !tenant) return
+    const timer = window.setTimeout(() => document.getElementById('requests')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+    return () => window.clearTimeout(timer)
+  }, [contextSection, token, tenant?.id, requests.length])
 
   async function login(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError('')

@@ -85,6 +85,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<CustomerLedgerEntry> CustomerLedgerEntries => Set<CustomerLedgerEntry>();
     public DbSet<StockItem> StockItems => Set<StockItem>();
+    public DbSet<StockItemCategory> StockItemCategories => Set<StockItemCategory>();
     public DbSet<BillOfMaterial> BillOfMaterials => Set<BillOfMaterial>();
     public DbSet<BillOfMaterialLine> BillOfMaterialLines => Set<BillOfMaterialLine>();
     public DbSet<ManufacturingWorkCenter> ManufacturingWorkCenters => Set<ManufacturingWorkCenter>();
@@ -851,6 +852,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.Code).HasMaxLength(64);
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.TaxNumber).HasMaxLength(32);
+            e.Property(x => x.IdentityNumber).HasMaxLength(11).IsUnicode(false);
+            e.Property(x => x.TaxOffice).HasMaxLength(120);
             e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength();
             e.Property(x => x.RiskLimit).HasPrecision(18, 2);
             e.Property(x => x.RowVersion).IsRowVersion();
@@ -1102,6 +1105,13 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.RowVersion).IsRowVersion();
             e.ToTable(t => t.HasCheckConstraint("CK_StockItems_MinimumStockNonNegative", "[MinimumStock] >= 0"));
             e.HasOne(x => x.Tenant).WithMany(x => x.StockItems).HasForeignKey(x => x.TenantId);
+        });
+        modelBuilder.Entity<StockItemCategory>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<StockItemUnitConversion>(e =>
         {

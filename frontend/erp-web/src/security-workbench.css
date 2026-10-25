@@ -40,3 +40,135 @@
 .audit-detail-pane{position:sticky;top:90px}
 @media(max-width:900px){.audit-workbench{grid-template-columns:minmax(0,1fr)}.audit-detail-pane{position:static}.access-control-page .access-members-panel,.access-control-page>section.panel:last-of-type{grid-template-columns:minmax(0,1fr)}.access-control-page .access-members-panel>.security-record-pane,.access-control-page>section.panel:last-of-type>.security-record-pane{grid-column:1;grid-row:auto;position:static;margin-top:10px}}
 @media(max-width:680px){.access-control-page .access-member-search{align-items:stretch;flex-direction:column}.access-control-page .access-member-row{grid-template-columns:1fr}.audit-log-page .audit-toolbar{align-items:stretch;flex-wrap:wrap}.audit-log-page .audit-toolbar .customer-search{flex-basis:100%}}
+.audit-log-page{display:grid;gap:15px}
+.audit-page-heading{align-items:center;gap:14px;margin:0 0 2px!important;padding:0 0 2px}
+.audit-page-title-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border:1px solid #d8e7f7;border-radius:11px;background:linear-gradient(145deg,#fff,#eaf3ff);color:#0876e8;box-shadow:0 4px 12px #0b67bc10}
+.audit-page-heading .eyebrow span{padding:0 3px;color:#9aaec5}
+.audit-page-scope{display:inline-flex;align-items:center;gap:7px;margin-left:auto;padding:8px 11px;border:1px solid #d9e7f4;border-radius:8px;background:#f7faff;color:#4b6c8e;font-size:10px;font-weight:650;white-space:nowrap}
+.audit-log-page .audit-retention-panel{margin:0!important;padding:19px 20px;border-color:#dce5ef;border-radius:12px;background:linear-gradient(120deg,#fff,#fbfdff);box-shadow:0 5px 18px #183b6509}
+.audit-log-page .audit-retention-panel .panel-heading{align-items:center;margin:0;padding:0;border:0}
+.audit-log-page .audit-retention-panel .panel-heading h3{margin-bottom:5px;color:#263b58;font-size:13px}
+.audit-log-page .audit-retention-panel .panel-heading p{font-size:10px;line-height:1.55}
+.audit-retention-icon{display:grid;place-items:center;flex:none;width:36px;height:36px;border:1px solid #e1ebf7;border-radius:10px;background:#f2f7fd;color:#2476bd}
+.audit-log-page .audit-retention-form{grid-template-columns:minmax(190px,.72fr) minmax(0,1.28fr);gap:16px;margin-top:14px;padding-top:13px;border-top:1px solid #e9eff5}
+.audit-log-page .audit-retention-meta{gap:12px}
+.audit-log-page .customer-summary{margin:0;border-color:#dce5ef;border-radius:10px;box-shadow:0 3px 12px #183b6508}
+.audit-log-page .customer-summary-icon{width:36px;height:36px;border:1px solid #e1e8fa;border-radius:10px;background:#f2f4ff;color:#6d5ce6}
+.audit-log-page .customer-summary b{color:#263b58;font-size:12px}
+.audit-log-page .customer-summary small{color:#7b899c;font-size:9px}
+.audit-log-page .tenant-scope{border-color:#d9e7f4;border-radius:8px;background:#f5f9fe;color:#4b6c8e}
+.audit-log-page .audit-toolbar{margin:0;padding:10px;border:1px solid #dce5ef;border-radius:10px;background:#fff;box-shadow:0 3px 12px #183b6508}
+.audit-log-page .audit-toolbar .customer-search{height:44px;border-color:#dfe7f0;border-radius:8px}
+.audit-log-page .audit-toolbar .customer-search input{font-size:11px}
+.audit-log-page .audit-toolbar .customer-search .small-button{min-height:34px;border-radius:7px}
+.audit-log-page .audit-date-filter{border-color:#dfe7f0;border-radius:8px}
+.audit-workbench{grid-template-columns:minmax(0,1fr) minmax(270px,310px);gap:14px;margin-top:0}
+.audit-list-pane{border-color:#dce5ef;border-radius:11px;box-shadow:0 5px 18px #183b6509}
+.audit-list-pane .erp-pane-heading{min-height:58px;padding:11px 15px;border-color:#e7edf4;background:linear-gradient(120deg,#f7faff,#fbfdff)}
+.audit-list-pane .erp-pane-heading b{color:#263b58;font-size:12px}
+.audit-list-pane .erp-pane-heading small{color:#7b899c;font-size:9px}
+.audit-list-pane .customer-table th{height:40px;background:#f5f8fc;color:#718198;font-size:9px;letter-spacing:.025em}
+.audit-list-pane .customer-table td{height:54px;color:#53647a;font-size:10px}
+.audit-list-pane .customer-table td:nth-child(2)>b{color:#263b58;font-size:10px}
+.audit-list-pane .customer-table .cell-subtitle{display:block;margin-top:3px;color:#8a97a8;font-size:8px}
+.audit-list-pane .customer-table tbody tr:hover td{background:#f5f9ff}
+.audit-list-pane .customer-table tbody tr.erp-selected-row td{background:#edf5ff;border-color:#dce8f6}
+.audit-list-pane .customer-table tbody tr.erp-selected-row td:first-child{box-shadow:inset 3px 0 #1681e8}
+.audit-detail-pane{top:84px;padding:16px;border-color:#dce5ef;border-radius:11px;background:linear-gradient(150deg,#f7faff,#fff);box-shadow:0 5px 18px #183b6509}
+.audit-detail-pane .security-record-heading{border-color:#e5ecf4}
+.audit-detail-pane .security-record-heading h3{font-size:13px}
+.audit-detail-pane .security-record-pane dl div,.audit-detail-pane dl div{padding:8px 9px;border-color:#e4ebf3;border-radius:7px}
+.audit-detail-pane dt{color:#7a899d;font-size:9px}
+.audit-detail-pane dd{color:#263b58;font-size:10px}
+.audit-detail-pane p{font-size:10px;line-height:1.55}
+.audit-log-page>.table-pagination{margin:0;padding:2px 2px 0}
+html[data-theme="dark"] .audit-page-title-icon{border-color:#334963;background:#20334b;color:#8ec5fa;box-shadow:none}
+html[data-theme="dark"] .audit-page-heading .eyebrow span{color:#52657e}
+html[data-theme="dark"] .audit-page-scope{border-color:#34445a;background:#202d40;color:#bbd3ec}
+html[data-theme="dark"] .audit-log-page .audit-retention-panel{border-color:var(--erp-border);background:var(--erp-surface);box-shadow:none}
+html[data-theme="dark"] .audit-log-page .audit-retention-panel .panel-heading h3,html[data-theme="dark"] .audit-log-page .customer-summary b,html[data-theme="dark"] .audit-list-pane .erp-pane-heading b,html[data-theme="dark"] .audit-list-pane .customer-table td:nth-child(2)>b,html[data-theme="dark"] .audit-detail-pane dd{color:var(--erp-text)}
+html[data-theme="dark"] .audit-log-page .audit-retention-form{border-color:var(--erp-border)}
+html[data-theme="dark"] .audit-retention-icon,html[data-theme="dark"] .audit-log-page .customer-summary-icon{border-color:#34445a;background:#202d40;color:#8ec5fa}
+html[data-theme="dark"] .audit-log-page .tenant-scope{border-color:#34445a;background:#202d40;color:#bbd3ec}
+html[data-theme="dark"] .audit-log-page .audit-toolbar,html[data-theme="dark"] .audit-list-pane{border-color:var(--erp-border);background:var(--erp-surface);box-shadow:none}
+html[data-theme="dark"] .audit-list-pane .erp-pane-heading{border-color:var(--erp-border);background:#1b2636}
+html[data-theme="dark"] .audit-list-pane .customer-table th{background:#202d40;color:#aebbd0}
+html[data-theme="dark"] .audit-list-pane .customer-table td{border-color:var(--erp-border);color:var(--erp-muted)}
+html[data-theme="dark"] .audit-list-pane .customer-table tbody tr:hover td{background:#202d40}
+html[data-theme="dark"] .audit-list-pane .customer-table tbody tr.erp-selected-row td{background:#1e3045;border-color:#344b66}
+html[data-theme="dark"] .audit-detail-pane{border-color:var(--erp-border);background:#1b2636;box-shadow:none}
+html[data-theme="dark"] .audit-detail-pane .security-record-heading,html[data-theme="dark"] .audit-detail-pane dl div{border-color:var(--erp-border)}
+html[data-theme="dark"] .audit-detail-pane dl div{background:#202d40}
+@media(max-width:900px){.audit-page-scope{display:none}.audit-log-page .audit-retention-form{grid-template-columns:minmax(0,1fr)}.audit-workbench{grid-template-columns:minmax(0,1fr)}.audit-detail-pane{position:static}}
+@media(max-width:680px){.audit-page-heading{align-items:flex-start;gap:10px}.audit-page-title-icon{flex-basis:36px;width:36px;height:36px}.audit-log-page .audit-retention-panel{padding:15px}.audit-log-page .audit-retention-panel .panel-heading{align-items:flex-start}.audit-log-page .audit-toolbar{padding:8px}.audit-list-pane .customer-table{min-width:760px}}
+.access-page-heading{align-items:center;gap:14px;margin:0 0 3px!important;padding:0 0 4px}
+.access-page-title-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border:1px solid #d8e7f7;border-radius:11px;background:linear-gradient(145deg,#fff,#eaf3ff);color:#0876e8;box-shadow:0 4px 12px #0b67bc10}
+.access-page-heading .eyebrow span{padding:0 3px;color:#9aaec5}
+.access-page-scope{display:inline-flex;align-items:center;gap:7px;margin-left:auto;padding:8px 11px;border:1px solid #d9e7f4;border-radius:8px;background:#f7faff;color:#4b6c8e;font-size:10px;font-weight:650;white-space:nowrap}
+.access-control-page .access-members-panel,.access-control-page>.panel{border-color:#dce5ef;border-radius:12px;box-shadow:0 5px 18px #183b6509}
+.access-control-page>.panel{padding:21px}
+.access-control-page .panel-heading{gap:14px;margin-bottom:16px;padding-bottom:14px;border-color:#e8edf4}
+.access-control-page .panel-heading h3{font-size:14px;letter-spacing:-.15px}
+.access-control-page .panel-heading p{max-width:760px;font-size:10px;line-height:1.6}
+.access-control-page .access-members-panel>.panel-heading>svg,.access-control-page>section.panel:not(.access-members-panel)>.panel-heading>svg{display:grid;place-items:center;box-sizing:content-box;width:19px;height:19px;padding:9px;border:1px solid #e1ebf7;border-radius:9px;background:#f2f7fd;color:#2476bd}
+.access-control-page .access-member-search{padding:13px;border-color:#e2eaf3;border-radius:10px;background:linear-gradient(120deg,#f7faff,#fbfcff)}
+.access-control-page .access-member-search label{gap:7px;color:#53647a;font-size:10px}
+.access-control-page .access-member-search input{height:39px!important;border-color:#dbe4ef!important;border-radius:8px!important;background:#fff!important}
+.access-control-page .access-member-search button{min-height:38px;border-radius:8px}
+.access-control-page .access-member-list{padding:4px 8px;border:1px solid #e6edf5;border-radius:10px;background:#fbfcfe}
+.access-control-page .access-member-row{min-height:66px;grid-template-columns:minmax(150px,1fr) minmax(125px,170px) auto;gap:12px;padding:9px 7px;border-bottom-color:#e9eef5;border-radius:7px}
+.access-control-page .access-member-row:last-child{border-bottom:0}
+.access-control-page .access-member-row:hover{background:#f3f8ff}
+.access-control-page .access-member-row.security-selected-row{border-color:#c9def4!important;background:#edf5ff!important;box-shadow:inset 3px 0 #1681e8}
+.access-control-page .access-member-identity{gap:10px}
+.access-control-page .member-avatar{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border:1px solid #dfeafb;border-radius:9px;background:#f0f5ff;color:#7161d7}
+.access-control-page .access-member-identity>span:last-child{display:grid;gap:3px;min-width:0}
+.access-control-page .access-member-identity b{overflow:hidden;color:#263b58;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.access-control-page .access-member-identity small{overflow:hidden;color:#718198;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+.access-control-page .access-member-role{gap:5px;color:#718198;font-size:9px}
+.access-control-page .access-member-role select{height:34px;border-color:#dce5ef;border-radius:7px}
+.access-control-page .access-member-row .danger-action{font-size:9px}
+.access-control-page .security-record-pane{padding:15px;border-color:#dce6f0;border-radius:10px;background:linear-gradient(150deg,#f6faff,#fff)}
+.access-control-page .access-members-panel>.security-record-pane,.access-control-page>section.panel:last-of-type>.security-record-pane{top:84px}
+.access-control-page .security-record-heading{border-color:#e5ecf4}
+.access-control-page .security-record-heading h3{font-size:14px}
+.access-control-page .security-record-pane dl div{padding:8px 9px;border-color:#e4ebf3;border-radius:7px;background:#fff}
+.access-control-page .security-record-pane dt{color:#7a899d;font-size:9px}
+.access-control-page .security-record-pane dd{color:#263b58;font-size:10px}
+.access-control-page .security-record-pane p{font-size:10px;line-height:1.55}
+.access-control-page>section.panel:nth-of-type(2) form:not(.compact-search){gap:16px}
+.access-control-page>section.panel:nth-of-type(2) form>.form-two{gap:14px;padding-bottom:14px;border-bottom:1px solid #edf1f6}
+.access-control-page>section.panel:nth-of-type(2) form>.form-two:last-of-type{padding-bottom:0;border-bottom:0}
+.access-control-page>section.panel:nth-of-type(2) form label:not(.compact-search){gap:7px;color:#53647a;font-size:10px}
+.access-control-page>section.panel:nth-of-type(2) form input:not([type=checkbox]),.access-control-page>section.panel:nth-of-type(2) form select{height:40px;border-color:#dbe4ef;border-radius:8px}
+.access-control-page>section.panel:nth-of-type(2) form input:focus,.access-control-page>section.panel:nth-of-type(2) form select:focus{border-color:#428fbe;box-shadow:0 0 0 3px #1d75ab18}
+.access-control-page>section.panel:nth-of-type(2) .modal-foot{padding-top:5px}
+.access-control-page>section.panel:last-of-type .panel-heading{align-items:center}
+.access-control-page>section.panel:last-of-type .compact-search{border-color:#dce5ef;border-radius:8px}
+.access-control-page>section.panel:last-of-type .requests-list{overflow:hidden;border:1px solid #e6edf5;border-radius:9px;background:#fff}
+.access-control-page>section.panel:last-of-type .request-row{min-height:62px;padding:10px 12px;border-color:#e9eef5}
+.access-control-page>section.panel:last-of-type .request-row:hover{background:#f5f9ff}
+.access-control-page>section.panel:last-of-type .request-row.security-selected-row{background:#edf5ff!important;box-shadow:inset 3px 0 #1681e8}
+.access-control-page .request-info b{color:#263b58;font-size:11px}
+.access-control-page .request-info small{color:#718198;font-size:9px;line-height:1.5}
+html[data-theme="dark"] .access-page-title-icon{border-color:#334963;background:#20334b;color:#8ec5fa;box-shadow:none}
+html[data-theme="dark"] .access-page-heading .eyebrow span{color:#52657e}
+html[data-theme="dark"] .access-page-scope{border-color:#34445a;background:#202d40;color:#bbd3ec}
+html[data-theme="dark"] .access-control-page .access-members-panel,html[data-theme="dark"] .access-control-page>.panel{border-color:var(--erp-border);background:var(--erp-surface);box-shadow:none}
+html[data-theme="dark"] .access-control-page .panel-heading{border-color:var(--erp-border)}
+html[data-theme="dark"] .access-control-page .access-member-search{border-color:var(--erp-border);background:#1b2636}
+html[data-theme="dark"] .access-control-page .access-member-list{border-color:var(--erp-border);background:#151e2c}
+html[data-theme="dark"] .access-control-page .access-member-row{border-color:var(--erp-border)}
+html[data-theme="dark"] .access-control-page .access-member-row:hover{background:#202d40}
+html[data-theme="dark"] .access-control-page .access-member-row.security-selected-row{border-color:#345373!important;background:#1e3045!important}
+html[data-theme="dark"] .access-control-page .access-member-identity b,html[data-theme="dark"] .access-control-page .security-record-heading h3,html[data-theme="dark"] .access-control-page .security-record-pane dd,html[data-theme="dark"] .access-control-page .request-info b{color:var(--erp-text)}
+html[data-theme="dark"] .access-control-page .member-avatar,html[data-theme="dark"] .access-control-page .access-members-panel>.panel-heading>svg,html[data-theme="dark"] .access-control-page>section.panel:not(.access-members-panel)>.panel-heading>svg{border-color:#34445a;background:#202d40;color:#8ec5fa}
+html[data-theme="dark"] .access-control-page .security-record-pane{border-color:var(--erp-border);background:#1b2636;color:var(--erp-text)}
+html[data-theme="dark"] .access-control-page .security-record-heading,html[data-theme="dark"] .access-control-page .security-record-pane dl div{border-color:var(--erp-border)}
+html[data-theme="dark"] .access-control-page .security-record-pane dl div{background:#202d40}
+html[data-theme="dark"] .access-control-page>section.panel:nth-of-type(2) form>.form-two{border-color:var(--erp-border)}
+html[data-theme="dark"] .access-control-page>section.panel:last-of-type .requests-list{border-color:var(--erp-border);background:#151e2c}
+html[data-theme="dark"] .access-control-page>section.panel:last-of-type .request-row{border-color:var(--erp-border)}
+html[data-theme="dark"] .access-control-page>section.panel:last-of-type .request-row:hover,html[data-theme="dark"] .access-control-page>section.panel:last-of-type .request-row.security-selected-row{background:#1e3045!important}
+@media(max-width:900px){.access-page-scope{display:none}.access-control-page>section.panel:nth-of-type(2) form>.form-two{padding-bottom:0;border-bottom:0}}
+@media(max-width:680px){.access-page-heading{align-items:flex-start;gap:10px}.access-page-title-icon{flex-basis:36px;width:36px;height:36px}.access-control-page>.panel{padding:15px}.access-control-page .access-member-list{padding:6px}.access-control-page .access-member-row{grid-template-columns:minmax(0,1fr);gap:8px;padding:11px}.access-control-page .access-member-row .access-member-role{max-width:none}.access-control-page .access-member-row>.row-action{justify-self:start}.access-control-page>section.panel:last-of-type .panel-heading{align-items:flex-start;flex-direction:column}.access-control-page>section.panel:last-of-type .compact-search{width:100%;max-width:none}.access-control-page>section.panel:nth-of-type(2) .modal-foot>span{max-width:none}}

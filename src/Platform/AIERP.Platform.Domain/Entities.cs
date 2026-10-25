@@ -477,6 +477,8 @@ public sealed class CustomerAccount
     public string Name { get; set; } = "";
     public CounterpartyType Type { get; set; }
     public string? TaxNumber { get; set; }
+    public string? IdentityNumber { get; set; }
+    public string? TaxOffice { get; set; }
     public Guid? GroupId { get; set; }
     public CustomerGroup? Group { get; set; }
     public string CurrencyCode { get; set; } = "TRY";
@@ -630,6 +632,15 @@ public sealed class StockItem
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public byte[] RowVersion { get; set; } = [];
     public ICollection<StockItemUnitConversion> UnitConversions { get; set; } = new List<StockItemUnitConversion>();
+}
+
+public sealed class StockItemCategory
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Name { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public enum InventoryTrackingMode { None = 0, Lot = 1, Serial = 2 }

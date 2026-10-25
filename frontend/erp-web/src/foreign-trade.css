@@ -76,3 +76,72 @@
 .foreign-trade-list tbody tr[aria-selected="true"] { background: #eaf3fb; box-shadow: inset 3px 0 #0f6cbd; }
 .trade-direction.export { background: #eaf3fb; color: #0f548c; }
 .foreign-trade-detail-empty svg { color: #0f6cbd; }
+
+/* Cargo workspace: put the register first, then reveal the detail rail on selection. */
+.foreign-trade-page{gap:15px}
+.foreign-trade-hero{gap:15px;min-height:112px;padding:20px 22px;border-color:#dce5ef;border-radius:12px;background:radial-gradient(circle at 0 0,#eaf4ff 0,transparent 38%),linear-gradient(110deg,#fff,#f7faff);box-shadow:0 5px 18px #183b6509}
+.foreign-trade-hero-icon{width:44px;height:44px;flex-basis:44px;border:1px solid #d9e9f8;border-radius:11px;background:#eaf3fb;color:#0f6cbd;box-shadow:none}
+.foreign-trade-hero h1{font-size:25px;letter-spacing:-.035em}
+.foreign-trade-hero p:not(.eyebrow){max-width:760px;color:#64758c;font-size:12px;line-height:1.55}
+.foreign-trade-hero small{color:#8492a4;font-size:9px;line-height:1.5}
+.foreign-trade-hero-actions{gap:7px}
+.foreign-trade-hero-actions button{min-height:38px;border-radius:8px}
+.foreign-trade-metrics{gap:10px}
+.foreign-trade-metrics article{position:relative;min-height:76px;overflow:hidden;border-color:#dce5ef;border-radius:10px;background:linear-gradient(120deg,#fff,#fbfdff);box-shadow:0 3px 12px #183b6508}
+.foreign-trade-metrics article:before{position:absolute;inset:0 auto 0 0;width:3px;background:#2581c9;content:""}
+.foreign-trade-metrics article:nth-child(2):before{background:#e1a03b}
+.foreign-trade-metrics article:nth-child(3):before{background:#37a27a}
+.foreign-trade-metrics article>span{border:1px solid #dceaf7;border-radius:9px;background:#eef6fd;color:#2476bd}
+.foreign-trade-metrics b{color:#174a76;font-size:21px}
+.foreign-trade-metrics small{font-size:10px}
+.foreign-trade-list{padding:18px;border-color:#dce5ef;border-radius:11px;box-shadow:0 4px 16px #183b6509}
+.foreign-trade-list .panel-heading{align-items:center;margin-bottom:14px;padding-bottom:13px;border-bottom:1px solid #e8edf4}
+.foreign-trade-list h2{color:#263b58;font-size:15px}
+.foreign-trade-list .panel-heading p{margin-top:4px;color:#7b899c;font-size:10px;line-height:1.5}
+.foreign-trade-filters{min-width:min(360px,48%);gap:8px}
+.foreign-trade-filters input,.foreign-trade-filters select{min-height:38px;border-color:#dce5ef;border-radius:8px;font-size:11px}
+.foreign-trade-workspace{grid-template-columns:minmax(0,1fr);gap:13px}
+.foreign-trade-workspace.has-selection{grid-template-columns:minmax(0,1.7fr) minmax(270px,.8fr)}
+.foreign-trade-workspace:not(.has-selection) .foreign-trade-detail{display:none}
+.foreign-trade-record-list{min-width:0}
+.foreign-trade-record-list .table-wrap{max-height:min(66vh,700px);border-color:#dce5ef;border-radius:9px;background:#fff}
+.foreign-trade-list table{min-width:800px}
+.foreign-trade-list th{height:39px;padding:0 12px;background:#f4f7fb;color:#718198;font-size:9px;letter-spacing:.035em}
+.foreign-trade-list td{height:52px;padding:9px 12px;color:#53647a;font-size:10px}
+.foreign-trade-list td>b{color:#263b58;font-size:10px}
+.foreign-trade-list td small{font-size:9px}
+.foreign-trade-list tbody tr:hover{background:#f7faff}
+.foreign-trade-list tbody tr[aria-selected="true"]{background:#edf5ff;box-shadow:inset 3px 0 #0f6cbd}
+.trade-direction,.trade-status{padding:5px 8px;border-radius:7px;font-size:9px}
+.foreign-trade-detail{top:84px;padding:16px;border-color:#dce5ef;border-radius:10px;background:linear-gradient(150deg,#f7faff,#fff);box-shadow:0 4px 14px #183b6508}
+.foreign-trade-detail-head{padding-bottom:11px;border-bottom:1px solid #e8edf4}
+.foreign-trade-detail-head h3{color:#263b58}
+.foreign-trade-detail dl>div{padding:9px 0;border-color:#e8edf4;font-size:10px}
+.foreign-trade-detail dd{color:#334b67}
+.foreign-trade-detail-empty{min-height:150px;align-content:center;justify-items:start;padding:10px;color:#7b899c}
+.foreign-trade-detail-empty b{color:#263b58}
+.foreign-trade-empty-state{display:grid;justify-items:center;align-content:center;gap:8px;min-height:250px;padding:28px;border:1px dashed #dce5ef;border-radius:10px;background:radial-gradient(circle at 50% 0,#f1f7ff 0,transparent 58%),#fbfdff;text-align:center}
+.foreign-trade-empty-icon{display:grid;place-items:center;width:44px;height:44px;margin-bottom:3px;border:1px solid #d8e8f8;border-radius:12px;background:#eef6fd;color:#2476bd}
+.foreign-trade-empty-state b{color:#263b58;font-size:13px}
+.foreign-trade-empty-state>span:not(.foreign-trade-empty-icon){max-width:500px;color:#73839a;font-size:10px;line-height:1.6}
+.foreign-trade-empty-state>small{color:#91a0b2;font-size:9px}
+.foreign-trade-empty-state.is-loading .foreign-trade-empty-icon svg{animation:foreign-trade-spin 1.1s linear infinite}
+@keyframes foreign-trade-spin{to{transform:rotate(360deg)}}
+.foreign-trade-footnote{padding:0 2px;color:#8794a7;font-size:9px;line-height:1.5}
+html[data-theme="dark"] .foreign-trade-hero{border-color:var(--erp-border);background:radial-gradient(circle at 0 0,#1b3450 0,transparent 40%),linear-gradient(110deg,#182231,#1b2636);box-shadow:none}
+html[data-theme="dark"] .foreign-trade-hero h1,html[data-theme="dark"] .foreign-trade-list h2,html[data-theme="dark"] .foreign-trade-metrics b,html[data-theme="dark"] .foreign-trade-detail-head h3,html[data-theme="dark"] .foreign-trade-detail dd,html[data-theme="dark"] .foreign-trade-empty-state b,html[data-theme="dark"] .foreign-trade-detail-empty b{color:var(--erp-text)}
+html[data-theme="dark"] .foreign-trade-hero-icon,html[data-theme="dark"] .foreign-trade-metrics article>span,html[data-theme="dark"] .foreign-trade-empty-icon{border-color:#34445a;background:#202d40;color:#8ec5fa}
+html[data-theme="dark"] .foreign-trade-metrics article,html[data-theme="dark"] .foreign-trade-list{border-color:var(--erp-border);background:var(--erp-surface);box-shadow:none}
+html[data-theme="dark"] .foreign-trade-list .panel-heading,html[data-theme="dark"] .foreign-trade-detail-head,html[data-theme="dark"] .foreign-trade-detail dl>div{border-color:var(--erp-border)}
+html[data-theme="dark"] .foreign-trade-filters input,html[data-theme="dark"] .foreign-trade-filters select{border-color:var(--erp-border);background:var(--erp-surface);color:var(--erp-text)}
+html[data-theme="dark"] .foreign-trade-record-list .table-wrap{border-color:var(--erp-border);background:var(--erp-surface)}
+html[data-theme="dark"] .foreign-trade-list th{background:#202d40;color:#aebbd0}
+html[data-theme="dark"] .foreign-trade-list td{border-color:var(--erp-border);color:var(--erp-muted)}
+html[data-theme="dark"] .foreign-trade-list td>b{color:var(--erp-text)}
+html[data-theme="dark"] .foreign-trade-list tbody tr:hover{background:#202d40}
+html[data-theme="dark"] .foreign-trade-list tbody tr[aria-selected="true"]{background:#1e3045}
+html[data-theme="dark"] .foreign-trade-detail{border-color:var(--erp-border);background:#1b2636;box-shadow:none}
+html[data-theme="dark"] .foreign-trade-detail dl>div,html[data-theme="dark"] .foreign-trade-detail-head{border-color:var(--erp-border)}
+html[data-theme="dark"] .foreign-trade-empty-state{border-color:var(--erp-border);background:radial-gradient(circle at 50% 0,#1b2d43 0,transparent 58%),#182231}
+@media(max-width:1000px){.foreign-trade-workspace.has-selection{grid-template-columns:minmax(0,1fr)}.foreign-trade-workspace.has-selection .foreign-trade-detail{position:static}.foreign-trade-workspace:not(.has-selection){grid-template-columns:minmax(0,1fr)}}
+@media(max-width:700px){.foreign-trade-hero{align-items:flex-start;padding:16px}.foreign-trade-hero h1{font-size:21px}.foreign-trade-hero-actions{justify-content:flex-start}.foreign-trade-hero-actions button{flex:1}.foreign-trade-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.foreign-trade-metrics article{grid-template-columns:30px minmax(0,1fr);column-gap:7px;padding:9px 7px}.foreign-trade-metrics article>span{width:28px;height:28px}.foreign-trade-metrics b{font-size:17px}.foreign-trade-metrics small{font-size:8px}.foreign-trade-list{padding:13px}.foreign-trade-filters{min-width:0;width:100%;flex-direction:column}.foreign-trade-list .panel-heading{align-items:flex-start;flex-direction:column}.foreign-trade-empty-state{min-height:210px;padding:20px}}

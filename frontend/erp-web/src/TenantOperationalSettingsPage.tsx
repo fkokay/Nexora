@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { authenticatedFetch } from './authApi';
-import { CircleDollarSign, Save, ShieldCheck, Warehouse } from 'lucide-react'
+import { Building2, CalendarClock, CircleDollarSign, PackageCheck, Save, ShieldCheck, Warehouse } from 'lucide-react'
 import './tenant-operational-settings.css'
 
 type OperationsSettings = { tenantId:string; allowNegativeStock:boolean; updatedAt:string|null; rowVersion:string|null }
@@ -59,24 +59,24 @@ export default function TenantOperationalSettingsPage({ token, role, tenant, onN
   async function saveProfile(){setBusy('profile');setErrors(current=>({...current,profile:''}));setNotices(current=>({...current,profile:''}));try{const row=await request<CompanyProfile>('/api/tenant-company-profile/',{method:'PUT',body:{legalName,taxOffice,taxNumber}});setCompanyProfile(row);setLegalName(row.legalName);setTaxOffice(row.taxOffice??'');setTaxNumber(row.taxNumber??'');setNotices(current=>({...current,profile:'Firma profili kaydedildi.'}))}catch(e){setErrors(current=>({...current,profile:(e as Error).message}))}finally{setBusy('')}}
 
   const settingItems=[
-    {id:'profile' as const,title:'Ticari profil',description:'Unvan ve vergi tanımları',value:companyProfile?'Tanımlı':'Yükleniyor'},
-    {id:'stock' as const,title:'Stok politikası',description:'Negatif bakiye davranışı',value:allowNegativeStock?'Negatif açık':'Negatif kapalı'},
-    {id:'currency' as const,title:'Para birimi',description:'Firmanın baz para birimi',value:currency?.baseCurrencyCode??'—'},
-    {id:'audit' as const,title:'Denetim saklama',description:'Kayıt saklama süresi',value:retention?`${retention.retentionDays} gün`:'—'},
+    {id:'profile' as const,title:'Ticari profil',description:'Unvan ve vergi tanımları',value:companyProfile?'Tanımlı':'Yükleniyor',icon:Building2},
+    {id:'stock' as const,title:'Stok politikası',description:'Negatif bakiye davranışı',value:allowNegativeStock?'Negatif açık':'Negatif kapalı',icon:Warehouse},
+    {id:'currency' as const,title:'Para birimi',description:'Firmanın baz para birimi',value:currency?.baseCurrencyCode??'—',icon:CircleDollarSign},
+    {id:'audit' as const,title:'Denetim saklama',description:'Kayıt saklama süresi',value:retention?`${retention.retentionDays} gün`:'—',icon:CalendarClock},
   ]
   return <div className="page-content company-settings-page tenant-operational-settings-page">
-    <div className="page-heading tenant-settings-commandbar"><div><p className="eyebrow">FİRMA YÖNETİMİ · AYARLAR</p><h1>Firma ayarları</h1><p className="muted">Ticari kimlik ve operasyon kuralları · <b>{tenant.name}</b></p></div><div className="company-settings-actions"><button className="secondary" onClick={()=>onNavigate?.('license-settings')}>Lisans ve kota</button><button className="secondary" onClick={()=>void load()} disabled={loading||Boolean(busy)}>Yenile</button></div></div>
+    <div className="page-heading tenant-settings-commandbar screen-page-header"><div className="tenant-settings-title-mark" aria-hidden="true"><Building2 size={21}/></div><div><p className="eyebrow">FİRMA YÖNETİMİ <span>·</span> YAPILANDIRMA</p><h1>Firma ayarları</h1><p className="muted">Ticari kimlik ve operasyon kurallarını yönetin.</p></div><div className="tenant-settings-title-context"><span className="tenant-settings-context-icon"><Building2 size={15}/></span><span><small>Aktif firma</small><b>{tenant.name}</b></span></div><div className="company-settings-actions"><button className="secondary" onClick={()=>onNavigate?.('license-settings')}>Lisans ve kota</button><button className="secondary" onClick={()=>void load()} disabled={loading||Boolean(busy)}><span aria-hidden>↻</span> Yenile</button></div></div>
     <div className="tenant-settings-overview" aria-label="Firma ayarları özeti">
-      <div><span>Firma kodu</span><b>{tenant.slug}</b><small>{tenant.name}</small></div>
-      <div><span>Stok kontrolü</span><b>{allowNegativeStock?'Negatif bakiye açık':'Negatif bakiye engelli'}</b><small>Firma politikası</small></div>
-      <div><span>Baz para birimi</span><b>{currency?.baseCurrencyCode??(loading?'Yükleniyor…':'—')}</b><small>Finans kayıtları</small></div>
-      <div><span>Denetim saklama</span><b>{retention?`${retention.retentionDays} gün`:(loading?'Yükleniyor…':'—')}</b><small>Firma kayıtları</small></div>
+      <div><span className="tenant-settings-stat-icon"><Building2 size={15}/></span><span>Firma kodu</span><b>{tenant.slug}</b><small>{tenant.name}</small></div>
+      <div><span className="tenant-settings-stat-icon"><PackageCheck size={15}/></span><span>Stok kontrolü</span><b>{allowNegativeStock?'Negatif bakiye açık':'Negatif bakiye engelli'}</b><small>Firma politikası</small></div>
+      <div><span className="tenant-settings-stat-icon"><CircleDollarSign size={15}/></span><span>Baz para birimi</span><b>{currency?.baseCurrencyCode??(loading?'Yükleniyor…':'—')}</b><small>Finans kayıtları</small></div>
+      <div><span className="tenant-settings-stat-icon"><CalendarClock size={15}/></span><span>Denetim saklama</span><b>{retention?`${retention.retentionDays} gün`:(loading?'Yükleniyor…':'—')}</b><small>Firma kayıtları</small></div>
     </div>
     {!isAdmin&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>Salt okunur görünüm</b>Bu ayarları yalnızca firma yöneticisi değiştirebilir.</span></div>}
     <div className="tenant-settings-workbench">
       <nav className="tenant-settings-nav" aria-label="Firma ayar kategorileri">
         <p className="eyebrow">YAPILANDIRMA</p>
-        {settingItems.map(item=><button type="button" key={item.id} className={activeSetting===item.id?'active':''} aria-current={activeSetting===item.id?'page':undefined} onClick={()=>setActiveSetting(item.id)}><span><b>{item.title}</b><small>{item.description}</small></span><em>{item.value}</em></button>)}
+        {settingItems.map(item=>{const Icon=item.icon;return <button type="button" key={item.id} className={activeSetting===item.id?'active':''} aria-current={activeSetting===item.id?'page':undefined} onClick={()=>setActiveSetting(item.id)}><span className="tenant-settings-nav-icon"><Icon size={16}/></span><span className="tenant-settings-nav-copy"><b>{item.title}</b><small>{item.description}</small></span><em>{item.value}</em></button>})}
         <div className="tenant-settings-nav-note"><ShieldCheck size={15}/><span>Ayarlar yalnız bu firmaya uygulanır.</span></div>
       </nav>
       <div className="tenant-settings-detail" aria-live="polite">
