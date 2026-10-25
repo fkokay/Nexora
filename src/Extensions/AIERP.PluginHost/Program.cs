@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using AIERP.ModuleSDK;
 using AIERP.Observability;
@@ -12,6 +13,7 @@ using Wasmtime;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 512 * 1024);
+const string ModulePackageRootPath = "/module-packages";
 var signingKey = builder.Configuration["PluginHost:SigningKey"];
 if (string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32)
     throw new InvalidOperationException("PluginHost:SigningKey must contain at least 32 bytes.");
@@ -51,7 +53,7 @@ app.UseRateLimiter();
 app.MapGet("/health", (IConfiguration configuration, WasmModuleRuntime runtime) =>
 {
     _ = runtime; // Resolving the singleton confirms that the WASM engine initialized successfully.
-    var packageStoreReadable = PluginHostHealth.IsPackageStoreReadable(configuration["ModulePackages:RootPath"] ?? "/module-packages");
+    var packageStoreReadable = PluginHostHealth.IsPackageStoreReadable(configuration["ModulePackages:RootPath"] ?? ModulePackageRootPath);
     var status = packageStoreReadable ? "healthy" : "degraded";
     var response = new
     {
@@ -110,7 +112,9 @@ static bool TryReleaseClaims(ClaimsPrincipal caller, out VerifiedModuleRelease r
 
 static async Task<byte[]> ReadWasmPackageAsync(IConfiguration configuration, string artifactSha256, CancellationToken cancellationToken)
 {
-    var root = Path.GetFullPath(configuration["ModulePackages:RootPath"] ?? "/module-packages");
+    if (!Regex.IsMatch(artifactSha256, @"\A[0-9a-fA-F]{64}\z", RegexOptions.CultureInvariant))
+        throw new InvalidDataException("Modül paketi özeti geçersiz.");
+    var root = Path.GetFullPath(configuration["ModulePackages:RootPath"] ?? ModulePackageRootPath);
     var path = ModulePackageStoragePath.ResolvePackage(root, artifactSha256);
     await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
     if (stream.Length is <= 0 or > ModulePackageVerifier.MaximumArtifactBytes) throw new InvalidDataException("Modül paketi boyut sınırını aşıyor.");

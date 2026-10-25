@@ -59,6 +59,19 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
     }
 
     [Fact]
+    public void Safe_guid_segment_is_a_single_lowercase_hex_filename_component()
+    {
+        var id = Guid.NewGuid();
+        var segment = global::AIERP.ReleaseDeployer.ReleaseDeployerPath.SafeGuidSegment(id);
+
+        Assert.Equal(id.ToString("N"), segment);
+        Assert.Matches("^[0-9a-f]{32}$", segment);
+        Assert.DoesNotContain('/', segment);
+        Assert.DoesNotContain('\\', segment);
+        Assert.DoesNotContain(':', segment);
+    }
+
+    [Fact]
     public void Safe_child_rejects_database_backup_and_manifest_links_that_target_another_file()
     {
         var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-backups-{Guid.NewGuid():N}");
@@ -113,7 +126,7 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
     [Fact]
     public async Task Deployment_lock_rejects_reparse_point_lock_files()
     {
-        var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-lock-{Guid.NewGuid():N}");
+        var root = Path.Combine(Path.GetTempPath(), "nexora-release-deployer-tests", Environment.ProcessId.ToString());
         var outside = Path.Combine(Path.GetTempPath(), $"aierp-deployer-lock-outside-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
         await File.WriteAllTextAsync(outside, string.Empty);
@@ -126,7 +139,7 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
             }
 
             await Assert.ThrowsAsync<InvalidDataException>(() =>
-                global::AIERP.ReleaseDeployer.DistributedDeploymentLock.AcquireAsync(root, CancellationToken.None));
+                global::AIERP.ReleaseDeployer.DistributedDeploymentLock.AcquireForTestAsync(CancellationToken.None));
             Assert.Equal(string.Empty, await File.ReadAllTextAsync(outside));
         }
         finally
@@ -282,7 +295,6 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
         start.Environment["ReleaseDeployer__PackageRoot"] = Path.Combine(root, "packages");
         start.Environment["ReleaseDeployer__ReleaseRoot"] = Path.Combine(root, "staging-releases");
         start.Environment["ReleaseDeployer__ProductionRoot"] = Path.Combine(root, "production-releases");
-        start.Environment["ReleaseDeployer__LockRoot"] = Path.Combine(root, "locks");
         start.Environment["ReleaseDeployer__ProductionBackupRoot"] = Path.Combine(root, "production-backups");
         start.Environment["ReleaseDeployer__HealthCheckTimeoutSeconds"] = "1";
         start.Environment["ReleaseDeployer__HealthCheckIntervalMilliseconds"] = "10";

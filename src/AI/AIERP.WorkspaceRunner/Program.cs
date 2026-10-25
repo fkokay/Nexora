@@ -9,6 +9,12 @@ using AIERP.Observability;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
+// These are fixed production container mounts. Runtime configuration must not
+// broaden the workspace runner's filesystem authority.
+const string WorkspaceRootPath = "/workspaces";
+const string ReleasePackageRootPath = "/release-packages";
+const string TestJobRootPath = "/test-jobs";
+
 var builder = WebApplication.CreateBuilder(args);
 var signingKey = builder.Configuration["Authentication:SigningKey"];
 if (string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32)
@@ -87,7 +93,7 @@ app.MapPost("/internal/projects/branches", async (RepositoryBranchesRequest requ
     if (!validation.IsValid) return Results.BadRequest(new { error = validation.Error });
     var gitEnvironment = WorkspaceSecurity.CreateGitHubReadEnvironment(validation.Uri!, httpRequest.Headers["X-GitHub-Installation-Token"].FirstOrDefault());
 
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     Directory.CreateDirectory(root);
     try
     {
@@ -122,7 +128,7 @@ app.MapPost("/internal/workspaces/provision", async (ProvisionRequest request, C
     if (!WorkspaceSecurity.IsValidBranchName(request.BranchName)) return Results.BadRequest(new { error = "Geçersiz Git dalı." });
     var branchName = request.BranchName!;
 
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     if (WorkspaceSecurity.HasReparsePointInPath(root)) return Results.Problem("Workspace kök dizini güvenli değil.", statusCode: StatusCodes.Status500InternalServerError);
     Directory.CreateDirectory(root);
     var target = Path.GetFullPath(Path.Combine(root, request.WorkspaceId.ToString("N")));
@@ -178,7 +184,7 @@ app.MapPost("/internal/workspaces/provision", async (ProvisionRequest request, C
 app.MapPost("/internal/workspaces/{workspaceId:guid}/working-branch", async (Guid workspaceId, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     try
     {
@@ -198,7 +204,7 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/push-approved-branch", asyn
     if (!request.ApprovalConfirmed || !WorkspaceSecurity.IsCommitSha(request.ExpectedHeadCommitSha ?? string.Empty) ||
         string.IsNullOrWhiteSpace(request.InstallationToken) || request.InstallationToken.Length > 4096 || request.InstallationToken.Any(char.IsControl))
         return Results.BadRequest(new { error = "Açık onay, geçerli HEAD ve kısa ömürlü GitHub kurulum tokenı gerekli." });
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     try
     {
@@ -254,8 +260,8 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/release-packages", async (G
         string.IsNullOrWhiteSpace(request.TestTargetPath) || request.TestTargetPath.Length > 512 ||
         !WorkspaceSecurity.IsSha256(request.TestSnapshotSha256 ?? string.Empty))
         return Results.BadRequest(new { error = "Açık onay ve geçerli sürüm/test metadata'sı gerekli." });
-    var workspaceRoot = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
-    var packageRoot = Path.GetFullPath(configuration["Workspace:ReleasePackageRoot"] ?? "/release-packages");
+    var workspaceRoot = WorkspaceRootPath;
+    var packageRoot = ReleasePackageRootPath;
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     try
     {
@@ -265,7 +271,7 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/release-packages", async (G
         if (status.Truncated || status.TotalChangedFiles != 0 || status.Files.Count != 0 || status.BranchName != expectedBranch ||
             !string.Equals(status.HeadCommitSha, request.CommitSha, StringComparison.OrdinalIgnoreCase))
             return Results.Conflict(new { error = "Sadece sürüm adayıyla aynı temiz commit paketlenebilir." });
-        var testRoot = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
+        var testRoot = TestJobRootPath;
         if (!WorkspaceSecurity.TryResolveStorageChild(testRoot, request.TestJobId.ToString("N"), out var testDirectory) || !Directory.Exists(testDirectory))
             return Results.Conflict(new { error = "Sandbox test kanıtı bulunamadı veya süresi doldu." });
         var jsonOptions = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
@@ -295,7 +301,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/release-packages/{packageId:
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (packageId == Guid.Empty) return Results.BadRequest();
-    var root = Path.GetFullPath(configuration["Workspace:ReleasePackageRoot"] ?? "/release-packages");
+    var root = ReleasePackageRootPath;
     if (!WorkspaceSecurity.TryResolveStorageChild(root, $"{packageId:N}.zip", out var path) || !File.Exists(path)) return Results.NotFound();
     if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0) return Results.NotFound();
     var metadataPath = Path.ChangeExtension(path, ".json");
@@ -308,7 +314,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/release-packages/{packageId:
 app.MapGet("/internal/workspaces/{workspaceId:guid}/git-status", async (Guid workspaceId, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     try
     {
@@ -322,7 +328,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/git-status", async (Guid wor
 app.MapGet("/internal/workspaces/{workspaceId:guid}/git-diff", async (Guid workspaceId, string? path, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     try
     {
@@ -347,7 +353,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/files", async (Guid workspac
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (offset < 0 || offset > 50_000) return Results.BadRequest(new { error = "Dosya listesi başlangıcı geçersiz." });
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     if (!WorkspaceSecurity.TryResolveDirectory(root, workspaceId, path, out var directory, out var error))
         return error == "workspace_missing" ? Results.NotFound(new { error = "Çalışma alanı bulunamadı." }) : Results.BadRequest(new { error = error ?? "Dosya yolu geçersiz." });
     try
@@ -375,7 +381,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/files", async (Guid workspac
 app.MapGet("/internal/workspaces/{workspaceId:guid}/file-content", async Task<IResult> (Guid workspaceId, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken, string? path = null) =>
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
-    if (!WorkspaceSecurity.TryResolveFile(Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces"), workspaceId, path, out var filePath, out var error))
+    if (!WorkspaceSecurity.TryResolveFile(WorkspaceRootPath, workspaceId, path, out var filePath, out var error))
         return error is "workspace_missing" or "file_missing" ? Results.NotFound(new { error = "Çalışma alanı veya dosya bulunamadı." }) : Results.BadRequest(new { error = error ?? "Dosya yolu geçersiz." });
     const int maxBytes = 128 * 1024;
     try
@@ -410,7 +416,7 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/apply-file", async (Guid wo
         request.ProposedContent is null || (string.IsNullOrWhiteSpace(request.ProposedContent) && !request.AllowEmptyContent) ||
         request.ProposedContent.Contains('\0') || Encoding.UTF8.GetByteCount(request.ProposedContent) > 128 * 1024)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["file"] = ["Yalnızca mevcut, izinli kaynak dosyalarına 128 KiB sınırında içerik uygulanabilir."] });
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     try
     {
         var result = await WorkspaceSecurity.ApplyFileContentAsync(root, workspaceId, request.ChangeId, request.Path, request.ExpectedSha256!,
@@ -435,7 +441,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/new-file-target", (Guid work
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (!WorkspaceSecurity.IsWritableSourcePath(path)) return Results.BadRequest(new { error = "Yeni dosya yolu izinli kaynak kapsamı dışında." });
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     if (!WorkspaceSecurity.TryResolveNewFile(root, workspaceId, path, out _, out var error))
         return error switch
         {
@@ -452,7 +458,7 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/create-file", async (Guid w
         !string.Equals(request.ExpectedSha256, WorkspaceSecurity.EmptyFileSha256, StringComparison.OrdinalIgnoreCase) ||
         string.IsNullOrWhiteSpace(request.ProposedContent) || request.ProposedContent.Contains('\0') || Encoding.UTF8.GetByteCount(request.ProposedContent) > 128 * 1024)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["file"] = ["Açık onay, boş dosya özeti ve 128 KiB sınırında izinli kaynak içeriği gerekli."] });
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     try
     {
         var result = await WorkspaceSecurity.CreateFileContentAsync(root, workspaceId, request.ChangeId, request.Path!, request.ProposedContent!, cancellationToken);
@@ -474,7 +480,7 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/create-file", async (Guid w
 app.MapGet("/internal/workspaces/{workspaceId:guid}/changes", async (Guid workspaceId, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     if (!WorkspaceSecurity.TryResolveDirectory(root, workspaceId, null, out _, out var error))
         return error == "workspace_missing" ? Results.NotFound(new { error = "Çalışma alanı bulunamadı." }) : Results.BadRequest(new { error = error ?? "Çalışma alanı yolu geçersiz." });
     try { return Results.Ok(await WorkspaceSecurity.GetChangesAsync(root, workspaceId, cancellationToken)); }
@@ -483,7 +489,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/changes", async (Guid worksp
 app.MapGet("/internal/workspaces/{workspaceId:guid}/changes/{changeId:guid}", async (Guid workspaceId, Guid changeId, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     try
     {
         var diff = await WorkspaceSecurity.GetChangeDiffAsync(root, workspaceId, changeId, cancellationToken);
@@ -497,7 +503,7 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/changes/{changeId:guid}/res
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (!request.ApprovalConfirmed || !WorkspaceSecurity.IsSha256(request.ExpectedSha256))
         return Results.BadRequest(new { error = "Açık onay ve geçerli dosya özeti gerekli." });
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     try
     {
         var result = await WorkspaceSecurity.RestoreChangeAsync(root, workspaceId, changeId, request.ExpectedSha256!, cancellationToken);
@@ -520,7 +526,7 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/commit-approved-changes", a
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (!request.ApprovalConfirmed) return Results.BadRequest(new { error = "Açık commit onayı gerekli." });
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     try
     {
         await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
@@ -552,7 +558,7 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/commit-approved-changes", a
 app.MapGet("/internal/workspaces/{workspaceId:guid}/analysis", (Guid workspaceId, ClaimsPrincipal caller, IConfiguration configuration) =>
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     try { return Results.Ok(WorkspaceSecurity.AnalyzeWorkspace(root, workspaceId)); }
     catch (DirectoryNotFoundException) { return Results.NotFound(new { error = "Çalışma alanı bulunamadı." }); }
     catch (IOException) { return Results.Problem("Proje dosya envanteri okunamadı.", statusCode: StatusCodes.Status500InternalServerError); }
@@ -561,7 +567,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/analysis", (Guid workspaceId
 app.MapGet("/internal/workspaces/{workspaceId:guid}/test-discovery", (Guid workspaceId, ClaimsPrincipal caller, IConfiguration configuration) =>
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     try { return Results.Ok(WorkspaceSecurity.DiscoverTests(root, workspaceId)); }
     catch (DirectoryNotFoundException) { return Results.NotFound(new { error = "Çalışma alanı bulunamadı." }); }
     catch (IOException) { return Results.Problem("Test hedefleri okunamadı.", statusCode: StatusCodes.Status500InternalServerError); }
@@ -577,8 +583,8 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/test-runs", async (Guid wor
     var isGoTarget = WorkspaceSecurity.IsSafeGoTestTarget(request.TargetPath);
     var isRustTarget = WorkspaceSecurity.IsSafeRustTestTarget(request.TargetPath);
     if (!isDotNetTarget && !isNodeTarget && !isPythonTarget && !isGoTarget && !isRustTarget) return Results.BadRequest(new { error = "Yalnız güvenli bir .NET, Node.js, Python, Go veya Rust test hedefi seçilebilir." });
-    var workspaceRoot = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
-    var jobRoot = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
+    var workspaceRoot = WorkspaceRootPath;
+    var jobRoot = TestJobRootPath;
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     var jobId = Guid.NewGuid();
     var jobDirectory = string.Empty;
@@ -627,8 +633,8 @@ app.MapPost("/internal/workspaces/{workspaceId:guid}/build-runs", async (Guid wo
     var isRustTarget = WorkspaceSecurity.IsSafeRustTestTarget(request.TargetPath);
     if (!isDotNetTarget && !isNodeTarget && !isPythonTarget && !isGoTarget && !isRustTarget)
         return Results.BadRequest(new { error = "Yalnız güvenli bir .NET, Node.js, Python, Go veya Rust build hedefi seçilebilir." });
-    var workspaceRoot = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
-    var jobRoot = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
+    var workspaceRoot = WorkspaceRootPath;
+    var jobRoot = TestJobRootPath;
     await WorkspaceSecurity.Gate.WaitAsync(cancellationToken);
     var jobId = Guid.NewGuid();
     var jobDirectory = string.Empty;
@@ -668,7 +674,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/build-runs/{jobId:guid}", as
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (jobId == Guid.Empty) return Results.BadRequest(new { error = "Build işi kimliği geçersiz." });
-    var root = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
+    var root = TestJobRootPath;
     if (!WorkspaceSecurity.TryResolveStorageChild(root, jobId.ToString("N"), out var jobDirectory)) return Results.NotFound();
     if (!Directory.Exists(jobDirectory)) return Results.NotFound();
     try
@@ -691,7 +697,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/test-runs/{jobId:guid}", asy
 {
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (jobId == Guid.Empty) return Results.BadRequest(new { error = "Test işi kimliği geçersiz." });
-    var root = Path.GetFullPath(configuration["Workspace:TestJobRoot"] ?? "/test-jobs");
+    var root = TestJobRootPath;
     if (!WorkspaceSecurity.TryResolveStorageChild(root, jobId.ToString("N"), out var jobDirectory)) return Results.NotFound();
     var resultPath = Path.Combine(jobDirectory, "result.json");
     if (!Directory.Exists(jobDirectory)) return Results.NotFound();
@@ -716,7 +722,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/search", (Guid workspaceId, 
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (string.IsNullOrWhiteSpace(query) || query.Length > 120 || query.Any(char.IsControl))
         return Results.BadRequest(new { error = "Arama metni 1–120 karakter olmalı." });
-    var root = Path.GetFullPath(configuration["Workspace:RootPath"] ?? "/workspaces");
+    var root = WorkspaceRootPath;
     try { return Results.Ok(WorkspaceSecurity.SearchWorkspace(root, workspaceId, query.Trim())); }
     catch (DirectoryNotFoundException) { return Results.NotFound(new { error = "Çalışma alanı bulunamadı." }); }
     catch (IOException) { return Results.Problem("Çalışma alanında arama yapılamadı.", statusCode: StatusCodes.Status500InternalServerError); }
@@ -1580,8 +1586,8 @@ internal static class WorkspaceSecurity
         const int maxFiles = 20_000;
         const long maxBytes = 100 * 1024 * 1024;
         const long maxFileBytes = 16 * 1024 * 1024;
-        Directory.CreateDirectory(packageRoot);
         var fullPackageRoot = Path.GetFullPath(packageRoot);
+        Directory.CreateDirectory(fullPackageRoot);
         if (!TryResolveStorageChild(fullPackageRoot, $"{request.PackageId:N}.zip", out var archivePath) ||
             !TryResolveStorageChild(fullPackageRoot, $"{request.PackageId:N}.json", out var metadataPath) ||
             !TryResolveStorageChild(fullPackageRoot, $"{request.PackageId:N}.zip.{Guid.NewGuid():N}.tmp", out var temporaryPath))

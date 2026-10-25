@@ -1318,11 +1318,13 @@ public sealed class ExtensionSdkTests
     {
         var root = Path.Combine(Path.GetTempPath(), $"aierp-deployer-lock-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
+        var lockPath = Path.Combine(root, "deployment.lock");
+        FileStream OpenLockFile() => new(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.WriteThrough);
         try
         {
-            var first = await DistributedDeploymentLock.AcquireAsync(root, CancellationToken.None);
+            var first = await DistributedDeploymentLock.AcquireCoreAsync(OpenLockFile, CancellationToken.None);
             using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var secondTask = DistributedDeploymentLock.AcquireAsync(root, cancellation.Token);
+            var secondTask = DistributedDeploymentLock.AcquireCoreAsync(OpenLockFile, cancellation.Token);
             await Task.Delay(500);
             Assert.False(secondTask.IsCompleted);
 

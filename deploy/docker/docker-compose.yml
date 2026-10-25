@@ -459,7 +459,6 @@ services:
       ReleaseDeployer__PackageRoot: /release-packages
       ReleaseDeployer__ReleaseRoot: /staging-releases
       ReleaseDeployer__ProductionRoot: /production-releases
-      ReleaseDeployer__LockRoot: /deployer-state
       ReleaseDeployer__MaxActiveStagingProjects: "2"
     expose:
       - "8080"

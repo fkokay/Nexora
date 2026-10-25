@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace AIERP.ReleaseDeployer;
 
 /// <summary>
@@ -6,24 +8,29 @@ namespace AIERP.ReleaseDeployer;
 /// </summary>
 public sealed class DistributedDeploymentLock : IAsyncDisposable
 {
+    private const string ProductionLockRoot = "/deployer-state";
+    private const string TestLockDirectoryName = "nexora-release-deployer-tests";
     private readonly FileStream stream;
     private bool disposed;
 
     private DistributedDeploymentLock(FileStream stream) => this.stream = stream;
 
-    public static async Task<DistributedDeploymentLock> AcquireAsync(string rootPath, CancellationToken cancellationToken)
+    public static Task<DistributedDeploymentLock> AcquireAsync(CancellationToken cancellationToken)
+        => AcquireAtRootAsync(GetLockRoot(), cancellationToken);
+
+    internal static Task<DistributedDeploymentLock> AcquireForTestAsync(CancellationToken cancellationToken)
+        => AcquireAtRootAsync(GetTestLockRoot(), cancellationToken);
+
+    internal static async Task<DistributedDeploymentLock> AcquireCoreAsync(Func<FileStream> openLockFile, CancellationToken cancellationToken)
     {
-        var root = Path.GetFullPath(rootPath);
-        ReleaseDeployerPath.AssertNoReparsePoints(root);
-        Directory.CreateDirectory(root);
-        var lockPath = ReleaseDeployerPath.SafeChild(root, "deployment.lock");
+        ArgumentNullException.ThrowIfNull(openLockFile);
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             FileStream? stream = null;
             try
             {
-                stream = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.WriteThrough);
+                stream = openLockFile();
                 if (stream.Length == 0)
                 {
                     stream.WriteByte(0);
@@ -43,6 +50,25 @@ public sealed class DistributedDeploymentLock : IAsyncDisposable
             }
         }
     }
+
+    private static async Task<DistributedDeploymentLock> AcquireAtRootAsync(string root, CancellationToken cancellationToken)
+    {
+        ReleaseDeployerPath.AssertNoReparsePoints(root);
+        Directory.CreateDirectory(root);
+        ReleaseDeployerPath.AssertNoReparsePoints(root);
+        var lockPath = ReleaseDeployerPath.SafeChild(root, "deployment.lock");
+        return await AcquireCoreAsync(
+            () => new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.WriteThrough),
+            cancellationToken);
+    }
+
+    private static string GetLockRoot()
+        => string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Test", StringComparison.OrdinalIgnoreCase)
+            ? GetTestLockRoot()
+            : ProductionLockRoot;
+
+    private static string GetTestLockRoot()
+        => Path.Combine(Path.GetTempPath(), TestLockDirectoryName, Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
 
     public ValueTask DisposeAsync()
     {

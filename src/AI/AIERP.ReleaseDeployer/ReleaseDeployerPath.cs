@@ -3,6 +3,15 @@ namespace AIERP.ReleaseDeployer;
 /// <summary>Resolves deployer-owned paths while rejecting lexical escapes and existing reparse points.</summary>
 public static class ReleaseDeployerPath
 {
+    /// <summary>Converts a parsed identifier into the only permitted filename representation.</summary>
+    public static string SafeGuidSegment(Guid value)
+    {
+        var segment = Path.GetFileName(value.ToString("N"));
+        if (!System.Text.RegularExpressions.Regex.IsMatch(segment, "^[0-9a-f]{32}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant))
+            throw new InvalidDataException("Dağıtım kimliği geçersiz.");
+        return segment;
+    }
+
     public static string SafeChild(string root, string relativePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
