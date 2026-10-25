@@ -72,7 +72,11 @@ public sealed class WarehouseLocationEndpointsIntegrationTests
                 new InventoryTransaction { TenantId = TenantA, WarehouseId = WarehouseId, StockItemId = StockItemId, StorageLocationId = childId,
                     EntryDate = new DateOnly(2026, 10, 1), Direction = InventoryDirection.Receipt, Quantity = 8m, Description = "Synthetic receipt" },
                 new InventoryTransaction { TenantId = TenantA, WarehouseId = WarehouseId, StockItemId = StockItemId, StorageLocationId = childId,
-                    EntryDate = new DateOnly(2026, 10, 4), Direction = InventoryDirection.Issue, Quantity = 3m, Description = "Synthetic issue" });
+                    EntryDate = new DateOnly(2026, 10, 4), Direction = InventoryDirection.Issue, Quantity = 3m, Description = "Synthetic issue" },
+                new InventoryTransaction { TenantId = TenantA, WarehouseId = WarehouseId, StockItemId = StockItemId,
+                    EntryDate = new DateOnly(2026, 10, 1), Direction = InventoryDirection.Receipt, Quantity = 5m, Description = "Unlocated legacy receipt" },
+                new InventoryTransaction { TenantId = TenantA, WarehouseId = WarehouseId, StockItemId = StockItemId,
+                    EntryDate = new DateOnly(2026, 10, 3), Direction = InventoryDirection.Issue, Quantity = 2m, Description = "Unlocated legacy issue" });
             await db.SaveChangesAsync();
         }
         using var balanceResponse = await client.GetAsync($"/api/warehouses/{WarehouseId}/locations/{childId}/balances?asOfDate=2026-10-02");
@@ -81,9 +85,18 @@ public sealed class WarehouseLocationEndpointsIntegrationTests
         Assert.Equal(8m, balanceJson.RootElement.GetProperty("items")[0].GetProperty("quantity").GetDecimal());
         Assert.Equal("MAT-1", balanceJson.RootElement.GetProperty("items")[0].GetProperty("stockItemCode").GetString());
 
+        using var reconciliationResponse = await client.GetAsync($"/api/warehouses/{WarehouseId}/location-reconciliation?asOfDate=2026-10-02");
+        Assert.Equal(HttpStatusCode.OK, reconciliationResponse.StatusCode);
+        using var reconciliationJson = JsonDocument.Parse(await reconciliationResponse.Content.ReadAsStringAsync());
+        var reconciledItem = Assert.Single(reconciliationJson.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal(13m, reconciledItem.GetProperty("warehouseQuantity").GetDecimal());
+        Assert.Equal(8m, reconciledItem.GetProperty("locatedQuantity").GetDecimal());
+        Assert.Equal(5m, reconciledItem.GetProperty("unlocatedQuantity").GetDecimal());
+
         client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString("D"));
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/warehouses/{WarehouseId}/locations")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/warehouses/{WarehouseId}/locations/{childId}/balances")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/warehouses/{WarehouseId}/location-reconciliation")).StatusCode);
         await app.StopAsync();
     }
 }

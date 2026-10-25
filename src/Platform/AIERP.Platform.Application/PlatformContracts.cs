@@ -118,6 +118,8 @@ public sealed record InventoryTransferLineView(Guid StockItemId, string Code, st
 public sealed record InventoryTransferDetailView(InventoryTransferSummary Transfer, IReadOnlyList<InventoryTransferLineView> Lines);
 public sealed record StockItemPage(IReadOnlyList<StockItemView> Items, int Page, int PageSize, int TotalCount);
 public sealed record InventoryTransactionPage(IReadOnlyList<InventoryTransactionView> Items, int Page, int PageSize, int TotalCount);
+public sealed record WarehouseLocationReconciliationItemView(Guid StockItemId, string StockItemCode, string StockItemName,
+    string UnitCode, decimal WarehouseQuantity, decimal LocatedQuantity, decimal UnlocatedQuantity);
 public sealed record SalesQuoteLineWriteRequest(Guid StockItemId, decimal Quantity, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20, string? UnitCode = null);
 public sealed record SalesQuoteWriteRequest(string Code, Guid CustomerId, DateOnly QuoteDate, DateOnly ValidUntil,
     string CurrencyCode, string? Notes, IReadOnlyList<SalesQuoteLineWriteRequest> Lines,

@@ -103,6 +103,33 @@ public static class WarehouseLocationEndpoints
                     (x, item) => new WarehouseLocationBalanceView(item.Id, item.Code, item.Name, item.UnitCode, x.Quantity)).OrderBy(x => x.StockItemCode).ToListAsync();
             return Results.Ok(new { location.Id, location.WarehouseId, location.Code, location.Name, asOfDate = cutoff, items = balances });
         });
+
+        warehouses.MapGet("/{warehouseId:guid}/location-reconciliation", async (Guid warehouseId, DateOnly? asOfDate, ClaimsPrincipal principal, TenantDbContext db) =>
+        {
+            if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+            var warehouse = await db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == warehouseId)
+                .Select(x => new { x.Id, x.Code, x.Name }).SingleOrDefaultAsync();
+            if (warehouse is null) return Results.NotFound();
+            var cutoff = asOfDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+            var balances = await db.InventoryTransactions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.EntryDate <= cutoff)
+                .GroupBy(x => x.StockItemId)
+                .Select(group => new
+                {
+                    StockItemId = group.Key,
+                    WarehouseQuantity = group.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity),
+                    LocatedQuantity = group.Sum(x => x.StorageLocationId != null
+                        ? (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) : 0m),
+                    UnlocatedQuantity = group.Sum(x => x.StorageLocationId == null
+                        ? (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) : 0m)
+                })
+                .Where(x => x.UnlocatedQuantity != 0m)
+                .Join(db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId), balance => balance.StockItemId, item => item.Id,
+                    (balance, item) => new WarehouseLocationReconciliationItemView(item.Id, item.Code, item.Name, item.UnitCode,
+                        balance.WarehouseQuantity, balance.LocatedQuantity, balance.UnlocatedQuantity))
+                .OrderBy(x => x.StockItemCode).ToListAsync();
+            return Results.Ok(new { warehouse.Id, warehouse.Code, warehouse.Name, asOfDate = cutoff, items = balances });
+        });
         return warehouses;
     }
 
