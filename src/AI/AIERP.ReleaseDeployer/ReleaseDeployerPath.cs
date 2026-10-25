@@ -18,13 +18,23 @@ public static class ReleaseDeployerPath
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
 
         var normalized = relativePath.Replace('\\', '/');
+        var segments = normalized.Split('/');
         if (Path.IsPathRooted(relativePath) || normalized.StartsWith('/') || normalized.Contains(':') ||
-            normalized.Split('/').Any(part => part is "" or "." or ".." ||
+            segments.Any(part => part is "" or "." or ".." ||
                 OperatingSystem.IsWindows() && (part.EndsWith(' ') || part.EndsWith('.') || IsWindowsDeviceName(part))))
             throw new InvalidDataException("Dağıtım dosya yolu geçersiz.");
 
+        // Pass each path component through the framework's filename sanitizer before
+        // combining it. The equality check rejects path separators/aliases rather than
+        // silently changing the requested path, while the explicit traversal check
+        // above still rejects dot segments (Path.GetFileName alone preserves them).
+        var safeSegments = segments.Select(Path.GetFileName).ToArray();
+        if (safeSegments.Any(string.IsNullOrEmpty) || !segments.SequenceEqual(safeSegments, StringComparer.Ordinal))
+            throw new InvalidDataException("Dağıtım dosya yolu geçersiz.");
+
         var fullRoot = Path.GetFullPath(root);
-        var child = Path.GetFullPath(Path.Combine(fullRoot, relativePath));
+        var safeRelativePath = Path.Combine(safeSegments!);
+        var child = Path.GetFullPath(Path.Combine(fullRoot, safeRelativePath));
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var rootPrefix = Path.EndsInDirectorySeparator(fullRoot) ? fullRoot : fullRoot + Path.DirectorySeparatorChar;
         if (!child.StartsWith(rootPrefix, comparison))
