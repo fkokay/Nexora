@@ -1,3 +1,98 @@
 .crm-page{display:grid;gap:20px}.crm-hero{display:flex;align-items:center;gap:16px;padding:24px 28px;border:1px solid #e7e7f2;border-radius:16px;background:radial-gradient(circle at 90% 5%,#eeeaff 0,transparent 35%),linear-gradient(120deg,#fff,#f8f8ff);box-shadow:0 8px 24px #29275b08}.crm-hero-icon{width:48px;height:48px;display:grid;place-items:center;flex:none;border-radius:14px;background:#eeeaff;color:#6755df}.crm-hero h1{margin:2px 0 5px;color:#1d2540;font-size:25px}.crm-hero p:not(.eyebrow){margin:0;color:#7d8599;font-size:12px}.crm-hero-total{display:grid;gap:5px;margin-left:auto;padding:13px 16px;border:1px solid #e5e3f4;border-radius:12px;background:#ffffffc7}.crm-hero-total span{color:#8a91a4;font-size:10px}.crm-hero-total b{color:#342d71;font-size:15px}.crm-panel{padding:20px;border:1px solid #e5e8f1;border-radius:14px;background:#fff;box-shadow:0 4px 16px #21294a07}.crm-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.crm-panel-heading h2{margin:0;color:#202944;font-size:16px}.crm-panel-heading p{margin:5px 0 0;color:#8b92a4;font-size:11px}.crm-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.crm-form label{display:grid;gap:6px;color:#6e778e;font-size:10px;font-weight:650}.crm-form input,.crm-form select,.crm-form textarea,.crm-toolbar select{width:100%;min-width:0;padding:9px 10px;border:1px solid #dfe3ed;border-radius:8px;background:#fff;color:#252e47;font:inherit;font-size:12px;outline:none}.crm-form input:focus,.crm-form select:focus,.crm-form textarea:focus,.crm-toolbar select:focus{border-color:#7565e8;box-shadow:0 0 0 3px #7665e81c}.crm-inline-input{display:grid;grid-template-columns:1fr 66px;gap:6px}.crm-notes{grid-column:span 3}.crm-submit{align-self:end;justify-self:end;min-height:36px}.crm-list-heading{align-items:flex-end}.crm-toolbar{display:flex;align-items:center;gap:8px}.crm-search{display:flex;align-items:center;gap:7px;min-width:245px;padding:0 10px;border:1px solid #dfe3ed;border-radius:8px;color:#838ba0}.crm-search input{width:100%;padding:9px 0;border:0;outline:none;font:inherit;font-size:11px}.crm-search input:focus{box-shadow:none}.crm-toolbar select{width:auto;min-width:150px}.crm-table-wrap{overflow:auto;border:1px solid #eaecf3;border-radius:10px}.crm-table{width:100%;border-collapse:collapse;text-align:left;font-size:11px}.crm-table th{padding:11px 12px;background:#fafbfe;color:#8991a4;font-size:10px;font-weight:650;white-space:nowrap}.crm-table td{padding:12px;border-top:1px solid #eff0f5;color:#37415a;vertical-align:middle}.crm-table td:first-child{min-width:180px}.crm-table td:first-child b,.crm-table td:first-child small,.crm-table td:nth-child(6) small{display:block}.crm-table td:first-child small,.crm-table td:nth-child(6) small{margin-top:4px;color:#969daf;font-size:10px}.crm-stage{display:inline-flex;padding:5px 8px;border-radius:20px;background:#f0efff;color:#6252ce;font-size:10px;font-weight:650;white-space:nowrap}.crm-stage-qualified{background:#eaf4ff;color:#2877c7}.crm-stage-proposal,.crm-stage-negotiation{background:#fff5df;color:#a97713}.crm-stage-won{background:#e8f8f1;color:#168b65}.crm-stage-lost{background:#f1f2f5;color:#7c8494}.crm-probability{display:flex;align-items:center;gap:7px}.crm-probability i{width:54px;height:5px;overflow:hidden;border-radius:5px;background:#ececf4}.crm-probability i span{display:block;height:100%;border-radius:inherit;background:#7565e8}.crm-probability b{font-size:10px}.crm-date{display:flex;align-items:center;gap:5px;white-space:nowrap}.crm-date svg{color:#8173dc}.crm-actions{display:flex;align-items:center;gap:5px;white-space:nowrap}.crm-actions .small-button{min-height:28px;padding:0 9px;font-size:10px}.crm-lost{padding:5px 7px;border:0;border-radius:6px;background:#fff0f0;color:#bf5555;font-size:10px;cursor:pointer}.crm-lost:disabled{opacity:.5}.crm-won-icon{color:#16a878}.crm-lost-icon,.crm-muted{color:#999fb0}.crm-empty{display:grid;justify-items:center;gap:7px;padding:40px 12px;border:1px dashed #e0e4ef;border-radius:10px;color:#9299aa;text-align:center;font-size:11px}.crm-empty svg{color:#7565e8}.crm-empty b{color:#515b73;font-size:12px}.crm-empty span{color:#9299aa}@media(max-width:1000px){.crm-form{grid-template-columns:repeat(2,minmax(0,1fr))}.crm-notes{grid-column:span 2}}@media(max-width:650px){.crm-hero{align-items:flex-start;flex-wrap:wrap;padding:18px}.crm-hero-total{width:100%;margin:0}.crm-list-heading{align-items:stretch;flex-direction:column}.crm-toolbar{flex-direction:column;align-items:stretch}.crm-search{min-width:0}.crm-toolbar select{width:100%}.crm-form{grid-template-columns:1fr}.crm-notes{grid-column:auto}.crm-submit{justify-self:stretch;justify-content:center}}
 
 .crm-page :is(button,input,select,textarea,[tabindex="0"]):focus-visible{outline:3px solid #7565e8;outline-offset:2px}.crm-filter-label{display:grid;gap:4px;color:#6e778e;font-size:10px;font-weight:650}.crm-inline-error{margin:0 0 12px;color:#b54747;font-size:12px}.crm-error-state span{max-width:640px;overflow-wrap:anywhere;color:#b54747}.crm-error-state button,.crm-empty button{margin-top:4px}.crm-scroll-hint{display:none;margin:0 0 8px;color:#777f94;font-size:11px}.crm-spinner{width:20px;height:20px;border:2px solid #e5e3f4;border-top-color:#7565e8;border-radius:50%;animation:crm-spin .8s linear infinite}@keyframes crm-spin{to{transform:rotate(360deg)}}@media(max-width:650px){.crm-scroll-hint{display:block}.crm-table-wrap{max-width:100%;overscroll-behavior-x:contain}.crm-table{min-width:850px}.crm-panel{padding:16px}.crm-hero h1{font-size:22px}.crm-filter-label{width:100%}.crm-toolbar select{width:100%}}@media(prefers-reduced-motion:reduce){.crm-spinner{animation:none;border-top-color:#7565e8}}
+
+/* Enterprise CRM: put the pipeline workbench first and keep creation compact. */
+.crm-page { gap: 15px; color: var(--text, #202a3b); }
+.crm-hero {
+  gap: 14px;
+  padding: 18px 20px;
+  border-color: var(--line, #e5e8f1);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  box-shadow: none;
+}
+.crm-hero-icon { width: 42px; height: 42px; border-radius: 10px; }
+.crm-hero h1 { margin: 1px 0 4px; font-size: 25px; }
+.crm-hero p:not(.eyebrow) { font-size: 12px; }
+.crm-hero-total { padding: 10px 13px; border-radius: 9px; background: var(--surface, #fff); }
+.crm-panel { padding: 17px; border-radius: 11px; box-shadow: none; }
+.crm-panel-heading { margin-bottom: 13px; padding-bottom: 11px; border-bottom: 1px solid var(--line, #e5e8f1); }
+.crm-panel-heading h2 { font-size: 15px; }
+.crm-form { gap: 11px 13px; }
+.crm-form label, .crm-filter-label { gap: 5px; font-size: 11px; }
+.crm-form input, .crm-form select, .crm-form textarea, .crm-toolbar select {
+  min-height: 39px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border-color: var(--line, #dfe3ed);
+}
+.crm-search { min-height: 39px; border-radius: 7px; }
+.crm-search input { min-height: 37px; }
+.crm-table-wrap { border-radius: 8px; }
+.crm-table { font-size: 12px; }
+.crm-table th { padding: 10px 11px; background: #f6f7fa; }
+.crm-table td { padding: 10px 11px; }
+.crm-stage { padding: 4px 8px; }
+.crm-actions .small-button { min-height: 30px; }
+@media (max-width: 650px) {
+  .crm-hero { padding: 15px; }
+  .crm-panel { padding: 14px; }
+}
+
+/* Workbench layout: records stay visible while the selected opportunity is inspected. */
+.crm-opportunity-workbench { min-width: 0; }
+.crm-record-workspace { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, .8fr); align-items: start; gap: 12px; }
+.crm-record-list { min-width: 0; }
+.crm-record-list .crm-table-wrap { max-height: min(68vh, 690px); overflow: auto; }
+.crm-record-list .crm-table { min-width: 800px; }
+.crm-table tbody tr { cursor: pointer; }
+.crm-table tbody tr[aria-selected="true"] { background: color-mix(in srgb, #625bd0 8%, #fff); box-shadow: inset 3px 0 #625bd0; }
+.crm-table tbody tr:focus-visible { outline: 2px solid #625bd0; outline-offset: -2px; }
+.crm-record-detail { position: sticky; top: 12px; min-width: 0; padding: 16px; border: 1px solid var(--line, #e5e8f1); border-radius: 10px; background: var(--surface, #fff); }
+.crm-detail-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.crm-detail-heading h3 { margin: 6px 0 4px; font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
+.crm-detail-heading p { margin: 0; color: var(--muted, #7d8599); font-size: 12px; }
+.crm-detail-code { color: var(--muted, #7d8599); font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+.crm-detail-close { display: grid; place-items: center; min-width: 32px; min-height: 32px; padding: 0; }
+.crm-detail-fields { display: grid; gap: 0; margin: 13px 0; border-top: 1px solid var(--line, #e5e8f1); }
+.crm-detail-fields > div { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line, #e5e8f1); font-size: 11px; }
+.crm-detail-fields dt { color: var(--muted, #7d8599); }
+.crm-detail-fields dd { margin: 0; color: var(--text, #202a3b); font-weight: 650; text-align: right; }
+.crm-detail-notes { padding: 10px; border-radius: 7px; background: color-mix(in srgb, #625bd0 5%, #fff); font-size: 11px; }
+.crm-detail-notes p { margin: 5px 0 0; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.crm-detail-actions { display: grid; gap: 7px; margin-top: 13px; }
+.crm-detail-actions button { justify-content: center; }
+.crm-detail-placeholder { display: grid; justify-items: start; gap: 9px; padding: 12px 2px; color: var(--muted, #7d8599); font-size: 11px; line-height: 1.5; }
+.crm-detail-placeholder svg { color: #625bd0; }
+.crm-detail-placeholder b { color: var(--text, #202a3b); font-size: 13px; }
+.crm-new-action { flex: none; min-height: 38px; }
+.crm-modal-backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 18px; background: #18223566; }
+.crm-create-modal { width: min(760px, 100%); max-height: min(90vh, 800px); overflow: auto; }
+.crm-create-modal .crm-panel-heading { align-items: center; }
+.crm-create-modal .crm-panel-heading > button { flex: none; }
+@media (max-width: 1050px) {
+  .crm-record-workspace { grid-template-columns: minmax(0, 1fr); }
+  .crm-record-detail { position: static; }
+}
+@media (max-width: 650px) {
+  .crm-new-action { width: 100%; }
+  .crm-create-modal { padding: 14px; }
+  .crm-record-list .crm-table-wrap { max-height: 55vh; }
+}
+
+/* Dynamics 365 accent system. */
+.crm-page { --crm-accent: #0f6cbd; }
+.crm-hero-icon { background: #eaf3fb; color: #0f6cbd; }
+.crm-hero-total b { color: #0b4778; }
+.crm-stage { background: #eaf3fb; color: #0f548c; }
+.crm-stage-qualified { background: #eaf3fb; color: #0f548c; }
+.crm-stage-proposal, .crm-stage-negotiation { background: #fff5df; color: #946200; }
+.crm-stage-won { background: #e8f8f1; color: #168b65; }
+.crm-probability i span { background: #0f6cbd; }
+.crm-date svg, .crm-empty svg, .crm-detail-placeholder svg { color: #0f6cbd; }
+.crm-record-detail { border-top: 2px solid #0f6cbd; }
+.crm-table tbody tr[aria-selected="true"] { background: #eaf3fb; box-shadow: inset 3px 0 #0f6cbd; }
+.crm-table tbody tr:focus-visible, .crm-page :is(button,input,select,textarea,[tabindex="0"]):focus-visible { outline-color: #0f6cbd; }
+.crm-form :is(input,select,textarea):focus, .crm-toolbar select:focus { border-color: #0f6cbd; box-shadow: 0 0 0 2px #0f6cbd24; }
+.crm-detail-notes { background: #f4f8fc; }

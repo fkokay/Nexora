@@ -86,6 +86,7 @@ export default function ModuleMarketplacePage({ token, role }: { token: string; 
   const [notice, setNotice] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'available' | 'blocked'>('all')
+  const [selectedModuleCode, setSelectedModuleCode] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -131,6 +132,11 @@ export default function ModuleMarketplacePage({ token, role }: { token: string; 
   })
   const activeCount = items.filter(item => item.isActivated).length
   const availableCount = items.filter(item => !item.isActivated && item.runtimeStatus === 'Ready').length
+  const selectedModule = filteredItems.find(item => item.moduleCode === selectedModuleCode) ?? filteredItems[0] ?? null
+  useEffect(() => {
+    if (!filteredItems.length) setSelectedModuleCode('')
+    else if (!filteredItems.some(item => item.moduleCode === selectedModuleCode)) setSelectedModuleCode(filteredItems[0].moduleCode)
+  }, [filteredItems, selectedModuleCode])
 
   return <main className="module-marketplace-page">
     <div className="page-heading customer-heading">
@@ -140,6 +146,7 @@ export default function ModuleMarketplacePage({ token, role }: { token: string; 
     {error && <div className="alert marketplace-alert" role="alert"><span>{error}</span><button className="secondary small-button" type="button" onClick={() => void load()} disabled={loading}>Yeniden dene</button></div>}
     {notice && <div className="notice" role="status">{notice}</div>}
     <div className="boundary-note marketplace-runtime-note"><ShieldCheck size={17} aria-hidden="true"/><span>Güven sınırı: imza ve ABI doğrulaması uygulanır. Kod, dosya/ağ/veritabanı erişimi kapalı PluginHost’ta 64 MiB bellek ve 20 milyon Wasmtime yakıt sınırıyla çalışır. Eylemler manifestte tanımlıdır ve her çağrı tenant izin denetimine tabidir. Menü metadata’sı ERP gezinmesine henüz bağlanmadı.</span></div>
+    <section className="marketplace-kpis" aria-label="Modül kataloğu özeti"><article><span>Katalog modülü</span><b>{items.length}</b><small>Yayımlanmış paket</small></article><article><span>Tenant’ta etkin</span><b>{activeCount}</b><small>Etkin modül</small></article><article><span>Etkinleştirilebilir</span><b>{availableCount}</b><small>Runtime hazır</small></article><article><span>Runtime engelli</span><b>{items.filter(item => item.runtimeStatus !== 'Ready').length}</b><small>Hazır olmayan paket</small></article></section>
     {!loading && error && items.length === 0 ? <section className="panel marketplace-empty" aria-live="polite"><span className="marketplace-empty-icon"><PackageOpen size={24} aria-hidden="true"/></span><h2>Katalog yüklenemedi</h2><p>Modül listesini alamadık. Bağlantıyı kontrol edip yeniden deneyin.</p><button className="primary small-button" type="button" onClick={() => void load()}>Tekrar dene</button></section> : <>
       <section className="marketplace-toolbar" aria-label="Modül kataloğu filtreleri">
         <label className="marketplace-search"><span>Katalogda ara</span><span className="marketplace-search-control"><Search size={16} aria-hidden="true"/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Modül adı, kodu veya yayıncı" aria-label="Modül adı, kodu veya yayıncıya göre ara"/></span></label>
@@ -148,7 +155,7 @@ export default function ModuleMarketplacePage({ token, role }: { token: string; 
         </select></label>
         <div className="marketplace-result-count" aria-live="polite">{loading ? 'Katalog yükleniyor…' : `${filteredItems.length} / ${items.length} modül`}</div>
       </section>
-      {loading && items.length === 0 ? <div className="marketplace-loading" role="status" aria-live="polite"><span className="marketplace-spinner" aria-hidden="true"/>Yayımlanmış modüller yükleniyor…</div> : items.length === 0 ? <section className="panel marketplace-empty"><span className="marketplace-empty-icon"><PackageOpen size={24} aria-hidden="true"/></span><h2>Henüz yayımlanmış modül yok</h2><p>Platform yayın yöneticisi bir modülü yayımladığında katalogda görünür.</p></section> : filteredItems.length === 0 ? <section className="panel marketplace-empty"><span className="marketplace-empty-icon"><Search size={24} aria-hidden="true"/></span><h2>Aramanızla eşleşen modül yok</h2><p>Arama terimini veya durum filtresini değiştirip yeniden deneyin.</p><button className="secondary small-button" type="button" onClick={() => { setQuery(''); setStatusFilter('all') }}>Filtreleri temizle</button></section> : <div className="module-marketplace-grid" aria-busy={loading}>
+      {loading && items.length === 0 ? <div className="marketplace-loading" role="status" aria-live="polite"><span className="marketplace-spinner" aria-hidden="true"/>Yayımlanmış modüller yükleniyor…</div> : items.length === 0 ? <section className="panel marketplace-empty"><span className="marketplace-empty-icon"><PackageOpen size={24} aria-hidden="true"/></span><h2>Henüz yayımlanmış modül yok</h2><p>Platform yayın yöneticisi bir modülü yayımladığında katalogda görünür.</p></section> : filteredItems.length === 0 ? <section className="panel marketplace-empty"><span className="marketplace-empty-icon"><Search size={24} aria-hidden="true"/></span><h2>Aramanızla eşleşen modül yok</h2><p>Arama terimini veya durum filtresini değiştirip yeniden deneyin.</p><button className="secondary small-button" type="button" onClick={() => { setQuery(''); setStatusFilter('all') }}>Filtreleri temizle</button></section> : <div className="marketplace-workbench"><div className="module-marketplace-grid" aria-busy={loading}>
       {filteredItems.map(item => {
         const displayName = item.manifest?.displayName || item.moduleCode
         const publisher = item.manifest?.publisher || item.publisher
@@ -161,7 +168,7 @@ export default function ModuleMarketplacePage({ token, role }: { token: string; 
           : 'Belirtilmemiş'
         return <article className="panel marketplace-card" key={`${item.moduleCode}@${item.version}`} aria-labelledby={`marketplace-title-${item.moduleCode}-${item.version}`}>
           <div className="marketplace-card-top"><span className="marketplace-module-icon"><Boxes size={19} aria-hidden="true"/></span><span className={`marketplace-status ${item.runtimeStatus !== 'Ready' ? 'blocked' : item.isActivated ? 'enabled' : 'available'}`}>{status}</span></div>
-          <p className="eyebrow">{item.moduleCode}</p><h2 id={`marketplace-title-${item.moduleCode}-${item.version}`}>{displayName}</h2><p className="marketplace-description">{publisher} tarafından yayımlandı</p>
+          <button type="button" className="marketplace-record-select" aria-pressed={selectedModule?.moduleCode===item.moduleCode} onClick={()=>setSelectedModuleCode(item.moduleCode)}>Ayrıntıyı aç</button><p className="eyebrow">{item.moduleCode}</p><h2 id={`marketplace-title-${item.moduleCode}-${item.version}`}>{displayName}</h2><p className="marketplace-description">{publisher} tarafından yayımlandı</p>
           <div className="marketplace-version-row"><span className="marketplace-version">Yayımlanan <b>v{item.version}</b></span>{item.isActivated && <span className="marketplace-version">Tenant <b>v{item.activatedVersion || '—'}</b></span>}</div>
           <div className="marketplace-meta"><span>Platform ≥ {item.manifest?.minimumPlatformVersion || '—'}</span><span>{item.manifest?.dependencies.length || 0} bağımlılık</span><span>{item.manifest?.permissions.length || 0} izin</span><span>{item.manifest?.menuEntries.length || 0} eylem</span></div>
           <details className="marketplace-details"><summary>Modül ayrıntıları</summary>
@@ -181,7 +188,7 @@ export default function ModuleMarketplacePage({ token, role }: { token: string; 
           </div>}</div>
         </article>
       })}
-      </div>}
+      </div><aside className="marketplace-inspector" aria-label="Seçili modül ayrıntısı">{selectedModule ? <><div className="marketplace-inspector-title"><span className="marketplace-module-icon"><Boxes size={18} aria-hidden="true"/></span><div><p className="eyebrow">SEÇİLİ MODÜL</p><h2>{selectedModule.manifest?.displayName || selectedModule.moduleCode}</h2><small>{selectedModule.moduleCode} · v{selectedModule.version}</small></div></div><div className="marketplace-inspector-status"><span>Runtime</span><b className={selectedModule.runtimeStatus === 'Ready' ? 'ready' : 'blocked'}>{selectedModule.runtimeStatus}</b></div><dl><div><dt>Yayıncı</dt><dd>{selectedModule.manifest?.publisher || selectedModule.publisher}</dd></div><div><dt>Tenant sürümü</dt><dd>{selectedModule.isActivated ? selectedModule.activatedVersion || '—' : 'Etkin değil'}</dd></div><div><dt>Minimum platform</dt><dd>{selectedModule.manifest?.minimumPlatformVersion || '—'}</dd></div><div><dt>Paket SHA-256</dt><dd className="marketplace-hash" title={selectedModule.artifactSha256}>{selectedModule.artifactSha256 || 'Belirtilmemiş'}</dd></div></dl>{!!selectedModule.manifest?.dependencies.length && <section><b>Bağımlılıklar</b><ul>{selectedModule.manifest.dependencies.map(dependency => <li key={dependency.moduleCode}>{dependency.moduleCode} ≥ {dependency.minimumVersion}</li>)}</ul></section>}{!!selectedModule.manifest?.permissions.length && <section><b>İzin kapsamı</b><ul>{selectedModule.manifest.permissions.map(permission => <li key={permission.code}><code>{permission.code}</code><small>{permission.description}</small></li>)}</ul></section>}{selectedModule.isActivated && <ModuleInvokePanel item={selectedModule} token={token}/>}</> : <div className="marketplace-empty">Ayrıntıyı görmek için modül seçin.</div>}</aside></div>}
     </>}
   </main>
 }

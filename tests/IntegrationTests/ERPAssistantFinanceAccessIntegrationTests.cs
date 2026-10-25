@@ -24,6 +24,42 @@ public sealed class ERPAssistantFinanceAccessIntegrationTests
     private static readonly DateOnly From = new(2026, 1, 1);
 
     [Fact]
+    public async Task Financial_account_balance_tool_requires_active_tenant_finance_account_read_permission()
+    {
+        var options = new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseInMemoryDatabase($"assistant-financial-account-access-{Guid.NewGuid():N}").Options;
+        await using var db = new PlatformDbContext(options);
+        var tenantA = new Tenant { Id = TenantA, Name = "Synthetic A", Slug = "assistant-account-a" };
+        var tenantB = new Tenant { Id = TenantB, Name = "Synthetic B", Slug = "assistant-account-b" };
+        var userA = new AppUser { Id = UserA, Email = "account-user@example.test" };
+        var userB = new AppUser { Id = UserB, Email = "other-account-user@example.test" };
+        db.Tenants.AddRange(tenantA, tenantB);
+        db.Users.AddRange(userA, userB);
+        db.TenantMemberships.AddRange(
+            new TenantMembership { Tenant = tenantA, TenantId = TenantA, User = userA, UserId = UserA, Role = "FinanceUser" },
+            new TenantMembership { Tenant = tenantB, TenantId = TenantB, User = userB, UserId = UserB, Role = "FinanceUser" });
+        var permission = new PermissionDefinition
+        {
+            Code = "erp.finance-accounts.read", ResourceType = "erp.finance-accounts", Action = "read",
+            Description = "Synthetic finance account read permission"
+        };
+        db.PermissionDefinitions.Add(permission);
+        db.TenantPermissionRules.Add(new TenantPermissionRule
+        {
+            Tenant = tenantA, TenantId = TenantA, SubjectType = TenantPermissionSubjectType.Role,
+            SubjectRole = "FinanceUser", Permission = permission, PermissionCode = permission.Code,
+            Effect = TenantPermissionEffect.Allow
+        });
+        await db.SaveChangesAsync();
+
+        var authorizer = new PlatformPermissionAuthorizer(db);
+        Assert.True(await ERPAssistantFinancialAccountTools.IsReadAllowedAsync(TenantA, UserA,
+            "FinanceUser", authorizer, CancellationToken.None));
+        Assert.False(await ERPAssistantFinancialAccountTools.IsReadAllowedAsync(TenantB, UserB,
+            "FinanceUser", authorizer, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Cash_forecast_tool_uses_active_tenant_finance_read_permission()
     {
         var options = new DbContextOptionsBuilder<PlatformDbContext>()

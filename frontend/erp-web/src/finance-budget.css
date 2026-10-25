@@ -363,3 +363,53 @@ html[data-theme="dark"] .finance-budget-page .budget-empty strong { color: var(-
 html[data-theme="dark"] .finance-budget-page .budget-load-error { border-color: #704448; background: #302125; }
 html[data-theme="dark"] .finance-budget-page .budget-load-error strong { color: #f3aaaa; }
 html[data-theme="dark"] .finance-budget-page .budget-currency-warning { border-color: #66552c; background: #302b1d; color: #f4dfaa; }
+
+/* Ledger workbench: keep plan selection, entry capture and review in a clear
+   hierarchy while increasing useful information density. */
+.finance-budget-page {
+  container: finance-budget / inline-size;
+  gap: 16px;
+}
+.finance-budget-page > .page-heading {
+  align-items: flex-start;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--erp-border, #e2e6ef);
+}
+.finance-budget-page > .panel,
+.finance-budget-page .budget-layout > .panel {
+  padding: 18px;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgb(28 39 60 / 4%);
+}
+.finance-budget-page .budget-list .panel-heading,
+.finance-budget-page .budget-editor .panel-heading,
+.finance-budget-page .budget-detail .panel-heading {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--erp-border, #e2e6ef);
+}
+.finance-budget-page .budget-plan-list { max-height: min(62vh, 680px); }
+.finance-budget-page .budget-plan-item { border-radius: 8px; }
+.finance-budget-page .budget-entry-row {
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--erp-surface, #fff) 90%, var(--surface-muted, #f3f5fb));
+}
+.finance-budget-page .budget-ledger-wrap {
+  border: 1px solid var(--erp-border, #e2e6ef);
+  border-radius: 9px;
+  scrollbar-width: thin;
+}
+.finance-budget-page .budget-ledger { border-collapse: separate; border-spacing: 0; }
+.finance-budget-page .budget-ledger thead { position: sticky; top: 0; z-index: 1; }
+.finance-budget-page .budget-ledger th {
+  background: var(--surface-muted, #f6f7fa);
+  color: var(--erp-muted, #697386);
+  font-size: 11px;
+}
+.finance-budget-page .budget-ledger td { padding-block: 11px; }
+.finance-budget-page .budget-state { border-style: dashed; }
+@container finance-budget (max-width: 760px) {
+  .finance-budget-page .budget-layout { grid-template-columns: minmax(0, 1fr); }
+  .finance-budget-page .budget-plan-list { max-height: 320px; }
+}
+html[data-theme="dark"] .finance-budget-page .budget-entry-row { background: #202638; }
+html[data-theme="dark"] .finance-budget-page .budget-ledger th { background: #202638; }

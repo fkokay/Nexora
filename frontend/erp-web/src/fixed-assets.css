@@ -286,9 +286,137 @@
   .fixed-assets-page .heading-actions .primary { width: 100%; }
 }
 
+.fixed-assets-page .fixed-asset-page-actions { display: flex; align-items: center; gap: 8px; }
+.fixed-assets-page .fixed-asset-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+.fixed-assets-page .fixed-asset-metrics article {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 13px 15px;
+  border: 1px solid var(--erp-border, #e2e6ef);
+  border-radius: 9px;
+  background: var(--erp-surface, #fff);
+}
+.fixed-assets-page .fixed-asset-metrics span,
+.fixed-assets-page .fixed-asset-metrics small { color: var(--erp-muted, #697386); font-size: 11px; }
+.fixed-assets-page .fixed-asset-metrics strong {
+  overflow: hidden;
+  color: var(--erp-text, #273047);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+.fixed-assets-page .fixed-asset-register-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 250px);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.fixed-assets-page .fixed-asset-register-toolbar label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--erp-muted, #697386);
+  font-size: 11px;
+  font-weight: 600;
+}
+.fixed-assets-page .fixed-asset-register-toolbar input,
+.fixed-assets-page .fixed-asset-register-toolbar select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--erp-border, #e2e6ef);
+  border-radius: 7px;
+  background: var(--erp-surface, #fff);
+  color: var(--erp-text, #273047);
+  font: inherit;
+}
+html[data-theme="dark"] .fixed-assets-page .fixed-asset-metrics article { background: var(--erp-surface, #1b2130); }
+html[data-theme="dark"] .fixed-assets-page .fixed-asset-metrics strong { color: var(--erp-text, #e6e9f1); }
+@container fixed-assets (max-width: 620px) {
+  .fixed-assets-page .fixed-asset-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fixed-assets-page .fixed-asset-register-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .fixed-assets-page .fixed-asset-page-actions { flex-wrap: wrap; }
+}
+
 html[data-theme="dark"] .fixed-assets-page .fixed-asset-form .form-two small,
 html[data-theme="dark"] .fixed-assets-page .fixed-asset-disposal-summary,
 html[data-theme="dark"] .fixed-assets-page .heading-actions label { color: var(--erp-muted); }
+
+/* ERP register-first layout: compact, predictable form columns and a readable
+   asset ledger that stays inside the working area. */
+.fixed-assets-page > .page-heading {
+  align-items: flex-start;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--erp-border, #e2e6ef);
+}
+.fixed-assets-page > .page-heading .eyebrow { margin-bottom: 5px; }
+.fixed-assets-page > section.panel {
+  padding: 18px;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgb(28 39 60 / 4%);
+}
+.fixed-assets-page .panel-heading {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--erp-border, #e2e6ef);
+}
+.fixed-assets-page .fixed-asset-form-section {
+  padding: 13px 14px 15px;
+  background: var(--erp-surface, #fff);
+}
+.fixed-assets-page .fixed-asset-form-section h4 {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--erp-border, #e2e6ef);
+}
+.fixed-assets-page .fixed-asset-form :is(input, select),
+.fixed-assets-page .collection-form :is(input, select),
+.fixed-assets-page .heading-actions :is(input, select) {
+  min-width: 0;
+  max-width: 100%;
+}
+.fixed-assets-page .form-three > label,
+.fixed-assets-page .fixed-asset-form .form-two > label {
+  color: var(--erp-text, #273047);
+}
+.fixed-assets-page .fixed-asset-register-table {
+  min-width: 1080px;
+  table-layout: auto;
+}
+.fixed-assets-page .customer-table th {
+  padding-block: 10px;
+  background: var(--surface-muted, #f6f7fa);
+  color: var(--erp-muted, #697386);
+  font-size: 10px;
+  font-weight: 700;
+}
+.fixed-assets-page .customer-table td { padding-block: 10px; }
+.fixed-assets-page .customer-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface-muted, #f3f5fb) 72%, transparent);
+}
+.fixed-assets-page .fixed-asset-selected td {
+  background: color-mix(in srgb, var(--erp-primary, #7564e8) 7%, var(--erp-surface, #fff));
+}
+.fixed-assets-page .fixed-asset-inline-note { background: var(--surface-muted, #f6f7fa); }
+
+html[data-theme="dark"] .fixed-assets-page .fixed-asset-form-section,
+html[data-theme="dark"] .fixed-assets-page .fixed-asset-inline-note {
+  background: var(--erp-surface, #1b2130);
+}
+html[data-theme="dark"] .fixed-assets-page .customer-table th {
+  background: #202638;
+}
+
+@container fixed-assets (max-width: 560px) {
+  .fixed-assets-page > section.panel { padding: 14px; }
+  .fixed-assets-page .fixed-asset-form-section { padding: 11px; }
+}
 
 /* Keep the register and detail lists inside the available page column. */
 .fixed-assets-page {

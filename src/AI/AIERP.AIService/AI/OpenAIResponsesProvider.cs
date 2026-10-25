@@ -22,7 +22,7 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
         "search_stock_items", "list_warehouses", "get_warehouse_balances",
         "search_customer_accounts", "get_customer_balance", "get_supplier_balance", "get_exchange_rate", "search_sales_orders", "search_purchase_orders", "get_report_schema", "generate_report",
         "get_hr_leave_summary", "get_hr_attendance_summary", "search_sales_invoices", "search_purchase_invoices", "get_cash_flow_forecast",
-        "search_fixed_assets"
+        "search_fixed_assets", "get_financial_account_balances"
     };
     private static readonly object PlanSchema = new
     {
@@ -488,9 +488,11 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
                     months = new { type = "integer", minimum = 1, maximum = 12 }
                 }, required = new[] { "from", "months" } } }
             ,new { type = "function", name = "search_fixed_assets", description = "Search tenant-authorized fixed assets by asset code, name, or category. Returns up to 25 matching records with acquisition cost, recorded accumulated depreciation, and derived base-currency book value. It omits supplier and invoice identities; this is operational book value, not tax or statutory valuation.", strict = true,
-                parameters = new { type = "object", additionalProperties = false, properties = new { term = new { type = "string", minLength = 2, maxLength = 100 } }, required = new[] { "term" } } }
+                parameters = new { type = "object", additionalProperties = false, properties = new { term = new { type = "string", minLength = 2, maxLength = 100 } }, required = new[] { "term" } } },
+            new { type = "function", name = "get_financial_account_balances", description = "Read aggregate cash and bank account balances for the authorized tenant. Returns bounded totals grouped by account type and currency only; never returns account names, codes, identifiers, or bank details. Values are recorded transaction balances, not bank-statement reconciliation or cleared-funds confirmation. Keep currencies separate.", strict = true,
+                parameters = new { type = "object", additionalProperties = false, properties = new { }, required = Array.Empty<string>() } }
         };
-        var input = new List<object> { new { role = "system", content = systemPrompt + " For get_cash_flow_forecast, require an explicit month-start date and 1–12 month horizon. Its amounts are aggregated forecasts, not posted/guaranteed cash, and planned amounts can overlap invoice or instrument projections; report this limitation when relevant. Preserve each currency and never combine different currencies." } };
+        var input = new List<object> { new { role = "system", content = systemPrompt + " For get_cash_flow_forecast, require an explicit month-start date and 1–12 month horizon. Its amounts are aggregated forecasts, not posted/guaranteed cash, and planned amounts can overlap invoice or instrument projections; report this limitation when relevant. For get_financial_account_balances, describe the result as recorded cash/bank transaction balances, not reconciliation or cleared funds. Preserve each currency and never combine different currencies." } };
         input.AddRange(history.Select(turn => (object)new { role = turn.Role, content = turn.Content }));
         input.Add(new { role = "user", content = question.Trim() });
 

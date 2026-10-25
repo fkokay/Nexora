@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, LayoutDashboard, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { Activity, Boxes, ChevronDown, ChevronUp, LayoutDashboard, Plus, RefreshCw, ShoppingCart, Trash2, TrendingUp } from 'lucide-react'
 import './dashboard-widgets.css'
 
 type SavedReport = { id: string; name: string; source: string }
@@ -13,6 +13,26 @@ function display(value: unknown) {
   if (typeof value === 'boolean') return value ? 'Evet' : 'Hayır'
   if (typeof value === 'number') return new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 2 }).format(value)
   return String(value)
+}
+
+type InsightRow = { label: string; count: number; value: string; amount: number }
+function insightRows(result: ReportResult | undefined): InsightRow[] {
+  if (!result) return []
+  if (result.groups.length) return result.groups.slice(0, 6).map((group, index) => {
+    const groupValue = (group.groupValues ?? [group.groupValue]).map(display).filter(Boolean).join(' · ')
+    const amount = typeof group.value === 'number' && Number.isFinite(group.value) ? Math.abs(group.value) : group.rowCount
+    return { label: groupValue || `Grup ${index + 1}`, count: group.rowCount, value: group.value == null ? `${group.rowCount} kayıt` : display(group.value), amount }
+  })
+  const labelCodes = /date|period|month|year|quarter|warehouse|category|name|status|code|group/i
+  return result.rows.slice(0, 6).map((row, index) => {
+    const labelColumn = result.columns.find(column => labelCodes.test(column.code)) ?? result.columns[0]
+    const numericColumn = result.columns.find(column => typeof row[column.code] === 'number')
+    const rawLabel = labelColumn ? row[labelColumn.code] : undefined
+    const label = rawLabel == null || rawLabel === '' ? `Kayıt ${index + 1}` : display(rawLabel)
+    const rawValue = numericColumn ? row[numericColumn.code] : null
+    const amount = typeof rawValue === 'number' && Number.isFinite(rawValue) ? Math.abs(rawValue) : 1
+    return { label, count: 1, value: rawValue == null ? '1 kayıt' : display(rawValue), amount }
+  })
 }
 
 export default function DashboardWidgets({ token, role, requestApi }: {
@@ -108,6 +128,19 @@ export default function DashboardWidgets({ token, role, requestApi }: {
 
   const ordered = [...widgets].sort((a, b) => a.position - b.position)
   const availableReports = reports.filter(report => !widgets.some(widget => widget.savedReportId === report.id))
+  const insightPanels = [
+    { key: 'sales', title: 'Satış eğilimi', note: 'Satış raporlarındaki mevcut gruplar', icon: TrendingUp, sources: ['salesOrders', 'salesInvoices', 'salesQuotes', 'salesDeliveries', 'salesReturns'] },
+    { key: 'purchases', title: 'Satın alma eğilimi', note: 'Satın alma raporlarındaki mevcut gruplar', icon: ShoppingCart, sources: ['purchaseOrders', 'purchaseInvoices', 'purchaseReceipts', 'purchaseRequests', 'purchaseSupplierQuotes', 'supplierReturns'] },
+    { key: 'stock', title: 'Stok dağılımı', note: 'Stok ve depo raporlarındaki mevcut gruplar', icon: Boxes, sources: ['warehouseStock', 'stockItems', 'inventoryTransactions', 'inventoryTransfers'] },
+  ] as const
+  const reportRowCount = Object.values(previews).reduce((total, preview) => total + preview.rows.length + preview.groups.length, 0)
+  const previewErrors = Object.values(previewStatus).filter(value => value === 'error').length
+
+  function focusAddWidget() {
+    const selector = document.querySelector<HTMLSelectElement>('.dashboard-widget-add select')
+    selector?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    selector?.focus({ preventScroll: true })
+  }
 
   return <section className="dashboard-widgets">
     <div className="dashboard-widgets-heading">
@@ -117,7 +150,10 @@ export default function DashboardWidgets({ token, role, requestApi }: {
         {availableReports.map(report => <option key={report.id} value={report.id}>{report.name}</option>)}
       </select><button className="primary small-button" onClick={() => void addWidget()} disabled={busy || !selectedReport}><Plus size={15}/> Widget ekle</button></div>}
     </div>
+    <div className="dashboard-commandbar"><div className="dashboard-commandbar-label"><span>ÇALIŞMA ALANI ÖZETİ</span><b>{busy ? 'Raporlar güncelleniyor…' : `${ordered.length} widget · ${reports.length} kayıtlı rapor`}</b></div><div className="dashboard-quick-actions"><span>Hızlı işlemler</span><button type="button" className="secondary small-button" onClick={() => void load()} disabled={busy}><RefreshCw size={14}/> Yenile</button>{canEdit&&<button type="button" className="secondary small-button" onClick={focusAddWidget} disabled={busy||availableReports.length===0}><Plus size={14}/> Rapor widget’ı ekle</button>}</div></div>
+    <section className="dashboard-kpis" aria-label="Dashboard göstergeleri" aria-live="polite"><article><span>Dashboard widget’ı</span><b>{ordered.length}<small> / 12</small></b><i><LayoutDashboard size={16}/></i></article><article><span>Kayıtlı rapor</span><b>{reports.length}</b><i><Activity size={16}/></i></article><article><span>Görüntülenen veri grubu</span><b>{reportRowCount}</b><i><TrendingUp size={16}/></i></article><article className={previewErrors?'has-errors':''}><span>Önizleme sorunu</span><b>{previewErrors}</b><i><RefreshCw size={16}/></i></article></section>
     {error && <div className="dashboard-widget-error" role="alert">{error}</div>}
+    {ordered.length>0&&<section className="dashboard-insights" aria-label="Satış, satın alma ve stok özeti">{insightPanels.map(panel=>{const sources=ordered.filter(widget=>panel.sources.some(source=>source===widget.source));const entries=sources.flatMap(widget=>insightRows(previews[widget.id]).map(row=>({...row,widgetName:widget.name,widgetId:widget.id})));const maxValue=Math.max(1,...entries.map(row=>row.amount));return <article className={`dashboard-insight-panel ${panel.key}`} key={panel.key}><header><span className="dashboard-insight-icon"><panel.icon size={17}/></span><div><h3>{panel.title}</h3><small>{panel.note}</small></div><b className="dashboard-insight-count">{sources.length}</b></header>{sources.length===0?<div className="dashboard-insight-empty">Bu alana ait rapor widget’ı eklenmemiş.</div>:entries.length===0?<div className="dashboard-insight-empty">{sources.some(widget=>previewStatus[widget.id]==='loading')?'Rapor verisi yükleniyor…':sources.some(widget=>previewStatus[widget.id]==='error')?'Rapor önizlemesi alınamadı. Widget kartındaki yeniden dene eylemini kullanın.':'Seçili raporlarda gösterilecek veri yok.'}</div>:<div className="dashboard-insight-rows">{entries.slice(0,6).map((row,index)=><div className="dashboard-insight-row" key={`${row.widgetId}-${row.label}-${index}`}><div className="dashboard-insight-row-copy"><span title={row.label}>{row.label}</span><small>{row.widgetName} · {row.count} kayıt</small></div><b>{row.value}</b><i><span style={{width:`${Math.max(5,Math.round(row.amount/maxValue*100))}%`}}/></i></div>)}</div>}<small className="dashboard-insight-footnote">Görünüm kayıtlı raporun filtre ve gruplamasını izler; değerler yeni bir toplama hesabı değildir.</small></article>})}</section>}
     {ordered.length === 0 ? <div className="dashboard-widget-empty"><LayoutDashboard size={20}/><div><b>Henüz dashboard widget’ı yok</b><span>Önce Rapor oluşturucu’da bir rapor kaydedin, ardından bu alandan ekleyin.</span></div></div> :
       <div className="dashboard-widget-grid">{ordered.map((widget, index) => {
         const preview = previews[widget.id]

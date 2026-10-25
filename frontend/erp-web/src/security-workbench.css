@@ -1,0 +1,42 @@
+/* Fluent-style master/detail surfaces scoped to security and audit pages. */
+.access-control-page .access-members-panel,.access-control-page>.panel{border:1px solid #d9e2f0;border-radius:8px;box-shadow:0 1px 2px #172b4d0d}
+.access-control-page .access-members-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,310px);gap:0 14px;align-items:start}
+.access-control-page .access-members-panel>.panel-heading,.access-control-page .access-members-panel>.access-member-search,.access-control-page .access-members-panel>.access-member-candidate{grid-column:1/-1}
+.access-control-page .panel-heading{align-items:center;padding-bottom:10px;border-bottom:1px solid #e5ebf3}
+.access-control-page .access-member-search{display:flex;align-items:flex-end;gap:8px;padding:12px 0;border-bottom:1px solid #e5ebf3}
+.access-control-page .access-member-search label{flex:1;max-width:440px}
+.access-control-page .access-member-list{grid-column:1;min-width:0}
+.access-control-page .access-member-row{grid-column:1;display:grid;grid-template-columns:minmax(170px,1fr) minmax(130px,190px) auto;align-items:center;gap:10px;padding:9px 10px;margin:0;border:0;border-bottom:1px solid #e5ebf3;border-radius:0;cursor:pointer}
+.access-control-page .access-member-row:hover,.access-control-page .access-member-row.security-selected-row{background:#edf4ff}
+.security-selected-row{border-color:#8ab8f2!important;background:#eaf2ff!important}
+.security-record-pane{min-width:0;padding:13px;border:1px solid #d9e2f0;border-radius:8px;background:#f8fafc;color:#334155}
+.access-control-page .access-members-panel>.security-record-pane{grid-column:2;grid-row:3;position:sticky;top:90px}
+.security-record-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding-bottom:10px;border-bottom:1px solid #dfe7f1;color:#1e3a5f}
+.security-record-heading>div>span{color:#2563a6;font-size:10px;font-weight:750;letter-spacing:.08em}
+.security-record-heading h3{margin:4px 0;font-size:15px;color:#172b4d;overflow-wrap:anywhere}
+.security-record-heading small{font-size:11px;color:#64748b;overflow-wrap:anywhere}
+.security-record-pane dl{display:grid;gap:7px;margin:11px 0}
+.security-record-pane dl div{display:grid;grid-template-columns:minmax(95px,.7fr) minmax(0,1.3fr);gap:8px;padding:7px 8px;border:1px solid #e3eaf2;border-radius:5px;background:white}
+.security-record-pane dt{font-size:10px;color:#64748b}.security-record-pane dd{margin:0;font-size:11px;font-weight:650;color:#233b5b;overflow-wrap:anywhere}
+.security-record-pane p{margin:10px 0 0;font-size:11px;line-height:1.45;color:#64748b}
+.access-control-page>section.panel:last-of-type{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,310px);gap:0 14px;align-items:start}
+.access-control-page>section.panel:last-of-type>.panel-heading{grid-column:1/-1}
+.access-control-page>section.panel:last-of-type .requests-list{grid-column:1;display:block;border-top:1px solid #e5ebf3}
+.access-control-page>section.panel:last-of-type .request-row{margin:0;border:0;border-bottom:1px solid #e5ebf3;border-radius:0;cursor:pointer}
+.access-control-page>section.panel:last-of-type .request-row:hover,.access-control-page>section.panel:last-of-type .request-row.security-selected-row{background:#edf4ff}
+.access-control-page>section.panel:last-of-type>.security-record-pane{grid-column:2;grid-row:2;position:sticky;top:90px}
+.audit-log-page .audit-toolbar{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid #d9e2f0;border-radius:8px;background:#fff}
+.audit-log-page .audit-toolbar .customer-search{flex:1;min-width:200px}
+.audit-log-page .audit-date-filter{min-width:145px}
+.audit-log-page .audit-date-filter input{display:block;width:100%;height:30px;margin-top:3px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;padding:3px 7px;color:#334155;font:inherit;font-size:11px}
+.audit-log-page .audit-toolbar .secondary{min-height:32px}
+.audit-workbench{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,310px);gap:12px;align-items:start;margin-top:12px}
+.audit-workbench .erp-list-pane .customer-table-wrap{border:0;border-radius:0;overflow:auto}
+.audit-workbench .customer-table{min-width:640px}
+.audit-workbench .customer-table th{position:sticky;top:0;z-index:1;background:#f1f5f9;color:#475569;font-size:11px;white-space:nowrap}
+.audit-workbench .customer-table td{font-size:12px}
+.audit-workbench .customer-table tbody tr{cursor:pointer}
+.audit-workbench .customer-table tbody tr:hover td{background:#f3f8ff}
+.audit-detail-pane{position:sticky;top:90px}
+@media(max-width:900px){.audit-workbench{grid-template-columns:minmax(0,1fr)}.audit-detail-pane{position:static}.access-control-page .access-members-panel,.access-control-page>section.panel:last-of-type{grid-template-columns:minmax(0,1fr)}.access-control-page .access-members-panel>.security-record-pane,.access-control-page>section.panel:last-of-type>.security-record-pane{grid-column:1;grid-row:auto;position:static;margin-top:10px}}
+@media(max-width:680px){.access-control-page .access-member-search{align-items:stretch;flex-direction:column}.access-control-page .access-member-row{grid-template-columns:1fr}.audit-log-page .audit-toolbar{align-items:stretch;flex-wrap:wrap}.audit-log-page .audit-toolbar .customer-search{flex-basis:100%}}

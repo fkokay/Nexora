@@ -9,3 +9,70 @@
 .foreign-trade-list{padding:18px 20px;min-width:0}.foreign-trade-filters{display:flex;gap:8px;min-width:260px}.foreign-trade-filters input{min-width:150px}.foreign-trade-filters select{width:130px}.foreign-trade-list .table-wrap{overflow:auto}.foreign-trade-list table{width:100%;border-collapse:collapse;min-width:920px}.foreign-trade-list th,.foreign-trade-list td{padding:12px 10px;border-bottom:1px solid #edf0f5;text-align:left;vertical-align:middle;font-size:12px}.foreign-trade-list th{color:#8992a7;font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}.foreign-trade-list td small{display:block;color:#8992a7;margin-top:3px}.foreign-trade-list td svg{vertical-align:middle;color:#8b7bf1}.trade-direction,.trade-status{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}.trade-direction.import{background:#eef5ff;color:#2872cb}.trade-direction.export{background:#f2efff;color:#6b54d6}.trade-status{background:#f2f3f7;color:#687189}.trade-status.booked{background:#eef5ff;color:#2872cb}.trade-status.shipped,.trade-status.customsclearance{background:#fff4df;color:#a46a00}.trade-status.arrived,.trade-status.closed{background:#e9f8f1;color:#128456}.trade-status.cancelled{background:#fff0ef;color:#c84d4d}.foreign-trade-list .row-action{margin-left:5px}.foreign-trade-footnote{margin:0;color:#8992a7;font-size:11px}
 @media(max-width:900px){.foreign-trade-hero{align-items:flex-start;flex-wrap:wrap}.foreign-trade-hero-actions{width:100%;justify-content:flex-start}.foreign-trade-list .panel-heading{align-items:flex-start;flex-direction:column}.foreign-trade-filters{width:100%}}
 @media(max-width:620px){.foreign-trade-metrics{grid-template-columns:1fr}.foreign-trade-create .form-two,.foreign-trade-create .form-three{grid-template-columns:1fr}.foreign-trade-create .modal-foot{align-items:flex-start;flex-direction:column}.foreign-trade-filters{min-width:0;flex-direction:column}.foreign-trade-filters select{width:100%}}
+
+/* Foreign trade documents: status-led list, concise KPI strip, compact document forms. */
+.foreign-trade-page { gap: 14px; }
+.foreign-trade-hero {
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: 12px;
+  border-color: var(--line, #e2e5f3);
+  background: var(--surface, #fff);
+  box-shadow: none;
+}
+.foreign-trade-hero-icon { width: 44px; height: 44px; flex-basis: 44px; border-radius: 10px; box-shadow: none; }
+.foreign-trade-hero h1 { margin: 3px 0 4px; font-size: 26px; letter-spacing: -.025em; }
+.foreign-trade-hero p:not(.eyebrow) { font-size: 13px; }
+.foreign-trade-metrics { gap: 9px; }
+.foreign-trade-metrics article { min-height: 65px; padding: 10px 12px; border-radius: 9px; box-shadow: none; }
+.foreign-trade-metrics b { font-size: 18px; }
+.foreign-trade-create, .foreign-trade-list { padding: 16px; border-radius: 10px; box-shadow: none; }
+.foreign-trade-create .panel-heading, .foreign-trade-list .panel-heading { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.foreign-trade-create input, .foreign-trade-create select, .foreign-trade-create textarea,
+.foreign-trade-filters input, .foreign-trade-filters select { min-height: 39px; padding: 8px 10px; border-radius: 7px; }
+.foreign-trade-create label { gap: 5px; font-size: 11px; }
+.foreign-trade-list .table-wrap { border: 1px solid var(--line); border-radius: 8px; }
+.foreign-trade-list th, .foreign-trade-list td { padding: 10px; }
+.foreign-trade-list th { background: #f6f7fa; }
+.foreign-trade-access-note { border-radius: 8px; }
+
+/* Foreign trade workbench: filtered documents beside the active file details. */
+.foreign-trade-workspace { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(270px, .8fr); align-items: start; gap: 12px; }
+.foreign-trade-record-list { min-width: 0; }
+.foreign-trade-record-list .table-wrap { max-height: min(65vh, 680px); overflow: auto; }
+.foreign-trade-list table { min-width: 720px; }
+.foreign-trade-list tbody tr { cursor: pointer; }
+.foreign-trade-list tbody tr[aria-selected="true"] { background: color-mix(in srgb, #625bd0 8%, #fff); box-shadow: inset 3px 0 #625bd0; }
+.foreign-trade-list tbody tr:focus-visible { outline: 2px solid #625bd0; outline-offset: -2px; }
+.foreign-trade-detail { position: sticky; top: 10px; min-width: 0; padding: 14px; border: 1px solid var(--line, #e2e5f3); border-radius: 9px; background: var(--surface, #fff); }
+.foreign-trade-detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.foreign-trade-detail-head small { color: #79869a; font-size: 10px; font-weight: 700; }
+.foreign-trade-detail-head h3 { margin: 5px 0 0; font-size: 16px; }
+.foreign-trade-detail-head button { min-height: 32px; padding: 0 8px; }
+.foreign-trade-detail dl { margin: 0; border-top: 1px solid var(--line, #e2e5f3); }
+.foreign-trade-detail dl>div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line, #e2e5f3); font-size: 11px; }
+.foreign-trade-detail dt { color: #79869a; }
+.foreign-trade-detail dd { margin: 0; text-align: right; font-weight: 650; overflow-wrap: anywhere; }
+.foreign-trade-detail-notes { margin: 10px 0 0; padding: 9px; border-radius: 7px; background: #f6f7fb; font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.foreign-trade-detail-actions { display: grid; gap: 7px; margin-top: 12px; }
+.foreign-trade-detail-actions button { justify-content: center; }
+.foreign-trade-detail-empty { display: grid; gap: 8px; color: #8590a2; font-size: 11px; line-height: 1.5; }
+.foreign-trade-detail-empty svg { color: #625bd0; }
+.foreign-trade-detail-empty b { color: var(--text, #263448); font-size: 13px; }
+.foreign-trade-modal-backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 18px; background: #18223566; }
+.foreign-trade-create { width: min(760px, 100%); max-height: min(90vh, 850px); overflow: auto; }
+.foreign-trade-create .panel-heading { position: sticky; top: -16px; z-index: 1; background: var(--surface, #fff); }
+@media (max-width: 1000px) { .foreign-trade-workspace { grid-template-columns: minmax(0, 1fr); } .foreign-trade-detail { position: static; } }
+@media (max-width: 620px) { .foreign-trade-modal-backdrop { padding: 8px; } .foreign-trade-create { max-height: calc(100vh - 16px); } }
+
+/* Dynamics 365 accent system: active records and commands use Fluent blue. */
+.foreign-trade-hero-icon { background: #0f6cbd; }
+.foreign-trade-metrics article>span { background: #eaf3fb; color: #0f6cbd; }
+.foreign-trade-access-note { border-color: #d7e7f5; background: #f4f8fc; }
+.foreign-trade-access-note strong { color: #0f548c; }
+.foreign-trade-create :is(input,select,textarea):focus,
+.foreign-trade-filters :is(input,select):focus { outline-color: #0f6cbd24; border-color: #0f6cbd; }
+.foreign-trade-detail { border-top: 2px solid #0f6cbd; }
+.foreign-trade-list tbody tr[aria-selected="true"] { background: #eaf3fb; box-shadow: inset 3px 0 #0f6cbd; }
+.trade-direction.export { background: #eaf3fb; color: #0f548c; }
+.foreign-trade-detail-empty svg { color: #0f6cbd; }

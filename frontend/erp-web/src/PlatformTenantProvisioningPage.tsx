@@ -119,19 +119,24 @@ export default function PlatformTenantProvisioningPage({ token, api }: PlatformT
   }
 
   return <div className="page-heading platform-provisioning-page">
-    <div className="platform-provisioning-heading">
+    <div className="platform-provisioning-heading platform-provisioning-commandbar">
       <div>
         <p className="eyebrow">PLATFORM YÖNETİMİ</p>
         <h1>Yeni firma</h1>
         <p className="muted">Firma kaydı sıraya alınır. Veritabanı hazır olduğunda firma kullanıma açılır.</p>
       </div>
-      <span className="platform-provisioning-mark"><Building2 size={20}/></span>
+      <div className="platform-provisioning-command-actions"><span className="platform-provisioning-mark"><Building2 size={20}/></span><span className="platform-provisioning-security"><ShieldCheck size={15}/> Platform erişimi</span></div>
+    </div>
+
+    <div className="platform-provisioning-overview" aria-label="Firma hazırlama adımları">
+      <div className="is-current"><i>1</i><span><b>Firma tanımı</b><small>Kimlik ve ilk yönetici</small></span></div>
+      <div className={job?'is-current':''}><i>2</i><span><b>Veritabanı hazırlığı</b><small>Firmaya özel SQL alanı</small></span></div>
+      <div className={job?.status==='Completed'?'is-complete':''}><i>3</i><span><b>Kullanıma açılış</b><small>{job?.status==='Completed'?'Firma hazır':'Hazırlık tamamlanınca'}</small></span></div>
     </div>
 
     <div className="panel platform-provisioning-card">
       <div className="panel-heading">
-        <div><h3>Firma bilgileri</h3><p>İlk firma yöneticisi mevcut ve etkin bir kullanıcı olmalıdır.</p></div>
-        <span className="platform-provisioning-security"><ShieldCheck size={15}/> Platform erişimi</span>
+        <div><p className="eyebrow">YENİ KAYIT</p><h3>Firma bilgileri</h3><p>İlk firma yöneticisi mevcut ve etkin bir kullanıcı olmalıdır.</p></div>
       </div>
       <form className="platform-provisioning-form" onSubmit={submit}>
         <div className="form-two">
@@ -142,7 +147,7 @@ export default function PlatformTenantProvisioningPage({ token, api }: PlatformT
           <label>Temel para birimi<input value={form.baseCurrencyCode} onChange={event => update('baseCurrencyCode', event.target.value.slice(0, 3).toUpperCase())} maxLength={3} minLength={3} required/></label>
           <label>Firma yöneticisi e-posta<input type="email" value={form.adminEmail} onChange={event => update('adminEmail', event.target.value)} maxLength={320} required autoComplete="email"/></label>
         </div>
-        <label>Firma yöneticisi adı<input value={form.adminDisplayName} onChange={event => update('adminDisplayName', event.target.value)} maxLength={160} required autoComplete="name"/></label>
+        <label className="platform-provisioning-admin-name">Firma yöneticisi adı<input value={form.adminDisplayName} onChange={event => update('adminDisplayName', event.target.value)} maxLength={160} required autoComplete="name"/></label>
         <p className="platform-provisioning-note">Bu ekranda parola veya veritabanı bilgisi alınmaz. Yönetici hesabı önceden oluşturulmuş olmalıdır.</p>
         {error && <p className="platform-provisioning-error" role="alert"><CircleAlert size={16}/>{error}</p>}
         <div className="platform-provisioning-actions"><button className="primary" disabled={busy}>{busy ? <><LoaderCircle size={16} className="platform-provisioning-spin"/> İstek gönderiliyor…</> : 'Firma oluştur'}</button></div>

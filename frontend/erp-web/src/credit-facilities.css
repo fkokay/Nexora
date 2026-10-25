@@ -121,3 +121,40 @@
 html[data-theme="dark"] .credit-facilities-page .credit-overview-card,
 html[data-theme="dark"] .credit-facilities-page .credit-facility-card,
 html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { background: var(--erp-surface, #1b2130); }
+
+/* Compact Fluent finance workbench */
+.credit-facilities-page { gap: 12px; }
+.credit-facilities-page > .page-heading { align-items: center; margin: -18px -22px 2px; padding: 14px 20px; border-radius: 8px 8px 0 0; background: #123b64; color: #fff; }
+.credit-facilities-page > .page-heading .eyebrow,
+.credit-facilities-page > .page-heading h1,
+.credit-facilities-page > .page-heading .muted { color: #fff; }
+.credit-facilities-page > .page-heading .eyebrow { opacity: .78; }
+.credit-facilities-page > .page-heading h1 { margin: 2px 0 3px; font-size: 23px; letter-spacing: -.02em; }
+.credit-facilities-page > .page-heading .muted { margin: 0; color: #dce8f4; font-size: 12px; }
+.credit-facilities-page > .page-heading > button { border-color: #c7d8e8; background: #fff; color: #164c7b; }
+.credit-facilities-page .credit-overview { gap: 9px; }
+.credit-facilities-page .credit-overview-card,
+.credit-facilities-page .credit-facility-card { padding: 13px; border-radius: 8px; box-shadow: 0 1px 2px rgba(17, 46, 75, .05); }
+.credit-facilities-page .credit-overview-title { margin-bottom: 9px; }
+.credit-facilities-page .credit-overview-card dl > div,
+.credit-facilities-page .credit-balance-grid > div { padding: 8px; border-radius: 6px; background: #f1f5f9; }
+.credit-facilities-page .credit-overview-card .credit-overview-emphasis,
+.credit-facilities-page .credit-balance-grid .credit-balance-emphasis { border-color: #b8d5ec; background: #eaf4fb; }
+.credit-facilities-page .credit-overview-card dd,
+.credit-facilities-page .credit-balance-grid dd { font-size: 13px; }
+.credit-facilities-page .credit-filters { gap: 7px; padding: 9px; border-radius: 7px; background: #edf2f7; }
+.credit-facilities-page .credit-filters input,
+.credit-facilities-page .credit-filters select { height: 34px; border-radius: 5px; font-size: 12px; }
+.credit-facilities-page .credit-filters input:focus-visible,
+.credit-facilities-page .credit-filters select:focus-visible,
+.credit-facilities-page button:focus-visible,
+.credit-facilities-page .credit-table-wrap:focus-visible { outline-color: rgb(0 120 212 / 38%); }
+.credit-facilities-page .credit-facility-list { gap: 9px; }
+.credit-facilities-page .credit-card-main h3 { font-size: 14px; }
+.credit-facilities-page .credit-table-wrap { border-radius: 6px; }
+.credit-facilities-page .credit-table caption { padding: 8px 10px; }
+.credit-facilities-page .credit-table th { padding: 8px 10px; background: #edf2f7; color: #384d61; font-size: 10px; }
+.credit-facilities-page .credit-table td { padding: 8px 10px; font-size: 11px; }
+.credit-facilities-page .credit-row-actions .row-action { color: #075b9a; }
+.credit-facilities-page .credit-row-actions .row-action:hover { background: #e8f2fb; }
+.credit-facilities-page .credit-spinner { border-top-color: #0078d4; }

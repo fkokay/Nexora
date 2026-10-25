@@ -24,6 +24,7 @@ export default function TenantOperationalSettingsPage({ token, role, tenant, onN
   const [busy,setBusy]=useState('')
   const [errors,setErrors]=useState<Record<string,string>>({})
   const [notices,setNotices]=useState<Record<string,string>>({})
+  const [activeSetting,setActiveSetting]=useState<'profile'|'stock'|'currency'|'audit'>('profile')
   const isAdmin=role==='TenantAdmin'
   const stockChanged=operations!==null&&allowNegativeStock!==operations.allowNegativeStock
   const currencyChanged=currency!==null&&baseCurrencyCode!==currency.baseCurrencyCode
@@ -57,10 +58,29 @@ export default function TenantOperationalSettingsPage({ token, role, tenant, onN
   async function saveRetention(){setBusy('audit');setErrors(current=>({...current,audit:''}));setNotices(current=>({...current,audit:''}));try{const row=await request<RetentionSettings>('/api/audit-retention/',{method:'PUT',body:{retentionDays:Number(retentionDays)}});setRetention(row);setRetentionDays(String(row.retentionDays));setNotices(current=>({...current,audit:'Denetim saklama politikası kaydedildi.'}))}catch(e){setErrors(current=>({...current,audit:(e as Error).message}))}finally{setBusy('')}}
   async function saveProfile(){setBusy('profile');setErrors(current=>({...current,profile:''}));setNotices(current=>({...current,profile:''}));try{const row=await request<CompanyProfile>('/api/tenant-company-profile/',{method:'PUT',body:{legalName,taxOffice,taxNumber}});setCompanyProfile(row);setLegalName(row.legalName);setTaxOffice(row.taxOffice??'');setTaxNumber(row.taxNumber??'');setNotices(current=>({...current,profile:'Firma profili kaydedildi.'}))}catch(e){setErrors(current=>({...current,profile:(e as Error).message}))}finally{setBusy('')}}
 
+  const settingItems=[
+    {id:'profile' as const,title:'Ticari profil',description:'Unvan ve vergi tanımları',value:companyProfile?'Tanımlı':'Yükleniyor'},
+    {id:'stock' as const,title:'Stok politikası',description:'Negatif bakiye davranışı',value:allowNegativeStock?'Negatif açık':'Negatif kapalı'},
+    {id:'currency' as const,title:'Para birimi',description:'Firmanın baz para birimi',value:currency?.baseCurrencyCode??'—'},
+    {id:'audit' as const,title:'Denetim saklama',description:'Kayıt saklama süresi',value:retention?`${retention.retentionDays} gün`:'—'},
+  ]
   return <div className="page-content company-settings-page tenant-operational-settings-page">
-    <div className="page-heading"><div><p className="eyebrow">FİRMA · PROFİL VE OPERASYON</p><h1>Firma ayarları</h1><p className="muted">Ticari kimlik ve bu firma için geçerli çalışma ayarları.</p></div><div className="company-settings-actions"><button className="secondary" onClick={()=>onNavigate?.('license-settings')}>Firma lisansı</button><button className="secondary" onClick={()=>void load()} disabled={loading||Boolean(busy)}>Yenile</button></div></div>
+    <div className="page-heading tenant-settings-commandbar"><div><p className="eyebrow">FİRMA YÖNETİMİ · AYARLAR</p><h1>Firma ayarları</h1><p className="muted">Ticari kimlik ve operasyon kuralları · <b>{tenant.name}</b></p></div><div className="company-settings-actions"><button className="secondary" onClick={()=>onNavigate?.('license-settings')}>Lisans ve kota</button><button className="secondary" onClick={()=>void load()} disabled={loading||Boolean(busy)}>Yenile</button></div></div>
+    <div className="tenant-settings-overview" aria-label="Firma ayarları özeti">
+      <div><span>Firma kodu</span><b>{tenant.slug}</b><small>{tenant.name}</small></div>
+      <div><span>Stok kontrolü</span><b>{allowNegativeStock?'Negatif bakiye açık':'Negatif bakiye engelli'}</b><small>Firma politikası</small></div>
+      <div><span>Baz para birimi</span><b>{currency?.baseCurrencyCode??(loading?'Yükleniyor…':'—')}</b><small>Finans kayıtları</small></div>
+      <div><span>Denetim saklama</span><b>{retention?`${retention.retentionDays} gün`:(loading?'Yükleniyor…':'—')}</b><small>Firma kayıtları</small></div>
+    </div>
     {!isAdmin&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>Salt okunur görünüm</b>Bu ayarları yalnızca firma yöneticisi değiştirebilir.</span></div>}
-    <section className="panel company-setting-card company-identity-card">
+    <div className="tenant-settings-workbench">
+      <nav className="tenant-settings-nav" aria-label="Firma ayar kategorileri">
+        <p className="eyebrow">YAPILANDIRMA</p>
+        {settingItems.map(item=><button type="button" key={item.id} className={activeSetting===item.id?'active':''} aria-current={activeSetting===item.id?'page':undefined} onClick={()=>setActiveSetting(item.id)}><span><b>{item.title}</b><small>{item.description}</small></span><em>{item.value}</em></button>)}
+        <div className="tenant-settings-nav-note"><ShieldCheck size={15}/><span>Ayarlar yalnız bu firmaya uygulanır.</span></div>
+      </nav>
+      <div className="tenant-settings-detail" aria-live="polite">
+    {activeSetting==='profile'&&<section className="panel company-setting-card company-identity-card">
       <div className="panel-heading"><div><h3>Firma profili</h3><p>Ticari unvan ve vergi kimliği. Bu kayıt yalnızca açık olan firmaya bağlanır.</p></div><span className="status-live ready"><ShieldCheck size={14}/> Firma kapsamlı</span></div>
       {errors.profile&&<div className="alert inline-alert">{errors.profile}</div>}{notices.profile&&<div className="notice">{notices.profile}</div>}
       <div className="company-identity-values"><div><small>Firma adı</small><b>{tenant.name}</b></div><div><small>Firma kodu</small><b>{tenant.slug}</b></div></div>
@@ -71,29 +91,29 @@ export default function TenantOperationalSettingsPage({ token, role, tenant, onN
       </div>
       {isAdmin&&<div className="modal-foot"><span>{companyProfile?.updatedAt?`Son kayıt: ${new Date(companyProfile.updatedAt).toLocaleString('tr-TR')}`:'Profil ilk kez kaydedilecek.'}</span><div className="setting-actions">{profileChanged&&<button className="secondary small-button" disabled={Boolean(busy)} onClick={()=>{setLegalName(companyProfile!.legalName);setTaxOffice(companyProfile!.taxOffice??'');setTaxNumber(companyProfile!.taxNumber??'');setErrors(current=>({...current,profile:''}));setNotices(current=>({...current,profile:''}))}}>Geri al</button>}<button className="primary" disabled={loading||Boolean(busy)||!companyProfile||!legalName.trim()||(taxNumber!==''&&!/^\d{10}$/.test(taxNumber))||!profileChanged} onClick={()=>void saveProfile()}><Save size={15}/>{busy==='profile'?'Kaydediliyor…':'Profili kaydet'}</button></div></div>}
       <div className="boundary-note"><ShieldCheck size={16}/><span>Firma adı ve kodu çalışma alanı tanımı olarak kalır. Yasal profil ve vergi bilgileri bu firmanın platform kaydında tutulur; vergi numarası denetim kaydına eklenmez.</span></div>
-    </section>
-    <div className="company-settings-grid">
-      <section className="panel company-setting-card">
+    </section>}
+    {activeSetting==='stock'&&<section className="panel company-setting-card">
         <div className="panel-heading"><div><h3><Warehouse size={17}/> Stok politikası</h3><p>Stok çıkışı, sevkiyat, üretim sarfı ve depo transferlerinde uygulanır.</p></div><span className="status-live ready"><ShieldCheck size={14}/> Firma kapsamlı</span></div>
         {errors.stock&&<div className="alert inline-alert">{errors.stock}</div>}{notices.stock&&<div className="notice">{notices.stock}</div>}
         <div className={`stock-policy-state ${allowNegativeStock?'is-enabled':'is-blocked'} ${stockChanged?'is-draft':''}`} role="status"><span className="stock-policy-indicator"/><span className="stock-policy-copy"><b>{stockChanged?'Kaydedilmemiş değişiklik':allowNegativeStock?'Negatif bakiye açık':'Negatif bakiye engelli'}</b><small>{stockChanged?`Taslak seçim: negatif bakiye ${allowNegativeStock?'açık':'engelli'}. Henüz etkin değil.`:allowNegativeStock?'Uygun işlemlerde stok sıfırın altına inebilir.':'Stok çıkışı kullanılabilir miktarı aşamaz.'}</small></span>{stockChanged&&<span className="stock-policy-draft-badge">Taslak</span>}</div>
         <label className="check-row company-setting-option"><input type="checkbox" checked={allowNegativeStock} disabled={loading||Boolean(busy)||!isAdmin||!operations} onChange={e=>{setAllowNegativeStock(e.target.checked);setNotices(current=>({...current,stock:''}));setErrors(current=>({...current,stock:''}))}}/><span><b>Negatif stok bakiyesine izin ver</b><small>Açık olduğunda izin yalnızca izlenmeyen ve belirli bir depo konumu atanmamış stoklarda, aktif rezervasyon yoksa uygulanır. Lot/seri takibi, depo konumu ve rezervasyon kontrolleri korunur.</small></span></label>
         {isAdmin&&<div className="modal-foot"><span>{operations?.updatedAt?`Son kaydedilen durum: ${operations.allowNegativeStock?'Negatif stok açık':'Negatif stok engelli'} · ${new Date(operations.updatedAt).toLocaleString('tr-TR')}`:'Varsayılan: negatif stok engelli'}</span><div className="setting-actions">{stockChanged&&<button className="secondary small-button" disabled={Boolean(busy)} onClick={()=>{setAllowNegativeStock(operations!.allowNegativeStock);setErrors(current=>({...current,stock:''}));setNotices(current=>({...current,stock:''}))}}>Geri al</button>}<button className="primary" disabled={loading||Boolean(busy)||!operations||!stockChanged} onClick={()=>void saveStock()}><Save size={15}/>{busy==='stock'?'Kaydediliyor…':'Kaydet'}</button></div></div>}
-      </section>
+      </section>}
 
-      <section className="panel company-setting-card">
+      {activeSetting==='currency'&&<section className="panel company-setting-card">
         <div className="panel-heading"><div><h3><CircleDollarSign size={17}/> Finans ve para birimi</h3><p>Yeni finansal kayıtlarda kullanılacak firmanın baz para birimi.</p></div><span className="status-live ready"><ShieldCheck size={14}/> Firma kapsamlı</span></div>
         {errors.currency&&<div className="alert inline-alert">{errors.currency}</div>}{notices.currency&&<div className="notice">{notices.currency}</div>}
         <label className="company-setting-field">Baz para birimi (ISO 4217)<input aria-label="Baz para birimi" value={baseCurrencyCode} maxLength={3} autoCapitalize="characters" disabled={loading||Boolean(busy)||!isAdmin||!currency} onChange={e=>{setBaseCurrencyCode(e.target.value.toUpperCase().replace(/[^A-Z]/g,''));setErrors(current=>({...current,currency:''}));setNotices(current=>({...current,currency:''}))}}/><small>Örnek: TRY, USD, EUR. İlk finansal hareket veya kur kaydından sonra değiştirilemez.</small></label>
         {isAdmin&&<div className="modal-foot"><span>Kaydedilmiş değer: {currency?.baseCurrencyCode??(loading?'Yükleniyor…':'—')}</span><div className="setting-actions">{currencyChanged&&<button className="secondary small-button" disabled={Boolean(busy)} onClick={()=>{setBaseCurrencyCode(currency!.baseCurrencyCode);setErrors(current=>({...current,currency:''}));setNotices(current=>({...current,currency:''}))}}>Geri al</button>}<button className="primary" disabled={loading||Boolean(busy)||!currency||!/^[A-Z]{3}$/.test(baseCurrencyCode)||!currencyChanged} onClick={()=>void saveCurrency()}><Save size={15}/>{busy==='currency'?'Kaydediliyor…':'Kaydet'}</button></div></div>}
-      </section>
+      </section>}
 
-      <section className="panel company-setting-card">
+      {activeSetting==='audit'&&<section className="panel company-setting-card">
         <div className="panel-heading"><div><h3><ShieldCheck size={17}/> Denetim kayıtları</h3><p>Bu firmaya ait değiştirilemez işlem kayıtlarının saklama süresi.</p></div><span className="status-live ready"><ShieldCheck size={14}/> Firma kapsamlı</span></div>
         {errors.audit&&<div className="alert inline-alert">{errors.audit}</div>}{notices.audit&&<div className="notice">{notices.audit}</div>}
         <label className="company-setting-field">Saklama süresi (gün)<input aria-label="Denetim saklama süresi" type="number" min={retention?.minimumRetentionDays??30} max={retention?.maximumRetentionDays??3650} step="1" value={retentionDays} disabled={loading||Boolean(busy)||!isAdmin||!retention} onChange={e=>{setRetentionDays(e.target.value);setErrors(current=>({...current,audit:''}));setNotices(current=>({...current,audit:''}))}}/><small>İzin verilen aralık: {retention?.minimumRetentionDays??30}–{retention?.maximumRetentionDays??3650} gün.</small></label>
         {isAdmin&&<div className="modal-foot"><span>{retention?.lastPurgeAt?`Son temizlik: ${new Date(retention.lastPurgeAt).toLocaleString('tr-TR')}`:'Temizlik henüz çalışmadı.'}</span><div className="setting-actions">{retentionChanged&&<button className="secondary small-button" disabled={Boolean(busy)} onClick={()=>{setRetentionDays(String(retention!.retentionDays));setErrors(current=>({...current,audit:''}));setNotices(current=>({...current,audit:''}))}}>Geri al</button>}<button className="primary" disabled={loading||Boolean(busy)||!retention||!/^[0-9]+$/.test(retentionDays)||Number(retentionDays)<retention.minimumRetentionDays||Number(retentionDays)>retention.maximumRetentionDays||!retentionChanged} onClick={()=>void saveRetention()}><Save size={15}/>{busy==='audit'?'Kaydediliyor…':'Kaydet'}</button></div></div>}
-      </section>
+      </section>}
+      </div>
     </div>
   </div>
 }

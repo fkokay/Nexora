@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Activity, Ban, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Ban, RefreshCw, ShieldCheck } from 'lucide-react'
 import './integration-queue.css'
 
 type IntegrationOperation = {
@@ -40,6 +40,7 @@ async function fetchQueue<T>(url: string, token: string, requestApi: Props['requ
 
 export default function IntegrationQueuePage({ token, requestApi }: Props) {
   const [status, setStatus] = useState('')
+  const [selectedOperationId, setSelectedOperationId] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<IntegrationOperationPage | null>(null)
   const [loading, setLoading] = useState(true)
@@ -168,16 +169,13 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
   }
 
   const totalPages = Math.max(1, Math.ceil((data?.totalCount || 0) / 25))
+  const selectedOperation = data?.items.find(item => item.operationId === selectedOperationId) ?? data?.items[0] ?? null
   return <div className="integration-queue-page">
     <div className="page-heading">
       <div><p className="eyebrow">YÖNETİM · ENTEGRASYONLAR</p><h1>Entegrasyon kuyruğu</h1><p className="muted">Tenant işlemlerini izleyin; yalnızca henüz çalışmamış işleri iptal edin.</p></div>
       <button className="secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} className={loading ? 'queue-spin' : ''}/> Yenile</button>
     </div>
-    <div className="integration-queue-summary" aria-live="polite">
-      <span className="queue-summary-icon"><Activity size={19}/></span>
-      <div><b>{data?.totalCount ?? '—'}</b><small>{status ? `${statusLabels[status as IntegrationOperation['status']]} işlemi` : 'Gösterilen filtredeki işlem'}</small></div>
-      <span className="queue-summary-note"><ShieldCheck size={15}/> Tenant sınırı uygulanıyor</span>
-    </div>
+    <section className="integration-queue-kpis" aria-label="Kuyruk özeti" aria-live="polite"><article><span>Filtredeki kayıt</span><b>{data?.totalCount ?? '—'}</b><small>{status ? statusLabels[status as IntegrationOperation['status']] : 'Tüm durumlar'}</small></article><article><span>Çalışıyor</span><b>{data?.items.filter(item=>item.status==='Running').length ?? '—'}</b><small>Bu sayfadaki kayıtlar</small></article><article><span>Başarısız / belirsiz</span><b>{data?.items.filter(item=>['Failed','Indeterminate'].includes(item.status)).length ?? '—'}</b><small>Operatör incelemesi</small></article><article><span>Onay bekleyen belge</span><b>{submissionsLoading?'—':submissions.length}</b><small>E-belge taslakları</small></article></section>
     {error && <div className="alert" role="alert">{error}</div>}
     {notice && <div className="notice" role="status">{notice}</div>}
     <section className="panel integration-queue-panel">
@@ -220,6 +218,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
           </select>
         </label>
       </div>
+      <div className="integration-operations-workbench">
       <div className="integration-queue-table-wrap" role="region" aria-label="Entegrasyon işlem geçmişi tablosu" tabIndex={0} aria-busy={loading}>
         <table className="integration-queue-table">
           <caption className="integration-visually-hidden">Entegrasyon işlemlerinin durum ve deneme geçmişi</caption>
@@ -230,9 +229,11 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
             <td>{new Date(item.createdAt).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })}</td>
             <td><span>{item.attempts}</span>{['Failed', 'Indeterminate'].includes(item.status) && <small className="queue-retry-note">Otomatik tekrar yok</small>}</td>
             <td>{item.errorCode || '—'}</td>
-            <td>{['Queued', 'AwaitingApproval'].includes(item.status) && <button className="secondary small-button queue-cancel" disabled={busyId === item.operationId} onClick={() => void cancel(item)}><Ban size={14}/>{busyId === item.operationId ? 'İptal ediliyor…' : 'İptal et'}</button>}</td>
+            <td><div className="queue-row-actions"><button type="button" className="secondary small-button" aria-pressed={selectedOperation?.operationId===item.operationId} onClick={()=>setSelectedOperationId(item.operationId)}>Ayrıntı</button>{['Queued', 'AwaitingApproval'].includes(item.status) && <button className="secondary small-button queue-cancel" disabled={busyId === item.operationId} onClick={() => void cancel(item)}><Ban size={14}/>{busyId === item.operationId ? 'İptal ediliyor…' : 'İptal et'}</button>}</div></td>
           </tr>) : <tr><td colSpan={6} className="queue-empty">Bu filtrede işlem bulunmuyor.</td></tr>}</tbody>
         </table>
+      </div>
+      {selectedOperation&&<aside className="integration-operation-inspector" aria-label="Seçili kuyruk işlemi"><div className="integration-inspector-heading"><div><p className="eyebrow">SEÇİLİ İŞLEM</p><h3>{selectedOperation.integrationCode}</h3><small className="queue-id">{selectedOperation.operationId}</small></div><span className={`queue-status status-${selectedOperation.status.toLowerCase()}`}><i/>{statusLabels[selectedOperation.status]}</span></div><dl><div><dt>Oluşturulma</dt><dd>{new Date(selectedOperation.createdAt).toLocaleString('tr-TR')}</dd></div><div><dt>Son güncelleme</dt><dd>{new Date(selectedOperation.updatedAt).toLocaleString('tr-TR')}</dd></div><div><dt>Başladı</dt><dd>{selectedOperation.startedAt?new Date(selectedOperation.startedAt).toLocaleString('tr-TR'):'—'}</dd></div><div><dt>Tamamlandı</dt><dd>{selectedOperation.completedAt?new Date(selectedOperation.completedAt).toLocaleString('tr-TR'):'—'}</dd></div><div><dt>Deneme sayısı</dt><dd>{selectedOperation.attempts}</dd></div><div><dt>Hata kodu</dt><dd>{selectedOperation.errorCode||'—'}</dd></div></dl><p>İstek gövdesi ve hassas belge verileri kuyruk ayrıntısında gösterilmez.</p>{['Queued','AwaitingApproval'].includes(selectedOperation.status)&&<button className="secondary queue-cancel" disabled={busyId===selectedOperation.operationId} onClick={()=>void cancel(selectedOperation)}><Ban size={14}/> İptal et</button>}</aside>}
       </div>
       <footer className="integration-queue-pagination"><span>{data ? `${data.totalCount} işlem · Sayfa ${page}/${totalPages}` : '—'}</span><div><button className="secondary small-button" disabled={page <= 1 || loading} onClick={() => setPage(value => value - 1)}>Önceki</button><button className="secondary small-button" disabled={page >= totalPages || loading} onClick={() => setPage(value => value + 1)}>Sonraki</button></div></footer>
     </section>

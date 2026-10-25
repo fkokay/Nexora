@@ -1179,6 +1179,18 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 });
                 break;
             }
+            case "get_financial_account_balances":
+            {
+                if (!ERPAssistantFinancialAccountTools.HasNoArguments(arguments.RootElement))
+                    throw new ArgumentException("Financial-account balance lookup does not accept arguments.");
+
+                if (!await ERPAssistantFinancialAccountTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = "/api/finance/accounts";
+                break;
+            }
             default: throw new ArgumentException("Unknown read-only ERP tool.");
         }
 
@@ -1226,6 +1238,8 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
             return ERPAssistantFinanceTools.SummarizeCashForecast(result.RootElement);
         if (name == "search_fixed_assets")
             return ERPAssistantFixedAssetTools.SummarizeSearchResult(result.RootElement);
+        if (name == "get_financial_account_balances")
+            return ERPAssistantFinancialAccountTools.SummarizeBalances(result.RootElement);
         if (name == "list_warehouses")
             return ERPWarehouseToolResult.Serialize(result.RootElement);
         if (name == "search_stock_items")

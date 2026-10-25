@@ -28,6 +28,7 @@ export default function CustomMenusPage({ token, role }: { token: string; role: 
   const [entries, setEntries] = useState<Entry[]>([])
   const [targets, setTargets] = useState<Target[]>([])
   const [editing, setEditing] = useState('')
+  const [selectedId, setSelectedId] = useState('')
   const [code, setCode] = useState('')
   const [label, setLabel] = useState('')
   const [targetPage, setTargetPage] = useState('customers')
@@ -35,6 +36,7 @@ export default function CustomMenusPage({ token, role }: { token: string; role: 
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const admin = role === 'TenantAdmin'
+  const selectedEntry = entries.find(entry => entry.id === selectedId) ?? entries[0] ?? null
 
   const request = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
     const response = await authenticatedFetch(url, token, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers } })
@@ -83,6 +85,7 @@ export default function CustomMenusPage({ token, role }: { token: string; role: 
   return <div className="custom-menus-page">
     <div className="page-heading"><div><p className="eyebrow">TENANT UYARLAMA</p><h1>Özel menüler</h1><p className="muted">Kullanıcılarınız için ERP çalışma alanına kısayollar ekleyin ve sıralayın.</p></div><span className="custom-menu-count">{entries.length} / 30 öğe</span></div>
     {error && <div className="custom-menu-alert error" role="alert">{error}</div>}{notice && <div className="custom-menu-alert success" role="status">{notice}</div>}
+    <section className="custom-menu-kpis" aria-label="Özel menü özeti"><article><span>Tanımlı menü</span><b>{entries.length}</b></article><article><span>Kullanılabilir alan</span><b>{30 - entries.length}</b></article><article><span>ERP hedefi</span><b>{targets.length}</b></article></section>
     <div className="custom-menu-layout">
       <section className="panel custom-menu-editor"><div className="panel-heading"><div><h3>{editing ? 'Menüyü düzenle' : 'Yeni menü öğesi'}</h3><p>Hedef, yetkili ERP sayfa kataloğundan seçilir.</p></div>{editing && <button className="icon-button" onClick={reset} aria-label="Düzenlemeyi kapat"><X size={18}/></button>}</div>
         {admin ? <form onSubmit={save}>
@@ -93,9 +96,10 @@ export default function CustomMenusPage({ token, role }: { token: string; role: 
         </form> : <div className="custom-menu-readonly">Özel menüleri yalnız TenantAdmin düzenleyebilir. Mevcut menüler çalışma alanı kenar çubuğunda görünür.</div>}
       </section>
       <section className="panel custom-menu-list"><div className="panel-heading"><div><h3>Çalışma alanı menüsü</h3><p>{entries.length ? 'Sıra, bütün tenant kullanıcılarına uygulanır.' : 'Henüz özel menü öğesi eklenmedi.'}</p></div></div>
-        {entries.map((entry, index) => <div className="custom-menu-entry" key={entry.id}><span className="custom-menu-entry-index">{String(index + 1).padStart(2, '0')}</span><div className="custom-menu-entry-copy"><b>{entry.label}</b><small>{entry.targetLabel} · <code>{entry.code}</code></small></div>{admin && <div className="custom-menu-entry-actions"><button className="icon-button" disabled={busy || index === 0} onClick={() => void move(index, -1)} aria-label="Yukarı taşı"><ArrowUp size={16}/></button><button className="icon-button" disabled={busy || index === entries.length - 1} onClick={() => void move(index, 1)} aria-label="Aşağı taşı"><ArrowDown size={16}/></button><button className="icon-button" disabled={busy} onClick={() => startEdit(entry)} aria-label="Düzenle"><Edit2 size={16}/></button><button className="icon-button danger" disabled={busy} onClick={() => void remove(entry)} aria-label="Sil"><Trash2 size={16}/></button></div>}</div>)}
+        {entries.map((entry, index) => <div className={`custom-menu-entry ${selectedEntry?.id === entry.id ? 'is-selected' : ''}`} key={entry.id}><button className="custom-menu-entry-select" type="button" aria-pressed={selectedEntry?.id === entry.id} onClick={() => setSelectedId(entry.id)}><span className="custom-menu-entry-index">{String(index + 1).padStart(2, '0')}</span><span className="custom-menu-entry-copy"><b>{entry.label}</b><small>{entry.targetLabel} · <code>{entry.code}</code></small></span></button>{admin && <div className="custom-menu-entry-actions"><button className="icon-button" disabled={busy || index === 0} onClick={() => void move(index, -1)} aria-label="Yukarı taşı"><ArrowUp size={16}/></button><button className="icon-button" disabled={busy || index === entries.length - 1} onClick={() => void move(index, 1)} aria-label="Aşağı taşı"><ArrowDown size={16}/></button><button className="icon-button" disabled={busy} onClick={() => startEdit(entry)} aria-label="Düzenle"><Edit2 size={16}/></button><button className="icon-button danger" disabled={busy} onClick={() => void remove(entry)} aria-label="Sil"><Trash2 size={16}/></button></div>}</div>)}
         {admin && entries.length < 30 && !editing && <button className="custom-menu-add-row" onClick={() => { setTargetPage(targets[0]?.page ?? 'customers'); document.querySelector('.custom-menu-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}><Plus size={16}/> Menü öğesi oluştur</button>}
       </section>
+      <aside className="panel custom-menu-inspector" aria-label="Seçili menü ayrıntısı">{selectedEntry ? <><div className="custom-menu-inspector-heading"><span className="custom-menu-entry-index">{String(entries.findIndex(entry => entry.id === selectedEntry.id) + 1).padStart(2, '0')}</span><div><p className="eyebrow">SEÇİLİ KAYIT</p><h3>{selectedEntry.label}</h3></div></div><dl><div><dt>Menü kodu</dt><dd><code>{selectedEntry.code}</code></dd></div><div><dt>Hedef sayfa</dt><dd>{selectedEntry.targetLabel}</dd></div><div><dt>Sayfa anahtarı</dt><dd><code>{selectedEntry.targetPage}</code></dd></div><div><dt>Sıralama</dt><dd>{selectedEntry.position + 1}</dd></div></dl>{admin&&<button className="secondary" type="button" onClick={() => startEdit(selectedEntry)}><Edit2 size={15}/> Menüyü düzenle</button>}</> : <p>Menü öğesi seçildiğinde ayrıntısı burada görünür.</p>}</aside>
     </div>
   </div>
 }

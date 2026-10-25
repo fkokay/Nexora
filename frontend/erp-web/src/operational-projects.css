@@ -33,3 +33,48 @@
 .op-project-open:hover{border-color:#9384ff;background:#f3f1ff}
 .op-project-open:focus-visible{outline:3px solid #7764f5;outline-offset:2px}
 @media(max-width:1050px){.op-project-register-wrap{max-height:340px}}
+
+/* Fluent project workbench: compact command header, register, and detail pane. */
+.operational-projects { max-width: none; padding: 0 0 24px; color: #1b2a3a; }
+.op-project-heading { align-items: center; margin: -18px -22px 14px; padding: 14px 20px; border: 1px solid #0d2d50; border-radius: 8px 8px 0 0; background: #123b64; color: #fff; }
+.op-project-heading h1 { margin: 2px 0 3px; color: #fff; font-size: 23px; letter-spacing: -.02em; }
+.op-project-heading .eyebrow { margin: 0; color: #d4e4f3; font-size: 10px; letter-spacing: .1em; }
+.op-project-heading p:not(.eyebrow) { color: #dce8f4; font-size: 12px; line-height: 1.4; }
+.op-project-heading .primary { border-color: #1264a3; background: #1264a3; }
+.op-project-dashboard { gap: 8px; margin-bottom: 12px; }
+.op-project-dashboard article { gap: 4px; padding: 11px 13px; border-color: #d8e1eb; border-radius: 7px; box-shadow: 0 1px 2px rgba(17,46,75,.05); }
+.op-project-dashboard b { color: #124e7b; font-size: 19px; }
+.op-project-layout { grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); gap: 12px; }
+.op-project-list,.op-project-detail { padding: 14px; border-color: #d4dee8; border-radius: 8px; box-shadow: 0 1px 3px rgba(17,46,75,.06); }
+.op-project-list h2,.op-project-detail h2 { font-size: 16px; }
+.op-project-list .panel-heading p,.op-project-detail .panel-heading p { font-size: 11px; }
+.op-project-search { margin: 10px 0; }
+.op-project-search input,.op-project-create input,.op-project-create textarea,.op-project-form input,.op-project-form select,.op-project-detail select { padding: 7px 9px; border-radius: 5px; font-size: 12px; }
+.op-project-items { gap: 5px; max-height: 340px; }
+.op-project-item { gap: 4px 8px; padding: 9px; border-color: #e0e7ee; border-radius: 6px; font-size: 12px; }
+.op-project-item:hover,.op-project-item.selected { border-color: #5b9bd5; background: #eaf3fb; }
+.op-project-status { padding: 3px 7px; border-radius: 4px; }
+.op-project-check input { accent-color: #1264a3; }
+.op-project-filters { gap: 7px; margin-bottom: 10px; }
+.op-project-filters select { padding: 7px 8px; border-radius: 5px; font-size: 12px; }
+.op-project-create,.op-project-form { gap: 9px; margin-top: 12px; padding-top: 12px; }
+.op-project-create h3,.op-project-form h4 { font-size: 13px; }
+.op-project-detail { min-height: 430px; }
+.op-project-split { gap: 14px; margin-top: 16px; }
+.op-project-split h3 { margin-bottom: 8px; font-size: 14px; }
+.op-project-table { gap: 5px; }
+.op-project-table>div { gap: 4px; padding: 8px; border-color: #e0e7ee; border-radius: 6px; font-size: 12px; }
+.op-project-table span,.op-project-task-row select { font-size: 11px; }
+.op-project-time { margin-top: 16px; padding-top: 14px; }
+.op-project-cost { margin-top: 14px; padding: 13px; border-color: #d7e1eb; border-radius: 8px; background: #f4f7fa; }
+.op-project-cost-grid article,.op-project-cost-list article { padding: 9px; border-color: #e0e7ee; border-radius: 6px; }
+.op-project-register-wrap { border-color: #d5dfe9; border-radius: 6px; }
+.op-project-register th,.op-project-register td { padding: 8px 10px; }
+.op-project-register thead th { background: #edf2f7; color: #34475a; }
+.op-project-register thead .screen-view-group-row th { background: #e5eff8; color: #164c7b; }
+.op-project-register tbody tr:hover td,.op-project-register tbody tr.selected td,.op-project-register tbody tr:hover td:last-child,.op-project-register tbody tr.selected td:last-child { background: #eaf3fb; }
+.op-project-open { border-color: #c4d7e8; border-radius: 5px; color: #075b9a; padding: 5px 8px; }
+.op-project-open:hover { border-color: #76a9d2; background: #eaf3fb; }
+.op-project-item:focus-visible,.op-project-pagination button:focus-visible,.op-project-heading button:focus-visible,.op-project-form button:focus-visible,.op-project-create button:focus-visible,.op-project-list input:focus-visible,.op-project-list select:focus-visible,.op-project-detail input:focus-visible,.op-project-detail select:focus-visible,.op-project-detail textarea:focus-visible { outline-color: rgb(0 120 212 / 40%); }
+@media(max-width:1050px){.op-project-layout{grid-template-columns:minmax(0,1fr)}.op-project-list{order:1}.op-project-detail{order:2}}
+@media(max-width:680px){.operational-projects{padding:0 0 20px}.op-project-heading{margin:-14px -14px 12px;padding:12px 15px}.op-project-heading h1{font-size:22px}}
