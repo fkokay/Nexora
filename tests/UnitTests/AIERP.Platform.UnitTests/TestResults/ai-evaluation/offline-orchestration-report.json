@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAtUtc": "2026-10-18T22:16:06.3333734+00:00",
+  "generatedAtUtc": "2026-10-25T22:17:53.6041097+00:00",
   "evaluationSet": {
     "id": "erp-assistant-orchestration",
-    "version": "1.0.0",
+    "version": "1.11.0",
     "schemaVersion": "1.0.0",
-    "sha256": "ee268adb2b0df2f495cefc284c7249e34a763b17e9cdef161512d27f7ebd779f"
+    "sha256": "3beda084bfcfa3076e9bf74e3cfd9162393c7d7808519fe527a646a4daa477bb"
   },
   "execution": {
     "mode": "offline-mocked",
@@ -17,59 +17,405 @@
     "testExitCode": 0
   },
   "summary": {
-    "total": 12,
-    "passed": 12,
+    "total": 35,
+    "passed": 35,
     "failed": 0,
     "skipped": 0
   },
   "cases": [
     {
+      "id": "cash-bank-balance-summary",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "aggregate-only",
+        "currencies-remain-separate"
+      ]
+    },
+    {
       "id": "contract-validation",
-      "outcome": "Passed"
+      "kind": "dataset-contract",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "tool-matrix-matches-executable-cases",
+        "scenario-ids-unique",
+        "assertion-contracts-present"
+      ]
     },
     {
       "id": "crm-opportunity-report",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
     },
     {
       "id": "customer-balance",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
+    },
+    {
+      "id": "customer-ledger-period",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-ledger-summary",
+        "no-customer-identity-or-description",
+        "currency-preserved"
+      ]
     },
     {
       "id": "customer-report",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
     },
     {
       "id": "customer-search",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
+    },
+    {
+      "id": "customer-search-to-balance",
+      "kind": "read-tool-chain",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "customer-is-selected-from-authorized-search-results",
+        "balance-tool-uses-selected-account-id",
+        "both-tool-results-remain-in-conversation"
+      ]
     },
     {
       "id": "four-call-budget-rejection",
-      "outcome": "Passed"
+      "kind": "tool-budget",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "reject-before-any-tool-side-effect",
+        "maximum-three-calls-per-response"
+      ]
+    },
+    {
+      "id": "hr-attendance-summary",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "read-only",
+        "synthetic-aggregate-only",
+        "no-employee-identifiers-or-payroll-values"
+      ]
+    },
+    {
+      "id": "hr-attendance-summary-data-minimization",
+      "kind": "data-minimization",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "strict-read-only-date-window",
+        "synthetic-aggregate-only",
+        "no-employee-identifiers-or-payroll-values"
+      ]
+    },
+    {
+      "id": "hr-leave-summary",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "read-only",
+        "synthetic-aggregate-only",
+        "no-employee-identifiers-or-payroll-values"
+      ]
+    },
+    {
+      "id": "hr-leave-summary-data-minimization",
+      "kind": "data-minimization",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "strict-read-only-date-window",
+        "synthetic-aggregate-only",
+        "no-employee-identifiers-or-payroll-values"
+      ]
+    },
+    {
+      "id": "invoice-maturity-summary",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-maturity-summary",
+        "no-invoice-or-counterparty-identity",
+        "currency-preserved"
+      ]
+    },
+    {
+      "id": "live-quality-contract-validation",
+      "kind": "live-quality-dataset-contract",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "one-request-synthetic-only-limits",
+        "unique-case-and-rubric-contracts",
+        "case-specific-applicable-dimensions"
+      ]
+    },
+    {
+      "id": "live-quality-reviewer-governance-contract",
+      "kind": "live-quality-reviewer-governance-contract",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "two-distinct-human-reviewers",
+        "identity-and-independence-attestation",
+        "third-distinct-adjudicator-on-disagreement"
+      ]
+    },
+    {
+      "id": "manufacturing-order-search",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-order-summary"
+      ]
     },
     {
       "id": "provider-429-classification",
-      "outcome": "Passed"
+      "kind": "provider-failure-classification",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "http-429-classified-without-response-body",
+        "rate-limit-versus-quota-remains-unknown",
+        "no-automatic-retry"
+      ]
+    },
+    {
+      "id": "purchase-order-fulfillment-report",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "ordered-minus-received-reconciles-to-outstanding"
+      ]
+    },
+    {
+      "id": "purchase-order-fulfillment-semantic",
+      "kind": "synthetic-semantic-contract",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "intent-selects-operational-report",
+        "authorized-quantity-facts-are-preserved",
+        "ordered-minus-received-equals-outstanding",
+        "synthetic-sample-scope-is-disclosed",
+        "no-external-provider-request"
+      ]
+    },
+    {
+      "id": "purchase-receipt-search",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-receipt-summary"
+      ]
+    },
+    {
+      "id": "purchase-request-search",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-purchase-request-summary",
+        "no-requester-or-notes"
+      ]
+    },
+    {
+      "id": "report-schema-source-isolation",
+      "kind": "report-schema-boundary",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "only-requested-source-is-returned",
+        "available-columns-and-aggregates-are-preserved"
+      ]
+    },
+    {
+      "id": "report-schema-to-query",
+      "kind": "report-schema-chain",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "schema-read-precedes-report-query",
+        "report-columns-and-filters-are-schema-constrained",
+        "both-tool-results-remain-in-conversation",
+        "synthetic-report-page-limit-is-disclosed"
+      ]
+    },
+    {
+      "id": "sales-delivery-search",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-delivery-summary"
+      ]
+    },
+    {
+      "id": "sales-quote-search",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-quote-summary",
+        "no-customer-identity"
+      ]
     },
     {
       "id": "stock-lookup-untrusted-tool-output",
-      "outcome": "Passed"
+      "kind": "trust-boundary",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "tool-result-is-untrusted",
+        "authorized-fact-retained"
+      ]
     },
     {
       "id": "stock-search",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
+    },
+    {
+      "id": "supplier-delivery-note-search",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-delivery-note-summary"
+      ]
+    },
+    {
+      "id": "supplier-ledger-period",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-ledger-summary",
+        "no-supplier-identity-or-description",
+        "currency-preserved"
+      ]
     },
     {
       "id": "tool-failure-sanitization",
-      "outcome": "Passed"
+      "kind": "failure-sanitization",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "stable-public-error",
+        "no-tenant-or-secret-detail",
+        "no-retry"
+      ]
+    },
+    {
+      "id": "unknown-tool-rejected-before-execution",
+      "kind": "tool-allowlist",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "reject-tool-not-in-read-only-catalog",
+        "reject-before-tool-executor",
+        "no-automatic-retry"
+      ]
     },
     {
       "id": "warehouse-balances",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
     },
     {
       "id": "warehouse-list",
-      "outcome": "Passed"
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff"
+      ]
+    },
+    {
+      "id": "warehouse-result-bounds",
+      "kind": "result-bounds",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "row-count-is-bounded",
+        "field-size-is-bounded",
+        "serialized-size-is-bounded"
+      ]
     }
   ],
   "contract": {
