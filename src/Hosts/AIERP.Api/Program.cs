@@ -209,6 +209,7 @@ app.MapPaymentInstrumentEndpoints();
 app.MapInventoryTrackingInquiryEndpoints();
 app.MapSalesOrderEndpoints();
 app.MapSalesDeliverySearchEndpoints();
+app.MapPurchaseReceiptSearchEndpoints();
 app.MapSalesPromotionEndpoints();
 app.MapSalesPlanningInquiryEndpoints();
 app.MapPurchaseInvoiceEntryEndpoints();
