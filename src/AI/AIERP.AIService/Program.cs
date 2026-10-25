@@ -933,6 +933,8 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         DateOnly? customerLedgerTo = null;
         DateOnly? supplierPaymentFrom = null;
         DateOnly? supplierPaymentTo = null;
+        DateOnly? supplierLedgerFrom = null;
+        DateOnly? supplierLedgerTo = null;
         object? postBody = null;
         switch (name)
         {
@@ -1045,6 +1047,40 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                         new { field = "paymentDate", @operator = "lte", value = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) }
                     },
                     sortBy = "paymentDate", descending = true, page = 1, pageSize = 10
+                };
+                break;
+            }
+            case "search_supplier_ledger":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 3 || !arguments.RootElement.TryGetProperty("supplierId", out var idElement) ||
+                    idElement.ValueKind != JsonValueKind.String || !Guid.TryParse(idElement.GetString(), out var supplierId) ||
+                    !arguments.RootElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("to", out var toElement) || toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantSupplierLedgerTools.TryValidatePeriod(fromElement.GetString(), toElement.GetString(),
+                        IstanbulDateHelper.FromUtc(DateTimeOffset.UtcNow), out var from, out var to))
+                    throw new ArgumentException("Supplier-ledger search requires a selected supplier and a past/current date window of at most 365 days.");
+
+                if (!customerAccountSelection.TryGetSelectedSupplierCode(supplierId, out var supplierCode))
+                    return JsonSerializer.Serialize(new { error = "Search for one supplier account in this request before reading its ledger.", errorCode = "account_not_uniquely_selected", requiresClarification = true });
+                if (!await ERPAssistantSupplierLedgerTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                supplierLedgerFrom = from;
+                supplierLedgerTo = to;
+                path = "/api/reports/run";
+                postBody = new
+                {
+                    source = "supplierLedgerEntries",
+                    columns = new[] { "entryDate", "direction", "amount", "currencyCode" },
+                    filters = new[]
+                    {
+                        new { field = "supplierCode", @operator = "equals", value = supplierCode },
+                        new { field = "entryDate", @operator = "gte", value = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) },
+                        new { field = "entryDate", @operator = "lte", value = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) }
+                    },
+                    sortBy = "entryDate", descending = true, page = 1, pageSize = 10
                 };
                 break;
             }
@@ -1442,6 +1478,8 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
             return ERPAssistantCustomerLedgerTools.SummarizeLedgerReport(result.RootElement, ledgerFrom, ledgerTo);
         if (name == "search_supplier_payments" && supplierPaymentFrom is DateOnly paymentFrom && supplierPaymentTo is DateOnly paymentTo)
             return ERPAssistantSupplierPaymentTools.SummarizeReport(result.RootElement, paymentFrom, paymentTo);
+        if (name == "search_supplier_ledger" && supplierLedgerFrom is DateOnly supplierFrom && supplierLedgerTo is DateOnly supplierTo)
+            return ERPAssistantSupplierLedgerTools.SummarizeReport(result.RootElement, supplierFrom, supplierTo);
         if (name == "search_fixed_assets")
             return ERPAssistantFixedAssetTools.SummarizeSearchResult(result.RootElement);
         if (name == "get_financial_account_balances")

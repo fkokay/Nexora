@@ -406,6 +406,7 @@ public sealed class OpenAIResponsesProviderTests
             {
                 Assert.Contains("get_report_schema", body);
                 Assert.Contains("generate_report", body);
+                Assert.Contains("search_supplier_ledger", body);
                 using var document = System.Text.Json.JsonDocument.Parse(body);
                 var schemaTool = document.RootElement.GetProperty("tools").EnumerateArray()
                     .Single(tool => tool.GetProperty("name").GetString() == "get_report_schema");
@@ -427,6 +428,9 @@ public sealed class OpenAIResponsesProviderTests
                 Assert.Equal(ErpReportSources.All, sourceValues.Select(value => value!));
                 Assert.Contains("workflowInstances", sourceValues);
                 Assert.Contains("bankStatementLines", sourceValues);
+                var supplierLedgerTool = document.RootElement.GetProperty("tools").EnumerateArray()
+                    .Single(tool => tool.GetProperty("name").GetString() == "search_supplier_ledger");
+                Assert.True(supplierLedgerTool.GetProperty("strict").GetBoolean());
                 return JsonResponse(System.Text.Json.JsonSerializer.Serialize(new
                 {
                     status = "completed",

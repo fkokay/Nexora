@@ -70,6 +70,34 @@ public sealed class ERPAssistantCustomerLedgerToolsTests
             new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 25)));
     }
 
+    [Fact]
+    public async Task Supplier_ledger_requires_supplier_read_permission_and_minimizes_rows()
+    {
+        var tenantId = Guid.NewGuid();
+        var authorizer = new RecordingPermissionAuthorizer(true, tenantId);
+        Assert.True(await ERPAssistantSupplierLedgerTools.IsReadAllowedAsync(tenantId, Guid.NewGuid(), "TenantUser", authorizer, CancellationToken.None));
+        Assert.Equal("erp.supplier-payments.read", authorizer.PermissionCode);
+        using var report = JsonDocument.Parse("""
+            {"source":"supplierLedgerEntries","page":1,"totalCount":1,"rows":[{"entryDate":"2026-10-20","direction":"Credit","amount":125.50,"currencyCode":"eur","supplierCode":"SECRET","description":"private"}]}
+            """);
+
+        var summary = ERPAssistantSupplierLedgerTools.SummarizeReport(report.RootElement,
+            new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 25));
+
+        Assert.Contains("\"direction\":\"Credit\"", summary);
+        Assert.Contains("\"currencyCode\":\"EUR\"", summary);
+        Assert.DoesNotContain("SECRET", summary);
+        Assert.DoesNotContain("private", summary);
+    }
+
+    [Fact]
+    public void Supplier_ledger_projection_rejects_customer_source()
+    {
+        using var report = JsonDocument.Parse("""{"source":"customerLedgerEntries","page":1,"totalCount":0,"rows":[]}""");
+        Assert.Throws<JsonException>(() => ERPAssistantSupplierLedgerTools.SummarizeReport(report.RootElement,
+            new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 25)));
+    }
+
     private sealed class RecordingPermissionAuthorizer(bool allowed, Guid expectedTenantId) : IPlatformPermissionAuthorizer
     {
         public string? PermissionCode { get; private set; }

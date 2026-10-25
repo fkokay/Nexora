@@ -14,6 +14,6 @@ public static class ErpReportSources
         "salesDeliveries", "salesReturns", "supplierReturns", "purchaseRequests", "stockItems",
         "warehouseStock", "bankStatements", "bankStatementLines", "financialAccountTransactions",
         "financialAccountTransfers", "journalEntryLines", "fxRevaluationLines", "crmOpportunities",
-        "customerLedgerEntries", "inventoryTransfers", "workflowInstances"
+        "customerLedgerEntries", "supplierLedgerEntries", "inventoryTransfers", "workflowInstances"
     });
 }

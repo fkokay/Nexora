@@ -20,7 +20,7 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
     private static readonly HashSet<string> ERPAssistantReadOnlyToolNames = new(StringComparer.Ordinal)
     {
         "search_stock_items", "list_warehouses", "get_warehouse_balances",
-        "search_customer_accounts", "get_customer_balance", "search_customer_ledger", "get_supplier_balance", "search_supplier_payments", "get_exchange_rate", "search_sales_orders", "search_purchase_orders", "search_sales_quotes", "search_purchase_requests", "search_manufacturing_orders", "search_sales_deliveries", "search_purchase_receipts", "search_purchase_delivery_notes", "get_report_schema", "generate_report",
+        "search_customer_accounts", "get_customer_balance", "search_customer_ledger", "get_supplier_balance", "search_supplier_payments", "search_supplier_ledger", "get_exchange_rate", "search_sales_orders", "search_purchase_orders", "search_sales_quotes", "search_purchase_requests", "search_manufacturing_orders", "search_sales_deliveries", "search_purchase_receipts", "search_purchase_delivery_notes", "get_report_schema", "generate_report",
         "get_hr_leave_summary", "get_hr_attendance_summary", "search_sales_invoices", "search_purchase_invoices", "get_cash_flow_forecast", "get_invoice_maturity_summary",
         "search_fixed_assets", "get_financial_account_balances"
     };
@@ -450,6 +450,13 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
                     from = new { type = "string", pattern = "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
                     to = new { type = "string", pattern = "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
                 }, required = new[] { "supplierId", "from", "to" } } },
+            new { type = "function", name = "search_supplier_ledger", description = "Read up to ten dated debit/credit movements in a uniquely selected supplier account for an explicit past/current period of at most 365 days. First search_customer_accounts and use the sole Supplier or Both result. Output omits supplier identity, descriptions and internal IDs.", strict = true,
+                parameters = new { type = "object", additionalProperties = false, properties = new
+                {
+                    supplierId = new { type = "string", format = "uuid" },
+                    from = new { type = "string", pattern = "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+                    to = new { type = "string", pattern = "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+                }, required = new[] { "supplierId", "from", "to" } } },
             new { type = "function", name = "get_exchange_rate", description = "Read one stored tenant-authorized exchange rate for a three-letter code present in the tenant's exchange-rate data and an explicit yyyy-MM-dd rate date. Three-letter syntax does not verify ISO 4217 membership. This does not fetch live rates.", strict = true,
                 parameters = new { type = "object", additionalProperties = false, properties = new
                 {
@@ -520,7 +527,7 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
             new { type = "function", name = "get_invoice_maturity_summary", description = "Read tenant-authorized outstanding posted sales receivables and purchase payables as of an explicit date. Returns at most forty currency/direction aging aggregates only; no invoice or counterparty identities. Preserve each currency separately. This is an operational exposure summary, not cash or a statutory report.", strict = true,
                 parameters = new { type = "object", additionalProperties = false, properties = new { asOfDate = new { type = "string", pattern = "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" } }, required = new[] { "asOfDate" } } }
         };
-        var input = new List<object> { new { role = "system", content = systemPrompt + " For search_supplier_payments, first search_customer_accounts and use only the unique Supplier or Both result, then require an explicit past/current date window of at most 365 days. The result contains at most ten payments and no supplier identity, references, invoice codes, or internal IDs. Preserve each payment currency. For get_cash_flow_forecast, require an explicit month-start date and 1–12 month horizon. Its amounts are aggregated forecasts, not posted/guaranteed cash, and planned amounts can overlap invoice or instrument projections; report this limitation when relevant. For get_financial_account_balances, describe the result as recorded cash/bank transaction balances, not reconciliation or cleared funds. For get_invoice_maturity_summary, explain the results as unpaid posted invoice exposure net of posted allocations and returns as of the requested date. Preserve each currency and never combine different currencies." } };
+        var input = new List<object> { new { role = "system", content = systemPrompt + " For search_supplier_payments, first search_customer_accounts and use only the unique Supplier or Both result, then require an explicit past/current date window of at most 365 days. The result contains at most ten payments and no supplier identity, references, invoice codes, or internal IDs. Preserve each payment currency. For search_supplier_ledger, first search_customer_accounts and use only the unique Supplier or Both result, then require an explicit past/current date window of at most 365 days. The result contains at most ten debit/credit movements and no supplier identity, descriptions, or internal IDs. Preserve each movement currency. For get_cash_flow_forecast, require an explicit month-start date and 1–12 month horizon. Its amounts are aggregated forecasts, not posted/guaranteed cash, and planned amounts can overlap invoice or instrument projections; report this limitation when relevant. For get_financial_account_balances, describe the result as recorded cash/bank transaction balances, not reconciliation or cleared funds. For get_invoice_maturity_summary, explain the results as unpaid posted invoice exposure net of posted allocations and returns as of the requested date. Preserve each currency and never combine different currencies." } };
         input.AddRange(history.Select(turn => (object)new { role = turn.Role, content = turn.Content }));
         input.Add(new { role = "user", content = question.Trim() });
 

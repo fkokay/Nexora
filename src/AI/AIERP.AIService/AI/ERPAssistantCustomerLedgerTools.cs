@@ -25,10 +25,10 @@ internal static class ERPAssistantCustomerLedgerTools
         IPlatformPermissionAuthorizer authorizer, CancellationToken cancellationToken) =>
         await ERPAssistantReportAccess.IsSourceAllowedAsync("customerLedgerEntries", tenantId, userId, role, authorizer, cancellationToken);
 
-    public static string SummarizeLedgerReport(JsonElement report, DateOnly from, DateOnly to)
+    public static string SummarizeLedgerReport(JsonElement report, DateOnly from, DateOnly to, string expectedSource = "customerLedgerEntries")
     {
         if (report.ValueKind != JsonValueKind.Object ||
-            !TryString(report, "source", out var source) || source != "customerLedgerEntries" ||
+            !TryString(report, "source", out var source) || source != expectedSource ||
             !TryInt32(report, "page", out var page) || page != 1 ||
             !TryInt32(report, "totalCount", out var totalCount) || totalCount < 0 ||
             !report.TryGetProperty("rows", out var rows) || rows.ValueKind != JsonValueKind.Array ||

@@ -326,6 +326,14 @@ public static class ReportEndpoints
         new("reversalOfId", "Ters kayıt bağlantısı", "text"),
         new("createdAt", "Oluşturulma", "date")
     ];
+    private static readonly IReadOnlyList<ReportColumn> SupplierLedgerColumns =
+    [
+        new("entryDate", "Hareket tarihi", "date"), new("supplierCode", "Tedarikçi kodu", "text"),
+        new("supplierName", "Tedarikçi adı", "text"), new("direction", "Yön", "text", ["Debit", "Credit"]),
+        new("amount", "Tutar", "decimal"), new("currencyCode", "Para birimi", "text"),
+        new("description", "Açıklama", "text"), new("sourceType", "Belge türü", "text", ["SalesInvoice", "CustomerCollection", "SalesReturn", "PurchaseInvoice", "SupplierPayment", "SupplierReturn", "Manual"]),
+        new("sourceCode", "Belge kodu", "text"), new("createdAt", "Oluşturulma", "date")
+    ];
 
     public static void MapReportEndpoints(this WebApplication app)
     {
@@ -369,6 +377,7 @@ public static class ReportEndpoints
             sources.Add(new("fxRevaluationLines", "Döviz değerleme satırları", FxRevaluationLineColumns, []));
             sources.Add(new("crmOpportunities", "CRM fırsatları", CrmOpportunityColumns, []));
             sources.Add(new("customerLedgerEntries", "Cari hareketleri", CustomerLedgerColumns, []));
+            sources.Add(new("supplierLedgerEntries", "Tedarikçi hesap hareketleri", SupplierLedgerColumns, []));
             sources.Add(new("inventoryTransfers", "Depolar arası transferler", InventoryTransferColumns, []));
             if (role == "TenantAdmin") sources.Add(new("workflowInstances", "İş akışı geçmişi", WorkflowInstanceColumns, WorkflowInstanceAggregates));
             return Results.Ok(sources);
@@ -639,6 +648,8 @@ public static class ReportEndpoints
         if (normalized.Source == "crmOpportunities") return await RunCrmOpportunitiesAsync(normalized, user, db, ct);
         if (normalized.Source == "customerLedgerEntries") return await RunCustomerLedgerEntriesAsync(normalized, user, db,
             context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
+        if (normalized.Source == "supplierLedgerEntries") return await RunSupplierLedgerEntriesAsync(normalized, user, db,
+            context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         IQueryable<CustomerAccount> query = db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId);
         foreach (var filter in normalized!.Filters)
             if (!TryApplyCustomerFilter(ref query, filter, out var error))
@@ -698,6 +709,8 @@ public static class ReportEndpoints
         if (normalized.Source == "workflowInstances") return await ExportWorkflowInstancesAsync(normalized, user, db, ct);
         if (normalized.Source == "crmOpportunities") return await ExportCrmOpportunitiesAsync(normalized, user, db, ct);
         if (normalized.Source == "customerLedgerEntries") return await ExportCustomerLedgerEntriesAsync(normalized, user, db,
+            context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
+        if (normalized.Source == "supplierLedgerEntries") return await ExportSupplierLedgerEntriesAsync(normalized, user, db,
             context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         IQueryable<CustomerAccount> query = db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId);
         foreach (var filter in normalized!.Filters)
@@ -775,6 +788,13 @@ public static class ReportEndpoints
             .Include(x => x.SalesReturn).Include(x => x.PurchaseInvoice).Include(x => x.SupplierPayment)
             .Include(x => x.SupplierReturn).Include(x => x.ReversalOf);
 
+    private static IQueryable<CustomerLedgerEntry> SupplierLedgerEntryQuery(TenantDbContext db, Guid tenantId) =>
+        db.CustomerLedgerEntries.AsNoTracking().Where(x => x.TenantId == tenantId
+            && (x.Customer.Type == CounterpartyType.Supplier || x.Customer.Type == CounterpartyType.Both))
+            .Include(x => x.Customer).Include(x => x.SalesInvoice).Include(x => x.CustomerCollection).ThenInclude(x => x!.FinancialAccount)
+            .Include(x => x.SalesReturn).Include(x => x.PurchaseInvoice).Include(x => x.SupplierPayment)
+            .Include(x => x.SupplierReturn).Include(x => x.ReversalOf);
+
     private static async Task<IResult> RunCustomerLedgerEntriesAsync(NormalizedReport report, ClaimsPrincipal user,
         TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
@@ -816,6 +836,47 @@ public static class ReportEndpoints
         return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
     }
 
+    private static async Task<IResult> RunSupplierLedgerEntriesAsync(NormalizedReport report, ClaimsPrincipal user,
+        TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+        IQueryable<CustomerLedgerEntry> query = SupplierLedgerEntryQuery(db, tenantId);
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.supplier-payments.read", "erp.supplier-payments", query, x => x.Direction, x => x.CustomerId) ?? query;
+        foreach (var filter in report.Filters)
+            if (!TryApplyCustomerLedgerEntryFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        var rows = await ApplyCustomerLedgerEntrySort(query, report.SortBy, report.Descending)
+            .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize).ToListAsync(ct);
+        var resultRows = rows.Select(row => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(
+            code => code, code => ReadCustomerLedgerEntryValue(row, code), StringComparer.Ordinal)).ToArray();
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed", Resource = "supplierLedgerEntries" });
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new ReportResult(report.Source, report.Columns.Select(SupplierLedgerColumnByCode).ToArray(), resultRows,
+            report.Page, report.PageSize, totalCount));
+    }
+
+    private static async Task<IResult> ExportSupplierLedgerEntriesAsync(NormalizedReport report, ClaimsPrincipal user,
+        TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+        IQueryable<CustomerLedgerEntry> query = SupplierLedgerEntryQuery(db, tenantId);
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.supplier-payments.read", "erp.supplier-payments", query, x => x.Direction, x => x.CustomerId) ?? query;
+        foreach (var filter in report.Filters)
+            if (!TryApplyCustomerLedgerEntryFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        if (totalCount > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
+        var rows = await ApplyCustomerLedgerEntrySort(query, report.SortBy, report.Descending).Take(10_000).ToListAsync(ct);
+        var csv = new StringBuilder().Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(SupplierLedgerColumnByCode(code).Label))));
+        foreach (var row in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadCustomerLedgerEntryValue(row, code)))));
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.exported", Resource = $"supplierLedgerEntries:{rows.Count}" });
+        await db.SaveChangesAsync(ct);
+        return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
+    }
+
     private static bool TryApplyCustomerLedgerEntryFilter(ref IQueryable<CustomerLedgerEntry> query, ReportFilter filter, out string? error)
     {
         error = null;
@@ -836,8 +897,8 @@ public static class ReportEndpoints
         }
         switch (filter.Field)
         {
-            case "customerCode": query = filter.Operator == "contains" ? query.Where(x => x.Customer.Code.Contains(value)) : query.Where(x => x.Customer.Code == value); return true;
-            case "customerName": query = filter.Operator == "contains" ? query.Where(x => x.Customer.Name.Contains(value)) : query.Where(x => x.Customer.Name == value); return true;
+            case "customerCode": case "supplierCode": query = filter.Operator == "contains" ? query.Where(x => x.Customer.Code.Contains(value)) : query.Where(x => x.Customer.Code == value); return true;
+            case "customerName": case "supplierName": query = filter.Operator == "contains" ? query.Where(x => x.Customer.Name.Contains(value)) : query.Where(x => x.Customer.Name == value); return true;
             case "counterpartyType":
                 if (!Enum.TryParse<CounterpartyType>(value, true, out var counterpartyType)) { error = "Cari türü geçersiz."; return false; }
                 query = query.Where(x => x.Customer.Type == counterpartyType); return true;
@@ -900,6 +961,8 @@ public static class ReportEndpoints
             ("entryDate", false) => query.OrderBy(x => x.EntryDate), ("entryDate", true) => query.OrderByDescending(x => x.EntryDate),
             ("customerCode", false) => query.OrderBy(x => x.Customer.Code), ("customerCode", true) => query.OrderByDescending(x => x.Customer.Code),
             ("customerName", false) => query.OrderBy(x => x.Customer.Name), ("customerName", true) => query.OrderByDescending(x => x.Customer.Name),
+            ("supplierCode", false) => query.OrderBy(x => x.Customer.Code), ("supplierCode", true) => query.OrderByDescending(x => x.Customer.Code),
+            ("supplierName", false) => query.OrderBy(x => x.Customer.Name), ("supplierName", true) => query.OrderByDescending(x => x.Customer.Name),
             ("direction", false) => query.OrderBy(x => x.Direction), ("direction", true) => query.OrderByDescending(x => x.Direction),
             ("amount", false) => query.OrderBy(x => x.Amount), ("amount", true) => query.OrderByDescending(x => x.Amount),
             ("currencyCode", false) => query.OrderBy(x => x.CurrencyCode), ("currencyCode", true) => query.OrderByDescending(x => x.CurrencyCode),
@@ -924,6 +987,7 @@ public static class ReportEndpoints
     private static object? ReadCustomerLedgerEntryValue(CustomerLedgerEntry row, string code) => code switch
     {
         "entryDate" => row.EntryDate, "customerCode" => row.Customer.Code, "customerName" => row.Customer.Name,
+        "supplierCode" => row.Customer.Code, "supplierName" => row.Customer.Name,
         "counterpartyType" => row.Customer.Type.ToString(),
         "direction" => row.Direction.ToString(), "amount" => row.Amount, "currencyCode" => row.CurrencyCode,
         "description" => row.Description,
@@ -936,6 +1000,7 @@ public static class ReportEndpoints
     };
 
     private static ReportColumn CustomerLedgerColumnByCode(string code) => CustomerLedgerColumns.First(x => x.Code == code);
+    private static ReportColumn SupplierLedgerColumnByCode(string code) => SupplierLedgerColumns.First(x => x.Code == code);
 
     private static bool TryApplyCrmOpportunityFilter(ref IQueryable<CrmOpportunity> query, ReportFilter filter, out string? error)
     {
@@ -5145,8 +5210,8 @@ public static class ReportEndpoints
             errors["groupByFields"] = ["Döviz değerleme satırları kur ve hesap izlenebilirliği için belge satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "crmOpportunities" && groupFields.Length > 0)
             errors["groupByFields"] = ["CRM fırsatları para birimleri farklı olabileceğinden ve izlenebilirlik için fırsat başına bir ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
-        if (request?.Source == "customerLedgerEntries" && groupFields.Length > 0)
-            errors["groupByFields"] = ["Müşteri cari hareketleri para birimi ve ters kayıt izlenebilirliği için hareket başına ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
+        if (request?.Source is "customerLedgerEntries" or "supplierLedgerEntries" && groupFields.Length > 0)
+            errors["groupByFields"] = ["Cari hareketleri para birimi ve ters kayıt izlenebilirliği için hareket başına ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "manufacturingWorkCenters" && groupFields.Length > 0)
             errors["groupByFields"] = ["Üretim iş merkezleri kapasite ve maliyet denetimi için merkez başına bir ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "purchaseInvoices" && groupFields.Length > 0)
@@ -5390,7 +5455,7 @@ public static class ReportEndpoints
 
     private static IReadOnlyList<ReportColumn> ColumnsForSource(string source) => source switch
     {
-        "customers" => CustomerColumns, "salesInvoices" => SalesInvoiceColumns, "purchaseOrders" => PurchaseOrderColumns, "purchaseInvoices" => PurchaseInvoiceColumns, "purchaseReceipts" => PurchaseReceiptColumns, "manufacturingOrders" => ManufacturingOrderColumns, "manufacturingWorkCenters" => ManufacturingWorkCenterColumns, "inventoryTransactions" => InventoryTransactionColumns, "inventoryTransfers" => InventoryTransferColumns, "salesOrders" => SalesOrderColumns, "salesOrderFulfillment" => SalesOrderFulfillmentColumns, "purchaseOrderFulfillment" => PurchaseOrderFulfillmentColumns, "salesQuotes" => SalesQuoteColumns, "purchaseSupplierQuotes" => PurchaseSupplierQuoteColumns, "supplierPayments" => SupplierPaymentColumns, "salesDeliveries" => SalesDeliveryColumns, "salesReturns" => SalesReturnColumns, "supplierReturns" => SupplierReturnColumns, "purchaseRequests" => PurchaseRequestColumns, "stockItems" => StockItemColumns, "warehouseStock" => WarehouseStockColumns, "workflowInstances" => WorkflowInstanceColumns, "bankStatements" => BankStatementColumns, "bankStatementLines" => BankStatementLineColumns, "financialAccountTransactions" => FinancialAccountTransactionColumns, "financialAccountTransfers" => FinancialAccountTransferColumns, "journalEntryLines" => JournalEntryLineColumns, "fxRevaluationLines" => FxRevaluationLineColumns, "crmOpportunities" => CrmOpportunityColumns, "customerLedgerEntries" => CustomerLedgerColumns, _ => []
+        "customers" => CustomerColumns, "salesInvoices" => SalesInvoiceColumns, "purchaseOrders" => PurchaseOrderColumns, "purchaseInvoices" => PurchaseInvoiceColumns, "purchaseReceipts" => PurchaseReceiptColumns, "manufacturingOrders" => ManufacturingOrderColumns, "manufacturingWorkCenters" => ManufacturingWorkCenterColumns, "inventoryTransactions" => InventoryTransactionColumns, "inventoryTransfers" => InventoryTransferColumns, "salesOrders" => SalesOrderColumns, "salesOrderFulfillment" => SalesOrderFulfillmentColumns, "purchaseOrderFulfillment" => PurchaseOrderFulfillmentColumns, "salesQuotes" => SalesQuoteColumns, "purchaseSupplierQuotes" => PurchaseSupplierQuoteColumns, "supplierPayments" => SupplierPaymentColumns, "salesDeliveries" => SalesDeliveryColumns, "salesReturns" => SalesReturnColumns, "supplierReturns" => SupplierReturnColumns, "purchaseRequests" => PurchaseRequestColumns, "stockItems" => StockItemColumns, "warehouseStock" => WarehouseStockColumns, "workflowInstances" => WorkflowInstanceColumns, "bankStatements" => BankStatementColumns, "bankStatementLines" => BankStatementLineColumns, "financialAccountTransactions" => FinancialAccountTransactionColumns, "financialAccountTransfers" => FinancialAccountTransferColumns, "journalEntryLines" => JournalEntryLineColumns, "fxRevaluationLines" => FxRevaluationLineColumns, "crmOpportunities" => CrmOpportunityColumns, "customerLedgerEntries" => CustomerLedgerColumns, "supplierLedgerEntries" => SupplierLedgerColumns, _ => []
     };
 
     private static IReadOnlyList<ReportAggregateOption> AggregatesForSource(string source) => source switch

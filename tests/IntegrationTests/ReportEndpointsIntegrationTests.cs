@@ -389,6 +389,8 @@ public sealed class ReportEndpointsIntegrationTests
             var customerB = await db.CustomerAccounts.SingleAsync(x => x.TenantId == TenantB && x.Code == "CUST-B");
             var invoiceA = await db.SalesInvoices.SingleAsync(x => x.TenantId == TenantA && x.Code == "INV-A");
             var invoiceB = await db.SalesInvoices.SingleAsync(x => x.TenantId == TenantB && x.Code == "INV-B");
+            var supplierA = new CustomerAccount { TenantId = TenantA, Code = "SUP-A", Name = "A supplier", Type = CounterpartyType.Supplier, CurrencyCode = "EUR" };
+            db.CustomerAccounts.Add(supplierA);
             var collectionAccount = new FinancialAccount
             {
                 TenantId = TenantA, Code = "COL-BANK-A", Name = "Collections Bank A", Type = FinancialAccountType.Bank, CurrencyCode = "USD"
@@ -406,6 +408,8 @@ public sealed class ReportEndpointsIntegrationTests
                     EntryDate = new DateOnly(2026, 10, 15), Direction = CustomerLedgerDirection.Debit, Amount = 250m, CurrencyCode = "USD", Description = "Tenant A invoice ledger" },
                 new CustomerLedgerEntry { TenantId = TenantA, CustomerId = customerA.Id, Customer = customerA, CustomerCollectionId = collection.Id, CustomerCollection = collection,
                     EntryDate = new DateOnly(2026, 10, 16), Direction = CustomerLedgerDirection.Credit, Amount = 100m, CurrencyCode = "USD", Description = "Tenant A collection ledger" },
+                new CustomerLedgerEntry { TenantId = TenantA, CustomerId = supplierA.Id, Customer = supplierA,
+                    EntryDate = new DateOnly(2026, 10, 17), Direction = CustomerLedgerDirection.Credit, Amount = 80m, CurrencyCode = "EUR", Description = "Tenant A supplier ledger" },
                 new CustomerLedgerEntry { TenantId = TenantB, CustomerId = customerB.Id, Customer = customerB, SalesInvoiceId = invoiceB.Id, SalesInvoice = invoiceB,
                     EntryDate = new DateOnly(2026, 10, 16), Direction = CustomerLedgerDirection.Debit, Amount = 900_000m, CurrencyCode = "EUR", Description = "Tenant B invoice ledger" });
             await db.SaveChangesAsync();
@@ -453,6 +457,33 @@ public sealed class ReportEndpointsIntegrationTests
         Assert.Equal("Bank transfer", collectionRow.GetProperty("collectionPaymentMethod").GetString());
         Assert.Equal("COL-BANK-A", collectionRow.GetProperty("collectionAccountCode").GetString());
         Assert.Equal("BANK-REF-A", collectionRow.GetProperty("collectionReference").GetString());
+
+        var supplierSource = Assert.Single(catalog!, item => item.GetProperty("code").GetString() == "supplierLedgerEntries");
+        Assert.Contains(supplierSource.GetProperty("columns").EnumerateArray(), column => column.GetProperty("code").GetString() == "supplierCode");
+        var supplierLedgerResponse = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "supplierLedgerEntries", columns = new[] { "entryDate", "supplierCode", "supplierName", "direction", "amount", "currencyCode" },
+            filters = new[] { new { field = "supplierCode", @operator = "equals", value = "SUP-A" } },
+            sortBy = "entryDate", descending = true, page = 1, pageSize = 10
+        });
+        Assert.True(supplierLedgerResponse.IsSuccessStatusCode, await supplierLedgerResponse.Content.ReadAsStringAsync());
+        using var supplierLedgerResult = JsonDocument.Parse(await supplierLedgerResponse.Content.ReadAsStringAsync());
+        Assert.Equal(1, supplierLedgerResult.RootElement.GetProperty("totalCount").GetInt32());
+        var supplierLedgerRow = supplierLedgerResult.RootElement.GetProperty("rows")[0];
+        Assert.Equal("SUP-A", supplierLedgerRow.GetProperty("supplierCode").GetString());
+        Assert.Equal("A supplier", supplierLedgerRow.GetProperty("supplierName").GetString());
+        Assert.Equal("Credit", supplierLedgerRow.GetProperty("direction").GetString());
+        Assert.Equal(80m, supplierLedgerRow.GetProperty("amount").GetDecimal());
+        Assert.Equal("EUR", supplierLedgerRow.GetProperty("currencyCode").GetString());
+
+        var supplierRowsExcludedFromCustomerLedger = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "customerLedgerEntries", columns = new[] { "customerCode", "amount" }, filters = Array.Empty<object>(),
+            sortBy = "customerCode", descending = false, page = 1, pageSize = 50
+        });
+        supplierRowsExcludedFromCustomerLedger.EnsureSuccessStatusCode();
+        using var customerLedgerOnly = JsonDocument.Parse(await supplierRowsExcludedFromCustomerLedger.Content.ReadAsStringAsync());
+        Assert.DoesNotContain(customerLedgerOnly.RootElement.GetProperty("rows").EnumerateArray(), row => row.GetProperty("customerCode").GetString() == "SUP-A");
 
         var nonCollectionResponse = await client.PostAsJsonAsync("/api/reports/run", new
         {

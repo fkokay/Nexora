@@ -42,6 +42,7 @@ public static class ERPAssistantReportAccess
         ["fxRevaluationLines"] = "/api/finance/fx-revaluations",
         ["crmOpportunities"] = "/api/crm/opportunities",
         ["customerLedgerEntries"] = "/api/customers",
+        ["supplierLedgerEntries"] = "/api/purchasing/payments",
         ["inventoryTransfers"] = "/api/warehouses/transfers",
         ["workflowInstances"] = "/api/workflows"
     };
@@ -56,6 +57,7 @@ public static class ERPAssistantReportAccess
         ["purchaseRequests"] = "requestDate", ["bankStatements"] = "startDate", ["bankStatementLines"] = "transactionDate",
         ["financialAccountTransactions"] = "transactionDate", ["financialAccountTransfers"] = "transferDate",
         ["journalEntryLines"] = "entryDate", ["fxRevaluationLines"] = "asOfDate", ["customerLedgerEntries"] = "entryDate",
+        ["supplierLedgerEntries"] = "entryDate",
         ["inventoryTransfers"] = "transferDate", ["crmOpportunities"] = "createdAt", ["workflowInstances"] = "completedAt"
     };
 
