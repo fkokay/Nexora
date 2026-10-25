@@ -69,5 +69,63 @@
 .erp-home-note b{font-size:10px;color:#2a425e}
 .erp-home-note small{font-size:9px;color:#72849a}
 
+/* Operational overview modeled on the compact Dynamics workbench dashboard. */
+.erp-home-dashboard{gap:12px}
+.erp-home-heading{padding:0 1px 2px}
+.erp-home-heading h1{font-size:26px}
+.erp-home-heading .eyebrow{font-size:9px;letter-spacing:1.3px}
+.erp-home-heading .muted{font-size:11px;margin-top:5px}
+.erp-home-heading-actions .secondary,.erp-home-heading-actions .primary{min-height:36px;padding:0 12px;font-size:11px}
+.erp-home-tabs{min-height:39px;border-radius:5px;gap:20px}
+.erp-home-tabs button{height:39px;font-size:11px}
+.erp-home-kpis{gap:10px}
+.erp-home-kpis .metric-card{min-height:95px;padding:12px 13px;grid-template-columns:31px minmax(0,1fr);column-gap:10px}
+.erp-home-kpis .metric-label{font-size:10px}
+.erp-home-kpis .metric-card strong{font-size:17px;margin-top:7px}
+.erp-home-kpis .metric-card small{font-size:9px}
+.metric-icon.orange{background:#fff3df;color:#ef9a24}
+.erp-home-workspace{grid-template-columns:minmax(0,1.65fr) minmax(275px,.9fr);gap:11px;align-items:start}
+.erp-home-main-panel{display:grid;gap:11px}
+.erp-home-panel{padding:14px;border-radius:6px;box-shadow:0 1px 3px #112f4b08}
+.erp-home-panel>header{margin-bottom:9px}
+.erp-home-panel>header h2{font-size:13px}
+.erp-home-panel>header p{font-size:9px}
+.erp-home-panel .secondary.compact{display:inline-flex;align-items:center;gap:4px;min-height:29px;padding:0 8px;font-size:9px}
+.erp-home-chart-panel{min-height:254px}
+.erp-trend-chart{height:170px;display:grid;grid-template-columns:55px minmax(0,1fr);gap:8px}
+.erp-chart-y-axis{display:flex;flex-direction:column;justify-content:space-between;text-align:right;padding:0 0 22px;color:#7a899c;font-size:9px;white-space:nowrap}
+.erp-chart-plot{position:relative;min-width:0;height:100%;padding-bottom:21px}
+.erp-chart-grid{position:absolute;inset:0 0 21px;display:flex;flex-direction:column;justify-content:space-between}
+.erp-chart-grid i{display:block;border-top:1px solid #e9eef4}
+.erp-chart-plot svg{position:absolute;inset:0 0 21px;width:100%;height:calc(100% - 21px);overflow:visible}
+.erp-chart-plot polyline{fill:none;stroke-width:3;vector-effect:non-scaling-stroke}
+.erp-chart-plot .sales-line{stroke:#0876e8}.erp-chart-plot .purchase-line{stroke:#30b7d5}
+.erp-chart-plot .sales-dot{fill:#0876e8}.erp-chart-plot .purchase-dot{fill:#30b7d5}
+.erp-chart-empty{position:absolute;inset:15px 0 31px;display:grid;place-content:center;gap:6px;text-align:center;color:#7a899c;font-size:9px}.erp-chart-empty b{font-size:11px;color:#52647a}
+.erp-chart-months{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;color:#7a899c;font-size:9px}
+.erp-chart-legend{display:flex;justify-content:center;gap:18px;margin-top:1px;color:#617286;font-size:9px}
+.erp-chart-legend span{display:flex;align-items:center;gap:5px}.erp-chart-legend i{width:9px;height:9px;border-radius:50%}.erp-chart-legend .sales-key{background:#0876e8}.erp-chart-legend .purchase-key{background:#30b7d5}
+.erp-home-orders-panel{padding:0;overflow:hidden}
+.erp-home-orders-panel>header{padding:13px 14px 9px;margin:0}
+.erp-home-table-wrap{overflow:auto}
+.erp-home-orders{width:100%;border-collapse:collapse;white-space:nowrap;font-size:10px}
+.erp-home-orders th{height:31px;padding:0 10px;text-align:left;background:#f5f8fb;color:#586a7f;font-size:9px;font-weight:650;border-top:1px solid #e8edf3;border-bottom:1px solid #e8edf3}
+.erp-home-orders td{height:34px;padding:0 10px;color:#43546a;border-bottom:1px solid #edf1f5}
+.erp-home-orders tr:last-child td{border-bottom:0}.erp-home-orders td:first-child{color:#0876e8}
+.erp-link-button{padding:0;border:0;background:none;color:#0876e8;font-size:10px;cursor:pointer}.erp-link-button:hover{text-decoration:underline}
+.erp-status-chip{display:inline-block;padding:4px 7px;border-radius:5px;font-size:9px;font-weight:650}.erp-status-chip.green{background:#e5f7ec;color:#138449}.erp-status-chip.blue{background:#e4f0ff;color:#0870d4}.erp-status-chip.amber{background:#fff3da;color:#c48013}
+.erp-home-empty{text-align:center!important;color:#8290a1!important;height:66px!important}
+.erp-home-side-panels{gap:11px}
+.erp-home-stock-panel{min-height:254px}
+.erp-stock-summary{display:grid;grid-template-columns:112px minmax(0,1fr);gap:13px;align-items:center;min-height:190px}
+.erp-stock-donut{width:108px;height:108px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#0876e8 0 38%,#16a978 38% 60%,#f3a738 60% 80%,#8264db 80% 91%,#9cb2c9 91%);position:relative}
+.erp-stock-donut:before{content:"";position:absolute;inset:15px;border-radius:50%;background:#fff}
+.erp-stock-donut>span{position:relative;display:grid;gap:3px;text-align:center;max-width:82px}
+.erp-stock-donut b{font-size:12px;color:#1c2d42}.erp-stock-donut small{font-size:8px;color:#718197}
+.erp-stock-legend{display:grid;gap:12px;min-width:0}.erp-stock-legend>div{display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:center;gap:7px;font-size:9px;color:#55677c}.erp-stock-legend>div span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.erp-stock-legend>div b{color:#26384e;font-size:9px}
+.stock-color{width:8px;height:8px;border-radius:50%;background:#0876e8}.stock-color.c1{background:#16a978}.stock-color.c2{background:#f3a738}.stock-color.c3{background:#8264db}.stock-color.c4{background:#9cb2c9}
+.erp-home-shortcut-panel .erp-home-shortcuts button{min-height:43px}.erp-home-shortcuts button b{font-size:10px}.erp-home-shortcuts button small{font-size:8px}
+.erp-home-service-panel .service-row{min-height:43px}
+
 @media(max-width:1100px){.erp-home-workspace{grid-template-columns:minmax(0,1fr)}.erp-home-side-panels{grid-template-columns:repeat(2,minmax(0,1fr))}.erp-home-note{grid-column:1/-1}}
 @media(max-width:720px){.erp-home-heading{align-items:flex-start;flex-direction:column}.erp-home-heading-actions{width:100%}.erp-home-heading-actions button{flex:1}.erp-home-tabs{overflow-x:auto;gap:19px}.erp-home-tabs button{white-space:nowrap}.erp-home-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.erp-home-kpis .metric-card{padding:12px}.erp-home-side-panels{grid-template-columns:1fr}.erp-home-note{grid-column:auto}.erp-home-main-panel .dashboard-widgets{padding:12px}}
