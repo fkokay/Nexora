@@ -1,0 +1,50 @@
+{
+  "completedAtUtc": "2026-10-25T13:26:29.8130233Z",
+  "mode": "offline-package-validation",
+  "linuxArchive": "aierp-linux-20261025-bba999b.tar.gz",
+  "iisBundleVersion": "20261025-bba999b",
+  "checks": [
+    {
+      "name": "IIS PowerShell syntax",
+      "passed": true,
+      "detail": "6 deployment scripts/data files parsed without errors."
+    },
+    {
+      "name": "ASP.NET security header middleware",
+      "passed": true,
+      "detail": "Platform API and AI service source both wire UseAierpSecurityHeaders into their active request pipelines."
+    },
+    {
+      "name": "Linux Bash syntax",
+      "passed": true,
+      "detail": "7 deployment scripts pass bash -n using local Bash."
+    },
+    {
+      "name": "Linux installer preflight wiring",
+      "passed": true,
+      "detail": "The builder writes a full-bundle manifest; install verifies it and checks mandatory examples before changing the host, then validates protected runtime config."
+    },
+    {
+      "name": "IIS installer safety contract",
+      "passed": true,
+      "detail": "Mandatory database isolation, tenant/Studio connections, elevation, protected external secrets, immutable release path and startup migrations disabled verified statically."
+    },
+    {
+      "name": "IIS bundle manifest/components/config",
+      "passed": true,
+      "detail": "Version 20261025-bba999b; four required components and routing/ANCM configuration verified."
+    },
+    {
+      "name": "Linux archive checksum/version/components",
+      "passed": true,
+      "detail": "Version 20261025-bba999b; outer SHA-256 matches; 222 full-bundle and 209 release file checksums verified with exact manifest coverage."
+    },
+    {
+      "name": "Linux config semantics",
+      "passed": true,
+      "detail": "Environment examples, loopback service URLs, separate signing-key intent, exactly one X-Frame-Options DENY header per active nginx server, dual-site routes and systemd hardening verified."
+    }
+  ],
+  "result": "passed",
+  "limitation": "Validates local package contents and configuration semantics only; does not establish live IIS/Linux host behavior, TLS/DNS, service startup, SQL connectivity, or production deployment compatibility."
+}
