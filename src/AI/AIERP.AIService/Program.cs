@@ -1053,6 +1053,24 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 });
                 break;
             }
+            case "search_sales_deliveries":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantSalesDeliveryTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Sales-delivery search requires a 2–100 character term.");
+
+                if (!await ERPAssistantSalesDeliveryTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/sales/deliveries/search", new Dictionary<string, string?>
+                {
+                    ["q"] = term
+                });
+                break;
+            }
             case "search_sales_invoices":
             case "search_purchase_invoices":
             {
@@ -1330,6 +1348,7 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         if (name == "search_sales_invoices") return ERPAssistantInvoiceTools.SummarizeSalesInvoices(result.RootElement);
         if (name == "search_purchase_invoices") return ERPAssistantInvoiceTools.SummarizePurchaseInvoices(result.RootElement);
         if (name == "search_manufacturing_orders") return ERPAssistantManufacturingTools.SummarizeOrders(result.RootElement);
+        if (name == "search_sales_deliveries") return ERPAssistantSalesDeliveryTools.SummarizeDeliveries(result.RootElement);
         if (name == "generate_report")
             return ERPReportToolResult.Serialize(result.RootElement);
         if (name == "get_hr_leave_summary" && hrPeriodFrom is DateOnly leaveFrom && hrPeriodTo is DateOnly leaveTo)

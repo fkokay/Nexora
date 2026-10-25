@@ -37,7 +37,7 @@ internal static class ERPAssistantToolTelemetry
         {
             var safeToolName = toolName is "search_stock_items" or "list_warehouses" or "get_warehouse_balances" or
                 "search_customer_accounts" or "get_customer_balance" or "get_supplier_balance" or "get_exchange_rate" or
-                "search_sales_orders" or "search_manufacturing_orders" or "generate_report" or "get_hr_leave_summary" or "get_hr_attendance_summary" or
+                "search_sales_orders" or "search_manufacturing_orders" or "search_sales_deliveries" or "generate_report" or "get_hr_leave_summary" or "get_hr_attendance_summary" or
                 "search_sales_invoices" or "search_purchase_invoices" or "get_cash_flow_forecast" ? toolName : "other";
             var tags = new TagList { { "tool", safeToolName }, { "outcome", outcome } };
             Calls.Add(1, tags);

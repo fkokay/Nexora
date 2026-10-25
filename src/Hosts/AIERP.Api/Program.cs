@@ -208,6 +208,7 @@ app.MapTenantLicenseEndpoints();
 app.MapPaymentInstrumentEndpoints();
 app.MapInventoryTrackingInquiryEndpoints();
 app.MapSalesOrderEndpoints();
+app.MapSalesDeliverySearchEndpoints();
 app.MapSalesPromotionEndpoints();
 app.MapSalesPlanningInquiryEndpoints();
 app.MapPurchaseInvoiceEntryEndpoints();
