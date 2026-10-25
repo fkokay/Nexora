@@ -1,9 +1,9 @@
-.sales-promotions-page { display: grid; gap: 14px; min-width: 0; }
+.sales-promotions-page { display: grid; gap: 14px; min-width: 0; width: 100%; max-width: 100%; }
 .sales-promotions-header { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line, #e5e8f1); }
 .sales-promotions-header h1 { margin: 3px 0 5px; font-size: 27px; letter-spacing: -.025em; }
 .sales-promotions-header .muted { margin: 0; font-size: 13px; }
 .sales-promotions-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.sales-promotions-page .panel { padding: 16px; border-radius: 10px; box-shadow: none; }
+.sales-promotions-page .panel { min-width: 0; padding: 16px; border-radius: 10px; box-shadow: none; }
 .sales-promotions-page .panel-heading { margin-bottom: 11px; padding-bottom: 9px; border-bottom: 1px solid var(--line, #e5e8f1); }
 .sales-campaign-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(230px, .75fr); align-items: start; gap: 11px; }
 .sales-campaign-layout .table-scroll { max-height: min(56vh, 580px); overflow: auto; border: 1px solid var(--line, #e5e8f1); border-radius: 8px; }
@@ -32,30 +32,41 @@
 .sales-campaign-search input:focus-visible { border-color: #0f6cbd; outline: 2px solid #0f6cbd24; }
 
 /* Performance report: keep the filter and result table dense like the rest of ERP. */
-.sales-promotions-page .sales-campaign-performance > .panel-heading > div {
+.sales-promotions-page .sales-campaign-performance-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.sales-promotions-page .sales-campaign-performance-heading > button { flex: 0 0 auto; white-space: nowrap; }
+.sales-promotions-page .sales-campaign-performance-title {
   display: grid;
   justify-items: start;
   gap: 4px;
   min-width: 0;
 }
-.sales-promotions-page .sales-campaign-performance > .panel-heading b { line-height: 1.35; }
-.sales-promotions-page .sales-campaign-performance > .panel-heading small {
+.sales-promotions-page .sales-campaign-performance-title b { display: block; line-height: 1.35; }
+.sales-promotions-page .sales-campaign-performance-title small {
   display: block;
   line-height: 1.45;
   white-space: normal;
+  overflow-wrap: anywhere;
 }
 .sales-promotions-page .sales-campaign-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1.35fr) repeat(2, minmax(170px, .8fr));
+  grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, .8fr));
   align-items: end;
   gap: 10px 12px;
+  min-width: 0;
   margin: 0 0 12px;
 }
-.sales-promotions-page .sales-campaign-filters > label {
+.sales-promotions-page .sales-campaign-filter-label {
   display: grid;
   align-content: start;
   gap: 5px;
   min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--muted, #69768b);
   font-size: 11px;
   font-weight: 650;
@@ -76,11 +87,16 @@
 }
 .sales-promotions-page .sales-campaign-filters input[type="date"] { padding-inline: 8px; }
 .sales-promotions-page .sales-campaign-report-table {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow: auto;
   border: 1px solid var(--line, #e5e8f1);
   border-radius: 7px;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
 }
+.sales-promotions-page .sales-campaign-report-table:focus-visible { outline: 2px solid #0f6cbd; outline-offset: 2px; }
 .sales-promotions-page .sales-campaign-report-table table {
   width: 100%;
   min-width: 940px;
@@ -96,7 +112,9 @@
   font-size: 10px;
   font-weight: 700;
   line-height: 1.35;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: bottom;
 }
 .sales-promotions-page .sales-campaign-report-table td {
   padding: 9px 10px;
@@ -128,21 +146,26 @@
 .sales-promotions-page .sales-campaign-pagination > div {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   gap: 7px;
 }
-.sales-promotions-page .sales-campaign-pagination button { min-height: 32px; padding: 6px 10px; }
+.sales-promotions-page .sales-campaign-pagination button { flex: 0 0 auto; min-height: 32px; padding: 6px 10px; white-space: nowrap; }
 .sales-promotions-page .sales-campaign-pagination span { min-width: 20px; color: var(--muted, #69768b); text-align: center; font-size: 12px; }
 
 @media (min-width: 1600px) {
   .sales-promotions-page .sales-campaign-report-table table { min-width: 100%; }
-  .sales-promotions-page .sales-campaign-filters { grid-template-columns: minmax(280px, 1.4fr) repeat(2, minmax(190px, .7fr)); }
+  .sales-promotions-page .sales-campaign-filters { grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, .7fr)); }
 }
 @media (max-width: 800px) {
   .sales-promotions-page .sales-campaign-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sales-promotions-page .sales-campaign-filters > label:first-child { grid-column: 1 / -1; }
+  .sales-promotions-page .sales-campaign-filter-label:first-child { grid-column: 1 / -1; }
 }
 @media (max-width: 520px) {
+  .sales-promotions-page .sales-campaign-performance-heading { align-items: stretch; flex-direction: column; }
+  .sales-promotions-page .sales-campaign-performance-heading > button { align-self: flex-start; }
   .sales-promotions-page .sales-campaign-filters { grid-template-columns: minmax(0, 1fr); }
-  .sales-promotions-page .sales-campaign-filters > label:first-child { grid-column: auto; }
-  .sales-promotions-page .sales-campaign-pagination { align-items: flex-start; flex-direction: column; }
+  .sales-promotions-page .sales-campaign-filter-label:first-child { grid-column: auto; }
+  .sales-promotions-page .sales-campaign-pagination { align-items: flex-start; flex-wrap: wrap; }
 }

@@ -3,7 +3,116 @@
   --credit-muted: var(--erp-muted, #697386);
   --credit-text: var(--erp-text, #273047);
   --credit-surface: var(--erp-surface, #fff);
-  gap: 18px;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Keep the two entry forms compact and aligned inside the available workbench width. */
+.credit-facilities-page .finance-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+.credit-facilities-page .finance-two-column > .panel,
+.credit-facilities-page > .panel {
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--credit-border);
+  border-radius: 9px;
+  box-shadow: 0 1px 3px rgba(16, 42, 67, .045);
+}
+.credit-facilities-page .finance-two-column .panel-heading,
+.credit-facilities-page > .panel .panel-heading {
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 0 0 11px;
+  border-bottom: 1px solid var(--credit-border);
+}
+.credit-facilities-page .finance-two-column .panel-heading h2,
+.credit-facilities-page > .panel .panel-heading h2 {
+  margin: 0 0 4px;
+  color: var(--credit-text);
+  font-size: 15px;
+  line-height: 1.35;
+}
+.credit-facilities-page .finance-two-column .panel-heading p,
+.credit-facilities-page > .panel .panel-heading p {
+  margin: 0;
+  color: var(--credit-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.credit-facilities-page .collection-form {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.credit-facilities-page .collection-form .form-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 10px 12px;
+  min-width: 0;
+}
+.credit-facilities-page .collection-form > label,
+.credit-facilities-page .collection-form .form-two > label {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  color: var(--credit-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.credit-facilities-page .collection-form input,
+.credit-facilities-page .collection-form select,
+.credit-facilities-page .collection-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--credit-border);
+  border-radius: 6px;
+  background: var(--credit-surface);
+  color: var(--credit-text);
+  font: inherit;
+  font-size: 12px;
+}
+.credit-facilities-page .collection-form textarea { min-height: 76px; resize: vertical; }
+.credit-facilities-page .collection-form input:focus-visible,
+.credit-facilities-page .collection-form select:focus-visible,
+.credit-facilities-page .collection-form textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, #0f6cbd 30%, transparent);
+  border-color: #0f6cbd;
+}
+.credit-facilities-page .collection-form .modal-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 9px 0 0;
+  border-top: 1px solid var(--credit-border);
+}
+.credit-facilities-page .collection-form .modal-foot > span {
+  flex: 1 1 180px;
+  min-width: 0;
+  color: var(--credit-muted);
+  font-size: 10px;
+  line-height: 1.45;
 }
 
 .credit-facilities-page .credit-card-heading,
@@ -88,11 +197,18 @@
 .credit-facilities-page .credit-page-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; color: var(--credit-muted); font-size: 12px; }
 
 @media (max-width: 900px) {
+  .credit-facilities-page .finance-two-column { grid-template-columns: minmax(0, 1fr); }
   .credit-facilities-page .credit-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .credit-facilities-page .credit-clear-filters { justify-self: start; }
 }
 
 @media (max-width: 640px) {
+  .credit-facilities-page .finance-two-column > .panel,
+  .credit-facilities-page > .panel { padding: 13px; }
+  .credit-facilities-page .collection-form .form-two { grid-template-columns: minmax(0, 1fr); }
+  .credit-facilities-page .collection-form .modal-foot { align-items: stretch; flex-direction: column; }
+  .credit-facilities-page .collection-form .modal-foot > span { flex-basis: auto; }
+  .credit-facilities-page .collection-form .modal-foot > button { align-self: flex-start; }
   .credit-facilities-page .credit-records-heading,
   .credit-facilities-page .credit-card-heading { align-items: stretch; flex-direction: column; }
   .credit-facilities-page .credit-card-heading > button { align-self: flex-start; }
