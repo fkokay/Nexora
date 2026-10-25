@@ -1,3 +1,4 @@
+import AdvancedDataGrid from './AdvancedDataGrid'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Ban, RefreshCw, ShieldCheck } from 'lucide-react'
@@ -199,9 +200,9 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
       <div className="integration-queue-toolbar"><div><h2>Onay bekleyen gönderimler</h2><p className="muted">Onaylayan kişi taslağı oluşturan kişiden farklı olmalıdır.</p></div></div>
       {submissionsError && <div className="integration-inline-error" role="alert">Onay bekleyen gönderimler yüklenemedi: {submissionsError}</div>}
       <div className="integration-queue-table-wrap" role="region" aria-label="Onay bekleyen gönderim tablosu" tabIndex={0} aria-busy={submissionsLoading}>
-        <table className="integration-queue-table"><caption className="integration-visually-hidden">Onay bekleyen e-belge gönderimleri</caption><thead><tr><th scope="col">Tür</th><th scope="col">Belge</th><th scope="col">Düzenleme tarihi</th><th scope="col">Para birimi</th><th scope="col">Hazırlanma</th><th scope="col">İşlemler</th></tr></thead><tbody>
+        <AdvancedDataGrid  className="integration-queue-table"><caption className="integration-visually-hidden">Onay bekleyen e-belge gönderimleri</caption><thead><tr><th scope="col">Tür</th><th scope="col">Belge</th><th scope="col">Düzenleme tarihi</th><th scope="col">Para birimi</th><th scope="col">Hazırlanma</th><th scope="col">İşlemler</th></tr></thead><tbody>
         {submissionsLoading ? <tr><td colSpan={6} className="queue-empty" role="status">Onay bekleyen gönderimler yükleniyor…</td></tr> : submissionsError ? <tr><td colSpan={6} className="queue-empty">Gönderim listesi görüntülenemiyor. Yenile düğmesini kullanın.</td></tr> : submissions.length ? submissions.map(item => <tr key={item.operationId}><td>{item.documentType}</td><td><b>{item.documentNumber}</b><small className="queue-id">{item.documentId}</small></td><td>{item.issueDate}</td><td>{item.currencyCode}</td><td>{new Date(item.createdAt).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })}</td><td><button type="button" className="primary small-button" disabled={busyId === item.operationId} onClick={() => void reviewSubmission(item)}>{busyId === item.operationId ? 'Yükleniyor…' : 'İncele'}</button></td></tr>) : <tr><td colSpan={6} className="queue-empty">Onay bekleyen gönderim yok.</td></tr>}
-      </tbody></table></div>
+      </tbody></AdvancedDataGrid></div>
       {reviewItem && reviewDetail && <div className="integration-edoc-review" role="region" aria-label="E-belge gönderim incelemesi">
         <div><h3>Gönderim içeriğini inceleyin</h3><p className="muted">{reviewDetail.documentType} · {reviewDetail.documentNumber} · {reviewDetail.issueDate} · {reviewDetail.currencyCode}</p></div>
         <pre>{JSON.stringify(reviewDetail.document, null, 2)}</pre>
@@ -220,7 +221,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
       </div>
       <div className="integration-operations-workbench">
       <div className="integration-queue-table-wrap" role="region" aria-label="Entegrasyon işlem geçmişi tablosu" tabIndex={0} aria-busy={loading}>
-        <table className="integration-queue-table">
+        <AdvancedDataGrid  className="integration-queue-table">
           <caption className="integration-visually-hidden">Entegrasyon işlemlerinin durum ve deneme geçmişi</caption>
           <thead><tr><th scope="col">Entegrasyon</th><th scope="col">Durum</th><th scope="col">Oluşturulma</th><th scope="col">Deneme</th><th scope="col">Hata kodu</th><th scope="col">İşlemler</th></tr></thead>
           <tbody>{loading ? <tr><td colSpan={6} className="queue-empty" role="status">Kuyruk yükleniyor…</td></tr> : !data ? <tr><td colSpan={6} className="queue-empty">Kuyruk görüntülenemiyor. Yenile düğmesini kullanın.</td></tr> : data.items.length ? data.items.map(item => <tr key={item.operationId}>
@@ -231,7 +232,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
             <td>{item.errorCode || '—'}</td>
             <td><div className="queue-row-actions"><button type="button" className="secondary small-button" aria-pressed={selectedOperation?.operationId===item.operationId} onClick={()=>setSelectedOperationId(item.operationId)}>Ayrıntı</button>{['Queued', 'AwaitingApproval'].includes(item.status) && <button className="secondary small-button queue-cancel" disabled={busyId === item.operationId} onClick={() => void cancel(item)}><Ban size={14}/>{busyId === item.operationId ? 'İptal ediliyor…' : 'İptal et'}</button>}</div></td>
           </tr>) : <tr><td colSpan={6} className="queue-empty">Bu filtrede işlem bulunmuyor.</td></tr>}</tbody>
-        </table>
+        </AdvancedDataGrid>
       </div>
       {selectedOperation&&<aside className="integration-operation-inspector" aria-label="Seçili kuyruk işlemi"><div className="integration-inspector-heading"><div><p className="eyebrow">SEÇİLİ İŞLEM</p><h3>{selectedOperation.integrationCode}</h3><small className="queue-id">{selectedOperation.operationId}</small></div><span className={`queue-status status-${selectedOperation.status.toLowerCase()}`}><i/>{statusLabels[selectedOperation.status]}</span></div><dl><div><dt>Oluşturulma</dt><dd>{new Date(selectedOperation.createdAt).toLocaleString('tr-TR')}</dd></div><div><dt>Son güncelleme</dt><dd>{new Date(selectedOperation.updatedAt).toLocaleString('tr-TR')}</dd></div><div><dt>Başladı</dt><dd>{selectedOperation.startedAt?new Date(selectedOperation.startedAt).toLocaleString('tr-TR'):'—'}</dd></div><div><dt>Tamamlandı</dt><dd>{selectedOperation.completedAt?new Date(selectedOperation.completedAt).toLocaleString('tr-TR'):'—'}</dd></div><div><dt>Deneme sayısı</dt><dd>{selectedOperation.attempts}</dd></div><div><dt>Hata kodu</dt><dd>{selectedOperation.errorCode||'—'}</dd></div></dl><p>İstek gövdesi ve hassas belge verileri kuyruk ayrıntısında gösterilmez.</p>{['Queued','AwaitingApproval'].includes(selectedOperation.status)&&<button className="secondary queue-cancel" disabled={busyId===selectedOperation.operationId} onClick={()=>void cancel(selectedOperation)}><Ban size={14}/> İptal et</button>}</aside>}
       </div>

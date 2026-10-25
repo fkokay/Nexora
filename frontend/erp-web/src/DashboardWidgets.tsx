@@ -1,3 +1,4 @@
+import AdvancedDataGrid from './AdvancedDataGrid'
 import { useEffect, useRef, useState } from 'react'
 import { Activity, Boxes, ChevronDown, ChevronUp, LayoutDashboard, Plus, RefreshCw, ShoppingCart, Trash2, TrendingUp } from 'lucide-react'
 import './dashboard-widgets.css'
@@ -166,7 +167,7 @@ export default function DashboardWidgets({ token, role, requestApi }: {
           {!preview ? <div className="dashboard-widget-preview-empty" role={previewStatus[widget.id] === 'error' ? 'alert' : 'status'}>
             <span>{previewStatus[widget.id] === 'loading' ? 'Rapor verisi yükleniyor…' : 'Bu widget’ın rapor verisi alınamadı. Yeniden deneyin.'}</span>
             {previewStatus[widget.id] === 'error' && <button className="dashboard-widget-retry" type="button" onClick={() => void loadPreview(widget)}><RefreshCw size={14}/> Tekrar dene</button>}
-          </div> : isGrouped ? <div className="dashboard-widget-table-wrap"><table><thead><tr><th>Grup</th><th>Kayıt</th><th>Toplam</th></tr></thead><tbody>{preview.groups.slice(0, 5).map((group, rowIndex) => <tr key={rowIndex}><td>{(group.groupValues ?? [group.groupValue]).map(display).join(' · ')}</td><td>{display(group.rowCount)}</td><td>{display(group.value)}</td></tr>)}</tbody></table></div> : <div className="dashboard-widget-table-wrap"><table><thead><tr>{columns.map(column => <th key={column.code}>{column.label}</th>)}</tr></thead><tbody>{preview.rows.slice(0, 5).map((row, rowIndex) => <tr key={rowIndex}>{columns.map(column => <td key={column.code}>{display(row[column.code])}</td>)}</tr>)}</tbody></table></div>}
+          </div> : isGrouped ? <div className="dashboard-widget-table-wrap"><AdvancedDataGrid><thead><tr><th>Grup</th><th>Kayıt</th><th>Toplam</th></tr></thead><tbody>{preview.groups.slice(0, 5).map((group, rowIndex) => <tr key={rowIndex}><td>{(group.groupValues ?? [group.groupValue]).map(display).join(' · ')}</td><td>{display(group.rowCount)}</td><td>{display(group.value)}</td></tr>)}</tbody></AdvancedDataGrid></div> : <div className="dashboard-widget-table-wrap"><AdvancedDataGrid><thead><tr>{columns.map(column => <th key={column.code}>{column.label}</th>)}</tr></thead><tbody>{preview.rows.slice(0, 5).map((row, rowIndex) => <tr key={rowIndex}>{columns.map(column => <td key={column.code}>{display(row[column.code])}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>}
         </article>
       })}</div>}
   </section>

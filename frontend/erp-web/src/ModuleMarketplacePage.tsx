@@ -1,3 +1,4 @@
+import AdvancedDataGrid from './AdvancedDataGrid'
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { authenticatedFetch } from './authApi';
 import { Boxes, Check, PackageOpen, Play, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
@@ -308,7 +309,7 @@ export function TenantModuleScreen({ token, selection }: { token: string; select
         <button className="primary" type="submit" disabled={busy}>{busy ? 'Çalışıyor…' : <><Play size={15}/> {view?.inputMode === 'form' ? 'Gönder' : 'Çalıştır'}</>}</button>
       </form>
       {error && <div className="alert" role="alert">{error}</div>}
-      {output !== undefined && <><h2>Modül yanıtı</h2>{view?.resultMode === 'table' && resultRows.length > 0 ? <div className="module-ui-table-wrap"><table className="module-ui-table"><thead><tr>{view.resultColumns.map(column => <th key={column.code}>{column.label}</th>)}</tr></thead><tbody>{resultRows.map((row, index) => <tr key={index}>{view.resultColumns.map(column => <td key={column.code}>{formatCell(row[column.code])}</td>)}</tr>)}</tbody></table></div> : <>
+      {output !== undefined && <><h2>Modül yanıtı</h2>{view?.resultMode === 'table' && resultRows.length > 0 ? <div className="module-ui-table-wrap"><AdvancedDataGrid  className="module-ui-table"><thead><tr>{view.resultColumns.map(column => <th key={column.code}>{column.label}</th>)}</tr></thead><tbody>{resultRows.map((row, index) => <tr key={index}>{view.resultColumns.map(column => <td key={column.code}>{formatCell(row[column.code])}</td>)}</tr>)}</tbody></AdvancedDataGrid></div> : <>
         {view?.resultMode === 'table' && <div className="boundary-note">Modül yanıtında beklenen satır listesi bulunmadı; ham JSON gösteriliyor.</div>}
         <pre className="module-invoke-output">{JSON.stringify(output, null, 2)}</pre>
       </>}</>}

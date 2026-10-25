@@ -124,3 +124,45 @@ html[data-theme="dark"] .manufacturing-order-inspector{background:var(--erp-surf
 html[data-theme="dark"] .manufacturing-inspector-title,html[data-theme="dark"] .manufacturing-inspector-actions{border-color:var(--erp-border,#303542)}
 html[data-theme="dark"] .manufacturing-inspector-section li{background:var(--erp-surface,#171a22);border-color:var(--erp-border,#303542)}
 @media(max-width:1000px){.manufacturing-order-workbench{grid-template-columns:minmax(0,1fr)}.manufacturing-order-inspector{position:static}}
+
+/* Keep the work-center screen focused; expose planning rules on demand. */
+.manufacturing-page .manufacturing-kpis.work-center-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.manufacturing-page .manufacturing-kpis.work-center-kpis article { min-height: 76px; padding: 13px 15px; border-radius: 9px; }
+.manufacturing-page .manufacturing-kpis.work-center-kpis article>b { color: #145b91; font-size: 19px; }
+.manufacturing-page .work-center-calendar { gap: 12px; margin-top: 14px; padding: 14px; }
+.manufacturing-page .calendar-settings-disclosure { display: grid; gap: 12px; padding-top: 12px; border-top: 1px solid var(--erp-border, #e3e7ee); }
+.manufacturing-page .calendar-settings-disclosure > summary,
+.manufacturing-page .work-center-setup-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid var(--erp-border, #dfe4ed);
+  border-radius: 8px;
+  background: var(--erp-surface, #fff);
+  color: var(--erp-text, #25324a);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.manufacturing-page .calendar-settings-disclosure > summary::-webkit-details-marker,
+.manufacturing-page .work-center-setup-details > summary::-webkit-details-marker { display: none; }
+.manufacturing-page .calendar-settings-disclosure > summary::after,
+.manufacturing-page .work-center-setup-details > summary::after { content: "+"; color: #52627a; font-size: 18px; font-weight: 400; }
+.manufacturing-page .calendar-settings-disclosure[open] > summary::after,
+.manufacturing-page .work-center-setup-details[open] > summary::after { content: "−"; }
+.manufacturing-page .work-center-setup-details > summary { margin: -3px -3px 0; padding: 0 0 10px; border: 0; border-bottom: 1px solid var(--erp-border, #e3e7ee); border-radius: 0; background: transparent; }
+.manufacturing-page .work-center-setup-details > summary > div { min-width: 0; }
+.manufacturing-page .work-center-setup-details > summary > div h3 { margin: 0; font-size: 13px; }
+.manufacturing-page .work-center-setup-details > summary > div p { margin: 4px 0 0; color: var(--erp-text-muted, #718098); font-size: 11px; line-height: 1.45; }
+.manufacturing-page .calendar-settings-disclosure .manufacturing-empty,
+.manufacturing-page .work-center-setup-details .manufacturing-empty { min-height: 88px; padding: 18px; }
+html[data-theme="dark"] .manufacturing-page .manufacturing-kpis.work-center-kpis article>b { color: #8bc8f2; }
+html[data-theme="dark"] .manufacturing-page .calendar-settings-disclosure > summary { background: var(--erp-surface-soft, #20242e); }
+@media(max-width:700px) {
+  .manufacturing-page .manufacturing-kpis.work-center-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .manufacturing-page .calendar-title { flex-wrap: wrap; }
+}

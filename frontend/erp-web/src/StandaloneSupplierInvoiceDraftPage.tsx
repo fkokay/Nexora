@@ -1,3 +1,4 @@
+import AdvancedDataGrid from './AdvancedDataGrid'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { authenticatedFetch } from './authApi';
 import { FilePlus2, Plus, RotateCw, ShieldCheck, Trash2 } from 'lucide-react'
@@ -194,7 +195,7 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
     </form>
 
     <section className="sid-card sid-list-card"><div className="sid-card-heading"><div><h2>Kaydedilmiş taslaklar</h2><p>Yalnızca bu firmaya ait, muhasebeleştirilmemiş belgeler.</p></div><button type="button" className="sid-secondary" onClick={() => void load()} disabled={loading}><RotateCw size={15}/> Yenile</button></div>
-      <div className="sid-table-wrap"><table><thead>{draftFieldGroups(draftScreenFields).map((group, index) => <tr className="sid-group-row" key={`${group.label}-${index}`}><th colSpan={group.count}>{group.label}</th></tr>)}<tr>{visibleDraftFields(draftScreenFields).map(field => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{loading ? <tr><td colSpan={visibleDraftFields(draftScreenFields).length} className="sid-empty">Taslaklar yükleniyor…</td></tr> : drafts.length === 0 ? <tr><td colSpan={visibleDraftFields(draftScreenFields).length} className="sid-empty">Henüz bağımsız fatura taslağı yok.</td></tr> : drafts.map(item => <tr key={item.id}>{visibleDraftFields(draftScreenFields).map(field => <td key={field.key}>{draftFieldValue(item, field.key, () => void beginEdit(item.id))}</td>)}</tr>)}</tbody></table></div>
+      <div className="sid-table-wrap"><AdvancedDataGrid><thead>{draftFieldGroups(draftScreenFields).map((group, index) => <tr className="sid-group-row" key={`${group.label}-${index}`}><th colSpan={group.count}>{group.label}</th></tr>)}<tr>{visibleDraftFields(draftScreenFields).map(field => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{loading ? <tr><td colSpan={visibleDraftFields(draftScreenFields).length} className="sid-empty">Taslaklar yükleniyor…</td></tr> : drafts.length === 0 ? <tr><td colSpan={visibleDraftFields(draftScreenFields).length} className="sid-empty">Henüz bağımsız fatura taslağı yok.</td></tr> : drafts.map(item => <tr key={item.id}>{visibleDraftFields(draftScreenFields).map(field => <td key={field.key}>{draftFieldValue(item, field.key, () => void beginEdit(item.id))}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
     </section>
   </main>
 }

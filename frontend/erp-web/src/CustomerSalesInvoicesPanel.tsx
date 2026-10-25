@@ -1,3 +1,4 @@
+import AdvancedDataGrid from './AdvancedDataGrid'
 import { useEffect, useState } from 'react'
 import { authenticatedFetch } from './authApi';
 import { FileText, RotateCcw, ShieldCheck, X } from 'lucide-react'
@@ -70,11 +71,11 @@ export default function CustomerSalesInvoicesPanel({ token, customer, onClose, o
       </div>
       <div className="customer-summary"><div className="customer-summary-icon"><ShieldCheck size={18}/></div><div><b>{loading ? 'Faturalar yükleniyor…' : `${items.length} satış faturası`}</b><small>Aktif firma kapsamındaki kayıtlar</small></div></div>
       {error && <div className="alert inline-alert" role="alert">{error}<button onClick={() => setError('')}><X size={15}/></button></div>}
-      <div className="ledger-list"><table className="customer-table"><thead><tr><th>Fatura</th><th>Sipariş / irsaliye</th><th>Tarih</th><th>Satır</th><th>Tutar</th><th>Durum</th><th></th></tr></thead><tbody>
+      <div className="ledger-list"><AdvancedDataGrid  className="customer-table"><thead><tr><th>Fatura</th><th>Sipariş / irsaliye</th><th>Tarih</th><th>Satır</th><th>Tutar</th><th>Durum</th><th></th></tr></thead><tbody>
         {loading ? <tr><td colSpan={7} className="table-empty">Faturalar yükleniyor…</td></tr> : items.length === 0 ? <tr><td colSpan={7} className="table-empty">Bu müşteri için görüntülenebilir satış faturası yok.</td></tr> : items.map(invoice => <tr key={invoice.id}>
           <td><span className="customer-code">{invoice.code}</span></td><td>{invoice.orderCode}<small className="cell-subtitle">İrsaliye {invoice.deliveryCode}</small></td><td>{invoice.invoiceDate.split('-').reverse().join('.')}</td><td>{invoice.lineCount}</td><td>{invoice.grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {invoice.currencyCode}</td><td><span className={`quote-status ${invoice.status === 'Posted' ? 'accepted' : 'rejected'}`}>{invoice.status === 'Posted' ? 'Kesildi' : 'İptal'}</span></td><td><button className="row-action" onClick={() => onOpenInvoice(invoice.id)}><RotateCcw size={14}/> Faturayı / iadeyi aç</button></td>
         </tr>)}
-      </tbody></table></div>
+      </tbody></AdvancedDataGrid></div>
       <div className="modal-foot"><span><FileText size={15}/> İade miktarı ve kaynak fatura bağlantısı fatura detayında korunur.</span><button className="secondary" onClick={onClose}>Kapat</button></div>
     </section>
   </div>

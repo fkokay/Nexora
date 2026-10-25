@@ -1,3 +1,4 @@
+import AdvancedDataGrid from './AdvancedDataGrid'
 import { useEffect, useState } from 'react'
 import { authenticatedFetch } from './authApi';
 import './CashForecastPanel.css'
@@ -176,7 +177,7 @@ export default function CashForecastPanel({ token }: { token: string }) {
           </div>
           <div className="cash-forecast-table-wrap" role="region" aria-label={`${currency.currencyCode} tahmin tablosu`} tabIndex={0}>
             <p className="cash-forecast-scroll-hint">Geniş tabloda diğer sütunları görmek için yatay kaydırın.</p>
-            <table className="customer-table cash-forecast-table">
+            <AdvancedDataGrid  className="customer-table cash-forecast-table">
               <caption className="cash-forecast-sr-only">{currency.currencyCode} bazında aylık nakit tahmini</caption>
               <thead><tr>
                 <th scope="col">Dönem</th><th scope="col">Açılış</th><th scope="col">Alacak faturaları</th><th scope="col">Borç faturaları</th>
@@ -206,7 +207,7 @@ export default function CashForecastPanel({ token }: { token: string }) {
                   <AmountCell label="Vadesi geçmiş toplam" amount={overdueTotal} currency={currency.currencyCode} />
                 </tr>
               })}</tbody>
-            </table>
+            </AdvancedDataGrid>
           </div>
         </section>
       ))}
