@@ -286,7 +286,15 @@
   .fixed-assets-page .heading-actions .primary { width: 100%; }
 }
 
-.fixed-assets-page .fixed-asset-page-actions { display: flex; align-items: center; gap: 8px; }
+.fixed-assets-page .fixed-asset-page-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.fixed-assets-page .fixed-asset-page-actions > button { min-height: 40px; }
 .fixed-assets-page .fixed-asset-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -439,15 +447,46 @@ html[data-theme="dark"] .fixed-assets-page .customer-table th {
   background: color-mix(in srgb, var(--erp-surface, #fff) 82%, var(--surface-muted, #f3f5fb));
 }
 .fixed-assets-page .fixed-asset-form-section h4 { margin-bottom: 2px; }
+.fixed-assets-page .fixed-asset-form-section .form-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.fixed-assets-page .fixed-asset-form-section .form-three > label {
+  min-width: 0;
+  color: var(--erp-muted, #697386);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.fixed-assets-page .fixed-asset-form-section .form-three :is(input, select) {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--erp-border, #e2e6ef);
+  border-radius: 8px;
+  background: var(--erp-surface, #fff);
+  color: var(--erp-text, #273047);
+  font: inherit;
+  font-size: 12px;
+}
+@container fixed-assets (max-width: 760px) {
+  .fixed-assets-page .fixed-asset-form-section .form-three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 @container fixed-assets (max-width: 820px) {
   .fixed-assets-page > .page-heading { align-items: flex-start; }
   .fixed-assets-page > .page-heading > button { flex: 0 0 auto; }
+  .fixed-assets-page .fixed-asset-page-actions { justify-content: flex-start; }
 }
 
 @container fixed-assets (max-width: 460px) {
+  .fixed-assets-page .fixed-asset-form-section .form-three { grid-template-columns: minmax(0, 1fr); }
   .fixed-assets-page > .page-heading { flex-direction: column; }
   .fixed-assets-page > .page-heading > button { width: 100%; justify-content: center; }
+  .fixed-assets-page .fixed-asset-page-actions { width: 100%; }
+  .fixed-assets-page .fixed-asset-page-actions > button { flex: 1 1 100%; justify-content: center; }
   .fixed-assets-page > section.panel { padding: 14px; }
   .fixed-assets-page .fixed-asset-form-section { padding: 12px; }
 }
