@@ -34,6 +34,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 });
 builder.Services.AddAuthorization();
 var app = builder.Build();
+// Capture process configuration outside request handlers. IConfiguration is a
+// host service, not request data; making it a minimal-API parameter causes
+// static analysis to treat configured storage roots as user-controlled paths.
+var configuration = builder.Configuration;
 app.UseAierpSecurityHeaders();
 app.UseAierpHttpMetrics();
 app.UseAuthentication();
@@ -49,7 +53,7 @@ app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
         if (nextRun <= now) nextRun = nextRun.AddDays(1);
         try { await Task.Delay(nextRun - now, scheduledBackupStopping); }
         catch (OperationCanceledException) when (scheduledBackupStopping.IsCancellationRequested) { break; }
-        try { await BackupActiveProductionProjectsAsync(builder.Configuration, signingKey, app.Logger, scheduledBackupStopping); }
+        try { await BackupActiveProductionProjectsAsync(configuration, signingKey, app.Logger, scheduledBackupStopping); }
         catch (OperationCanceledException) when (scheduledBackupStopping.IsCancellationRequested) { break; }
         catch (Exception exception) { app.Logger.LogError(exception, "Scheduled production database backup failed."); }
     }
@@ -57,7 +61,7 @@ app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "release-deployer" }));
 app.MapAierpMetrics();
-app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body, ClaimsPrincipal caller, CancellationToken cancellationToken) =>
 {
     if (!HasScope(caller, body, "release.staging.deploy")) return Results.Forbid();
     if (body.DeploymentId == Guid.Empty || body.TenantId == Guid.Empty || body.ProjectId == Guid.Empty || body.PackageId == Guid.Empty ||
@@ -232,7 +236,7 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
     }
 }).RequireAuthorization();
 
-app.MapDelete("/internal/deployments/staging/{deploymentId:guid}", async (Guid deploymentId, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapDelete("/internal/deployments/staging/{deploymentId:guid}", async (Guid deploymentId, ClaimsPrincipal caller, CancellationToken cancellationToken) =>
 {
     if (deploymentId == Guid.Empty || caller.FindFirstValue("deployment_id") != deploymentId.ToString("D") || caller.FindFirstValue("scope") != "release.staging.destroy") return Results.Forbid();
     if (!Guid.TryParse(caller.FindFirstValue("project_id"), out var projectId)) return Results.Forbid();
@@ -265,7 +269,7 @@ app.MapDelete("/internal/deployments/staging/{deploymentId:guid}", async (Guid d
     finally { DeployerState.Gate.Release(); }
 }).RequireAuthorization();
 
-app.MapPost("/internal/deployments/production", async (CreateStagingDeployment body, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/internal/deployments/production", async (CreateStagingDeployment body, ClaimsPrincipal caller, CancellationToken cancellationToken) =>
 {
     if (!HasScope(caller, body, "release.production.deploy")) return Results.Forbid();
     if (body.DeploymentId == Guid.Empty || body.TenantId == Guid.Empty || body.ProjectId == Guid.Empty || body.PackageId == Guid.Empty ||
@@ -473,7 +477,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
     }
 }).RequireAuthorization();
 
-app.MapPost("/internal/deployments/production/restore", async (RestoreProductionDeployment body, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/internal/deployments/production/restore", async (RestoreProductionDeployment body, ClaimsPrincipal caller, CancellationToken cancellationToken) =>
 {
     if (!HasRestoreScope(caller, body, "release.production.restore")) return Results.Forbid();
     if (body.DeploymentId == Guid.Empty || body.TenantId == Guid.Empty || body.ProjectId == Guid.Empty || body.PackageId == Guid.Empty ||
