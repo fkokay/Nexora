@@ -23,7 +23,7 @@ public sealed class PrometheusHttpMetrics
     private static readonly HashSet<string> BusinessTools = new(StringComparer.Ordinal)
     {
         "search_stock_items", "list_warehouses", "get_warehouse_balances", "search_customer_accounts",
-        "get_customer_balance", "generate_report", "other"
+        "get_customer_balance", "generate_report", "search_supplier_ledger", "other"
     };
     private readonly ConcurrentDictionary<RequestSeries, Histogram> series = new();
     private readonly ConcurrentDictionary<BusinessSeries, long> businessCounters = new();
