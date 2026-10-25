@@ -39,6 +39,7 @@ $behaviorTestMap = @{
     'Provider_429_is_classified_without_body_inspection_or_automatic_retry' = 'provider-429-classification'
     'Versioned_dataset_matches_the_scripted_tool_matrix_and_declares_its_semantic_limit' = 'contract-validation'
     'Live_quality_set_limits_each_case_to_applicable_review_dimensions' = 'live-quality-contract-validation'
+    'Live_review_contract_requires_two_independent_reviewers_and_third_party_adjudication' = 'live-quality-reviewer-governance-contract'
 }
 $scenarioCatalog = @{}
 foreach ($scenario in $dataset.cases) {
@@ -49,10 +50,14 @@ foreach ($scenario in $dataset.behaviorCases) {
 }
 $scenarioCatalog['contract-validation'] = [pscustomobject]@{ kind = 'dataset-contract'; declaredAssertions = @('tool-matrix-matches-executable-cases', 'scenario-ids-unique', 'assertion-contracts-present') }
 $scenarioCatalog['live-quality-contract-validation'] = [pscustomobject]@{ kind = 'live-quality-dataset-contract'; declaredAssertions = @('one-request-synthetic-only-limits', 'unique-case-and-rubric-contracts', 'case-specific-applicable-dimensions') }
+$scenarioCatalog['live-quality-reviewer-governance-contract'] = [pscustomobject]@{ kind = 'live-quality-reviewer-governance-contract'; declaredAssertions = @('two-distinct-human-reviewers', 'identity-and-independence-attestation', 'third-distinct-adjudicator-on-disagreement') }
 $cases = foreach ($result in $testResults) {
     $name = [string]$result.GetAttribute('testName')
     $id = $null
     if ($name -match 'caseId:\s*"?([a-z0-9-]+)') { $id = $Matches[1] }
+    if (-not $id -and $name -match 'Hr_summary_tool_is_strict_read_only_and_passes_only_synthetic_aggregate_result.*toolName: "(get_hr_leave_summary|get_hr_attendance_summary)"') {
+        $id = if ($Matches[1] -eq 'get_hr_leave_summary') { 'hr-leave-summary-data-minimization' } else { 'hr-attendance-summary-data-minimization' }
+    }
     if (-not $id) {
         foreach ($testName in $behaviorTestMap.Keys) {
             if ($name -match [regex]::Escape($testName)) { $id = $behaviorTestMap[$testName]; break }
@@ -68,7 +73,7 @@ $cases = foreach ($result in $testResults) {
     }
 }
 
-$declaredIds = @($dataset.cases | ForEach-Object id) + @($dataset.behaviorCases | ForEach-Object id) + @('contract-validation', 'live-quality-contract-validation')
+$declaredIds = @($dataset.cases | ForEach-Object id) + @($dataset.behaviorCases | ForEach-Object id) + @('contract-validation', 'live-quality-contract-validation', 'live-quality-reviewer-governance-contract')
 $mappedIds = @($cases | ForEach-Object id)
 $unmapped = @($cases | Where-Object id -eq 'unmapped-test')
 $missing = @($declaredIds | Where-Object { $_ -notin $mappedIds })
