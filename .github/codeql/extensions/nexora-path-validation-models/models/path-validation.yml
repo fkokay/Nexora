@@ -8,9 +8,10 @@ extensions:
       - [System, Guid, false, ToString, "()", "", ReturnValue, path-injection, manual]
       - [System, Guid, false, ToString, "(System.String)", "", ReturnValue, path-injection, manual]
       - [System, Guid, false, ToString, "(System.String,System.IFormatProvider)", "", ReturnValue, path-injection, manual]
+      - [AIERP.ReleaseDeployer, ReleaseDeployerPath, true, SafeGuidSegment, "(System.Guid)", "", ReturnValue, path-injection, manual]
       # These resolvers return a canonical contained path only after validating
       # traversal, platform path syntax, and existing reparse points.
-      - [AIERP.ReleaseDeployer, ReleaseDeployerPath, false, SafeChild, "(System.String,System.String)", "", ReturnValue, path-injection, manual]
+      - [AIERP.ReleaseDeployer, ReleaseDeployerPath, true, SafeChild, "(System.String,System.String)", "", ReturnValue, path-injection, manual]
       - [AIERP.ModuleSDK, ModulePackageStoragePath, false, ResolvePackage, "(System.String,System.String)", "", ReturnValue, path-injection, manual]
       - [AIERP.ModuleSDK, ModulePackageStoragePath, false, ResolveChild, "(System.String,System.String)", "", ReturnValue, path-injection, manual]
   - addsTo:
