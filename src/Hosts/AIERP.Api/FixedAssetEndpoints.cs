@@ -18,11 +18,17 @@ public static class FixedAssetEndpoints
     {
         var group = app.MapGroup("/api/fixed-assets").WithTags("Sabit Kıymetler").RequireAuthorization();
 
-        group.MapGet("/", async (int? page, int? pageSize, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (string? q, int? page, int? pageSize, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
             var currentPage = Math.Max(1, page ?? 1); var size = Math.Clamp(pageSize ?? 50, 1, 200);
             var query = db.FixedAssets.AsNoTracking().Where(x => x.TenantId == tenantId);
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim();
+                if (term.Length is < 2 or > 100) return Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["Arama en az 2, en fazla 100 karakter olmalıdır."] });
+                query = query.Where(x => x.AssetCode.Contains(term) || x.Name.Contains(term) || (x.Category != null && x.Category.Contains(term)));
+            }
             var total = await query.CountAsync(ct);
             var rows = await query.OrderBy(x => x.AssetCode).Skip((currentPage - 1) * size).Take(size)
                 .Select(x => new FixedAssetView(x.Id, x.AssetCode, x.Name, x.Category, x.AcquisitionDate, x.InServiceDate,

@@ -1161,6 +1161,24 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 });
                 break;
             }
+            case "search_fixed_assets":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantFixedAssetTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Fixed-asset search requires a 2–100 character term.");
+
+                if (!await ERPAssistantFixedAssetTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/fixed-assets", new Dictionary<string, string?>
+                {
+                    ["q"] = term, ["page"] = "1", ["pageSize"] = "25"
+                });
+                break;
+            }
             default: throw new ArgumentException("Unknown read-only ERP tool.");
         }
 
@@ -1206,6 +1224,8 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
             return ERPReportSchemaToolResult.Serialize(result.RootElement, arguments.RootElement.GetProperty("source").GetString()!);
         if (name == "get_cash_flow_forecast")
             return ERPAssistantFinanceTools.SummarizeCashForecast(result.RootElement);
+        if (name == "search_fixed_assets")
+            return ERPAssistantFixedAssetTools.SummarizeSearchResult(result.RootElement);
         if (name == "list_warehouses")
             return ERPWarehouseToolResult.Serialize(result.RootElement);
         if (name == "search_stock_items")

@@ -159,6 +159,13 @@ internal static class TenantScreenViewEndpoints
         new("lineCount", "Satır", true), new("revision", "Sürüm", true),
         new("actions", "Aç", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] FinancialAccountFields =
+    [
+        new("code", "Kod", true), new("name", "Hesap", true), new("type", "Tür", true),
+        new("currencyCode", "Döviz", true), new("balance", "Bakiye", true),
+        new("transactionCount", "Hareket", true), new("status", "Durum", true),
+        new("actions", "İşlemler", true, Fixed: true)
+    ];
 
     public static void MapTenantScreenViewEndpoints(this WebApplication app)
     {
@@ -186,7 +193,8 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("payment-instruments", "Çek/senet portföyü", PaymentInstrumentFields),
             new ScreenViewCatalog("commercial-contracts", "Ticari sözleşmeler", CommercialContractFields),
             new ScreenViewCatalog("operational-projects", "Proje listesi", OperationalProjectFields),
-            new ScreenViewCatalog("direct-cash-budgets", "Doğrudan nakit bütçeleri", DirectCashBudgetFields)
+            new ScreenViewCatalog("direct-cash-budgets", "Doğrudan nakit bütçeleri", DirectCashBudgetFields),
+            new ScreenViewCatalog("finance-accounts", "Kasa ve banka hesapları", FinancialAccountFields)
         }));
 
         views.MapGet("/{screenKey}/active", async (string screenKey, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -430,6 +438,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "direct-cash-budgets", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("direct-cash-budgets", "Doğrudan nakit bütçeleri", DirectCashBudgetFields);
+            return true;
+        }
+        if (string.Equals(key, "finance-accounts", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("finance-accounts", "Kasa ve banka hesapları", FinancialAccountFields);
             return true;
         }
         catalog = null!;
