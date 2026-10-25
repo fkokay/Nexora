@@ -56,6 +56,13 @@ internal static class TenantScreenViewEndpoints
         new("orderDate", "Sipariş tarihi", true), new("lineCount", "Satır", true), new("grandTotal", "Genel toplam", true),
         new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] SalesQuoteFields =
+    [
+        new("code", "Teklif no", true), new("customerName", "Müşteri", true),
+        new("quoteDate", "Teklif tarihi", true), new("validUntil", "Geçerlilik", true),
+        new("lineCount", "Satır", true), new("grandTotal", "Genel toplam", true),
+        new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
+    ];
     private static readonly ScreenViewField[] SalesDeliveryFields =
     [
         new("code", "İrsaliye no", true), new("orderCode", "Sipariş no", true),
@@ -95,6 +102,13 @@ internal static class TenantScreenViewEndpoints
         new("targetWarehouseCode", "Hedef depo", true), new("lineCount", "Satır", true),
         new("grandTotal", "Genel toplam", true), new("currencyCode", "Döviz", true),
         new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] PurchaseReceiptFields =
+    [
+        new("code", "Mal kabul no", true), new("purchaseOrderCode", "Tedarikçi siparişi", true),
+        new("receiptDate", "Kabul tarihi", true), new("warehouseName", "Depo", true),
+        new("lineCount", "Satır", true), new("status", "Durum", true),
+        new("actions", "İşlemler", true, Fixed: true)
     ];
     private static readonly ScreenViewField[] PurchaseDeliveryNoteFields =
     [
@@ -180,12 +194,14 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("inventory-stock", "Stok kartları", StockItemFields),
             new ScreenViewCatalog("exchange-rates", "Döviz kurları", ExchangeRateFields),
             new ScreenViewCatalog("warehouse-location-balances", "Depo konum bakiyeleri", WarehouseLocationBalanceFields),
+            new ScreenViewCatalog("sales-quotes", "Satış teklifleri", SalesQuoteFields),
             new ScreenViewCatalog("sales-orders", "Satış siparişleri", SalesOrderFields),
             new ScreenViewCatalog("sales-deliveries", "Satış irsaliyeleri", SalesDeliveryFields),
             new ScreenViewCatalog("sales-invoices", "Satış faturaları", SalesInvoiceFields),
             new ScreenViewCatalog("purchase-invoices", "Alış faturaları", PurchaseInvoiceFields),
             new ScreenViewCatalog("standalone-invoice-drafts", "Bağımsız alış faturası taslakları", StandalonePurchaseInvoiceDraftFields),
             new ScreenViewCatalog("purchase-orders", "Satın alma siparişleri", PurchaseOrderFields),
+            new ScreenViewCatalog("purchase-receipts", "Mal kabulleri", PurchaseReceiptFields),
             new ScreenViewCatalog("purchase-delivery-notes", "Tedarikçi irsaliyeleri", PurchaseDeliveryNoteFields),
             new ScreenViewCatalog("manufacturing-orders", "Üretim emirleri", ManufacturingOrderFields),
             new ScreenViewCatalog("fixed-assets", "Sabit kıymetler", FixedAssetFields),
@@ -375,6 +391,11 @@ internal static class TenantScreenViewEndpoints
             catalog = new ScreenViewCatalog("sales-orders", "Satış siparişleri", SalesOrderFields);
             return true;
         }
+        if (string.Equals(key, "sales-quotes", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("sales-quotes", "Satış teklifleri", SalesQuoteFields);
+            return true;
+        }
         if (string.Equals(key, "sales-deliveries", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("sales-deliveries", "Satış irsaliyeleri", SalesDeliveryFields);
@@ -398,6 +419,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "purchase-orders", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("purchase-orders", "Satın alma siparişleri", PurchaseOrderFields);
+            return true;
+        }
+        if (string.Equals(key, "purchase-receipts", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("purchase-receipts", "Mal kabulleri", PurchaseReceiptFields);
             return true;
         }
         if (string.Equals(key, "purchase-delivery-notes", StringComparison.OrdinalIgnoreCase))

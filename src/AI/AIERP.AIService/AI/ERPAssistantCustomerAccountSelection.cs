@@ -9,6 +9,8 @@ namespace AIERP.AIService.AI;
 internal sealed class ERPAssistantCustomerAccountSelection
 {
     private Guid? _selectedAccountId;
+    private string? _selectedAccountCode;
+    private string? _selectedAccountType;
     private bool _requiresClarification;
 
     public bool TryRememberUniqueSearchResult(JsonElement accountPage)
@@ -16,6 +18,8 @@ internal sealed class ERPAssistantCustomerAccountSelection
         if (_requiresClarification)
         {
             _selectedAccountId = null;
+            _selectedAccountCode = null;
+            _selectedAccountType = null;
             return false;
         }
 
@@ -29,6 +33,8 @@ internal sealed class ERPAssistantCustomerAccountSelection
             || itemsElement.GetArrayLength() != 1)
         {
             _selectedAccountId = null;
+            _selectedAccountCode = null;
+            _selectedAccountType = null;
             _requiresClarification = true;
             return false;
         }
@@ -41,6 +47,8 @@ internal sealed class ERPAssistantCustomerAccountSelection
             || accountId == Guid.Empty)
         {
             _selectedAccountId = null;
+            _selectedAccountCode = null;
+            _selectedAccountType = null;
             _requiresClarification = true;
             return false;
         }
@@ -48,13 +56,37 @@ internal sealed class ERPAssistantCustomerAccountSelection
         if (_selectedAccountId is Guid previousAccountId && previousAccountId != accountId)
         {
             _selectedAccountId = null;
+            _selectedAccountCode = null;
+            _selectedAccountType = null;
             _requiresClarification = true;
             return false;
         }
 
         _selectedAccountId = accountId;
+        _selectedAccountCode = item.TryGetProperty("code", out var codeElement) && codeElement.ValueKind == JsonValueKind.String
+            ? codeElement.GetString()?.Trim()
+            : null;
+        _selectedAccountType = item.TryGetProperty("type", out var typeElement)
+            ? typeElement.ValueKind == JsonValueKind.String ? typeElement.GetString() : typeElement.ValueKind == JsonValueKind.Number ? typeElement.GetRawText() : null
+            : null;
         return true;
     }
 
     public bool CanReadBalance(Guid accountId) => accountId != Guid.Empty && _selectedAccountId == accountId;
+
+    public bool TryGetSelectedCustomerCode(Guid accountId, out string customerCode)
+    {
+        customerCode = string.Empty;
+        if (!CanReadBalance(accountId) || string.IsNullOrWhiteSpace(_selectedAccountCode) ||
+            !IsCustomerOrBoth(_selectedAccountType)) return false;
+
+        customerCode = _selectedAccountCode;
+        return true;
+    }
+
+    private static bool IsCustomerOrBoth(string? value) => value?.Trim() switch
+    {
+        "Customer" or "Both" or "1" or "3" => true,
+        _ => false
+    };
 }

@@ -14,14 +14,18 @@ public sealed class ERPAssistantCustomerBalanceAccessTests
     {
         var accountId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1");
         var selection = new ERPAssistantCustomerAccountSelection();
-        using var unique = JsonDocument.Parse($"{{\"totalCount\":1,\"items\":[{{\"id\":\"{accountId:D}\"}}]}}");
+        using var unique = JsonDocument.Parse($"{{\"totalCount\":1,\"items\":[{{\"id\":\"{accountId:D}\",\"code\":\"C-100\",\"type\":1}}]}}");
         Assert.True(selection.TryRememberUniqueSearchResult(unique.RootElement));
         Assert.True(selection.CanReadBalance(accountId));
+        Assert.True(selection.TryGetSelectedCustomerCode(accountId, out var customerCode));
+        Assert.Equal("C-100", customerCode);
+        Assert.False(selection.TryGetSelectedCustomerCode(Guid.NewGuid(), out _));
         Assert.False(selection.CanReadBalance(Guid.NewGuid()));
 
         using var ambiguous = JsonDocument.Parse($"{{\"totalCount\":2,\"items\":[{{\"id\":\"{accountId:D}\"}},{{\"id\":\"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1\"}}]}}");
         Assert.False(selection.TryRememberUniqueSearchResult(ambiguous.RootElement));
         Assert.False(selection.CanReadBalance(accountId));
+        Assert.False(selection.TryGetSelectedCustomerCode(accountId, out _));
 
         using var narrowedWithoutUser = JsonDocument.Parse("{\"totalCount\":1,\"items\":[{\"id\":\"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1\"}]}");
         Assert.False(selection.TryRememberUniqueSearchResult(narrowedWithoutUser.RootElement));
@@ -30,6 +34,19 @@ public sealed class ERPAssistantCustomerBalanceAccessTests
         using var truncated = JsonDocument.Parse($"{{\"totalCount\":26,\"items\":[{{\"id\":\"{accountId:D}\"}}]}}");
         Assert.False(selection.TryRememberUniqueSearchResult(truncated.RootElement));
         Assert.False(selection.CanReadBalance(accountId));
+    }
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    [InlineData(3, true)]
+    public void Ledger_selection_allows_only_customer_accounts_and_both_accounts(int type, bool expected)
+    {
+        var accountId = Guid.NewGuid();
+        var selection = new ERPAssistantCustomerAccountSelection();
+        using var unique = JsonDocument.Parse($"{{\"totalCount\":1,\"items\":[{{\"id\":\"{accountId:D}\",\"code\":\"C-100\",\"type\":{type}}}]}}");
+        Assert.True(selection.TryRememberUniqueSearchResult(unique.RootElement));
+        Assert.Equal(expected, selection.TryGetSelectedCustomerCode(accountId, out _));
     }
 
     [Fact]

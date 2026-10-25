@@ -30,3 +30,119 @@
 .sales-campaign-layout tbody tr[aria-selected="true"] { background: #eaf3fb; box-shadow: inset 3px 0 #0f6cbd; }
 .sales-campaign-detail { border-top: 2px solid #0f6cbd; }
 .sales-campaign-search input:focus-visible { border-color: #0f6cbd; outline: 2px solid #0f6cbd24; }
+
+/* Performance report: keep the filter and result table dense like the rest of ERP. */
+.sales-promotions-page .sales-campaign-performance > .panel-heading > div {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+.sales-promotions-page .sales-campaign-performance > .panel-heading b { line-height: 1.35; }
+.sales-promotions-page .sales-campaign-performance > .panel-heading small {
+  display: block;
+  line-height: 1.45;
+  white-space: normal;
+}
+.sales-promotions-page .sales-campaign-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.35fr) repeat(2, minmax(170px, .8fr));
+  align-items: end;
+  gap: 10px 12px;
+  margin: 0 0 12px;
+}
+.sales-promotions-page .sales-campaign-filters > label {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted, #69768b);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.sales-promotions-page .sales-campaign-filters input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--line, #dbe2ec);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text, #202a3b);
+  font: inherit;
+  font-size: 12px;
+}
+.sales-promotions-page .sales-campaign-filters input[type="date"] { padding-inline: 8px; }
+.sales-promotions-page .sales-campaign-report-table {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--line, #e5e8f1);
+  border-radius: 7px;
+}
+.sales-promotions-page .sales-campaign-report-table table {
+  width: 100%;
+  min-width: 940px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+}
+.sales-promotions-page .sales-campaign-report-table th {
+  padding: 9px 10px;
+  background: #f5f7fa;
+  color: var(--muted, #69768b);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.sales-promotions-page .sales-campaign-report-table td {
+  padding: 9px 10px;
+  border-top: 1px solid var(--line, #edf0f5);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+.sales-promotions-page .sales-campaign-report-table th:nth-child(1) { width: 19%; }
+.sales-promotions-page .sales-campaign-report-table th:nth-child(2),
+.sales-promotions-page .sales-campaign-report-table th:nth-child(3),
+.sales-promotions-page .sales-campaign-report-table th:nth-child(5) { width: 12%; }
+.sales-promotions-page .sales-campaign-report-table th:nth-child(4),
+.sales-promotions-page .sales-campaign-report-table th:nth-child(6) { width: 22.5%; }
+.sales-promotions-page .sales-campaign-report-table .sales-campaign-empty td {
+  padding: 24px 12px;
+  color: var(--muted, #7d8599);
+  text-align: center;
+}
+.sales-promotions-page .sales-campaign-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+}
+.sales-promotions-page .sales-campaign-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.sales-promotions-page .sales-campaign-pagination button { min-height: 32px; padding: 6px 10px; }
+.sales-promotions-page .sales-campaign-pagination span { min-width: 20px; color: var(--muted, #69768b); text-align: center; font-size: 12px; }
+
+@media (min-width: 1600px) {
+  .sales-promotions-page .sales-campaign-report-table table { min-width: 100%; }
+  .sales-promotions-page .sales-campaign-filters { grid-template-columns: minmax(280px, 1.4fr) repeat(2, minmax(190px, .7fr)); }
+}
+@media (max-width: 800px) {
+  .sales-promotions-page .sales-campaign-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sales-promotions-page .sales-campaign-filters > label:first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+  .sales-promotions-page .sales-campaign-filters { grid-template-columns: minmax(0, 1fr); }
+  .sales-promotions-page .sales-campaign-filters > label:first-child { grid-column: auto; }
+  .sales-promotions-page .sales-campaign-pagination { align-items: flex-start; flex-direction: column; }
+}

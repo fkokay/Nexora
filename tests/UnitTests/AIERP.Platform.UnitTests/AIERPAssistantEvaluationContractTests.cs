@@ -38,7 +38,7 @@ public sealed class AIERPAssistantEvaluationContractTests(ITestOutputHelper outp
             Assert.NotEmpty(scenario.Assertions);
             Assert.Equal(scenario.Assertions.Count, scenario.Assertions.Distinct(StringComparer.Ordinal).Count());
         });
-        Assert.Equal(21, allIds.Length);
+        Assert.Equal(27, allIds.Length);
         Assert.False(set.Scoring.SemanticQualityScored);
         Assert.False(set.Scoring.LiveProviderRequired);
         Assert.Equal(5, set.Scoring.RubricForFutureLiveEvaluation.Count);

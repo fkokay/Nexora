@@ -625,3 +625,163 @@
 .hr-tabs button.active { color: #0f6cbd; border-bottom-color: #0f6cbd; }
 .hr-status { border-color: #0f6cbd24; background: #eaf3fb; color: #0f548c; }
 .hr-employee-form-heading > span { color: #0f6cbd; }
+
+/* Final HR workbench pass: compact hierarchy and space-aware employee workspace. */
+.hr-page {
+  gap: 14px;
+  width: 100%;
+  max-width: 100%;
+}
+.hr-header {
+  align-items: center;
+  gap: 16px;
+  padding: 0 0 10px;
+}
+.hr-title .eyebrow { margin-bottom: 5px; font-size: 9px; }
+.hr-title h1 { font-size: clamp(24px, 1.75vw, 29px); line-height: 1.15; }
+.hr-title .muted { margin-top: 5px; font-size: 12px; line-height: 1.45; }
+.hr-refresh { min-height: 36px; padding: 7px 11px; font-size: 11px; }
+.hr-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.hr-tabs button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 12px 7px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-wrap: initial;
+}
+.hr-tabs button:hover { background: color-mix(in srgb, var(--hr-accent) 5%, transparent); }
+.hr-tabs button.active {
+  border-color: transparent;
+  border-bottom-color: var(--hr-accent);
+  background: transparent;
+  color: var(--hr-accent);
+  box-shadow: none;
+}
+.hr-kpi-strip { gap: 8px; }
+.hr-kpi-strip article {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+.hr-kpi-strip article span { font-size: 10px; line-height: 1.35; }
+.hr-kpi-strip article b { grid-column: 1 / -1; font-size: 18px; line-height: 1.1; }
+.hr-employee-workspace {
+  grid-template-columns: minmax(0, 1.1fr) minmax(400px, .9fr);
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+.hr-employee-directory { container: hr-directory / inline-size; }
+.hr-panel {
+  padding: 15px;
+  border-radius: 9px;
+  box-shadow: 0 1px 3px #17203308;
+}
+.hr-panel h3 { margin-bottom: 10px; font-size: 14px; }
+.hr-panel .panel-heading { gap: 12px; margin-bottom: 11px; padding-bottom: 10px; }
+.hr-panel .panel-heading h3 { margin-bottom: 3px; }
+.hr-panel .panel-heading p { font-size: 11px; line-height: 1.45; }
+.hr-employee-directory .panel-heading > svg { width: 17px; height: 17px; }
+.hr-list-toolbar { align-items: end; gap: 8px; margin-bottom: 9px; }
+.hr-list-toolbar label { gap: 4px; font-size: 10px; }
+.hr-list-toolbar input { height: 35px; padding: 7px 9px; border-radius: 6px; font-size: 11px; }
+.hr-list-toolbar small { padding-bottom: 8px; font-size: 10px; }
+.hr-table-wrap { border-radius: 7px; }
+.hr-table, .hr-employee-table { min-width: 660px; table-layout: auto; }
+.hr-table th { padding: 9px 10px; font-size: 9px; letter-spacing: .035em; white-space: nowrap; }
+.hr-table td { padding: 9px 10px; font-size: 11px; line-height: 1.35; }
+.hr-table td button { min-height: 30px; padding: 6px 9px; font-size: 10px; white-space: nowrap; }
+.hr-employee-table th:nth-child(1) { min-width: 94px; }
+.hr-employee-table th:nth-child(2) { min-width: 130px; }
+.hr-employee-table th:nth-child(3) { min-width: 112px; }
+.hr-employee-table th:nth-child(4) { min-width: 92px; }
+.hr-employee-table th:nth-child(5) { min-width: 76px; }
+.hr-employee-table th:nth-child(6) { min-width: 80px; }
+.hr-employee-table td b { overflow-wrap: normal; }
+.hr-employee-table .hr-status { padding: 3px 7px; font-size: 10px; white-space: nowrap; }
+.hr-employee-form {
+  container: hr-employee-form / inline-size;
+  border-left: 2px solid var(--hr-accent);
+}
+.hr-employee-form-heading { margin-bottom: 11px; padding-bottom: 10px; }
+.hr-employee-form-heading > span { margin-bottom: 4px; font-size: 8px; }
+.hr-employee-form-heading h3 { margin-bottom: 4px; }
+.hr-employee-form-heading p { font-size: 11px; line-height: 1.4; }
+.hr-employee-create-form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 10px; }
+.hr-employee-create-form > button { grid-column: 1 / -1; min-height: 37px; }
+.hr-employee-create-form label { gap: 4px; font-size: 10px; }
+.hr-employee-create-form input { min-height: 36px; padding: 7px 9px; font-size: 11px; }
+.hr-content { gap: 12px; }
+
+@container hr-page (max-width: 940px) {
+  .hr-employee-workspace { grid-template-columns: minmax(0, 1fr); }
+  .hr-employee-create-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container hr-directory (max-width: 680px) {
+  .hr-table-wrap { overflow: visible; border: 0; }
+  .hr-employee-table { display: block; width: 100%; min-width: 0; }
+  .hr-employee-table thead { display: none; }
+  .hr-employee-table tbody { display: grid; gap: 7px; }
+  .hr-employee-table tr {
+    display: grid;
+    min-width: 0;
+    padding: 3px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .hr-employee-table td {
+    display: grid;
+    grid-template-columns: minmax(90px, .78fr) minmax(0, 1.22fr);
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+  .hr-employee-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.3;
+    text-align: left;
+  }
+  .hr-employee-table td[colspan] { display: block; text-align: center; }
+  .hr-employee-table td[colspan]::before { content: none; }
+  .hr-employee-table td:last-child { border-bottom: 0; }
+  .hr-employee-table td > :not(small) { justify-self: end; max-width: 100%; }
+  .hr-employee-table td small { justify-self: end; max-width: 100%; text-align: right; }
+}
+@container hr-employee-form (max-width: 440px) {
+  .hr-employee-create-form { grid-template-columns: minmax(0, 1fr); }
+  .hr-employee-create-form > button { grid-column: auto; }
+}
+@container hr-page (max-width: 600px) {
+  .hr-header { align-items: flex-start; }
+  .hr-title h1 { font-size: clamp(23px, 6cqi, 27px); }
+  .hr-tabs { gap: 0; }
+  .hr-tabs button { padding-inline: 9px; font-size: 10px; }
+  .hr-kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

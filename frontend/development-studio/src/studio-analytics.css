@@ -65,3 +65,58 @@
 .studio-dashboard .studio-dashboard-main>.studio-boundary{border-color:#e0e6ee;border-radius:6px;background:#fff}
 @media(max-width:980px){.studio-analytics-grid{grid-template-columns:minmax(0,1fr)}.studio-analytics-card{min-height:195px}}
 @media(max-width:680px){.studio-dashboard .studio-overview-heading{align-items:flex-start;flex-direction:column;padding:7px 0 14px}.studio-dashboard .studio-overview-heading h1{font-size:23px}.studio-dashboard .studio-overview-heading .studio-hero-actions{width:100%}.studio-dashboard .studio-overview-heading .studio-hero-actions>*{flex:1;justify-content:center}.studio-product-tabs{overflow-x:auto;gap:0;padding:0 5px}.studio-product-tabs a{padding:0 9px;font-size:9px}.studio-analytics-grid{gap:9px}.studio-analytics-card{padding:12px}.studio-month-chart{gap:7px;padding-inline:3px}}
+
+/* Overview page hierarchy and readable dashboard controls. */
+.studio-dashboard .studio-sidebar{width:244px;padding:20px 15px 14px}
+.studio-dashboard .studio-dashboard-content{margin-left:244px}
+.studio-dashboard .studio-sidebar-tenant{margin:22px 0 23px;padding:10px;border-radius:7px}
+.studio-dashboard .studio-nav-label{font-size:10px;letter-spacing:.08em}
+.studio-dashboard .studio-nav-link{min-height:39px;font-size:12px}
+.studio-dashboard .studio-dashboard-topbar{min-height:56px;padding-inline:clamp(22px,3vw,42px)}
+.studio-dashboard .studio-topbar-crumb{font-size:12px}
+.studio-dashboard .studio-topbar-actions{gap:14px}
+.studio-dashboard .studio-topbar-status,.studio-dashboard .studio-topbar-logout{font-size:11px}
+.studio-dashboard .studio-main.studio-dashboard-main{width:min(1500px,100%);padding:24px clamp(22px,3vw,42px) 44px}
+.studio-dashboard .studio-overview-heading{padding:14px 0 21px}
+.studio-dashboard .studio-overview-heading .studio-hero-kicker{font-size:10px}
+.studio-dashboard .studio-overview-heading h1{font-size:30px}
+.studio-dashboard .studio-overview-heading .studio-overview-copy>p{font-size:12px}
+.studio-dashboard .studio-overview-heading .studio-hero-actions .primary,.studio-dashboard .studio-overview-heading .studio-hero-actions .secondary{min-height:40px;padding-inline:14px;font-size:11px}
+.studio-product-tabs{min-height:46px;margin-bottom:16px}
+.studio-product-tabs a{padding-inline:15px;font-size:12px}
+.studio-dashboard .studio-metrics{gap:12px;margin-bottom:16px}
+.studio-dashboard .studio-metric-card{min-height:88px;gap:12px;padding:14px}
+.studio-dashboard .studio-metric-icon{width:38px;height:38px}
+.studio-dashboard .studio-metric-card>div>small{font-size:11px}
+.studio-dashboard .studio-metric-card>div>b{font-size:22px}
+.studio-dashboard .studio-metric-card>div>span{font-size:10px}
+.studio-dashboard .studio-live-pill{font-size:8px}
+.studio-analytics-grid{gap:14px;margin-bottom:17px}
+.studio-analytics-card{min-height:220px;padding:17px}
+.studio-analytics-card>header>div>span{font-size:9px}
+.studio-analytics-card>header h2{font-size:15px}
+.studio-analytics-card>header p,.studio-analytics-card>header>b{font-size:10px}
+.studio-month-column>small,.studio-month-column>strong,.studio-status-row>div{font-size:10px}
+.studio-chart-empty>b{font-size:12px}
+.studio-chart-empty>span{font-size:10px}
+.studio-dashboard .studio-dashboard-grid{grid-template-columns:minmax(0,1fr) 290px;gap:16px}
+.studio-dashboard .studio-projects-panel,.studio-dashboard .studio-request-panel{padding:19px}
+.studio-dashboard .studio-projects-panel .panel-heading h3,.studio-dashboard .studio-request-panel .panel-heading h3{font-size:16px}
+.studio-dashboard .studio-projects-panel .panel-heading p,.studio-dashboard .studio-request-panel .panel-heading p{font-size:11px}
+.studio-dashboard .studio-projects-panel>.panel-heading .primary,.studio-dashboard .studio-projects-panel>.panel-heading .secondary{min-height:36px;padding-inline:12px;font-size:10px}
+.studio-project-table th{padding:11px 12px;font-size:10px}
+.studio-project-table td{padding:12px;font-size:11px}
+.studio-project-name b{font-size:12px}
+.studio-project-name small{font-size:10px}
+.studio-project-access,.studio-project-github{font-size:10px}
+.studio-project-commands .secondary{min-height:31px;padding-inline:9px;font-size:9px}
+.studio-dashboard .studio-empty-state{padding:36px 14px}
+.studio-dashboard .studio-empty-state>b{font-size:12px}
+.studio-dashboard .studio-empty-state>small{font-size:10px}
+.studio-dashboard .studio-rail-card{padding:17px}
+.studio-dashboard .studio-rail-heading b{font-size:13px}
+.studio-dashboard .studio-rail-heading small{font-size:8px}
+.studio-dashboard .studio-flow-step b,.studio-dashboard .studio-activity-row b,.studio-dashboard .studio-help-card b{font-size:11px}
+.studio-dashboard .studio-flow-step small,.studio-dashboard .studio-activity-row small,.studio-dashboard .studio-help-card p{font-size:10px}
+@media(max-width:980px){.studio-dashboard .studio-dashboard-grid{grid-template-columns:minmax(0,1fr)}.studio-dashboard .studio-dashboard-rail{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.studio-dashboard .studio-sidebar{width:auto;padding:10px 12px}.studio-dashboard .studio-dashboard-content{margin-left:0}.studio-dashboard .studio-dashboard-topbar{min-height:48px;padding-inline:13px}.studio-dashboard .studio-main.studio-dashboard-main{padding:15px 13px 30px}.studio-dashboard .studio-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.studio-dashboard .studio-metric-card{min-height:78px;padding:10px}.studio-dashboard .studio-dashboard-rail{grid-template-columns:minmax(0,1fr)}}

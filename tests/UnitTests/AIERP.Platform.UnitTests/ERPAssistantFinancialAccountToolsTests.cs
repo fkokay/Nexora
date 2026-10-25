@@ -1,10 +1,22 @@
 using System.Text.Json;
 using AIERP.AIService.AI;
+using AIERP.Platform.Application;
 
 namespace AIERP.Platform.UnitTests;
 
 public sealed class ERPAssistantFinancialAccountToolsTests
 {
+    [Fact]
+    public async Task Balance_read_requires_finance_account_permission()
+    {
+        var tenantId = Guid.NewGuid();
+        var allowed = new RecordingPermissionAuthorizer(true, tenantId);
+        Assert.True(await ERPAssistantFinancialAccountTools.IsReadAllowedAsync(tenantId, Guid.NewGuid(), "FinanceUser", allowed, CancellationToken.None));
+        Assert.Equal("erp.finance-accounts.read", allowed.PermissionCode);
+        Assert.False(await ERPAssistantFinancialAccountTools.IsReadAllowedAsync(tenantId, Guid.NewGuid(), "FinanceUser",
+            new RecordingPermissionAuthorizer(false, tenantId), CancellationToken.None));
+    }
+
     [Fact]
     public void Summary_groups_by_account_type_and_currency_without_forwarding_identity()
     {
@@ -43,5 +55,16 @@ public sealed class ERPAssistantFinancialAccountToolsTests
         Assert.True(ERPAssistantFinancialAccountTools.HasNoArguments(valid.RootElement));
         Assert.False(ERPAssistantFinancialAccountTools.HasNoArguments(invalid.RootElement));
         Assert.False(ERPAssistantFinancialAccountTools.HasNoArguments(wrongShape.RootElement));
+    }
+
+    private sealed class RecordingPermissionAuthorizer(bool allowed, Guid expectedTenantId) : IPlatformPermissionAuthorizer
+    {
+        public string? PermissionCode { get; private set; }
+        public Task<bool> IsAllowedAsync(Guid tenantId, Guid userId, string role, ResolvedPlatformPermission permission,
+            CancellationToken cancellationToken = default)
+        {
+            PermissionCode = permission.Permission.Code;
+            return Task.FromResult(allowed && tenantId == expectedTenantId);
+        }
     }
 }

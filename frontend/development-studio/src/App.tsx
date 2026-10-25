@@ -142,10 +142,11 @@ export default function App() {
       <a className="studio-app-brand" href="#overview" aria-label="Nexora Studio ana sayfa"><span className="brand-mark small"><Sparkles size={17}/></span><span>Nexora<strong> Studio</strong></span></a>
       <div className="studio-sidebar-tenant"><span className="studio-tenant-avatar">{tenant.name.slice(0, 1).toUpperCase()}</span><span><b>{tenant.name}</b><small>{tenant.role} çalışma alanı</small></span><span className="studio-tenant-dot"/></div>
       <p className="studio-nav-label">ÇALIŞMA ALANI</p>
-      <nav className="studio-side-nav" aria-label="Studio gezinme">
+       <nav className="studio-side-nav" aria-label="Studio gezinme">
         <a className="studio-nav-link active" href="#overview"><Code2 size={17}/>Genel bakış</a>
         <a className="studio-nav-link" href="#projects"><FolderKanban size={17}/>Projeler<span className="studio-nav-count">{projects.length}</span></a>
         <a className="studio-nav-link" href="#requests"><ListTodo size={17}/>Geliştirme talepleri<span className="studio-nav-count">{requests.length}</span></a>
+        <a className="studio-nav-link" href="#analytics"><Activity size={17}/>Analitik</a>
       </nav>
       <p className="studio-nav-label studio-nav-label-spaced">HIZLI BAŞLANGIÇ</p>
       <button className="studio-nav-link studio-nav-action" onClick={()=>{setError('');setShowRequest(true)}}><Plus size={17}/>Yeni geliştirme talebi</button>

@@ -6,7 +6,6 @@
   gap: 18px;
 }
 
-.credit-facilities-page > .page-heading,
 .credit-facilities-page .credit-card-heading,
 .credit-facilities-page .credit-records-heading,
 .credit-facilities-page .credit-overview-title {
@@ -86,6 +85,7 @@
 .credit-facilities-page .credit-movements > .muted { margin: 0; font-size: 11px; line-height: 1.5; }
 .credit-facilities-page .credit-notes { margin: 0; overflow-wrap: anywhere; }
 .credit-facilities-page .boundary-note { line-height: 1.6; overflow-wrap: anywhere; }
+.credit-facilities-page .credit-page-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; color: var(--credit-muted); font-size: 12px; }
 
 @media (max-width: 900px) {
   .credit-facilities-page .credit-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -93,11 +93,10 @@
 }
 
 @media (max-width: 640px) {
-  .credit-facilities-page > .page-heading,
   .credit-facilities-page .credit-records-heading,
   .credit-facilities-page .credit-card-heading { align-items: stretch; flex-direction: column; }
-  .credit-facilities-page > .page-heading > button,
   .credit-facilities-page .credit-card-heading > button { align-self: flex-start; }
+  .credit-facilities-page .credit-page-actions { align-items: flex-start; justify-content: space-between; }
   .credit-facilities-page .credit-filters { grid-template-columns: minmax(0, 1fr); }
   .credit-facilities-page .credit-overview-card dl,
   .credit-facilities-page .credit-balance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -124,14 +123,6 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
 
 /* Compact Fluent finance workbench */
 .credit-facilities-page { gap: 12px; }
-.credit-facilities-page > .page-heading { align-items: center; margin: -18px -22px 2px; padding: 14px 20px; border-radius: 8px 8px 0 0; background: #123b64; color: #fff; }
-.credit-facilities-page > .page-heading .eyebrow,
-.credit-facilities-page > .page-heading h1,
-.credit-facilities-page > .page-heading .muted { color: #fff; }
-.credit-facilities-page > .page-heading .eyebrow { opacity: .78; }
-.credit-facilities-page > .page-heading h1 { margin: 2px 0 3px; font-size: 23px; letter-spacing: -.02em; }
-.credit-facilities-page > .page-heading .muted { margin: 0; color: #dce8f4; font-size: 12px; }
-.credit-facilities-page > .page-heading > button { border-color: #c7d8e8; background: #fff; color: #164c7b; }
 .credit-facilities-page .credit-overview { gap: 9px; }
 .credit-facilities-page .credit-overview-card,
 .credit-facilities-page .credit-facility-card { padding: 13px; border-radius: 8px; box-shadow: 0 1px 2px rgba(17, 46, 75, .05); }

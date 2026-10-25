@@ -928,6 +928,9 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         Guid? supplierBalanceId = null;
         DateOnly? hrPeriodFrom = null;
         DateOnly? hrPeriodTo = null;
+        DateOnly? maturityAsOfDate = null;
+        DateOnly? customerLedgerFrom = null;
+        DateOnly? customerLedgerTo = null;
         object? postBody = null;
         switch (name)
         {
@@ -973,6 +976,40 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 if (!customerAccountSelection.CanReadBalance(customerId))
                     return JsonSerializer.Serialize(new { error = "Search for the account in this request and clarify the match if it is not unique before reading a balance.", errorCode = "account_not_uniquely_selected", requiresClarification = true });
                 path = $"/api/customers/{customerId:D}/balance";
+                break;
+            }
+            case "search_customer_ledger":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 3 || !arguments.RootElement.TryGetProperty("customerId", out var idElement) ||
+                    idElement.ValueKind != JsonValueKind.String || !Guid.TryParse(idElement.GetString(), out var customerId) ||
+                    !arguments.RootElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("to", out var toElement) || toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantCustomerLedgerTools.TryValidatePeriod(fromElement.GetString(), toElement.GetString(),
+                        IstanbulDateHelper.FromUtc(DateTimeOffset.UtcNow), out var from, out var to))
+                    throw new ArgumentException("Customer-ledger search requires a selected customer and a past/current date window of at most 365 days.");
+
+                if (!customerAccountSelection.TryGetSelectedCustomerCode(customerId, out var customerCode))
+                    return JsonSerializer.Serialize(new { error = "Search for one customer account in this request before reading its ledger.", errorCode = "account_not_uniquely_selected", requiresClarification = true });
+                if (!await ERPAssistantCustomerLedgerTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                customerLedgerFrom = from;
+                customerLedgerTo = to;
+                path = "/api/reports/run";
+                postBody = new
+                {
+                    source = "customerLedgerEntries",
+                    columns = new[] { "entryDate", "direction", "amount", "currencyCode" },
+                    filters = new[]
+                    {
+                        new { field = "customerCode", @operator = "equals", value = customerCode },
+                        new { field = "entryDate", @operator = "gte", value = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) },
+                        new { field = "entryDate", @operator = "lte", value = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) }
+                    },
+                    sortBy = "entryDate", descending = true, page = 1, pageSize = 10
+                };
                 break;
             }
             case "get_supplier_balance":
@@ -1035,6 +1072,42 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 });
                 break;
             }
+            case "search_sales_quotes":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantSalesQuoteTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Sales-quote search requires a 2–100 character term.");
+
+                if (!await ERPAssistantSalesQuoteTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/sales/quotes", new Dictionary<string, string?>
+                {
+                    ["q"] = term, ["page"] = "1", ["pageSize"] = "10"
+                });
+                break;
+            }
+            case "search_purchase_requests":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantPurchaseRequestTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Purchase-request search requires a 2–100 character term.");
+
+                if (!await ERPAssistantPurchaseRequestTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/purchasing/requests/search", new Dictionary<string, string?>
+                {
+                    ["q"] = term
+                });
+                break;
+            }
             case "search_manufacturing_orders":
             {
                 var props = arguments.RootElement.EnumerateObject().ToArray();
@@ -1084,6 +1157,24 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                     throw new ERPAssistantAccessDeniedException(name);
 
                 path = QueryHelpers.AddQueryString("/api/purchasing/receipts/search", new Dictionary<string, string?>
+                {
+                    ["q"] = term
+                });
+                break;
+            }
+            case "search_purchase_delivery_notes":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantPurchaseDeliveryNoteTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Supplier delivery-note search requires a 2–100 character term.");
+
+                if (!await ERPAssistantPurchaseDeliveryNoteTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/purchasing/delivery-notes/search", new Dictionary<string, string?>
                 {
                     ["q"] = term
                 });
@@ -1215,6 +1306,25 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 });
                 break;
             }
+            case "get_invoice_maturity_summary":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("asOfDate", out var dateElement) ||
+                    dateElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantMaturityTools.TryValidateAsOfDate(dateElement.GetString(), out var asOfDate))
+                    throw new ArgumentException("Invoice maturity summary requires a valid past or current yyyy-MM-dd as-of date.");
+
+                if (!await ERPAssistantMaturityTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                maturityAsOfDate = asOfDate;
+                path = QueryHelpers.AddQueryString("/api/finance/maturities", new Dictionary<string, string?>
+                {
+                    ["asOfDate"] = asOfDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                });
+                break;
+            }
             case "search_fixed_assets":
             {
                 var props = arguments.RootElement.EnumerateObject().ToArray();
@@ -1290,6 +1400,10 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
             return ERPReportSchemaToolResult.Serialize(result.RootElement, arguments.RootElement.GetProperty("source").GetString()!);
         if (name == "get_cash_flow_forecast")
             return ERPAssistantFinanceTools.SummarizeCashForecast(result.RootElement);
+        if (name == "get_invoice_maturity_summary" && maturityAsOfDate is DateOnly maturityDate)
+            return ERPAssistantMaturityTools.SummarizeMaturities(result.RootElement, maturityDate);
+        if (name == "search_customer_ledger" && customerLedgerFrom is DateOnly ledgerFrom && customerLedgerTo is DateOnly ledgerTo)
+            return ERPAssistantCustomerLedgerTools.SummarizeLedgerReport(result.RootElement, ledgerFrom, ledgerTo);
         if (name == "search_fixed_assets")
             return ERPAssistantFixedAssetTools.SummarizeSearchResult(result.RootElement);
         if (name == "get_financial_account_balances")
@@ -1363,11 +1477,14 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                     orderDate = item.GetProperty("orderDate").GetString(), status = item.GetProperty("status").ToString()
                 })
             });
+        if (name == "search_sales_quotes") return ERPAssistantSalesQuoteTools.SummarizeQuotes(result.RootElement);
+        if (name == "search_purchase_requests") return ERPAssistantPurchaseRequestTools.SummarizeRequests(result.RootElement);
         if (name == "search_sales_invoices") return ERPAssistantInvoiceTools.SummarizeSalesInvoices(result.RootElement);
         if (name == "search_purchase_invoices") return ERPAssistantInvoiceTools.SummarizePurchaseInvoices(result.RootElement);
         if (name == "search_manufacturing_orders") return ERPAssistantManufacturingTools.SummarizeOrders(result.RootElement);
         if (name == "search_sales_deliveries") return ERPAssistantSalesDeliveryTools.SummarizeDeliveries(result.RootElement);
         if (name == "search_purchase_receipts") return ERPAssistantPurchaseReceiptTools.SummarizeReceipts(result.RootElement);
+        if (name == "search_purchase_delivery_notes") return ERPAssistantPurchaseDeliveryNoteTools.SummarizeNotes(result.RootElement);
         if (name == "generate_report")
             return ERPReportToolResult.Serialize(result.RootElement);
         if (name == "get_hr_leave_summary" && hrPeriodFrom is DateOnly leaveFrom && hrPeriodTo is DateOnly leaveTo)
@@ -1399,7 +1516,7 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
     catch (ERPAssistantAccessDeniedException error)
     {
         var requestId = httpContext.TraceIdentifier;
-        var answer = error.ToolName is "get_customer_balance" or "get_supplier_balance"
+        var answer = error.ToolName is "get_customer_balance" or "get_supplier_balance" or "search_customer_ledger"
             ? $"Bu cari hesap için erişim izniniz yok. TenantAdmin'den cari kayıt okuma ve kayıt düzeyindeki erişim politikanızı gözden geçirmesini isteyin. Başvuru kodu: {requestId}"
             : $"İstenen ERP verisi için erişim izniniz yok. TenantAdmin'den ilgili modülün okuma ve kayıt düzeyindeki erişim politikasını gözden geçirmesini isteyin. Başvuru kodu: {requestId}";
         return Results.Ok(new { answer, readOnly = true, requestId });

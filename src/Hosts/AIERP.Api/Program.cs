@@ -4004,6 +4004,7 @@ salesReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principa
     return Results.Ok(new { salesReturn.Id, salesReturn.Code, salesReturn.Status });
 });
 var purchaseRequests = app.MapGroup("/api/purchasing/requests").RequireAuthorization();
+purchaseRequests.MapPurchaseRequestAssistantSearchEndpoint();
 purchaseRequests.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
@@ -6777,7 +6778,7 @@ app.MapGet("/api/finance/maturities", async (DateOnly? asOfDate, ClaimsPrincipal
         over90Days = g.Where(x => x.daysOverdue > 90).Sum(x => x.outstandingAmount)
     }).OrderBy(x => x.direction).ThenBy(x => x.currencyCode).ToList();
     return Results.Ok(new { asOfDate = asOf, summaries, items = rows });
-});
+}).RequireAuthorization();
 financeAccounts.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();

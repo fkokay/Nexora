@@ -12,6 +12,33 @@ public static class PurchaseDeliveryNoteEndpoints
     {
         var group = app.MapGroup("/api/purchasing/delivery-notes").WithTags("Tedarikçi irsaliyeleri").RequireAuthorization();
 
+        group.MapGet("/search", async (ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb,
+            string? q, CancellationToken ct) =>
+        {
+            if (!TryTenant(user, out var tenantId)) return Results.Forbid();
+            var term = q?.Trim().ToUpperInvariant();
+            if (term is null || term.Length is < 2 or > 100)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["Tedarikçi irsaliyesi araması 2–100 karakter olmalıdır."] });
+
+            var accessibleOrders = await AccessibleOrdersAsync(user, tenantId, db, platformDb, ct);
+            var orderIds = accessibleOrders.Select(x => x.Id);
+            var query = db.PurchaseDeliveryNotes.AsNoTracking().Where(x => x.TenantId == tenantId
+                && orderIds.Contains(x.PurchaseOrderId)
+                && (x.DocumentNumber.ToUpper().Contains(term) || x.PurchaseOrder.Code.ToUpper().Contains(term)));
+            var totalCount = await query.CountAsync(ct);
+            var items = await query.OrderByDescending(x => x.DocumentDate).ThenByDescending(x => x.CreatedAt)
+                .ThenBy(x => x.DocumentNumber).Take(10)
+                .Select(x => new
+                {
+                    documentNumber = x.DocumentNumber,
+                    purchaseOrderCode = x.PurchaseOrder.Code,
+                    documentDate = x.DocumentDate,
+                    lineCount = x.Lines.Count,
+                    linkedToReceipt = x.PurchaseReceiptId.HasValue
+                }).ToListAsync(ct);
+            return Results.Ok(new { totalCount, returned = items.Count, hasMore = totalCount > items.Count, items });
+        });
+
         group.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 50,
             CancellationToken ct = default) =>
         {
