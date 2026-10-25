@@ -1,19 +1,19 @@
 # Depolama ve HA ürün kararları
 
-**Durum:** Ürün sahibi kararı bekleniyor  
+**Durum:** Depolama ölçümü ve aşım davranışı için kullanıcı kararı uygulandı (2026-10-25); paket eşikleri ve HA taahhütleri için ürün sahibi kararı bekleniyor.
 **Kapsam:** Lisans ekranındaki depolama GB değerleri ve Large paketinin HA lisans işareti. Bu not bir kapasite veya HA taahhüdü değildir.
 
 ## Depolama
 
-- **Sayım alanı:** Tenant kotasına hangi nesneler girecek? Dosya ekleri/yüklemeleri, sürümler, silinmiş dosyalar, dışa aktarımlar ve tenant SQL verisi için kapsamı; mantıksal kullanılan byte ile fiziksel altyapı byte’ı arasındaki tercihi ve GB/GiB birimini belirleyin.
-- **Eşik:** Small/Medium/Large için sunulacak gerçek tenant kotalarını ve sınırda yazma davranışını onaylayın. Mevcut 10 GB ve 100 GB değerlerinin korunup korunmayacağı henüz kararlaştırılmadı.
-- **Grace ve overage:** Kotaya yaklaşma/aşma uyarılarını, varsa tolerans miktarı veya süresini, aşımda yeni yükleme/yazma davranışını ve düzeltme süresini belirleyin. Mevcut davranış için grace/overage politikası yoktur.
-- **Ürün/operasyon:** Kullanımın kime gösterileceğini, ölçüm gecikmesini, silme sonrası sayacın nasıl güncelleneceğini ve aşımın hangi API işlemlerini durduracağını kararlaştırın.
+- **Sayım alanı — kararlaştırıldı:** Firma başına ayrılmış SQL veritabanındaki SQL `ROWS` data page kullanımı lisans kotasına girer. Transaction logları ve dış dosya deposu dahil değildir.
+- **Aşım davranışı — kararlaştırıldı:** Kullanım lisans sınırına ulaştığında yeni kayıt/güncellemeler reddedilir; okumalar ve SQL data page kullanımını artırmayan silmeler sürer. Ölçüm doğrulanamazsa yazma fail-closed reddedilir. Eşzamanlı yazı ve lisans değişimi aynı tenant SQL application lock ile sıraya alınır.
+- **Paket eşikleri — ratifikasyon bekliyor:** Kod profili Small 10 GB, Medium 100 GB ve Large için `int.MaxValue` GB kullanır. Ürün sahibi bu değerleri satış/kontrat taahhüdü olarak sunmadan önce onaylamalıdır. Kota sınırı uygulamada hesaplanır; ticari paket taahhüdü ayrıca ratifiye edilmelidir.
+- **Operasyon notu:** SQL data page tahsisi, dosya boyutu veya transaction-log tüketimi ile aynı ölçü değildir; silme data page tahsisini hemen düşürmeyebilir. Firma ayarlarında kullanım ve eşik görünür. Dosya depolama eklenirse kapsam ayrıca kararlaştırılmalıdır.
 
 ## Yüksek erişilebilirlik (HA)
 
 - **Topoloji ve kapsam:** HA’nın hangi bileşenleri kapsayacağını (uygulama, veritabanı, dosya deposu, ağ/region), yedeklilik ve otomatik/failover yaklaşımını, tek/çok bölge hedefini ve bakım kapsamını belirleyin.
 - **Hizmet hedefleri:** RPO, RTO ve ölçüm penceresiyle erişilebilirlik SLA’sını; planlı bakım, destek saatleri ve istisnaları kararlaştırın.
-- **Paket/taahhüt:** Large lisans işaretinin hangi doğrulanmış topoloji ve hizmet hedefi karşılandığında sunulabileceğini, ayrıca yedekleme ile HA’nın sözleşmesel ayrımını onaylayın. Şu an HA deployment özelliği ve SLA uygulanmıyor.
+- **Paket/taahhüt:** Large lisans işaretinin hangi doğrulanmış topoloji ve hizmet hedefi karşılandığında sunulabileceğini, ayrıca yedekleme ile HA’nın sözleşmesel ayrımını onaylayın. Şu an HA deployment özelliği ve SLA uygulanmıyor; lisans işareti operasyonel HA sağlamaz.
 
-**Sahip:** Ürün sahibi atanmalı. Bu kararlar ve gerekli operasyon kapasitesi onaylanmadan GB sınırı veya HA müşteri taahhüdü olarak sunulmamalı.
+**Sahip:** Ürün sahibi atanmalı. Depolama ölçümü ve aşım davranışı uygulanmıştır. Paket eşikleri ticari taahhüt olarak ve HA lisans işareti gerçek hizmet olarak sunulmadan önce ayrıca onaylanmalı.
