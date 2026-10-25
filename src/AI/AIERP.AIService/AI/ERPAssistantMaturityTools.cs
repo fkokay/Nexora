@@ -10,11 +10,11 @@ internal static class ERPAssistantMaturityTools
     private const string MaturitiesPath = "/api/finance/maturities";
     private const int MaxCurrencyRows = 40;
 
-    public static bool TryValidateAsOfDate(string? value, out DateOnly asOfDate)
+    public static bool TryValidateAsOfDate(string? value, DateTimeOffset utcNow, out DateOnly asOfDate)
     {
         asOfDate = default;
         return DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out asOfDate)
-            && asOfDate <= IstanbulDateHelper.FromUtc(DateTimeOffset.UtcNow);
+            && asOfDate <= IstanbulDateHelper.FromUtc(utcNow);
     }
 
     public static async Task<bool> IsReadAllowedAsync(Guid tenantId, Guid userId, string role,

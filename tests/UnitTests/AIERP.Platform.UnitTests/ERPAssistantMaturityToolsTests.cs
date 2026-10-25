@@ -14,7 +14,17 @@ public sealed class ERPAssistantMaturityToolsTests
     [InlineData(null, false)]
     public void As_of_date_must_be_valid_and_not_future(string? value, bool expected)
     {
-        Assert.Equal(expected, ERPAssistantMaturityTools.TryValidateAsOfDate(value, out _));
+        var utcNow = new DateTimeOffset(2026, 10, 25, 18, 0, 0, TimeSpan.Zero);
+        Assert.Equal(expected, ERPAssistantMaturityTools.TryValidateAsOfDate(value, utcNow, out _));
+    }
+
+    [Fact]
+    public void As_of_date_uses_the_Istanbul_calendar_day_at_utc_midnight_boundary()
+    {
+        Assert.True(ERPAssistantMaturityTools.TryValidateAsOfDate("2026-10-26",
+            new DateTimeOffset(2026, 10, 25, 21, 30, 0, TimeSpan.Zero), out _));
+        Assert.False(ERPAssistantMaturityTools.TryValidateAsOfDate("2026-10-26",
+            new DateTimeOffset(2026, 10, 25, 20, 59, 0, TimeSpan.Zero), out _));
     }
 
     [Fact]

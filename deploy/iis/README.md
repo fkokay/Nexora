@@ -57,3 +57,15 @@ Or specify `-Version <retained-version>`. `Switch-IisRelease.ps1` changes all fo
 This bundle includes Platform API, AIService, ERP Web, and Development Studio. Workspace Runner, Release Deployer, Plugin Host, Integration Host, SQL Server, telemetry infrastructure, and any reverse proxy/WAF not listed here remain separately deployed services; set their `*__BaseUrl` and connection settings in the protected configuration. Studio's `/api/*` goes to Platform API; `/studio/*`, `/ai-health`, and GitHub setup callback routes go to AIService. Static routes fall through to each app's `index.html`.
 
 The scripts target Windows Server IIS and are not tested against a live IIS installation here. HTTPS certificate binding, ARR/Rewrite module installation, DNS, ACL behavior, app pool startup, database connectivity, and production traffic must be validated in a staging IIS environment before production use. Configure a separate certificate per hostname manually if a single SAN certificate is not appropriate.
+
+## Remote Docker development ingress
+
+The separately configured remote development server uses one IIS ARR site, `Nexora-Docker-Ingress`, in front of the remote Docker Engine. Its public hostnames and loopback upstreams are:
+
+| Hostname | Upstream |
+| --- | --- |
+| `nexoraerp.ozgurteknolojiyazilim.com` | `http://127.0.0.1:5173` (ERP Web) |
+| `nexorastudio.ozgurteknolojiyazilim.com` | `http://127.0.0.1:5174` (Development Studio; `/studio/*` is proxied by the frontend to AIService) |
+| `nexoraapi.ozgurteknolojiyazilim.com` | `http://127.0.0.1:5080` (Platform API; health endpoint `/health`) |
+
+`templates/docker-ingress.web.config` is the host-based ARR rewrite template installed at that site's root. It serves ACME HTTP-01 challenges before redirecting ordinary HTTP requests to HTTPS. The three names use one SAN certificate in `LocalMachine\WebHosting`; win-acme performs renewal, and `scripts/sync-nexora-iis-certificate.ps1` updates only this site's three SNI bindings to the newest valid certificate. The development server runs this synchronization daily at 23:30 as SYSTEM. Do not copy its private Compose override or credentials into the repository. This remote Docker ingress is separate from the versioned four-site IIS bundle above and does not certify a production installation.

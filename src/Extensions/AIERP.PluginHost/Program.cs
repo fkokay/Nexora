@@ -45,12 +45,16 @@ builder.Services.AddRateLimiter(options => options.AddFixedWindowLimiter("module
     limiter.QueueLimit = 0;
 }));
 var app = builder.Build();
+// Host configuration is trusted process state, not minimal-API request data.
+// Capture it outside request handlers so static analysis does not taint the
+// configured package root as caller-controlled path input.
+var configuration = builder.Configuration;
 app.UseAierpSecurityHeaders();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
-app.MapGet("/health", (IConfiguration configuration, WasmModuleRuntime runtime) =>
+app.MapGet("/health", (WasmModuleRuntime runtime) =>
 {
     _ = runtime; // Resolving the singleton confirms that the WASM engine initialized successfully.
     var packageStoreReadable = PluginHostHealth.IsPackageStoreReadable(configuration["ModulePackages:RootPath"] ?? ModulePackageRootPath);
@@ -64,7 +68,7 @@ app.MapGet("/health", (IConfiguration configuration, WasmModuleRuntime runtime) 
     };
     return packageStoreReadable ? Results.Ok(response) : Results.Json(response, statusCode: StatusCodes.Status503ServiceUnavailable);
 });
-app.MapPost("/internal/modules/validate", async (ClaimsPrincipal caller, IConfiguration configuration, WasmModuleRuntime runtime, CancellationToken cancellationToken) =>
+app.MapPost("/internal/modules/validate", async (ClaimsPrincipal caller, WasmModuleRuntime runtime, CancellationToken cancellationToken) =>
 {
     if (!TryReleaseClaims(caller, out var release)) return Results.Forbid();
     try
@@ -77,7 +81,7 @@ app.MapPost("/internal/modules/validate", async (ClaimsPrincipal caller, IConfig
     catch (InvalidDataException exception) { return Results.UnprocessableEntity(new { error = exception.Message }); }
     catch (WasmtimeException) { return Results.UnprocessableEntity(new { error = "Modül WebAssembly dosyası veya AIERP ABI sözleşmesi geçersiz." }); }
 }).RequireAuthorization("ModuleValidation").RequireRateLimiting("module-runtime");
-app.MapPost("/internal/modules/invoke", async (ModuleInvocationRequest request, ClaimsPrincipal caller, IConfiguration configuration, WasmModuleRuntime runtime, HttpContext httpContext, CancellationToken cancellationToken) =>
+app.MapPost("/internal/modules/invoke", async (ModuleInvocationRequest request, ClaimsPrincipal caller, WasmModuleRuntime runtime, HttpContext httpContext, CancellationToken cancellationToken) =>
 {
     if (!TryReleaseClaims(caller, out var release) || !Guid.TryParse(caller.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
     if (string.IsNullOrWhiteSpace(request.Action) || request.Action.Length > 80 || request.Action.Any(char.IsControl) ||

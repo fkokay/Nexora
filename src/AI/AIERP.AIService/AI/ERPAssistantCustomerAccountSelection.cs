@@ -84,9 +84,25 @@ internal sealed class ERPAssistantCustomerAccountSelection
         return true;
     }
 
+    public bool TryGetSelectedSupplierCode(Guid accountId, out string supplierCode)
+    {
+        supplierCode = string.Empty;
+        if (!CanReadBalance(accountId) || string.IsNullOrWhiteSpace(_selectedAccountCode) ||
+            !IsSupplier(_selectedAccountType)) return false;
+
+        supplierCode = _selectedAccountCode;
+        return true;
+    }
+
     private static bool IsCustomerOrBoth(string? value) => value?.Trim() switch
     {
         "Customer" or "Both" or "1" or "3" => true,
+        _ => false
+    };
+
+    private static bool IsSupplier(string? value) => value?.Trim() switch
+    {
+        "Supplier" or "Both" or "2" or "3" => true,
         _ => false
     };
 }

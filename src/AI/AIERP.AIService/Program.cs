@@ -931,6 +931,8 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         DateOnly? maturityAsOfDate = null;
         DateOnly? customerLedgerFrom = null;
         DateOnly? customerLedgerTo = null;
+        DateOnly? supplierPaymentFrom = null;
+        DateOnly? supplierPaymentTo = null;
         object? postBody = null;
         switch (name)
         {
@@ -1009,6 +1011,40 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                         new { field = "entryDate", @operator = "lte", value = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) }
                     },
                     sortBy = "entryDate", descending = true, page = 1, pageSize = 10
+                };
+                break;
+            }
+            case "search_supplier_payments":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 3 || !arguments.RootElement.TryGetProperty("supplierId", out var idElement) ||
+                    idElement.ValueKind != JsonValueKind.String || !Guid.TryParse(idElement.GetString(), out var supplierId) ||
+                    !arguments.RootElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("to", out var toElement) || toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantSupplierPaymentTools.TryValidatePeriod(fromElement.GetString(), toElement.GetString(),
+                        IstanbulDateHelper.FromUtc(DateTimeOffset.UtcNow), out var from, out var to))
+                    throw new ArgumentException("Supplier-payment search requires a selected supplier and a past/current date window of at most 365 days.");
+
+                if (!customerAccountSelection.TryGetSelectedSupplierCode(supplierId, out var supplierCode))
+                    return JsonSerializer.Serialize(new { error = "Search for one supplier account in this request before reading its payment history.", errorCode = "account_not_uniquely_selected", requiresClarification = true });
+                if (!await ERPAssistantSupplierPaymentTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                supplierPaymentFrom = from;
+                supplierPaymentTo = to;
+                path = "/api/reports/run";
+                postBody = new
+                {
+                    source = "supplierPayments",
+                    columns = new[] { "paymentDate", "amount", "currencyCode", "paymentMethod", "status" },
+                    filters = new[]
+                    {
+                        new { field = "supplierCode", @operator = "equals", value = supplierCode },
+                        new { field = "paymentDate", @operator = "gte", value = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) },
+                        new { field = "paymentDate", @operator = "lte", value = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) }
+                    },
+                    sortBy = "paymentDate", descending = true, page = 1, pageSize = 10
                 };
                 break;
             }
@@ -1311,7 +1347,7 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 var props = arguments.RootElement.EnumerateObject().ToArray();
                 if (props.Length != 1 || !arguments.RootElement.TryGetProperty("asOfDate", out var dateElement) ||
                     dateElement.ValueKind != JsonValueKind.String ||
-                    !ERPAssistantMaturityTools.TryValidateAsOfDate(dateElement.GetString(), out var asOfDate))
+                    !ERPAssistantMaturityTools.TryValidateAsOfDate(dateElement.GetString(), DateTimeOffset.UtcNow, out var asOfDate))
                     throw new ArgumentException("Invoice maturity summary requires a valid past or current yyyy-MM-dd as-of date.");
 
                 if (!await ERPAssistantMaturityTools.IsReadAllowedAsync(tenantId, userId,
@@ -1404,6 +1440,8 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
             return ERPAssistantMaturityTools.SummarizeMaturities(result.RootElement, maturityDate);
         if (name == "search_customer_ledger" && customerLedgerFrom is DateOnly ledgerFrom && customerLedgerTo is DateOnly ledgerTo)
             return ERPAssistantCustomerLedgerTools.SummarizeLedgerReport(result.RootElement, ledgerFrom, ledgerTo);
+        if (name == "search_supplier_payments" && supplierPaymentFrom is DateOnly paymentFrom && supplierPaymentTo is DateOnly paymentTo)
+            return ERPAssistantSupplierPaymentTools.SummarizeReport(result.RootElement, paymentFrom, paymentTo);
         if (name == "search_fixed_assets")
             return ERPAssistantFixedAssetTools.SummarizeSearchResult(result.RootElement);
         if (name == "get_financial_account_balances")
