@@ -570,6 +570,28 @@ public static class ManufacturingEndpoints
             return Results.Ok(rows);
         });
 
+        orders.MapGet("/search", async (ClaimsPrincipal user, TenantDbContext db, string? q, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
+            var term = q?.Trim().ToUpperInvariant();
+            if (term is null || term.Length is < 2 or > 100)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["Üretim emri araması 2–100 karakter olmalıdır."] });
+
+            var query = db.ManufacturingOrders.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.Code.Contains(term));
+            var totalCount = await query.CountAsync(ct);
+            var items = await query.OrderByDescending(x => x.PlannedDate).ThenBy(x => x.Code).Take(10)
+                .Select(x => new
+                {
+                    code = x.Code,
+                    plannedDate = x.PlannedDate,
+                    status = x.Status.ToString(),
+                    plannedQuantity = x.PlannedQuantity,
+                    completedAt = x.CompletedAt
+                }).ToListAsync(ct);
+            return Results.Ok(new { totalCount, returned = items.Count, hasMore = totalCount > items.Count, items });
+        });
+
         orders.MapPost("/", async (ManufacturingOrderWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();

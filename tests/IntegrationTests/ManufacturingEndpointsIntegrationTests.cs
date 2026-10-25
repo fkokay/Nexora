@@ -30,6 +30,46 @@ public sealed class ManufacturingEndpointsIntegrationTests
     private static readonly Guid FinishedGoodsLocationId = Guid.Parse("13131313-1313-1313-1313-131313131313");
 
     [Fact]
+    public async Task Work_order_search_is_tenant_scoped_and_returns_only_first_ten_sanitized_matches()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/manufacturing/orders/search?q=MO-SEARCH")).StatusCode);
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+
+        var bomResponse = await client.PostAsJsonAsync("/api/manufacturing/boms/", Bom("BOM-ASSIST-SEARCH", ProductId));
+        Assert.Equal(HttpStatusCode.Created, bomResponse.StatusCode);
+        using var bom = JsonDocument.Parse(await bomResponse.Content.ReadAsStringAsync());
+        var bomId = bom.RootElement.GetProperty("id").GetGuid();
+        for (var index = 1; index <= 12; index++)
+        {
+            var created = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order($"MO-SEARCH-{index:000}", bomId, index));
+            Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        }
+
+        var response = await client.GetAsync("/api/manufacturing/orders/search?q=mo-search");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using (var search = JsonDocument.Parse(await response.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal(12, search.RootElement.GetProperty("totalCount").GetInt32());
+            Assert.Equal(10, search.RootElement.GetProperty("returned").GetInt32());
+            Assert.True(search.RootElement.GetProperty("hasMore").GetBoolean());
+            Assert.Equal(10, search.RootElement.GetProperty("items").GetArrayLength());
+            var first = search.RootElement.GetProperty("items")[0];
+            Assert.Equal("MO-SEARCH-001", first.GetProperty("code").GetString());
+            Assert.False(first.TryGetProperty("id", out _));
+            Assert.False(first.TryGetProperty("warehouseId", out _));
+            Assert.False(first.TryGetProperty("billOfMaterialId", out _));
+        }
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var otherTenant = JsonDocument.Parse(await (await client.GetAsync("/api/manufacturing/orders/search?q=MO-SEARCH")).Content.ReadAsStringAsync());
+        Assert.Equal(0, otherTenant.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/manufacturing/orders/search?q=x")).StatusCode);
+    }
+
+    [Fact]
     public async Task Manufacturing_recipe_and_order_are_tenant_scoped_and_complete_atomically_with_costing()
     {
         await using var app = await StartAsync();
