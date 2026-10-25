@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import './base.css'
 import './studio.css'
+import './studio-analytics.css'
 
 const url = new URL(window.location.href)
 if (url.searchParams.get('app') !== 'studio') {
