@@ -171,6 +171,7 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             var costAdjustmentCount = await readbackTenant.InventoryCostAdjustments.CountAsync(x => x.TenantId == TenantId);
             var valuationAuditCount = await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
                 (x.Action == "finance.fx-revaluation.created" || x.Action == "inventory-landed-cost.posted"));
+            var totalAuditCountAfterClose = await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId);
 
             using var closedManualLedger = await client.PostAsJsonAsync($"/api/customers/{data.CustomerId:D}/ledger", new
             {
@@ -224,6 +225,31 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             Assert.Equal(HttpStatusCode.Conflict, closedLandedCost.StatusCode);
             Assert.Contains("dönemi kapalı", await closedLandedCost.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
 
+            using var closedSalesReturnVoid = await client.PostAsync($"/api/sales/returns/{salesReturnId:D}/void", content: null);
+            Assert.Equal(HttpStatusCode.Conflict, closedSalesReturnVoid.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedSalesReturnVoid.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+            using var closedSupplierReturnVoid = await client.PostAsync($"/api/purchasing/returns/{purchaseReturnId:D}/void", content: null);
+            Assert.Equal(HttpStatusCode.Conflict, closedSupplierReturnVoid.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedSupplierReturnVoid.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+            using var closedSalesDeliveryVoid = await client.PostAsync($"/api/sales/deliveries/{data.UnbilledSalesDeliveryId:D}/void", content: null);
+            Assert.Equal(HttpStatusCode.Conflict, closedSalesDeliveryVoid.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedSalesDeliveryVoid.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+            using var closedPurchaseReceiptVoid = await client.PostAsync($"/api/purchasing/receipts/{data.UnbilledPurchaseReceiptId:D}/void", content: null);
+            Assert.Equal(HttpStatusCode.Conflict, closedPurchaseReceiptVoid.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedPurchaseReceiptVoid.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+            using var closedStockMovement = await client.PostAsJsonAsync(
+                $"/api/warehouses/{data.WarehouseId:D}/stock/{data.StockItemId:D}/transactions", new
+                {
+                    entryDate = "2026-10-21", direction = "Receipt", quantity = 1m, unitCostBase = 5m,
+                    description = "Closed-period synthetic stock movement"
+                });
+            Assert.Equal(HttpStatusCode.Conflict, closedStockMovement.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedStockMovement.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
             Assert.Equal(salesReturnCount, await readbackTenant.SalesReturns.CountAsync(x => x.TenantId == TenantId));
             Assert.Equal(supplierReturnCount, await readbackTenant.SupplierReturns.CountAsync(x => x.TenantId == TenantId));
             Assert.Equal(salesInvoiceCount, await readbackTenant.SalesInvoices.CountAsync(x => x.TenantId == TenantId));
@@ -240,6 +266,11 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             Assert.Equal(costAdjustmentCount, await readbackTenant.InventoryCostAdjustments.CountAsync(x => x.TenantId == TenantId));
             Assert.Equal(valuationAuditCount, await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId &&
                 (x.Action == "finance.fx-revaluation.created" || x.Action == "inventory-landed-cost.posted")));
+            Assert.Equal(totalAuditCountAfterClose, await readbackTenant.AuditEvents.CountAsync(x => x.TenantId == TenantId));
+            Assert.Equal(SalesReturnStatus.Posted, await readbackTenant.SalesReturns.AsNoTracking()
+                .Where(x => x.TenantId == TenantId && x.Id == salesReturnId).Select(x => x.Status).SingleAsync());
+            Assert.Equal(SupplierReturnStatus.Posted, await readbackTenant.SupplierReturns.AsNoTracking()
+                .Where(x => x.TenantId == TenantId && x.Id == purchaseReturnId).Select(x => x.Status).SingleAsync());
         }
         finally
         {
@@ -385,11 +416,11 @@ public sealed class SqlServerReturnLocationAcceptanceTests
         tenantDb.LedgerAccounts.AddRange(cashAccount, retainedEarnings);
         tenantDb.JournalEntries.Add(opening);
         await tenantDb.SaveChangesAsync();
-        return new SeedIds(customer.Id, warehouse.Id, salesLocation.Id, purchaseLocation.Id, inactiveLocation.Id, salesInvoice.Id, salesInvoiceLine.Id,
+        return new SeedIds(item.Id, customer.Id, warehouse.Id, salesLocation.Id, purchaseLocation.Id, inactiveLocation.Id, salesInvoice.Id, salesInvoiceLine.Id,
             purchaseInvoice.Id, purchaseInvoiceLine.Id, retainedEarnings.Id, unbilledDelivery.Id, purchaseReceipt.Id, unbilledPurchaseReceipt.Id);
     }
 
-    private sealed record SeedIds(Guid CustomerId, Guid WarehouseId, Guid SalesReturnLocationId, Guid PurchaseReturnLocationId, Guid InactiveLocationId,
+    private sealed record SeedIds(Guid StockItemId, Guid CustomerId, Guid WarehouseId, Guid SalesReturnLocationId, Guid PurchaseReturnLocationId, Guid InactiveLocationId,
         Guid SalesInvoiceId, Guid SalesInvoiceLineId, Guid PurchaseInvoiceId, Guid PurchaseInvoiceLineId, Guid RetainedEarningsAccountId,
         Guid UnbilledSalesDeliveryId, Guid PurchaseReceiptId, Guid UnbilledPurchaseReceiptId);
 

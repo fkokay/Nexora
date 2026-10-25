@@ -140,7 +140,7 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
                     await catalog.SaveChangesAsync(token);
                 },
                 cancellationToken,
-                copyTenantRows: async token =>
+                copyTenantRows: sourceDatabaseWasCreatedDuringCurrentBootstrap ? null : async token =>
                 {
                     await using var tenant = new TenantDbContext(options);
                     await CopyTenantRowsAsync(sourceDatabase, databaseName, tenantId, tenant, token);
@@ -329,7 +329,7 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string 
                 },
                 persistState: (nextState, error, token) => PersistAIStudioStateAsync(platformConnection, component, databaseName, nextState, error, token),
                 cancellationToken,
-                copyTenantRows: async token =>
+                copyTenantRows: sourceDatabaseWasCreatedDuringCurrentBootstrap ? null : async token =>
                 {
                     await using (var platform = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options))
                         tenants.AddRange(await platform.Tenants.AsNoTracking().Select(x => x.Id).ToListAsync(token));

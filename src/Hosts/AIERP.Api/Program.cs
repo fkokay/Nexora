@@ -110,7 +110,8 @@ app.UseAierpSecurityHeaders();
 app.UseAierpHttpMetrics();
 if (args.Contains("--migrate-only", StringComparer.Ordinal))
 {
-    var platformDatabaseWasCreatedDuringBootstrap = !await PlatformDatabaseExistsAsync(connectionString);
+    var platformDatabaseWasCreatedDuringBootstrap = !await PlatformDatabaseExistsAsync(connectionString)
+        || builder.Configuration.GetValue("Database:FreshInstall", false);
     await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
     await BaselineEnsureCreatedDatabaseAsync(db);
@@ -2114,6 +2115,10 @@ warehouses.MapPost("/transfers", async (InventoryTransferWriteRequest request, C
     var errors = InventoryValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var closedTransferPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.TransferDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedTransferPeriod, "depo transferi") is { } transferConflict)
+        return transferConflict;
     var stockItems = new Dictionary<Guid, StockItem>();
     foreach (var stockItemId in request.Lines.Select(x => x.StockItemId).Order())
     {
@@ -2225,6 +2230,11 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
     var errors = InventoryValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "depo transferi iptali") is { } transferVoidConflict)
+        return transferVoidConflict;
     var transferRecord = await db.InventoryTransfers.FromSqlInterpolated($"SELECT * FROM [dbo].[InventoryTransfers] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {transferId}").SingleOrDefaultAsync();
     if (transferRecord is null) return Results.NotFound();
     if (transferRecord.Status != InventoryTransferStatus.Posted) return Results.Conflict(new { error = "Depo transferi daha önce iptal edilmiş." });
@@ -2253,7 +2263,7 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
     foreach (var original in originals)
     {
         var reversal = new InventoryTransaction { TenantId = tenantId, WarehouseId = original.WarehouseId, StockItemId = original.StockItemId,
-            EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = original.Direction == InventoryDirection.Receipt ? InventoryDirection.Issue : InventoryDirection.Receipt,
+            EntryDate = reversalDate, Direction = original.Direction == InventoryDirection.Receipt ? InventoryDirection.Issue : InventoryDirection.Receipt,
             Quantity = original.Quantity, UnitCostBase = original.UnitCostBase, StorageLocationId = original.StorageLocationId,
             Description = $"Transfer iptali {transferRecord.Code} · {request.Reason.Trim()}", ReversalOfId = original.Id };
         reversal.Tracking = transferTraceRows.Where(x => x.InventoryTransactionId == original.Id).Select(x => new InventoryTransactionTrace { TenantId = tenantId,
@@ -2319,6 +2329,10 @@ warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions", 
     var errors = InventoryValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var closedMovementPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.EntryDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedMovementPeriod, "stok hareketi") is { } movementConflict)
+        return movementConflict;
     var item = await db.StockItems.FromSqlInterpolated($"SELECT * FROM [dbo].[StockItems] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {stockItemId}").SingleOrDefaultAsync();
     if (item is null) return Results.NotFound();
     var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {warehouseId}").SingleOrDefaultAsync();
@@ -2410,6 +2424,11 @@ warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions/{e
     var errors = InventoryValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "stok hareketi ters kaydı") is { } movementReversalConflict)
+        return movementReversalConflict;
     var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {warehouseId}").SingleOrDefaultAsync();
     if (warehouse is null) return Results.NotFound();
     var original = await db.InventoryTransactions.FromSqlInterpolated($"SELECT * FROM [dbo].[InventoryTransactions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [WarehouseId] = {warehouseId} AND [StockItemId] = {stockItemId} AND [Id] = {entryId}").SingleOrDefaultAsync();
@@ -2433,7 +2452,7 @@ warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions/{e
         return Results.Conflict(new { error = "Ters kayıt kullanılabilir bakiyeyi negatife düşüreceği için uygulanamadı.", currentBalance = current, reservedQuantity, reversalQuantity = original.Quantity });
     var reversal = new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouseId, StockItemId = stockItemId,
         StorageLocationId = original.StorageLocationId,
-        EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = reverseDirection, Quantity = original.Quantity,
+        EntryDate = reversalDate, Direction = reverseDirection, Quantity = original.Quantity,
         EnteredQuantity = original.EnteredQuantity, EnteredUnitCode = original.EnteredUnitCode,
         UnitCostBase = original.UnitCostBase, Description = $"Ters kayıt: {request.Reason.Trim()}", ReversalOfId = original.Id,
         ManufacturingOrderId = original.ManufacturingOrderId };
@@ -2468,6 +2487,10 @@ warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/revaluations", 
     if (request.AmountBase == 0m || request.AmountBase < -9999999999999999.99m || request.AmountBase > 9999999999999999.99m || request.AmountBase != decimal.Round(request.AmountBase, 2) || string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 240)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["adjustment"] = ["Değerleme tutarı sıfır olamaz, en fazla iki ondalık basamak içermeli ve açıklama 240 karakteri aşmamalıdır."] });
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var closedRevaluationPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.EntryDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedRevaluationPeriod, "stok yeniden değerlemesi") is { } revaluationConflict)
+        return revaluationConflict;
     var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {warehouseId}").SingleOrDefaultAsync();
     if (warehouse is null) return Results.NotFound();
     var item = await db.StockItems.FromSqlInterpolated($"SELECT * FROM [dbo].[StockItems] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {stockItemId}").SingleOrDefaultAsync();
@@ -2510,12 +2533,17 @@ warehouses.MapPost("/cost-adjustments/{id:guid}/reverse", async (Guid id, Invent
     var errors = InventoryValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "stok değerleme ters kaydı") is { } costReversalConflict)
+        return costReversalConflict;
     var original = await db.InventoryCostAdjustments.FromSqlInterpolated($"SELECT * FROM [dbo].[InventoryCostAdjustments] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (original is null || original.Kind != InventoryCostAdjustmentKind.Revaluation || original.ReversalOfId is not null) return Results.NotFound();
     if (await db.InventoryCostAdjustments.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == original.Id)) return Results.Conflict(new { error = "Bu yeniden değerleme daha önce ters kayıtla iptal edilmiştir." });
     var lines = await db.InventoryCostAdjustmentLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.AdjustmentId == original.Id).ToListAsync();
     var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = $"RVX-{Guid.NewGuid():N}".ToUpperInvariant(),
-        EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Kind = InventoryCostAdjustmentKind.Reversal,
+        EntryDate = reversalDate, Kind = InventoryCostAdjustmentKind.Reversal,
         Description = $"{original.Code} ters kayıt · {request.Reason.Trim()}", ReversalOfId = original.Id, CreatedByUserId = GetUserId(principal) };
     foreach (var line in lines) reversal.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = reversal,
         WarehouseId = line.WarehouseId, StockItemId = line.StockItemId, QuantitySnapshot = line.QuantitySnapshot,
@@ -3278,7 +3306,11 @@ salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princ
         .Select(x => new { x.OrderId, x.WarehouseId }).SingleOrDefaultAsync();
     if (identity is null) return Results.NotFound();
     await using var transaction = await db.Database.BeginTransactionAsync();
-    if (!await LockTenantForMutationAsync(db, tenantId)) return Results.NotFound();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "satış irsaliyesi iptali") is { } deliveryVoidConflict)
+        return deliveryVoidConflict;
     var order = await db.SalesOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {identity.OrderId}").SingleOrDefaultAsync();
     if (order is null) return Results.NotFound();
     var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {identity.WarehouseId}").SingleOrDefaultAsync();
@@ -3307,7 +3339,7 @@ salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princ
                 return Results.Conflict(new { error = "İrsaliye hareketlerinden biri zaten ters kayıtla geri alınmış." });
             db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = movement.StockItemId,
                 StorageLocationId = movement.StorageLocationId,
-                EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = InventoryDirection.Receipt, Quantity = movement.Quantity,
+                EntryDate = reversalDate, Direction = InventoryDirection.Receipt, Quantity = movement.Quantity,
                 UnitCostBase = movement.UnitCostBase, Description = $"İrsaliye iptali {delivery.Code}", ReversalOfId = movement.Id, SalesDeliveryLineId = line.Id,
                 Tracking = await CopyTrackingAsync(db, tenantId, movement) });
         }
@@ -3821,7 +3853,11 @@ salesInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princip
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
-    if (!await LockTenantForMutationAsync(db, tenantId)) return Results.NotFound();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "satış faturası iptali") is { } invoiceVoidConflict)
+        return invoiceVoidConflict;
     var invoice = await db.SalesInvoices.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesInvoices] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (invoice is null) return Results.NotFound();
     if (invoice.Status != SalesInvoiceStatus.Posted) return Results.Conflict(new { error = "Fatura daha önce iptal edildi." });
@@ -3838,7 +3874,7 @@ salesInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princip
         if (await db.CustomerLedgerEntries.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == original.Id))
             return Results.Conflict(new { error = "Fatura cari hareketi daha önce ters kayıtla kapatılmış." });
         db.CustomerLedgerEntries.Add(new CustomerLedgerEntry { TenantId = tenantId, CustomerId = customer.Id, SalesInvoiceId = invoice.Id,
-            EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = CustomerLedgerDirection.Credit, Amount = original.Amount,
+            EntryDate = reversalDate, Direction = CustomerLedgerDirection.Credit, Amount = original.Amount,
             CurrencyCode = original.CurrencyCode, Description = $"Fatura iptali {invoice.Code}", ReversalOfId = original.Id });
     }
     invoice.Status = SalesInvoiceStatus.Voided;
@@ -3856,7 +3892,11 @@ customerCollections.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal p
             InvoiceId = x.Allocations.Select(a => (Guid?)a.SalesInvoiceId).FirstOrDefault() }).SingleOrDefaultAsync();
     if (context is null) return Results.NotFound();
     await using var transaction = await db.Database.BeginTransactionAsync();
-    if (!await LockTenantForMutationAsync(db, tenantId)) return Results.NotFound();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "tahsilat iptali") is { } collectionVoidConflict)
+        return collectionVoidConflict;
     if (context.InvoiceId is { } linkedInvoiceId && await db.SalesInvoices.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesInvoices] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {linkedInvoiceId}").SingleOrDefaultAsync() is null)
         return Results.Conflict(new { error = "Tahsilatın bağlı faturası bulunamadı." });
     var customer = await db.CustomerAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {context.CustomerId}").SingleOrDefaultAsync();
@@ -3883,7 +3923,7 @@ customerCollections.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal p
         if (await db.FinancialAccountTransactions.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == financialMovement.Id))
             return Results.Conflict(new { error = "Tahsilatın finans hareketi daha önce ters kayıtla kapatılmış." });
         db.FinancialAccountTransactions.Add(new FinancialAccountTransaction { TenantId = tenantId, FinancialAccountId = financialAccount.Id,
-            CurrencyCode = financialMovement.CurrencyCode, TransactionDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            CurrencyCode = financialMovement.CurrencyCode, TransactionDate = reversalDate,
             Direction = FinancialDirection.Outflow, CashFlowCategory = financialMovement.CashFlowCategory, Amount = financialMovement.Amount, Description = $"Tahsilat iptali {collection.Code}",
             Reference = financialMovement.Reference, ReversalOfId = financialMovement.Id });
     }
@@ -3891,7 +3931,7 @@ customerCollections.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal p
     if (original is null) return Results.Conflict(new { error = "Tahsilatın cari hareketi bulunamadığı için güvenli iptal yapılamadı." });
     if (await db.CustomerLedgerEntries.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == original.Id)) return Results.Conflict(new { error = "Tahsilat hareketi daha önce ters kayıtla kapatılmış." });
     db.CustomerLedgerEntries.Add(new CustomerLedgerEntry { TenantId = tenantId, CustomerId = customer.Id, CustomerCollectionId = collection.Id,
-        EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = CustomerLedgerDirection.Debit, Amount = original.Amount,
+        EntryDate = reversalDate, Direction = CustomerLedgerDirection.Debit, Amount = original.Amount,
         CurrencyCode = original.CurrencyCode, Description = $"Tahsilat iptali {collection.Code}", ReversalOfId = original.Id });
     collection.Status = CustomerCollectionStatus.Voided;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "customer-collection.voided", Resource = collection.Code });
@@ -3906,7 +3946,11 @@ salesReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principa
     var invoiceId = await db.SalesReturns.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id).Select(x => (Guid?)x.SalesInvoiceId).SingleOrDefaultAsync();
     if (invoiceId is null) return Results.NotFound();
     await using var transaction = await db.Database.BeginTransactionAsync();
-    if (!await LockTenantForMutationAsync(db, tenantId)) return Results.NotFound();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "satış iadesi iptali") is { } returnVoidConflict)
+        return returnVoidConflict;
     var invoice = await db.SalesInvoices.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesInvoices] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {invoiceId.Value}").SingleOrDefaultAsync();
     if (invoice is null) return Results.NotFound();
     var salesReturn = await db.SalesReturns.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesReturns] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
@@ -5126,6 +5170,11 @@ purchaseReceipts.MapPost("/{id:guid}/landed-costs/{adjustmentId:guid}/reverse", 
     var errors = InventoryValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "stok ek maliyeti ters kaydı") is { } landedCostReversalConflict)
+        return landedCostReversalConflict;
     var receipt = await db.PurchaseReceipts.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseReceipts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (receipt is null) return Results.NotFound();
     var original = await db.InventoryCostAdjustments.FromSqlInterpolated($"SELECT * FROM [dbo].[InventoryCostAdjustments] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {adjustmentId}").SingleOrDefaultAsync();
@@ -5134,7 +5183,7 @@ purchaseReceipts.MapPost("/{id:guid}/landed-costs/{adjustmentId:guid}/reverse", 
     var lines = await db.InventoryCostAdjustmentLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.AdjustmentId == original.Id).ToListAsync();
     if (lines.Count == 0) return Results.Conflict(new { error = "Ek maliyet dağıtım satırları bulunamadı." });
     var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = $"LCV-{Guid.NewGuid():N}".ToUpperInvariant(),
-        EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Kind = InventoryCostAdjustmentKind.Reversal,
+        EntryDate = reversalDate, Kind = InventoryCostAdjustmentKind.Reversal,
         PurchaseReceiptId = id, ReversalOfId = original.Id, Description = $"{original.Code} ters kayıt · {request.Reason.Trim()}", CreatedByUserId = GetUserId(principal) };
     foreach (var line in lines) reversal.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = reversal,
         WarehouseId = line.WarehouseId, StockItemId = line.StockItemId, PurchaseReceiptLineId = line.PurchaseReceiptLineId,
@@ -5153,7 +5202,11 @@ purchaseReceipts.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal prin
         .Select(x => new { x.PurchaseOrderId, x.WarehouseId }).SingleOrDefaultAsync();
     if (identity is null) return Results.NotFound();
     await using var transaction = await db.Database.BeginTransactionAsync();
-    if (!await LockTenantForMutationAsync(db, tenantId)) return Results.NotFound();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "mal kabul iptali") is { } receiptVoidConflict)
+        return receiptVoidConflict;
     var order = await db.PurchaseOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {identity.PurchaseOrderId}").SingleOrDefaultAsync();
     if (order is null) return Results.NotFound();
     var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {identity.WarehouseId}").SingleOrDefaultAsync();
@@ -5191,7 +5244,7 @@ purchaseReceipts.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal prin
         currentBalance = balances.GetValueOrDefault(shortage.Key), reservedQuantity = reserved.GetValueOrDefault(shortage.Key), requiredQuantity = shortage.Value });
     foreach (var movement in movements)
         db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = movement.StockItemId,
-            EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = InventoryDirection.Issue, Quantity = movement.Quantity,
+            EntryDate = reversalDate, Direction = InventoryDirection.Issue, Quantity = movement.Quantity,
             UnitCostBase = movement.UnitCostBase, Description = $"Mal kabul iptali {receipt.Code}", ReversalOfId = movement.Id, PurchaseReceiptLineId = movement.PurchaseReceiptLineId,
             StorageLocationId = movement.StorageLocationId,
             Tracking = await CopyTrackingAsync(db, tenantId, movement) });
@@ -5591,7 +5644,11 @@ purchaseInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal prin
         .Select(x => new { x.PurchaseOrderId, x.PurchaseReceiptId, x.SupplierId }).SingleOrDefaultAsync();
     if (identity is null) return Results.NotFound();
     await using var transaction = await db.Database.BeginTransactionAsync();
-    if (!await LockTenantForMutationAsync(db, tenantId)) return Results.NotFound();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "alış faturası iptali") is { } invoiceVoidConflict)
+        return invoiceVoidConflict;
     var order = await db.PurchaseOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {identity.PurchaseOrderId}").SingleOrDefaultAsync();
     if (order is null) return Results.NotFound();
     var receipt = await db.PurchaseReceipts.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseReceipts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {identity.PurchaseReceiptId}").SingleOrDefaultAsync();
@@ -5612,7 +5669,7 @@ purchaseInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal prin
     {
         if (await db.CustomerLedgerEntries.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == original.Id)) return Results.Conflict(new { error = "Alış faturasının cari hareketi zaten ters kayıtla kapatılmış." });
         db.CustomerLedgerEntries.Add(new CustomerLedgerEntry { TenantId = tenantId, CustomerId = supplier.Id,
-            EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = CustomerLedgerDirection.Debit, Amount = original.Amount,
+            EntryDate = reversalDate, Direction = CustomerLedgerDirection.Debit, Amount = original.Amount,
             CurrencyCode = original.CurrencyCode, Description = $"Alış faturası iptali {invoice.Code}", ReversalOfId = original.Id });
     }
     invoice.Status = PurchaseInvoiceStatus.Voided;
@@ -5628,7 +5685,11 @@ supplierReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princ
         .Select(x => new { x.PurchaseInvoiceId, x.SupplierId, x.WarehouseId }).SingleOrDefaultAsync();
     if (identity is null) return Results.NotFound();
     await using var transaction = await db.Database.BeginTransactionAsync();
-    if (!await LockTenantForMutationAsync(db, tenantId)) return Results.NotFound();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "alış iadesi iptali") is { } returnVoidConflict)
+        return returnVoidConflict;
     var invoice = await db.PurchaseInvoices.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseInvoices] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {identity.PurchaseInvoiceId}").SingleOrDefaultAsync();
     if (invoice is null) return Results.NotFound();
     var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {identity.WarehouseId}").SingleOrDefaultAsync();
@@ -5655,12 +5716,12 @@ supplierReturns.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princ
     if (await db.CustomerLedgerEntries.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == originalLedger.Id)) return Results.Conflict(new { error = "İade cari hareketi daha önce ters kayıtla kapatılmış." });
     foreach (var movement in movements)
         db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = movement.StockItemId,
-            EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = InventoryDirection.Receipt, Quantity = movement.Quantity,
+            EntryDate = reversalDate, Direction = InventoryDirection.Receipt, Quantity = movement.Quantity,
             UnitCostBase = movement.UnitCostBase, StorageLocationId = movement.StorageLocationId,
             Description = $"Alış iadesi iptali {supplierReturn.Code}", ReversalOfId = movement.Id, SupplierReturnLineId = movement.SupplierReturnLineId,
             Tracking = await CopyTrackingAsync(db, tenantId, movement) });
     db.CustomerLedgerEntries.Add(new CustomerLedgerEntry { TenantId = tenantId, CustomerId = supplier.Id, SupplierReturnId = supplierReturn.Id,
-        EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = CustomerLedgerDirection.Credit, Amount = originalLedger.Amount,
+        EntryDate = reversalDate, Direction = CustomerLedgerDirection.Credit, Amount = originalLedger.Amount,
         CurrencyCode = originalLedger.CurrencyCode, Description = $"Alış iadesi iptali {supplierReturn.Code}", ReversalOfId = originalLedger.Id });
     supplierReturn.Status = SupplierReturnStatus.Voided;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "supplier-return.voided", Resource = supplierReturn.Code });
@@ -5675,7 +5736,11 @@ supplierPayments.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal prin
         .Select(x => new { x.PurchaseInvoiceId, x.SupplierId, x.FinancialAccountId }).SingleOrDefaultAsync();
     if (identity is null) return Results.NotFound();
     await using var transaction = await db.Database.BeginTransactionAsync();
-    if (!await LockTenantForMutationAsync(db, tenantId)) return Results.NotFound();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+    var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "tedarikçi ödemesi iptali") is { } paymentVoidConflict)
+        return paymentVoidConflict;
     var invoice = await db.PurchaseInvoices.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseInvoices] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {identity.PurchaseInvoiceId}").SingleOrDefaultAsync();
     if (invoice is null) return Results.NotFound();
     var supplier = await db.CustomerAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {identity.SupplierId}").SingleOrDefaultAsync();
@@ -5697,12 +5762,12 @@ supplierPayments.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal prin
         if (await db.FinancialAccountTransactions.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == financialMovement.Id))
             return Results.Conflict(new { error = "Ödemenin finans hareketi daha önce ters kayıtla kapatılmış." });
         db.FinancialAccountTransactions.Add(new FinancialAccountTransaction { TenantId = tenantId, FinancialAccountId = financialAccount.Id,
-            CurrencyCode = financialMovement.CurrencyCode, TransactionDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            CurrencyCode = financialMovement.CurrencyCode, TransactionDate = reversalDate,
             Direction = FinancialDirection.Inflow, CashFlowCategory = financialMovement.CashFlowCategory, Amount = financialMovement.Amount, Description = $"Tedarikçi ödemesi iptali {payment.Code}",
             Reference = financialMovement.Reference, ReversalOfId = financialMovement.Id });
     }
     db.CustomerLedgerEntries.Add(new CustomerLedgerEntry { TenantId = tenantId, CustomerId = supplier.Id,
-        EntryDate = DateOnly.FromDateTime(DateTime.UtcNow), Direction = CustomerLedgerDirection.Credit, Amount = original.Amount,
+        EntryDate = reversalDate, Direction = CustomerLedgerDirection.Credit, Amount = original.Amount,
         CurrencyCode = original.CurrencyCode, Description = $"Tedarikçi ödemesi iptali {payment.Code}", ReversalOfId = original.Id });
     payment.Status = SupplierPaymentStatus.Voided;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "supplier-payment.voided", Resource = payment.Code });
@@ -6205,7 +6270,7 @@ generalLedger.MapPost("/entries/manual", async (ManualJournalEntryWriteRequest r
     var accounts = await db.LedgerAccounts.Where(x => x.TenantId == tenantId && x.IsActive && accountIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
     if (accounts.Count != accountIds.Length) return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Tüm satırlar aynı tenant'a ait aktif hesapları kullanmalıdır."] });
     await using var transaction = await db.Database.BeginTransactionAsync();
-    if (!await LockTenantForMutationAsync(db, tenantId)) return Results.NotFound();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.EntryDate);
     if (closedPeriod is { } closed)
         return Results.Conflict(new { error = $"{closed.FromDate:yyyy-MM-dd}–{closed.ToDate:yyyy-MM-dd} dönemi kapalı; bu tarihe yevmiye eklenemez." });
@@ -7485,9 +7550,6 @@ static async Task<bool> HasUnreversedJournalEntryAsync(TenantDbContext db, Guid 
     return entryId is { } id && !await db.JournalEntries.AsNoTracking()
         .AnyAsync(x => x.TenantId == tenantId && x.SourceType == "ManualReversal" && x.SourceId == id);
 }
-
-static async Task<bool> LockTenantForMutationAsync(TenantDbContext db, Guid tenantId)
-    => await db.Tenants.FromSqlInterpolated($"SELECT * FROM [dbo].[Tenants] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {tenantId}").AnyAsync();
 
 static async Task<InventoryCostAdjustmentView> BuildInventoryCostAdjustmentViewAsync(TenantDbContext db, Guid tenantId, InventoryCostAdjustment header)
 {
