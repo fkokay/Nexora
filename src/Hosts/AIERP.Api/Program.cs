@@ -193,6 +193,7 @@ app.MapWorkflowEndpoints();
 app.MapBusinessRuleEndpoints();
 app.MapReportEndpoints();
 app.MapDashboardWidgetEndpoints();
+app.MapErpDashboardSummaryEndpoints();
 app.MapCustomMenuEndpoints();
 app.MapCrmEndpoints();
 app.MapManufacturingEndpoints();
