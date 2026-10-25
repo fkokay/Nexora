@@ -2,6 +2,7 @@ using System.Security.Claims;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 internal static class ErpDashboardSummaryEndpoints
@@ -163,13 +164,56 @@ internal static class ErpDashboardSummaryEndpoints
                 var movementTotal = await movementValues.Select(x => x.Amount).SumAsync(ct);
                 var adjustmentTotal = await adjustmentValues.Select(x => x.Amount).SumAsync(ct);
                 inventoryValueBase = movementTotal + adjustmentTotal;
-                // SQL Server translates the left-joined projection, but not predicates/orderings
-                // over its nullable aggregate expression. Materialize only the per-item summary
-                // rows (one per active stock card), then rank that compact projection here.
-                var itemValues = await values.ToListAsync(ct);
-                var topRows = itemValues.Where(x => x.Amount != 0m).OrderByDescending(x => x.Amount)
-                    .ThenBy(x => x.Code).Take(5).ToArray();
-                topStockItems = topRows.Select(x => new ErpDashboardStockItem(x.Id, x.Code, x.Name, x.Amount)).ToArray();
+                if (db.Database.IsSqlServer())
+                {
+                    // Keep ranking and the result cap in SQL. Materializing one row per stock
+                    // card makes the dashboard's memory and network cost grow with the catalog.
+                    const string topStockSql = """
+                        WITH ActiveWarehouses AS
+                        (
+                            SELECT [Id]
+                            FROM [dbo].[Warehouses]
+                            WHERE [TenantId] = @tenantId AND [IsActive] = 1
+                        ), MovementAmounts AS
+                        (
+                            SELECT tx.[StockItemId],
+                                SUM(ISNULL(tx.[UnitCostBase], CAST(0 AS decimal(18, 8)))
+                                    * CASE WHEN tx.[Direction] = @receiptDirection THEN tx.[Quantity] ELSE -tx.[Quantity] END) AS [Amount]
+                            FROM [dbo].[InventoryTransactions] AS tx
+                            INNER JOIN ActiveWarehouses AS w ON w.[Id] = tx.[WarehouseId]
+                            WHERE tx.[TenantId] = @tenantId
+                            GROUP BY tx.[StockItemId]
+                        ), AdjustmentAmounts AS
+                        (
+                            SELECT line.[StockItemId], SUM(line.[AmountBase]) AS [Amount]
+                            FROM [dbo].[InventoryCostAdjustmentLines] AS line
+                            INNER JOIN ActiveWarehouses AS w ON w.[Id] = line.[WarehouseId]
+                            WHERE line.[TenantId] = @tenantId
+                            GROUP BY line.[StockItemId]
+                        )
+                        SELECT TOP (5) item.[Id], item.[Code], item.[Name],
+                            CAST(COALESCE(movement.[Amount], 0) + COALESCE(adjustment.[Amount], 0) AS decimal(38, 12)) AS [AmountBase]
+                        FROM [dbo].[StockItems] AS item
+                        LEFT JOIN MovementAmounts AS movement ON movement.[StockItemId] = item.[Id]
+                        LEFT JOIN AdjustmentAmounts AS adjustment ON adjustment.[StockItemId] = item.[Id]
+                        WHERE item.[TenantId] = @tenantId AND item.[IsActive] = 1
+                            AND COALESCE(movement.[Amount], 0) + COALESCE(adjustment.[Amount], 0) <> 0
+                        ORDER BY COALESCE(movement.[Amount], 0) + COALESCE(adjustment.[Amount], 0) DESC, item.[Code]
+                        """;
+                    var topRows = await db.Database.SqlQueryRaw<ErpDashboardStockItemQuery>(topStockSql,
+                            new SqlParameter("@tenantId", tenantId),
+                            new SqlParameter("@receiptDirection", (int)InventoryDirection.Receipt))
+                        .ToListAsync(ct);
+                    topStockItems = topRows.Select(x => new ErpDashboardStockItem(x.Id, x.Code, x.Name, x.AmountBase)).ToArray();
+                }
+                else
+                {
+                    // In-memory test provider cannot execute the SQL Server bounded query.
+                    var itemValues = await values.ToListAsync(ct);
+                    var topRows = itemValues.Where(x => x.Amount != 0m).OrderByDescending(x => x.Amount)
+                        .ThenBy(x => x.Code).Take(5).ToArray();
+                    topStockItems = topRows.Select(x => new ErpDashboardStockItem(x.Id, x.Code, x.Name, x.Amount)).ToArray();
+                }
             }
 
             return Results.Ok(new ErpDashboardSummaryView(baseCurrencyCode,
@@ -207,3 +251,11 @@ public sealed record ErpDashboardMonthTotal(int Year, int Month, decimal Amount)
 public sealed record ErpDashboardRecentOrder(Guid Id, string Code, DateOnly OrderDate, string CustomerName,
     decimal GrandTotal, string CurrencyCode);
 public sealed record ErpDashboardStockItem(Guid Id, string Code, string Name, decimal AmountBase);
+
+public sealed class ErpDashboardStockItemQuery
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public decimal AmountBase { get; set; }
+}

@@ -129,3 +129,21 @@
 
 @media(max-width:1100px){.erp-home-workspace{grid-template-columns:minmax(0,1fr)}.erp-home-side-panels{grid-template-columns:repeat(2,minmax(0,1fr))}.erp-home-note{grid-column:1/-1}}
 @media(max-width:720px){.erp-home-heading{align-items:flex-start;flex-direction:column}.erp-home-heading-actions{width:100%}.erp-home-heading-actions button{flex:1}.erp-home-tabs{overflow-x:auto;gap:19px}.erp-home-tabs button{white-space:nowrap}.erp-home-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.erp-home-kpis .metric-card{padding:12px}.erp-home-side-panels{grid-template-columns:1fr}.erp-home-note{grid-column:auto}.erp-home-main-panel .dashboard-widgets{padding:12px}}
+
+/* Keep the ERP command bar calm and legible at narrow desktop widths. */
+.app-shell:not(.standalone-studio) .topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;height:58px;margin-left:0;padding-inline:clamp(14px,2vw,28px);overflow:hidden}
+.app-shell:not(.standalone-studio) .crumb{display:flex;align-items:center;gap:9px;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden}
+.app-shell:not(.standalone-studio) .crumb>span,.app-shell:not(.standalone-studio) .crumb .slash{flex:none}
+.app-shell:not(.standalone-studio) .crumb>b{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-shell:not(.standalone-studio) .top-actions{display:flex;align-items:center;flex:0 0 auto;flex-wrap:nowrap;gap:7px;min-width:0}
+.app-shell:not(.standalone-studio) .developer-mode-trigger{display:inline-flex;flex:none;align-items:center;gap:7px;height:34px;padding:0 10px;border:1px solid transparent;border-radius:6px;background:transparent;color:#e7f0fb;font-size:10px;white-space:nowrap}
+.app-shell:not(.standalone-studio) .developer-mode-trigger:hover,.app-shell:not(.standalone-studio) .developer-mode-trigger[aria-expanded=true]{border-color:#ffffff20;background:#ffffff12}
+.app-shell:not(.standalone-studio) .topbar .theme-toggle,.app-shell:not(.standalone-studio) .topbar .notification{width:34px;height:34px;flex:none;border:0;border-radius:6px;background:transparent;color:#dce9f8}
+.app-shell:not(.standalone-studio) .topbar .locale-switch{display:flex;flex:none;gap:2px;padding:2px;border:1px solid #ffffff1d;border-radius:6px;background:#ffffff0d}
+.app-shell:not(.standalone-studio) .topbar .locale-switch button{min-width:28px;height:25px;padding:0 6px;border-radius:4px;font-size:9px}
+.app-shell:not(.standalone-studio) .topbar .global-search{display:flex;flex:0 1 205px;min-width:145px;width:clamp(145px,18vw,205px);height:34px;gap:8px;padding-inline:10px;border:1px solid #ffffff20;border-radius:6px;background:#ffffff0d;color:#dce9f8}
+.app-shell:not(.standalone-studio) .topbar .global-search span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-shell:not(.standalone-studio) .topbar .global-search kbd{flex:none;margin-left:auto;padding:3px 5px;border-radius:4px;background:#ffffff12;color:#fff;font-size:8px}
+.app-shell:not(.standalone-studio) .top-avatar{flex:none;width:30px;height:30px;border:1px solid #ffffff2a;border-radius:50%;background:#f6a85e;color:#fff}
+@media(max-width:1180px){.app-shell:not(.standalone-studio) .topbar{gap:8px;padding-inline:14px}.app-shell:not(.standalone-studio) .top-actions{gap:4px}.app-shell:not(.standalone-studio) .topbar .global-search{flex-basis:145px;min-width:125px;width:145px}}
+@media(max-width:900px){.app-shell:not(.standalone-studio) .topbar .developer-mode-trigger span{display:none}.app-shell:not(.standalone-studio) .topbar .developer-mode-trigger{width:34px;justify-content:center;padding:0}.app-shell:not(.standalone-studio) .topbar .global-search{flex:0 0 36px;min-width:36px;width:36px;justify-content:center;padding:0;border-color:transparent;background:transparent}.app-shell:not(.standalone-studio) .topbar .global-search span,.app-shell:not(.standalone-studio) .topbar .global-search kbd{display:none}}

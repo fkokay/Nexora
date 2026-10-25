@@ -28,6 +28,10 @@ public sealed class ErpDashboardSummaryIntegrationTests
         var supplier = new CustomerAccount { TenantId = tenantId, Tenant = tenant, Code = "S-1", Name = "Synthetic supplier", Type = CounterpartyType.Supplier };
         var warehouse = new Warehouse { TenantId = tenantId, Tenant = tenant, Code = "WH-1", Name = "Main", IsActive = true };
         var item = new StockItem { TenantId = tenantId, Tenant = tenant, Code = "ITEM-1", Name = "Synthetic stock", IsActive = true };
+        var rankedItems = Enumerable.Range(1, 6).Select(index => new StockItem
+        {
+            TenantId = tenantId, Tenant = tenant, Code = $"ITEM-{index + 1:D2}", Name = $"Ranked stock {index}", IsActive = true
+        }).ToArray();
         var now = DateOnly.FromDateTime(DateTime.UtcNow);
         var orders = Enumerable.Range(1, 7).Select(index => new SalesOrder
         {
@@ -57,10 +61,20 @@ public sealed class ErpDashboardSummaryIntegrationTests
             db.SalesInvoices.AddRange(salesInvoices);
             db.PurchaseOrders.Add(openPurchase);
             db.Warehouses.Add(warehouse);
-            db.StockItems.Add(item);
+            db.StockItems.AddRange([item, .. rankedItems]);
             db.InventoryTransactions.AddRange(receipt, issue,
                 new InventoryTransaction { TenantId = otherTenantId, WarehouseId = Guid.NewGuid(), StockItemId = Guid.NewGuid(), EntryDate = now, Direction = InventoryDirection.Receipt, Quantity = 100m, UnitCostBase = 999m });
+            db.InventoryTransactions.AddRange(rankedItems.Select((rankedItem, index) => new InventoryTransaction
+                {
+                    TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = rankedItem.Id,
+                    EntryDate = now, Direction = InventoryDirection.Receipt, Quantity = 1m, UnitCostBase = (index + 1) * 10m
+                }));
             db.InventoryCostAdjustmentLines.Add(adjustment);
+            db.InventoryCostAdjustmentLines.AddRange(rankedItems.Select(rankedItem => new InventoryCostAdjustmentLine
+            {
+                TenantId = tenantId, AdjustmentId = Guid.NewGuid(), WarehouseId = warehouse.Id,
+                StockItemId = rankedItem.Id, QuantitySnapshot = 1m, AmountBase = 1m
+            }));
             await db.SaveChangesAsync();
         }
 
@@ -77,9 +91,12 @@ public sealed class ErpDashboardSummaryIntegrationTests
         Assert.Equal(1200m, tryTotal.GetProperty("amount").GetDecimal());
         Assert.Equal(1, summary.GetProperty("openPurchaseOrderCount").GetInt32());
         Assert.Equal("EUR", summary.GetProperty("openPurchaseOrderTotals")[0].GetProperty("currencyCode").GetString());
-        Assert.Equal(1, summary.GetProperty("activeStockItemCount").GetInt32());
+        Assert.Equal(7, summary.GetProperty("activeStockItemCount").GetInt32());
         Assert.Equal(1, summary.GetProperty("activeWarehouseCount").GetInt32());
-        Assert.Equal(37m, summary.GetProperty("inventoryValueBase").GetDecimal());
+        Assert.Equal(253m, summary.GetProperty("inventoryValueBase").GetDecimal());
+        var topStockItems = summary.GetProperty("topStockItems").EnumerateArray().ToArray();
+        Assert.Equal(5, topStockItems.Length);
+        Assert.Equal(new[] { 61m, 51m, 41m, 37m, 31m }, topStockItems.Select(x => x.GetProperty("amountBase").GetDecimal()).ToArray());
         Assert.DoesNotContain(summary.GetProperty("recentOpenSalesOrders").EnumerateArray(), x => x.GetProperty("customerName").GetString() == "Other tenant");
         await app.DisposeAsync();
     }
