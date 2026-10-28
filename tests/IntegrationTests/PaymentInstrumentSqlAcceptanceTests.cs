@@ -45,6 +45,7 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
             var cash = new FinancialAccount { TenantId = tenantA, Tenant = tenantARecord, Code = "CASH-A", Name = "Synthetic cash", Type = FinancialAccountType.Cash, CurrencyCode = "TRY" };
             var otherTenantBank = new FinancialAccount { TenantId = tenantB, Tenant = tenantBRecord, Code = "BANK-B", Name = "Other bank", Type = FinancialAccountType.Bank, CurrencyCode = "TRY" };
             var customer = new CustomerAccount { TenantId = tenantA, Tenant = tenantARecord, Code = "CUS-SYN", Name = "Synthetic customer", Type = CounterpartyType.Customer };
+            var supplier = new CustomerAccount { TenantId = tenantA, Tenant = tenantARecord, Code = "SUP-SYN", Name = "Synthetic supplier", Type = CounterpartyType.Supplier };
             var quote = new SalesQuote { TenantId = tenantA, Tenant = tenantARecord, CustomerId = customer.Id, Customer = customer,
                 Code = "QU-SYN", QuoteDate = new DateOnly(2026, 1, 1), ValidUntil = new DateOnly(2026, 2, 1), GrandTotal = 500m, Subtotal = 500m };
             var order = new SalesOrder { TenantId = tenantA, Tenant = tenantARecord, QuoteId = quote.Id, Quote = quote, CustomerId = customer.Id,
@@ -54,6 +55,17 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
                 WarehouseId = warehouse.Id, Warehouse = warehouse, Code = "DEL-SYN", DeliveryDate = new DateOnly(2026, 1, 3) };
             var invoice = new SalesInvoice { TenantId = tenantA, Tenant = tenantARecord, DeliveryId = delivery.Id, Delivery = delivery, OrderId = order.Id,
                 Order = order, CustomerId = customer.Id, Customer = customer, Code = "INV-SYN", InvoiceDate = new DateOnly(2026, 1, 4),
+                CurrencyCode = "TRY", GrandTotal = 500m, Subtotal = 500m };
+            var purchaseWarehouse = new Warehouse { TenantId = tenantA, Tenant = tenantARecord, Code = "WH-PUR-SYN", Name = "Synthetic purchasing warehouse" };
+            var purchaseOrder = new PurchaseOrder { TenantId = tenantA, Tenant = tenantARecord, SupplierId = supplier.Id, Supplier = supplier,
+                Code = "PO-SYN", OrderDate = new DateOnly(2026, 1, 2), TargetWarehouseId = purchaseWarehouse.Id, TargetWarehouse = purchaseWarehouse,
+                GrandTotal = 500m, Subtotal = 500m };
+            var purchaseReceipt = new PurchaseReceipt { TenantId = tenantA, Tenant = tenantARecord, RequestId = Guid.NewGuid(), PurchaseOrderId = purchaseOrder.Id,
+                PurchaseOrder = purchaseOrder, WarehouseId = purchaseWarehouse.Id, Warehouse = purchaseWarehouse,
+                Code = "RCPT-SYN", ReceiptDate = new DateOnly(2026, 1, 3) };
+            var purchaseInvoice = new PurchaseInvoice { TenantId = tenantA, Tenant = tenantARecord, PurchaseReceiptId = purchaseReceipt.Id,
+                PurchaseReceipt = purchaseReceipt, PurchaseOrderId = purchaseOrder.Id, PurchaseOrder = purchaseOrder, SupplierId = supplier.Id,
+                Supplier = supplier, Code = "PINV-SYN", InvoiceDate = new DateOnly(2026, 1, 4), DueDate = new DateOnly(2026, 2, 4),
                 CurrencyCode = "TRY", GrandTotal = 500m, Subtotal = 500m };
             var ledgerAccounts = new[]
             {
@@ -89,11 +101,16 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
             cash.Transactions.Add(new FinancialAccountTransaction { TenantId = tenantA, FinancialAccountId = cash.Id, FinancialAccount = cash, CurrencyCode = "TRY", TransactionDate = new DateOnly(2026, 1, 1), Direction = FinancialDirection.Inflow, Amount = 1000m, Description = "Synthetic opening cash", RequestId = Guid.NewGuid() });
             seedDb.Tenants.AddRange(tenantARecord, tenantBRecord);
             seedDb.CustomerAccounts.Add(customer);
+            seedDb.CustomerAccounts.Add(supplier);
             seedDb.SalesQuotes.Add(quote);
             seedDb.SalesOrders.Add(order);
             seedDb.Warehouses.Add(warehouse);
             seedDb.SalesDeliveries.Add(delivery);
             seedDb.SalesInvoices.Add(invoice);
+            seedDb.Warehouses.Add(purchaseWarehouse);
+            seedDb.PurchaseOrders.Add(purchaseOrder);
+            seedDb.PurchaseReceipts.Add(purchaseReceipt);
+            seedDb.PurchaseInvoices.Add(purchaseInvoice);
             seedDb.FinancialAccounts.AddRange(bank, cash, otherTenantBank);
             var priorCreditTransaction = new FinancialAccountTransaction { TenantId = tenantA, FinancialAccountId = bank.Id, FinancialAccount = bank,
                 CurrencyCode = "TRY", TransactionDate = new DateOnly(2025, 10, 1), Direction = FinancialDirection.Inflow,
@@ -273,6 +290,22 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
                 financialAccountId = cash.Id, eventDate = "2026-02-20", note = "Synthetic cash payment"
             });
             Assert.Equal(HttpStatusCode.OK, paid.StatusCode);
+            using var paidInstrumentJson = JsonDocument.Parse(await paid.Content.ReadAsStringAsync());
+            var supplierInvoicePayload = new
+            {
+                requestId = Guid.NewGuid(), rowVersion = paidInstrumentJson.RootElement.GetProperty("rowVersion").GetString(),
+                invoiceId = purchaseInvoice.Id, amount = 80m, eventDate = "2026-02-20"
+            };
+            using var supplierInvoiceApplication = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{payableId}/apply-to-invoice", supplierInvoicePayload);
+            Assert.True(supplierInvoiceApplication.StatusCode == HttpStatusCode.OK, await supplierInvoiceApplication.Content.ReadAsStringAsync());
+            using var supplierInvoiceReplay = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{payableId}/apply-to-invoice", supplierInvoicePayload);
+            Assert.Equal(HttpStatusCode.OK, supplierInvoiceReplay.StatusCode);
+            using var supplierInvoiceOverRemaining = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{payableId}/apply-to-invoice", new
+            {
+                requestId = Guid.NewGuid(), rowVersion = paidInstrumentJson.RootElement.GetProperty("rowVersion").GetString(),
+                invoiceId = purchaseInvoice.Id, amount = 221m, eventDate = "2026-02-20"
+            });
+            Assert.Equal(HttpStatusCode.Conflict, supplierInvoiceOverRemaining.StatusCode);
 
             var list = await client.GetFromJsonAsync<JsonElement>("/api/finance/payment-instruments/?page=1&pageSize=50");
             Assert.Equal(5, list.GetProperty("totalCount").GetInt32());
@@ -298,9 +331,11 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
                 Assert.Equal(journal.Lines.Sum(line => line.Debit), journal.Lines.Sum(line => line.Credit));
                 Assert.True(journal.Lines.Sum(line => line.Debit) > 0m);
             });
-            Assert.Equal(12, await assertDb.AuditEvents.CountAsync(x => x.TenantId == tenantA && x.Action.StartsWith("finance.instrument.")));
+            Assert.Equal(13, await assertDb.AuditEvents.CountAsync(x => x.TenantId == tenantA && x.Action.StartsWith("finance.instrument.")));
             Assert.Equal(120m, await assertDb.CustomerCollectionAllocations.Where(x => x.TenantId == tenantA && x.SalesInvoiceId == invoice.Id).SumAsync(x => x.Amount));
             Assert.Equal(1, await assertDb.CustomerCollections.CountAsync(x => x.TenantId == tenantA && x.Reference == $"PaymentInstrument:{applicationInstrumentId:D}"));
+            Assert.Equal(80m, await assertDb.SupplierPayments.Where(x => x.TenantId == tenantA && x.PurchaseInvoiceId == purchaseInvoice.Id && x.Reference == $"PaymentInstrument:{payableId:D}").SumAsync(x => x.Amount));
+            Assert.Equal(1, await assertDb.SupplierPayments.CountAsync(x => x.TenantId == tenantA && x.PurchaseInvoiceId == purchaseInvoice.Id && x.Reference == $"PaymentInstrument:{payableId:D}"));
             Assert.Equal(1, await assertDb.PaymentInstrumentEvents.CountAsync(x => x.TenantId == tenantA && x.PaymentInstrumentId == endorsementId && x.EventType == "Endorsed"));
             Assert.Equal(1, await assertDb.PaymentInstrumentEvents.CountAsync(x => x.TenantId == tenantA && x.PaymentInstrumentId == cancellationId && x.EventType == "Cancelled"));
 
