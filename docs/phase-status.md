@@ -2,7 +2,7 @@
 
 ### 2026-10-29 customer row-visibility endpoint filter regression acceptance
 
-Extracted the production customer `{id}` GET endpoint filter into `CustomerRowVisibilityEndpointFilter` so the same middleware behavior can be exercised over HTTP. Added integration coverage confirming an allowed customer detail is returned, an attribute-denied customer and cross-tenant customer return 404, and TenantAdmin access remains available. The related balance and visibility integration tests passed 3/3; Platform API Release build passed with 0 warnings/errors; `git diff --check` passed. The change has no schema migration. Remote deployment is pending this source change; existing data, SQL and Vault state are unchanged.
+Extracted the production customer `{id}` GET endpoint filter into `CustomerRowVisibilityEndpointFilter` so the same middleware behavior can be exercised over HTTP. Added integration coverage confirming an allowed customer detail is returned, an attribute-denied customer and cross-tenant customer return 404, and TenantAdmin access remains available. The related balance and visibility integration tests passed 3/3; Platform API Release build passed with 0 warnings/errors; `git diff --check` passed. The change has no schema migration. Pushed commit `2b710952d2aa137369cc99f7a4c554ca54b73d03` to `codex/phase-completion-clean`, rebuilt and recreated only `platform-api` through Docker context `nexora-remote`; the API container reached `healthy` and public API, ERP and Studio health endpoints returned HTTP 200. SQL, Vault, worker and persistent data were not changed.
 
 ### 2026-10-29 repeated isolated two-tenant SQL/Vault acceptance
 
