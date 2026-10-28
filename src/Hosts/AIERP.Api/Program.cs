@@ -1010,27 +1010,7 @@ auditRetention.MapPut("/", async (AuditRetentionPolicyWriteRequest request, Clai
 });
 
 var customers = app.MapGroup("/api/customers").WithTags("Cari Yönetimi").RequireAuthorization();
-customers.AddEndpointFilter(async (context, next) =>
-{
-    var httpContext = context.HttpContext;
-    if (!HttpMethods.IsGet(httpContext.Request.Method)
-        || !httpContext.Request.RouteValues.TryGetValue("id", out var routeCustomerId)
-        || !Guid.TryParse(routeCustomerId?.ToString(), out var customerId))
-        return await next(context);
-
-    var principal = httpContext.User;
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var userId = GetUserId(principal);
-    if (userId is null) return Results.Forbid();
-
-    var db = httpContext.RequestServices.GetRequiredService<TenantDbContext>();
-    var platformDb = httpContext.RequestServices.GetRequiredService<PlatformDbContext>();
-    var cancellationToken = httpContext.RequestAborted;
-    var query = db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == customerId);
-    query = await CustomerCollectionPermissionFilter.ApplyAsync(platformDb, tenantId, userId.Value,
-        principal.FindFirstValue("role") ?? string.Empty, query, cancellationToken);
-    return await query.AnyAsync(cancellationToken) ? await next(context) : Results.NotFound();
-});
+customers.RequireVisibleCustomerRows();
 customers.MapCustomerBalanceEndpoint();
 var customerLocationDefinitions = app.MapGroup("/api/location-definitions").WithTags("Tanımlamalar").RequireAuthorization();
 customerLocationDefinitions.MapGet("/", async (TenantDbContext db) =>
