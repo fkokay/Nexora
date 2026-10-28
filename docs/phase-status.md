@@ -1,5 +1,9 @@
 # Master Prompt Phase Status
 
+### 2026-10-29 tenant license and storage-quota remote SQL acceptance
+
+Ran the tenant license, SQL storage-quota, and HTTP enforcement acceptance suites against the remote development SQL Server through an SSH tunnel. All 14 matching tests passed with zero skips, covering signed package limits and tenant binding, live allocated-data-page measurement, read access at quota, rejection/rollback of over-quota writes, delete/recovery behavior, transaction locks, concurrent license changes and in-flight writes, and the company-settings HTTP denial with no side effects. Post-run SQL inventory found zero databases under the test prefixes. This is disposable-database acceptance on the remote development SQL Server; it does not establish staging/production acceptance, HA/failover behavior, or owner decisions for commercial GB limits and warning thresholds. No application code, migration history, active tenant database, persistent volume, or service image was changed.
+
 ### 2026-10-29 payment-instrument SQL Server lifecycle acceptance
 
 Ran `PaymentInstrumentSqlAcceptanceTests` against the remote development SQL Server through the SSH tunnel. The disposable-database test passed 1/1 in 27 seconds, covering unauthenticated rejection, tenant isolation, receivable check and payable promissory-note creation, idempotent replay, collection/payment, bounce contra movement, balanced journals, audit events, and a SQL-trigger-controlled fiscal-close/collection race followed by closed-period mutation rejection. The test's `finally` cleanup completed; a follow-up SQL query found zero databases with the acceptance prefix. No application code, migration history, active tenant database, persistent volume, or service image was changed.
