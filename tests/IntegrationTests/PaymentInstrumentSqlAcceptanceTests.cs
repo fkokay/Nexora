@@ -44,6 +44,17 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
             var bank = new FinancialAccount { TenantId = tenantA, Tenant = tenantARecord, Code = "BANK-A", Name = "Synthetic bank", Type = FinancialAccountType.Bank, CurrencyCode = "TRY" };
             var cash = new FinancialAccount { TenantId = tenantA, Tenant = tenantARecord, Code = "CASH-A", Name = "Synthetic cash", Type = FinancialAccountType.Cash, CurrencyCode = "TRY" };
             var otherTenantBank = new FinancialAccount { TenantId = tenantB, Tenant = tenantBRecord, Code = "BANK-B", Name = "Other bank", Type = FinancialAccountType.Bank, CurrencyCode = "TRY" };
+            var customer = new CustomerAccount { TenantId = tenantA, Tenant = tenantARecord, Code = "CUS-SYN", Name = "Synthetic customer", Type = CounterpartyType.Customer };
+            var quote = new SalesQuote { TenantId = tenantA, Tenant = tenantARecord, CustomerId = customer.Id, Customer = customer,
+                Code = "QU-SYN", QuoteDate = new DateOnly(2026, 1, 1), ValidUntil = new DateOnly(2026, 2, 1), GrandTotal = 500m, Subtotal = 500m };
+            var order = new SalesOrder { TenantId = tenantA, Tenant = tenantARecord, QuoteId = quote.Id, Quote = quote, CustomerId = customer.Id,
+                Customer = customer, Code = "SO-SYN", OrderDate = new DateOnly(2026, 1, 2), GrandTotal = 500m, Subtotal = 500m };
+            var warehouse = new Warehouse { TenantId = tenantA, Tenant = tenantARecord, Code = "WH-SYN", Name = "Synthetic warehouse" };
+            var delivery = new SalesDelivery { TenantId = tenantA, Tenant = tenantARecord, RequestId = Guid.NewGuid(), OrderId = order.Id, Order = order,
+                WarehouseId = warehouse.Id, Warehouse = warehouse, Code = "DEL-SYN", DeliveryDate = new DateOnly(2026, 1, 3) };
+            var invoice = new SalesInvoice { TenantId = tenantA, Tenant = tenantARecord, DeliveryId = delivery.Id, Delivery = delivery, OrderId = order.Id,
+                Order = order, CustomerId = customer.Id, Customer = customer, Code = "INV-SYN", InvoiceDate = new DateOnly(2026, 1, 4),
+                CurrencyCode = "TRY", GrandTotal = 500m, Subtotal = 500m };
             var ledgerAccounts = new[]
             {
                 new LedgerAccount { TenantId = tenantA, Code = "101", Name = "Bank", StatementSection = LedgerAccountStatementSection.Asset },
@@ -77,6 +88,12 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
             seedDb.LedgerAccountMappings.AddRange(mappingByKey.Select(x => new LedgerAccountMapping { TenantId = tenantA, MappingKey = x.Key, AccountId = x.Value }));
             cash.Transactions.Add(new FinancialAccountTransaction { TenantId = tenantA, FinancialAccountId = cash.Id, FinancialAccount = cash, CurrencyCode = "TRY", TransactionDate = new DateOnly(2026, 1, 1), Direction = FinancialDirection.Inflow, Amount = 1000m, Description = "Synthetic opening cash", RequestId = Guid.NewGuid() });
             seedDb.Tenants.AddRange(tenantARecord, tenantBRecord);
+            seedDb.CustomerAccounts.Add(customer);
+            seedDb.SalesQuotes.Add(quote);
+            seedDb.SalesOrders.Add(order);
+            seedDb.Warehouses.Add(warehouse);
+            seedDb.SalesDeliveries.Add(delivery);
+            seedDb.SalesInvoices.Add(invoice);
             seedDb.FinancialAccounts.AddRange(bank, cash, otherTenantBank);
             var priorCreditTransaction = new FinancialAccountTransaction { TenantId = tenantA, FinancialAccountId = bank.Id, FinancialAccount = bank,
                 CurrencyCode = "TRY", TransactionDate = new DateOnly(2025, 10, 1), Direction = FinancialDirection.Inflow,
@@ -116,7 +133,7 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
             {
                 requestId = createRequestId, type = PaymentInstrumentType.Check, direction = PaymentInstrumentDirection.Receivable,
                 instrumentNumber = "CHK-SYN-001", counterpartyName = "Synthetic customer", bankName = "Synthetic bank", currencyCode = "TRY",
-                amount = 250m, issueDate = "2026-01-10", dueDate = "2026-02-10", portfolioDate = "2026-01-10", notes = "Synthetic lifecycle acceptance"
+                counterpartyAccountId = customer.Id, amount = 250m, issueDate = "2026-01-10", dueDate = "2026-02-10", portfolioDate = "2026-01-10", notes = "Synthetic lifecycle acceptance"
             };
             using var created = await client.PostAsJsonAsync("/api/finance/payment-instruments/", createPayload);
             Assert.Equal(HttpStatusCode.Created, created.StatusCode);
@@ -155,11 +172,89 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
             currentVersion = collectedJson.RootElement.GetProperty("rowVersion").GetString()!;
             Assert.NotEqual(createRequestId, collectRequestId);
 
+            using var applicationInstrument = await client.PostAsJsonAsync("/api/finance/payment-instruments/", new
+            {
+                requestId = Guid.NewGuid(), type = PaymentInstrumentType.Check, direction = PaymentInstrumentDirection.Receivable,
+                instrumentNumber = "CHK-APP-SYN", counterpartyName = customer.Name, counterpartyAccountId = customer.Id, bankName = "Synthetic bank",
+                currencyCode = "TRY", amount = 250m, issueDate = "2026-01-10", dueDate = "2026-02-10", portfolioDate = "2026-01-10", notes = "Synthetic invoice application"
+            });
+            Assert.Equal(HttpStatusCode.Created, applicationInstrument.StatusCode);
+            using var applicationInstrumentJson = JsonDocument.Parse(await applicationInstrument.Content.ReadAsStringAsync());
+            var applicationInstrumentId = applicationInstrumentJson.RootElement.GetProperty("id").GetGuid();
+            using var applicationCollected = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{applicationInstrumentId}/collect", new
+            {
+                requestId = Guid.NewGuid(), rowVersion = applicationInstrumentJson.RootElement.GetProperty("rowVersion").GetString(),
+                financialAccountId = bank.Id, eventDate = "2026-02-10", note = "Synthetic invoice application collection"
+            });
+            Assert.Equal(HttpStatusCode.OK, applicationCollected.StatusCode);
+            using var applicationCollectedJson = JsonDocument.Parse(await applicationCollected.Content.ReadAsStringAsync());
+            var applicationRequestId = Guid.NewGuid();
+            var applicationPayload = new { requestId = applicationRequestId, rowVersion = applicationCollectedJson.RootElement.GetProperty("rowVersion").GetString(), invoiceId = invoice.Id, amount = 120m, eventDate = "2026-02-10" };
+            using var invoiceApplication = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{applicationInstrumentId}/apply-to-invoice", applicationPayload);
+            Assert.Equal(HttpStatusCode.OK, invoiceApplication.StatusCode);
+            using var invoiceApplicationReplay = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{applicationInstrumentId}/apply-to-invoice", applicationPayload);
+            Assert.Equal(HttpStatusCode.OK, invoiceApplicationReplay.StatusCode);
+            using var overRemainingInstrument = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{applicationInstrumentId}/apply-to-invoice", new
+            {
+                requestId = Guid.NewGuid(), rowVersion = applicationCollectedJson.RootElement.GetProperty("rowVersion").GetString(), invoiceId = invoice.Id, amount = 131m, eventDate = "2026-02-10"
+            });
+            Assert.Equal(HttpStatusCode.Conflict, overRemainingInstrument.StatusCode);
+
+            var endorseRequestId = Guid.NewGuid();
+            using var endorsementInstrument = await client.PostAsJsonAsync("/api/finance/payment-instruments/", new
+            {
+                requestId = Guid.NewGuid(), type = PaymentInstrumentType.Check, direction = PaymentInstrumentDirection.Receivable,
+                instrumentNumber = "CHK-END-SYN", counterpartyName = customer.Name, counterpartyAccountId = customer.Id, bankName = "Synthetic bank",
+                currencyCode = "TRY", amount = 75m, issueDate = "2026-01-10", dueDate = "2026-02-10", portfolioDate = "2026-01-10", notes = "Synthetic endorsement"
+            });
+            Assert.Equal(HttpStatusCode.Created, endorsementInstrument.StatusCode);
+            using var endorsementInstrumentJson = JsonDocument.Parse(await endorsementInstrument.Content.ReadAsStringAsync());
+            var endorsementId = endorsementInstrumentJson.RootElement.GetProperty("id").GetGuid();
+            using var endorsed = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{endorsementId}/endorse", new
+            {
+                requestId = endorseRequestId, rowVersion = endorsementInstrumentJson.RootElement.GetProperty("rowVersion").GetString(),
+                eventDate = "2026-02-10", endorsedTo = "Synthetic endorsed party"
+            });
+            Assert.Equal(HttpStatusCode.OK, endorsed.StatusCode);
+            using var endorsedJson = JsonDocument.Parse(await endorsed.Content.ReadAsStringAsync());
+            Assert.Equal(PaymentInstrumentStatus.Endorsed.ToString(), endorsedJson.RootElement.GetProperty("status").GetString());
+            using var endorsementReplay = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{endorsementId}/endorse", new
+            {
+                requestId = endorseRequestId, rowVersion = endorsementInstrumentJson.RootElement.GetProperty("rowVersion").GetString(),
+                eventDate = "2026-02-10", endorsedTo = "Synthetic endorsed party"
+            });
+            Assert.Equal(HttpStatusCode.OK, endorsementReplay.StatusCode);
+
+            using var cancellationInstrument = await client.PostAsJsonAsync("/api/finance/payment-instruments/", new
+            {
+                requestId = Guid.NewGuid(), type = PaymentInstrumentType.PromissoryNote, direction = PaymentInstrumentDirection.Receivable,
+                instrumentNumber = "NOTE-CANCEL-SYN", counterpartyName = customer.Name, counterpartyAccountId = customer.Id, bankName = "Synthetic bank",
+                currencyCode = "TRY", amount = 40m, issueDate = "2026-01-10", dueDate = "2026-02-10", portfolioDate = "2026-01-10", notes = "Synthetic cancellation"
+            });
+            Assert.Equal(HttpStatusCode.Created, cancellationInstrument.StatusCode);
+            using var cancellationInstrumentJson = JsonDocument.Parse(await cancellationInstrument.Content.ReadAsStringAsync());
+            var cancellationId = cancellationInstrumentJson.RootElement.GetProperty("id").GetGuid();
+            var cancelRequestId = Guid.NewGuid();
+            using var cancelled = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{cancellationId}/cancel", new
+            {
+                requestId = cancelRequestId, rowVersion = cancellationInstrumentJson.RootElement.GetProperty("rowVersion").GetString(),
+                eventDate = "2026-02-10", note = "Synthetic portfolio cancellation"
+            });
+            Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
+            using var cancelledJson = JsonDocument.Parse(await cancelled.Content.ReadAsStringAsync());
+            Assert.Equal(PaymentInstrumentStatus.Cancelled.ToString(), cancelledJson.RootElement.GetProperty("status").GetString());
+            using var cancellationReplay = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{cancellationId}/cancel", new
+            {
+                requestId = cancelRequestId, rowVersion = cancellationInstrumentJson.RootElement.GetProperty("rowVersion").GetString(),
+                eventDate = "2026-02-10", note = "Synthetic portfolio cancellation"
+            });
+            Assert.Equal(HttpStatusCode.OK, cancellationReplay.StatusCode);
+
             using var bounced = await client.PostAsJsonAsync($"/api/finance/payment-instruments/{instrumentId}/bounce", new
             {
                 requestId = Guid.NewGuid(), rowVersion = currentVersion, eventDate = "2026-02-11", note = "Synthetic returned check"
             });
-            Assert.Equal(HttpStatusCode.OK, bounced.StatusCode);
+            Assert.True(bounced.StatusCode == HttpStatusCode.OK, await bounced.Content.ReadAsStringAsync());
             using var bouncedJson = JsonDocument.Parse(await bounced.Content.ReadAsStringAsync());
             Assert.Equal(PaymentInstrumentStatus.Bounced.ToString(), bouncedJson.RootElement.GetProperty("status").GetString());
 
@@ -180,7 +275,7 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
             Assert.Equal(HttpStatusCode.OK, paid.StatusCode);
 
             var list = await client.GetFromJsonAsync<JsonElement>("/api/finance/payment-instruments/?page=1&pageSize=50");
-            Assert.Equal(2, list.GetProperty("totalCount").GetInt32());
+            Assert.Equal(5, list.GetProperty("totalCount").GetInt32());
             using var eventsResponse = await client.GetAsync($"/api/finance/payment-instruments/{instrumentId}/events");
             Assert.Equal(HttpStatusCode.OK, eventsResponse.StatusCode);
             using var eventsJson = JsonDocument.Parse(await eventsResponse.Content.ReadAsStringAsync());
@@ -190,20 +285,24 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
             await using var assertDb = new TenantDbContext(options);
             var movements = await assertDb.FinancialAccountTransactions.AsNoTracking()
                 .Where(x => x.TenantId == tenantA && x.FinancialAccountId == bank.Id).OrderBy(x => x.CreatedAt).ToListAsync();
-            Assert.Equal(3, movements.Count);
+            Assert.Equal(4, movements.Count);
             var reversedMovement = Assert.Single(movements, x => x.ReversalOfId is not null);
             var originalMovement = Assert.Single(movements, x => x.Id == reversedMovement.ReversalOfId);
             Assert.Equal(FinancialDirection.Inflow, originalMovement.Direction);
             Assert.Equal(FinancialDirection.Outflow, reversedMovement.Direction);
             var instrumentJournals = await assertDb.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantA && x.SourceType == "PaymentInstrumentEvent")
                 .Select(x => new { x.Id, Lines = x.Lines.Select(line => new { line.Debit, line.Credit }).ToArray() }).ToListAsync();
-            Assert.Equal(5, instrumentJournals.Count);
+            Assert.Equal(11, instrumentJournals.Count);
             Assert.All(instrumentJournals, journal =>
             {
                 Assert.Equal(journal.Lines.Sum(line => line.Debit), journal.Lines.Sum(line => line.Credit));
                 Assert.True(journal.Lines.Sum(line => line.Debit) > 0m);
             });
-            Assert.Equal(5, await assertDb.AuditEvents.CountAsync(x => x.TenantId == tenantA && x.Action.StartsWith("finance.instrument.")));
+            Assert.Equal(12, await assertDb.AuditEvents.CountAsync(x => x.TenantId == tenantA && x.Action.StartsWith("finance.instrument.")));
+            Assert.Equal(120m, await assertDb.CustomerCollectionAllocations.Where(x => x.TenantId == tenantA && x.SalesInvoiceId == invoice.Id).SumAsync(x => x.Amount));
+            Assert.Equal(1, await assertDb.CustomerCollections.CountAsync(x => x.TenantId == tenantA && x.Reference == $"PaymentInstrument:{applicationInstrumentId:D}"));
+            Assert.Equal(1, await assertDb.PaymentInstrumentEvents.CountAsync(x => x.TenantId == tenantA && x.PaymentInstrumentId == endorsementId && x.EventType == "Endorsed"));
+            Assert.Equal(1, await assertDb.PaymentInstrumentEvents.CountAsync(x => x.TenantId == tenantA && x.PaymentInstrumentId == cancellationId && x.EventType == "Cancelled"));
 
             var outstandingCreatePayload = new
             {
