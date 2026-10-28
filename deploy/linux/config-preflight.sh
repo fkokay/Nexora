@@ -55,6 +55,32 @@ case "$api_separation" in
     [[ "$tenant_connection" =~ [^[:space:]] ]] || fail "ConnectionStrings__Tenant is required when database separation is enabled."
     [[ "$platform_studio_connection" =~ [^[:space:]] ]] || fail "ConnectionStrings__AIStudio is required in Platform API config when database separation is enabled."
     [[ "$studio_connection" =~ [^[:space:]] ]] || fail "ConnectionStrings__AIStudio is required when database separation is enabled."
+    if [[ "$tenant_connection;$platform_studio_connection;$studio_connection" =~ (^|;)[[:space:]]*(User[[:space:]]*Id|UID|Password|PWD)[[:space:]]*= ]]; then
+      fail "Tenant and Studio endpoint templates must not contain SQL username/password values; tenant credentials are resolved from Vault."
+    fi
+    vault_address="$(read_env_value "$PLATFORM_CONFIG" Vault__Address)"
+    ai_vault_address="$(read_env_value "$AI_CONFIG" Vault__Address)"
+    [[ "$vault_address" =~ ^https://[^[:space:]]+$ ]] || fail "Vault__Address must be an HTTPS URL in Platform API config."
+    [[ "$vault_address" == "$ai_vault_address" ]] || fail "Vault__Address must match between Platform API and AI Service."
+    vault_mount="$(read_env_value "$PLATFORM_CONFIG" Vault__Mount)"
+    ai_vault_mount="$(read_env_value "$AI_CONFIG" Vault__Mount)"
+    [[ "$vault_mount" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ ]] || fail "Vault__Mount must be a valid KV v2 mount name."
+    [[ "$vault_mount" == "$ai_vault_mount" ]] || fail "Vault__Mount must match between Platform API and AI Service."
+    for role in RoleId SecretId; do
+      platform_key="Vault__TenantSqlCredentialReader__${role}File"
+      ai_key="$platform_key"
+      platform_path="$(read_env_value "$PLATFORM_CONFIG" "$platform_key")"
+      ai_path="$(read_env_value "$AI_CONFIG" "$ai_key")"
+      [[ "$platform_path" =~ ^/[^[:space:]]+$ && "$platform_path" == "$ai_path" ]] || fail "$platform_key must be the same absolute path in both service configs."
+      [[ -f "$platform_path" && ! -L "$platform_path" && -s "$platform_path" ]] || fail "$platform_key must point to a non-empty regular secret file."
+      if [[ "$(uname -s)" != MINGW* && "$(uname -s)" != MSYS* ]]; then
+        mode="$(stat -c '%a' "$platform_path" 2>/dev/null || true)"
+        [[ "$mode" =~ ^[0-7]{3,4}$ ]] || fail "Could not verify permissions for $platform_key."
+        mode_value=$((8#$mode))
+        (( (mode_value & 077) == 0 )) || fail "$platform_key must not be readable or writable by group or other users (use mode 600)."
+      fi
+    done
+    [[ "$(read_env_value "$PLATFORM_CONFIG" Vault__AllowHttpForLocalDevelopment)" == "false" && "$(read_env_value "$AI_CONFIG" Vault__AllowHttpForLocalDevelopment)" == "false" ]] || fail "Vault__AllowHttpForLocalDevelopment must be false for production Linux services."
     ;;
   false|False|FALSE|0|no|NO)
     fail "Shared company databases are unsupported. Complete the controlled backup-and-copy cutover before installing this release."

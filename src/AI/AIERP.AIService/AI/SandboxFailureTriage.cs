@@ -46,6 +46,10 @@ public static class SandboxFailureTriage
             return new("build-configuration", "Derleme için gereken SDK, hedef framework veya MSBuild import'u bulunamadı.", false,
                 "Sandbox imajındaki SDK ve hedef framework kurulumunu, global.json dosyasını ve build komutunun proje yolunu doğrulayın; kaynak onarımı önermeyin.");
 
+        if (IsLintFailure(text))
+            return new("source-diagnostic", "Lint aracı kaynak dosyasında hata düzeyinde tanı bildirdi.", true,
+                "Lint tanısındaki dosya ve kuralı çalışma dalındaki güncel içerikle eşleştirip yalnız ilgili dosya için onarım önerisi hazırlayın.");
+
         if (IsMissingLocalImport(text))
             return new("source-diagnostic", "Çıktıda çözümlenemeyen yerel kaynak import'u bulundu.", true,
                 "Import yolunu çalışma dalındaki dosyalarla eşleştirip yalnız ilgili kaynak dosyası için onarım önerisi hazırlayın.");
@@ -135,6 +139,11 @@ public static class SandboxFailureTriage
     private static bool IsLocalNodeSpecifier(string specifier) => specifier.StartsWith(".", StringComparison.Ordinal) ||
         specifier.StartsWith("/", StringComparison.Ordinal) || specifier.StartsWith("\\", StringComparison.Ordinal) ||
         (specifier.Length >= 3 && char.IsAsciiLetter(specifier[0]) && specifier[1] == ':' && specifier[2] is '/' or '\\');
+
+    private static bool IsLintFailure(string text) =>
+        ContainsAny(text, "problem (1 error", "problems (", "error  @typescript-eslint/", "error  no-unused-vars", "error  no-console",
+            "error  prettier/", "error  react-hooks/", "error  jsx-a11y/", "error  stylelint") &&
+        ContainsAny(text, "eslint", "@typescript-eslint/", "no-unused-vars", "no-console", "prettier/", "react-hooks/", "jsx-a11y/", "stylelint");
 }
 
 public sealed record SandboxFailureTriageResult(string Category, string Summary, bool SourceRepairCandidate, string NextStep);

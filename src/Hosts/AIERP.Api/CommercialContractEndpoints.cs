@@ -79,10 +79,16 @@ public static class CommercialContractEndpoints
             return Results.Ok(new CommercialContractSourcePage(items, currentPage, size, total));
         });
 
-        group.MapGet("/", async (string? type, string? status, int? page, int? pageSize, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (string? type, string? status, string? search, string? sortBy, string? sortDirection, int? page, int? pageSize, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryScope(user, out var tenantId, out _, allowReader: true)) return Results.Forbid();
             var currentPage = Math.Max(1, page ?? 1); var size = Math.Clamp(pageSize ?? 50, 1, 100);
+            var term = search?.Trim();
+            if (term?.Length > 100) return Results.BadRequest(new { error = "Arama metni en fazla 100 karakter olabilir." });
+            sortBy = string.IsNullOrWhiteSpace(sortBy) ? "createdAt" : sortBy.Trim();
+            sortDirection = string.IsNullOrWhiteSpace(sortDirection) ? "desc" : sortDirection.Trim().ToLowerInvariant();
+            if (sortBy is not ("code" or "type" or "counterpartyName" or "effectiveFrom" or "effectiveThrough" or "currencyCode" or "status" or "revision" or "createdAt" or "updatedAt") || sortDirection is not ("asc" or "desc"))
+                return Results.BadRequest(new { error = "Sözleşme sıralaması geçersiz." });
             var query = db.Set<CommercialContract>().AsNoTracking().Where(x => x.TenantId == tenantId);
             if (!string.IsNullOrWhiteSpace(type))
             {
@@ -94,8 +100,23 @@ public static class CommercialContractEndpoints
                 if (!Enum.TryParse<CommercialContractStatus>(status, true, out var parsed) || !Enum.IsDefined(parsed)) return Results.BadRequest(new { error = "Sözleşme durumu geçersiz." });
                 query = query.Where(x => x.Status == parsed);
             }
+            if (!string.IsNullOrWhiteSpace(term))
+                query = query.Where(x => x.Code.Contains(term) || x.CounterpartyNameSnapshot.Contains(term));
             var total = await query.CountAsync(ct);
-            var rows = await query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Code).Skip((currentPage - 1) * size).Take(size).ToListAsync(ct);
+            IOrderedQueryable<CommercialContract> ordered = (sortBy, sortDirection) switch
+            {
+                ("code", "asc") => query.OrderBy(x => x.Code), ("code", _) => query.OrderByDescending(x => x.Code),
+                ("type", "asc") => query.OrderBy(x => x.Type), ("type", _) => query.OrderByDescending(x => x.Type),
+                ("counterpartyName", "asc") => query.OrderBy(x => x.CounterpartyNameSnapshot), ("counterpartyName", _) => query.OrderByDescending(x => x.CounterpartyNameSnapshot),
+                ("effectiveFrom", "asc") => query.OrderBy(x => x.EffectiveFrom), ("effectiveFrom", _) => query.OrderByDescending(x => x.EffectiveFrom),
+                ("effectiveThrough", "asc") => query.OrderBy(x => x.EffectiveThrough), ("effectiveThrough", _) => query.OrderByDescending(x => x.EffectiveThrough),
+                ("currencyCode", "asc") => query.OrderBy(x => x.CurrencyCode), ("currencyCode", _) => query.OrderByDescending(x => x.CurrencyCode),
+                ("status", "asc") => query.OrderBy(x => x.Status), ("status", _) => query.OrderByDescending(x => x.Status),
+                ("revision", "asc") => query.OrderBy(x => x.Revision), ("revision", _) => query.OrderByDescending(x => x.Revision),
+                ("createdAt", "asc") => query.OrderBy(x => x.CreatedAt), ("createdAt", _) => query.OrderByDescending(x => x.CreatedAt),
+                ("updatedAt", "asc") => query.OrderBy(x => x.UpdatedAt), _ => query.OrderByDescending(x => x.UpdatedAt)
+            };
+            var rows = await ordered.ThenBy(x => x.Code).ThenBy(x => x.Id).Skip((currentPage - 1) * size).Take(size).ToListAsync(ct);
             return Results.Ok(new { items = rows.Select(ToView), page = currentPage, pageSize = size, total });
         });
 

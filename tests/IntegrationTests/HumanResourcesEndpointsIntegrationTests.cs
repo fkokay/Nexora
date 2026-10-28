@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
@@ -22,6 +26,7 @@ public sealed class HumanResourcesEndpointsIntegrationTests
     private static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid TenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid Admin = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static readonly Guid HrApprover = Guid.Parse("abababab-abab-abab-abab-abababababab");
     private static readonly Guid EmployeeUserA = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid EmployeeUserB = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
     private static readonly Guid EmployeeA = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
@@ -142,12 +147,14 @@ public sealed class HumanResourcesEndpointsIntegrationTests
     [Fact]
     public async Task Leave_and_attendance_dates_must_fall_inside_employment_window_including_boundaries()
     {
+        var hireDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        var terminationDate = hireDate.AddDays(2);
         await using var app = await StartApplicationAsync();
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
             db.EmployeeRecords.Add(new EmployeeRecord { Id = EmploymentWindowEmployee, TenantId = TenantA, PersonnelCode = "A-003",
-                FullName = "Employment Window Employee", HireDate = new DateOnly(2026, 10, 20), TerminationDate = new DateOnly(2026, 10, 22) });
+                FullName = "Employment Window Employee", HireDate = hireDate, TerminationDate = terminationDate });
             await db.SaveChangesAsync();
         }
         using var client = app.GetTestClient();
@@ -155,34 +162,34 @@ public sealed class HumanResourcesEndpointsIntegrationTests
 
         using var leaveBeforeHire = await client.PostAsJsonAsync("/api/hr/leave-requests/", new
         {
-            employeeId = EmploymentWindowEmployee, leaveType = "Annual", startDate = "2026-10-19", endDate = "2026-10-20", requestedDays = 2m
+            employeeId = EmploymentWindowEmployee, leaveType = "Annual", startDate = hireDate.AddDays(-1), endDate = hireDate, requestedDays = 2m
         });
         Assert.Equal(HttpStatusCode.BadRequest, leaveBeforeHire.StatusCode);
         using var leaveAfterTermination = await client.PostAsJsonAsync("/api/hr/leave-requests/", new
         {
-            employeeId = EmploymentWindowEmployee, leaveType = "Annual", startDate = "2026-10-22", endDate = "2026-10-23", requestedDays = 2m
+            employeeId = EmploymentWindowEmployee, leaveType = "Annual", startDate = terminationDate, endDate = terminationDate.AddDays(1), requestedDays = 2m
         });
         Assert.Equal(HttpStatusCode.BadRequest, leaveAfterTermination.StatusCode);
         using var leaveOnBoundaries = await client.PostAsJsonAsync("/api/hr/leave-requests/", new
         {
-            employeeId = EmploymentWindowEmployee, leaveType = "Annual", startDate = "2026-10-20", endDate = "2026-10-22", requestedDays = 3m
+            employeeId = EmploymentWindowEmployee, leaveType = "Annual", startDate = hireDate, endDate = terminationDate, requestedDays = 3m
         });
         Assert.Equal(HttpStatusCode.Created, leaveOnBoundaries.StatusCode);
 
         using var attendanceBeforeHire = await client.PostAsJsonAsync("/api/hr/attendance/",
-            AttendanceWrite(EmploymentWindowEmployee) with { WorkDate = new DateOnly(2026, 10, 19) });
+            AttendanceWrite(EmploymentWindowEmployee) with { WorkDate = hireDate.AddDays(-1) });
         Assert.Equal(HttpStatusCode.BadRequest, attendanceBeforeHire.StatusCode);
         using var attendanceAfterTermination = await client.PostAsJsonAsync("/api/hr/attendance/",
-            AttendanceWrite(EmploymentWindowEmployee) with { WorkDate = new DateOnly(2026, 10, 23) });
+            AttendanceWrite(EmploymentWindowEmployee) with { WorkDate = terminationDate.AddDays(1) });
         Assert.Equal(HttpStatusCode.BadRequest, attendanceAfterTermination.StatusCode);
         using var attendanceOnBoundary = await client.PostAsJsonAsync("/api/hr/attendance/",
-            AttendanceWrite(EmploymentWindowEmployee) with { WorkDate = new DateOnly(2026, 10, 22) });
+            AttendanceWrite(EmploymentWindowEmployee) with { WorkDate = terminationDate });
         Assert.Equal(HttpStatusCode.Created, attendanceOnBoundary.StatusCode);
         var attendanceId = (await attendanceOnBoundary.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         var version = (await client.GetFromJsonAsync<JsonElement[]>("/api/hr/attendance/"))!
             .Single(x => x.GetProperty("id").GetGuid() == attendanceId).GetProperty("rowVersion").GetString();
         using var correctionAfterTermination = await client.PutAsJsonAsync($"/api/hr/attendance/{attendanceId}",
-            AttendanceWrite(EmploymentWindowEmployee) with { WorkDate = new DateOnly(2026, 10, 23), RowVersion = version });
+            AttendanceWrite(EmploymentWindowEmployee) with { WorkDate = terminationDate.AddDays(1), RowVersion = version });
         Assert.Equal(HttpStatusCode.BadRequest, correctionAfterTermination.StatusCode);
     }
 
@@ -273,6 +280,298 @@ public sealed class HumanResourcesEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Payroll_sensitive_reads_and_writes_require_explicit_compensation_permissions()
+    {
+        await using var app = await StartApplicationAsync(denyPayrollPermissions: true);
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+
+        var capabilities = await client.GetFromJsonAsync<JsonElement>("/api/hr/payroll/compensation/capabilities");
+        Assert.False(capabilities.GetProperty("view").GetBoolean());
+        Assert.False(capabilities.GetProperty("change").GetBoolean());
+        Assert.False(capabilities.GetProperty("approve").GetBoolean());
+
+        foreach (var path in new[]
+        {
+            "/api/hr/payroll/compensation/",
+            "/api/hr/payroll/compensation/employees",
+            "/api/hr/payroll/compensation/prior-employer-tax-bases",
+            "/api/hr/payroll/runs/",
+            $"/api/hr/payroll/runs/{Guid.NewGuid():D}",
+            $"/api/hr/payroll/runs/{Guid.NewGuid():D}/calculations"
+        })
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync(path)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/hr/payroll/compensation/", new
+        {
+            employeeId = EmployeeA, targetKind = "Gross", amount = 1000m,
+            currencyCode = "TRY", payBasisCode = "monthly", effectiveFrom = "2026-01-01"
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/hr/payroll/runs/", new
+        {
+            periodKind = "CalendarMonth", periodStart = "2026-01-01", periodEnd = "2026-01-31",
+            profileCode = "TR-4A-PRIVATE", employeeIds = new[] { EmployeeA }
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync(
+            $"/api/hr/payroll/runs/{Guid.NewGuid():D}/component-preview", content: null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync(
+            $"/api/hr/payroll/runs/{Guid.NewGuid():D}/calculate", content: null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync(
+            $"/api/hr/payroll/runs/{Guid.NewGuid():D}/calculations/{Guid.NewGuid():D}/approve", content: null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync(
+            $"/api/hr/payroll/runs/{Guid.NewGuid():D}/calculations/{Guid.NewGuid():D}/reject", content: null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync(
+            $"/api/hr/payroll/compensation/{Guid.NewGuid():D}/approve", new { rowVersion = Convert.ToBase64String(new byte[8]) })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync(
+            $"/api/hr/payroll/compensation/{Guid.NewGuid():D}/reject", new { rowVersion = Convert.ToBase64String(new byte[8]) })).StatusCode);
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        Assert.Empty(await db.AuditEvents.Where(x => x.TenantId == TenantA && x.Action.StartsWith("hr.payroll-"))
+            .ToListAsync());
+    }
+
+    [Fact]
+    public async Task Payroll_rule_set_approvals_reject_overlapping_periods_and_allow_adjacent_periods()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+        const string validRulesJson = """
+        {
+          "schemaVersion": 1,
+          "parameters": [],
+          "payBases": [{
+            "code": "synthetic-monthly", "label": "Synthetic monthly", "unit": "month",
+            "periodMultiplier": { "op": "constant", "value": 1, "unit": "month" },
+            "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null,
+            "sources": [
+              { "kind": "official", "reference": "Synthetic schema fixture", "url": "https://example.gov.tr/payroll" },
+              { "kind": "employerPolicy", "reference": "Synthetic monthly basis", "url": null }
+            ]
+          }],
+          "components": [{
+            "key": "base-pay", "label": "Base pay", "category": "earning", "unit": "TRY",
+            "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null,
+            "formula": { "op": "constant", "value": 1234.56, "unit": "TRY" },
+            "sources": [
+              { "kind": "official", "reference": "Synthetic schema fixture", "url": "https://example.gov.tr/payroll" },
+              { "kind": "employerPolicy", "reference": "Synthetic company policy", "url": null }
+            ]
+          }],
+          "mappings": [
+            { "componentKey": "base-pay", "mappingType": "incomeTaxBase", "targetCode": "EXCLUDED", "baseTreatment": "exclude", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] },
+            { "componentKey": "base-pay", "mappingType": "socialSecurityBase", "targetCode": "EXCLUDED", "baseTreatment": "exclude", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] },
+            { "componentKey": "base-pay", "mappingType": "accountingAccount", "targetCode": "EXCLUDED", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] },
+            { "componentKey": "base-pay", "mappingType": "declarationField", "targetCode": "EXCLUDED", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] }
+          ]
+        }
+        """;
+
+        string RulesFor(string effectiveFrom, string effectiveTo)
+        {
+            var rules = JsonNode.Parse(validRulesJson)!.AsObject();
+            foreach (var collectionName in new[] { "payBases", "components", "mappings" })
+            foreach (var entry in rules[collectionName]!.AsArray())
+            {
+                entry!["effectiveFrom"] = effectiveFrom;
+                entry["effectiveTo"] = effectiveTo;
+            }
+            return rules.ToJsonString();
+        }
+
+        async Task<HttpResponseMessage> Approve(Guid id)
+        {
+            var rows = await client.GetFromJsonAsync<JsonElement[]>("/api/hr/payroll/rule-sets/");
+            var version = rows!.Single(row => row.GetProperty("id").GetGuid() == id).GetProperty("rowVersion").GetString();
+            return await client.PostAsJsonAsync($"/api/hr/payroll/rule-sets/{id}/approve", new { rowVersion = version });
+        }
+
+        var firstId = Guid.NewGuid();
+        var overlappingId = Guid.NewGuid();
+        var adjacentId = Guid.NewGuid();
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.PayrollRuleSets.AddRange(
+                new PayrollRuleSet
+                {
+                    Id = firstId, TenantId = TenantA, TaxYear = "2026", JurisdictionCode = "TR",
+                    EffectiveFrom = new DateOnly(2026, 1, 1), EffectiveTo = new DateOnly(2026, 6, 30), Version = 1,
+                    RulesJson = RulesFor("2026-01-01", "2026-06-30"), OfficialSourceUrl = "https://example.gov.tr/payroll/rules",
+                    Status = "Approved", CreatedByUserId = Admin, ApprovedByUserId = HrApprover,
+                    ApprovedAt = DateTimeOffset.UtcNow, RowVersion = new byte[8]
+                },
+                new PayrollRuleSet
+                {
+                    Id = overlappingId, TenantId = TenantA, TaxYear = "2026", JurisdictionCode = "TR",
+                    EffectiveFrom = new DateOnly(2026, 6, 30), EffectiveTo = new DateOnly(2026, 12, 31), Version = 1,
+                    RulesJson = RulesFor("2026-06-30", "2026-12-31"), OfficialSourceUrl = "https://example.gov.tr/payroll/rules",
+                    Status = "Draft", CreatedByUserId = Admin, RowVersion = new byte[8]
+                },
+                new PayrollRuleSet
+                {
+                    Id = adjacentId, TenantId = TenantA, TaxYear = "2026", JurisdictionCode = "TR",
+                    EffectiveFrom = new DateOnly(2026, 7, 1), EffectiveTo = new DateOnly(2026, 12, 31), Version = 1,
+                    RulesJson = RulesFor("2026-07-01", "2026-12-31"), OfficialSourceUrl = "https://example.gov.tr/payroll/rules",
+                    Status = "Draft", CreatedByUserId = Admin, RowVersion = new byte[8]
+                });
+            await db.SaveChangesAsync();
+        }
+        SetIdentity(client, TenantA, HrApprover, "TenantAdmin");
+
+        using var rejectedOverlap = await Approve(overlappingId);
+        using var approvedAdjacent = await Approve(adjacentId);
+
+        Assert.True(rejectedOverlap.StatusCode == HttpStatusCode.Conflict,
+            $"Overlapping approval was not rejected: {(int)rejectedOverlap.StatusCode} {await rejectedOverlap.Content.ReadAsStringAsync()}");
+        Assert.True(approvedAdjacent.StatusCode == HttpStatusCode.OK,
+            $"Adjacent approval failed: {(int)approvedAdjacent.StatusCode} {await approvedAdjacent.Content.ReadAsStringAsync()}");
+        var conflict = await rejectedOverlap.Content.ReadAsStringAsync();
+        Assert.Contains("yürürlük tarihleriyle çakışma", conflict, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Payroll_component_preview_and_internal_result_approval_never_finalize_a_payroll_run()
+    {
+        await using var app = await StartApplicationAsync();
+        var runId = Guid.NewGuid();
+        var tamperedRunId = Guid.NewGuid();
+        const string rulesJson = """
+        {
+          "schemaVersion": 1,
+          "parameters": [],
+          "payBases": [{
+            "code": "synthetic-monthly", "label": "Synthetic monthly", "unit": "month",
+            "periodMultiplier": { "op": "constant", "value": 1, "unit": "month" },
+            "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null,
+            "sources": [
+              { "kind": "official", "reference": "Synthetic schema fixture", "url": "https://example.gov.tr/payroll" },
+              { "kind": "employerPolicy", "reference": "Synthetic monthly basis", "url": null }
+            ]
+          }],
+          "components": [{
+            "key": "base-pay", "label": "Base pay", "category": "earning", "unit": "TRY",
+            "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null,
+            "formula": { "op": "constant", "value": 1234.56, "unit": "TRY" },
+            "sources": [
+              { "kind": "official", "reference": "Synthetic schema fixture", "url": "https://example.gov.tr/payroll" },
+              { "kind": "employerPolicy", "reference": "Synthetic company policy", "url": null }
+            ]
+          }],
+          "mappings": [
+            { "componentKey": "base-pay", "mappingType": "incomeTaxBase", "targetCode": "EXCLUDED", "baseTreatment": "exclude", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] },
+            { "componentKey": "base-pay", "mappingType": "socialSecurityBase", "targetCode": "EXCLUDED", "baseTreatment": "exclude", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] },
+            { "componentKey": "base-pay", "mappingType": "accountingAccount", "targetCode": "EXCLUDED", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] },
+            { "componentKey": "base-pay", "mappingType": "declarationField", "targetCode": "EXCLUDED", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] }
+          ]
+        }
+        """;
+        var snapshotJson = JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            employees = new[] { new
+            {
+                id = EmployeeA, personnelCode = "A-001", fullName = "Synthetic employee",
+                compensation = new[] { new
+                {
+                    amount = 1234.56m, targetKind = "Gross", currencyCode = "TRY",
+                    payBasisCode = "synthetic-monthly", effectiveFrom = "2026-01-01", effectiveTo = (string?)null
+                } }
+            } },
+            ruleSets = new[] { new
+            {
+                id = Guid.NewGuid(), taxYear = "2026", effectiveFrom = "2026-01-01", effectiveTo = (string?)null,
+                version = 1, rulesJson, officialSourceUrl = "https://example.gov.tr/payroll", status = "Approved",
+                approvedByUserId = Admin, approvedAt = "2026-01-01T00:00:00+00:00"
+            } }
+        });
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(snapshotJson)));
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.PayrollRunSnapshots.AddRange(
+                new PayrollRunSnapshot
+                {
+                    Id = runId, TenantId = TenantA, PeriodKind = "CalendarMonth",
+                    PeriodStart = new DateOnly(2026, 1, 1), PeriodEnd = new DateOnly(2026, 1, 31),
+                    ProfileCode = "TR-4A-PRIVATE", Status = "Blocked", EmployeeCount = 1,
+                    SnapshotJson = snapshotJson, SnapshotSha256 = hash,
+                    BlockersJson = "[\"calculation-engine-not-enabled\",\"employer-declaration-profile-not-approved\",\"declaration-business-validation-not-configured\"]",
+                    CreatedByUserId = Admin
+                },
+                new PayrollRunSnapshot
+                {
+                    Id = tamperedRunId, TenantId = TenantA, PeriodKind = "CalendarMonth",
+                    PeriodStart = new DateOnly(2026, 1, 1), PeriodEnd = new DateOnly(2026, 1, 31),
+                    ProfileCode = "TR-4A-PRIVATE", Status = "Blocked", EmployeeCount = 1,
+                    SnapshotJson = snapshotJson.Replace("1234.56", "9999.99", StringComparison.Ordinal), SnapshotSha256 = hash,
+                    BlockersJson = "[\"calculation-engine-not-enabled\",\"employer-declaration-profile-not-approved\",\"declaration-business-validation-not-configured\"]",
+                    CreatedByUserId = Admin
+                });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+        using var response = await client.PostAsync($"/api/hr/payroll/runs/{runId:D}/component-preview", content: null);
+
+        Assert.True(response.StatusCode == HttpStatusCode.OK,
+            $"Expected a component preview, received {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("FormulaTargetPreviewOnly", payload.GetProperty("stage").GetString());
+        Assert.False(payload.GetProperty("payrollResultCreated").GetBoolean());
+        var employee = Assert.Single(payload.GetProperty("employees").EnumerateArray());
+        var component = Assert.Single(employee.GetProperty("components").EnumerateArray());
+        Assert.Equal("base-pay", component.GetProperty("key").GetString());
+        Assert.Equal(1234.56m, component.GetProperty("amount").GetDecimal());
+        Assert.Equal("TRY", component.GetProperty("unit").GetString());
+        Assert.Equal("EXCLUDED", component.GetProperty("mappingCodes").GetProperty("incomeTaxBase").GetString());
+
+        await using var verifyScope = app.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        var run = await verifyDb.PayrollRunSnapshots.SingleAsync(x => x.TenantId == TenantA && x.Id == runId);
+        Assert.Equal("Blocked", run.Status);
+        Assert.Contains(verifyDb.AuditEvents, x => x.TenantId == TenantA && x.UserId == Admin &&
+            x.Action == "hr.payroll-run.component-preview" && x.Resource!.Contains(hash, StringComparison.Ordinal));
+
+        using var tampered = await client.PostAsync($"/api/hr/payroll/runs/{tamperedRunId:D}/component-preview", content: null);
+        Assert.Equal(HttpStatusCode.Conflict, tampered.StatusCode);
+        Assert.Single(verifyDb.AuditEvents.Where(x => x.TenantId == TenantA && x.Action == "hr.payroll-run.component-preview"));
+
+        using var resultResponse = await client.PostAsync($"/api/hr/payroll/runs/{runId:D}/calculate", content: null);
+        Assert.Equal(HttpStatusCode.Created, resultResponse.StatusCode);
+        var createdResult = await resultResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var calculationId = createdResult.GetProperty("id").GetGuid();
+        Assert.Equal("PendingApproval", createdResult.GetProperty("status").GetString());
+        var resultEnvelope = JsonSerializer.Deserialize<PayrollFormulaResultEnvelope>(createdResult.GetProperty("resultJson").GetString()!);
+        Assert.NotNull(resultEnvelope);
+        Assert.Equal("FormulaTargetPreviewOnly", resultEnvelope.Stage);
+        Assert.False(resultEnvelope.IsOfficialPayrollResult);
+
+        using var selfApproval = await client.PostAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/approve", content: null);
+        Assert.Equal(HttpStatusCode.Conflict, selfApproval.StatusCode);
+
+        SetIdentity(client, TenantA, EmployeeUserA, "TenantAdmin");
+        using var independentApproval = await client.PostAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/approve", content: null);
+        Assert.Equal(HttpStatusCode.OK, independentApproval.StatusCode);
+        var approvedResult = await independentApproval.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Approved", approvedResult.GetProperty("status").GetString());
+        Assert.Equal(EmployeeUserA, approvedResult.GetProperty("approvedByUserId").GetGuid());
+
+        await using var finalScope = app.Services.CreateAsyncScope();
+        var finalDb = finalScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        var finalRun = await finalDb.PayrollRunSnapshots.SingleAsync(x => x.TenantId == TenantA && x.Id == runId);
+        var finalCalculation = await finalDb.PayrollRunCalculations.SingleAsync(x => x.TenantId == TenantA && x.Id == calculationId);
+        Assert.Equal("Blocked", finalRun.Status);
+        Assert.Equal("Approved", finalCalculation.Status);
+        Assert.Contains(finalDb.AuditEvents, x => x.TenantId == TenantA && x.UserId == EmployeeUserA &&
+            x.Action == "hr.payroll-run.formula-result-approved");
+    }
+
+    [Fact]
     public async Task Period_summary_is_tenant_admin_only_aggregate_and_csv_access_is_audited()
     {
         await using var app = await StartApplicationAsync();
@@ -346,12 +645,15 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         client.DefaultRequestHeaders.Add("X-Test-Role", role);
     }
 
-    internal static async Task<WebApplication> StartApplicationAsync()
+    internal static async Task<WebApplication> StartApplicationAsync(bool denyPayrollPermissions = false)
     {
         var databaseName = $"hr-{Guid.NewGuid():N}";
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase(databaseName));
+        builder.Services.AddSingleton<IPlatformPermissionAuthorizer>(denyPayrollPermissions
+            ? new DenyHrPermissionAuthorizer()
+            : new AllowHrPermissionAuthorizer());
         builder.Services.AddAuthentication("hr-test").AddScheme<AuthenticationSchemeOptions, HrTestAuthenticationHandler>("hr-test", _ => { });
         builder.Services.AddAuthorization();
         var app = builder.Build();
@@ -380,6 +682,18 @@ public sealed class HumanResourcesEndpointsIntegrationTests
             new EmployeeAttendanceRecord { Id = AttendanceB, TenantId = TenantB, EmployeeId = EmployeeB, WorkDate = new DateOnly(2026, 10, 20), WorkedMinutes = 480, RecordedByUserId = Admin });
         await db.SaveChangesAsync();
         return app;
+    }
+
+    private sealed class AllowHrPermissionAuthorizer : IPlatformPermissionAuthorizer
+    {
+        public Task<bool> IsAllowedAsync(Guid tenantId, Guid userId, string role,
+            ResolvedPlatformPermission permission, CancellationToken cancellationToken = default) => Task.FromResult(true);
+    }
+
+    private sealed class DenyHrPermissionAuthorizer : IPlatformPermissionAuthorizer
+    {
+        public Task<bool> IsAllowedAsync(Guid tenantId, Guid userId, string role,
+            ResolvedPlatformPermission permission, CancellationToken cancellationToken = default) => Task.FromResult(false);
     }
 
     private sealed class HrTestAuthenticationHandler(

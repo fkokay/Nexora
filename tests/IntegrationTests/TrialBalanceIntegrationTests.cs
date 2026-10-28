@@ -63,6 +63,57 @@ public sealed class TrialBalanceIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Ledger_account_statement_returns_opening_period_totals_and_paged_tenant_lines()
+    {
+        await using var app = await StartApplicationAsync();
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        var accountId = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == TenantA && x.Code == "1000")
+            .Select(x => x.Id).SingleAsync();
+
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        using var response = await client.GetAsync($"/api/finance/general-ledger/accounts/{accountId}/statement?from=2026-01-01&to=2026-01-31&page=1&pageSize=1");
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = json.RootElement;
+        Assert.Equal("1000", root.GetProperty("account").GetProperty("code").GetString());
+        Assert.Equal(1000m, root.GetProperty("openingDebit").GetDecimal());
+        Assert.Equal(1000m, root.GetProperty("openingBalanceDebit").GetDecimal());
+        Assert.Equal(0m, root.GetProperty("openingBalanceCredit").GetDecimal());
+        Assert.Equal(0m, root.GetProperty("totalDebit").GetDecimal());
+        Assert.Equal(200m, root.GetProperty("totalCredit").GetDecimal());
+        Assert.Equal(1, root.GetProperty("totalCount").GetInt32());
+        Assert.Equal(1, root.GetProperty("totalPages").GetInt32());
+        var line = Assert.Single(root.GetProperty("lines").EnumerateArray());
+        Assert.Equal("PERIOD", line.GetProperty("journalEntryCode").GetString());
+        Assert.Equal(200m, line.GetProperty("credit").GetDecimal());
+        Assert.Equal(800m, root.GetProperty("closingBalanceDebit").GetDecimal());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var crossTenant = await client.GetAsync($"/api/finance/general-ledger/accounts/{accountId}/statement");
+        Assert.Equal(HttpStatusCode.NotFound, crossTenant.StatusCode);
+    }
+
+    [Fact]
+    public async Task Ledger_account_statement_rejects_invalid_date_range_and_paging()
+    {
+        await using var app = await StartApplicationAsync();
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        var accountId = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == TenantA && x.Code == "1000")
+            .Select(x => x.Id).SingleAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+
+        using var invalidDates = await client.GetAsync($"/api/finance/general-ledger/accounts/{accountId}/statement?from=2026-02-01&to=2026-01-01");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidDates.StatusCode);
+        using var invalidPageSize = await client.GetAsync($"/api/finance/general-ledger/accounts/{accountId}/statement?pageSize=201");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidPageSize.StatusCode);
+    }
+
     private static async Task<WebApplication> StartApplicationAsync()
     {
         var builder = WebApplication.CreateBuilder();
@@ -75,7 +126,9 @@ public sealed class TrialBalanceIntegrationTests
         var app = builder.Build();
         app.UseAuthentication();
         app.UseAuthorization();
-        app.MapGroup("/api/finance/general-ledger").RequireAuthorization().MapTrialBalanceEndpoint();
+        var generalLedger = app.MapGroup("/api/finance/general-ledger").RequireAuthorization();
+        generalLedger.MapTrialBalanceEndpoint();
+        generalLedger.MapLedgerAccountStatementEndpoint();
         await app.StartAsync();
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();

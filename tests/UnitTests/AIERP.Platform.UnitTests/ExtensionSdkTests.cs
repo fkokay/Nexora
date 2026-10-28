@@ -791,6 +791,29 @@ public sealed class ExtensionSdkTests
         Assert.Equal(0, calls);
     }
 
+    [Theory]
+    [InlineData("{\"amount\":12500,\"amount\":1,\"currency\":\"try\"}")]
+    [InlineData("{\"amount\":12500,\"currency\":\"try\",\"metadata\":{\"order\":\"A\",\"order\":\"B\"}}")]
+    public async Task StripePaymentIntentAdapter_RejectsDuplicateMappedPropertiesBeforeSending(string requestJson)
+    {
+        var calls = 0;
+        var handler = new CapturingHttpMessageHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent("{}") });
+        });
+        var adapter = new StripePaymentIntentAdapter("stripe.payment-intent", "sk_test_offline".AsMemory(), new HttpClient(handler));
+        using var request = JsonDocument.Parse(requestJson);
+        var context = new IntegrationContext(Guid.NewGuid(), "stripe.payment-intent", "corr-stripe", "idem-stripe", DateTimeOffset.UtcNow.AddSeconds(20));
+
+        var result = await adapter.ExecuteAsync(context, request.RootElement, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("validation_failed", result.ErrorCode);
+        Assert.False(result.IsRetryable);
+        Assert.Equal(0, calls);
+    }
+
     [Fact]
     public async Task StripePaymentIntentAdapter_MapsMalformedSuccessfulResponseToProviderError()
     {

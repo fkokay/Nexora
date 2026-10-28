@@ -394,7 +394,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         var issue = await verifyDb.InventoryTransactions.AsNoTracking().SingleAsync(x => x.TenantId == TenantA && x.StockItemId == ComponentId && x.Direction == InventoryDirection.Issue);
         var receipt = await verifyDb.InventoryTransactions.AsNoTracking().SingleAsync(x => x.TenantId == TenantA && x.StockItemId == ProductId && x.Direction == InventoryDirection.Receipt);
         Assert.Equal(orderId, issue.ManufacturingOrderId);
-        Assert.Null(receipt.ManufacturingOrderId);
+        Assert.Equal(orderId, receipt.ManufacturingOrderId);
         Assert.Equal(ComponentLocationId, issue.StorageLocationId);
         Assert.Equal(FinishedGoodsLocationId, receipt.StorageLocationId);
         Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/manufacturing/orders/{orderId}/complete", new
@@ -725,6 +725,12 @@ public sealed class ManufacturingEndpointsIntegrationTests
         using var conversionJson = JsonDocument.Parse(await conversion.Content.ReadAsStringAsync());
         Assert.Equal(2, conversionJson.RootElement.GetProperty("convertedLineCount").GetInt32());
         Assert.Equal(new[] { "ManufacturingOrder", "PurchaseRequest" }, conversionJson.RootElement.GetProperty("created").EnumerateArray().Select(x => x.GetProperty("resourceType").GetString()).ToArray());
+        var convertedOrderId = conversionJson.RootElement.GetProperty("created")[0].GetProperty("resourceId").GetGuid();
+        var convertedOrders = await client.GetFromJsonAsync<JsonElement[]>("/api/manufacturing/orders/");
+        var convertedOrderLine = Assert.Single(convertedOrders!.Single(x => x.GetProperty("id").GetGuid() == convertedOrderId).GetProperty("lines").EnumerateArray());
+        Assert.Equal(4.4m, convertedOrderLine.GetProperty("requiredQuantity").GetDecimal());
+        Assert.Equal(12.5m, convertedOrderLine.GetProperty("standardUnitCostBaseSnapshot").GetDecimal());
+        Assert.Equal(55m, convertedOrderLine.GetProperty("plannedCostBase").GetDecimal());
         using var convertedPlan = JsonDocument.Parse(await (await client.GetAsync($"/api/manufacturing/mrp/plans/{planId}")).Content.ReadAsStringAsync());
         Assert.Equal(new[] { 0, 1 }, convertedPlan.RootElement.GetProperty("convertedLineIndexes").EnumerateArray().Select(x => x.GetInt32()).ToArray());
         Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/manufacturing/mrp/plans/{planId}/convert", new
@@ -779,7 +785,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         var bomCreate = await client.PostAsJsonAsync("/api/manufacturing/boms/", new
         {
             code = "BOM-MRP-E2E", name = "MRP routed assembly", productStockItemId = ProductId, outputQuantity = 1m,
-            lines = new[] { new { componentStockItemId = ComponentId, quantity = 2m, scrapPercent = 0m } },
+            lines = new[] { new { componentStockItemId = ComponentId, quantity = 2m, scrapPercent = 0m, standardUnitCostBase = 12.5m } },
             operations = new[] { new { sequence = 1, workCenterId = centerId, setupMinutes = 30m, runMinutesPerOutputUnit = 30m } }
         });
         Assert.Equal(HttpStatusCode.Created, bomCreate.StatusCode);
@@ -1042,18 +1048,30 @@ public sealed class ManufacturingEndpointsIntegrationTests
         var bomResponse = await client.PostAsJsonAsync("/api/manufacturing/boms/", new
         {
             code = "BOM-ROUTED", name = "Routed assembly", productStockItemId = ProductId, outputQuantity = 1m,
-            lines = new[] { new { componentStockItemId = ComponentId, quantity = 2m, scrapPercent = 0m } },
-            operations = new[] { new { sequence = 1, workCenterId = centerId, setupMinutes = 30m, runMinutesPerOutputUnit = 30m } }
+            lines = new[] { new { componentStockItemId = ComponentId, quantity = 2m, scrapPercent = 0m, standardUnitCostBase = 12.5m } },
+            operations = new[] { new { sequence = 1, workCenterId = centerId, setupMinutes = 30m, runMinutesPerOutputUnit = 30m,
+                plannedEnergyKwhPerOutput = 2m, plannedEnergyCostPerKwhBase = 1.25m } }
         });
         Assert.Equal(HttpStatusCode.Created, bomResponse.StatusCode);
         using var bomJson = JsonDocument.Parse(await bomResponse.Content.ReadAsStringAsync()); var bomId = bomJson.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal(12.5m, bomJson.RootElement.GetProperty("lines")[0].GetProperty("standardUnitCostBase").GetDecimal());
+        Assert.Equal(2m, bomJson.RootElement.GetProperty("operations")[0].GetProperty("plannedEnergyKwhPerOutput").GetDecimal());
+        Assert.Equal(1.25m, bomJson.RootElement.GetProperty("operations")[0].GetProperty("plannedEnergyCostPerKwhBase").GetDecimal());
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var first = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-ROUTED-1", bomId, 2m, today));
         var second = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-ROUTED-2", bomId, 2m, today));
         Assert.Equal(HttpStatusCode.Created, first.StatusCode); Assert.Equal(HttpStatusCode.Created, second.StatusCode);
         using var firstJson = JsonDocument.Parse(await first.Content.ReadAsStringAsync()); var firstId = firstJson.RootElement.GetProperty("id").GetGuid();
         using var secondJson = JsonDocument.Parse(await second.Content.ReadAsStringAsync()); var secondId = secondJson.RootElement.GetProperty("id").GetGuid();
-        Assert.Equal(150m, firstJson.RootElement.GetProperty("operations")[0].GetProperty("plannedCostBase").GetDecimal());
+        var firstMaterialLine = firstJson.RootElement.GetProperty("lines")[0];
+        Assert.Equal(4m, firstMaterialLine.GetProperty("requiredQuantity").GetDecimal());
+        Assert.Equal(12.5m, firstMaterialLine.GetProperty("standardUnitCostBaseSnapshot").GetDecimal());
+        Assert.Equal(50m, firstMaterialLine.GetProperty("plannedCostBase").GetDecimal());
+        var firstOperation = firstJson.RootElement.GetProperty("operations")[0];
+        Assert.Equal(4m, firstOperation.GetProperty("plannedEnergyQuantityKwh").GetDecimal());
+        Assert.Equal(1.25m, firstOperation.GetProperty("plannedEnergyCostPerKwhBase").GetDecimal());
+        Assert.Equal(5m, firstOperation.GetProperty("plannedEnergyCostBase").GetDecimal());
+        Assert.Equal(155m, firstOperation.GetProperty("plannedCostBase").GetDecimal());
         Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/manufacturing/orders/{firstId}/release", new { })).StatusCode);
 
         var scheduledFirst = await client.PostAsJsonAsync($"/api/manufacturing/orders/{firstId}/schedule", new { });
@@ -1669,7 +1687,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
     private static object Bom(string code, Guid productId) => new
     {
         code, name = "Chair assembly", productStockItemId = productId, outputQuantity = 1m,
-        lines = new[] { new { componentStockItemId = ComponentId, quantity = 2m, scrapPercent = 10m } }
+        lines = new[] { new { componentStockItemId = ComponentId, quantity = 2m, scrapPercent = 10m, standardUnitCostBase = 12.5m } }
     };
     private static object Order(string code, Guid bomId, decimal quantity, DateOnly? plannedDate = null) => new
     {

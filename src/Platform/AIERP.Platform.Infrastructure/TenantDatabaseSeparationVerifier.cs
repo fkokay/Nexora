@@ -9,8 +9,14 @@ public static class TenantDatabaseSeparationVerifier
     public static async Task VerifyTenantAsync(string platformConnection, Guid tenantId, CancellationToken cancellationToken = default)
         => await VerifyTenantAsync(platformConnection, tenantId, TenantDatabaseProvisioningState.Ready, cancellationToken);
 
-    internal static async Task VerifyTenantForProvisioningAsync(string platformConnection, Guid tenantId, CancellationToken cancellationToken = default)
-        => await VerifyTenantAsync(platformConnection, tenantId, TenantDatabaseProvisioningState.Copying, cancellationToken);
+    internal static async Task VerifyTenantForProvisioningAsync(string platformConnection, Guid tenantId,
+        CancellationToken cancellationToken = default, string? isolatedVerificationConnection = null)
+        => await VerifyTenantAsync(platformConnection, tenantId, TenantDatabaseProvisioningState.Copying, cancellationToken, isolatedVerificationConnection);
+
+    internal static Task VerifyReadyTenantForCredentialCutoverAsync(string platformConnection, Guid tenantId,
+        CancellationToken cancellationToken, string isolatedVerificationConnection)
+        => VerifyTenantAsync(platformConnection, tenantId, TenantDatabaseProvisioningState.Ready,
+            cancellationToken, isolatedVerificationConnection);
 
     internal static string GetTenantDatabaseNameForVerification(Guid tenantId, TenantDatabaseCatalogEntry entry,
         TenantDatabaseProvisioningState expectedState)
@@ -23,14 +29,16 @@ public static class TenantDatabaseSeparationVerifier
     }
 
     private static async Task VerifyTenantAsync(string platformConnection, Guid tenantId,
-        TenantDatabaseProvisioningState expectedState, CancellationToken cancellationToken)
+        TenantDatabaseProvisioningState expectedState, CancellationToken cancellationToken, string? isolatedVerificationConnection = null)
     {
         var platformOptions = new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options;
         await using var platform = new PlatformDbContext(platformOptions);
         var entry = await platform.TenantDatabaseCatalog.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId, cancellationToken)
             ?? throw new InvalidOperationException($"Tenant {tenantId:D} has no database catalog entry.");
         var databaseName = GetTenantDatabaseNameForVerification(tenantId, entry, expectedState);
-        var targetConnection = new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = databaseName };
+        var targetConnection = isolatedVerificationConnection is null
+            ? new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = databaseName }
+            : new SqlConnectionStringBuilder(isolatedVerificationConnection);
         var options = new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(targetConnection.ConnectionString).Options;
         await using var target = new TenantDbContext(options);
         await VerifyTenantIsolationAsync(target, tenantId, cancellationToken);
@@ -41,8 +49,15 @@ public static class TenantDatabaseSeparationVerifier
         string? isolatedVerificationConnection = null)
         => await VerifyStudioTenantAsync(platformConnection, tenantId, TenantDatabaseProvisioningState.Ready, cancellationToken, isolatedVerificationConnection);
 
-    internal static async Task VerifyStudioTenantForProvisioningAsync(string platformConnection, Guid tenantId, CancellationToken cancellationToken = default)
-        => await VerifyStudioTenantAsync(platformConnection, tenantId, TenantDatabaseProvisioningState.Copying, cancellationToken);
+    internal static async Task VerifyStudioTenantForProvisioningAsync(string platformConnection, Guid tenantId,
+        CancellationToken cancellationToken = default, string? isolatedVerificationConnection = null)
+        => await VerifyStudioTenantAsync(platformConnection, tenantId, TenantDatabaseProvisioningState.Copying,
+            cancellationToken, isolatedVerificationConnection);
+
+    internal static Task VerifyReadyStudioTenantForCredentialCutoverAsync(string platformConnection, Guid tenantId,
+        CancellationToken cancellationToken, string isolatedVerificationConnection)
+        => VerifyStudioTenantAsync(platformConnection, tenantId, TenantDatabaseProvisioningState.Ready,
+            cancellationToken, isolatedVerificationConnection);
 
     private static async Task VerifyStudioTenantAsync(string platformConnection, Guid tenantId,
         TenantDatabaseProvisioningState expectedState, CancellationToken cancellationToken,
@@ -50,9 +65,10 @@ public static class TenantDatabaseSeparationVerifier
     {
         var platformOptions = new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options;
         await using var platform = new PlatformDbContext(platformOptions);
+        var component = TenantDatabaseRouting.StudioComponentKey(tenantId);
         var state = await platform.DatabaseSeparationComponentStates.AsNoTracking()
-            .SingleOrDefaultAsync(x => x.Component == "AIStudio", cancellationToken);
-        var databaseName = GetStudioDatabaseNameForVerification(state, expectedState);
+            .SingleOrDefaultAsync(x => x.Component == component, cancellationToken);
+        var databaseName = GetStudioDatabaseNameForVerification(tenantId, state, expectedState);
         var studioConnection = isolatedVerificationConnection is null
             ? new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = databaseName }
             : new SqlConnectionStringBuilder(isolatedVerificationConnection);
@@ -61,10 +77,12 @@ public static class TenantDatabaseSeparationVerifier
         await VerifyDatabaseAsync(studioConnection.ConnectionString, cancellationToken);
     }
 
-    internal static string GetStudioDatabaseNameForVerification(DatabaseSeparationComponentState? state,
+    internal static string GetStudioDatabaseNameForVerification(Guid tenantId, DatabaseSeparationComponentState? state,
         TenantDatabaseProvisioningState expectedState)
     {
-        if (state is null || state.State != expectedState || state.Component != "AIStudio" || state.DatabaseName != "AIERPStudio")
+        var component = TenantDatabaseRouting.StudioComponentKey(tenantId);
+        var database = TenantSqlCredentialPath.DatabaseName(tenantId, TenantSqlDatabaseComponent.AiStudio);
+        if (state is null || state.State != expectedState || state.Component != component || state.DatabaseName != database)
             throw new InvalidOperationException($"AIStudio database catalog is not in the expected {expectedState} state or has an unexpected database name.");
         return state.DatabaseName;
     }
@@ -76,18 +94,14 @@ public static class TenantDatabaseSeparationVerifier
     internal static async Task VerifyDatabaseOnlyStudioForProvisioningAsync(string platformConnection, CancellationToken cancellationToken = default)
         => await VerifyDatabaseOnlyStudioAsync(platformConnection, TenantDatabaseProvisioningState.Copying, cancellationToken);
 
-    private static async Task VerifyDatabaseOnlyStudioAsync(string platformConnection, TenantDatabaseProvisioningState expectedState,
+    private static Task VerifyDatabaseOnlyStudioAsync(string platformConnection, TenantDatabaseProvisioningState expectedState,
         CancellationToken cancellationToken, string? isolatedVerificationConnection = null)
     {
-        var platformOptions = new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options;
-        await using var platform = new PlatformDbContext(platformOptions);
-        var state = await platform.DatabaseSeparationComponentStates.AsNoTracking()
-            .SingleOrDefaultAsync(x => x.Component == "AIStudio", cancellationToken);
-        var databaseName = GetStudioDatabaseNameForVerification(state, expectedState);
-        var studioConnection = isolatedVerificationConnection is null
-            ? new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = databaseName }
-            : new SqlConnectionStringBuilder(isolatedVerificationConnection);
-        await VerifyDatabaseAsync(studioConnection.ConnectionString, cancellationToken);
+        _ = platformConnection;
+        _ = expectedState;
+        _ = cancellationToken;
+        _ = isolatedVerificationConnection;
+        throw new InvalidOperationException("AI Studio database-only verification is unsupported; each database must be keyed to a tenant.");
     }
 
     public static async Task VerifyAllAsync(string platformConnection, CancellationToken cancellationToken = default)

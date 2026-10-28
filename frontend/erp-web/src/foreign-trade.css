@@ -120,6 +120,12 @@
 .foreign-trade-detail dd{color:#334b67}
 .foreign-trade-detail-empty{min-height:150px;align-content:center;justify-items:start;padding:10px;color:#7b899c}
 .foreign-trade-detail-empty b{color:#263b58}
+.foreign-trade-inventory-link{display:grid;gap:7px;margin:13px 0;padding:12px;border:1px solid #dce5ef;border-radius:9px;background:#f8fbfe}
+.foreign-trade-inventory-link h4{margin:0;color:#263b58;font-size:11px}
+.foreign-trade-inventory-link p,.foreign-trade-inventory-link small{margin:0;color:#78879a;font-size:9px;line-height:1.5}
+.foreign-trade-link-controls{display:grid;gap:7px}
+.foreign-trade-link-controls select{min-width:0;min-height:36px;padding:7px 9px;border:1px solid #dce5ef;border-radius:7px;background:#fff;color:#334b67;font-size:10px}
+.foreign-trade-linked-document{display:flex;align-items:center;gap:7px;color:#16744b;font-size:10px;font-weight:700}
 .foreign-trade-empty-state{display:grid;justify-items:center;align-content:center;gap:8px;min-height:250px;padding:28px;border:1px dashed #dce5ef;border-radius:10px;background:radial-gradient(circle at 50% 0,#f1f7ff 0,transparent 58%),#fbfdff;text-align:center}
 .foreign-trade-empty-icon{display:grid;place-items:center;width:44px;height:44px;margin-bottom:3px;border:1px solid #d8e8f8;border-radius:12px;background:#eef6fd;color:#2476bd}
 .foreign-trade-empty-state b{color:#263b58;font-size:13px}
@@ -141,6 +147,9 @@ html[data-theme="dark"] .foreign-trade-list td>b{color:var(--erp-text)}
 html[data-theme="dark"] .foreign-trade-list tbody tr:hover{background:#202d40}
 html[data-theme="dark"] .foreign-trade-list tbody tr[aria-selected="true"]{background:#1e3045}
 html[data-theme="dark"] .foreign-trade-detail{border-color:var(--erp-border);background:#1b2636;box-shadow:none}
+html[data-theme="dark"] .foreign-trade-inventory-link{border-color:var(--erp-border);background:#202d40}
+html[data-theme="dark"] .foreign-trade-inventory-link h4{color:var(--erp-text)}
+html[data-theme="dark"] .foreign-trade-link-controls select{border-color:var(--erp-border);background:var(--erp-surface);color:var(--erp-text)}
 html[data-theme="dark"] .foreign-trade-detail dl>div,html[data-theme="dark"] .foreign-trade-detail-head{border-color:var(--erp-border)}
 html[data-theme="dark"] .foreign-trade-empty-state{border-color:var(--erp-border);background:radial-gradient(circle at 50% 0,#1b2d43 0,transparent 58%),#182231}
 @media(max-width:1000px){.foreign-trade-workspace.has-selection{grid-template-columns:minmax(0,1fr)}.foreign-trade-workspace.has-selection .foreign-trade-detail{position:static}.foreign-trade-workspace:not(.has-selection){grid-template-columns:minmax(0,1fr)}}

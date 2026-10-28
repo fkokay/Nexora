@@ -10,10 +10,14 @@ internal static partial class OperationalProjectEndpoints
     public static void MapOperationalProjectEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/projects").WithTags("Projeler · Operasyon").RequireAuthorization();
-        group.MapGet("/", async (string? search, string? status, string? taskCompletion, bool? overdueOnly, int? upcomingWithinDays, int? timeEntryDays, int page, int pageSize, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (string? search, string? status, string? taskCompletion, bool? overdueOnly, int? upcomingWithinDays, int? timeEntryDays, string? sortBy, string? sortDirection, int page, int pageSize, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
             if (page < 1 || pageSize is < 1 or > 100) return Results.BadRequest(new { error = "Sayfa 1’den, sayfa boyutu 1–100 arasında olmalıdır." });
+            sortBy = string.IsNullOrWhiteSpace(sortBy) ? "updatedAt" : sortBy.Trim();
+            sortDirection = string.IsNullOrWhiteSpace(sortDirection) ? "desc" : sortDirection.Trim().ToLowerInvariant();
+            if (sortBy is not ("code" or "name" or "status" or "startDate" or "endDate" or "budgetAmount" or "currencyCode" or "taskCount" or "completedTaskCount" or "overdueTaskCount" or "actualHours" or "nextTaskDate" or "updatedAt") || sortDirection is not ("asc" or "desc"))
+                return Results.BadRequest(new { error = "Proje sıralaması geçersiz." });
             if (!string.IsNullOrWhiteSpace(taskCompletion) && taskCompletion is not ("has-open" or "all-complete" or "no-tasks")) return Results.BadRequest(new { error = "Görev filtresi geçersiz." });
             if (upcomingWithinDays is < 1 or > 365) return Results.BadRequest(new { error = "Yaklaşan tarih aralığı 1–365 gün arasında olmalıdır." });
             if (timeEntryDays is not (null or 7 or 30 or 90)) return Results.BadRequest(new { error = "Süre kaydı dönemi geçersiz." });
@@ -50,7 +54,28 @@ internal static partial class OperationalProjectEndpoints
                 query = query.Where(p => timeRows.Any(t => t.ProjectId == p.Id));
             }
             var total = await query.CountAsync(ct);
-            var items = await query.OrderByDescending(x => x.UpdatedAt).ThenBy(x => x.Code).Skip((page - 1) * pageSize).Take(pageSize)
+            IOrderedQueryable<OperationalProject> ordered = (sortBy, sortDirection) switch
+            {
+                ("code", "asc") => query.OrderBy(x => x.Code), ("code", _) => query.OrderByDescending(x => x.Code),
+                ("name", "asc") => query.OrderBy(x => x.Name), ("name", _) => query.OrderByDescending(x => x.Name),
+                ("status", "asc") => query.OrderBy(x => x.Status), ("status", _) => query.OrderByDescending(x => x.Status),
+                ("startDate", "asc") => query.OrderBy(x => x.StartDate), ("startDate", _) => query.OrderByDescending(x => x.StartDate),
+                ("endDate", "asc") => query.OrderBy(x => x.EndDate), ("endDate", _) => query.OrderByDescending(x => x.EndDate),
+                ("budgetAmount", "asc") => query.OrderBy(x => x.BudgetAmount), ("budgetAmount", _) => query.OrderByDescending(x => x.BudgetAmount),
+                ("currencyCode", "asc") => query.OrderBy(x => x.CurrencyCode), ("currencyCode", _) => query.OrderByDescending(x => x.CurrencyCode),
+                ("taskCount", "asc") => query.OrderBy(x => db.OperationalProjectTasks.Count(t => t.TenantId == tenantId && t.ProjectId == x.Id)),
+                ("taskCount", _) => query.OrderByDescending(x => db.OperationalProjectTasks.Count(t => t.TenantId == tenantId && t.ProjectId == x.Id)),
+                ("completedTaskCount", "asc") => query.OrderBy(x => db.OperationalProjectTasks.Count(t => t.TenantId == tenantId && t.ProjectId == x.Id && t.Status == ProjectTaskStatus.Completed)),
+                ("completedTaskCount", _) => query.OrderByDescending(x => db.OperationalProjectTasks.Count(t => t.TenantId == tenantId && t.ProjectId == x.Id && t.Status == ProjectTaskStatus.Completed)),
+                ("overdueTaskCount", "asc") => query.OrderBy(x => db.OperationalProjectTasks.Count(t => t.TenantId == tenantId && t.ProjectId == x.Id && (t.Status == ProjectTaskStatus.Open || t.Status == ProjectTaskStatus.InProgress || t.Status == ProjectTaskStatus.Blocked) && t.EndDate.HasValue && t.EndDate < today)),
+                ("overdueTaskCount", _) => query.OrderByDescending(x => db.OperationalProjectTasks.Count(t => t.TenantId == tenantId && t.ProjectId == x.Id && (t.Status == ProjectTaskStatus.Open || t.Status == ProjectTaskStatus.InProgress || t.Status == ProjectTaskStatus.Blocked) && t.EndDate.HasValue && t.EndDate < today)),
+                ("actualHours", "asc") => query.OrderBy(x => db.OperationalProjectTimeEntries.Where(t => t.TenantId == tenantId && t.ProjectId == x.Id && (role == "TenantAdmin" || t.UserId == userId)).Sum(t => (decimal?)t.Hours) ?? 0),
+                ("actualHours", _) => query.OrderByDescending(x => db.OperationalProjectTimeEntries.Where(t => t.TenantId == tenantId && t.ProjectId == x.Id && (role == "TenantAdmin" || t.UserId == userId)).Sum(t => (decimal?)t.Hours) ?? 0),
+                ("nextTaskDate", "asc") => query.OrderBy(x => db.OperationalProjectTasks.Where(t => t.TenantId == tenantId && t.ProjectId == x.Id && (t.Status == ProjectTaskStatus.Open || t.Status == ProjectTaskStatus.InProgress || t.Status == ProjectTaskStatus.Blocked) && t.EndDate >= today).Min(t => (DateOnly?)t.EndDate)),
+                ("nextTaskDate", _) => query.OrderByDescending(x => db.OperationalProjectTasks.Where(t => t.TenantId == tenantId && t.ProjectId == x.Id && (t.Status == ProjectTaskStatus.Open || t.Status == ProjectTaskStatus.InProgress || t.Status == ProjectTaskStatus.Blocked) && t.EndDate >= today).Min(t => (DateOnly?)t.EndDate)),
+                ("updatedAt", "asc") => query.OrderBy(x => x.UpdatedAt), _ => query.OrderByDescending(x => x.UpdatedAt)
+            };
+            var items = await ordered.ThenBy(x => x.Code).Skip((page - 1) * pageSize).Take(pageSize)
                 .Select(x => new ProjectSummary(x.Id, x.Code, x.Name, x.CustomerAccountId, x.StartDate, x.EndDate, x.Status.ToString(), x.BudgetAmount, x.CurrencyCode,
                     x.CreatedAt, x.UpdatedAt, db.OperationalProjectTasks.Count(t => t.TenantId == tenantId && t.ProjectId == x.Id),
                     db.OperationalProjectResourceAllocations.Where(a => a.TenantId == tenantId && a.ProjectId == x.Id).Sum(a => (decimal?)a.PlannedHours) ?? 0,
@@ -83,6 +108,58 @@ internal static partial class OperationalProjectEndpoints
                 await projects.CountAsync(x => x.EndDate >= today && x.EndDate <= today.AddDays(30), ct),
                 await entries.SumAsync(x => (decimal?)x.Hours, ct) ?? 0,
                 await entries.CountAsync(ct)));
+        });
+        group.MapGet("/assistant-summary", async (string? projectCode, DateOnly? from, DateOnly? to, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+            var code = projectCode?.Trim();
+            if (string.IsNullOrWhiteSpace(code) || code.Length > 40 || !ProjectCodeRegex().IsMatch(code) || !from.HasValue || !to.HasValue)
+                return Results.BadRequest(new { error = "Proje kodu ve açık bir süre aralığı gereklidir." });
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (from.Value > to.Value || to.Value > today || from.Value < to.Value.AddDays(-365))
+                return Results.BadRequest(new { error = "Süre aralığı geçmiş veya bugünü kapsayan en fazla 366 gün olabilir." });
+
+            var project = await db.OperationalProjects.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.Code == code)
+                .Select(x => new { x.Id, x.Code, x.Name, Status = x.Status.ToString() })
+                .SingleOrDefaultAsync(ct);
+            if (project is null) return Results.NotFound();
+
+            var tasks = db.OperationalProjectTasks.AsNoTracking().Where(x => x.TenantId == tenantId && x.ProjectId == project.Id);
+            var totalTasks = await tasks.CountAsync(ct);
+            var completedTasks = await tasks.CountAsync(x => x.Status == ProjectTaskStatus.Completed, ct);
+            var overdueTasks = await tasks.CountAsync(x =>
+                (x.Status == ProjectTaskStatus.Open || x.Status == ProjectTaskStatus.InProgress || x.Status == ProjectTaskStatus.Blocked) &&
+                x.EndDate.HasValue && x.EndDate < today, ct);
+
+            var timeEntries = db.OperationalProjectTimeEntries.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.ProjectId == project.Id && x.WorkDate >= from.Value && x.WorkDate <= to.Value);
+            if (role != "TenantAdmin") timeEntries = timeEntries.Where(x => x.UserId == userId);
+            var periodHours = await timeEntries.SumAsync(x => (decimal?)x.Hours, ct) ?? 0m;
+            var periodEntryCount = await timeEntries.CountAsync(ct);
+
+            const int maxTasks = 10;
+            var taskItems = await tasks
+                .OrderBy(x => x.Status == ProjectTaskStatus.Completed)
+                .ThenBy(x => x.EndDate ?? DateOnly.MaxValue)
+                .ThenBy(x => x.Code)
+                .Take(maxTasks)
+                .Select(x => new { x.Id, x.Code, x.Name, Status = x.Status.ToString(), x.StartDate, x.EndDate, x.PlannedHours })
+                .ToListAsync(ct);
+            var taskIds = taskItems.Select(x => x.Id).ToArray();
+            var hoursByTask = await timeEntries.Where(x => x.TaskId.HasValue && taskIds.Contains(x.TaskId.Value))
+                .GroupBy(x => x.TaskId!.Value)
+                .Select(g => new { TaskId = g.Key, Hours = g.Sum(x => x.Hours), Count = g.Count() })
+                .ToDictionaryAsync(x => x.TaskId, ct);
+            var taskProgress = taskItems.Select(x =>
+            {
+                hoursByTask.TryGetValue(x.Id, out var effort);
+                return new ProjectAssistantTaskProgress(x.Code, x.Name, x.Status, x.StartDate, x.EndDate, x.PlannedHours,
+                    effort?.Hours ?? 0m, effort?.Count ?? 0);
+            }).ToArray();
+
+            return Results.Ok(new ProjectAssistantSummary(project.Code, project.Name, project.Status, from.Value, to.Value,
+                totalTasks, completedTasks, overdueTasks, periodHours, periodEntryCount, totalTasks > taskProgress.Length, taskProgress));
         });
         group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
@@ -122,10 +199,42 @@ internal static partial class OperationalProjectEndpoints
             if (role != "TenantAdmin") timeQuery = timeQuery.Where(x => x.UserId == userId);
             var actualHours = await timeQuery.SumAsync(x => (decimal?)x.Hours, ct) ?? 0;
             var actualEntries = await timeQuery.CountAsync(ct);
+            // This is a planning-rate scenario, not payroll or posted actual cost. Keep it
+            // task-scoped so no employee identity/rate has to be inferred from a user ID.
+            var taskHours = await timeQuery.Where(x => x.TaskId.HasValue)
+                .GroupBy(x => x.TaskId!.Value)
+                .Select(g => new { TaskId = g.Key, Hours = g.Sum(x => x.Hours), EntryCount = g.Count() })
+                .ToListAsync(ct);
+            var taskRates = await db.OperationalProjectResourceAllocations.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.ProjectId == id && x.TaskId.HasValue && x.PlannedHourlyCost.HasValue && x.PlannedHours > 0)
+                .GroupBy(x => new { TaskId = x.TaskId!.Value, x.CurrencyCode })
+                .Select(g => new
+                {
+                    g.Key.TaskId,
+                    g.Key.CurrencyCode,
+                    PlannedHours = g.Sum(x => x.PlannedHours),
+                    PlannedCost = g.Sum(x => x.PlannedHours * x.PlannedHourlyCost!.Value),
+                    AllocationCount = g.Count()
+                }).ToListAsync(ct);
+            var hoursByTask = taskHours.ToDictionary(x => x.TaskId, x => x);
+            var plannedRateEstimates = taskRates
+                .Where(x => hoursByTask.ContainsKey(x.TaskId))
+                .OrderBy(x => x.TaskId).ThenBy(x => x.CurrencyCode, StringComparer.Ordinal)
+                .Select(x =>
+                {
+                    var hours = hoursByTask[x.TaskId];
+                    var rate = decimal.Round(x.PlannedCost / x.PlannedHours, 4, MidpointRounding.AwayFromZero);
+                    return new PlannedRateActualEffortView(x.TaskId, hours.Hours, hours.EntryCount, x.CurrencyCode, rate,
+                        decimal.Round(hours.Hours * rate, 2, MidpointRounding.AwayFromZero), x.AllocationCount);
+                }).ToArray();
+            var unpricedActualHours = await timeQuery.Where(x => !x.TaskId.HasValue || !db.OperationalProjectResourceAllocations.Any(a =>
+                    a.TenantId == tenantId && a.ProjectId == id && a.TaskId == x.TaskId &&
+                    a.PlannedHourlyCost.HasValue && a.PlannedHours > 0))
+                .SumAsync(x => (decimal?)x.Hours, ct) ?? 0;
             return Results.Ok(new ProjectCostReportView(
                 project.Id, project.Code, project.Name, project.Status.ToString(), project.BudgetAmount, project.CurrencyCode,
-                planned, actualHours, actualEntries, null,
-                "Süre kayıtlarında saatlik ücret veya personele bağlı maliyet bulunmuyor; gerçekleşen işçilik maliyeti ve faturalandırılabilir tutar hesaplanmadı. Plan maliyetleri ayrı para birimlerinde gösterilir."));
+                planned, actualHours, actualEntries, null, plannedRateEstimates, unpricedActualHours,
+                "Gerçekleşen işçilik maliyeti payroll verisinden hesaplanmaz. Görev maliyeti tahminleri yalnız aynı görev ve para birimindeki planlanan saatlik oranlardan türetilen, muhasebeleştirilmeyen senaryolardır. Atanmamış görev süreleri ve hiçbir para biriminde planlanan oranı olmayan süreler tahminsiz kalır."));
         });
         group.MapPost("/", async (OperationalProjectWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
@@ -218,7 +327,9 @@ internal static partial class OperationalProjectEndpoints
             var employeeName = "";
             if (request.EmployeeId.HasValue)
             {
-                var employee = await db.EmployeeRecords.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.EmployeeId.Value && x.Status != EmployeeEmploymentStatus.Terminated, ct);
+                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                var employee = await db.EmployeeRecords.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.EmployeeId.Value &&
+                    (x.TerminationDate == null || x.TerminationDate >= today), ct);
                 if (employee is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["employeeId"] = ["Aktif personel bulunamadı veya bu firmaya ait değil."] });
                 employeeName = employee.FullName;
             }
@@ -342,5 +453,8 @@ public sealed record ProjectTaskView(Guid Id,Guid ProjectId,string Code,string N
 public sealed record ProjectResourceAllocationView(Guid Id,Guid ProjectId,Guid? TaskId,Guid? EmployeeId,string ResourceName,decimal PlannedHours,decimal? PlannedHourlyCost,string CurrencyCode,string? Notes,Guid CreatedByUserId,DateTimeOffset CreatedAt);
 public sealed record ProjectTimeEntryView(Guid Id,Guid ProjectId,Guid? TaskId,Guid UserId,DateOnly WorkDate,decimal Hours,string? Description,DateTimeOffset CreatedAt);
 public sealed record PlannedProjectCostCurrencyView(string CurrencyCode,decimal AllocatedHours,decimal PricedHours,decimal UnpricedHours,decimal PlannedCost,int AllocationCount);
-public sealed record ProjectCostReportView(Guid ProjectId,string ProjectCode,string ProjectName,string Status,decimal BudgetAmount,string BudgetCurrencyCode,IReadOnlyList<PlannedProjectCostCurrencyView> PlannedCosts,decimal ActualHours,int ActualTimeEntryCount,decimal? ActualLaborCost,string Limitation);
+public sealed record PlannedRateActualEffortView(Guid TaskId,decimal ActualHours,int ActualTimeEntryCount,string CurrencyCode,decimal PlannedHourlyRate,decimal EstimatedCost,int RateAllocationCount);
+public sealed record ProjectCostReportView(Guid ProjectId,string ProjectCode,string ProjectName,string Status,decimal BudgetAmount,string BudgetCurrencyCode,IReadOnlyList<PlannedProjectCostCurrencyView> PlannedCosts,decimal ActualHours,int ActualTimeEntryCount,decimal? ActualLaborCost,IReadOnlyList<PlannedRateActualEffortView> PlannedRateEstimates,decimal UnpricedActualHours,string Limitation);
+public sealed record ProjectAssistantTaskProgress(string Code,string Name,string Status,DateOnly? StartDate,DateOnly? EndDate,decimal PlannedHours,decimal ActualHours,int TimeEntryCount);
+public sealed record ProjectAssistantSummary(string ProjectCode,string ProjectName,string Status,DateOnly From,DateOnly To,int TotalTaskCount,int CompletedTaskCount,int OverdueOpenTaskCount,decimal PeriodActualHours,int PeriodTimeEntryCount,bool HasMoreTasks,IReadOnlyList<ProjectAssistantTaskProgress> Tasks);
 public sealed record ProjectDetail(ProjectView Project,IReadOnlyList<ProjectTaskView> Tasks,IReadOnlyList<ProjectResourceAllocationView> Allocations,IReadOnlyList<ProjectTimeEntryView> TimeEntries);

@@ -11,7 +11,7 @@ if ([string]::IsNullOrWhiteSpace($BundlePath)) {
         if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
             try {
                 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-                if ($manifest.generatedAtUtc -and $manifest.status -in @('generated-not-applied', 'generated-applied-local')) {
+                if ($manifest.generatedAtUtc -and $manifest.status -in @('generated-not-applied', 'generated-applied-local', 'generated-applied-development')) {
                     $generatedAtUtc = if ($manifest.generatedAtUtc -is [DateTime]) {
                         [DateTimeOffset]$manifest.generatedAtUtc
                     } else {

@@ -98,8 +98,8 @@
 }
 .sales-promotions-page .sales-campaign-report-table:focus-visible { outline: 2px solid #0f6cbd; outline-offset: 2px; }
 .sales-promotions-page .sales-campaign-report-table table {
-  width: 100%;
-  min-width: 940px;
+  width: max(100%, 1240px);
+  min-width: 1240px;
   table-layout: fixed;
   border-collapse: collapse;
   text-align: left;
@@ -123,12 +123,12 @@
   overflow-wrap: anywhere;
   vertical-align: top;
 }
-.sales-promotions-page .sales-campaign-report-table th:nth-child(1) { width: 19%; }
-.sales-promotions-page .sales-campaign-report-table th:nth-child(2),
-.sales-promotions-page .sales-campaign-report-table th:nth-child(3),
-.sales-promotions-page .sales-campaign-report-table th:nth-child(5) { width: 12%; }
-.sales-promotions-page .sales-campaign-report-table th:nth-child(4),
-.sales-promotions-page .sales-campaign-report-table th:nth-child(6) { width: 22.5%; }
+.sales-promotions-page .sales-campaign-report-table thead tr:not(.screen-view-group-row) th:nth-child(1) { width: 180px; }
+.sales-promotions-page .sales-campaign-report-table thead tr:not(.screen-view-group-row) th:nth-child(2) { width: 145px; }
+.sales-promotions-page .sales-campaign-report-table thead tr:not(.screen-view-group-row) th:nth-child(3) { width: 165px; }
+.sales-promotions-page .sales-campaign-report-table thead tr:not(.screen-view-group-row) th:nth-child(4) { width: 250px; }
+.sales-promotions-page .sales-campaign-report-table thead tr:not(.screen-view-group-row) th:nth-child(5) { width: 150px; }
+.sales-promotions-page .sales-campaign-report-table thead tr:not(.screen-view-group-row) th:nth-child(6) { width: 250px; }
 .sales-promotions-page .sales-campaign-report-table .sales-campaign-empty td {
   padding: 24px 12px;
   color: var(--muted, #7d8599);
@@ -155,7 +155,7 @@
 .sales-promotions-page .sales-campaign-pagination span { min-width: 20px; color: var(--muted, #69768b); text-align: center; font-size: 12px; }
 
 @media (min-width: 1600px) {
-  .sales-promotions-page .sales-campaign-report-table table { min-width: 100%; }
+  .sales-promotions-page .sales-campaign-report-table table { width: 100%; min-width: 1140px; }
   .sales-promotions-page .sales-campaign-filters { grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, .7fr)); }
 }
 @media (max-width: 800px) {

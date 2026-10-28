@@ -2,7 +2,7 @@ using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.Data.SqlClient;
 
-internal sealed class TenantProvisioningWorker : BackgroundService
+public sealed class TenantProvisioningWorker : BackgroundService
 {
     private const int MaximumAttempts = 3;
     private static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(5);
@@ -10,17 +10,20 @@ internal sealed class TenantProvisioningWorker : BackgroundService
     private static readonly TimeSpan LeaseRenewalInterval = TimeSpan.FromSeconds(45);
 
     private readonly string _platformConnection;
-    private readonly string _dataRuntimeLogin;
     private readonly string? _separationBackupPath;
+    private readonly ITenantSqlCredentialReader _credentialReader;
+    private readonly ITenantSqlCredentialWriter _credentialWriter;
     private readonly ILogger<TenantProvisioningWorker> _logger;
     private readonly string _workerId = Guid.NewGuid().ToString("N");
 
-    public TenantProvisioningWorker(IConfiguration configuration, ILogger<TenantProvisioningWorker> logger)
+    public TenantProvisioningWorker(IConfiguration configuration, ITenantSqlCredentialReader credentialReader,
+        ITenantSqlCredentialWriter credentialWriter, ILogger<TenantProvisioningWorker> logger)
     {
-        _platformConnection = configuration.GetConnectionString("Provisioning")
+        _platformConnection = DeploymentSecretConfiguration.GetValue(configuration, "ConnectionStrings:Provisioning")
             ?? throw new InvalidOperationException("ConnectionStrings:Provisioning is required.");
-        _dataRuntimeLogin = configuration["Database:DataRuntimeLogin"] ?? "aierp_data_runtime";
         _separationBackupPath = configuration["Database:SeparationBackupPath"];
+        _credentialReader = credentialReader;
+        _credentialWriter = credentialWriter;
         _logger = logger;
     }
 
@@ -134,14 +137,22 @@ internal sealed class TenantProvisioningWorker : BackgroundService
         Exception? failure = null;
         try
         {
-            var provisioner = new TenantDatabaseProvisioner(_platformConnection, _dataRuntimeLogin, _separationBackupPath);
-            await provisioner.ProvisionAsync(job.TenantId, workCancellation.Token);
+            var provisioner = new TenantDatabaseProvisioner(_platformConnection, _separationBackupPath,
+                _credentialWriter, _credentialReader);
+            // Queued jobs create a brand-new company; this Platform row contains
+            // no operational tenant payload to copy from the shared source DB.
+            // Legacy cutover/copy uses its separately guarded migration workflow.
+            await provisioner.ProvisionAsync(job.TenantId, workCancellation.Token,
+                sourceDatabaseWasCreatedDuringCurrentBootstrap: true);
+            await provisioner.ProvisionAIStudioTenantAsync(job.TenantId, workCancellation.Token);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested || Volatile.Read(ref leaseLost) != 0) { }
         catch (Exception exception)
         {
             failure = exception;
-            _logger.LogError("Tenant database provisioning failed for job {JobId} ({ErrorType}).", job.Id, exception.GetType().Name);
+            var sqlError = exception as SqlException;
+            _logger.LogError("Tenant database provisioning failed for job {JobId} ({ErrorType}; SQL error {SqlNumber}, line {SqlLine}).",
+                job.Id, exception.GetType().Name, sqlError?.Number, sqlError?.LineNumber);
         }
         finally
         {
@@ -212,7 +223,9 @@ internal sealed class TenantProvisioningWorker : BackgroundService
             SET [Status] = @completed, [CompletedAt] = SYSUTCDATETIME(), [UpdatedAt] = SYSUTCDATETIME(),
                 [LeaseOwner] = NULL, [LeaseExpiresAt] = NULL, [ErrorCode] = NULL
             WHERE [Id] = @jobId AND [TenantId] = @tenantId AND [Status] = @running AND [LeaseOwner] = @workerId
-              AND EXISTS (SELECT 1 FROM [dbo].[TenantDatabaseCatalog] WHERE [TenantId] = @tenantId AND [State] = @ready);
+              AND EXISTS (SELECT 1 FROM [dbo].[TenantDatabaseCatalog] WHERE [TenantId] = @tenantId AND [State] = @ready)
+              AND EXISTS (SELECT 1 FROM [dbo].[DatabaseSeparationComponentStates]
+                  WHERE [Component] = @studioComponent AND [DatabaseName] = @studioDatabase AND [State] = @ready);
             IF @@ROWCOUNT = 1
             BEGIN
                 UPDATE [dbo].[Tenants] SET [IsActive] = 1 WHERE [Id] = @tenantId;
@@ -227,6 +240,8 @@ internal sealed class TenantProvisioningWorker : BackgroundService
         command.Parameters.AddWithValue("@running", (int)TenantProvisioningJobStatus.Running);
         command.Parameters.AddWithValue("@workerId", _workerId);
         command.Parameters.AddWithValue("@ready", (int)TenantDatabaseProvisioningState.Ready);
+        command.Parameters.AddWithValue("@studioComponent", TenantDatabaseRouting.StudioComponentKey(job.TenantId));
+        command.Parameters.AddWithValue("@studioDatabase", TenantSqlCredentialPath.DatabaseName(job.TenantId, TenantSqlDatabaseComponent.AiStudio));
         command.Parameters.AddWithValue("@requestedByUserId", job.RequestedByUserId);
         var affected = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
         await transaction.CommitAsync(cancellationToken);

@@ -9,7 +9,7 @@ HR modülü personel, izin, puantaj ve dönem özeti sunuyor. Dönem özeti pers
 
 Buna ek olarak ürün, `PayrollRuleSet` ile Türkiye (`TR`) için kaynak bağlantılı ve yürürlük tarihli JSON taslakları saklayabiliyor. Alanlar `TaxYear`, `EffectiveFrom`, `EffectiveTo`, `Version`, `RulesJson`, `OfficialSourceUrl` ve `Status`; durum yeni kayıtta `Draft` olur. API HTTPS kaynak bağlantısını ve JSON boyut sınırını doğrular. Taslağı oluşturan kullanıcı kendi taslağını onaylayamaz; ayrı bir firma yöneticisi onaylayabilir. UI de oranların önceden tanımlı olmadığını ve ekranın hesap yapmadığını bildirir.
 
-Bu altyapı kural verisini saklama ve ikinci kişi onayı içindir. JSON şeması hukuki kalemleri tanımlamıyor; motor, hesap dökümü, ücret bordrosu, SGK bildirgesi veya vergi beyanı üretimi yok. Mevcut tarih kontrolü yalnızca bitiş tarihinin başlangıçtan önce olmamasını denetliyor; çakışan aralıkları veya takvim yılıyla aralık uyumunu garanti etmiyor. Her taslak tek `OfficialSourceUrl` taşıyor; çok kaynaklı kural kalemleri için kaynak izi ayrıca tasarlanmalı.
+Bu altyapı kural verisini saklama ve ikinci kişi onayı içindir. JSON şeması hukuki kalemleri tanımlamıyor; motor, hesap dökümü, ücret bordrosu, SGK bildirgesi veya vergi beyanı üretimi yok. Onay işlemi aynı tenant, mevzuat ve vergi yılı için daha önce onaylanmış dönemlerle tarih çakışmasını reddeder; ilişkisel veritabanında kontrol seri işlem içinde yapılır. Bu, kural aralığının takvim vergi yılıyla uyumlu olduğunu garanti etmez. Her taslak tek `OfficialSourceUrl` taşıyor; çok kaynaklı kural kalemleri için kaynak izi ayrıca tasarlanmalı.
 
 ## 2026 resmi girdileri
 
@@ -54,3 +54,9 @@ Hesap motorundan önce önerilen kontrol noktaları:
 5. Motor geliştirilirken müşavirce onaylı referans bordrolar ve beklenen beyan karşılaştırmaları ayrıca hazırlanır.
 
 Bu araştırmada herhangi bir hesaplama kodu, migration, veritabanı değişikliği, oran seed’i veya beyan gönderimi yapılmadı.
+
+## 2026-10-26 devamı
+
+2026 oran/eşik değerleri, yukarıdaki resmi kaynaklarla karşılaştırılarak uygulamadan ayrı bir makinece okunabilir kaynak paketi olan [`payroll-turkey-4a-2026-official-reference.json`](payroll-turkey-4a-2026-official-reference.json) dosyasına işlendi. Bu paket tenant veritabanına seed edilmez ve onaylı firma formülü anlamına gelmez. GİB'in 02.10.2026 tarihli V133.0 geliştirici arşivindeki 1003A/1003B XSD/kod listeleri ve `EBYN.xsd`, hash ve provenance kaydıyla [`schemas/gib/ebeyanname-v133-2026-10-02/`](schemas/gib/ebeyanname-v133-2026-10-02/) altına eklendi. XSD, yalnız XML yapısını doğrular; GİB iş kuralı/işveren profili, 1003A-1003B seçimi, firma alan eşlemesi veya resmi kabul senaryosu değildir. Run'lar bu nedenle hesaplama motoru ve işveren/işyeri bazlı onaylı beyan kuralı gelmeden bloke kalır.
+
+Önceki işveren matrah kayıtları artık şema v1'de `priorEmployerTaxBase.amount` girdisi olarak kullanılabilir. Her onaylı formül girdisi şirketçe tanımlanmış `baseCode` ve birimi açıkça belirtmelidir; run snapshot içindeki en son onaylı yıl beyanından tam kod/birim eşleşmesi alınır. Onaylı `NoPriorEmployer` beyanı sıfır bağlar; eksik/çift eşleşme önizlemeyi durdurur. Bu, belge kontrolü veya yasal matrah kodu sınıflandırması yapmaz.

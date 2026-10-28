@@ -187,6 +187,7 @@ public sealed class StudioKnowledgeAutoRefresherTests
         public Task<DatabaseEngineeringPlan> CreateDatabaseEngineeringPlanAsync(string request, string projectName, string branchName, IReadOnlyList<CodeSourceFile> schemaSources, CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task<CodeSuggestion> CreateCodeSuggestionAsync(string request, string projectName, string branchName, string filePath, string sourceContent, CancellationToken cancellationToken, bool createNewFile = false) => throw new NotImplementedException();
         public Task<MultiFileCodeSuggestion> CreateMultiFileCodeSuggestionAsync(string request, string projectName, string branchName, IReadOnlyList<CodeSourceFile> sources, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<StudioCodePatchSuggestion> CreateStudioCodePatchSuggestionAsync(string request, string projectName, string branchName, IReadOnlyList<StudioCodeContext> contexts, CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task<SandboxErrorAnalysis> AnalyzeSandboxErrorAsync(string projectName, string branchName, SandboxErrorContext error, CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 }

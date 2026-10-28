@@ -23,6 +23,49 @@ public sealed class TenantBudgetIntegrationTests
     private static readonly Guid Approver = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
     [Fact]
+    public async Task Assistant_budget_summary_is_bounded_tenant_scoped_and_projects_only_approved_fields()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-User", Creator.ToString());
+        var accounts = await GetAccountsAsync(app, TenantA);
+        var revenue = accounts.Single(x => x.StatementSection == LedgerAccountStatementSection.Revenue);
+        var expense = accounts.Single(x => x.StatementSection == LedgerAccountStatementSection.Expense);
+        var payload = new TenantBudgetPlanWriteRequest("2026 işletme planı", 2026, new[]
+        {
+            new TenantBudgetLineWriteRequest(revenue.Id, new DateOnly(2026, 1, 1), 1000m),
+            new TenantBudgetLineWriteRequest(expense.Id, new DateOnly(2026, 1, 1), 300m, "not sent to assistant")
+        });
+        using var created = await client.PostAsJsonAsync("/api/finance/budgets/", payload);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+        using var invalidTerm = await client.GetAsync("/api/finance/budgets/assistant-summary?term=x");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidTerm.StatusCode);
+        using var summary = await client.GetAsync("/api/finance/budgets/assistant-summary?term=i%C5%9Fletme");
+        Assert.Equal(HttpStatusCode.OK, summary.StatusCode);
+        using var json = JsonDocument.Parse(await summary.Content.ReadAsStringAsync());
+        var root = json.RootElement;
+        Assert.Equal(1, root.GetProperty("totalCount").GetInt32());
+        var plan = Assert.Single(root.GetProperty("items").EnumerateArray());
+        Assert.Equal("TRY", plan.GetProperty("currencyCode").GetString());
+        Assert.Equal(1300m, plan.GetProperty("plannedTotal").GetDecimal());
+        Assert.Equal(950m, plan.GetProperty("actualTotal").GetDecimal());
+        Assert.Equal(-350m, plan.GetProperty("varianceTotal").GetDecimal());
+        Assert.False(plan.TryGetProperty("id", out _));
+        Assert.False(plan.TryGetProperty("createdByUserId", out _));
+        Assert.False(plan.GetRawText().Contains("not sent to assistant", StringComparison.Ordinal));
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var otherTenant = await client.GetAsync("/api/finance/budgets/assistant-summary?term=i%C5%9Fletme");
+        Assert.Equal(HttpStatusCode.OK, otherTenant.StatusCode);
+        using var otherJson = JsonDocument.Parse(await otherTenant.Content.ReadAsStringAsync());
+        Assert.Equal(0, otherJson.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Empty(otherJson.RootElement.GetProperty("items").EnumerateArray());
+    }
+
+    [Fact]
     public async Task Budget_compares_tenant_actuals_and_requires_separate_admin_approval()
     {
         await using var app = await StartApplicationAsync();

@@ -90,7 +90,7 @@ const uiEnglish: Record<string, string> = {
   'MÜŞTERİ İLİŞKİLERİ': 'CUSTOMER RELATIONSHIPS', 'Üretim emri': 'Manufacturing order',
   'Reçete ve depo seçerek miktarı planlayın.': 'Choose a recipe and warehouse, then plan the quantity.', 'Emir kodu': 'Order code',
   'Reçete seçin': 'Select a recipe', 'Üretim deposu': 'Production warehouse', 'Depo seçin': 'Select a warehouse',
-  'Planlanan miktar': 'Planned quantity', 'Plan tarihi': 'Plan date', 'Emir planla': 'Plan order', 'Reçete oluştur': 'Create recipe',
+  'Planlanan miktar': 'Planned quantity', 'Plan tarihi': 'Plan date', 'Planlama tarihi': 'Planning date', 'Emir planla': 'Plan order', 'Reçete oluştur': 'Create recipe',
   'İş merkezleri': 'Work centers', 'Günlük kapasite ile saatlik işçilik ve genel gider maliyetini tanımlayın.': 'Set daily capacity and hourly labor and overhead costs.',
   'Günlük kapasite (dk)': 'Daily capacity (min)', 'İşçilik / saat': 'Labor / hour', 'Genel gider / saat': 'Overhead / hour',
   'İş merkezi oluştur': 'Create work center', 'Üretim emirleri': 'Manufacturing orders', 'Henüz üretim emri yok': 'No manufacturing orders yet',
@@ -421,6 +421,42 @@ const uiEnglish: Record<string, string> = {
 }
 
 Object.assign(uiEnglish, {
+  // Payment instrument portfolio page.
+  'Portföyde': 'In portfolio', 'Ciro edildi': 'Endorsed', 'Tahsil/ödeme edildi': 'Collected/paid',
+  'Karşılıksız': 'Bounced', 'İptal': 'Cancelled', 'Çek ve senet': 'Checks and promissory notes',
+  'FİNANS · PORTFÖY YÖNETİMİ': 'FINANCE · PORTFOLIO MANAGEMENT',
+  'Alınan ve verilen çek/senetleri vadeleri ve durum geçmişiyle izleyin.': 'Track received and issued checks and promissory notes, including due dates and status history.',
+  'Yenile': 'Refresh', 'Yeni kayıt': 'New record', 'Uyarıyı kapat': 'Dismiss alert', 'Bildirimi kapat': 'Dismiss notification',
+  'Açık portföy': 'Open portfolio', 'seçili filtrelere göre, döviz ayrımıyla': 'for selected filters, by currency',
+  'Vadesi gelen': 'Due', 'seçili filtrelere göre': 'for selected filters', 'Portföye kayıt ekle': 'Add portfolio record',
+  'Firma kapsamındaki çek veya senedi alınan/verilen yönüyle kaydedin.': 'Record a company check or promissory note as received or issued.',
+  'Tür': 'Type', 'Çek': 'Check', 'Senet': 'Promissory note', 'Yön': 'Direction', 'Alacak · alınan': 'Receivable · received',
+  'Borç · verilen': 'Payable · issued', 'Çek/senet numarası': 'Check/note number', 'Cari unvanı': 'Account name',
+  'Banka': 'Bank', 'Para birimi': 'Currency', 'Düzenleme tarihi': 'Issue date', 'Vade tarihi': 'Due date',
+  'Portföye giriş tarihi': 'Portfolio entry date', 'Açıklama': 'Notes',
+  'Kaydetmek finans hesabı bakiyesini değiştirmez; tahsil/ödeme ayrıca işlenir.': 'Saving does not change the financial account balance; collection/payment is recorded separately.',
+  'Kaydediliyor…': 'Saving…', 'Portföye ekle': 'Add to portfolio', 'Portföy kayıtları': 'Portfolio records',
+  'kayıt · sayfa': 'records · page', 'firma veritabanı kapsamı': 'company database scope', 'Duruma göre filtrele': 'Filter by status',
+  'Tüm durumlar': 'All statuses', 'Türe göre filtrele': 'Filter by type', 'Çekler': 'Checks', 'Senetler': 'Promissory notes',
+  'Kayıtlar yükleniyor…': 'Loading records…', 'Gösterilecek kayıt yok': 'No records to show',
+  'Filtreleri değiştirebilir veya yeni çek/senet ekleyebilirsiniz.': 'Change the filters or add a check/promissory note.',
+  'Önceki': 'Previous', 'Sonraki': 'Next', 'Sayfa': 'Page', 'Çek/senet işlemleri durum ve denetim geçmişi oluşturur. Tahsilat/ödeme banka veya kasa hareketi yazar; cari fatura tahsilatına otomatik mahsup yapmaz.': 'Check and promissory note operations create status and audit history. Collection/payment records a bank or cash transaction; it is not automatically applied to an account invoice.',
+  'Portföy kodu': 'Portfolio code', 'Cari': 'Account', 'Döviz': 'Currency', 'Durum': 'Status', 'İşlemler': 'Actions',
+  'Alınan': 'Received', 'Verilen': 'Issued', 'Ciro:': 'Endorsed to:', 'finans hesabı': 'financial account',
+  'Hesap seçin': 'Select an account', 'Tahsil': 'Collect/pay', 'Ciro': 'Endorse',
+  'Karşılıksız işlem notu (zorunlu):': 'Bounced transaction note (required):', 'İşlem açıklaması (isteğe bağlı):': 'Transaction notes (optional):',
+  'Erişim reddedildi (403). Oturumun firma üyeliği veya rolü çek/senet listesine erişemiyor.': 'Access denied (403). Your company membership or role cannot access the check and promissory note list.',
+  'Erişim reddedildi (403). Oturumun firma üyeliği veya rolü finans hesaplarına erişemiyor.': 'Access denied (403). Your company membership or role cannot access financial accounts.',
+  'Çek/senet listesi alınamadı (': 'Could not load checks and promissory notes (', 'Finans hesapları alınamadı (': 'Could not load financial accounts (',
+  'Bu çek/senet işlemi için firma yöneticisi (TenantAdmin) rolü gerekir.': 'A company administrator (TenantAdmin) role is required for this check/promissory note operation.',
+  'Çek/senet portföye kaydedildi.': 'Check/promissory note saved to the portfolio.',
+  'Tahsilat/ödeme için finans hesabı seçin.': 'Select a financial account for collection/payment.',
+  'Karşılıksız işleminde açıklama girilmelidir.': 'Enter a note for a bounced transaction.',
+  ' kaydı iptal edilsin mi? Bu işlem geri alınamaz.': ' record will be cancelled. This action cannot be undone.',
+  'İstek başarısız (${response.status})': 'Request failed (${response.status})'
+})
+
+Object.assign(uiEnglish, {
   // Fixed labels shared by customer collections and supplier payment forms.
   'Havale / EFT': 'Bank transfer', 'Havale': 'Bank transfer', 'Nakit': 'Cash', 'Kart': 'Card',
   'Referans': 'Reference', 'Dekont veya işlem numarası': 'Receipt or transaction number',
@@ -472,6 +508,18 @@ export function localizeMountedUi(root: ParentNode, locale: 'tr' | 'en'): void {
     if (publishedVersion) return `Published · v${publishedVersion[1]}`
     const queuePage = source.match(/^(\d+) işlem · Sayfa (\d+)\/(\d+)$/)
     if (queuePage) return `${queuePage[1]} operations · Page ${queuePage[2]}/${queuePage[3]}`
+    const portfolioPage = source.match(/^(\d+) kayıt · sayfa (\d+) · firma veritabanı kapsamı$/)
+    if (portfolioPage) return `${portfolioPage[1]} records · page ${portfolioPage[2]} · company database scope`
+    const pageNumber = source.match(/^Sayfa (\d+) \/ (\d+)$/)
+    if (pageNumber) return `Page ${pageNumber[1]} / ${pageNumber[2]}`
+    const listFailure = source.match(/^Çek\/senet listesi alınamadı \((\d{3})\)\.$/)
+    if (listFailure) return `Could not load checks and promissory notes (${listFailure[1]}).`
+    const accountsFailure = source.match(/^Finans hesapları alınamadı \((\d{3})\)\.$/)
+    if (accountsFailure) return `Could not load financial accounts (${accountsFailure[1]}).`
+    const cancelledRecord = source.match(/^(.+) kaydı iptal edilsin mi\? Bu işlem geri alınamaz\.$/)
+    if (cancelledRecord) return `Cancel record ${cancelledRecord[1]}? This action cannot be undone.`
+    const actionNotice = source.match(/^(.+): (Ciro edildi|Tahsil\/ödeme edildi|Karşılıksız|İptal)\.$/)
+    if (actionNotice) return `${actionNotice[1]}: ${uiEnglish[actionNotice[2]]}.`
     return value
   }
   const updateText = (node: Text) => {

@@ -161,7 +161,8 @@ public static class TenantLicenseEndpoints
         {
             var keyId = parts[0];
             if (keyId.Length > 80 || keyId.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_'))) return false;
-            var pem = configuration[$"Licensing:PublicKeys:{keyId}"];
+            var pem = LicensingKeyConfiguration.Read(
+                configuration, $"Licensing:PublicKeys:{keyId}", "Licensing:PublicKeyFile");
             if (string.IsNullOrWhiteSpace(pem)) { error = "The license issuer key is not configured on this server."; return false; }
             var payload = DecodeBase64Url(parts[1]);
             var signature = DecodeBase64Url(parts[2]);

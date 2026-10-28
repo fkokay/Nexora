@@ -106,16 +106,49 @@ public sealed class SqlServerStandaloneSupplierInvoiceDraftAcceptanceTests
 
             using var staleResponse = await client.PutAsJsonAsync($"/api/purchasing/standalone-invoices/{created.Id}", update);
             Assert.Equal(HttpStatusCode.Conflict, staleResponse.StatusCode);
+
+            var expense = new LedgerAccount { TenantId = tenantId, Code = "770", Name = "Expense", StatementSection = LedgerAccountStatementSection.Expense };
+            var vat = new LedgerAccount { TenantId = tenantId, Code = "191", Name = "Input VAT", StatementSection = LedgerAccountStatementSection.Asset };
+            var payable = new LedgerAccount { TenantId = tenantId, Code = "320", Name = "Supplier payable", StatementSection = LedgerAccountStatementSection.Liability };
+            tenantSeed.LedgerAccounts.AddRange(expense, vat, payable);
+            tenantSeed.LedgerAccountMappings.AddRange(
+                new LedgerAccountMapping { TenantId = tenantId, MappingKey = LedgerMappingKeys.PurchasePayable, AccountId = payable.Id },
+                new LedgerAccountMapping { TenantId = tenantId, MappingKey = LedgerMappingKeys.PurchaseTaxRecoverable, AccountId = vat.Id });
+            await tenantSeed.SaveChangesAsync();
+
+            var postingUpdate = new StandaloneSupplierInvoiceDraftUpdateRequest(updated.RowVersion, supplier.Id,
+                updated.InvoiceNumber, updated.InvoiceDate, updated.DueDate, updated.CurrencyCode, updated.Notes,
+                updated.Subtotal, updated.DiscountTotal, updated.TaxTotal, updated.GrandTotal,
+                create.Lines.Select(line => line with { ExpenseAccountId = expense.Id }).ToArray());
+            using var postingUpdateResponse = await client.PutAsJsonAsync($"/api/purchasing/standalone-invoices/{created.Id}", postingUpdate);
+            Assert.Equal(HttpStatusCode.OK, postingUpdateResponse.StatusCode);
+            var ready = await postingUpdateResponse.Content.ReadFromJsonAsync<StandaloneSupplierInvoiceDraftDetail>();
+            Assert.NotNull(ready);
+
+            using var postResponse = await client.PostAsync($"/api/purchasing/standalone-invoices/{created.Id}/post", null);
+            Assert.True(postResponse.StatusCode == HttpStatusCode.OK,
+                $"Expected 200 but received {(int)postResponse.StatusCode}: {await postResponse.Content.ReadAsStringAsync()}");
+            var posted = await postResponse.Content.ReadFromJsonAsync<StandaloneSupplierInvoiceDraftPostingResult>();
+            Assert.NotNull(posted);
+            using var replayResponse = await client.PostAsync($"/api/purchasing/standalone-invoices/{created.Id}/post", null);
+            Assert.Equal(HttpStatusCode.OK, replayResponse.StatusCode);
+            var replay = await replayResponse.Content.ReadFromJsonAsync<StandaloneSupplierInvoiceDraftPostingResult>();
+            Assert.NotNull(replay);
+            Assert.Equal(posted.JournalEntryId, replay.JournalEntryId);
+            Assert.Equal(posted.LedgerEntryId, replay.LedgerEntryId);
+
             using var foreignResponse = await client.GetAsync($"/api/purchasing/standalone-invoices/{foreignDraft.Id}");
             Assert.Equal(HttpStatusCode.NotFound, foreignResponse.StatusCode);
+            using var foreignPostResponse = await client.PostAsync($"/api/purchasing/standalone-invoices/{foreignDraft.Id}/post", null);
+            Assert.Equal(HttpStatusCode.NotFound, foreignPostResponse.StatusCode);
 
             await using var verify = new TenantDbContext(new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(tenantConnection).Options);
             Assert.Equal(1, await verify.PurchaseInvoiceDrafts.CountAsync(x => x.TenantId == tenantId));
             Assert.Equal(1, await verify.PurchaseInvoiceDraftLines.CountAsync(x => x.TenantId == tenantId));
             Assert.Equal(0, await verify.PurchaseInvoices.CountAsync(x => x.TenantId == tenantId));
             Assert.Equal(0, await verify.InventoryTransactions.CountAsync(x => x.TenantId == tenantId));
-            Assert.Equal(0, await verify.CustomerLedgerEntries.CountAsync(x => x.TenantId == tenantId));
-            Assert.Equal(0, await verify.JournalEntries.CountAsync(x => x.TenantId == tenantId));
+            Assert.Equal(1, await verify.CustomerLedgerEntries.CountAsync(x => x.TenantId == tenantId && x.PurchaseInvoiceDraftId == created.Id));
+            Assert.Equal(1, await verify.JournalEntries.CountAsync(x => x.TenantId == tenantId && x.SourceType == "StandaloneInvoiceDraft" && x.SourceId == created.Id));
             Assert.Equal(0, await verify.SupplierPayments.CountAsync(x => x.TenantId == tenantId));
         }
         finally

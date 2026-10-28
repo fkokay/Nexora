@@ -39,6 +39,53 @@ public static class PurchaseDeliveryNoteEndpoints
             return Results.Ok(new { totalCount, returned = items.Count, hasMore = totalCount > items.Count, items });
         });
 
+        // Assistant-facing detail lookup: resolve by the exact document number, enforce the
+        // caller's purchase-order scope, and return only bounded operational line facts.
+        group.MapGet("/search/details", async (ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb,
+            string? documentNumber, CancellationToken ct) =>
+        {
+            if (!TryTenant(user, out var tenantId)) return Results.Forbid();
+            var term = documentNumber?.Trim();
+            if (term is null || term.Length is < 2 or > 80 || term.Any(char.IsControl))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["documentNumber"] = ["Belge numarası 2–80 karakter olmalıdır."] });
+
+            var accessibleOrders = await AccessibleOrdersAsync(user, tenantId, db, platformDb, ct);
+            var orderIds = accessibleOrders.Select(x => x.Id);
+            var matches = await db.PurchaseDeliveryNotes.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && orderIds.Contains(x.PurchaseOrderId)
+                    && x.DocumentNumber.ToUpper() == term.ToUpper())
+                .OrderBy(x => x.CreatedAt)
+                .Take(2)
+                .Select(x => new
+                {
+                    documentNumber = x.DocumentNumber,
+                    purchaseOrderCode = x.PurchaseOrder.Code,
+                    documentDate = x.DocumentDate,
+                    linkedToReceipt = x.PurchaseReceiptId.HasValue,
+                    lineCount = x.Lines.Count,
+                    lines = x.Lines.OrderBy(line => line.OrderLineNumber).Take(51)
+                        .Select(line => new { lineNumber = line.OrderLineNumber, unitCode = line.UnitCode, quantity = line.Quantity })
+                        .ToList()
+                })
+                .ToListAsync(ct);
+
+            if (matches.Count == 0) return Results.NotFound(new { errorCode = "delivery_note_not_found" });
+            if (matches.Count > 1) return Results.Conflict(new { errorCode = "delivery_note_not_unique" });
+
+            var note = matches[0];
+            return Results.Ok(new
+            {
+                note.documentNumber,
+                note.purchaseOrderCode,
+                documentDate = note.documentDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                note.linkedToReceipt,
+                note.lineCount,
+                returnedLines = Math.Min(note.lineCount, 50),
+                hasMoreLines = note.lineCount > 50,
+                lines = note.lines.Take(50)
+            });
+        });
+
         group.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 50,
             CancellationToken ct = default) =>
         {

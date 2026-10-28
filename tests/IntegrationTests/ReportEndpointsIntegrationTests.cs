@@ -1190,26 +1190,42 @@ public sealed class ReportEndpointsIntegrationTests
             operation.ActualEnergyCostPerKwhBase = 5m;
             operation.ActualEnergyCostBase = 50m;
             operation.ActualCostBase = 210m;
+            operation.PlannedEnergyCostBase = 12.5m;
             var orderA = await db.ManufacturingOrders.SingleAsync(o => o.TenantId == TenantA && o.Code == "MO-A");
-            var stockItemId = await db.BillOfMaterials.Where(b => b.TenantId == TenantA && b.Code == "BOM-A").Select(b => b.ProductStockItemId).SingleAsync();
-            var bomId = await db.BillOfMaterials.Where(b => b.TenantId == TenantA && b.Code == "BOM-A").Select(b => b.Id).SingleAsync();
-            var tenantBStockItemId = await db.BillOfMaterials.Where(b => b.TenantId == TenantB && b.Code == "BOM-B").Select(b => b.ProductStockItemId).SingleAsync();
+            var bomA = await db.BillOfMaterials.SingleAsync(b => b.TenantId == TenantA && b.Code == "BOM-A");
+            var bomB = await db.BillOfMaterials.SingleAsync(b => b.TenantId == TenantB && b.Code == "BOM-B");
+            var productStockItemId = bomA.ProductStockItemId;
+            var componentA = new StockItem { TenantId = TenantA, Code = "MAT-A", Name = "A component" };
+            var componentB = new StockItem { TenantId = TenantB, Code = "MAT-B", Name = "B component" };
+            db.StockItems.AddRange(componentA, componentB);
+            db.ManufacturingOrderLines.Add(new ManufacturingOrderLine { TenantId = TenantA, ManufacturingOrderId = orderA.Id,
+                ComponentStockItemId = componentA.Id, ComponentCodeSnapshot = componentA.Code, ComponentNameSnapshot = componentA.Name,
+                RequiredQuantity = 2m, StandardUnitCostBaseSnapshot = 7.75m, PlannedCostBase = 15.5m });
+            db.BillOfMaterialLines.Add(new BillOfMaterialLine { TenantId = TenantA, BillOfMaterialId = bomA.Id,
+                ComponentStockItemId = componentA.Id, Quantity = 2m, StandardUnitCostBase = 7.75m });
+            var bomId = bomA.Id;
             var orderC = new ManufacturingOrder { TenantId = TenantA, Code = "MO-C", BillOfMaterialId = bomId,
                 WarehouseId = orderA.WarehouseId, PlannedQuantity = 1m, PlannedDate = orderA.PlannedDate };
+            db.ManufacturingOrderLines.Add(new ManufacturingOrderLine { TenantId = TenantA, ManufacturingOrderId = orderC.Id,
+                ComponentStockItemId = componentA.Id, ComponentCodeSnapshot = componentA.Code, ComponentNameSnapshot = componentA.Name,
+                RequiredQuantity = 1m, StandardUnitCostBaseSnapshot = 2m, PlannedCostBase = 2m });
             db.ManufacturingOrders.Add(orderC);
-            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantA, WarehouseId = orderA.WarehouseId, StockItemId = stockItemId,
+            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantA, WarehouseId = orderA.WarehouseId, StockItemId = componentA.Id,
                 EntryDate = new DateOnly(2026, 10, 22), Direction = InventoryDirection.Issue, Quantity = 2m, UnitCostBase = 3m,
                 ManufacturingOrderId = orderA.Id, Description = "Free text deliberately unrelated to identity" });
-            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantA, WarehouseId = orderA.WarehouseId, StockItemId = stockItemId,
+            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantA, WarehouseId = orderA.WarehouseId, StockItemId = componentA.Id,
                 EntryDate = new DateOnly(2026, 10, 22), Direction = InventoryDirection.Issue, Quantity = 1m, UnitCostBase = 999m,
                 Description = "Üretim MO-A bileşen tüketimi" });
-            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantA, WarehouseId = orderA.WarehouseId, StockItemId = stockItemId,
+            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantA, WarehouseId = orderA.WarehouseId, StockItemId = productStockItemId,
+                EntryDate = new DateOnly(2026, 10, 22), Direction = InventoryDirection.Receipt, Quantity = 3m, UnitCostBase = 99m,
+                ManufacturingOrderId = orderA.Id, Description = "Manufactured finished-goods receipt" });
+            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantA, WarehouseId = orderA.WarehouseId, StockItemId = componentA.Id,
                 EntryDate = new DateOnly(2026, 10, 22), Direction = InventoryDirection.Issue, Quantity = 1m, UnitCostBase = 7m,
                 ManufacturingOrderId = orderC.Id, Description = "Untrusted text says MO-A" });
-            var tenantBOrder = new ManufacturingOrder { TenantId = TenantB, Code = "MO-VAR-B", BillOfMaterialId = Guid.NewGuid(), WarehouseId = Guid.NewGuid(),
+            var tenantBOrder = new ManufacturingOrder { TenantId = TenantB, Code = "MO-VAR-B", BillOfMaterialId = bomB.Id, WarehouseId = Guid.NewGuid(),
                 PlannedQuantity = 1m, PlannedDate = new DateOnly(2026, 10, 20), Status = ManufacturingOrderStatus.Completed };
             db.ManufacturingOrders.Add(tenantBOrder);
-            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantB, WarehouseId = tenantBOrder.WarehouseId, StockItemId = tenantBStockItemId,
+            db.InventoryTransactions.Add(new InventoryTransaction { TenantId = TenantB, WarehouseId = tenantBOrder.WarehouseId, StockItemId = componentB.Id,
                 EntryDate = new DateOnly(2026, 10, 22), Direction = InventoryDirection.Issue, Quantity = 1m, UnitCostBase = 9000m,
                 ManufacturingOrderId = tenantBOrder.Id, Description = "Tenant B only" });
             await db.SaveChangesAsync();
@@ -1227,14 +1243,16 @@ public sealed class ReportEndpointsIntegrationTests
         Assert.Equal("MO-A", row.GetProperty("orderCode").GetString());
         Assert.Equal(90m, row.GetProperty("plannedLaborBase").GetDecimal());
         Assert.Equal(30m, row.GetProperty("plannedOverheadBase").GetDecimal());
-        Assert.Equal(120m, row.GetProperty("plannedConversionBase").GetDecimal());
+        Assert.Equal(132.5m, row.GetProperty("plannedConversionBase").GetDecimal());
         Assert.Equal(120m, row.GetProperty("actualLaborBase").GetDecimal());
         Assert.Equal(40m, row.GetProperty("actualOverheadBase").GetDecimal());
         Assert.Equal(50m, row.GetProperty("actualEnergyBase").GetDecimal());
+        Assert.Equal(12.5m, row.GetProperty("plannedEnergyBase").GetDecimal());
+        Assert.Equal(15.5m, row.GetProperty("plannedMaterialBase").GetDecimal());
         Assert.Equal(6m, row.GetProperty("actualMaterialBase").GetDecimal());
-        Assert.Equal(90m, row.GetProperty("conversionVarianceBase").GetDecimal());
+        Assert.Equal(77.5m, row.GetProperty("conversionVarianceBase").GetDecimal());
         Assert.True(row.GetProperty("actualTotalCostBase").ValueKind == JsonValueKind.Null);
-        Assert.True(row.GetProperty("plannedMaterialBase").ValueKind == JsonValueKind.Null);
+        Assert.Equal(17.5m, json.RootElement.GetProperty("pageTotals").GetProperty("plannedMaterialBase").GetDecimal());
         Assert.True(row.GetProperty("totalVarianceBase").ValueKind == JsonValueKind.Null);
         var otherOrder = Assert.Single(rows, x => x.GetProperty("orderCode").GetString() == "MO-C");
         Assert.Equal(7m, otherOrder.GetProperty("actualMaterialBase").GetDecimal());

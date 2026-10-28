@@ -35,6 +35,7 @@ public sealed class CustomerCollectionFiscalCloseRouteSqlAcceptanceTests
         var tenantCreated = false;
         var studioCreated = false;
         var triggerCreated = false;
+        SqlAcceptanceTenantCredential? tenantCredential = null;
         try
         {
             var platformOptions = new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options;
@@ -46,6 +47,7 @@ public sealed class CustomerCollectionFiscalCloseRouteSqlAcceptanceTests
             tenantCreated = await seedDb.Database.EnsureCreatedAsync();
             studioCreated = await studioDb.Database.EnsureCreatedAsync();
             Assert.True(platformCreated && tenantCreated && studioCreated);
+            tenantCredential = await SqlAcceptanceTenantCredential.CreateAsync(configuredConnection!, tenantId);
 
             var tenant = new Tenant { Id = tenantId, Name = "Synthetic customer collection close", Slug = $"customer-close-{suffix}", BaseCurrencyCode = "TRY" };
             var user = new AppUser { Id = userId, Email = $"customer-close-{suffix}@example.invalid", DisplayName = "Synthetic Tenant Admin", PasswordHash = "test" };
@@ -125,7 +127,7 @@ public sealed class CustomerCollectionFiscalCloseRouteSqlAcceptanceTests
                 ["ConnectionStrings__AIStudio"] = studioConnection, ["Database__SeparationEnabled"] = "true",
                 ["Database__ApplyMigrationsOnStartup"] = "false"
             });
-            using var factory = new CustomerCollectionApiFactory(platformConnection, tenantConnection, studioConnection);
+            using var factory = new CustomerCollectionApiFactory(platformConnection, tenantConnection, studioConnection, tenantCredential.CredentialReader);
             using var client = factory.CreateClient();
             client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D"));
             client.DefaultRequestHeaders.Add("X-Test-User", userId.ToString("D"));
@@ -145,8 +147,18 @@ public sealed class CustomerCollectionFiscalCloseRouteSqlAcceptanceTests
 
             var raceRequestId = Guid.NewGuid();
             var collectionTask = client.PostAsJsonAsync($"/api/sales/invoices/{invoice.Id}/collections", Collection(raceRequestId, new DateOnly(2025, 4, 15)));
-            await Task.Delay(TimeSpan.FromMilliseconds(600));
-            Assert.False(collectionTask.IsCompleted, "The SQL trigger did not hold the real customer-collection transaction.");
+            var triggerDeadline = DateTimeOffset.UtcNow.AddSeconds(15);
+            var collectionLockHeld = false;
+            while (DateTimeOffset.UtcNow < triggerDeadline && !collectionTask.IsCompleted)
+            {
+                if (await IsCollectionTriggerHoldingTenantLockAsync(tenantConnection))
+                {
+                    collectionLockHeld = true;
+                    break;
+                }
+                await Task.Delay(TimeSpan.FromMilliseconds(50));
+            }
+            Assert.True(collectionLockHeld, "The customer collection did not reach the SQL trigger while holding the tenant posting lock.");
             var closeTask = client.PostAsJsonAsync("/api/finance/general-ledger/fiscal-year-close", new
             {
                 fromDate = "2025-01-01", toDate = "2025-12-31", retainedEarningsAccountId = retained.Id
@@ -201,6 +213,7 @@ public sealed class CustomerCollectionFiscalCloseRouteSqlAcceptanceTests
                 await using var cleanup = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options);
                 await cleanup.Database.EnsureDeletedAsync();
             }
+            if (tenantCredential is not null) await tenantCredential.DisposeAsync();
         }
     }
 
@@ -209,15 +222,51 @@ public sealed class CustomerCollectionFiscalCloseRouteSqlAcceptanceTests
         requestId, collectionDate = collectionDate.ToString("yyyy-MM-dd"), amount = 25m, paymentMethod = "Card", reference = "SYN-CARD"
     };
 
+    private static async Task<bool> IsCollectionTriggerHoldingTenantLockAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT CASE WHEN EXISTS (
+                SELECT 1
+                FROM sys.dm_exec_requests AS request
+                INNER JOIN sys.dm_tran_locks AS tenantLock
+                    ON tenantLock.request_session_id = request.session_id
+                WHERE request.session_id <> @@SPID
+                    AND request.database_id = DB_ID()
+                    AND request.wait_type = N'WAITFOR'
+                    AND tenantLock.resource_type = N'OBJECT'
+                    AND tenantLock.resource_associated_entity_id = OBJECT_ID(N'dbo.Tenants')
+                    AND tenantLock.request_mode = N'IX'
+                    AND tenantLock.request_status = N'GRANT'
+            ) THEN 1 ELSE 0 END;
+            """;
+        command.CommandTimeout = 5;
+        return Convert.ToInt32(await command.ExecuteScalarAsync()) == 1;
+    }
+
     private static LedgerAccount Account(Guid tenantId, string code, string name, LedgerAccountStatementSection section)
         => new() { TenantId = tenantId, Code = code, Name = name, StatementSection = section };
 
     private static string BuildDatabaseConnection(string source, string databaseName)
         => new SqlConnectionStringBuilder(source) { InitialCatalog = databaseName, ConnectTimeout = 15, TrustServerCertificate = true }.ConnectionString;
 
-    private sealed class CustomerCollectionApiFactory(string platformConnection, string tenantConnection, string studioConnection)
+    private sealed class CustomerCollectionApiFactory(string platformConnection, string tenantConnection, string studioConnection,
+        ITenantSqlCredentialReader credentialReader)
         : WebApplicationFactory<ApiEntryPointMarker>
     {
+        protected override IHost CreateHost(IHostBuilder builder)
+        {
+            builder.ConfigureHostConfiguration(configuration => configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:Address"] = "https://vault.test",
+                ["Vault:TenantSqlCredentialReader:RoleId"] = "customer-collection-test-role",
+                ["Vault:TenantSqlCredentialReader:SecretId"] = "customer-collection-test-secret"
+            }));
+            return base.CreateHost(builder);
+        }
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(Environments.Production);
@@ -232,6 +281,8 @@ public sealed class CustomerCollectionFiscalCloseRouteSqlAcceptanceTests
             }));
             builder.ConfigureTestServices(services =>
             {
+                services.RemoveAll<ITenantSqlCredentialReader>();
+                services.AddSingleton(credentialReader);
                 services.AddAuthentication("report-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
                 foreach (var worker in services.Where(x => x.ServiceType == typeof(IHostedService)
                              && x.ImplementationType?.Name is "IntegrationOperationWorker" or "AuditRetentionWorker" or "TcmbExchangeRateWorker").ToArray())

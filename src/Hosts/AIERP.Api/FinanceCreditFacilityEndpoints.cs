@@ -38,6 +38,46 @@ public static class FinanceCreditFacilityEndpoints
             return Results.Ok(rows.Select(x => x with { Movements = byFacility[x.Id].ToList() }));
         });
 
+        group.MapGet("/assistant-summary", async (string? term, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetTenantId(user, out var tenantId)) return Results.Forbid();
+            var search = term?.Trim() ?? string.Empty;
+            if (search.Length is < 2 or > 100)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["term"] = ["Arama terimi 2–100 karakter olmalıdır."] });
+
+            var query = db.CreditFacilities.AsNoTracking().Where(x => x.TenantId == tenantId && x.Code.Contains(search));
+            var total = await query.CountAsync(ct);
+            var rows = await query.OrderBy(x => x.MaturityDate).ThenBy(x => x.Code).Take(10)
+                .Select(x => new
+                {
+                    x.Code,
+                    x.FacilityType,
+                    x.CurrencyCode,
+                    status = x.Status.ToString(),
+                    x.MaturityDate,
+                    drawnPrincipal = x.Movements.Where(m => m.Type == CreditFacilityMovementType.Drawdown && !m.Reversals.Any())
+                        .Sum(m => (decimal?)m.PrincipalAmount) ?? 0m,
+                    repaidPrincipal = x.Movements.Where(m => m.Type == CreditFacilityMovementType.Repayment && !m.Reversals.Any())
+                        .Sum(m => (decimal?)m.PrincipalAmount) ?? 0m,
+                    plannedInstallmentCount = x.Schedule.Count(s => s.Status == CreditFacilityScheduleStatus.Planned),
+                    plannedInstallmentTotal = x.Schedule.Where(s => s.Status == CreditFacilityScheduleStatus.Planned)
+                        .Sum(s => (decimal?)(s.PrincipalAmount + s.InterestAmount + s.FeeAmount)) ?? 0m
+                }).ToListAsync(ct);
+
+            return Results.Ok(new
+            {
+                totalCount = total,
+                items = rows.Select(x => new
+                {
+                    x.Code, x.FacilityType, x.CurrencyCode, x.status,
+                    maturityDate = x.MaturityDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                    x.drawnPrincipal, x.repaidPrincipal,
+                    outstandingPrincipal = x.drawnPrincipal - x.repaidPrincipal,
+                    x.plannedInstallmentCount, x.plannedInstallmentTotal
+                })
+            });
+        });
+
         group.MapPost("/", async (CreditFacilityCreateRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryGetTenantId(user, out var tenantId) || !IsTenantAdmin(user)) return Results.Forbid();

@@ -17,6 +17,7 @@
   </Folder>
   <Folder Name="/src/Hosts/">
     <Project Path="src/Hosts/AIERP.Api/AIERP.Api.csproj" />
+    <Project Path="src/Hosts/AIERP.TenantProvisioningWorker/AIERP.TenantProvisioningWorker.csproj" />
   </Folder>
   <Folder Name="/src/Platform/">
     <Project Path="src/Platform/AIERP.Platform.Application/AIERP.Platform.Application.csproj" />

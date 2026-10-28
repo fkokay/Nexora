@@ -43,10 +43,10 @@ public sealed class GitHubWebhookSecurityTests
     public void Parses_only_supported_pull_request_actions_and_uses_merged_state()
     {
         const string payload = """
-            {"action":"closed","repository":{"full_name":"nexora/erp"},"pull_request":{"number":42,"state":"closed","merged":true,"updated_at":"2026-10-17T10:00:00Z","head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}}
+            {"action":"closed","installation":{"id":1234},"repository":{"full_name":"nexora/erp"},"pull_request":{"number":42,"state":"closed","merged":true,"updated_at":"2026-10-17T10:00:00Z","head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}}
             """;
         Assert.True(GitHubWebhookSecurity.TryParsePullRequestEvent(Encoding.UTF8.GetBytes(payload), out var parsed));
-        Assert.Equal(new GitHubPullRequestWebhookEvent("nexora/erp", 42, "merged", "closed", DateTimeOffset.Parse("2026-10-17T10:00:00Z"), "0123456789abcdef0123456789abcdef01234567"), parsed);
+        Assert.Equal(new GitHubPullRequestWebhookEvent("nexora/erp", 42, "merged", "closed", DateTimeOffset.Parse("2026-10-17T10:00:00Z"), "0123456789abcdef0123456789abcdef01234567", 1234), parsed);
 
         const string ignored = """
             {"action":"edited","repository":{"full_name":"nexora/erp"},"pull_request":{"number":42,"state":"open","merged":false,"updated_at":"2026-10-17T10:00:00Z","head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}}
@@ -60,16 +60,25 @@ public sealed class GitHubWebhookSecurityTests
     public void Parses_draft_pull_request_state_and_ready_for_review_as_open()
     {
         const string draft = """
-            {"action":"converted_to_draft","repository":{"full_name":"nexora/erp"},"pull_request":{"number":42,"state":"open","draft":true,"merged":false,"updated_at":"2026-10-17T10:00:00Z","head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}}
+            {"action":"converted_to_draft","installation":{"id":1234},"repository":{"full_name":"nexora/erp"},"pull_request":{"number":42,"state":"open","draft":true,"merged":false,"updated_at":"2026-10-17T10:00:00Z","head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}}
             """;
         Assert.True(GitHubWebhookSecurity.TryParsePullRequestEvent(Encoding.UTF8.GetBytes(draft), out var parsedDraft));
         Assert.Equal("draft", parsedDraft!.State);
 
         const string ready = """
-            {"action":"ready_for_review","repository":{"full_name":"nexora/erp"},"pull_request":{"number":42,"state":"open","draft":false,"merged":false,"updated_at":"2026-10-17T10:01:00Z","head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}}
+            {"action":"ready_for_review","installation":{"id":1234},"repository":{"full_name":"nexora/erp"},"pull_request":{"number":42,"state":"open","draft":false,"merged":false,"updated_at":"2026-10-17T10:01:00Z","head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}}
             """;
         Assert.True(GitHubWebhookSecurity.TryParsePullRequestEvent(Encoding.UTF8.GetBytes(ready), out var parsedReady));
         Assert.Equal("open", parsedReady!.State);
+    }
+
+    [Fact]
+    public void Supported_pull_request_events_require_a_positive_installation_id()
+    {
+        const string payload = """
+            {"action":"closed","repository":{"full_name":"nexora/erp"},"pull_request":{"number":42,"state":"closed","merged":true,"updated_at":"2026-10-17T10:00:00Z","head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}}
+            """;
+        Assert.False(GitHubWebhookSecurity.TryParsePullRequestEvent(Encoding.UTF8.GetBytes(payload), out _));
     }
 
     [Fact]
@@ -95,6 +104,71 @@ public sealed class GitHubWebhookSecurityTests
         var laterReopen = new GitHubPullRequestWebhookEvent("nexora/erp", 42, "open", "reopened", updatedAt.AddHours(1), candidate.CommitSha);
         Assert.False(GitHubPullRequestStateSynchronizer.TryApply(candidate, laterReopen, "delivery-reopen", out _));
         Assert.Equal("merged", candidate.GitHubPullRequestState);
+    }
+
+    [Fact]
+    public async Task Pull_request_sync_only_touches_projects_from_the_matching_github_app_installation()
+    {
+        var dbOptions = new DbContextOptionsBuilder<AIStudioDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        await using var db = new AIStudioDbContext(dbOptions);
+        var matchingProjectId = Guid.NewGuid();
+        var otherProjectId = Guid.NewGuid();
+        var updatedAt = DateTimeOffset.Parse("2026-10-17T10:00:00Z");
+        db.DevelopmentProjects.AddRange(
+            new DevelopmentProject { Id = matchingProjectId, TenantId = Guid.NewGuid(), Name = "matching", GitHubInstallationId = 1234 },
+            new DevelopmentProject { Id = otherProjectId, TenantId = Guid.NewGuid(), Name = "other", GitHubInstallationId = 5678 });
+        var matchingCandidate = new ReleaseCandidateRecord
+        {
+            TenantId = Guid.NewGuid(), ProjectId = matchingProjectId, GitHubRepository = "nexora/erp",
+            GitHubPullRequestNumber = 42, GitHubPullRequestState = "open", GitHubPullRequestUpdatedAt = updatedAt,
+            CommitSha = "0123456789abcdef0123456789abcdef01234567"
+        };
+        var otherCandidate = new ReleaseCandidateRecord
+        {
+            TenantId = Guid.NewGuid(), ProjectId = otherProjectId, GitHubRepository = "nexora/erp",
+            GitHubPullRequestNumber = 42, GitHubPullRequestState = "open", GitHubPullRequestUpdatedAt = updatedAt,
+            CommitSha = "0123456789abcdef0123456789abcdef01234567"
+        };
+        db.ReleaseCandidateRecords.AddRange(matchingCandidate, otherCandidate);
+        await db.SaveChangesAsync();
+
+        var webhook = new GitHubPullRequestWebhookEvent("nexora/erp", 42, "closed", "closed", updatedAt.AddMinutes(1),
+            matchingCandidate.CommitSha, 1234);
+        var changed = await GitHubPullRequestStateSynchronizer.ApplyAsync(db, webhook, "delivery-matching-installation");
+
+        Assert.Equal(1, changed);
+        Assert.Equal("closed", (await db.ReleaseCandidateRecords.SingleAsync(x => x.ProjectId == matchingProjectId)).GitHubPullRequestState);
+        Assert.Equal("open", (await db.ReleaseCandidateRecords.SingleAsync(x => x.ProjectId == otherProjectId)).GitHubPullRequestState);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0L)]
+    [InlineData(-1L)]
+    public async Task Pull_request_sync_fails_closed_without_a_valid_installation(long? installationId)
+    {
+        var options = new DbContextOptionsBuilder<AIStudioDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        await using var db = new AIStudioDbContext(options);
+        var projectId = Guid.NewGuid();
+        var updatedAt = DateTimeOffset.Parse("2026-10-17T10:00:00Z");
+        db.DevelopmentProjects.Add(new DevelopmentProject
+        {
+            Id = projectId, TenantId = Guid.NewGuid(), Name = "installation scoped", GitHubInstallationId = 1234
+        });
+        db.ReleaseCandidateRecords.Add(new ReleaseCandidateRecord
+        {
+            TenantId = Guid.NewGuid(), ProjectId = projectId, GitHubRepository = "nexora/erp",
+            GitHubPullRequestNumber = 42, GitHubPullRequestState = "open", GitHubPullRequestUpdatedAt = updatedAt,
+            CommitSha = "0123456789abcdef0123456789abcdef01234567"
+        });
+        await db.SaveChangesAsync();
+        var webhook = new GitHubPullRequestWebhookEvent("nexora/erp", 42, "closed", "closed", updatedAt.AddMinutes(1),
+            "0123456789abcdef0123456789abcdef01234567", installationId);
+
+        var changed = await GitHubPullRequestStateSynchronizer.ApplyAsync(db, webhook, "unscoped-delivery");
+
+        Assert.Equal(0, changed);
+        Assert.Equal("open", (await db.ReleaseCandidateRecords.SingleAsync()).GitHubPullRequestState);
     }
 
     [Fact]
@@ -212,15 +286,20 @@ public sealed class GitHubWebhookSecurityTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         await using var db = new AIStudioDbContext(options);
+        var projectId = Guid.NewGuid();
+        db.DevelopmentProjects.Add(new DevelopmentProject
+        {
+            Id = projectId, TenantId = Guid.NewGuid(), Name = "case insensitive", GitHubInstallationId = 4321
+        });
         db.ReleaseCandidateRecords.Add(new AIERP.Platform.Domain.ReleaseCandidateRecord
         {
-            TenantId = Guid.NewGuid(), GitHubRepository = "Nexora/ERP", GitHubPullRequestNumber = 42,
+            TenantId = Guid.NewGuid(), ProjectId = projectId, GitHubRepository = "Nexora/ERP", GitHubPullRequestNumber = 42,
             GitHubPullRequestState = "open", GitHubPullRequestUpdatedAt = DateTimeOffset.Parse("2026-10-17T10:00:00Z"),
             CommitSha = "0123456789abcdef0123456789abcdef01234567"
         });
         await db.SaveChangesAsync();
 
-        var webhook = new GitHubPullRequestWebhookEvent("nexora/erp", 42, "closed", "closed", DateTimeOffset.Parse("2026-10-17T10:01:00Z"), "0123456789abcdef0123456789abcdef01234567");
+        var webhook = new GitHubPullRequestWebhookEvent("nexora/erp", 42, "closed", "closed", DateTimeOffset.Parse("2026-10-17T10:01:00Z"), "0123456789abcdef0123456789abcdef01234567", 4321);
         var changed = await GitHubPullRequestStateSynchronizer.ApplyAsync(db, webhook, "delivery-case");
 
         Assert.Equal(1, changed);

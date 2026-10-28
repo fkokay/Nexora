@@ -38,20 +38,34 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/Platform.Api.Dockerfile
+      args:
+        OCI_IMAGE_REVISION: ${OCI_IMAGE_REVISION:-unknown}
+        OCI_IMAGE_VERSION: ${OCI_IMAGE_VERSION:-unknown}
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
-      ConnectionStrings__Tenant: Server=sqlserver,1433;Database=AIERPPlatform;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD:-${MSSQL_SA_PASSWORD}};Encrypt=True;TrustServerCertificate=True
-      ConnectionStrings__AIStudio: Server=sqlserver,1433;Database=AIERPStudio;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD:-${MSSQL_SA_PASSWORD}};Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=aierp_platform_runtime;Password=${AIERP_PLATFORM_RUNTIME_PASSWORD:?Set AIERP_PLATFORM_RUNTIME_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      # These are endpoint/TLS templates only. Tenant SQL credentials come from
+      # the tenant-scoped Vault reader and are applied for the current request/job.
+      ConnectionStrings__Tenant: Server=sqlserver,1433;Database=AIERPPlatform;Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__AIStudio: Server=sqlserver,1433;Database=AIERPStudio;Encrypt=True;TrustServerCertificate=True
       Database__SeparationEnabled: "true"
       Database__SeparationBackupPath: ${DATABASE_SEPARATION_BACKUP_PATH:-}
-      Database__DataRuntimeLogin: aierp_data_runtime
+      Database__PlatformRuntimeLogin: aierp_platform_runtime
+      Vault__Address: ${VAULT_ADDRESS:?Set VAULT_ADDRESS in .env}
+      Vault__Mount: ${VAULT_MOUNT:-secret}
+      Vault__TenantSqlCredentialReader__RoleIdFile: /run/secrets/vault_tenant_sql_reader_role_id
+      Vault__TenantSqlCredentialReader__SecretIdFile: /run/secrets/vault_tenant_sql_reader_secret_id
       Licensing__PublicKeys__issuer-2026: ${LICENSING_PUBLIC_KEY_ISSUER_2026:-}
+      Licensing__IssuerKeyId: ${LICENSING_ISSUER_KEY_ID:-issuer-2026}
+      Licensing__SigningKeyFile: /run/license-secrets/issuer-private.pem
+      Licensing__PublicKeyFile: /run/license-secrets/issuer-public.pem
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       PluginHost__SigningKey: ${PLUGIN_HOST_SIGNING_KEY:?Set PLUGIN_HOST_SIGNING_KEY in .env}
       PluginHost__Issuer: AIERP
-      Database__ApplyMigrationsOnStartup: "true"
+      # This base Compose file does not define the release migrator. Migrations
+      # are run by the ReleaseDeployer-generated one-shot platform-migrator.
+      Database__ApplyMigrationsOnStartup: "false"
       ModulePackages__RootPath: /module-packages
       PluginHost__BaseUrl: http://plugin-host:8080
       IntegrationHost__SigningKey: ${PLUGIN_HOST_SIGNING_KEY:?Set PLUGIN_HOST_SIGNING_KEY in .env}
@@ -68,20 +82,51 @@ services:
       Frontend__Origins__1: http://localhost:5174
       Frontend__Origins__2: http://localhost:5175
       Frontend__Origins__3: ${PUBLIC_INGRESS_ORIGIN:-http://localhost:5174}
+      Frontend__Origins__4: http://127.0.0.1:5173
+      Frontend__Origins__5: ${PUBLIC_ERP_ORIGIN:-http://localhost:5173}
+      Frontend__Origins__6: ${PUBLIC_STUDIO_ORIGIN:-http://localhost:5174}
       Authentication__StudioRefreshCookieSecure: ${STUDIO_REFRESH_COOKIE_SECURE:-true}
       Studio__Origins__0: http://localhost:5174
       Studio__Origins__1: http://localhost:5175
       Studio__Origins__2: ${PUBLIC_INGRESS_ORIGIN:-http://localhost:5174}
+      Studio__Origins__3: ${PUBLIC_STUDIO_ORIGIN:-https://nexorastudio.ozgurteknolojiyazilim.com}
+      SSL_CERT_FILE: /tmp/nexora-ca-bundle.crt
+    entrypoint: ["sh", "-c"]
+    command: ["cat /etc/ssl/certs/ca-certificates.crt /run/secrets/vault-ca.crt > /tmp/nexora-ca-bundle.crt && exec dotnet AIERP.Api.dll"]
     ports:
       - "127.0.0.1:5080:8080"
     volumes:
       - aierp-module-packages:/module-packages
+      - licensing-key-material:/run/license-secrets:ro
+      # File-backed Compose secrets are checked on the CLI machine. With a
+      # remote Docker context, the protected files live on the daemon host.
+      # Bind mounts avoid the misleading local-file warning and fail closed.
+      - type: bind
+        source: ${VAULT_TENANT_SQL_READER_ROLE_ID_FILE:-./secrets/vault_tenant_sql_reader_role_id}
+        target: /run/secrets/vault_tenant_sql_reader_role_id
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${VAULT_TENANT_SQL_READER_SECRET_ID_FILE:-./secrets/vault_tenant_sql_reader_secret_id}
+        target: /run/secrets/vault_tenant_sql_reader_secret_id
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${VAULT_CA_CERT_FILE:-./secrets/vault-ca.crt}
+        target: /run/secrets/vault-ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
     networks:
       - default
       - monitoring
       - plugin-runtime
       - integration-runtime
     depends_on:
+      vault:
+        condition: service_started
       sqlserver:
         condition: service_healthy
       plugin-host:
@@ -95,6 +140,116 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  tenant-provisioning-worker:
+    profiles: [tenant-provisioning]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/TenantProvisioningWorker.Dockerfile
+      args:
+        OCI_IMAGE_REVISION: ${OCI_IMAGE_REVISION:-unknown}
+        OCI_IMAGE_VERSION: ${OCI_IMAGE_VERSION:-unknown}
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__ProvisioningFile: /run/provisioning-secrets/tenant_provisioning_sql_connection
+      Database__SeparationEnabled: "true"
+      Database__SeparationBackupPath: ${DATABASE_SEPARATION_BACKUP_PATH:-}
+      Vault__Address: ${VAULT_ADDRESS:?Set VAULT_ADDRESS in .env}
+      Vault__Mount: ${VAULT_MOUNT:-secret}
+      Vault__TenantSqlCredentialReader__RoleIdFile: /run/provisioning-secrets/vault_tenant_sql_reader_role_id
+      Vault__TenantSqlCredentialReader__SecretIdFile: /run/provisioning-secrets/vault_tenant_sql_reader_secret_id
+      Vault__TenantSqlCredentialWriter__RoleIdFile: /run/provisioning-secrets/vault_tenant_sql_writer_role_id
+      Vault__TenantSqlCredentialWriter__SecretIdFile: /run/provisioning-secrets/vault_tenant_sql_writer_secret_id
+      Vault__AllowHttpForLocalDevelopment: "false"
+      SSL_CERT_FILE: /tmp/nexora-ca-bundle.crt
+    depends_on:
+      tenant-provisioning-secrets-init:
+        condition: service_completed_successfully
+      vault:
+        condition: service_started
+      sqlserver:
+        condition: service_healthy
+      platform-api:
+        condition: service_healthy
+    networks:
+      - default
+    volumes:
+      - tenant-provisioning-secrets:/run/provisioning-secrets:ro
+    restart: "on-failure:3"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+
+  tenant-provisioning-secrets-init:
+    profiles: [tenant-provisioning]
+    image: busybox:1.37.0
+    command:
+      - sh
+      - -c
+      - >-
+        set -eu;
+        for name in tenant_provisioning_sql_connection vault_tenant_sql_reader_role_id
+        vault_tenant_sql_reader_secret_id vault_tenant_sql_writer_role_id
+        vault_tenant_sql_writer_secret_id vault-ca.crt; do
+        test -s "/run/secrets/$$name";
+        cp "/run/secrets/$$name" "/prepared/$$name";
+        chown 1654:1654 "/prepared/$$name";
+        chmod 0440 "/prepared/$$name";
+        done;
+        chown 1654:1654 /prepared;
+        chmod 0550 /prepared
+    volumes:
+      - tenant-provisioning-secrets:/prepared
+      - type: bind
+        source: ${VAULT_TENANT_SQL_READER_ROLE_ID_FILE:-./secrets/vault_tenant_sql_reader_role_id}
+        target: /run/secrets/vault_tenant_sql_reader_role_id
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${VAULT_TENANT_SQL_READER_SECRET_ID_FILE:-./secrets/vault_tenant_sql_reader_secret_id}
+        target: /run/secrets/vault_tenant_sql_reader_secret_id
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${VAULT_TENANT_SQL_WRITER_ROLE_ID_FILE:-./secrets/vault_tenant_sql_writer_role_id}
+        target: /run/secrets/vault_tenant_sql_writer_role_id
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${VAULT_TENANT_SQL_WRITER_SECRET_ID_FILE:-./secrets/vault_tenant_sql_writer_secret_id}
+        target: /run/secrets/vault_tenant_sql_writer_secret_id
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${TENANT_PROVISIONER_SQL_CONNECTION_FILE:-./secrets/tenant_provisioning_sql_connection}
+        target: /run/secrets/tenant_provisioning_sql_connection
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${VAULT_CA_CERT_FILE:-./secrets/vault-ca.crt}
+        target: /run/secrets/vault-ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
+    network_mode: none
+    user: "0:0"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 16
+    mem_limit: 64m
+    restart: "no"
 
   plugin-host:
     build:
@@ -167,18 +322,29 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/AIService.Dockerfile
+      args:
+        OCI_IMAGE_REVISION: ${OCI_IMAGE_REVISION:-unknown}
+        OCI_IMAGE_VERSION: ${OCI_IMAGE_VERSION:-unknown}
     environment:
       ASPNETCORE_ENVIRONMENT: ${AI_SERVICE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
-      ConnectionStrings__AIStudio: Server=sqlserver,1433;Database=AIERPStudio;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD:-${MSSQL_SA_PASSWORD}};Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=aierp_platform_runtime;Password=${AIERP_PLATFORM_RUNTIME_PASSWORD:?Set AIERP_PLATFORM_RUNTIME_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      # AIERPStudio is the shared Studio service database; tenant ERP database
+      # credentials are still resolved per tenant from Vault.
+      ConnectionStrings__AIStudio: Server=sqlserver,1433;Database=AIERPStudio;User Id=aierp_data_runtime;Password=${AIERP_DATA_RUNTIME_PASSWORD:?Set AIERP_DATA_RUNTIME_PASSWORD};Encrypt=True;TrustServerCertificate=True
       Database__SeparationEnabled: "true"
+      Vault__Address: ${VAULT_ADDRESS:?Set VAULT_ADDRESS in .env}
+      Vault__Mount: ${VAULT_MOUNT:-secret}
+      Vault__TenantSqlCredentialReader__RoleIdFile: /run/secrets/vault_tenant_sql_reader_role_id
+      Vault__TenantSqlCredentialReader__SecretIdFile: /run/secrets/vault_tenant_sql_reader_secret_id
       StudioKnowledge__RetentionDays: ${STUDIO_KNOWLEDGE_RETENTION_DAYS:-180}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       Frontend__Origins__0: http://localhost:5173
       Frontend__Origins__1: http://localhost:5174
       Frontend__Origins__2: http://localhost:5175
       Frontend__Origins__3: ${PUBLIC_INGRESS_ORIGIN:-http://localhost:5174}
+      Frontend__Origins__4: ${PUBLIC_ERP_ORIGIN:-http://localhost:5173}
+      Frontend__Origins__5: ${PUBLIC_STUDIO_ORIGIN:-http://localhost:5174}
       WorkspaceRunner__BaseUrl: http://workspace-runner:8080
       ReleaseDeployer__BaseUrl: http://release-deployer:8080
       AI__OpenAI__ApiKey: ${OPENAI_API_KEY:-}
@@ -194,9 +360,33 @@ services:
       GitHub__WebhookSecret: ${GITHUB_APP_WEBHOOK_SECRET:-}
       GitHub__SetupCallbackUrl: ${GITHUB_APP_SETUP_CALLBACK_URL:-http://localhost:5081/studio/github/setup-callback}
       GitHub__StudioRedirectUrl: ${GITHUB_STUDIO_REDIRECT_URL:-http://localhost:5174/?app=studio}
+      SSL_CERT_FILE: /tmp/nexora-ca-bundle.crt
+    entrypoint: ["sh", "-c"]
+    command: ["cat /etc/ssl/certs/ca-certificates.crt /run/secrets/vault-ca.crt > /tmp/nexora-ca-bundle.crt && exec dotnet AIERP.AIService.dll"]
     ports:
       - "127.0.0.1:5081:8080"
+    volumes:
+      - type: bind
+        source: ${VAULT_TENANT_SQL_READER_ROLE_ID_FILE:-./secrets/vault_tenant_sql_reader_role_id}
+        target: /run/secrets/vault_tenant_sql_reader_role_id
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${VAULT_TENANT_SQL_READER_SECRET_ID_FILE:-./secrets/vault_tenant_sql_reader_secret_id}
+        target: /run/secrets/vault_tenant_sql_reader_secret_id
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${VAULT_CA_CERT_FILE:-./secrets/vault-ca.crt}
+        target: /run/secrets/vault-ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
+      vault:
+        condition: service_started
       sqlserver:
         condition: service_healthy
       platform-api:
@@ -209,7 +399,7 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health >/dev/null || exit 1"]
       interval: 15s
-      timeout: 5s
+      timeout: 15s
       retries: 5
       start_period: 30s
     networks:
@@ -221,6 +411,9 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/DevelopmentStudio.Dockerfile
+      args:
+        OCI_IMAGE_REVISION: ${OCI_IMAGE_REVISION:-unknown}
+        OCI_IMAGE_VERSION: ${OCI_IMAGE_VERSION:-unknown}
     ports:
       - "127.0.0.1:5174:80"
     networks:
@@ -490,6 +683,29 @@ services:
       - monitoring
     restart: unless-stopped
 
+  vault:
+    image: hashicorp/vault:2.1.1
+    container_name: nexora-vault
+    command: ["vault", "server", "-config=/vault/config/vault.hcl"]
+    environment:
+      VAULT_ADDR: https://nexora-vault:8200
+      VAULT_CACERT: /vault/tls/vault-ca.crt
+    volumes:
+      - nexora-vault-data:/vault/data
+      - nexora-vault-config:/vault/config:ro
+      - nexora-vault-tls:/vault/tls:ro
+    networks:
+      - default
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 1.0
+
   prometheus:
     image: prom/prometheus:v3.15.0
     profiles: [monitoring]
@@ -557,6 +773,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  tenant-provisioning-secrets:
   aierp-sql-data:
   aierp-workspaces:
   aierp-test-jobs:
@@ -567,10 +784,22 @@ volumes:
     name: aierp-production-backups
   aierp-module-packages:
     name: aierp-module-packages
+  licensing-key-material:
+    name: nexora-licensing-key-material
+    external: true
   aierp-deployer-state:
   aierp-prometheus-data:
   caddy-data:
   caddy-config:
+  nexora-vault-data:
+    name: nexora-vault-data
+    external: true
+  nexora-vault-config:
+    name: nexora-vault-config
+    external: true
+  nexora-vault-tls:
+    name: nexora-vault-tls
+    external: true
 
 networks:
   default: {}

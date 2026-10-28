@@ -85,6 +85,9 @@ public sealed class WorkspaceTestDiscoveryTests
         File.WriteAllText(Path.Combine(workspace, "Cargo.toml"), "[package]\nname = \"sample\"\nversion = \"0.1.0\"\nedition = \"2021\"\n");
         File.WriteAllText(Path.Combine(workspace, "src.rs"), "fn main() {}\n");
         File.WriteAllText(Path.Combine(workspace, "tests", "sample.rs"), "#[test] fn works() {}\n");
+        Directory.CreateDirectory(Path.Combine(workspace, "java", "src"));
+        File.WriteAllText(Path.Combine(workspace, "java", "src", "SmokeCheck.java"), "package checks; public class SmokeCheck { public static void main(String[] args) { if (1 + 1 != 2) throw new AssertionError(); } }");
+        File.WriteAllText(Path.Combine(workspace, "java", "src", "Library.java"), "public class Library { public int sum(int a, int b) { return a + b; } }");
         try
         {
             var targets = WorkspaceSecurity.DiscoverTests(root, workspaceId).Targets;
@@ -93,6 +96,8 @@ public sealed class WorkspaceTestDiscoveryTests
             Assert.Contains(targets, target => target.Path == "test_sample.py" && target.Ecosystem == "Python" && target.CanBuild && target.CanTest);
             Assert.Contains(targets, target => target.Path == "go.mod" && target.Ecosystem == "Go" && target.CanBuild && target.CanTest == false);
             Assert.Contains(targets, target => target.Path == "Cargo.toml" && target.Ecosystem == "Rust" && target.CanBuild && target.CanTest);
+            Assert.Contains(targets, target => target.Path == "java/src/SmokeCheck.java" && target.Ecosystem == "Java" && target.CanBuild && target.CanTest);
+            Assert.Contains(targets, target => target.Path == "java/src/Library.java" && target.Ecosystem == "Java" && target.CanBuild && !target.CanTest);
         }
         finally { Directory.Delete(root, recursive: true); }
     }
@@ -106,4 +111,15 @@ public sealed class WorkspaceTestDiscoveryTests
     [InlineData("services/api/go.sum", false)]
     public void Go_build_targets_are_limited_to_safe_module_manifests(string path, bool expected)
         => Assert.Equal(expected, WorkspaceSecurity.IsSafeGoBuildTarget(path));
+
+    [Theory]
+    [InlineData("Main.java", true)]
+    [InlineData("src/Main.java", true)]
+    [InlineData("../Main.java", false)]
+    [InlineData(".hidden/Main.java", false)]
+    [InlineData("src/passwords/Main.java", false)]
+    [InlineData("src\\Main.java", false)]
+    [InlineData("src/Main.class", false)]
+    public void Java_targets_are_limited_to_safe_source_paths(string path, bool expected)
+        => Assert.Equal(expected, WorkspaceSecurity.IsSafeJavaTarget(path));
 }

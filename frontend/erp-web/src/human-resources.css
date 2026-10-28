@@ -522,3 +522,19 @@ html[data-theme="dark"] .hr-employee-form { background: linear-gradient(155deg, 
   .hr-kpi-strip { gap: 8px; }
   .hr-kpi-strip article { min-height: 72px; padding: 12px 13px 12px 16px; }
 }
+
+/* Keep the employee directory focused when the tenant has no employee rows. */
+.hr-employee-directory.is-empty .hr-list-toolbar,
+.hr-employee-directory.is-empty .advanced-grid-toolbar,
+.hr-employee-directory.is-empty .advanced-grid-footer { display: none; }
+.hr-employee-directory.is-empty .hr-table-wrap { overflow: hidden; border: 0; }
+.hr-employee-directory.is-empty .advanced-grid-scroll { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; }
+.hr-employee-directory.is-empty .advanced-grid-scroll > table.hr-employee-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+.hr-employee-directory.is-empty .hr-employee-table thead { display: none; }
+.hr-employee-directory.is-empty .hr-employee-table td[colspan] { border: 0; }
+.hr-employee-directory.is-empty .hr-empty { min-height: 210px; gap: 8px; }
+.hr-employee-directory.is-empty .hr-empty small { max-width: 320px; color: var(--muted); font-size: 12px; }

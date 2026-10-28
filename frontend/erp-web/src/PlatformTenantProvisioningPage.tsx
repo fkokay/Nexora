@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Building2, CircleAlert, LoaderCircle, RotateCw, ShieldCheck } from 'lucide-react'
+import { Building2, CircleAlert, LoaderCircle, RotateCw, Search, ShieldCheck } from 'lucide-react'
 import './platform-tenant-provisioning.css'
 
 type ProvisioningStatus = {
@@ -24,6 +24,18 @@ type ProvisioningRequest = {
   adminDisplayName: string
 }
 
+type PlatformTenantSummary = {
+  id: string
+  name: string
+  slug: string
+  isActive: boolean
+  baseCurrencyCode: string
+  provisioningState: string | null
+  licenseStatus: 'Unlicensed' | 'Active' | 'Expired' | 'Invalid'
+  licenseTier: string | null
+  licenseExpiresAt: string | null
+}
+
 type ApiRequest = <T>(url: string, token?: string, init?: RequestInit) => Promise<T>
 
 export type PlatformTenantProvisioningPageProps = {
@@ -44,6 +56,10 @@ export default function PlatformTenantProvisioningPage({ token, api }: PlatformT
     name: '', slug: '', baseCurrencyCode: 'TRY', adminEmail: '', adminDisplayName: ''
   })
   const [job, setJob] = useState<ProvisioningStatus | null>(null)
+  const [companies, setCompanies] = useState<PlatformTenantSummary[]>([])
+  const [companySearch, setCompanySearch] = useState('')
+  const [companiesLoading, setCompaniesLoading] = useState(true)
+  const [companiesError, setCompaniesError] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [pollError, setPollError] = useState('')
@@ -69,6 +85,17 @@ export default function PlatformTenantProvisioningPage({ token, api }: PlatformT
     timer = window.setTimeout(poll, 1500)
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [api, job?.jobId, job?.status, job?.statusUrl, token])
+
+  useEffect(() => {
+    let cancelled = false
+    setCompaniesLoading(true)
+    setCompaniesError('')
+    api<PlatformTenantSummary[]>('/api/platform/tenants', token)
+      .then(result => { if (!cancelled) setCompanies(result) })
+      .catch(() => { if (!cancelled) setCompaniesError('Firma listesi alınamadı. Yeniden deneyin.') })
+      .finally(() => { if (!cancelled) setCompaniesLoading(false) })
+    return () => { cancelled = true }
+  }, [api, job?.status, token])
 
   const update = (field: keyof ProvisioningRequest, value: string) => {
     setForm(current => ({ ...current, [field]: value }))
@@ -118,6 +145,9 @@ export default function PlatformTenantProvisioningPage({ token, api }: PlatformT
     }
   }
 
+  const filteredCompanies = companies.filter(company =>
+    `${company.name} ${company.slug}`.toLocaleLowerCase('tr-TR').includes(companySearch.trim().toLocaleLowerCase('tr-TR')))
+
   return <div className="page-heading platform-provisioning-page">
     <div className="platform-provisioning-heading platform-provisioning-commandbar">
       <div>
@@ -133,6 +163,34 @@ export default function PlatformTenantProvisioningPage({ token, api }: PlatformT
       <div className={job?'is-current':''}><i>2</i><span><b>Veritabanı hazırlığı</b><small>Firmaya özel SQL alanı</small></span></div>
       <div className={job?.status==='Completed'?'is-complete':''}><i>3</i><span><b>Kullanıma açılış</b><small>{job?.status==='Completed'?'Firma hazır':'Hazırlık tamamlanınca'}</small></span></div>
     </div>
+
+    <section className="panel platform-provisioning-companies" aria-live="polite">
+      <div className="panel-heading">
+        <div><p className="eyebrow">KAYITLI FİRMALAR</p><h3>Tanımlı firmalar</h3><p>Platforma kayıtlı şirketler ve hazırlık durumları.</p></div>
+        {!companiesLoading && <span className="platform-provisioning-company-count">{companies.length}</span>}
+      </div>
+      {!companiesLoading && !companiesError && companies.length > 0 && <label className="platform-provisioning-company-search"><Search size={15} aria-hidden="true"/><input type="search" aria-label="Tanımlı firmalarda ara" placeholder="Firma adı veya kısa ada göre ara" value={companySearch} onChange={event => setCompanySearch(event.target.value)}/></label>}
+      {companiesLoading ? <div className="platform-provisioning-companies-empty"><LoaderCircle size={18} className="platform-provisioning-spin"/> Firmalar yükleniyor…</div>
+        : companiesError ? <div className="platform-provisioning-companies-empty is-error"><CircleAlert size={17}/><span>{companiesError}</span></div>
+        : companies.length === 0 ? <div className="platform-provisioning-companies-empty">Henüz tanımlı firma yok.</div>
+        : filteredCompanies.length === 0 ? <div className="platform-provisioning-companies-empty">Aramanızla eşleşen firma bulunamadı.</div>
+        : <div className="platform-provisioning-company-list">{filteredCompanies.map(company => {
+          const databaseLabel = company.provisioningState === 'Ready' ? 'Veritabanı hazır'
+            : company.provisioningState === 'Failed' ? 'Veritabanı hatası'
+              : company.provisioningState ? 'Veritabanı hazırlanıyor' : 'Veritabanı durumu yok'
+          const licenseLabel = company.licenseStatus === 'Active' ? 'Lisans aktif'
+            : company.licenseStatus === 'Expired' ? 'Lisans süresi doldu'
+              : company.licenseStatus === 'Invalid' ? 'Lisans geçersiz' : 'Lisans yok'
+          const licenseDetails = company.licenseTier
+            ? `${company.licenseTier}${company.licenseExpiresAt ? ` · ${new Date(company.licenseExpiresAt).toLocaleDateString('tr-TR')} tarihine kadar` : ''}`
+            : 'Henüz etkinleştirilmemiş'
+          return <article className="platform-provisioning-company" key={company.id}>
+            <span className="platform-provisioning-company-icon"><Building2 size={17}/></span>
+            <div className="platform-provisioning-company-info"><b>{company.name}</b><small>{company.slug} · {company.baseCurrencyCode}</small></div>
+            <div className="platform-provisioning-company-state"><span className={`platform-provisioning-company-badge ${company.isActive ? 'is-active' : company.provisioningState === 'Failed' ? 'is-failed' : 'is-pending'}`}>{company.isActive ? 'Aktif' : company.provisioningState === 'Failed' ? 'Başarısız' : 'Hazırlanıyor'}</span><small>{databaseLabel}</small><span className={`platform-provisioning-company-badge is-license-${company.licenseStatus.toLowerCase()}`}>{licenseLabel}</span><small>{licenseDetails}</small></div>
+          </article>
+        })}</div>}
+    </section>
 
     <div className="panel platform-provisioning-card">
       <div className="panel-heading">

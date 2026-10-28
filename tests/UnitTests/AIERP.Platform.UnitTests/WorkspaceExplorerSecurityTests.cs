@@ -64,7 +64,7 @@ public sealed class WorkspaceExplorerSecurityTests
             Assert.Equal("class Sample { }\n", deletedDiff.Diff.BaseContent);
             Assert.Equal("", deletedDiff.Diff.CurrentContent);
             var largePath = Path.Combine(workspace, "Large.txt");
-            File.WriteAllText(largePath, new string('x', 128 * 1024 + 1));
+            File.WriteAllText(largePath, new string('x', WorkspaceFileLimits.MaxManualWorkspaceFileBytes + 1));
             Assert.Equal("too_large", (await WorkspaceSecurity.GetWorkspaceGitDiffAsync(root, workspaceId, "Large.txt", CancellationToken.None)).Error);
             File.Delete(largePath);
             var binaryPath = Path.Combine(workspace, "Binary.dat");

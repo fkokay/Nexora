@@ -48,6 +48,11 @@ public sealed class PurchaseDeliveryNoteSearchEndpointsIntegrationTests
             CreatedAt = DateTimeOffset.Parse("2026-10-25T10:00:00Z"),
             Lines = [new PurchaseDeliveryNoteLine { TenantId = tenantAId, PurchaseOrderId = orderA.Id, OrderLineNumber = 1, Quantity = index, UnitCode = "EA" }]
         }).ToArray();
+        var duplicateNotes = Enumerable.Range(0, 2).Select(_ => new PurchaseDeliveryNote
+        {
+            TenantId = tenantAId, PurchaseOrderId = orderA.Id, PurchaseOrder = orderA,
+            DocumentNumber = "SDN-DUPLICATE", DocumentDate = today
+        }).ToArray();
         var otherTenantNote = new PurchaseDeliveryNote
         {
             TenantId = tenantBId, PurchaseOrderId = orderB.Id, PurchaseOrder = orderB,
@@ -62,6 +67,7 @@ public sealed class PurchaseDeliveryNoteSearchEndpointsIntegrationTests
             db.CustomerAccounts.AddRange(supplierA, supplierB);
             db.PurchaseOrders.AddRange(orderA, orderB);
             db.PurchaseDeliveryNotes.AddRange(notes);
+            db.PurchaseDeliveryNotes.AddRange(duplicateNotes);
             db.PurchaseDeliveryNotes.Add(otherTenantNote);
             await db.SaveChangesAsync();
         }
@@ -87,8 +93,29 @@ public sealed class PurchaseDeliveryNoteSearchEndpointsIntegrationTests
             Assert.False(first.TryGetProperty("supplierId", out _));
         }
 
+        using (var detailsResponse = await client.GetAsync("/api/purchasing/delivery-notes/search/details?documentNumber=SDN-SEARCH-001"))
+        {
+            Assert.Equal(HttpStatusCode.OK, detailsResponse.StatusCode);
+            using var details = JsonDocument.Parse(await detailsResponse.Content.ReadAsStringAsync());
+            var root = details.RootElement;
+            Assert.Equal("SDN-SEARCH-001", root.GetProperty("documentNumber").GetString());
+            Assert.Equal("PO-NOTE-SEARCH-A", root.GetProperty("purchaseOrderCode").GetString());
+            Assert.Equal(1, root.GetProperty("returnedLines").GetInt32());
+            Assert.Equal(1, root.GetProperty("lines")[0].GetProperty("lineNumber").GetInt32());
+            Assert.Equal(1m, root.GetProperty("lines")[0].GetProperty("quantity").GetDecimal());
+            Assert.False(root.TryGetProperty("id", out _));
+            Assert.False(root.TryGetProperty("supplierName", out _));
+            Assert.False(root.GetProperty("lines")[0].TryGetProperty("stockCode", out _));
+        }
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await client.GetAsync("/api/purchasing/delivery-notes/search/details?documentNumber=SDN-SEARCH-999")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await client.GetAsync("/api/purchasing/delivery-notes/search/details?documentNumber=x")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await client.GetAsync("/api/purchasing/delivery-notes/search/details?documentNumber=SDN-DUPLICATE")).StatusCode);
+
         using var orderSearch = JsonDocument.Parse(await (await client.GetAsync("/api/purchasing/delivery-notes/search?q=PO-NOTE-SEARCH")).Content.ReadAsStringAsync());
-        Assert.Equal(12, orderSearch.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal(14, orderSearch.RootElement.GetProperty("totalCount").GetInt32());
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");
         client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantBId.ToString());
         using var otherTenantSearch = JsonDocument.Parse(await (await client.GetAsync("/api/purchasing/delivery-notes/search?q=SDN-SEARCH")).Content.ReadAsStringAsync());

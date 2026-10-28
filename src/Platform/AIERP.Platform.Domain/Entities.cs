@@ -176,6 +176,79 @@ public sealed class EmployeeAttendanceRecord
     public byte[] RowVersion { get; set; } = [];
 }
 
+/// <summary>Second-approved, effective-dated employee workplace assignment used for historical payroll runs.</summary>
+public sealed class PayrollEmployeeWorkplaceAssignment
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public string WorkplaceCode { get; set; } = "";
+    public DateOnly EffectiveFrom { get; set; }
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>A tenant-owned workplace, branch, or factory used as an operational and payroll reference.</summary>
+public sealed class WorkplaceDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Kind { get; set; } = "Workplace";
+    public bool IsActive { get; set; } = true;
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Approved effective-dated weekly and date-exception schedule for a workplace.</summary>
+public sealed class PayrollWorkplaceCalendar
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string WorkplaceCode { get; set; } = "";
+    public DateOnly EffectiveFrom { get; set; }
+    public int Version { get; set; } = 1;
+    public string WeeklyMinutesJson { get; set; } = "{}";
+    public string DateOverridesJson { get; set; } = "[]";
+    public string PolicyReference { get; set; } = "";
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Approved effective-dated employee schedule replacing the workplace calendar during its active range.</summary>
+public sealed class PayrollEmployeeWorkCalendarOverride
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public DateOnly EffectiveFrom { get; set; }
+    public int Version { get; set; } = 1;
+    public string WeeklyMinutesJson { get; set; } = "{}";
+    public string DateOverridesJson { get; set; } = "[]";
+    public string PolicyReference { get; set; } = "";
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
 /// <summary>Versioned statutory input envelope; calculation inputs are reviewable and effective-dated.</summary>
 public sealed class PayrollRuleSet
 {
@@ -193,6 +266,90 @@ public sealed class PayrollRuleSet
     public Guid? ApprovedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ApprovedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Confidential, immutable gross/net compensation target change; only Approved rows are effective.</summary>
+public sealed class PayrollCompensationRecord
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public string TargetKind { get; set; } = "Gross";
+    public decimal Amount { get; set; }
+    public string CurrencyCode { get; set; } = "";
+    public string PayBasisCode { get; set; } = "";
+    public DateOnly EffectiveFrom { get; set; }
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Second-approved prior-employer tax-base declaration, kept generic until an employer's authorized code list is configured.</summary>
+public sealed class PayrollPriorEmployerTaxBaseDeclaration
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public int TaxYear { get; set; }
+    public string DeclarationKind { get; set; } = "NoPriorEmployer";
+    public string BaseEntriesJson { get; set; } = "[]";
+    public string EvidenceReference { get; set; } = "";
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Immutable, tenant-scoped input snapshot for an internal payroll draft run.</summary>
+public sealed class PayrollRunSnapshot
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string PeriodKind { get; set; } = "CalendarMonth";
+    public DateOnly PeriodStart { get; set; }
+    public DateOnly PeriodEnd { get; set; }
+    public string ProfileCode { get; set; } = "TR-4A-PRIVATE";
+    public string Status { get; set; } = "Blocked";
+    public int EmployeeCount { get; set; }
+    public string SnapshotJson { get; set; } = "{}";
+    public string SnapshotSha256 { get; set; } = "";
+    public string BlockersJson { get; set; } = "[]";
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Immutable formula-derived payroll result tied to an exact approved input snapshot.</summary>
+public sealed class PayrollRunCalculation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid RunId { get; set; }
+    public int Version { get; set; } = 1;
+    public string RunSnapshotSha256 { get; set; } = "";
+    public string ResultJson { get; set; } = "{}";
+    public string ResultSha256 { get; set; } = "";
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public Guid? FinalizedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public DateTimeOffset? FinalizedAt { get; set; }
     public byte[] RowVersion { get; set; } = [];
 }
 
@@ -481,6 +638,9 @@ public sealed class CustomerAccount
     public string? TaxOffice { get; set; }
     public Guid? GroupId { get; set; }
     public CustomerGroup? Group { get; set; }
+    public Guid? ParentCompanyId { get; set; }
+    public CustomerAccount? ParentCompany { get; set; }
+    public ICollection<CustomerAccount> Subsidiaries { get; set; } = new List<CustomerAccount>();
     public string CurrencyCode { get; set; } = "TRY";
     public decimal? RiskLimit { get; set; }
     public int PaymentTermDays { get; set; }
@@ -579,7 +739,26 @@ public sealed class CustomerAddress
     public string? District { get; set; }
     public string? PostalCode { get; set; }
     public string CountryCode { get; set; } = "TR";
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
     public bool IsDefault { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public sealed class CustomerLocationProvince
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+    public ICollection<CustomerLocationDistrict> Districts { get; set; } = new List<CustomerLocationDistrict>();
+}
+
+public sealed class CustomerLocationDistrict
+{
+    public int Id { get; set; }
+    public int ProvinceId { get; set; }
+    public CustomerLocationProvince Province { get; set; } = null!;
+    public string Name { get; set; } = "";
     public bool IsActive { get; set; } = true;
 }
 
@@ -608,6 +787,8 @@ public sealed class CustomerLedgerEntry
     public SalesReturn? SalesReturn { get; set; }
     public Guid? PurchaseInvoiceId { get; set; }
     public PurchaseInvoice? PurchaseInvoice { get; set; }
+    public Guid? PurchaseInvoiceDraftId { get; set; }
+    public PurchaseInvoiceDraft? PurchaseInvoiceDraft { get; set; }
     public Guid? SupplierPaymentId { get; set; }
     public SupplierPayment? SupplierPayment { get; set; }
     public Guid? SupplierReturnId { get; set; }
@@ -756,6 +937,10 @@ public sealed class BillOfMaterialOperation
     public Guid WorkCenterId { get; set; }
     public decimal SetupMinutes { get; set; }
     public decimal RunMinutesPerOutputUnit { get; set; }
+    /// <summary>Standard electricity use (kWh) per BOM output unit.</summary>
+    public decimal PlannedEnergyKwhPerOutput { get; set; }
+    /// <summary>Standard electricity price in the tenant base currency per kWh.</summary>
+    public decimal PlannedEnergyCostPerKwhBase { get; set; }
     /// <summary>Minimum whole calendar days to wait after the preceding routed operation ends.</summary>
     public int MinimumWaitDaysAfterPrevious { get; set; }
     /// <summary>Optional routing family used to match setup transitions; blank preserves legacy behavior.</summary>
@@ -780,6 +965,8 @@ public sealed class BillOfMaterialLine
     public Guid ComponentStockItemId { get; set; }
     public decimal Quantity { get; set; }
     public decimal ScrapPercent { get; set; }
+    /// <summary>Planned component unit cost in the tenant base currency.</summary>
+    public decimal StandardUnitCostBase { get; set; }
 }
 
 public sealed class ManufacturingOrder
@@ -836,6 +1023,10 @@ public sealed class ManufacturingOrderOperation
     public ICollection<ManufacturingOrderOperationWorkCenterOption> EligibleWorkCenters { get; set; } = new List<ManufacturingOrderOperationWorkCenterOption>();
     public decimal LaborCostPerHourBase { get; set; }
     public decimal OverheadCostPerHourBase { get; set; }
+    /// <summary>Order-time snapshot of the planned electricity use for this operation.</summary>
+    public decimal PlannedEnergyQuantityKwh { get; set; }
+    public decimal PlannedEnergyCostPerKwhBase { get; set; }
+    public decimal PlannedEnergyCostBase { get; set; }
     public decimal PlannedCostBase { get; set; }
     public ManufacturingOperationStatus Status { get; set; } = ManufacturingOperationStatus.Planned;
     public decimal? ActualSetupMinutes { get; set; }
@@ -882,6 +1073,10 @@ public sealed class ManufacturingOrderLine
     public string ComponentCodeSnapshot { get; set; } = "";
     public string ComponentNameSnapshot { get; set; } = "";
     public decimal RequiredQuantity { get; set; }
+    /// <summary>Immutable order-time copy of the BOM component standard cost.</summary>
+    public decimal StandardUnitCostBaseSnapshot { get; set; }
+    /// <summary>Planned component cost including the recipe scrap quantity.</summary>
+    public decimal PlannedCostBase { get; set; }
 }
 
 public sealed class StockItemUnitConversion

@@ -17,7 +17,8 @@ public sealed record LegacyTenantDataPurgeReport(int TenantCount, IReadOnlyList<
 /// </summary>
 public sealed class LegacyTenantDataPurger(string platformConnection, string? isolatedStudioVerificationConnection = null)
 {
-    private sealed record PurgeTopology(Guid[] TenantIds, IReadOnlyDictionary<Guid, string> TenantDatabases);
+    private sealed record PurgeTopology(Guid[] TenantIds, IReadOnlyDictionary<Guid, string> TenantDatabases,
+        IReadOnlyDictionary<Guid, string> StudioDatabases);
     private sealed record ComparableColumn(string Name, int SystemTypeId, short MaxLength, byte Precision, byte Scale, bool IsComputed, byte GeneratedAlwaysType);
 
     public async Task<LegacyTenantDataPurgeReport> PreviewAsync(CancellationToken cancellationToken = default)
@@ -108,9 +109,23 @@ public sealed class LegacyTenantDataPurger(string platformConnection, string? is
                 throw new InvalidOperationException("Purge requires every registered tenant database to be Ready under its canonical database name.");
         }
 
-        var studio = await platform.DatabaseSeparationComponentStates.AsNoTracking().SingleOrDefaultAsync(x => x.Component == "AIStudio", cancellationToken);
-        if (studio?.State != TenantDatabaseProvisioningState.Ready || studio.DatabaseName != "AIERPStudio")
-            throw new InvalidOperationException("Purge requires the canonical AIERPStudio database to be Ready.");
+        var studioCatalog = await platform.DatabaseSeparationComponentStates.AsNoTracking()
+            .Where(x => x.Component == "AIStudio" || x.Component.StartsWith("AIStudio:"))
+            .ToDictionaryAsync(x => x.Component, cancellationToken);
+        if (studioCatalog.ContainsKey("AIStudio"))
+            throw new InvalidOperationException("Purge refuses the legacy shared AIERPStudio catalog entry.");
+        var studioDatabases = new Dictionary<Guid, string>();
+        foreach (var tenantId in tenants)
+        {
+            var component = TenantDatabaseRouting.StudioComponentKey(tenantId);
+            var expectedName = TenantSqlCredentialPath.DatabaseName(tenantId, TenantSqlDatabaseComponent.AiStudio);
+            if (!studioCatalog.TryGetValue(component, out var entry) || entry.State != TenantDatabaseProvisioningState.Ready ||
+                entry.DatabaseName != expectedName)
+                throw new InvalidOperationException("Purge requires every tenant AI Studio database to be Ready under its canonical database name.");
+            studioDatabases.Add(tenantId, expectedName);
+        }
+        if (studioCatalog.Count != tenants.Length)
+            throw new InvalidOperationException("Purge refuses an AI Studio catalog with orphaned or unexpected tenant entries.");
 
         foreach (var tenantId in tenants)
         {
@@ -118,10 +133,7 @@ public sealed class LegacyTenantDataPurger(string platformConnection, string? is
             await TenantDatabaseSeparationVerifier.VerifyStudioTenantAsync(platformConnection, tenantId, cancellationToken,
                 isolatedStudioVerificationConnection);
         }
-        if (tenants.Length == 0)
-            await TenantDatabaseSeparationVerifier.VerifyDatabaseOnlyStudioAsync(platformConnection, cancellationToken,
-                isolatedStudioVerificationConnection);
-        return new PurgeTopology(tenants, catalog.ToDictionary(x => x.Key, x => x.Value.DatabaseName));
+        return new PurgeTopology(tenants, catalog.ToDictionary(x => x.Key, x => x.Value.DatabaseName), studioDatabases);
     }
 
     private async Task<(string Schema, string Table)[]> GetTenantScopedTablesAsync(CancellationToken cancellationToken)
@@ -176,13 +188,25 @@ public sealed class LegacyTenantDataPurger(string platformConnection, string? is
                 throw new InvalidOperationException("Tenant database readiness changed during purge preflight; retry the cutover.");
         }
 
-        await using var studio = connection.CreateCommand();
-        studio.Transaction = transaction;
-        studio.CommandText = "SELECT [DatabaseName],[State] FROM dbo.DatabaseSeparationComponentStates WITH (UPDLOCK,HOLDLOCK) WHERE [Component]=N'AIStudio'";
-        await using var studioReader = await studio.ExecuteReaderAsync(cancellationToken);
-        if (!await studioReader.ReadAsync(cancellationToken) || studioReader.GetString(0) != "AIERPStudio" ||
-            Convert.ToInt32(studioReader.GetValue(1), System.Globalization.CultureInfo.InvariantCulture) != (int)TenantDatabaseProvisioningState.Ready)
-            throw new InvalidOperationException("AIERPStudio readiness changed during purge preflight; retry the cutover.");
+        var currentStudioCatalog = new Dictionary<string, (string DatabaseName, int State)>(StringComparer.Ordinal);
+        await using (var studio = connection.CreateCommand())
+        {
+            studio.Transaction = transaction;
+            studio.CommandText = "SELECT [Component],[DatabaseName],[State] FROM dbo.DatabaseSeparationComponentStates WITH (UPDLOCK,HOLDLOCK) WHERE [Component]=N'AIStudio' OR [Component] LIKE N'AIStudio:%' ORDER BY [Component]";
+            await using var studioReader = await studio.ExecuteReaderAsync(cancellationToken);
+            while (await studioReader.ReadAsync(cancellationToken))
+                currentStudioCatalog.Add(studioReader.GetString(0), (studioReader.GetString(1),
+                    Convert.ToInt32(studioReader.GetValue(2), System.Globalization.CultureInfo.InvariantCulture)));
+        }
+        if (currentStudioCatalog.Count != topology.StudioDatabases.Count || currentStudioCatalog.ContainsKey("AIStudio"))
+            throw new InvalidOperationException("AI Studio catalog changed or contains a legacy shared database during purge preflight; retry the cutover.");
+        foreach (var (tenantId, databaseName) in topology.StudioDatabases)
+        {
+            var component = TenantDatabaseRouting.StudioComponentKey(tenantId);
+            if (!currentStudioCatalog.TryGetValue(component, out var entry) || entry.DatabaseName != databaseName ||
+                entry.State != (int)TenantDatabaseProvisioningState.Ready)
+                throw new InvalidOperationException("Tenant AI Studio database readiness changed during purge preflight; retry the cutover.");
+        }
     }
 
     private static async Task LockTablesAsync(SqlConnection connection, SqlTransaction transaction, string database,

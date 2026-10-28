@@ -1,0 +1,89 @@
+{
+  "catalogVersion": 1,
+  "jurisdiction": "TR",
+  "profile": "TR-4A-PRIVATE",
+  "effectiveFrom": "2026-01-01",
+  "effectiveTo": "2026-12-31",
+  "status": "official-reference-unapproved",
+  "currency": "TRY",
+  "approvalRequired": {
+    "ruleSet": "tenant-specific parameter/formula/mapping set must be second-user approved before a payroll preview can rely on it",
+    "declarationProfile": "employer/workplace-specific 1003A or 1003B selection and period rule must be separately approved",
+    "excludedScenarios": ["incentives", "special employer categories", "exceptions", "multiple employers without complete evidence", "benefit-specific tax/social-security treatment"]
+  },
+  "incomeTaxWageTariff": {
+    "unit": "TRY/year",
+    "brackets": [
+      { "upperBound": 190000, "baseTax": 0, "marginalRate": 0.15 },
+      { "upperBound": 400000, "baseTax": 28500, "marginalRate": 0.2 },
+      { "upperBound": 1500000, "baseTax": 70500, "marginalRate": 0.27 },
+      { "upperBound": 5300000, "baseTax": 367500, "marginalRate": 0.35 },
+      { "upperBound": null, "baseTax": 1697500, "marginalRate": 0.4 }
+    ],
+    "source": "https://gib.gov.tr/mevzuat/kanun/433/madde/6937",
+    "notes": [
+      "Wage-specific thresholds apply; do not substitute the non-wage tariff.",
+      "This tariff alone is not a payroll withholding formula. Monthly cumulative wage base, exclusions, minimum-wage exemption, prior-employer data and rounding rules must be explicitly modeled and approved."
+    ]
+  },
+  "minimumWage": {
+    "monthlyGross": 33030,
+    "monthlyNetPublished": 28075.5,
+    "employeeSocialSecurityRate": 0.14,
+    "employeeUnemploymentRate": 0.01,
+    "incomeTaxWithholdingAtMinimumWage": 0,
+    "stampTaxWithholdingAtMinimumWage": 0,
+    "effectiveFrom": "2026-01-01",
+    "grossAndNetSource": "https://csgb.gov.tr/poco-pages/asgari-ucret/",
+    "taxExemptionSource": "https://cdn.gib.gov.tr/api/gibportal-file/file/getFileResources?objectKey=arsiv%2Fyardim-kaynaklar%2Fyararli-bilgiler%2FAsgariUcrettenYapilanKesintiler.pdf"
+  },
+  "socialSecurity": {
+    "employeeRates": {
+      "oldAgeSurvivorsDisability": 0.09,
+      "generalHealth": 0.05,
+      "unemployment": 0.01,
+      "standardTotal": 0.15
+    },
+    "employerRates": {
+      "oldAgeSurvivorsDisability": 0.12,
+      "generalHealth": 0.075,
+      "shortTermRisk": 0.0225,
+      "unemployment": 0.02,
+      "standardTotalBeforeIncentives": 0.2375
+    },
+    "primeEarningsLimits": {
+      "dailyMinimum": 1101,
+      "dailyMaximum": 9909,
+      "monthlyMinimum": 33030,
+      "monthlyMaximum": 297270,
+      "unit": "TRY"
+    },
+    "sources": [
+      "https://www.sgk.gov.tr/Content/Post/c7812ea8-5087-413f-aeb5-d3c1d153e11a/Isveren-Prim-Oranlari-2026-01-13-04-52-38",
+      "https://sgd.sgk.gov.tr/Content/Post/2e0c9e1a-2cfe-4456-af10-49d3de0c58ba/Prime-Esas-Kazanc-Miktarlari-2026-01-14-10-35-39"
+    ],
+    "notes": [
+      "Employer total is the standard rate before conditional incentives or exceptions.",
+      "Monthly floor/ceiling are shown for the standard full-month case; partial periods and special cases need approved rules.",
+      "The prime-earnings inclusion/exclusion mapping is not determined by these rates and must be configured per payroll item."
+    ]
+  },
+  "stampTax": {
+    "wageReceiptRate": 0.00759,
+    "minimumWageGrossExemption": true,
+    "sources": [
+      "https://cdn.gib.gov.tr/api/gibportal-file/file/getFileResources?objectKey=arsiv/fileadmin/user_upload/Tebligler/Damga_Vergisi/56_serno_damga_ver_genteb_ek.htm",
+      "https://gib.gov.tr/mevzuat/kanun/433/ozelge/23157"
+    ],
+    "notes": ["The taxable wage-item base and exemption computation must be explicitly mapped and approved; do not apply the rate to all earnings by assumption."]
+  },
+  "declarationForms": {
+    "candidates": [
+      { "form": "1003A", "xsd": "MUHSGK_21.xsd", "codeList": "MUHSGK_21_Kodlar.xml" },
+      { "form": "1003B", "xsd": "MUHSGK2_12.xsd", "codeList": "MUHSGK2_12_Kodlar.xml" }
+    ],
+    "schemaCatalog": "schemas/gib/ebeyanname-v133-2026-10-02/README.md",
+    "selection": "unresolved-per-employer-and-workplace",
+    "source": "https://ebeyanname.gib.gov.tr/mphb.html"
+  }
+}

@@ -17,6 +17,17 @@ public sealed class ERPAssistantSalesDeliveryToolsTests
         Assert.Equal(input?.Trim() ?? string.Empty, term);
     }
 
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(" x ", false)]
+    [InlineData(" DN-2026-001 ", true)]
+    [InlineData("DN-\n001", false)]
+    public void Detail_code_is_trimmed_bounded_and_control_free(string? input, bool expected)
+    {
+        Assert.Equal(expected, ERPAssistantSalesDeliveryTools.TryValidateDeliveryCode(input, out var code));
+        Assert.Equal(input?.Trim() ?? string.Empty, code);
+    }
+
     [Fact]
     public async Task Delivery_read_requires_the_specific_sales_delivery_permission()
     {
@@ -62,6 +73,40 @@ public sealed class ERPAssistantSalesDeliveryToolsTests
             """);
 
         Assert.Throws<JsonException>(() => ERPAssistantSalesDeliveryTools.SummarizeDeliveries(response.RootElement));
+    }
+
+    [Fact]
+    public void Detail_summary_projects_only_bounded_delivery_line_facts()
+    {
+        using var response = JsonDocument.Parse("""
+            {"id":"private-id","code":"DN-2026-001","orderCode":"SO-2026-001","customerName":"Private customer","warehouseName":"Private warehouse","deliveryDate":"2026-10-25","status":"Posted","lineCount":51,"returnedLines":1,"hasMoreLines":true,
+             "lines":[{"lineNumber":1,"stockCode":"STK-001","unitCode":"EA","quantity":5,"storageLocationId":"private-location","unitCost":100,"note":"private"}]}
+            """);
+
+        using var result = JsonDocument.Parse(ERPAssistantSalesDeliveryTools.SummarizeDeliveryDetails(response.RootElement));
+        var root = result.RootElement;
+        Assert.Equal("DN-2026-001", root.GetProperty("code").GetString());
+        Assert.Equal("SO-2026-001", root.GetProperty("orderCode").GetString());
+        Assert.Equal(51, root.GetProperty("lineCount").GetInt32());
+        Assert.True(root.GetProperty("hasMoreLines").GetBoolean());
+        var line = Assert.Single(root.GetProperty("lines").EnumerateArray());
+        Assert.Equal("STK-001", line.GetProperty("stockCode").GetString());
+        Assert.Equal(5m, line.GetProperty("quantity").GetDecimal());
+        Assert.False(root.TryGetProperty("id", out _));
+        Assert.False(root.TryGetProperty("customerName", out _));
+        Assert.False(root.TryGetProperty("warehouseName", out _));
+        Assert.False(line.TryGetProperty("storageLocationId", out _));
+        Assert.False(line.TryGetProperty("unitCost", out _));
+        Assert.False(line.TryGetProperty("note", out _));
+    }
+
+    [Theory]
+    [InlineData("""{"code":"DN-1","orderCode":"SO-1","deliveryDate":"2026-10-25","status":"Posted","lineCount":51,"returnedLines":51,"hasMoreLines":false,"lines":[]}""")]
+    [InlineData("""{"code":"DN-1","orderCode":"SO-1","deliveryDate":"2026-10-25","status":"Posted","lineCount":1,"returnedLines":1,"hasMoreLines":false,"lines":[{}]}""")]
+    public void Detail_summary_rejects_unbounded_or_malformed_shapes(string json)
+    {
+        using var response = JsonDocument.Parse(json);
+        Assert.Throws<JsonException>(() => ERPAssistantSalesDeliveryTools.SummarizeDeliveryDetails(response.RootElement));
     }
 
     private sealed class RecordingPermissionAuthorizer : IPlatformPermissionAuthorizer

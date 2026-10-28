@@ -146,6 +146,21 @@ public sealed class CreditFacilityFiscalCloseRouteSqlAcceptanceTests
             Assert.Equal(postedTransactionCount, await verifyDb.FinancialAccountTransactions.CountAsync(x => x.TenantId == tenantId));
             Assert.Equal(postedJournalCount, await verifyDb.JournalEntries.CountAsync(x => x.TenantId == tenantId && x.SourceType == "CreditFacilityMovement"));
             Assert.Equal(postedAuditCount, await verifyDb.AuditEvents.CountAsync(x => x.TenantId == tenantId && x.Action == "finance.credit-facility.drawdown-posted"));
+
+            var closedRepaymentRequestId = Guid.NewGuid();
+            using var closedPeriodRepayment = await client.PostAsJsonAsync($"/api/finance/credit-facilities/{facility.Id}/repayments", new
+            {
+                requestId = closedRepaymentRequestId, financialAccountId = bank.Id, transactionDate = "2026-07-10",
+                principalAmount = 25m, interestAmount = 0m, feeAmount = 0m, notes = "Synthetic closed-period repayment"
+            });
+            Assert.Equal(HttpStatusCode.Conflict, closedPeriodRepayment.StatusCode);
+            Assert.Contains("dönemi kapalı", await closedPeriodRepayment.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(postedMovementCount, await verifyDb.CreditFacilityMovements.CountAsync(x => x.TenantId == tenantId));
+            Assert.Equal(postedTransactionCount, await verifyDb.FinancialAccountTransactions.CountAsync(x => x.TenantId == tenantId));
+            Assert.Equal(postedJournalCount, await verifyDb.JournalEntries.CountAsync(x => x.TenantId == tenantId && x.SourceType == "CreditFacilityMovement"));
+            Assert.Equal(postedAuditCount, await verifyDb.AuditEvents.CountAsync(x => x.TenantId == tenantId && x.Action == "finance.credit-facility.drawdown-posted"));
+            Assert.False(await verifyDb.CreditFacilityMovements.AnyAsync(x => x.TenantId == tenantId && x.RequestId == closedRepaymentRequestId));
+            Assert.False(await verifyDb.AuditEvents.AnyAsync(x => x.TenantId == tenantId && x.Action == "finance.credit-facility.repayment-posted"));
         }
         finally
         {

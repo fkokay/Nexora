@@ -30,6 +30,36 @@ internal static class AccessControlEndpoints
                 .ToListAsync();
             return Results.Ok(members);
         });
+        access.MapPost("/members/create-account", async (CreateTenantAccountRequest request, ClaimsPrincipal user,
+            PlatformDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetTenantAdmin(user, out var tenantId) || !TryGetUserId(user, out var actorId)
+                || !await IsCurrentTenantAdminAsync(db, tenantId, actorId, ct)) return Results.Forbid();
+            var email = request.Email?.Trim().ToLowerInvariant();
+            var displayName = request.DisplayName?.Trim();
+            if (!IsExactEmail(email) || string.IsNullOrWhiteSpace(displayName) || displayName.Length > 160
+                || string.IsNullOrWhiteSpace(request.TemporaryPassword) || request.TemporaryPassword.Length < 12
+                || request.TemporaryPassword.Length > 256 || !IsTenantRole(request.Role))
+                return Validation("account", "Geçerli e-posta, ad, en az 12 karakterli geçici parola ve firma rolü gerekli.");
+            await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+            var licenseError = await CheckWritableLicenseAsync(db, tenantId, ct);
+            if (licenseError is not null) return licenseError;
+            if (await db.Users.AnyAsync(x => x.Email == email, ct))
+                return Results.Conflict(new { error = "Bu e-posta ile bir platform hesabı zaten var; mevcut kullanıcıyı firmaya ekleyin." });
+            var count = await db.TenantMemberships.CountAsync(x => x.TenantId == tenantId, ct);
+            var license = await db.TenantLicenses.AsNoTracking().SingleAsync(x => x.TenantId == tenantId, ct);
+            var policy = LicenseTierCatalog.All[license.Tier];
+            if (count >= policy.MaxUsers)
+                return Results.Conflict(new { error = $"{policy.Code} lisansı en fazla {policy.MaxUsers} kullanıcı destekliyor.", code = "license.user_limit" });
+            var account = new AppUser { Email = email!, DisplayName = displayName!, PasswordHash = PasswordHashing.Hash(request.TemporaryPassword) };
+            db.Users.Add(account);
+            db.TenantMemberships.Add(new TenantMembership { TenantId = tenantId, User = account, Role = request.Role.Trim() });
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = actorId, Action = "access-control.member.account-created", Resource = $"{account.Id:D}:{request.Role.Trim()}" });
+            try { await db.SaveChangesAsync(ct); }
+            catch (DbUpdateException) { return Results.Conflict(new { error = "Bu e-posta ile hesap eşzamanlı olarak oluşturuldu." }); }
+            await transaction.CommitAsync(ct);
+            return Results.Created($"/api/access-control/members/{account.Id:D}", new TenantPermissionMemberView(account.Id, account.Email, account.DisplayName, request.Role.Trim()));
+        });
         access.MapGet("/members/candidate", async (string? email, ClaimsPrincipal user,
             PlatformDbContext db, CancellationToken ct) =>
         {
@@ -158,10 +188,9 @@ internal static class AccessControlEndpoints
             if (request.SubjectType == TenantPermissionSubjectType.Role)
             {
                 role = request.SubjectRole?.Trim();
-                if (string.IsNullOrWhiteSpace(role) || role.Length > 64 || role == "TenantAdmin" || request.SubjectUserId is not null)
-                    return Validation("subjectRole", "Choose a tenant role other than the protected TenantAdmin role.");
-                if (!await db.TenantMemberships.AnyAsync(x => x.TenantId == tenantId && x.Role == role))
-                    return Validation("subjectRole", "The role is not assigned to a member of this tenant.");
+                var compensationPermission = permission.ResourceType == "erp.payroll-compensation";
+                if (string.IsNullOrWhiteSpace(role) || !IsTenantRole(role) || role == "TenantAdmin" && !compensationPermission || request.SubjectUserId is not null)
+                    return Validation("subjectRole", "TenantAdmin can only receive explicit payroll-compensation permissions; other protected-role grants are not allowed.");
             }
             else if (request.SubjectType == TenantPermissionSubjectType.User)
             {
@@ -170,8 +199,8 @@ internal static class AccessControlEndpoints
                     return Validation("subjectUserId", "Choose an active member of this tenant.");
                 var memberRole = await db.TenantMemberships.Where(x => x.TenantId == tenantId && x.UserId == userId)
                     .Select(x => x.Role).SingleOrDefaultAsync();
-                if (memberRole is null || memberRole == "TenantAdmin")
-                    return Validation("subjectUserId", "Choose a non-administrator member of this tenant.");
+                if (memberRole is null || memberRole == "TenantAdmin" && permission.ResourceType != "erp.payroll-compensation")
+                    return Validation("subjectUserId", "TenantAdmin users can only receive explicit payroll-compensation permissions.");
             }
             else return Validation("subjectType", "Choose Role or User.");
 
@@ -186,8 +215,8 @@ internal static class AccessControlEndpoints
                 || request.AttributeOperator is not (TenantPermissionConditionOperator.Equals or TenantPermissionConditionOperator.NotEquals or TenantPermissionConditionOperator.In)
                 || string.IsNullOrWhiteSpace(attributeValue) || attributeValue.Length > 500)
                 return Validation("attributeName", "Use a supported attribute with Equals, NotEquals, or In and a value of at most 500 characters.");
-            if (request.Effect == TenantPermissionEffect.Deny && role == "TenantAdmin")
-                return Validation("effect", "TenantAdmin access cannot be denied by a tenant policy.");
+            if (request.Effect == TenantPermissionEffect.Deny && role == "TenantAdmin" && permission.ResourceType != "erp.payroll-compensation")
+                return Validation("effect", "TenantAdmin access cannot be denied by a tenant policy except for payroll-compensation permissions.");
 
             var permissionEntity = await db.PermissionDefinitions.SingleOrDefaultAsync(x => x.Code == permission.Code, ct);
             if (permissionEntity is null)
@@ -282,4 +311,5 @@ internal static class AccessControlEndpoints
 }
 
 public sealed record TenantMembershipCreateRequest(Guid UserId, string Role);
+public sealed record CreateTenantAccountRequest(string Email, string DisplayName, string TemporaryPassword, string Role);
 public sealed record TenantMembershipUpdateRequest(string Role);

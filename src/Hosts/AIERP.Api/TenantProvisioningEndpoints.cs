@@ -23,10 +23,49 @@ public static class TenantProvisioningEndpoints
             .WithTags("Platform Tenant Provisioning")
             .RequireAuthorization("PlatformSuperAdmin");
 
+        tenants.MapGet("/", ListAsync);
         tenants.MapPost("/", CreateAsync);
         tenants.MapGet("/{tenantId:guid}/provisioning", GetStatusAsync);
         tenants.MapPost("/{tenantId:guid}/provisioning/retry", RetryAsync);
         return app;
+    }
+
+    private static async Task<IResult> ListAsync(PlatformDbContext db, CancellationToken cancellationToken)
+    {
+        var tenants = await (from tenant in db.Tenants.AsNoTracking()
+            join storedLicense in db.TenantLicenses.AsNoTracking()
+                on tenant.Id equals storedLicense.TenantId into tenantLicenses
+            from license in tenantLicenses.DefaultIfEmpty()
+            orderby tenant.Name
+            select new
+            {
+                Tenant = tenant,
+                License = license,
+                ProvisioningState = db.TenantDatabaseCatalog.AsNoTracking()
+                    .Where(catalog => catalog.TenantId == tenant.Id)
+                    .Select(catalog => (TenantDatabaseProvisioningState?)catalog.State)
+                    .FirstOrDefault()
+            })
+            .ToListAsync(cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        return Results.Ok(tenants.Select(row => new PlatformTenantSummary(
+            row.Tenant.Id,
+            row.Tenant.Name,
+            row.Tenant.Slug,
+            row.Tenant.IsActive,
+            row.Tenant.BaseCurrencyCode,
+            row.ProvisioningState,
+            GetLicenseStatus(row.License, now),
+            row.License?.Tier,
+            row.License?.ExpiresAt)));
+    }
+
+    private static string GetLicenseStatus(TenantLicense? license, DateTimeOffset now)
+    {
+        if (license is null) return "Unlicensed";
+        if (!LicenseTierCatalog.IsValidStoredLicense(license)) return "Invalid";
+        return license.ExpiresAt <= now ? "Expired" : "Active";
     }
 
     private static async Task<IResult> CreateAsync(
@@ -279,4 +318,15 @@ public static class TenantProvisioningEndpoints
         DateTimeOffset UpdatedAt,
         DateTimeOffset? CompletedAt,
         string StatusUrl);
+
+    private sealed record PlatformTenantSummary(
+        Guid Id,
+        string Name,
+        string Slug,
+        bool IsActive,
+        string BaseCurrencyCode,
+        TenantDatabaseProvisioningState? ProvisioningState,
+        string LicenseStatus,
+        string? LicenseTier,
+        DateTimeOffset? LicenseExpiresAt);
 }

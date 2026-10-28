@@ -21,6 +21,24 @@ dotnet --list-runtimes | grep -Eq '^Microsoft\.AspNetCore\.App 10\.' || {
 [[ -d /etc/nginx/sites-available && -d /etc/nginx/sites-enabled ]] || {
   echo "This installer expects nginx sites-available and sites-enabled directories." >&2; exit 1;
 }
+if [[ -L "$CONFIG" ]]; then
+  echo "Refusing to use a symbolic link for $CONFIG." >&2
+  exit 1
+fi
+if [[ -e "$CONFIG" && ! -d "$CONFIG" ]]; then
+  echo "Refusing to use a non-directory config path: $CONFIG." >&2
+  exit 1
+fi
+for config_file in "$CONFIG/platform-api.env" "$CONFIG/ai-service.env"; do
+  if [[ -L "$config_file" ]]; then
+    echo "Refusing to change permissions on a symbolic-link config file: ${config_file##*/}." >&2
+    exit 1
+  fi
+  if [[ -e "$config_file" && ! -f "$config_file" ]]; then
+    echo "Refusing to use a non-regular config file: ${config_file##*/}." >&2
+    exit 1
+  fi
+done
 install -d -m 0750 "$CONFIG"
 getent group nexora >/dev/null || groupadd --system nexora
 id nexora >/dev/null 2>&1 || useradd --system --gid nexora --home-dir /var/lib/nexora --shell /usr/sbin/nologin nexora

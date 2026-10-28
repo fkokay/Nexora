@@ -88,8 +88,10 @@ public sealed class StripePaymentIntentAdapter : IERPIntegrationAdapter<JsonElem
     {
         form = [];
         if (request.ValueKind != JsonValueKind.Object) return false;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var property in request.EnumerateObject())
-            if (property.Name is not ("amount" or "currency" or "customer" or "description" or "metadata")) return false;
+            if (property.Name is not ("amount" or "currency" or "customer" or "description" or "metadata") ||
+                !seen.Add(property.Name)) return false;
 
         if (!request.TryGetProperty("amount", out var amount) || amount.ValueKind != JsonValueKind.Number ||
             !amount.TryGetInt64(out var amountValue) || amountValue is < 1 or > MaximumAmountMinorUnits ||
@@ -113,9 +115,10 @@ public sealed class StripePaymentIntentAdapter : IERPIntegrationAdapter<JsonElem
         if (request.TryGetProperty("metadata", out var metadata))
         {
             if (metadata.ValueKind != JsonValueKind.Object || metadata.EnumerateObject().Count() > 50) return false;
+            var seenMetadataKeys = new HashSet<string>(StringComparer.Ordinal);
             foreach (var property in metadata.EnumerateObject())
             {
-                if (property.Name.Length is < 1 or > 40 || property.Name.Any(char.IsControl) ||
+                if (property.Name.Length is < 1 or > 40 || property.Name.Any(char.IsControl) || !seenMetadataKeys.Add(property.Name) ||
                     property.Value.ValueKind != JsonValueKind.String || property.Value.GetString()!.Length > 500)
                     return false;
                 form.Add(new($"metadata[{property.Name}]", property.Value.GetString()!));

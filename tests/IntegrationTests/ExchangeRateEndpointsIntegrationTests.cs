@@ -70,6 +70,21 @@ public sealed class ExchangeRateEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Malformed_Tcmb_feed_returns_bad_gateway_without_writing_rates()
+    {
+        await using var app = await StartAsync("<Tarih_Date Tarih=\"22.10.2026\"><Currency>");
+        await SeedMembershipAsync(app, "active");
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantId.ToString("D"));
+
+        using var response = await client.PostAsync("/api/finance/exchange-rates/import-tcmb", content: null);
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        await using var scope = app.Services.CreateAsyncScope();
+        Assert.Empty(await scope.ServiceProvider.GetRequiredService<TenantDbContext>().TenantExchangeRates.ToListAsync());
+    }
+
+    [Fact]
     public async Task Rate_list_is_tenant_scoped_and_a_date_filter_returns_only_latest_revision()
     {
         await using var app = await StartAsync();

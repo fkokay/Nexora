@@ -104,6 +104,7 @@ internal sealed class TcmbExchangeRateWorker(
         var platformDb = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
         var configuredConnection = configuration.GetConnectionString("Tenant")
             ?? throw new InvalidOperationException("Tenant database connection string is missing for TCMB import.");
+        var credentialReader = scope.ServiceProvider.GetRequiredService<ITenantSqlCredentialReader>();
         var platformConnection = configuration.GetConnectionString("Platform")
             ?? throw new InvalidOperationException("Platform database connection string is missing for TCMB import coordination.");
         return await RunWithLeaseAsync(
@@ -128,7 +129,9 @@ internal sealed class TcmbExchangeRateWorker(
                     {
                         if (entry.DatabaseName != $"AIERPTenant_{entry.TenantId:N}")
                             throw new InvalidOperationException("Tenant database catalog entry does not match its tenant identity.");
-                        var connection = new SqlConnectionStringBuilder(configuredConnection) { InitialCatalog = entry.DatabaseName }.ConnectionString;
+                        var secretReference = TenantSqlCredentialPath.ForTenant(entry.TenantId, TenantSqlDatabaseComponent.Erp);
+                        var credential = await credentialReader.ReadAsync(entry.TenantId, TenantSqlDatabaseComponent.Erp, secretReference, tenantToken);
+                        var connection = TenantDatabaseRouting.BuildTenantConnectionString(configuredConnection, entry.TenantId, credential);
                         await using var tenantScope = scope.ServiceProvider.CreateAsyncScope();
                         var storageQuota = tenantScope.ServiceProvider.GetRequiredService<TenantStorageQuotaInterceptor>();
                         await using var tenantDb = CreateTenantDb(connection, storageQuota, entry.TenantId);

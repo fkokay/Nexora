@@ -30,10 +30,11 @@ public static class PlatformPermissionCatalog
         new("erp.ai-settings", "/api/ai-settings", "Tenant AI provider settings and API credentials"),
         new("erp.customer-groups", "/api/customer-groups", "Customer groups"),
         new("erp.customers", "/api/customers", "Customer and supplier accounts"),
-        new("erp.stock-items", "/api/stock/items", "Stock cards and units"),
+        new("erp.stock-items", "/api/stock", "Stock cards, units and categories"),
         new("erp.warehouses", "/api/warehouses", "Warehouses and stock balances"),
         new("erp.manufacturing", "/api/manufacturing", "Manufacturing recipes, work centers, orders and material planning"),
         new("erp.human-resources", "/api/hr", "Tenant-scoped personnel, leave, attendance, and payroll rule administration"),
+        new("erp.payroll-compensation", "/api/hr/payroll/compensation", "Confidential effective-dated employee gross/net compensation targets"),
         new("erp.fixed-assets", "/api/fixed-assets", "Tenant fixed-asset register, depreciation, and custody"),
         new("erp.tenant-settings", "/api/tenant-settings", "Company-specific operational policies and behavior"),
         new("erp.tenant-company-profile", "/api/tenant-company-profile", "Tenant legal company profile"),
@@ -67,6 +68,7 @@ public static class PlatformPermissionCatalog
         new("erp.finance-accounts", "/api/finance/accounts", "Cash and bank accounts"),
         new("erp.finance.credit-facilities", "/api/finance/credit-facilities", "Credit facilities and repayment schedules"),
         new("erp.finance-budgets", "/api/finance/budgets", "Tenant financial budgets and actuals"),
+        new("erp.finance-cash-budgets", "/api/finance/cash-budgets", "Tenant direct cash budgets"),
         new("erp.finance-cash-flow", "/api/finance/cash-flow", "Cash-flow forecast aggregated from tenant financial activity"),
         new("erp.finance-payment-instruments", "/api/finance/payment-instruments", "Tenant checks and promissory notes"),
         new("erp.financial-transfers", "/api/finance/transfers", "Financial account transfers"),
@@ -93,14 +95,16 @@ public static class PlatformPermissionCatalog
     ];
 
     public static IReadOnlyList<PlatformPermissionDefinition> Definitions { get; } =
-        Resources.SelectMany(resource => Actions.Select(action => new PlatformPermissionDefinition(
+        Resources.SelectMany(resource => ActionsFor(resource.ResourceType).Select(action => new PlatformPermissionDefinition(
                 $"{resource.ResourceType}.{action}", resource.ResourceType, action,
                 $"{action} · {resource.Description}")))
             .Append(new PlatformPermissionDefinition("erp.operational-projects.time-entries.create", "erp.operational-projects", "create",
                 "Create own operational project time entries"))
             .ToArray();
 
-    public static IReadOnlyList<string> ActionsFor(string resourceType) => Actions;
+    public static IReadOnlyList<string> ActionsFor(string resourceType) => resourceType == "erp.payroll-compensation"
+        ? ["view", "change", "approve"]
+        : Actions;
 
     public static bool TryResolve(string path, string method, string routePattern,
         IReadOnlyDictionary<string, string?> routeValues, Guid tenantId, Guid userId, string role,
@@ -211,10 +215,18 @@ public static class PlatformPermissionCatalog
         resource ??= Resources.Where(x => path.Equals(x.RoutePrefix, StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith(x.RoutePrefix.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(x => x.RoutePrefix.Length).FirstOrDefault();
+        if (path.EndsWith("/api/hr/payroll/compensation/capabilities", StringComparison.OrdinalIgnoreCase))
+            resource = Resources.First(x => x.ResourceType == "erp.human-resources");
         if (path.StartsWith("/studio/projects", StringComparison.OrdinalIgnoreCase))
             resource = ResolveStudioProjectResource(routePattern);
         if (resource is null) return false;
-        var action = stateTransitionAction || explicitExecuteAction ? "execute"
+        var action = resource.ResourceType == "erp.payroll-compensation"
+            ? routePattern.TrimEnd('/').EndsWith("/approve", StringComparison.OrdinalIgnoreCase)
+                || routePattern.TrimEnd('/').EndsWith("/reject", StringComparison.OrdinalIgnoreCase) ? "approve"
+                : routePattern.TrimEnd('/').EndsWith("/employees", StringComparison.OrdinalIgnoreCase) ? "change"
+                : method.Equals("GET", StringComparison.OrdinalIgnoreCase) || method.Equals("HEAD", StringComparison.OrdinalIgnoreCase) ? "view"
+                : method.Equals("POST", StringComparison.OrdinalIgnoreCase) ? "change" : null
+            : stateTransitionAction || explicitExecuteAction ? "execute"
             : nestedWriteAction ? "create"
             : explicitUpdateAction ? "update"
             : explicitCreateAction ? "create"

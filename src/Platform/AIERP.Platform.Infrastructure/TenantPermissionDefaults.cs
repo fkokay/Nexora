@@ -15,7 +15,7 @@ public static class TenantPermissionDefaults
         var definitions = await db.PermissionDefinitions.AsNoTracking().ToListAsync(cancellationToken);
         var excluded = new HashSet<string>(StringComparer.Ordinal)
         {
-            "erp.access-control", "erp.audit-events", "erp.audit-retention"
+            "erp.access-control", "erp.audit-events", "erp.audit-retention", "erp.payroll-compensation"
         };
         var configuredCodes = await db.TenantPermissionRules.AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.SubjectType == TenantPermissionSubjectType.Role
@@ -25,6 +25,7 @@ public static class TenantPermissionDefaults
         var createdAt = DateTimeOffset.UtcNow;
         var missing = definitions.Where(x => !excluded.Contains(x.ResourceType)
             && (x.ResourceType != "erp.finance.credit-facilities" || x.Action == "read")
+            && (x.ResourceType != "erp.finance-cash-budgets" || x.Action == "read")
             && !configuredCodes.Contains(x.Code)).Select(x => new TenantPermissionRule
         {
             TenantId = tenantId,
@@ -44,11 +45,12 @@ public static class TenantPermissionDefaults
         var definitions = await db.PermissionDefinitions.AsNoTracking().ToListAsync(cancellationToken);
         var excluded = new HashSet<string>(StringComparer.Ordinal)
         {
-            "erp.access-control", "erp.audit-events", "erp.audit-retention"
+            "erp.access-control", "erp.audit-events", "erp.audit-retention", "erp.payroll-compensation"
         };
         var createdAt = DateTimeOffset.UtcNow;
         db.TenantPermissionRules.AddRange(definitions.Where(x => !excluded.Contains(x.ResourceType)
-            && (x.ResourceType != "erp.finance.credit-facilities" || x.Action == "read")).Select(x => new TenantPermissionRule
+            && (x.ResourceType != "erp.finance.credit-facilities" || x.Action == "read")
+            && (x.ResourceType != "erp.finance-cash-budgets" || x.Action == "read")).Select(x => new TenantPermissionRule
         {
             TenantId = tenantId,
             SubjectType = TenantPermissionSubjectType.Role,

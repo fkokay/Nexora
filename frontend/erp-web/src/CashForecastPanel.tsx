@@ -1,4 +1,5 @@
 import AdvancedDataGrid from './AdvancedDataGrid'
+import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import { useEffect, useState } from 'react'
 import { authenticatedFetch } from './authApi';
 import './CashForecastPanel.css'
@@ -36,6 +37,23 @@ type Forecast = {
   assumptions: string
   currencies: CurrencyForecast[]
 }
+type ForecastScreenField = { key: keyof Month | 'overdueTotal'; label: string; visible: boolean; position: number; section?: string | null }
+const defaultForecastScreenFields: ForecastScreenField[] = [
+  { key: 'periodStart', label: 'Dönem', visible: true, position: 0 },
+  { key: 'openingBalance', label: 'Açılış', visible: true, position: 1 },
+  { key: 'receivables', label: 'Alacak faturaları', visible: true, position: 2 },
+  { key: 'payables', label: 'Borç faturaları', visible: true, position: 3 },
+  { key: 'instrumentReceivables', label: 'Çek/senet tahsilat', visible: true, position: 4 },
+  { key: 'instrumentPayables', label: 'Çek/senet ödeme', visible: true, position: 5 },
+  { key: 'creditFacilityPayments', label: 'Kredi taksidi', visible: true, position: 6 },
+  { key: 'directCashBudgetInflows', label: 'Planlı tahsilat', visible: true, position: 7 },
+  { key: 'directCashBudgetOutflows', label: 'Planlı ödeme', visible: true, position: 8 },
+  { key: 'postedMovements', label: 'İleri tarihli kayıt', visible: true, position: 9 },
+  { key: 'netChange', label: 'Net değişim', visible: true, position: 10 },
+  { key: 'closingBalance', label: 'Kapanış tahmini', visible: true, position: 11 },
+  { key: 'overdueTotal', label: 'Vadesi geçmiş toplam', visible: true, position: 12 },
+]
+const allowedForecastFieldKeys = new Set<ForecastScreenField['key']>(defaultForecastScreenFields.map(field => field.key))
 
 const today = () => {
   const date = new Date()
@@ -72,6 +90,25 @@ export default function CashForecastPanel({ token }: { token: string }) {
   const [forecast, setForecast] = useState<Forecast | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [screenFields, setScreenFields] = useState<ForecastScreenField[]>(defaultForecastScreenFields)
+  const visibleFields = screenFields.filter(field => field.visible && allowedForecastFieldKeys.has(field.key)).sort((a, b) => a.position - b.position)
+
+  useEffect(() => {
+    let cancelled = false
+    authenticatedFetch('/api/screen-views/finance-cash-flow-forecast/active', token, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(async response => {
+      if (!response.ok) return null
+      return response.json() as Promise<{ fields?: Array<{ key: string; label: string; visible: boolean; position: number; section?: string | null }> }>
+    }).then(view => {
+      if (cancelled || !view?.fields?.length) return
+      const fields = view.fields.filter(field => allowedForecastFieldKeys.has(field.key as ForecastScreenField['key']))
+        .map(field => ({ ...field, key: field.key as ForecastScreenField['key'] }))
+        .sort((a, b) => a.position - b.position)
+      if (fields.length) setScreenFields(fields)
+    }).catch(() => { /* The default column layout remains usable when no published view exists. */ })
+    return () => { cancelled = true }
+  }, [token])
 
   async function load() {
     setLoading(true)
@@ -179,33 +216,33 @@ export default function CashForecastPanel({ token }: { token: string }) {
             <p className="cash-forecast-scroll-hint">Geniş tabloda diğer sütunları görmek için yatay kaydırın.</p>
             <AdvancedDataGrid  className="customer-table cash-forecast-table">
               <caption className="cash-forecast-sr-only">{currency.currencyCode} bazında aylık nakit tahmini</caption>
-              <thead><tr>
-                <th scope="col">Dönem</th><th scope="col">Açılış</th><th scope="col">Alacak faturaları</th><th scope="col">Borç faturaları</th>
-                <th scope="col">Çek/senet tahsilat</th><th scope="col">Çek/senet ödeme</th><th scope="col">Kredi taksidi</th>
-                <th scope="col">Planlı tahsilat</th><th scope="col">Planlı ödeme</th><th scope="col">İleri tarihli kayıt</th><th scope="col">Net değişim</th><th scope="col">Kapanış tahmini</th><th scope="col">Vadesi geçmiş toplam</th>
-              </tr></thead>
+              <thead><ScreenViewGroupHeader fields={visibleFields}/><tr>{visibleFields.map(field => <th key={field.key} scope="col">{field.label}</th>)}</tr></thead>
               <tbody>{currency.months.map(row => {
                 const overdueTotal = row.overdueReceivables + row.overduePayables + row.overdueInstrumentReceivables + row.overdueInstrumentPayables + row.overdueCreditFacilityPayments
-                return <tr key={row.periodStart}>
-                  <th scope="row" data-label="Dönem">{monthName(row.periodStart)}</th>
-                  <AmountCell label="Açılış" amount={row.openingBalance} currency={currency.currencyCode} />
-                  <AmountCell label="Alacak faturaları" amount={row.receivables} currency={currency.currencyCode} overdue={row.overdueReceivables} />
-                  <AmountCell label="Borç faturaları" amount={row.payables} currency={currency.currencyCode} overdue={row.overduePayables} />
-                  <AmountCell label="Çek/senet tahsilat" amount={row.instrumentReceivables} currency={currency.currencyCode} overdue={row.overdueInstrumentReceivables} />
-                  <AmountCell label="Çek/senet ödeme" amount={row.instrumentPayables} currency={currency.currencyCode} overdue={row.overdueInstrumentPayables} />
-                  <AmountCell label="Kredi taksidi" amount={row.creditFacilityPayments} currency={currency.currencyCode} overdue={row.overdueCreditFacilityPayments} />
-                  <AmountCell label="Planlı tahsilat" amount={row.directCashBudgetInflows} currency={currency.currencyCode} />
-                  <AmountCell label="Planlı ödeme" amount={row.directCashBudgetOutflows} currency={currency.currencyCode} />
-                  <td data-label="İleri tarihli kayıt">{money(row.postedMovements, currency.currencyCode)}<small className="cash-forecast-detail">{row.postedMovementCount} kayıt</small></td>
-                  <td data-label="Net değişim" className={row.netChange < 0 ? 'cash-forecast-negative' : 'cash-forecast-positive'}>{money(row.netChange, currency.currencyCode)}</td>
-                  <td data-label="Kapanış tahmini" className="cash-forecast-closing"><strong>{money(row.closingBalance, currency.currencyCode)}</strong>
+                const cell = (field: ForecastScreenField) => {
+                  const amountCells: Partial<Record<ForecastScreenField['key'], { amount: number; overdue?: number }>> = {
+                    openingBalance: { amount: row.openingBalance }, receivables: { amount: row.receivables, overdue: row.overdueReceivables },
+                    payables: { amount: row.payables, overdue: row.overduePayables },
+                    instrumentReceivables: { amount: row.instrumentReceivables, overdue: row.overdueInstrumentReceivables },
+                    instrumentPayables: { amount: row.instrumentPayables, overdue: row.overdueInstrumentPayables },
+                    creditFacilityPayments: { amount: row.creditFacilityPayments, overdue: row.overdueCreditFacilityPayments },
+                    directCashBudgetInflows: { amount: row.directCashBudgetInflows }, directCashBudgetOutflows: { amount: row.directCashBudgetOutflows },
+                    overdueTotal: { amount: overdueTotal },
+                  }
+                  if (field.key === 'periodStart') return <th key={field.key} scope="row" data-label={field.label}>{monthName(row.periodStart)}</th>
+                  const amountCell = amountCells[field.key]
+                  if (amountCell) return <AmountCell key={field.key} label={field.label} amount={amountCell.amount} currency={currency.currencyCode} overdue={amountCell.overdue} />
+                  if (field.key === 'postedMovements') return <td key={field.key} data-label={field.label}>{money(row.postedMovements, currency.currencyCode)}<small className="cash-forecast-detail">{row.postedMovementCount} kayıt</small></td>
+                  if (field.key === 'netChange') return <td key={field.key} data-label={field.label} className={row.netChange < 0 ? 'cash-forecast-negative' : 'cash-forecast-positive'}>{money(row.netChange, currency.currencyCode)}</td>
+                  if (field.key === 'closingBalance') return <td key={field.key} data-label={field.label} className="cash-forecast-closing"><strong>{money(row.closingBalance, currency.currencyCode)}</strong>
                     {row.baseCurrencyClosingBalance === null ? <small className="cash-forecast-detail">Baz kur bulunamadı</small> : <>
                       <small className="cash-forecast-detail">Gösterim amaçlı karşılık: {money(row.baseCurrencyClosingBalance, forecast.baseCurrencyCode)}</small>
                       {row.appliedExchangeRate !== null && currency.currencyCode !== forecast.baseCurrencyCode && <small className="cash-forecast-detail">Kur: 1 {currency.currencyCode} = {rateNumber(row.appliedExchangeRate)} {forecast.baseCurrencyCode}{row.appliedExchangeRateDate && ` · ${dateLabel(row.appliedExchangeRateDate)}`}</small>}
                     </>}
                   </td>
-                  <AmountCell label="Vadesi geçmiş toplam" amount={overdueTotal} currency={currency.currencyCode} />
-                </tr>
+                  return null
+                }
+                return <tr key={row.periodStart}>{visibleFields.map(cell)}</tr>
               })}</tbody>
             </AdvancedDataGrid>
           </div>

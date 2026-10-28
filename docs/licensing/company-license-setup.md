@@ -12,15 +12,17 @@ pwsh ./scripts/New-NexoraLicenseKeyPair.ps1 `
   -PublicKeyPath D:/Nexora-License-Secrets/issuer-public.pem
 ```
 
-Özel anahtarı yedekli, erişimi kısıtlı çevrimdışı kasada saklayın. Depoya eklemeyin; API sunucusuna da kopyalamayın.
+Özel anahtarı depoya eklemeyin veya tarayıcıya göndermeyin. Platform Admin lisans oluşturma uç noktası imzalama yapabilsin diye özel anahtarı yalnız API sunucusunun erişebildiği, erişimi kısıtlı secret store içinde saklayın. Platform Admin dışındaki istemciler özel anahtara erişemez.
 
-API sunucusuna yalnız açık anahtarı ve seçtiğiniz kimliği `Licensing:PublicKeys:<keyId>` ayarı olarak verin. Örneğin `issuer-2026` kimliği için ortam değişkeni:
+API için `Licensing:IssuerKeyId`, `Licensing:SigningKeys:<keyId>` ve `Licensing:PublicKeys:<keyId>` ayarlarını yapılandırın. Örneğin `issuer-2026` kimliği için:
 
 ```text
+Licensing__IssuerKeyId=issuer-2026
+Licensing__SigningKeys__issuer-2026=<issuer-private.pem dosyasının içeriği>
 Licensing__PublicKeys__issuer-2026=<issuer-public.pem dosyasının içeriği>
 ```
 
-Gizli yapılandırma deposu veya deployment secret kullanın; açık anahtarı `appsettings.json` içine koymak da mümkündür.
+Özel anahtarı secret store/deployment secret olarak sağlayın; `appsettings.json` veya depoya koymayın. Açık anahtar da secret store veya deployment ayarı üzerinden verilebilir.
 
 ## Lisans kodu üretme
 
@@ -36,11 +38,11 @@ $grant = ./scripts/New-NexoraLicenseGrant.ps1 `
 $grant | Set-Clipboard
 ```
 
-Üretilen kodu müşteriye güvenli kanaldan iletin. Firma yöneticisi `Firma ayarları → Firma lisansı` ekranına yapıştırıp etkinleştirir. Sunucu imzayı, firma kimliğini, paket adını ve süreyi doğrular. Aynı lisans kimliği başka firmada etkinleştirilemez.
+Üretim komutu komut satırından lisans kodu oluşturur. Alternatif olarak Platform Admin içindeki `Lisanslar` bölümünden hazır firmayı, paketi ve bitiş tarihini seçerek kod üretebilirsiniz. Panel imzayı API sunucusundaki yapılandırılmış özel anahtarla atar ve yalnız PlatformSuperAdmin erişimine açıktır. Üretilen kodu müşteriye güvenli kanaldan iletin; firma yöneticisi `Firma ayarları → Firma lisansı` ekranında etkinleştirir. Kod üretimi lisansı otomatik etkinleştirmez. Sunucu imzayı, firma kimliğini, paket adını ve süreyi doğrular. Aynı lisans kimliği başka firmada etkinleştirilemez.
 
 ## Paket sınırları
 
-Small: 10 kullanıcı, 3 özel modül ve 10 GB; Medium: 50 kullanıcı, 15 özel modül, 100 GB, gelişmiş iş akışları ve özel modül kaynak kodu; Large: kullanıcı/modül sayaçlarında ve depolama sınırında fiilen sınırsız profil, gelişmiş iş akışları ve özel modül kaynak kodu. Depolama, her firmanın ayrı SQL veritabanındaki ayrılmış `ROWS` data page kullanımı üzerinden denetlenir. Lisans GB sınırına ulaşan firmada yeni kayıt ve güncellemeler reddedilir; okumalar ve data page kullanımını artırmayan silmeler sürer. Ölçüm doğrulanamazsa yazma güvenli biçimde reddedilir. SQL transaction logları ve dış dosya deposu bu sayaca dahil değildir. Large paketindeki HA alanı yalnızca lisans metadata işaretidir; yüksek erişilebilirlik topolojisi veya SLA sağlamaz. Bu değerler imzalı v1 `tier` claim’inin katalogdaki profil karşılığıdır; GB paketlerinin ticari taahhüt olarak sunulmasından önce ürün sahibi sınırları ratifiye etmelidir. Fiyat veya müşteri sözleşmesi uygulamada tanımlanmaz.
+Small: 10 kullanıcı, 3 özel modül ve 10 GB; Medium: 50 kullanıcı, 15 özel modül, 100 GB, gelişmiş iş akışları ve özel modül kaynak kodu; Large: kullanıcı/modül sayaçlarında ve depolama sınırında fiilen sınırsız profil, gelişmiş iş akışları ve özel modül kaynak kodu. Depolama, her firmanın ayrı SQL veritabanındaki ayrılmış `ROWS` data page kullanımı üzerinden denetlenir. Lisans GB sınırına ulaşan firmada data page tahsisini artıran mutasyonlar reddedilir; okumalar sürer ve mutasyonlar yalnızca tahsisi artırmadığında kabul edilir. Silmeler genel olarak muaf değildir; silme ve audit kaydı page tahsisini artırabilir. Ölçüm doğrulanamazsa yazma güvenli biçimde reddedilir. SQL transaction logları ve dış dosya deposu bu sayaca dahil değildir. Large paketindeki HA alanı yalnızca lisans metadata işaretidir; yüksek erişilebilirlik topolojisi veya SLA sağlamaz. Bu değerler imzalı v1 `tier` claim’inin katalogdaki profil karşılığıdır; GB paketlerinin ticari taahhüt olarak sunulmasından önce ürün sahibi sınırları ratifiye etmelidir. Fiyat veya müşteri sözleşmesi uygulamada tanımlanmaz.
 
 Gelişmiş iş akışı lisans kapısı sunucuda iş akışı tanımı oluşturma, düzenleme, yayımlama ve yayımlanmış tanımdan yeni taslak oluşturma işlemlerini denetler. Lisanssız firmalar Small kabul edilir; bu işlemler için Medium veya Large gerekir. Lisans süresi dolmuş ya da metadata tutarsızsa yazma reddedilir. Saklanan tier ve sayaçların profil kataloğuyla eşleşmesi, grant özeti biçimiyle birlikte denetlenir; tutarsız kayıt üye değişikliği, yeni/çalıştırılan özel modül ve kaynak-kod erişimi için geçerli lisans sayılmaz. Daha önce yayımlanmış iş akışlarının çalıştırılması ve karar verilmesi lisans yenileme sürecinde mevcut operasyonların kesilmemesi için bu kapının dışında kalır.
 
@@ -55,4 +57,4 @@ Firma lisans ekranı SQL data page kullanımını ve kota sınırını gösterir
 - [`TenantStorageQuotaInterceptor`](../../src/Hosts/AIERP.Api/TenantStorageQuotaInterceptor.cs) tenant database-içinde SQL application lock alır, yazı öncesi ve transaction commit öncesi ayrılmış `ROWS` page kullanımını kontrol eder; lisans değişikliğiyle ve diğer yazılarla yarışmayı engeller. Kota aşılıysa değişiklik rollback edilir. Bu kapsam tenant SQL data page kullanımını ölçer; transaction logu veya dosya deposu byte’larını ölçmez.
 - [`ModulePackageStoragePath`](../../src/Hosts/AIERP.Api/Program.cs) platform kataloğundaki modül paketlerini SHA-256 anahtarıyla saklar; firma dosyası değildir ve tenant SQL kotasına dahil edilmez. Dosya ekleri veya dış dosya deposu eklenirse ayrı ölçüm/kota kararı gerekir.
 
-`20261020215245_AddTenantLicenses` platform migration’ı imzalı lisans metadata tablosunu oluşturur. Grant metni tutulmaz; yalnız SHA-256 özeti ve doğrulanmış metadata saklanır. Bu repository imza kodu üretmek için offline PowerShell araçları içerir, ancak üretim lisans veren servisi, özel anahtar kasası ve gerçek müşteriye lisans dağıtımı harici operasyonlardır. Yerel imzalama testleri gerçek dış servis gerektirmez.
+`20261020215245_AddTenantLicenses` platform migration’ı imzalı lisans metadata tablosunu oluşturur. Grant metni tutulmaz; yalnız SHA-256 özeti ve doğrulanmış metadata saklanır. Bu repository offline PowerShell imzalama araçları ve Platform Admin lisans oluşturma bölümü içerir. Panelin lisans üretmesi için `Licensing:IssuerKeyId`, eşleşen `Licensing:SigningKeys:<keyId>` ve `Licensing:PublicKeys:<keyId>` API secret yapılandırması zorunludur; gerçek müşteriye lisans dağıtımı yine güvenli operasyonel kanaldan yapılmalıdır.

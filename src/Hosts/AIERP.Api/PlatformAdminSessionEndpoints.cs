@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.AspNetCore.Builder;
@@ -67,7 +68,9 @@ public static class PlatformAdminSessionEndpoints
             context.Response.Cookies.Append(CookieName, refreshToken, CookieOptions(session.ExpiresAt, config, environment));
             context.Response.Headers.CacheControl = "no-store";
             return Results.Ok(new { accessToken = CreateAccessToken(user!, session.Id, config) });
-        }).RequireAuthorization().RequireRateLimiting("login");
+        }).RequireAuthorization(new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build()).RequireRateLimiting("login");
 
         platform.MapPost("/refresh", async (HttpContext context, PlatformDbContext db,
             IConfiguration config, IHostEnvironment environment, CancellationToken cancellationToken) =>

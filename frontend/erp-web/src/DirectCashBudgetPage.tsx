@@ -36,7 +36,9 @@ const initialLine = (year: number): LineInput => ({ periodStart: `${year}-${curr
 async function request<T>(url: string, token: string, init?: RequestInit): Promise<T> {
   const response = await authenticatedFetch(url, token, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init?.headers || {}) } })
   if (!response.ok) {
-    let message = `İstek başarısız (${response.status}) · ${new URL(url, window.location.origin).pathname}`
+    let message = response.status === 403
+      ? 'Erişim reddedildi (403). Firma üyeliği, rol veya finans erişim politikası isteğe izin vermedi. Yönetici işlemleri için TenantAdmin rolünü doğrulayın.'
+      : `İstek başarısız (${response.status}) · ${new URL(url, window.location.origin).pathname}`
     try { const body = await response.json(); message = body.error || message } catch { /* response may be empty */ }
     throw new Error(message)
   }
@@ -180,8 +182,8 @@ export default function DirectCashBudgetPage({ token, role }: { token: string; r
     {notice && <div className="notice inline-notice" role="status">{notice}</div>}
     <section className="panel direct-cash-budget-forecast" aria-labelledby="direct-cash-forecast-title">
       <div className="panel-heading"><div><h2 id="direct-cash-forecast-title">Onaylı planların nakit tahminine etkisi</h2><p>Önümüzdeki 12 ay · tahsilat ve ödeme satırları para birimi bazında ayrıdır.</p></div></div>
-      <div className="ledger-list"><AdvancedDataGrid  className="customer-table"><thead><tr><th>Dönem</th><th>Döviz</th><th>Planlanan tahsilat</th><th>Planlanan ödeme</th><th>Net nakit değişimi</th></tr></thead><tbody>
-        {forecastRows.map(row => <tr key={`${row.currencyCode}-${row.periodStart}`}><td>{formatMonth(row.periodStart)}</td><td>{row.currencyCode}</td><td>{money(row.directCashBudgetInflows, row.currencyCode)}</td><td>{money(row.directCashBudgetOutflows, row.currencyCode)}</td><td><b>{money(row.directCashBudgetInflows - row.directCashBudgetOutflows, row.currencyCode)}</b></td></tr>)}
+      <div className="ledger-list" role="region" aria-label="Onaylı planların nakit tahmini tablosu" tabIndex={0}><AdvancedDataGrid className="customer-table"><caption>Önümüzdeki 12 ay için onaylı planların para birimi bazında nakit tahmini</caption><thead><tr><th scope="col">Dönem</th><th scope="col">Döviz</th><th scope="col">Planlanan tahsilat</th><th scope="col">Planlanan ödeme</th><th scope="col">Net nakit değişimi</th></tr></thead><tbody>
+        {forecastRows.map(row => <tr key={`${row.currencyCode}-${row.periodStart}`}><td data-label="Dönem">{formatMonth(row.periodStart)}</td><td data-label="Döviz">{row.currencyCode}</td><td data-label="Planlanan tahsilat">{money(row.directCashBudgetInflows, row.currencyCode)}</td><td data-label="Planlanan ödeme">{money(row.directCashBudgetOutflows, row.currencyCode)}</td><td data-label="Net nakit değişimi"><b>{money(row.directCashBudgetInflows - row.directCashBudgetOutflows, row.currencyCode)}</b></td></tr>)}
         {!loading && forecastRows.length === 0 && <tr><td colSpan={5} className="table-empty">Seçilen tahmin döneminde onaylı nakit bütçesi yok.</td></tr>}
       </tbody></AdvancedDataGrid></div>
       <div className="boundary-note"><span>Tahmin satırları yalnızca planlama bilgisidir. Onay, tahsilat/ödeme veya yevmiye kaydı başlatmaz.</span></div>
@@ -223,7 +225,7 @@ export default function DirectCashBudgetPage({ token, role }: { token: string; r
     </div>
     {selected && !editing && <section className="panel direct-cash-budget-detail" aria-labelledby="direct-cash-budget-detail-title">
       <div className="panel-heading"><div><p className="eyebrow">{selected.fiscalYear} · {selected.currencyCode} · Sürüm {selected.revision}</p><h2 id="direct-cash-budget-detail-title">{selected.name}</h2><p>{draft ? 'Taslak · tahminlere dahil edilmez' : `Onaylayan: ${selected.approvedByUserId ?? '—'}`}</p></div><div className="heading-actions">{draft && admin && <><span className="direct-cash-budget-approval-hint">Onay için farklı bir TenantAdmin gerekir.</span><button type="button" className="secondary" onClick={() => edit(selected)} disabled={busy}>Düzenle</button><button type="button" className="primary" onClick={() => void approve()} disabled={busy || selected.lines.length === 0}>{busy ? 'Onaylanıyor…' : 'Onayla'}</button></>}</div></div>
-      <div className="ledger-list"><AdvancedDataGrid  className="customer-table"><thead><tr><th>Dönem</th><th>Tür</th><th>Kategori</th><th>Açıklama</th><th>Tutar</th></tr></thead><tbody>{selected.lines.map(line => <tr key={line.id}><td>{formatMonth(line.periodStart)}</td><td>{line.direction === 'Inflow' ? 'Tahsilat' : 'Ödeme'}</td><td>{categories.find(([value]) => value === line.category)?.[1] ?? line.category}</td><td>{line.description}</td><td><b>{money(line.amount, selected.currencyCode)}</b></td></tr>)}</tbody></AdvancedDataGrid></div>
+      <div className="ledger-list" role="region" aria-label="Nakit bütçesi satır tablosu" tabIndex={0}><AdvancedDataGrid className="customer-table"><caption>{selected.name} · {selected.currencyCode} para biriminde planlanan tahsilat ve ödemeler</caption><thead><tr><th scope="col">Dönem</th><th scope="col">Tür</th><th scope="col">Kategori</th><th scope="col">Açıklama</th><th scope="col">Tutar</th></tr></thead><tbody>{selected.lines.map(line => <tr key={line.id}><td data-label="Dönem">{formatMonth(line.periodStart)}</td><td data-label="Tür">{line.direction === 'Inflow' ? 'Tahsilat' : 'Ödeme'}</td><td data-label="Kategori">{categories.find(([value]) => value === line.category)?.[1] ?? line.category}</td><td data-label="Açıklama" className="direct-cash-budget-description-cell">{line.description}</td><td data-label="Tutar"><b>{money(line.amount, selected.currencyCode)}</b></td></tr>)}</tbody></AdvancedDataGrid></div>
       {admin && draft && <div className="boundary-note"><span>Onaylayan kullanıcı, taslağı oluşturan TenantAdmin’den farklı olmalıdır. Sunucu bunu doğrular. Bu onay yalnızca tahmin planını etkinleştirir; finansal kayıt oluşturmaz.</span></div>}
     </section>}
   </div>

@@ -96,3 +96,84 @@
 .crm-table tbody tr:focus-visible, .crm-page :is(button,input,select,textarea,[tabindex="0"]):focus-visible { outline-color: #0f6cbd; }
 .crm-form :is(input,select,textarea):focus, .crm-toolbar select:focus { border-color: #0f6cbd; box-shadow: 0 0 0 2px #0f6cbd24; }
 .crm-detail-notes { background: #f4f8fc; }
+
+/* Clear, actionable guidance when the pipeline has no records yet. */
+.crm-empty-explained {
+  min-height: 290px;
+  align-content: center;
+  justify-items: center;
+  gap: 11px;
+  padding: 36px clamp(22px, 5vw, 76px);
+  border: 1px solid #e5ebf2;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #fbfdff, #f5f9fd);
+}
+.crm-empty-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 1px solid #d7e8f6;
+  border-radius: 13px;
+  background: #eaf3fb;
+  color: #0f6cbd;
+}
+.crm-empty-explained > b { color: #1e2e42; font-size: 16px; }
+.crm-empty-explained > span { max-width: 550px; color: #68788b; font-size: 12px; line-height: 1.75; }
+.crm-empty-action { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; margin-top: 6px; padding-inline: 14px; }
+.crm-empty-action svg { flex: none; color: #fff; }
+.crm-empty-filtered { min-height: 230px; background: #fff; }
+.crm-empty-filtered > b { font-size: 14px; }
+.crm-active-filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.crm-active-filters span { padding: 5px 9px; border: 1px solid #e3e9f0; border-radius: 20px; background: #fff; color: #52657a; font-size: 11px; }
+.crm-detail-guide { gap: 10px; padding: 4px 0; }
+.crm-detail-guide > span { color: #68788b; line-height: 1.65; }
+.crm-detail-guide ol { display: grid; gap: 12px; width: 100%; margin: 4px 0 0; padding: 14px 0 0 20px; border-top: 1px solid var(--line, #e5e8f1); color: #0f6cbd; }
+.crm-detail-guide li { padding-left: 3px; }
+.crm-detail-guide li strong, .crm-detail-guide li small { display: block; }
+.crm-detail-guide li strong { color: #34445a; font-size: 11px; }
+.crm-detail-guide li small { margin-top: 3px; color: #7a8797; font-size: 10px; line-height: 1.5; }
+.crm-guide-action { width: 100%; justify-content: center; margin-top: 3px; color: #0f548c; }
+.crm-filter-guide { gap: 10px; padding: 4px 0; }
+.crm-filter-guide > span { color: #68788b; line-height: 1.65; }
+/* Keep the workbench as the single framed surface; separate its columns with space. */
+.crm-empty-explained { border: 0; border-radius: 0; background: transparent; }
+.crm-empty-icon { border-color: transparent; }
+.crm-record-detail { border: 0; border-left: 1px solid #e8edf3; border-radius: 0; background: transparent; }
+.crm-detail-guide ol { border-top: 0; }
+.crm-guide-action { border-color: #e4eaf1; background: #fff; }
+@media (max-width: 1050px) {
+  .crm-record-detail { border: 0; padding: 16px 0 0; }
+}
+@media (max-width: 650px) {
+  .crm-empty-explained { min-height: 260px; padding: 28px 18px; }
+  .crm-detail-guide { min-height: 0; }
+}
+
+/* Match the search and stage filter label/control rows. */
+.crm-toolbar { align-items: flex-end; }
+.crm-toolbar .crm-search {
+  display: grid;
+  gap: 5px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: #6e778e;
+  font-size: 11px;
+  font-weight: 650;
+}
+.crm-search-control {
+  display: flex;
+  min-height: 39px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--line, #dfe3ed);
+  border-radius: 7px;
+  color: #838ba0;
+}
+.crm-search-control:focus-within { border-color: #0f6cbd; box-shadow: 0 0 0 2px #0f6cbd24; }
+.crm-search-control input { min-height: 37px; }
+@media (max-width: 650px) {
+  .crm-toolbar { align-items: stretch; }
+}

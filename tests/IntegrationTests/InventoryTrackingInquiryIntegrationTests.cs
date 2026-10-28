@@ -62,6 +62,49 @@ public sealed class InventoryTrackingInquiryIntegrationTests
         Assert.Equal("SN-B", otherJson.RootElement.GetProperty("items")[0].GetProperty("trackingCode").GetString());
     }
 
+    [Fact]
+    public async Task Genealogy_uses_persisted_sources_and_never_returns_another_tenants_events()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        Guid itemId;
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            itemId = await db.StockItems.Where(x => x.TenantId == TenantA && x.Code == "ITEM-LOT").Select(x => x.Id).SingleAsync();
+        }
+
+        using var response = await client.GetAsync($"/api/inventory-tracking/genealogy?stockItemId={itemId}&trackingCode=LOT-A");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = json.RootElement;
+        Assert.Equal("LOT-A", root.GetProperty("trackingCode").GetString());
+        Assert.Equal(2, root.GetProperty("totalEvents").GetInt32());
+        Assert.False(root.GetProperty("isComplete").GetBoolean());
+        var events = root.GetProperty("events").EnumerateArray().ToArray();
+        Assert.Contains(events, x => x.GetProperty("sourceType").GetString() == "manufacturingOrder"
+            && x.GetProperty("sourceCode").GetString() == "MO-001" && x.GetProperty("sourceResolved").GetBoolean());
+        Assert.All(events, x => Assert.False(x.TryGetProperty("inventoryTransactionId", out _)));
+
+        using var byCode = await client.GetAsync("/api/inventory-tracking/genealogy?stockItemCode=ITEM-LOT&trackingCode=LOT-A&pageSize=50");
+        Assert.Equal(HttpStatusCode.OK, byCode.StatusCode);
+        using var codeJson = JsonDocument.Parse(await byCode.Content.ReadAsStringAsync());
+        Assert.Equal("ITEM-LOT", codeJson.RootElement.GetProperty("stockItemCode").GetString());
+        Assert.Equal(2, codeJson.RootElement.GetProperty("events").GetArrayLength());
+        Assert.DoesNotContain("inventoryTransactionId", codeJson.RootElement.GetRawText(), StringComparison.Ordinal);
+
+        using var bothSelectors = await client.GetAsync($"/api/inventory-tracking/genealogy?stockItemId={itemId}&stockItemCode=ITEM-LOT&trackingCode=LOT-A");
+        Assert.Equal(HttpStatusCode.BadRequest, bothSelectors.StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var otherTenant = await client.GetAsync($"/api/inventory-tracking/genealogy?stockItemId={itemId}&trackingCode=LOT-A");
+        Assert.Equal(HttpStatusCode.NotFound, otherTenant.StatusCode);
+        using var otherTenantByCode = await client.GetAsync("/api/inventory-tracking/genealogy?stockItemCode=ITEM-LOT&trackingCode=LOT-A");
+        Assert.Equal(HttpStatusCode.NotFound, otherTenantByCode.StatusCode);
+    }
+
     private static async Task<WebApplication> StartApplicationAsync()
     {
         var builder = WebApplication.CreateBuilder();
@@ -86,11 +129,14 @@ public sealed class InventoryTrackingInquiryIntegrationTests
         var lotItem = new StockItem { TenantId = TenantA, Code = "ITEM-LOT", Name = "Lotlu ürün", UnitCode = "EA", TrackingMode = InventoryTrackingMode.Lot };
         var serialItem = new StockItem { TenantId = TenantA, Code = "ITEM-SERIAL", Name = "Seri ürün", UnitCode = "EA", TrackingMode = InventoryTrackingMode.Serial };
         var otherItem = new StockItem { TenantId = TenantB, Code = "ITEM-OTHER", Name = "Tenant B ürünü", UnitCode = "EA", TrackingMode = InventoryTrackingMode.Serial };
+        var manufacturingOrder = new ManufacturingOrder { TenantId = TenantA, Code = "MO-001" };
         db.Tenants.AddRange(tenantA, tenantB);
+        db.ManufacturingOrders.Add(manufacturingOrder);
         db.Warehouses.AddRange(warehouse, otherWarehouse);
         db.StockItems.AddRange(lotItem, serialItem, otherItem);
         var lotReceipt = Movement(TenantA, warehouse, lotItem, InventoryDirection.Receipt, 10m, "lot entry");
         var lotIssue = Movement(TenantA, warehouse, lotItem, InventoryDirection.Issue, 4m, "lot issue");
+        lotIssue.ManufacturingOrderId = manufacturingOrder.Id;
         var serialReceipt = Movement(TenantA, warehouse, serialItem, InventoryDirection.Receipt, 1m, "serial entry");
         var otherReceipt = Movement(TenantB, otherWarehouse, otherItem, InventoryDirection.Receipt, 2m, "other tenant entry");
         db.InventoryTransactions.AddRange(lotReceipt, lotIssue, serialReceipt, otherReceipt);

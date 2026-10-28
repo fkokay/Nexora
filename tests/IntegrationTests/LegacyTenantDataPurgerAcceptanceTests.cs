@@ -42,7 +42,7 @@ public sealed class LegacyTenantDataPurgerAcceptanceTests
             await InsertTenantAsync(tenantConnection, company);
             await CreatePlatformCatalogTablesAsync(platformConnection);
             await SetCatalogStateAsync(platformConnection, tenantId, TenantDatabaseProvisioningState.Copying);
-            await SetStudioStateAsync(platformConnection, TenantDatabaseProvisioningState.Copying);
+            await SetStudioStateAsync(platformConnection, tenantId, TenantDatabaseProvisioningState.Copying);
             await InsertSettingsAsync(platformConnection, tenantId);
             await InsertSettingsAsync(tenantConnection, tenantId);
             await InsertAuditEventAsync(platformConnection, tenantId, 910001);
@@ -59,7 +59,11 @@ public sealed class LegacyTenantDataPurgerAcceptanceTests
             await Assert.ThrowsAsync<InvalidOperationException>(() => purger.PreviewAsync());
             Assert.Equal(1, await CountSettingsAsync(platformConnection, tenantId));
 
-            await SetStudioStateAsync(platformConnection, TenantDatabaseProvisioningState.Ready);
+            await SetStudioStateAsync(platformConnection, tenantId, TenantDatabaseProvisioningState.Ready);
+
+            await SetLegacySharedStudioStateAsync(platformConnection, TenantDatabaseProvisioningState.Ready);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => purger.PreviewAsync());
+            await SetLegacySharedStudioStateAsync(platformConnection, null);
 
             var preview = await purger.PreviewAsync();
             Assert.Equal(2, preview.TotalRows);
@@ -161,13 +165,27 @@ public sealed class LegacyTenantDataPurgerAcceptanceTests
         await command.ExecuteNonQueryAsync();
     }
 
-    private static async Task SetStudioStateAsync(string connectionString, TenantDatabaseProvisioningState state)
+    private static async Task SetStudioStateAsync(string connectionString, Guid tenantId, TenantDatabaseProvisioningState state)
     {
         await using var sql = new SqlConnection(connectionString);
         await sql.OpenAsync();
         await using var command = sql.CreateCommand();
-        command.CommandText = "IF EXISTS (SELECT 1 FROM dbo.DatabaseSeparationComponentStates WHERE Component=N'AIStudio') UPDATE dbo.DatabaseSeparationComponentStates SET State=@state,ReadyAt=CASE WHEN @state=3 THEN TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00') ELSE NULL END,UpdatedAt=TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00') WHERE Component=N'AIStudio' ELSE INSERT dbo.DatabaseSeparationComponentStates(Component,DatabaseName,State,UpdatedAt,ReadyAt) VALUES(N'AIStudio',N'AIERPStudio',@state,TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00'),CASE WHEN @state=3 THEN TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00') ELSE NULL END)";
+        command.CommandText = "IF EXISTS (SELECT 1 FROM dbo.DatabaseSeparationComponentStates WHERE Component=@component) UPDATE dbo.DatabaseSeparationComponentStates SET State=@state,ReadyAt=CASE WHEN @state=3 THEN TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00') ELSE NULL END,UpdatedAt=TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00') WHERE Component=@component ELSE INSERT dbo.DatabaseSeparationComponentStates(Component,DatabaseName,State,UpdatedAt,ReadyAt) VALUES(@component,@databaseName,@state,TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00'),CASE WHEN @state=3 THEN TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00') ELSE NULL END)";
+        command.Parameters.AddWithValue("@component", TenantDatabaseRouting.StudioComponentKey(tenantId));
+        command.Parameters.AddWithValue("@databaseName", TenantSqlCredentialPath.DatabaseName(tenantId, TenantSqlDatabaseComponent.AiStudio));
         command.Parameters.AddWithValue("@state", (int)state);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task SetLegacySharedStudioStateAsync(string connectionString, TenantDatabaseProvisioningState? state)
+    {
+        await using var sql = new SqlConnection(connectionString);
+        await sql.OpenAsync();
+        await using var command = sql.CreateCommand();
+        command.CommandText = state is null
+            ? "DELETE dbo.DatabaseSeparationComponentStates WHERE Component=N'AIStudio'"
+            : "INSERT dbo.DatabaseSeparationComponentStates(Component,DatabaseName,State,UpdatedAt,ReadyAt) VALUES(N'AIStudio',N'AIERPStudio',@state,TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00'),TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00'))";
+        if (state is not null) command.Parameters.AddWithValue("@state", (int)state.Value);
         await command.ExecuteNonQueryAsync();
     }
 

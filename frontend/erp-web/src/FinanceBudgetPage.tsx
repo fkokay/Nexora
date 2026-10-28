@@ -8,10 +8,21 @@ type Line = { id?:string; accountId:string; accountCode?:string; accountName?:st
 type Plan = { id:string; name:string; fiscalYear:number; currencyCode:string; baseCurrencyCode:string; status:number|string; lineCount:number; plannedTotal:number; actualTotal:number; createdAt:string; createdByUserId:string; approvedByUserId:string|null; approvedAt:string|null; revision:number }
 type PlanView = { plan:Plan; lines:Line[] }
 type Entry = { accountId:string; periodStart:string; plannedAmount:number; notes:string|null }
+type BudgetLayoutField = { key:string; label:string; visible:boolean; position:number }
+
+const defaultBudgetFields:BudgetLayoutField[]=[
+  {key:'periodStart',label:'Dönem',visible:true,position:0},
+  {key:'account',label:'Hesap',visible:true,position:1},
+  {key:'section',label:'Tür',visible:true,position:2},
+  {key:'plannedAmount',label:'Planlanan tahakkuk',visible:true,position:3},
+  {key:'actualAmount',label:'Yevmiye gerçekleşeni',visible:true,position:4},
+  {key:'variance',label:'Fark',visible:true,position:5},
+  {key:'notes',label:'Not',visible:true,position:6}
+]
 
 async function request<T>(url:string, token:string, init?:RequestInit):Promise<T>{
   const response=await authenticatedFetch(url, token, {...init,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(init?.headers||{})}})
-  if(!response.ok){let message=`İstek başarısız (${response.status})`;try{const body=await response.json();message=body.error||message}catch{}throw new Error(message)}
+  if(!response.ok){let message=response.status===403?'Erişim reddedildi (403). Oturumdaki firma üyeliği veya rol bu isteğe yetmiyor; yönetici işlemleri için TenantAdmin gerekir.':`İstek başarısız (${response.status})`;try{const body=await response.json();message=body.error||body.title||message}catch{}throw new Error(message)}
   return response.json() as Promise<T>
 }
 
@@ -33,6 +44,7 @@ export default function FinanceBudgetPage({token,role}:{token:string;role:string
   const [baseCurrency,setBaseCurrency]=useState(''),[loadError,setLoadError]=useState('')
   const [name,setName]=useState(''),[year,setYear]=useState(currentYear),[entries,setEntries]=useState<Entry[]>([{accountId:'',periodStart:`${currentYear}-01-01`,plannedAmount:0,notes:null}])
   const [editing,setEditing]=useState(false)
+  const [budgetFields,setBudgetFields]=useState<BudgetLayoutField[]>(defaultBudgetFields)
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[openingPlanId,setOpeningPlanId]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState('')
   const eligible=useMemo(()=>accounts.filter(x=>x.isActive&&['Revenue','Expense'].includes(x.statementSection)),[accounts])
   const controlsLocked=loading||busy||Boolean(openingPlanId)
@@ -48,6 +60,7 @@ export default function FinanceBudgetPage({token,role}:{token:string;role:string
     }catch(e){const message=(e as Error).message;setError(message);setLoadError(message)}finally{setLoading(false)}
   }
   useEffect(()=>{void load()},[token])
+  useEffect(()=>{let cancelled=false;void request<{fields:BudgetLayoutField[]}>('/api/screen-views/finance-budget-scenarios/active',token).then(view=>{if(!cancelled&&view.fields?.length)setBudgetFields(view.fields.map((field,index)=>({...field,position:field.position??index}))) }).catch(()=>{});return()=>{cancelled=true}},[token])
 
   function addLine(){setEntries(x=>[...x,{accountId:'',periodStart:`${year}-01-01`,plannedAmount:0,notes:null}])}
   function updateLine(i:number,patch:Partial<Entry>){setEntries(x=>x.map((item,index)=>index===i?{...item,...patch}:item))}
@@ -76,6 +89,7 @@ export default function FinanceBudgetPage({token,role}:{token:string;role:string
 
   const draft=selected&&(selected.plan.status===1||selected.plan.status==='Draft')
   const currencyMismatch=Boolean(selected&&baseCurrency&&selected.plan.currencyCode!==baseCurrency)
+  const visibleBudgetFields=budgetFields.filter(field=>field.visible).sort((a,b)=>a.position-b.position)
   return <div className="finance-page finance-budget-page">
     <header className="page-heading budget-hero">
       <div className="budget-hero-copy"><p className="eyebrow">FİNANS YÖNETİMİ <span>·</span> PLANLAMA</p><h1>Bütçe planı ve gerçekleşen</h1><p>Aylık gelir ve gider hedeflerini yevmiye gerçekleşenleriyle aynı ekranda izleyin.</p><div className="budget-hero-caption"><span className="budget-hero-dot"/> Onaylanan bütçeler değiştirilemez ve mali yıl bazında takip edilir.</div></div>
@@ -144,7 +158,7 @@ export default function FinanceBudgetPage({token,role}:{token:string;role:string
       <div className="panel-heading budget-detail-heading"><div><p className="eyebrow">{selected.plan.fiscalYear} · {selected.plan.currencyCode}</p><h2 id="budget-detail-title">{selected.plan.name}</h2><p>{isApproved(selected.plan.status)?`Onaylayan: ${selected.plan.approvedByUserId||'—'}`:'Taslak · Onay için farklı bir TenantAdmin gerekir'}</p></div><div className="budget-actions">{draft&&admin&&!currencyMismatch&&<><button type="button" className="secondary" onClick={()=>edit(selected)} disabled={controlsLocked}>Düzenle</button><button type="button" className="primary" disabled={controlsLocked||selected.lines.length===0} onClick={()=>void approve()} aria-busy={busy}>{busy?'Onaylanıyor…':'Onayla'}</button></>}</div></div>
       {currencyMismatch&&<div className="budget-currency-warning" role="status"><strong>Para birimi uyumsuzluğu</strong><span>Bu senaryo {selected.plan.currencyCode} ile oluşturulmuş; firmanın güncel baz para birimi {baseCurrency}. Plan tutarları {selected.plan.currencyCode}, yevmiye gerçekleşenleri {baseCurrency} cinsindedir ve aralarında kur çevrimi yapılmaz. Fark gösterilmez. Bu senaryo düzenlenemez veya onaylanamaz; güncel baz para biriminde yeni bir taslak oluşturun.</span></div>}
       {selected.lines.length===0?<div className="budget-state budget-empty"><strong>Bu senaryoda bütçe satırı yok</strong><span>{draft&&admin&&!currencyMismatch?'Taslağı düzenleyip satır ekleyebilirsiniz.':'Senaryo henüz herhangi bir bütçe satırı içermiyor.'}</span>{draft&&admin&&!currencyMismatch&&<button type="button" className="secondary" onClick={()=>edit(selected)} disabled={controlsLocked}>Taslağı düzenle</button>}</div>
-        :<div className="ledger-list budget-ledger-wrap"><AdvancedDataGrid  className="customer-table budget-ledger"><caption>{selected.plan.name} bütçe ve yevmiye gerçekleşenleri</caption><thead><tr><th scope="col">Dönem</th><th scope="col">Hesap</th><th scope="col">Tür</th><th scope="col">Planlanan tahakkuk ({selected.plan.currencyCode})</th><th scope="col">Yevmiye gerçekleşeni ({baseCurrency})</th><th scope="col">Fark{currencyMismatch?' (hesaplanmıyor)':` (${baseCurrency})`}</th><th scope="col">Not</th></tr></thead><tbody>{selected.lines.map((line,index)=>{const variance=line.variance;const favorable=variance!==null&&variance!==undefined&&(line.statementSection==='Revenue'?variance>=0:variance<=0);return <tr key={line.id||`${line.accountId}-${line.periodStart}-${index}`}><td data-label="Dönem">{formatPeriod(line.periodStart)}</td><td data-label="Hesap"><b>{line.accountCode||'—'}</b><small className="cell-subtitle">{line.accountName}</small></td><td data-label="Tür">{line.statementSection==='Revenue'?'Gelir':line.statementSection==='Expense'?'Gider':'—'}</td><td data-label="Planlanan tahakkuk">{money(line.plannedAmount,selected.plan.currencyCode)}</td><td data-label="Yevmiye gerçekleşeni">{money(line.actualAmount??0,baseCurrency)}</td><td data-label="Fark" className={variance==null?'':favorable?'positive':'negative'}>{variance==null?'—':money(variance,baseCurrency)}</td><td data-label="Not">{line.notes||'—'}</td></tr>})}</tbody></AdvancedDataGrid></div>}
+        :<div className="ledger-list budget-ledger-wrap"><AdvancedDataGrid className="customer-table budget-ledger"><caption>{selected.plan.name} bütçe ve yevmiye gerçekleşenleri</caption><thead><tr>{visibleBudgetFields.map(field=><th key={field.key} scope="col">{field.key==='plannedAmount'?`${field.label} (${selected.plan.currencyCode})`:field.key==='actualAmount'?`${field.label} (${baseCurrency})`:field.key==='variance'?`${field.label}${currencyMismatch?' (hesaplanmıyor)':` (${baseCurrency})`}`:field.label}</th>)}</tr></thead><tbody>{selected.lines.map((line,index)=>{const variance=line.variance;const favorable=variance!==null&&variance!==undefined&&(line.statementSection==='Revenue'?variance>=0:variance<=0);return <tr key={line.id||`${line.accountId}-${line.periodStart}-${index}`}>{visibleBudgetFields.map(field=>{const value=field.key==='periodStart'?formatPeriod(line.periodStart):field.key==='account'?<><b>{line.accountCode||'—'}</b><small className="cell-subtitle">{line.accountName}</small></>:field.key==='section'?line.statementSection==='Revenue'?'Gelir':line.statementSection==='Expense'?'Gider':'—':field.key==='plannedAmount'?money(line.plannedAmount,selected.plan.currencyCode):field.key==='actualAmount'?money(line.actualAmount??0,baseCurrency):field.key==='variance'?variance==null?'—':money(variance,baseCurrency):field.key==='notes'?line.notes||'—':'—';return <td key={field.key} data-label={field.label} className={field.key==='variance'&&variance!=null?(favorable?'positive':'negative'):undefined}>{value}</td>})}</tr>})}{selected.lines.length===0&&<tr><td colSpan={Math.max(1,visibleBudgetFields.length)} className="table-empty">Bütçe satırı yok.</td></tr>}</tbody></AdvancedDataGrid></div>}
     </section>}
     <div className="boundary-note"><span>Gerçekleşen değerler yalnız mali yıldaki yevmiye kayıtlarından ve firmanın baz para birimi ({baseCurrency||'yükleniyor'}) üzerinden hesaplanır. Gelir hesabında alacak − borç, gider hesabında borç − alacak kullanılır. Bu ekran kur çevrimi, bordro veya vergi mevzuatı hesabı yapmaz.</span></div>
   </div>

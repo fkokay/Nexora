@@ -1,21 +1,23 @@
 import AdvancedDataGrid from './AdvancedDataGrid'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { authenticatedFetch } from './authApi';
+import SearchableRecordPicker from './SearchableRecordPicker'
 import { FilePlus2, Plus, RotateCw, ShieldCheck, Trash2 } from 'lucide-react'
 import './standalone-supplier-invoice-draft.css'
 
 type Supplier = { id: string; code: string; name: string; currencyCode: string }
 type SupplierPage = { items: Supplier[]; totalCount: number }
-type DraftLineInput = { description: string; quantity: string; unitCode: string; unitPrice: string; subtotal: string; discountAmount: string; taxAmount: string; total: string }
+type ExpenseAccount = { id: string; code: string; name: string; isActive: boolean; statementSection: string }
+type DraftLineInput = { description: string; quantity: string; unitCode: string; unitPrice: string; subtotal: string; discountAmount: string; taxAmount: string; total: string; expenseAccountId: string; vatRate: string }
 type DraftInput = { requestId: string; supplierId: string; invoiceNumber: string; invoiceDate: string; dueDate: string; currencyCode: string; notes: string; subtotal: string; discountTotal: string; taxTotal: string; grandTotal: string; lines: DraftLineInput[] }
-type DraftSummary = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; grandTotal: number; lineCount: number; createdAt: string }
+type DraftSummary = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; grandTotal: number; lineCount: number; status: string; createdAt: string }
 type DraftPage = { items: DraftSummary[]; page: number; pageSize: number; totalCount: number }
 type DraftScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null }
-type DraftDetail = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; notes: string | null; subtotal: number; discountTotal: number; taxTotal: number; grandTotal: number; status: string; rowVersion: string; lines: Array<{ lineNumber: number; description: string; quantity: number | null; unitCode: string | null; unitPrice: number | null; subtotal: number; discountAmount: number; taxAmount: number; total: number }> }
+type DraftDetail = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; notes: string | null; subtotal: number; discountTotal: number; taxTotal: number; grandTotal: number; status: string; rowVersion: string; lines: Array<{ lineNumber: number; description: string; quantity: number | null; unitCode: string | null; unitPrice: number | null; subtotal: number; discountAmount: number; taxAmount: number; total: number; expenseAccountId: string | null; vatRate: number | null }> }
 
 export type StandaloneSupplierInvoiceDraftPageProps = { token: string; role: string }
 
-const blankLine = (): DraftLineInput => ({ description: '', quantity: '', unitCode: '', unitPrice: '', subtotal: '', discountAmount: '0', taxAmount: '', total: '' })
+const blankLine = (): DraftLineInput => ({ description: '', quantity: '', unitCode: '', unitPrice: '', subtotal: '', discountAmount: '0', taxAmount: '', total: '', expenseAccountId: '', vatRate: '' })
 const defaultDraftScreenFields: DraftScreenField[] = [
   { key: 'invoiceNumber', label: 'Fatura no', visible: true, position: 0 }, { key: 'supplierName', label: 'Tedarikçi', visible: true, position: 1 },
   { key: 'invoiceDate', label: 'Fatura tarihi', visible: true, position: 2 }, { key: 'dueDate', label: 'Vade tarihi', visible: true, position: 3 },
@@ -44,6 +46,7 @@ function requiredNumber(value: string): number { return Number(value) }
 
 export default function StandaloneSupplierInvoiceDraftPage({ token, role }: StandaloneSupplierInvoiceDraftPageProps) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [expenseAccounts, setExpenseAccounts] = useState<ExpenseAccount[]>([])
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [drafts, setDrafts] = useState<DraftSummary[]>([])
   const [draftScreenFields, setDraftScreenFields] = useState(defaultDraftScreenFields)
@@ -63,6 +66,14 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
     } catch (e) { setError((e as Error).message) } finally { setLoading(false) }
   }, [token])
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    let active = true
+    void request<ExpenseAccount[]>('/api/finance/general-ledger/accounts', token)
+      .then(accounts => { if (active) setExpenseAccounts(accounts.filter(account => account.isActive && account.statementSection === 'Expense')) })
+      .catch(() => { if (active) setExpenseAccounts([]) })
+    return () => { active = false }
+  }, [token])
 
   useEffect(() => {
     let active = true
@@ -112,7 +123,8 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
         subtotal: String(saved.subtotal), discountTotal: String(saved.discountTotal), taxTotal: String(saved.taxTotal), grandTotal: String(saved.grandTotal),
         lines: saved.lines.map(line => ({ description: line.description, quantity: line.quantity == null ? '' : String(line.quantity),
           unitCode: line.unitCode || '', unitPrice: line.unitPrice == null ? '' : String(line.unitPrice), subtotal: String(line.subtotal),
-          discountAmount: String(line.discountAmount), taxAmount: String(line.taxAmount), total: String(line.total) })) })
+          discountAmount: String(line.discountAmount), taxAmount: String(line.taxAmount), total: String(line.total),
+          expenseAccountId: line.expenseAccountId || '', vatRate: line.vatRate == null ? '' : String(line.vatRate) })) })
       setNotice(`${saved.invoiceNumber} taslağı düzenleniyor.`)
       document.querySelector('.sid-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
@@ -137,6 +149,7 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
           unitCode: line.unitCode.trim() || null, unitPrice: optionalNumber(line.unitPrice),
           subtotal: requiredNumber(line.subtotal), discountAmount: requiredNumber(line.discountAmount),
           taxAmount: requiredNumber(line.taxAmount), total: requiredNumber(line.total),
+          expenseAccountId: line.expenseAccountId || null, vatRate: optionalNumber(line.vatRate),
         })),
       }
       if (editing) {
@@ -152,6 +165,19 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
 
+  async function postDraft(item: DraftSummary) {
+    if (item.status !== 'Draft' || busy) return
+    const confirmed = window.confirm(`${item.invoiceNumber} numaralı tedarikçi faturası muhasebeleştirilsin mi? Bu işlem geri alınamaz; gider, varsa indirilecek KDV, tedarikçi borcu ve yevmiye kaydı oluşturur. Stok veya ödeme hareketi oluşturmaz.`)
+    if (!confirmed) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      await request<{ draftId: string; status: string; journalEntryId: string; ledgerEntryId: string }>(
+        `/api/purchasing/standalone-invoices/${item.id}/post`, token, { method: 'POST' })
+      setNotice(`${item.invoiceNumber} muhasebeleştirildi. Yevmiye ve tedarikçi cari hareketi oluşturuldu; stok ve ödeme hareketi oluşturulmadı.`)
+      await load()
+    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
+
   return <main className="standalone-invoice-page">
     <header className="sid-heading"><div><p className="sid-eyebrow">ERP CORE · SATIN ALMA</p><h1>Bağımsız alış faturası taslakları</h1><p>Sipariş ve mal kabul bağlantısı olmadan tedarikçi belgesini kaydedin.</p></div><span className="sid-tenant"><ShieldCheck size={15}/>{role} · firma kapsamı</span></header>
     <section className="sid-draft-banner" role="status"><span><FilePlus2 size={18}/></span><div><b>Taslak · muhasebeleştirilmedi</b><p>Bu kayıt yalnızca belge bilgisidir. Kaydetmek stok, cari borç, ödeme veya yevmiye hareketi oluşturmaz.</p></div></section>
@@ -162,8 +188,7 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
       <section className="sid-card">
         <div className="sid-card-heading"><div><h2>Belge bilgileri</h2><p>Tedarikçi faturasında görünen değerleri girin.</p></div><span>{editing ? 'Taslak düzenleniyor' : 'Taslak'}</span></div>
         <div className="sid-fields">
-          <label>Tedarikçi ara<input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="Kod veya ad"/></label>
-          <label>Tedarikçi *<select value={draft.supplierId} onChange={e => selectSupplier(e.target.value)} required><option value="">Tedarikçi seçin</option>{visibleSuppliers.map(x => <option key={x.id} value={x.id}>{x.code ? `${x.code} · ` : ''}{x.name}</option>)}</select></label>
+          <label>Tedarikçi *<SearchableRecordPicker options={visibleSuppliers.map(x=>({id:x.id,label:`${x.code ? `${x.code} · ` : ''}${x.name}`}))} selectedId={draft.supplierId} onSelect={selectSupplier} onSearchChange={setSupplierSearch} title="Tedarikçi seçin" placeholder="Tedarikçi seçin" searchPlaceholder="Tedarikçi kodu veya unvanıyla ara" emptyMessage="Aramanızla eşleşen tedarikçi bulunamadı." required/></label>
           <label>Tedarikçi fatura no *<input value={draft.invoiceNumber} onChange={e => update('invoiceNumber', e.target.value)} maxLength={100} required/></label>
           <label>Fatura tarihi *<input type="date" value={draft.invoiceDate} onChange={e => update('invoiceDate', e.target.value)} required/></label>
           <label>Vade tarihi<input type="date" value={draft.dueDate} onChange={e => update('dueDate', e.target.value)}/></label>
@@ -183,7 +208,10 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
           <label>Ara toplam *<input type="number" min="0" step="0.01" value={line.subtotal} onChange={e => updateLine(index, 'subtotal', e.target.value)} required/></label>
           <label>İskonto *<input type="number" min="0" step="0.01" value={line.discountAmount} onChange={e => updateLine(index, 'discountAmount', e.target.value)} required/></label>
           <label>Vergi tutarı *<input type="number" min="0" step="0.01" value={line.taxAmount} onChange={e => updateLine(index, 'taxAmount', e.target.value)} required/></label>
+          <label>Belgedeki KDV oranı (%)<input type="number" min="0" max="100" step="0.01" value={line.vatRate} onChange={e => updateLine(index, 'vatRate', e.target.value)}/></label>
+          <label>Gider hesabı<select value={line.expenseAccountId} onChange={e => updateLine(index, 'expenseAccountId', e.target.value)}><option value="">Şimdi seçme</option>{expenseAccounts.map(account => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}</select></label>
           <label>Satır toplamı *<input type="number" min="0" step="0.01" value={line.total} onChange={e => updateLine(index, 'total', e.target.value)} required/></label>
+          <p className="sid-line-note sid-wide">KDV oranı belge üzerinden kaydedilir; yeniden hesaplanmaz. Gider hesabı yalnız sonraki muhasebeleştirme için sınıflandırmadır.</p>
         </div>)}</div>
       </section>
 
@@ -194,8 +222,8 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
       </section>
     </form>
 
-    <section className="sid-card sid-list-card"><div className="sid-card-heading"><div><h2>Kaydedilmiş taslaklar</h2><p>Yalnızca bu firmaya ait, muhasebeleştirilmemiş belgeler.</p></div><button type="button" className="sid-secondary" onClick={() => void load()} disabled={loading}><RotateCw size={15}/> Yenile</button></div>
-      <div className="sid-table-wrap"><AdvancedDataGrid><thead>{draftFieldGroups(draftScreenFields).map((group, index) => <tr className="sid-group-row" key={`${group.label}-${index}`}><th colSpan={group.count}>{group.label}</th></tr>)}<tr>{visibleDraftFields(draftScreenFields).map(field => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{loading ? <tr><td colSpan={visibleDraftFields(draftScreenFields).length} className="sid-empty">Taslaklar yükleniyor…</td></tr> : drafts.length === 0 ? <tr><td colSpan={visibleDraftFields(draftScreenFields).length} className="sid-empty">Henüz bağımsız fatura taslağı yok.</td></tr> : drafts.map(item => <tr key={item.id}>{visibleDraftFields(draftScreenFields).map(field => <td key={field.key}>{draftFieldValue(item, field.key, () => void beginEdit(item.id))}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
+    <section className="sid-card sid-list-card"><div className="sid-card-heading"><div><h2>Bağımsız tedarikçi faturaları</h2><p>Taslak kayıtları düzenleyebilir, hesap eşleştirmeleri tamamlandıktan sonra muhasebeleştirebilirsiniz.</p></div><button type="button" className="sid-secondary" onClick={() => void load()} disabled={loading}><RotateCw size={15}/> Yenile</button></div>
+      <div className="sid-table-wrap"><AdvancedDataGrid><thead>{draftFieldGroups(draftScreenFields).map((group, index) => <tr className="sid-group-row" key={`${group.label}-${index}`}><th colSpan={group.count}>{group.label}</th></tr>)}<tr>{visibleDraftFields(draftScreenFields).map(field => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{loading ? <tr><td colSpan={visibleDraftFields(draftScreenFields).length} className="sid-empty">Faturalar yükleniyor…</td></tr> : drafts.length === 0 ? <tr><td colSpan={visibleDraftFields(draftScreenFields).length} className="sid-empty">Henüz bağımsız fatura kaydı yok.</td></tr> : drafts.map(item => <tr key={item.id}>{visibleDraftFields(draftScreenFields).map(field => <td key={field.key}>{draftFieldValue(item, field.key, () => void beginEdit(item.id), () => void postDraft(item), busy)}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
     </section>
   </main>
 }
@@ -214,7 +242,7 @@ function draftFieldGroups(fields: DraftScreenField[]) {
   }, [])
 }
 
-function draftFieldValue(item: DraftSummary, key: string, edit: () => void) {
+function draftFieldValue(item: DraftSummary, key: string, edit: () => void, post: () => void, busy: boolean) {
   switch (key) {
     case 'invoiceNumber': return <b>{item.invoiceNumber}</b>
     case 'supplierName': return item.supplierName
@@ -224,8 +252,8 @@ function draftFieldValue(item: DraftSummary, key: string, edit: () => void) {
     case 'grandTotal': return <>{item.grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {item.currencyCode}</>
     case 'lineCount': return item.lineCount
     case 'createdAt': return new Date(item.createdAt).toLocaleString('tr-TR')
-    case 'status': return <span className="sid-status">Taslak · muhasebeleştirilmedi</span>
-    case 'actions': return <button type="button" className="sid-secondary" onClick={edit}>Düzenle</button>
+    case 'status': return <span className={`sid-status${item.status === 'Posted' ? ' sid-status-posted' : ''}`}>{item.status === 'Posted' ? 'Muhasebeleştirildi' : 'Taslak'}</span>
+    case 'actions': return <div className="sid-row-actions">{item.status === 'Draft' && <><button type="button" className="sid-secondary" onClick={edit} disabled={busy}>Düzenle</button><button type="button" className="sid-primary sid-post-button" onClick={post} disabled={busy}>Muhasebeleştir</button></>}{item.status === 'Posted' && <span>Deftere aktarıldı</span>}</div>
     default: return '—'
   }
 }

@@ -31,6 +31,62 @@ public static partial class TenantBudgetEndpoints
             return Results.Ok(result);
         });
 
+        group.MapGet("/assistant-summary", async (string? term, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryContext(user, out var tenantId, out _)) return Results.Forbid();
+            var search = term?.Trim() ?? string.Empty;
+            if (search.Length is < 2 or > 100)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["term"] = ["Arama terimi 2–100 karakter olmalıdır."] });
+
+            var plansQuery = db.TenantBudgetPlans.AsNoTracking().Where(x => x.TenantId == tenantId && x.Name.Contains(search));
+            var total = await plansQuery.CountAsync(ct);
+            var baseCurrency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.BaseCurrencyCode).SingleAsync(ct);
+            var plans = await plansQuery.OrderByDescending(x => x.FiscalYear).ThenBy(x => x.Name).Take(10)
+                .Select(x => new { x.Id, x.Name, x.FiscalYear, x.CurrencyCode, Status = x.Status.ToString(), LineCount = x.Lines.Count() })
+                .ToListAsync(ct);
+            var items = new List<object>(plans.Count);
+            foreach (var plan in plans)
+            {
+                var lines = await db.TenantBudgetLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.BudgetPlanId == plan.Id)
+                    .OrderBy(x => x.PeriodStart).ThenBy(x => x.AccountId)
+                    .Select(x => new { x.AccountId, x.PeriodStart, x.PlannedAmount }).ToListAsync(ct);
+                var actuals = await Actuals(db, tenantId, plan.Id, plan.FiscalYear, ct);
+                var comparable = string.Equals(plan.CurrencyCode, baseCurrency, StringComparison.OrdinalIgnoreCase);
+                var periods = lines.GroupBy(x => x.PeriodStart).OrderBy(x => x.Key).Select(group =>
+                {
+                    var planned = group.Sum(x => x.PlannedAmount);
+                    decimal? actual = comparable ? group.Sum(x => actuals.GetValueOrDefault((x.AccountId, x.PeriodStart))) : null;
+                    decimal? variance = actual is { } amount ? amount - planned : null;
+                    return new
+                    {
+                        periodStart = group.Key.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                        plannedAmount = planned,
+                        actualAmount = actual,
+                        variance
+                    };
+                }).ToArray();
+                var plannedTotal = periods.Sum(x => x.plannedAmount);
+                var actualTotal = comparable ? periods.Sum(x => x.actualAmount ?? 0m) : (decimal?)null;
+                decimal? varianceTotal = actualTotal is { } totalActual ? totalActual - plannedTotal : null;
+                items.Add(new
+                {
+                    name = plan.Name,
+                    plan.FiscalYear,
+                    currencyCode = plan.CurrencyCode,
+                    baseCurrencyCode = baseCurrency,
+                    plan.Status,
+                    lineCount = plan.LineCount,
+                    isComparableToLedger = comparable,
+                    plannedTotal,
+                    actualTotal,
+                    varianceTotal,
+                    periods
+                });
+            }
+
+            return Results.Ok(new { totalCount = total, items });
+        });
+
         group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryContext(user, out var tenantId, out _)) return Results.Forbid();

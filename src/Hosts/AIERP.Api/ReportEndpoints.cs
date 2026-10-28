@@ -553,23 +553,39 @@ public static class ReportEndpoints
             .Select(x => x.BaseCurrencyCode).SingleOrDefaultAsync(ct);
         if (baseCurrencyCode is null) return Results.Forbid();
         var allOrders = await ordersQuery.OrderBy(x => x.PlannedDate).ThenBy(x => x.Code)
-            .Include(x => x.Operations).AsSplitQuery().ToListAsync(ct);
+            .Include(x => x.Operations).Include(x => x.Lines).AsSplitQuery().ToListAsync(ct);
         var orderIds = allOrders.Select(x => x.Id).ToArray();
         var materialCosts = new Dictionary<Guid, (int MovementCount, int UnknownCostCount, decimal? NetCostBase)>();
+        var productStockItemByOrder = new Dictionary<Guid, Guid>();
         if (orderIds.Length > 0)
         {
-            var materialCostRows = await db.InventoryTransactions.AsNoTracking()
+            productStockItemByOrder = await db.ManufacturingOrders.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && orderIds.Contains(x.Id))
+                .Join(db.BillOfMaterials.AsNoTracking(), order => new { order.TenantId, Id = order.BillOfMaterialId },
+                    bom => new { bom.TenantId, Id = bom.Id }, (order, bom) => new { order.Id, bom.ProductStockItemId })
+                .ToDictionaryAsync(x => x.Id, x => x.ProductStockItemId, ct);
+            var movementCostRows = await db.InventoryTransactions.AsNoTracking()
                 .Where(x => x.TenantId == tenantId && x.ManufacturingOrderId.HasValue && orderIds.Contains(x.ManufacturingOrderId.Value))
-                .GroupBy(x => x.ManufacturingOrderId!.Value)
+                .GroupBy(x => new { ManufacturingOrderId = x.ManufacturingOrderId!.Value, x.StockItemId })
                 .Select(group => new
                 {
-                    ManufacturingOrderId = group.Key,
+                    group.Key.ManufacturingOrderId,
+                    group.Key.StockItemId,
                     MovementCount = group.Count(),
                     UnknownCostCount = group.Count(x => x.UnitCostBase == null),
                     NetCostBase = group.Sum(x => (decimal?)(x.Direction == InventoryDirection.Issue ? 1m : -1m) * x.Quantity * (x.UnitCostBase ?? 0m))
                 }).ToListAsync(ct);
-            foreach (var row in materialCostRows)
-                materialCosts[row.ManufacturingOrderId] = (row.MovementCount, row.UnknownCostCount, row.NetCostBase);
+            foreach (var row in movementCostRows)
+            {
+                // The finished-goods receipt carries the full output valuation. It is not a
+                // component cost and must not be subtracted from material consumption.
+                if (productStockItemByOrder.GetValueOrDefault(row.ManufacturingOrderId) == row.StockItemId) continue;
+                var current = materialCosts.GetValueOrDefault(row.ManufacturingOrderId);
+                materialCosts[row.ManufacturingOrderId] = (
+                    current.MovementCount + row.MovementCount,
+                    current.UnknownCostCount + row.UnknownCostCount,
+                    current.NetCostBase is null ? row.NetCostBase : row.NetCostBase is null ? current.NetCostBase : current.NetCostBase + row.NetCostBase);
+            }
         }
 
         var details = allOrders.Select(order =>
@@ -583,16 +599,18 @@ public static class ReportEndpoints
             decimal? actualOverhead = actualComplete ? decimal.Round(order.Operations.Sum(operation =>
                 ((operation.ActualSetupMinutes ?? 0m) + (operation.ActualRunMinutes ?? 0m)) / 60m * operation.OverheadCostPerHourBase), 4, MidpointRounding.AwayFromZero) : null;
             var actualEnergy = actualComplete ? decimal.Round(order.Operations.Sum(operation => operation.ActualEnergyCostBase ?? 0m), 4, MidpointRounding.AwayFromZero) : (decimal?)null;
+            var plannedEnergy = decimal.Round(order.Operations.Sum(operation => operation.PlannedEnergyCostBase), 4, MidpointRounding.AwayFromZero);
             // Use the nullable tenant-scoped source FK only. Historical rows and free-text
             // descriptions are intentionally not backfilled or treated as accounting identity.
             decimal? actualMaterial = materialCosts.TryGetValue(order.Id, out var material) && material.MovementCount > 0 && material.UnknownCostCount == 0
                 ? decimal.Round(material.NetCostBase ?? 0m, 4, MidpointRounding.AwayFromZero)
                 : null;
-            var plannedConversion = plannedLabor + plannedOverhead;
+            var plannedMaterial = decimal.Round(order.Lines.Sum(line => line.PlannedCostBase), 4, MidpointRounding.AwayFromZero);
+            var plannedConversion = plannedLabor + plannedOverhead + plannedEnergy;
             decimal? actualConversion = actualComplete ? actualLabor + actualOverhead + actualEnergy : null;
             return new ManufacturingCostVarianceOrder(order.Code, order.PlannedDate, order.Status.ToString(), order.PlannedQuantity,
                 order.Operations.Count, baseCurrencyCode, plannedLabor, actualLabor, plannedOverhead, actualOverhead,
-                null, actualEnergy, null, actualMaterial, plannedConversion, actualConversion,
+                plannedEnergy, actualEnergy, plannedMaterial, actualMaterial, plannedConversion, actualConversion,
                 actualConversion is not null ? actualConversion - plannedConversion : null,
                 // Keep the total unknown: source-linked material can be reported as a component,
                 // but legacy/unlinked movements prevent proving that it is complete for an order.
@@ -602,6 +620,7 @@ public static class ReportEndpoints
         var pageTotals = new ManufacturingCostVarianceTotals(pageRows.Length,
             pageRows.Sum(x => x.PlannedLaborBase), pageRows.All(x => x.ActualLaborBase is not null) ? pageRows.Sum(x => x.ActualLaborBase!.Value) : null,
             pageRows.Sum(x => x.PlannedOverheadBase), pageRows.All(x => x.ActualOverheadBase is not null) ? pageRows.Sum(x => x.ActualOverheadBase!.Value) : null,
+            pageRows.Sum(x => x.PlannedEnergyBase ?? 0m), pageRows.Sum(x => x.PlannedMaterialBase ?? 0m),
             pageRows.All(x => x.ActualEnergyBase is not null) ? pageRows.Sum(x => x.ActualEnergyBase!.Value) : null,
             pageRows.All(x => x.ActualConversionBase is not null) ? pageRows.Sum(x => x.ActualConversionBase!.Value) : null,
             pageRows.All(x => x.ActualMaterialBase is not null) ? pageRows.Sum(x => x.ActualMaterialBase!.Value) : null);
@@ -610,7 +629,7 @@ public static class ReportEndpoints
         await db.SaveChangesAsync(ct);
         return Results.Ok(new ManufacturingCostVarianceReport(from.Value, to.Value, "plannedDate", baseCurrencyCode,
             page, pageSize, totalCount, pageRows, pageTotals,
-            "Planlanan enerji ve malzeme standart maliyetleri üretim emri/reçete üzerinde saklanmadığından raporlanmaz. Fiili malzeme bileşeni yalnızca doğrudan üretim emrine bağlı maliyetli stok hareketlerinden hesaplanır; eski bağlantısız hareketlerin hangi emre ait olduğu kanıtlanamaz. Bu nedenle toplam fiili maliyet ve toplam maliyet farkı kaynak bağlantılarının eksiksiz olduğu doğrulanana kadar gösterilmez."));
+            "Planlanan enerji ve fire dahil malzeme maliyetleri emir anındaki anlık görüntülerden raporlanır. Fiili malzeme yalnızca doğrudan üretim emrine bağlı bileşen hareketlerinden hesaplanır; mamul giriş hareketi bileşen maliyetinden çıkarılır. Eski bağlantısız stok hareketlerinin hangi emre ait olduğu kanıtlanamadığından toplam fiili maliyet ve toplam maliyet farkı ayrıca doğrulanana kadar gösterilmez."));
     }
 
     private static async Task<IResult> RunAsync(ReportRunRequest request, ClaimsPrincipal user, TenantDbContext db, HttpContext context, CancellationToken ct)
@@ -5579,7 +5598,7 @@ public sealed record ManufacturingCostVarianceOrder(string OrderCode, DateOnly P
     decimal? PlannedMaterialBase, decimal? ActualMaterialBase, decimal PlannedConversionBase,
     decimal? ActualConversionBase, decimal? ConversionVarianceBase, decimal? ActualTotalCostBase, decimal? TotalVarianceBase);
 public sealed record ManufacturingCostVarianceTotals(int OrderCount, decimal PlannedLaborBase, decimal? ActualLaborBase,
-    decimal PlannedOverheadBase, decimal? ActualOverheadBase, decimal? ActualEnergyBase,
+    decimal PlannedOverheadBase, decimal? ActualOverheadBase, decimal PlannedEnergyBase, decimal PlannedMaterialBase, decimal? ActualEnergyBase,
     decimal? ActualConversionBase, decimal? ActualMaterialBase);
 public sealed record SalesOrderFulfillmentReportRow(string OrderCode, string CustomerCode, string CustomerName, DateOnly OrderDate,
     DateOnly? RequestedDeliveryDate, SalesOrderStatus Status, int LineNumber, string StockCode, string StockName, string UnitCode,

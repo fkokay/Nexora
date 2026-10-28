@@ -18,9 +18,9 @@
 .manufacturing-form input,.manufacturing-form select{min-width:0;max-width:100%}
 .manufacturing-line{grid-template-columns:minmax(0,1fr) minmax(64px,90px) minmax(58px,74px) 28px}
 .work-center-calendar{display:grid;gap:14px;margin-top:20px;padding:17px;background:#fbfbff;border:1px solid #e6e8f2;border-radius:12px}.calendar-title{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.calendar-title h3{margin:0;color:#28354e;font-size:14px}.calendar-title p{max-width:650px;margin:5px 0 0;color:#78849a;font-size:11px;line-height:1.5}.calendar-title>label,.calendar-override-form>label{display:grid;gap:5px;color:#68758d;font-size:11px;font-weight:650}.calendar-title select,.calendar-override-form input{min-width:150px;height:36px;padding:0 9px;color:#28354e;background:#fff;border:1px solid #dfe4ef;border-radius:8px}.work-calendar-days{display:flex;flex-wrap:wrap;gap:7px}.work-calendar-days label{display:flex;align-items:center;gap:7px;padding:8px 10px;color:#53617a;background:#fff;border:1px solid #e3e7f0;border-radius:8px;font-size:11px}.work-calendar-days input{accent-color:#7058e8}.calendar-override-form{display:grid;grid-template-columns:minmax(140px,.8fr) minmax(140px,.8fr) minmax(180px,1.3fr) auto;align-items:end;gap:10px;padding:13px;background:#fff;border:1px solid #e7eaf2;border-radius:10px}.calendar-override-form input{width:100%;min-width:0}.calendar-override-form small,.calendar-save-row small{color:#8995aa;font-size:10px;line-height:1.4}.calendar-override-form button{min-height:36px;white-space:nowrap}.calendar-override-list{display:grid;gap:6px}.calendar-override-row{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(110px,.8fr) minmax(100px,1.5fr) 28px;align-items:center;gap:10px;padding:8px 10px;background:#fff;border:1px solid #e8ebf3;border-radius:8px;font-size:11px}.calendar-override-row b{color:#28354e}.calendar-override-row span{color:#596781}.calendar-override-row small{color:#8995aa}.calendar-override-row button{width:28px;height:28px}.calendar-save-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.calendar-save-row button{min-height:38px;padding:0 15px}@media(max-width:800px){.calendar-override-form{grid-template-columns:1fr 1fr}.calendar-override-form>label:nth-child(3){grid-column:1/-1}.calendar-title{flex-direction:column}.calendar-title>label{width:100%}.calendar-title select{width:100%}}@media(max-width:560px){.calendar-override-form{grid-template-columns:1fr}.calendar-override-form>label:nth-child(3){grid-column:auto}.calendar-override-row{grid-template-columns:1fr auto;gap:4px 8px}.calendar-override-row small{grid-column:1}.calendar-override-row button{grid-column:2;grid-row:1/4}.calendar-save-row{align-items:stretch;flex-direction:column}.calendar-save-row button{width:100%}}
-.manufacturing-operation{grid-template-columns:24px minmax(140px,1fr) minmax(95px,.8fr) 82px 82px 82px minmax(120px,1fr) 28px}
+.manufacturing-operation{grid-template-columns:24px minmax(140px,1fr) minmax(95px,.8fr) 82px 82px 105px 112px 82px minmax(120px,1fr) 28px}
 .calendar-override-row label{display:grid;gap:3px;color:#68758d;font-size:10px}
-@media(max-width:600px){.manufacturing-operation{grid-template-columns:20px minmax(110px,1fr) minmax(88px,.8fr) 72px 72px 76px minmax(100px,1fr) 24px}}
+@media(max-width:600px){.manufacturing-operation{grid-template-columns:20px minmax(110px,1fr) minmax(88px,.8fr) 72px 72px 92px 98px 76px minmax(100px,1fr) 24px}}
 .annual-capacity-form{grid-template-columns:minmax(70px,.45fr) minmax(70px,.45fr) minmax(140px,.8fr) minmax(180px,1.3fr) auto}@media(max-width:800px){.calendar-override-form.annual-capacity-form{grid-template-columns:1fr 1fr}.calendar-override-form.annual-capacity-form>label:nth-child(4){grid-column:1/-1}}@media(max-width:560px){.calendar-override-form.annual-capacity-form{grid-template-columns:1fr}.calendar-override-form.annual-capacity-form>label:nth-child(4){grid-column:auto}}
 .rotation-row{display:block;padding:14px}.rotation-header{display:flex;align-items:center;gap:12px}.rotation-header small{flex:1}.rotation-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px}.rotation-day{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;border:1px solid var(--line,#e3e7ef);border-radius:12px;background:var(--surface-soft,#f8f9fc)}.rotation-day>b{grid-column:1/-1}.rotation-day label{font-size:12px}.rotation-day input{width:100%;min-width:0}
 
@@ -29,12 +29,14 @@
 .manufacturing-table-wrap{width:100%;max-width:100%;overscroll-behavior-inline:contain}
 .manufacturing-table-wrap table{min-width:760px}
 .manufacturing-lines{min-width:0;overflow-x:auto;overscroll-behavior-inline:contain}
-.manufacturing-operation{min-width:740px}
+.manufacturing-page .manufacturing-line{grid-template-columns:minmax(150px,1fr) 88px 76px 112px 28px;min-width:500px}
+.manufacturing-page .manufacturing-components b{display:block;margin-top:3px;color:#34435d;font-size:10px}
+.manufacturing-operation{min-width:930px}
 .mrp-conversion-row>label{flex:1}
 .mrp-conversion-row select{max-width:100%;min-width:min(220px,40%)}
 @media(max-width:600px){
   .manufacturing-table-wrap table{min-width:720px}
-  .manufacturing-operation{min-width:650px}
+  .manufacturing-operation{min-width:900px}
   .mrp-conversion-row{align-items:stretch;flex-direction:column}
   .mrp-conversion-row select{width:100%;min-width:0}
   .manufacturing-heading{align-items:flex-start}
@@ -97,6 +99,16 @@ html[data-theme="dark"] .manufacturing-record-scope,html[data-theme="dark"] .man
 html[data-theme="dark"] .manufacturing-record-scope,html[data-theme="dark"] .manufacturing-kpis article>span,html[data-theme="dark"] .manufacturing-kpis article>small{color:var(--erp-text-muted,#a7afbf)}
 @media(max-width:700px){.manufacturing-workbench-header{grid-template-columns:auto minmax(0,1fr)}.manufacturing-header-actions{grid-column:1/-1;justify-content:space-between;padding-top:8px;border-top:1px solid var(--erp-border,#e6e9ef)}.manufacturing-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.manufacturing-workbench-header{align-items:start}.manufacturing-record-scope{white-space:normal}.manufacturing-header-actions{flex-wrap:wrap}}
+
+/* Recipe alternative centers are toggled independently, so touch users do not need modifier keys in a native multi-select. */
+.manufacturing-page .manufacturing-alternates{display:grid;gap:4px;min-width:0;align-self:stretch;align-content:center;padding:3px 5px;border:1px solid var(--erp-border,#dfe4ed);border-radius:7px;background:var(--erp-surface-soft,#f7f8fb)}
+.manufacturing-page .manufacturing-alternates>small{color:var(--erp-text-muted,#718098);font-size:9px;line-height:1.2}
+.manufacturing-page .manufacturing-alternates>div{display:flex;gap:3px;max-width:100%;overflow:auto;overscroll-behavior-inline:contain}
+.manufacturing-page .manufacturing-alternates label{display:flex;flex:0 0 auto;align-items:center;gap:3px;padding:2px 4px;border:1px solid var(--erp-border,#e2e6ee);border-radius:5px;background:var(--erp-surface,#fff);color:var(--erp-text-muted,#59667d);font-size:9px;cursor:pointer}
+.manufacturing-page .manufacturing-alternates input[type="checkbox"]{width:13px;height:13px;margin:0;accent-color:#7058e8}
+.manufacturing-page .manufacturing-alternates input:disabled+span{opacity:.55}
+html[data-theme="dark"] .manufacturing-page .manufacturing-alternates{background:var(--erp-surface-soft,#20242e);border-color:var(--erp-border,#303542)}
+html[data-theme="dark"] .manufacturing-page .manufacturing-alternates label{background:var(--erp-surface,#171a22);border-color:var(--erp-border,#303542)}
 .manufacturing-order-workbench{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,300px);gap:12px;align-items:start}
 .manufacturing-order-workbench>.manufacturing-table-wrap{min-width:0}
 .manufacturing-order-select{padding:0;border:0;background:transparent;color:var(--erp-text,#25324a);font:inherit;font-weight:700;text-align:left;cursor:pointer}
@@ -165,4 +177,26 @@ html[data-theme="dark"] .manufacturing-page .calendar-settings-disclosure > summ
 @media(max-width:700px) {
   .manufacturing-page .manufacturing-kpis.work-center-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .manufacturing-page .calendar-title { flex-wrap: wrap; }
+}
+.manufacturing-page .mrp-demand-list { grid-column: 1 / -1; display: grid; gap: 8px; min-width: 0; container-type: inline-size; }
+.manufacturing-page .mrp-demand-row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, .7fr) minmax(0, 1fr) auto; align-items: end; gap: 10px; min-width: 0; padding: 10px; border: 1px solid var(--erp-border, #d8deea); border-radius: 9px; background: var(--erp-surface-soft, #f8f9fc); }
+.manufacturing-page .mrp-demand-row label { min-width: 0; }
+.manufacturing-page .mrp-demand-remove { min-height: 38px; }
+.manufacturing-page .mrp-demand-add { justify-self: start; }
+.manufacturing-page .mrp-demand-error { color: #b14e56; font-size: 11px; }
+@container (max-width:620px) {
+  .manufacturing-page .mrp-demand-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .manufacturing-page .mrp-demand-row label:first-child { grid-column: 1 / -1; }
+  .manufacturing-page .mrp-demand-remove { justify-self: start; }
+}
+
+/* Size the MRP inputs from the panel width so desktop sidebars stay usable. */
+.manufacturing-page .mrp-panel { container-type: inline-size; }
+.manufacturing-page .mrp-form { grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
+.manufacturing-page .mrp-form > label { min-width: 0; }
+.manufacturing-page .mrp-form > button { grid-column: auto; justify-self: start; }
+.manufacturing-page .mrp-form input,
+.manufacturing-page .mrp-form select { min-width: 0; max-width: 100%; }
+@container (max-width: 640px) {
+  .manufacturing-page .mrp-form { grid-template-columns: minmax(0, 1fr); }
 }

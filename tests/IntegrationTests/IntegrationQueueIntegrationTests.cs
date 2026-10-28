@@ -32,6 +32,17 @@ public sealed class IntegrationQueueIntegrationTests
         Assert.Contains("exceeded", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(true, true, 1, 3, false)]
+    [InlineData(true, false, 1, 3, true)]
+    [InlineData(true, false, 3, 3, false)]
+    [InlineData(false, false, 1, 3, false)]
+    public void Ambiguous_delivery_is_never_automatically_retried(bool retryable, bool ambiguous, int attemptCount,
+        int maximumAttempts, bool expected)
+    {
+        Assert.Equal(expected, IntegrationOperationWorker.ShouldScheduleRetry(retryable, ambiguous, attemptCount, maximumAttempts));
+    }
+
     [Fact]
     public async Task Integration_requests_are_encrypted_idempotent_and_tenant_scoped()
     {

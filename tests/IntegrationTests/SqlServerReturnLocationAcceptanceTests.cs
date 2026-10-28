@@ -42,12 +42,14 @@ public sealed class SqlServerReturnLocationAcceptanceTests
         await using var tenantDb = new TenantDbContext(tenantOptions);
         var platformCreated = false;
         var tenantCreated = false;
+        SqlAcceptanceTenantCredential? tenantCredential = null;
         try
         {
             platformCreated = await platformDb.Database.EnsureCreatedAsync();
             tenantCreated = await tenantDb.Database.EnsureCreatedAsync();
             Assert.True(platformCreated);
             Assert.True(tenantCreated);
+            tenantCredential = await SqlAcceptanceTenantCredential.CreateAsync(configuredConnection!, TenantId);
 
             var data = await SeedAsync(platformDb, tenantDb, tenantName);
             using var startupConfiguration = ProcessEnvironmentOverride.Push(new Dictionary<string, string?>
@@ -62,7 +64,7 @@ public sealed class SqlServerReturnLocationAcceptanceTests
                 ["Database__SeparationEnabled"] = "true",
                 ["Database__ApplyMigrationsOnStartup"] = "false"
             });
-            using var factory = new ReturnApiFactory(platformConnection, tenantConnection, studioConnection);
+            using var factory = new ReturnApiFactory(platformConnection, tenantConnection, studioConnection, tenantCredential.CredentialReader);
             using var client = factory.CreateClient();
             client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantId.ToString("D"));
             client.DefaultRequestHeaders.Add("X-Test-User", UserId.ToString("D"));
@@ -276,6 +278,7 @@ public sealed class SqlServerReturnLocationAcceptanceTests
         {
             if (tenantCreated) await tenantDb.Database.EnsureDeletedAsync();
             if (platformCreated) await platformDb.Database.EnsureDeletedAsync();
+            if (tenantCredential is not null) await tenantCredential.DisposeAsync();
         }
     }
 
@@ -439,8 +442,20 @@ public sealed class SqlServerReturnLocationAcceptanceTests
         }
     }
 
-    private sealed class ReturnApiFactory(string platformConnection, string tenantConnection, string studioConnection) : WebApplicationFactory<ApiEntryPointMarker>
+    private sealed class ReturnApiFactory(string platformConnection, string tenantConnection, string studioConnection,
+        ITenantSqlCredentialReader credentialReader) : WebApplicationFactory<ApiEntryPointMarker>
     {
+        protected override IHost CreateHost(IHostBuilder builder)
+        {
+            builder.ConfigureHostConfiguration(configuration => configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:Address"] = "https://vault.test",
+                ["Vault:TenantSqlCredentialReader:RoleId"] = "return-location-test-role",
+                ["Vault:TenantSqlCredentialReader:SecretId"] = "return-location-test-secret"
+            }));
+            return base.CreateHost(builder);
+        }
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(Environments.Production);
@@ -458,6 +473,8 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             }));
             builder.ConfigureTestServices(services =>
             {
+                services.RemoveAll<ITenantSqlCredentialReader>();
+                services.AddSingleton(credentialReader);
                 services.AddAuthentication("report-test")
                     .AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
             var backgroundWorkers = services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)

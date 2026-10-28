@@ -1,16 +1,16 @@
 /* Fluent-style master/detail surfaces scoped to security and audit pages. */
 .access-control-page .access-members-panel,.access-control-page>.panel{border:1px solid #d9e2f0;border-radius:8px;box-shadow:0 1px 2px #172b4d0d}
-.access-control-page .access-members-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,310px);gap:0 14px;align-items:start}
-.access-control-page .access-members-panel>.panel-heading,.access-control-page .access-members-panel>.access-member-search,.access-control-page .access-members-panel>.access-member-candidate{grid-column:1/-1}
+.access-control-page .access-members-panel{display:block;container-type:inline-size}
+.access-members-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,310px);gap:16px;align-items:start}
 .access-control-page .panel-heading{align-items:center;padding-bottom:10px;border-bottom:1px solid #e5ebf3}
-.access-control-page .access-member-search{display:flex;align-items:flex-end;gap:8px;padding:12px 0;border-bottom:1px solid #e5ebf3}
-.access-control-page .access-member-search label{flex:1;max-width:440px}
+.access-control-page .access-members-panel form.access-member-search{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:12px}
+.access-control-page .access-member-search label{max-width:none}
 .access-control-page .access-member-list{grid-column:1;min-width:0}
 .access-control-page .access-member-row{grid-column:1;display:grid;grid-template-columns:minmax(170px,1fr) minmax(130px,190px) auto;align-items:center;gap:10px;padding:9px 10px;margin:0;border:0;border-bottom:1px solid #e5ebf3;border-radius:0;cursor:pointer}
 .access-control-page .access-member-row:hover,.access-control-page .access-member-row.security-selected-row{background:#edf4ff}
 .security-selected-row{border-color:#8ab8f2!important;background:#eaf2ff!important}
 .security-record-pane{min-width:0;padding:13px;border:1px solid #d9e2f0;border-radius:8px;background:#f8fafc;color:#334155}
-.access-control-page .access-members-panel>.security-record-pane{grid-column:2;grid-row:3;position:sticky;top:90px}
+.access-members-workspace>.security-record-pane{position:sticky;top:84px}
 .security-record-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding-bottom:10px;border-bottom:1px solid #dfe7f1;color:#1e3a5f}
 .security-record-heading>div>span{color:#2563a6;font-size:10px;font-weight:750;letter-spacing:.08em}
 .security-record-heading h3{margin:4px 0;font-size:15px;color:#172b4d;overflow-wrap:anywhere}
@@ -115,6 +115,15 @@ html[data-theme="dark"] .audit-detail-pane dl div{background:#202d40}
 .access-control-page .access-member-search label{gap:7px;color:#53647a;font-size:10px}
 .access-control-page .access-member-search input{height:39px!important;border-color:#dbe4ef!important;border-radius:8px!important;background:#fff!important}
 .access-control-page .access-member-search button{min-height:38px;border-radius:8px}
+.access-control-page .access-members-panel form.access-member-create{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;padding:16px;margin-bottom:20px;border:1px solid #e2eaf3;border-radius:10px;background:#f8faff}
+.access-member-form-heading,.access-member-form-footer{grid-column:1/-1}
+.access-member-form-heading h4{margin:0 0 5px;color:#263b58;font-size:13px}
+.access-member-form-heading p{margin:0;color:#718198;font-size:11px;line-height:1.5}
+.access-member-form-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:12px;border-top:1px solid #e2eaf3}
+.access-member-form-footer small{color:#718198;font-size:11px;line-height:1.5}
+.access-member-form-footer .primary{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;white-space:nowrap}
+@container(max-width:1000px){.access-control-page .access-members-panel form.access-member-create{grid-template-columns:repeat(2,minmax(0,1fr))}.access-members-workspace{grid-template-columns:minmax(0,1fr)}.access-members-workspace>.security-record-pane{position:static}}
+@container(max-width:560px){.access-control-page .access-members-panel form.access-member-search,.access-control-page .access-members-panel form.access-member-create{grid-template-columns:minmax(0,1fr)}.access-control-page .access-member-row{grid-template-columns:minmax(0,1fr);gap:10px}.access-control-page .access-member-row>.row-action{justify-self:start}.access-member-form-footer{align-items:stretch;flex-direction:column}.access-member-form-footer .primary{white-space:normal}.access-control-page .access-members-panel form.access-member-search button{justify-self:stretch}}
 .access-control-page .access-member-list{padding:4px 8px;border:1px solid #e6edf5;border-radius:10px;background:#fbfcfe}
 .access-control-page .access-member-row{min-height:66px;grid-template-columns:minmax(150px,1fr) minmax(125px,170px) auto;gap:12px;padding:9px 7px;border-bottom-color:#e9eef5;border-radius:7px}
 .access-control-page .access-member-row:last-child{border-bottom:0}
@@ -157,6 +166,9 @@ html[data-theme="dark"] .access-page-scope{border-color:#34445a;background:#202d
 html[data-theme="dark"] .access-control-page .access-members-panel,html[data-theme="dark"] .access-control-page>.panel{border-color:var(--erp-border);background:var(--erp-surface);box-shadow:none}
 html[data-theme="dark"] .access-control-page .panel-heading{border-color:var(--erp-border)}
 html[data-theme="dark"] .access-control-page .access-member-search{border-color:var(--erp-border);background:#1b2636}
+html[data-theme="dark"] .access-control-page .access-members-panel form.access-member-create{border-color:var(--erp-border);background:#1b2636}
+html[data-theme="dark"] .access-member-form-heading h4{color:var(--erp-text)}
+html[data-theme="dark"] .access-member-form-footer{border-color:var(--erp-border)}
 html[data-theme="dark"] .access-control-page .access-member-list{border-color:var(--erp-border);background:#151e2c}
 html[data-theme="dark"] .access-control-page .access-member-row{border-color:var(--erp-border)}
 html[data-theme="dark"] .access-control-page .access-member-row:hover{background:#202d40}

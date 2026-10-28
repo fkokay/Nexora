@@ -27,6 +27,26 @@ public sealed class ForeignTradeEndpointsIntegrationTests
         var otherTenant = new Tenant { Id = tenantB, Name = "Trade test B", Slug = $"trade-b-{tenantB:N}" };
         var supplier = new CustomerAccount { TenantId = tenantA, Tenant = tenant, Code = "SUP-1", Name = "Synthetic supplier", Type = CounterpartyType.Supplier, CurrencyCode = "EUR" };
         var order = new PurchaseOrder { TenantId = tenantA, Tenant = tenant, SupplierId = supplier.Id, Supplier = supplier, Code = "PO-TRADE-1", OrderDate = new DateOnly(2026, 10, 1), CurrencyCode = "EUR", GrandTotal = 1250m, Status = PurchaseOrderStatus.Open };
+        var warehouse = new Warehouse { TenantId = tenantA, Tenant = tenant, Code = "WH-TRADE", Name = "Trade warehouse" };
+        var stockItem = new StockItem { TenantId = tenantA, Tenant = tenant, Code = "TRADE-ITEM", Name = "Trade item" };
+        var orderLine = new PurchaseOrderLine { TenantId = tenantA, PurchaseOrderId = order.Id, PurchaseOrder = order, LineNumber = 1, StockItemId = stockItem.Id, StockItem = stockItem, StockCode = stockItem.Code, StockName = stockItem.Name, UnitCode = "EA", Quantity = 1m, UnitPrice = 1250m, LineSubtotal = 1250m, LineTotal = 1250m };
+        order.Lines.Add(orderLine);
+        var receipt = new PurchaseReceipt { TenantId = tenantA, Tenant = tenant, PurchaseOrderId = order.Id, PurchaseOrder = order, WarehouseId = warehouse.Id, Warehouse = warehouse, RequestId = Guid.NewGuid(), Code = "GR-TRADE-1", ReceiptDate = new DateOnly(2026, 10, 15), Status = PurchaseReceiptStatus.Posted };
+        var receiptLine = new PurchaseReceiptLine { TenantId = tenantA, ReceiptId = receipt.Id, Receipt = receipt, PurchaseOrderId = order.Id, OrderLineNumber = 1, OrderLine = orderLine, StockItemId = stockItem.Id, StockCode = stockItem.Code, StockName = stockItem.Name, UnitCode = "EA", Quantity = 1m };
+        receipt.Lines.Add(receiptLine);
+        var receiptMovement = new InventoryTransaction { TenantId = tenantA, WarehouseId = warehouse.Id, Warehouse = warehouse, StockItemId = stockItem.Id, StockItem = stockItem, PurchaseReceiptLineId = receiptLine.Id, PurchaseReceiptLine = receiptLine, EntryDate = new DateOnly(2026, 10, 15), Direction = InventoryDirection.Receipt, Quantity = 1m, Description = "Posted purchase receipt" };
+        receiptLine.InventoryTransactions.Add(receiptMovement);
+        var otherSupplier = new CustomerAccount { TenantId = tenantB, Tenant = otherTenant, Code = "SUP-B", Name = "Tenant B supplier", Type = CounterpartyType.Supplier, CurrencyCode = "EUR" };
+        var otherOrder = new PurchaseOrder { TenantId = tenantB, Tenant = otherTenant, SupplierId = otherSupplier.Id, Supplier = otherSupplier, Code = "PO-TRADE-B", OrderDate = new DateOnly(2026, 10, 1), CurrencyCode = "EUR", GrandTotal = 50m, Status = PurchaseOrderStatus.Open };
+        var otherWarehouse = new Warehouse { TenantId = tenantB, Tenant = otherTenant, Code = "WH-B", Name = "Tenant B warehouse" };
+        var otherStockItem = new StockItem { TenantId = tenantB, Tenant = otherTenant, Code = "ITEM-B", Name = "Tenant B item" };
+        var otherOrderLine = new PurchaseOrderLine { TenantId = tenantB, PurchaseOrderId = otherOrder.Id, PurchaseOrder = otherOrder, LineNumber = 1, StockItemId = otherStockItem.Id, StockItem = otherStockItem, StockCode = otherStockItem.Code, StockName = otherStockItem.Name, UnitCode = "EA", Quantity = 1m, UnitPrice = 50m, LineSubtotal = 50m, LineTotal = 50m };
+        otherOrder.Lines.Add(otherOrderLine);
+        var otherReceipt = new PurchaseReceipt { TenantId = tenantB, Tenant = otherTenant, PurchaseOrderId = otherOrder.Id, PurchaseOrder = otherOrder, WarehouseId = otherWarehouse.Id, Warehouse = otherWarehouse, RequestId = Guid.NewGuid(), Code = "GR-TRADE-B", ReceiptDate = new DateOnly(2026, 10, 15), Status = PurchaseReceiptStatus.Posted };
+        var otherReceiptLine = new PurchaseReceiptLine { TenantId = tenantB, ReceiptId = otherReceipt.Id, Receipt = otherReceipt, PurchaseOrderId = otherOrder.Id, OrderLineNumber = 1, OrderLine = otherOrderLine, StockItemId = otherStockItem.Id, StockCode = otherStockItem.Code, StockName = otherStockItem.Name, UnitCode = "EA", Quantity = 1m };
+        otherReceipt.Lines.Add(otherReceiptLine);
+        var otherReceiptMovement = new InventoryTransaction { TenantId = tenantB, WarehouseId = otherWarehouse.Id, Warehouse = otherWarehouse, StockItemId = otherStockItem.Id, StockItem = otherStockItem, PurchaseReceiptLineId = otherReceiptLine.Id, PurchaseReceiptLine = otherReceiptLine, EntryDate = new DateOnly(2026, 10, 15), Direction = InventoryDirection.Receipt, Quantity = 1m, Description = "Tenant B posted purchase receipt" };
+        otherReceiptLine.InventoryTransactions.Add(otherReceiptMovement);
 
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -48,6 +68,16 @@ public sealed class ForeignTradeEndpointsIntegrationTests
             db.Tenants.AddRange(tenant, otherTenant);
             db.CustomerAccounts.Add(supplier);
             db.PurchaseOrders.Add(order);
+            db.PurchaseOrders.Add(otherOrder);
+            db.Warehouses.Add(warehouse);
+            db.Warehouses.Add(otherWarehouse);
+            db.StockItems.Add(stockItem);
+            db.StockItems.Add(otherStockItem);
+            db.PurchaseReceipts.Add(receipt);
+            db.PurchaseReceipts.Add(otherReceipt);
+            db.InventoryTransactions.Add(receiptMovement);
+            db.InventoryTransactions.Add(otherReceiptMovement);
+            db.CustomerAccounts.Add(otherSupplier);
             await db.SaveChangesAsync();
         }
         await using (var scope = app.Services.CreateAsyncScope())
@@ -81,6 +111,17 @@ public sealed class ForeignTradeEndpointsIntegrationTests
         };
         using var badCountry = await client.PostAsJsonAsync("/api/foreign-trade/cases", new { payload.direction, payload.purchaseOrderId, payload.salesOrderId, payload.referenceCode, originCountryCode = "DEU", payload.destinationCountryCode, payload.incotermsCode, payload.harmonizedSystemCode, payload.transportMode, payload.carrierReference, payload.customsReference, payload.declaredValue, payload.plannedShipDate, payload.plannedArrivalDate, payload.notes });
         Assert.Equal(HttpStatusCode.BadRequest, badCountry.StatusCode);
+        foreach (var unassignedCountryCode in new[] { "AA", "ZZ" })
+        {
+            using var invalidCountry = await client.PostAsJsonAsync("/api/foreign-trade/cases", new
+            {
+                payload.direction, payload.purchaseOrderId, payload.salesOrderId, payload.referenceCode,
+                originCountryCode = unassignedCountryCode, payload.destinationCountryCode, payload.incotermsCode,
+                payload.harmonizedSystemCode, payload.transportMode, payload.carrierReference, payload.customsReference,
+                payload.declaredValue, payload.plannedShipDate, payload.plannedArrivalDate, payload.notes
+            });
+            Assert.Equal(HttpStatusCode.BadRequest, invalidCountry.StatusCode);
+        }
         using var created = await client.PostAsJsonAsync("/api/foreign-trade/cases", payload);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         using var createdJson = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
@@ -145,7 +186,7 @@ public sealed class ForeignTradeEndpointsIntegrationTests
         var otherTenantCases = await client.GetFromJsonAsync<JsonElement>("/api/foreign-trade/cases");
         Assert.Equal(0, otherTenantCases.GetProperty("total").GetInt32());
         var otherTenantOrders = await client.GetFromJsonAsync<JsonElement[]>("/api/foreign-trade/orders?direction=Import");
-        Assert.Empty(otherTenantOrders!);
+        Assert.Contains(otherTenantOrders!, item => item.GetProperty("id").GetGuid() == otherOrder.Id);
 
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");
         client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantA.ToString("D"));
@@ -160,6 +201,14 @@ public sealed class ForeignTradeEndpointsIntegrationTests
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/foreign-trade/cases/{caseId}/transition", new { status = "CustomsClearance", customsReference = "CUSTOMS-1" })).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"/api/foreign-trade/cases/{caseId}/transition", new { status = "Arrived", actualDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1).ToString("yyyy-MM-dd") })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/foreign-trade/cases/{caseId}/transition", new { status = "Arrived", actualDate = "2026-10-15" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/foreign-trade/cases/{caseId}/transition", new { status = "Closed" })).StatusCode);
+        var inventoryDocuments = await client.GetFromJsonAsync<JsonElement[]>($"/api/foreign-trade/cases/{caseId}/inventory-documents");
+        Assert.Contains(inventoryDocuments!, item => item.GetProperty("id").GetGuid() == receipt.Id && item.GetProperty("code").GetString() == receipt.Code);
+        Assert.DoesNotContain(inventoryDocuments!, item => item.GetProperty("id").GetGuid() == otherReceipt.Id);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/foreign-trade/cases/{caseId}/inventory-document", new { documentId = otherReceipt.Id })).StatusCode);
+        var linked = await client.PostAsJsonAsync($"/api/foreign-trade/cases/{caseId}/inventory-document", new { documentId = receipt.Id });
+        Assert.Equal(HttpStatusCode.OK, linked.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/foreign-trade/cases/{caseId}/inventory-document", new { documentId = receipt.Id })).StatusCode); // retry is idempotent
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/foreign-trade/cases/{caseId}/transition", new { status = "Closed" })).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"/api/foreign-trade/cases/{caseId}", payload)).StatusCode);
 
@@ -167,8 +216,11 @@ public sealed class ForeignTradeEndpointsIntegrationTests
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<TenantDbContext>();
         var persisted = await verifyDb.Set<ForeignTradeCase>().SingleAsync(item => item.Id == caseId);
         Assert.Equal(ForeignTradeStatus.Closed, persisted.Status);
+        Assert.Equal(receipt.Id, persisted.PurchaseReceiptId);
+        Assert.NotNull(persisted.InventoryDocumentLinkedAt);
         Assert.Equal("CUSTOMS-1", persisted.CustomsReference);
         Assert.True(await verifyDb.AuditEvents.AnyAsync(item => item.TenantId == tenantA && item.Action == "foreign-trade.case.created"));
         Assert.True(await verifyDb.AuditEvents.AnyAsync(item => item.TenantId == tenantA && item.Action == "foreign-trade.case.status-changed"));
+        Assert.True(await verifyDb.AuditEvents.AnyAsync(item => item.TenantId == tenantA && item.Action == "foreign-trade.case.inventory-document-linked"));
     }
 }

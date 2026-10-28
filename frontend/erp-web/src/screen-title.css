@@ -1,0 +1,145 @@
+/* One quiet, light title treatment for every top-level ERP screen. */
+:is(
+  #root .main-area .page-heading:has(h1),
+  #root .main-area .screen-page-header,
+  #root .main-area .hr-header,
+  #root .main-area .op-project-heading,
+  #root .main-area .erp-home-heading,
+  #root .main-area .forms-hero,
+  #root .main-area .platform-license-heading,
+  #root .main-area .sales-distribution-header,
+  #root .main-area .sales-promotions-header,
+  #root .main-area .pie-heading,
+  #root .main-area .sid-heading
+) {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  width: 100%;
+  min-width: 0;
+  min-height: 76px;
+  margin: 0 0 16px;
+  padding: 14px 18px;
+  overflow: visible;
+  border: 1px solid #dce5ee;
+  border-left: 3px solid #1681e8;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: none;
+  color: #25384d;
+  isolation: auto;
+  position: relative;
+}
+
+:is(
+  #root .main-area .page-heading:has(h1),
+  #root .main-area .screen-page-header,
+  #root .main-area .hr-header,
+  #root .main-area .op-project-heading,
+  #root .main-area .erp-home-heading,
+  #root .main-area .forms-hero,
+  #root .main-area .platform-license-heading,
+  #root .main-area .sales-distribution-header,
+  #root .main-area .sales-promotions-header,
+  #root .main-area .pie-heading,
+  #root .main-area .sid-heading
+)::before,
+:is(
+  #root .main-area .page-heading:has(h1),
+  #root .main-area .screen-page-header,
+  #root .main-area .hr-header,
+  #root .main-area .op-project-heading,
+  #root .main-area .erp-home-heading,
+  #root .main-area .forms-hero,
+  #root .main-area .platform-license-heading,
+  #root .main-area .sales-distribution-header,
+  #root .main-area .sales-promotions-header,
+  #root .main-area .pie-heading,
+  #root .main-area .sid-heading
+)::after { content: none !important; }
+
+:is(
+  #root .main-area .page-heading:has(h1),
+  #root .main-area .screen-page-header,
+  #root .main-area .hr-header,
+  #root .main-area .op-project-heading,
+  #root .main-area .erp-home-heading,
+  #root .main-area .forms-hero,
+  #root .main-area .platform-license-heading,
+  #root .main-area .sales-distribution-header,
+  #root .main-area .sales-promotions-header,
+  #root .main-area .pie-heading,
+  #root .main-area .sid-heading
+) h1 {
+  margin: 2px 0 4px;
+  color: #1f2937 !important;
+  font-size: clamp(22px, 1.8vw, 28px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -.035em;
+}
+
+:is(
+  #root .main-area .page-heading:has(h1),
+  #root .main-area .screen-page-header,
+  #root .main-area .hr-header,
+  #root .main-area .op-project-heading,
+  #root .main-area .erp-home-heading,
+  #root .main-area .forms-hero,
+  #root .main-area .platform-license-heading,
+  #root .main-area .sales-distribution-header,
+  #root .main-area .sales-promotions-header,
+  #root .main-area .pie-heading,
+  #root .main-area .sid-heading
+) .eyebrow {
+  margin: 0 0 3px;
+  color: #1672b8 !important;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .1em;
+}
+
+:is(
+  #root .main-area .page-heading:has(h1),
+  #root .main-area .screen-page-header,
+  #root .main-area .hr-header,
+  #root .main-area .op-project-heading,
+  #root .main-area .erp-home-heading,
+  #root .main-area .forms-hero,
+  #root .main-area .platform-license-heading,
+  #root .main-area .sales-distribution-header,
+  #root .main-area .sales-promotions-header,
+  #root .main-area .pie-heading,
+  #root .main-area .sid-heading
+) p:not(.eyebrow) {
+  max-width: 780px;
+  margin: 0;
+  color: #65758a !important;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#root .main-area .hr-header::after { display: none; }
+#root .main-area .hr-title h1 { font-size: clamp(22px, 1.8vw, 28px); }
+#root .main-area .hr-title .muted { color: #65758a !important; }
+#root .main-area .hr-refresh { border: 1px solid #dce5ee; background: #fff; color: #26384c; box-shadow: none; }
+#root .main-area .op-project-heading .eyebrow { color: #1672b8 !important; }
+#root .main-area .op-project-heading p:not(.eyebrow) { color: #65758a !important; }
+#root .main-area .op-project-heading button { flex: 0 0 auto; }
+#root .main-area .crm-hero-total,
+#root .main-area .crm-hero-total * { color: #34485e !important; }
+
+@media (max-width: 680px) {
+  :is(
+    #root .main-area .page-heading:has(h1), #root .main-area .screen-page-header, #root .main-area .hr-header, #root .main-area .op-project-heading,
+    #root .main-area .erp-home-heading, #root .main-area .forms-hero, #root .main-area .platform-license-heading,
+    #root .main-area .sales-distribution-header, #root .main-area .sales-promotions-header, #root .main-area .pie-heading, #root .main-area .sid-heading
+  ) { align-items: flex-start; padding: 13px 15px; }
+  :is(
+    #root .main-area .page-heading:has(h1), #root .main-area .screen-page-header, #root .main-area .hr-header, #root .main-area .op-project-heading,
+    #root .main-area .erp-home-heading, #root .main-area .forms-hero, #root .main-area .platform-license-heading,
+    #root .main-area .sales-distribution-header, #root .main-area .sales-promotions-header, #root .main-area .pie-heading, #root .main-area .sid-heading
+  ) h1 { font-size: 22px; }
+}

@@ -83,6 +83,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<CustomerCustomFieldValueRevision> CustomerCustomFieldValueRevisions => Set<CustomerCustomFieldValueRevision>();
     public DbSet<CustomerGroup> CustomerGroups => Set<CustomerGroup>();
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
+    public DbSet<CustomerLocationProvince> CustomerLocationProvinces => Set<CustomerLocationProvince>();
+    public DbSet<CustomerLocationDistrict> CustomerLocationDistricts => Set<CustomerLocationDistrict>();
     public DbSet<CustomerLedgerEntry> CustomerLedgerEntries => Set<CustomerLedgerEntry>();
     public DbSet<StockItem> StockItems => Set<StockItem>();
     public DbSet<StockItemCategory> StockItemCategories => Set<StockItemCategory>();
@@ -178,6 +180,9 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<EmployeeLeaveRequest> EmployeeLeaveRequests => Set<EmployeeLeaveRequest>();
     public DbSet<EmployeeAttendanceRecord> EmployeeAttendanceRecords => Set<EmployeeAttendanceRecord>();
     public DbSet<PayrollRuleSet> PayrollRuleSets => Set<PayrollRuleSet>();
+    public DbSet<PayrollCompensationRecord> PayrollCompensationRecords => Set<PayrollCompensationRecord>();
+    public DbSet<PayrollRunSnapshot> PayrollRunSnapshots => Set<PayrollRunSnapshot>();
+    public DbSet<PayrollRunCalculation> PayrollRunCalculations => Set<PayrollRunCalculation>();
     public DbSet<FixedAsset> FixedAssets => Set<FixedAsset>();
     public DbSet<FixedAssetDepreciationPosting> FixedAssetDepreciationPostings => Set<FixedAssetDepreciationPosting>();
     public DbSet<FixedAssetDisposal> FixedAssetDisposals => Set<FixedAssetDisposal>();
@@ -194,6 +199,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        EnsurePayrollRunSnapshotsImmutable();
         AddFallbackMutationAuditEvents();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
@@ -203,8 +209,23 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        EnsurePayrollRunSnapshotsImmutable();
         AddFallbackMutationAuditEvents();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void EnsurePayrollRunSnapshotsImmutable()
+    {
+        if (ChangeTracker.Entries<PayrollRunSnapshot>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Payroll run snapshots are immutable; create a new draft or a separately approved correction record.");
+        foreach (var entry in ChangeTracker.Entries<PayrollRunCalculation>().Where(x => x.State is EntityState.Modified or EntityState.Deleted))
+        {
+            if (entry.State == EntityState.Deleted)
+                throw new InvalidOperationException("Payroll calculation results are immutable and cannot be deleted.");
+            var allowed = new HashSet<string>(StringComparer.Ordinal) { nameof(PayrollRunCalculation.Status), nameof(PayrollRunCalculation.ApprovedByUserId), nameof(PayrollRunCalculation.RejectedByUserId), nameof(PayrollRunCalculation.FinalizedByUserId), nameof(PayrollRunCalculation.ApprovedAt), nameof(PayrollRunCalculation.RejectedAt), nameof(PayrollRunCalculation.FinalizedAt), nameof(PayrollRunCalculation.RowVersion) };
+            if (entry.Properties.Any(p => p.IsModified && !allowed.Contains(p.Metadata.Name)))
+                throw new InvalidOperationException("Payroll calculation result content is immutable; only its approval state may change.");
+        }
     }
 
     private void AddFallbackMutationAuditEvents()
@@ -250,6 +271,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
         modelBuilder.Ignore<TenantOperationalSettings>();
         modelBuilder.Ignore<TenantBudgetPlan>();
         modelBuilder.Ignore<TenantBudgetLine>();
+        modelBuilder.Ignore<CustomerLocationProvince>();
+        modelBuilder.Ignore<CustomerLocationDistrict>();
         modelBuilder.Entity<AppUser>(e =>
         {
             e.HasKey(x => x.Id);
@@ -849,6 +872,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.Name });
+            e.HasIndex(x => new { x.TenantId, x.ParentCompanyId });
             e.Property(x => x.Code).HasMaxLength(64);
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.TaxNumber).HasMaxLength(32);
@@ -859,6 +883,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.RowVersion).IsRowVersion();
             e.HasOne(x => x.Tenant).WithMany(x => x.Customers).HasForeignKey(x => x.TenantId);
             e.HasOne(x => x.Group).WithMany(x => x.Customers).HasForeignKey(x => new { x.TenantId, x.GroupId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false);
+            e.HasOne(x => x.ParentCompany).WithMany(x => x.Subsidiaries).HasForeignKey(x => new { x.TenantId, x.ParentCompanyId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<EmployeeRecord>(e =>
         {
@@ -902,6 +927,60 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<PayrollEmployeeWorkplaceAssignment>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.EffectiveFrom, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.EffectiveFrom }).IsUnique().HasFilter("[Status] = 'Approved'");
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.EffectiveFrom, x.Status });
+            e.Property(x => x.WorkplaceCode).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(24).IsUnicode(false).IsRequired();
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_PayrollEmployeeWorkplaceAssignments_Status", "[Status] IN ('PendingApproval','Approved','Rejected')");
+            });
+            e.HasOne<EmployeeRecord>().WithMany().HasForeignKey(x => new { x.TenantId, x.EmployeeId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PayrollWorkplaceCalendar>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.WorkplaceCode, x.EffectiveFrom, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.WorkplaceCode, x.EffectiveFrom }).IsUnique().HasFilter("[Status] = 'Approved'");
+            e.HasIndex(x => new { x.TenantId, x.WorkplaceCode, x.EffectiveFrom, x.Status });
+            e.Property(x => x.WorkplaceCode).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.WeeklyMinutesJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.DateOverridesJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.PolicyReference).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(24).IsUnicode(false).IsRequired();
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_PayrollWorkplaceCalendars_Status", "[Status] IN ('PendingApproval','Approved','Rejected')");
+            });
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PayrollEmployeeWorkCalendarOverride>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.EffectiveFrom, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.EffectiveFrom }).IsUnique().HasFilter("[Status] = 'Approved'");
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.EffectiveFrom, x.Status });
+            e.Property(x => x.WeeklyMinutesJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.DateOverridesJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.PolicyReference).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(24).IsUnicode(false).IsRequired();
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_PayrollEmployeeWorkCalendarOverrides_Status", "[Status] IN ('PendingApproval','Approved','Rejected')");
+            });
+            e.HasOne<EmployeeRecord>().WithMany().HasForeignKey(x => new { x.TenantId, x.EmployeeId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<PayrollRuleSet>(e =>
         {
             e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
@@ -914,6 +993,88 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.RowVersion).IsRowVersion();
             e.ToTable(t => t.HasCheckConstraint("CK_PayrollRuleSets_EffectiveDates", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]"));
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PayrollCompensationRecord>(e =>
+        {
+            e.ToTable("PayrollCompensationRecords", t =>
+            {
+                t.HasCheckConstraint("CK_PayrollCompensationRecords_TargetKind", "[TargetKind] IN ('Gross','Net')");
+                t.HasCheckConstraint("CK_PayrollCompensationRecords_Amount", "[Amount] > 0");
+                t.HasCheckConstraint("CK_PayrollCompensationRecords_Status", "[Status] IN ('PendingApproval','Approved','Rejected')");
+            });
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.EffectiveFrom, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.EffectiveFrom }).IsUnique().HasFilter("[Status] = 'Approved'");
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.EffectiveFrom, x.Status });
+            e.Property(x => x.TargetKind).HasMaxLength(8).IsUnicode(false).IsRequired();
+            e.Property(x => x.Amount).HasPrecision(18, 4);
+            e.Property(x => x.CurrencyCode).HasMaxLength(3).IsUnicode(false).IsFixedLength().IsRequired();
+            e.Property(x => x.PayBasisCode).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(24).IsUnicode(false).IsRequired();
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<EmployeeRecord>().WithMany().HasForeignKey(x => new { x.TenantId, x.EmployeeId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PayrollRunSnapshot>(e =>
+        {
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            e.Property(x => x.PeriodKind).HasMaxLength(24).IsUnicode(false).IsRequired();
+            e.Property(x => x.ProfileCode).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(24).IsUnicode(false).IsRequired();
+            e.Property(x => x.SnapshotJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.SnapshotSha256).HasMaxLength(64).IsUnicode(false).IsFixedLength().IsRequired();
+            e.Property(x => x.BlockersJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_PayrollRunSnapshots_Period", "[PeriodEnd] >= [PeriodStart]");
+                t.HasCheckConstraint("CK_PayrollRunSnapshots_PeriodKind", "[PeriodKind] IN ('CalendarMonth','EmployerDefined')");
+                t.HasCheckConstraint("CK_PayrollRunSnapshots_Status", "[Status] IN ('Blocked')");
+                t.HasCheckConstraint("CK_PayrollRunSnapshots_Hash", "LEN([SnapshotSha256]) = 64");
+            });
+        });
+        modelBuilder.Entity<PayrollRunCalculation>(e =>
+        {
+            e.ToTable("PayrollRunCalculations", t =>
+            {
+                t.HasCheckConstraint("CK_PayrollRunCalculations_Version", "[Version] >= 1");
+                t.HasCheckConstraint("CK_PayrollRunCalculations_Status", "[Status] IN ('PendingApproval','Approved','Rejected','Finalized')");
+                t.HasCheckConstraint("CK_PayrollRunCalculations_SnapshotHash", "LEN([RunSnapshotSha256]) = 64");
+                t.HasCheckConstraint("CK_PayrollRunCalculations_ResultHash", "LEN([ResultSha256]) = 64");
+            });
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.RunId, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.RunId, x.Status });
+            e.Property(x => x.RunSnapshotSha256).HasMaxLength(64).IsUnicode(false).IsFixedLength().IsRequired();
+            e.Property(x => x.ResultSha256).HasMaxLength(64).IsUnicode(false).IsFixedLength().IsRequired();
+            e.Property(x => x.ResultJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.Status).HasMaxLength(24).IsUnicode(false).IsRequired();
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<PayrollRunSnapshot>().WithMany().HasForeignKey(x => new { x.TenantId, x.RunId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PayrollPriorEmployerTaxBaseDeclaration>(e =>
+        {
+            e.ToTable("PayrollPriorEmployerTaxBaseDeclarations", t =>
+            {
+                t.HasCheckConstraint("CK_PayrollPriorEmployerTaxBaseDeclarations_Year", "[TaxYear] BETWEEN 2000 AND 2100");
+                t.HasCheckConstraint("CK_PayrollPriorEmployerTaxBaseDeclarations_Kind", "[DeclarationKind] IN ('HasPriorEmployer','NoPriorEmployer')");
+                t.HasCheckConstraint("CK_PayrollPriorEmployerTaxBaseDeclarations_Status", "[Status] IN ('PendingApproval','Approved','Rejected')");
+            });
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.TaxYear, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.TaxYear, x.Status });
+            e.Property(x => x.DeclarationKind).HasMaxLength(24).IsUnicode(false).IsRequired();
+            e.Property(x => x.BaseEntriesJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.EvidenceReference).HasMaxLength(300).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(24).IsUnicode(false).IsRequired();
+            e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<EmployeeRecord>().WithMany().HasForeignKey(x => new { x.TenantId, x.EmployeeId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<FixedAsset>(e =>
         {
@@ -1060,7 +1221,25 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.District).HasMaxLength(100);
             e.Property(x => x.PostalCode).HasMaxLength(20);
             e.Property(x => x.CountryCode).HasMaxLength(2).IsFixedLength();
+            e.Property(x => x.Latitude).HasPrecision(9, 6);
+            e.Property(x => x.Longitude).HasPrecision(9, 6);
+            e.ToTable(t => t.HasCheckConstraint("CK_CustomerAddresses_Coordinates", "([Latitude] IS NULL AND [Longitude] IS NULL) OR ([Latitude] BETWEEN -90 AND 90 AND [Longitude] BETWEEN -180 AND 180)"));
             e.HasOne(x => x.Customer).WithMany(x => x.Addresses).HasForeignKey(x => new { x.TenantId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id });
+        });
+        modelBuilder.Entity<CustomerLocationProvince>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Name).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.HasData(TurkeyLocationSeedData.Provinces);
+        });
+        modelBuilder.Entity<CustomerLocationDistrict>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.ProvinceId, x.Name }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.HasOne(x => x.Province).WithMany(x => x.Districts).HasForeignKey(x => x.ProvinceId).OnDelete(DeleteBehavior.Restrict);
+            e.HasData(TurkeyLocationSeedData.Districts);
         });
         modelBuilder.Entity<CustomerLedgerEntry>(e =>
         {
@@ -1072,6 +1251,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.CustomerCollectionId });
             e.HasIndex(x => new { x.TenantId, x.SalesReturnId });
             e.HasIndex(x => new { x.TenantId, x.PurchaseInvoiceId });
+            e.HasIndex(x => new { x.TenantId, x.PurchaseInvoiceDraftId }).IsUnique().HasFilter("[PurchaseInvoiceDraftId] IS NOT NULL");
             e.HasIndex(x => new { x.TenantId, x.SupplierPaymentId });
             e.HasIndex(x => new { x.TenantId, x.SupplierReturnId });
             e.Property(x => x.Amount).HasPrecision(18, 2);
@@ -1084,6 +1264,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasOne(x => x.CustomerCollection).WithMany(x => x.LedgerEntries).HasForeignKey(x => new { x.TenantId, x.CustomerCollectionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.SalesReturn).WithMany(x => x.LedgerEntries).HasForeignKey(x => new { x.TenantId, x.SalesReturnId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.PurchaseInvoice).WithMany(x => x.LedgerEntries).HasForeignKey(x => new { x.TenantId, x.PurchaseInvoiceId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.SupplierId }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.PurchaseInvoiceDraft).WithOne(x => x.LedgerEntry).HasForeignKey<CustomerLedgerEntry>(x => new { x.TenantId, x.PurchaseInvoiceDraftId }).HasPrincipalKey<PurchaseInvoiceDraft>(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.SupplierPayment).WithMany(x => x.LedgerEntries).HasForeignKey(x => new { x.TenantId, x.SupplierPaymentId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.SupplierId }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.SupplierReturn).WithMany(x => x.LedgerEntries).HasForeignKey(x => new { x.TenantId, x.SupplierReturnId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.SupplierId }).OnDelete(DeleteBehavior.Restrict);
         });
@@ -1166,6 +1347,18 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<StockItemCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<WorkplaceDefinition>(e =>
+        {
+            e.ToTable("WorkplaceDefinitions", table => table.HasCheckConstraint("CK_WorkplaceDefinitions_Kind", "[Kind] IN ('Workplace','Branch','Factory')"));
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Kind).HasMaxLength(20).IsUnicode(false).IsRequired();
+            e.Property(x => x.RowVersion).IsRowVersion();
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<Warehouse>(e =>
@@ -2536,8 +2729,14 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.BillOfMaterialId, x.Sequence }).IsUnique();
             e.Property(x => x.SetupMinutes).HasPrecision(12, 2);
             e.Property(x => x.RunMinutesPerOutputUnit).HasPrecision(12, 4);
+            e.Property(x => x.PlannedEnergyKwhPerOutput).HasPrecision(14, 3).HasDefaultValue(0m);
+            e.Property(x => x.PlannedEnergyCostPerKwhBase).HasPrecision(18, 6).HasDefaultValue(0m);
             e.Property(x => x.SetupFamilyCode).HasMaxLength(48).IsUnicode(false).HasDefaultValue("");
-            e.ToTable(t => t.HasCheckConstraint("CK_BillOfMaterialOperations_Minutes", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutesPerOutputUnit] >= 0 AND ([SetupMinutes] + [RunMinutesPerOutputUnit]) > 0"));
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_BillOfMaterialOperations_Minutes", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutesPerOutputUnit] >= 0 AND ([SetupMinutes] + [RunMinutesPerOutputUnit]) > 0");
+                t.HasCheckConstraint("CK_BillOfMaterialOperations_PlannedEnergy", "[PlannedEnergyKwhPerOutput] >= 0 AND [PlannedEnergyCostPerKwhBase] >= 0");
+            });
             e.HasOne<BillOfMaterial>().WithMany(x => x.Operations).HasForeignKey(x => new { x.TenantId, x.BillOfMaterialId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
@@ -2558,7 +2757,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.BillOfMaterialId, x.ComponentStockItemId }).IsUnique();
             e.Property(x => x.Quantity).HasPrecision(18, 4);
             e.Property(x => x.ScrapPercent).HasPrecision(9, 4);
-            e.ToTable(t => t.HasCheckConstraint("CK_BillOfMaterialLines_Quantities", "[Quantity] > 0 AND [ScrapPercent] >= 0 AND [ScrapPercent] <= 100"));
+            e.Property(x => x.StandardUnitCostBase).HasPrecision(18, 4).HasDefaultValue(0m);
+            e.ToTable(t => t.HasCheckConstraint("CK_BillOfMaterialLines_Quantities", "[Quantity] > 0 AND [ScrapPercent] >= 0 AND [ScrapPercent] <= 100 AND [StandardUnitCostBase] >= 0"));
             e.HasOne<BillOfMaterial>().WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.BillOfMaterialId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.ComponentStockItemId })
@@ -2599,7 +2799,9 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.ComponentCodeSnapshot).HasMaxLength(64);
             e.Property(x => x.ComponentNameSnapshot).HasMaxLength(200);
             e.Property(x => x.RequiredQuantity).HasPrecision(18, 4);
-            e.ToTable(t => t.HasCheckConstraint("CK_ManufacturingOrderLines_RequiredQuantityPositive", "[RequiredQuantity] > 0"));
+            e.Property(x => x.StandardUnitCostBaseSnapshot).HasPrecision(18, 4).HasDefaultValue(0m);
+            e.Property(x => x.PlannedCostBase).HasPrecision(18, 4).HasDefaultValue(0m);
+            e.ToTable(t => t.HasCheckConstraint("CK_ManufacturingOrderLines_RequiredQuantityPositive", "[RequiredQuantity] > 0 AND [StandardUnitCostBaseSnapshot] >= 0 AND [PlannedCostBase] >= 0"));
             e.HasOne<ManufacturingOrder>().WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.ManufacturingOrderId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.ComponentStockItemId })
@@ -2619,6 +2821,9 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.SetupTransitionRulesSnapshotJson).HasColumnType("nvarchar(max)").HasDefaultValue("[]");
             e.Property(x => x.LaborCostPerHourBase).HasPrecision(18, 4);
             e.Property(x => x.OverheadCostPerHourBase).HasPrecision(18, 4);
+            e.Property(x => x.PlannedEnergyQuantityKwh).HasPrecision(14, 3).HasDefaultValue(0m);
+            e.Property(x => x.PlannedEnergyCostPerKwhBase).HasPrecision(18, 6).HasDefaultValue(0m);
+            e.Property(x => x.PlannedEnergyCostBase).HasPrecision(18, 4).HasDefaultValue(0m);
             e.Property(x => x.PlannedCostBase).HasPrecision(18, 4);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
             e.Property(x => x.ActualSetupMinutes).HasPrecision(12, 2);
@@ -2630,6 +2835,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.ToTable(t =>
             {
                 t.HasCheckConstraint("CK_ManufacturingOrderOperations_MinutesAndCost", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutes] >= 0 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0 AND [PlannedCostBase] >= 0");
+                t.HasCheckConstraint("CK_ManufacturingOrderOperations_PlannedEnergy", "[PlannedEnergyQuantityKwh] >= 0 AND [PlannedEnergyCostPerKwhBase] >= 0 AND [PlannedEnergyCostBase] >= 0");
                 t.HasCheckConstraint("CK_ManufacturingOrderOperations_Actuals", "([ActualSetupMinutes] IS NULL OR [ActualSetupMinutes] >= 0) AND ([ActualRunMinutes] IS NULL OR [ActualRunMinutes] >= 0) AND ([ActualEnergyQuantityKwh] IS NULL OR [ActualEnergyQuantityKwh] >= 0) AND ([ActualEnergyCostPerKwhBase] IS NULL OR [ActualEnergyCostPerKwhBase] >= 0) AND ([ActualEnergyCostBase] IS NULL OR [ActualEnergyCostBase] >= 0) AND ([ActualCostBase] IS NULL OR [ActualCostBase] >= 0)");
             });
             e.HasOne<ManufacturingOrder>().WithMany(x => x.Operations).HasForeignKey(x => new { x.TenantId, x.ManufacturingOrderId })
@@ -2676,6 +2882,20 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
         // Tenant operational records belong to each isolated tenant database.
         modelBuilder.Ignore<PurchaseDeliveryNote>();
         modelBuilder.Ignore<PurchaseDeliveryNoteLine>();
+        modelBuilder.Ignore<PayrollCompensationRecord>();
+        modelBuilder.Ignore<PayrollPriorEmployerTaxBaseDeclaration>();
+        modelBuilder.Ignore<PayrollRunSnapshot>();
+        modelBuilder.Ignore<PayrollRunCalculation>();
+        modelBuilder.Ignore<PayrollEmployeeWorkplaceAssignment>();
+        modelBuilder.Ignore<WorkplaceDefinition>();
+        modelBuilder.Ignore<PayrollWorkplaceCalendar>();
+        modelBuilder.Ignore<PayrollEmployeeWorkCalendarOverride>();
+        // Standalone supplier invoice drafts and their ledger relation live only in
+        // physically isolated tenant databases; do not discover them through ledger navigations here.
+        modelBuilder.Entity<CustomerLedgerEntry>().Ignore(x => x.PurchaseInvoiceDraftId);
+        modelBuilder.Entity<CustomerLedgerEntry>().Ignore(x => x.PurchaseInvoiceDraft);
+        modelBuilder.Ignore<PurchaseInvoiceDraft>();
+        modelBuilder.Ignore<PurchaseInvoiceDraftLine>();
         modelBuilder.Entity<TenantCompanyProfile>(e =>
         {
             e.ToTable("TenantCompanyProfiles");

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
@@ -62,6 +63,36 @@ public sealed class TenantMembershipLicenseIntegrationTests
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
         using var hidden = await client.GetAsync("/api/access-control/members/candidate?email=member%40example.invalid");
         Assert.Equal(HttpStatusCode.NotFound, hidden.StatusCode);
+    }
+
+    [Fact]
+    public async Task Member_list_returns_sorted_members_for_the_selected_tenant_only()
+    {
+        await using var app = await StartAsync(licensed: false, memberCount: 3);
+        using var client = app.GetTestClient();
+
+        using var response = await client.GetAsync("/api/access-control/members");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var members = await response.Content.ReadFromJsonAsync<TenantPermissionMemberView[]>();
+        Assert.NotNull(members);
+        Assert.Collection(members,
+            member =>
+            {
+                Assert.Equal("Admin", member.DisplayName);
+                Assert.Equal("TenantAdmin", member.Role);
+            },
+            member =>
+            {
+                Assert.Equal("Extra 1", member.DisplayName);
+                Assert.Equal("TenantUser", member.Role);
+            },
+            member =>
+            {
+                Assert.Equal("Extra 2", member.DisplayName);
+                Assert.Equal("TenantUser", member.Role);
+            });
+        Assert.DoesNotContain(members, member => member.UserId == OtherTenantUserId);
     }
 
     [Fact]

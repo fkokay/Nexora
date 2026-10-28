@@ -4,6 +4,34 @@ const platformSessionKey = 'aierp.platformSession'
 
 let refreshInFlight: Promise<string | null> | null = null
 
+async function addTraceIdentifierToError(response: Response): Promise<Response> {
+  if (response.ok || !(response.status === 403 || response.status === 404 || response.status >= 500)) return response
+
+  const traceId = response.headers.get('X-Trace-Id')
+  if (!traceId || !response.headers.get('Content-Type')?.toLowerCase().includes('json')) return response
+
+  const payload = await response.clone().json().catch(() => null) as Record<string, unknown> | null
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return response
+  if (typeof payload.traceId !== 'string') payload.traceId = traceId
+
+  const suffix = `İz kimliği: ${traceId}.`
+  if (typeof payload.error === 'string') {
+    if (!payload.error.includes(traceId)) payload.error = `${payload.error} ${suffix}`
+  } else if (typeof payload.title === 'string') {
+    if (!payload.title.includes(traceId)) payload.title = `${payload.title} ${suffix}`
+  } else {
+    payload.error = `İstek başarısız (${response.status}). ${suffix}`
+  }
+
+  const headers = new Headers(response.headers)
+  headers.delete('Content-Length')
+  return new Response(JSON.stringify(payload), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
 async function refreshAccessToken(): Promise<string | null> {
   if (refreshInFlight) return refreshInFlight
 
@@ -79,11 +107,11 @@ export async function authenticatedFetch(url: string, token?: string, init?: Req
   }
 
   let response = await send(token)
-  if (response.status !== 401 || !token || url.startsWith('/api/auth/')) return response
+  if (response.status !== 401 || !token || url.startsWith('/api/auth/')) return addTraceIdentifierToError(response)
 
   const currentToken = localStorage.getItem(accessTokenKey)
   const refreshedToken = currentToken && currentToken !== token ? currentToken : await refreshAccessToken()
   if (refreshedToken) response = await send(refreshedToken)
   if (response.status === 401) window.dispatchEvent(new CustomEvent('aierp:session-expired', { detail: token }))
-  return response
+  return addTraceIdentifierToError(response)
 }

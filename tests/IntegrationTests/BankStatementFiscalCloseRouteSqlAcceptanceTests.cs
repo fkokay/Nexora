@@ -35,6 +35,7 @@ public sealed class BankStatementFiscalCloseRouteSqlAcceptanceTests
         var tenantCreated = false;
         var studioCreated = false;
         var triggerCreated = false;
+        SqlAcceptanceTenantCredential? tenantCredential = null;
         try
         {
             await using var platformDb = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options);
@@ -44,6 +45,7 @@ public sealed class BankStatementFiscalCloseRouteSqlAcceptanceTests
             tenantCreated = await seedDb.Database.EnsureCreatedAsync();
             studioCreated = await studioDb.Database.EnsureCreatedAsync();
             Assert.True(platformCreated && tenantCreated && studioCreated);
+            tenantCredential = await SqlAcceptanceTenantCredential.CreateAsync(configuredConnection!, tenantId);
 
             var tenant = new Tenant { Id = tenantId, Name = "Synthetic bank statement close", Slug = $"bank-statement-close-{suffix}", BaseCurrencyCode = "TRY" };
             platformDb.Tenants.Add(tenant);
@@ -100,7 +102,7 @@ public sealed class BankStatementFiscalCloseRouteSqlAcceptanceTests
                 ["ConnectionStrings__AIStudio"] = studioConnection, ["Database__SeparationEnabled"] = "true",
                 ["Database__ApplyMigrationsOnStartup"] = "false"
             });
-            using var factory = new BankStatementApiFactory(platformConnection, tenantConnection, studioConnection);
+            using var factory = new BankStatementApiFactory(platformConnection, tenantConnection, studioConnection, tenantCredential.CredentialReader);
             using var client = factory.CreateClient();
             client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D"));
             client.DefaultRequestHeaders.Add("X-Test-User", userId.ToString("D"));
@@ -177,6 +179,7 @@ public sealed class BankStatementFiscalCloseRouteSqlAcceptanceTests
                 await using var cleanup = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options);
                 await cleanup.Database.EnsureDeletedAsync();
             }
+            if (tenantCredential is not null) await tenantCredential.DisposeAsync();
         }
     }
 
@@ -211,9 +214,21 @@ public sealed class BankStatementFiscalCloseRouteSqlAcceptanceTests
         throw new TimeoutException("The bank-statement SQL trigger did not enter its WAITFOR barrier.");
     }
 
-    private sealed class BankStatementApiFactory(string platformConnection, string tenantConnection, string studioConnection)
+    private sealed class BankStatementApiFactory(string platformConnection, string tenantConnection, string studioConnection,
+        ITenantSqlCredentialReader credentialReader)
         : WebApplicationFactory<ApiEntryPointMarker>
     {
+        protected override IHost CreateHost(IHostBuilder builder)
+        {
+            builder.ConfigureHostConfiguration(configuration => configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:Address"] = "https://vault.test",
+                ["Vault:TenantSqlCredentialReader:RoleId"] = "bank-statement-test-role",
+                ["Vault:TenantSqlCredentialReader:SecretId"] = "bank-statement-test-secret"
+            }));
+            return base.CreateHost(builder);
+        }
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(Environments.Production);
@@ -228,6 +243,8 @@ public sealed class BankStatementFiscalCloseRouteSqlAcceptanceTests
             }));
             builder.ConfigureTestServices(services =>
             {
+                services.RemoveAll<ITenantSqlCredentialReader>();
+                services.AddSingleton(credentialReader);
                 services.AddAuthentication("report-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
                 foreach (var worker in services.Where(x => x.ServiceType == typeof(IHostedService)
                              && x.ImplementationType?.Name is "IntegrationOperationWorker" or "AuditRetentionWorker" or "TcmbExchangeRateWorker").ToArray())

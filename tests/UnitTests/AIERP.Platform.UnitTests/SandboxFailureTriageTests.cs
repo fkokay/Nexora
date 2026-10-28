@@ -39,6 +39,9 @@ public sealed class SandboxFailureTriageTests
     [InlineData("BuildFailed", "", "✘ [ERROR] Could not resolve \"react\"", "dependency", false)]
     [InlineData("BuildFailed", "", "Failed to resolve import './missing-helper' from 'src/App.tsx'", "source-diagnostic", true)]
     [InlineData("BuildFailed", "", "Failed to resolve import 'date-fns' from 'src/App.tsx'", "dependency", false)]
+    [InlineData("BuildFailed", "", "/workspace/src/App.tsx\n  12:3  error  'value' is assigned a value but never used  @typescript-eslint/no-unused-vars\n\n✖ 1 problem (1 error, 0 warnings)", "source-diagnostic", true)]
+    [InlineData("BuildFailed", "", "src/app.js\n  8:1  error  Unexpected console statement  no-console\n\n✖ 1 problem (1 error, 0 warnings)", "source-diagnostic", true)]
+    [InlineData("BuildFailed", "", "src/app.js\n  8:1  warning  Unexpected console statement  no-console\n\n✖ 1 problem (0 errors, 1 warning)", "unknown", false)]
     [InlineData("BuildFailed", "", "go: updates to go.mod needed; to update it: go mod tidy", "dependency", false)]
     [InlineData("BuildFailed", "", "failed to select a version for `serde` which could resolve this conflict", "dependency", false)]
     [InlineData("Failed", "test", "ModuleNotFoundError: No module named 'pytest_plugin'", "dependency", false)]
@@ -77,6 +80,7 @@ public sealed class SandboxFailureTriageTests
     [InlineData("Rejected", "", "", false)]
     [InlineData("BuildFailed", "", "unclassified output", false)]
     [InlineData("BuildFailed", "", "error CS1002: ; expected", true)]
+    [InlineData("BuildFailed", "", "src/app.js\n  8:1  error  Unexpected console statement  no-console\n\n✖ 1 problem (1 error, 0 warnings)", true)]
     [InlineData("Failed", "test", "Expected 2 but got 1", true)]
     public void RequiresAiAnalysis_only_for_source_or_test_failure_candidates(
         string status, string operation, string output, bool expected)
@@ -90,6 +94,7 @@ public sealed class SandboxFailureTriageTests
     [InlineData("DependencyUnavailable", "build", "NU1301", false)]
     [InlineData("TimedOut", "test", "", false)]
     [InlineData("BuildFailed", "build", "src/App.cs(12): error CS1002: ; expected", true)]
+    [InlineData("BuildFailed", "build", "src/app.js\n  8:1  error  Unexpected console statement  no-console\n\n✖ 1 problem (1 error, 0 warnings)", true)]
     [InlineData("Failed", "test", "Expected 2 but got 1", true)]
     public void AI_sharing_consent_is_required_only_when_triage_will_call_the_AI_provider(
         string status, string operation, string output, bool expected)

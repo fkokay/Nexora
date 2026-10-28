@@ -50,9 +50,21 @@ public sealed class GitHubPullRequestWebhookIntegrationTests
         var options = new DbContextOptionsBuilder<AIStudioDbContext>()
             .UseInMemoryDatabase($"github-webhook-{Guid.NewGuid():N}").Options;
         await using var studioDb = new AIStudioDbContext(options);
+        var tenantId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        studioDb.DevelopmentProjects.Add(new DevelopmentProject
+        {
+            Id = projectId,
+            TenantId = tenantId,
+            CreatedByUserId = Guid.NewGuid(),
+            Name = "Webhook integration project",
+            RepositoryUrl = "https://github.com/nexora/erp",
+            DefaultBranch = "main",
+            GitHubInstallationId = 12345
+        });
         studioDb.ReleaseCandidateRecords.Add(new ReleaseCandidateRecord
         {
-            TenantId = Guid.NewGuid(), GitHubRepository = "nexora/erp", GitHubPullRequestNumber = 42,
+            TenantId = tenantId, ProjectId = projectId, GitHubRepository = "nexora/erp", GitHubPullRequestNumber = 42,
             CommitSha = TestedSha, GitHubPullRequestState = "draft"
         });
         await studioDb.SaveChangesAsync();
@@ -125,6 +137,7 @@ public sealed class GitHubPullRequestWebhookIntegrationTests
         var payload = JsonSerializer.SerializeToUtf8Bytes(new
         {
             action,
+            installation = new { id = 12345L },
             repository = new { full_name = "nexora/erp" },
             pull_request = new { number = 42, state, merged, draft, updated_at = updatedAt, head = new { sha = headSha } }
         });

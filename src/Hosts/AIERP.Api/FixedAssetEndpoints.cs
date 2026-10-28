@@ -400,7 +400,9 @@ public static class FixedAssetEndpoints
         {
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
             var assetExists = await db.FixedAssets.AnyAsync(x => x.TenantId == tenantId && x.Id == id && x.Status == FixedAssetStatus.Active, ct);
-            var employeeExists = await db.EmployeeRecords.AnyAsync(x => x.TenantId == tenantId && x.Id == request.EmployeeId && x.Status != EmployeeEmploymentStatus.Terminated, ct);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var employeeExists = await db.EmployeeRecords.AnyAsync(x => x.TenantId == tenantId && x.Id == request.EmployeeId &&
+                (x.TerminationDate == null || x.TerminationDate >= today), ct);
             if (!assetExists || !employeeExists) return Results.ValidationProblem(new Dictionary<string, string[]> { ["assignment"] = ["Etkin kıymet ve etkin tenant personeli seçilmelidir."] });
             if (request.AssignedDate == default || (request.Location?.Length ?? 0) > 160 || (request.Notes?.Length ?? 0) > 1000)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["assignment"] = ["Geçerli teslim tarihi ve sınırlar içindeki yer/not bilgisi girin."] });

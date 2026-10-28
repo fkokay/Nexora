@@ -35,10 +35,11 @@ internal static class ERPAssistantToolTelemetry
         }
         finally
         {
-            var safeToolName = toolName is "search_stock_items" or "list_warehouses" or "get_warehouse_balances" or
+            var safeToolName = toolName is "search_stock_items" or "list_warehouses" or "get_warehouse_balances" or "search_inventory_movements" or "search_inventory_genealogy" or
                 "search_customer_accounts" or "get_customer_balance" or "search_customer_ledger" or "get_supplier_balance" or "search_supplier_payments" or "search_supplier_ledger" or "get_exchange_rate" or
-                "search_sales_orders" or "search_purchase_orders" or "search_sales_quotes" or "search_purchase_requests" or "search_manufacturing_orders" or "search_sales_deliveries" or "search_purchase_receipts" or "search_purchase_delivery_notes" or "generate_report" or "get_hr_leave_summary" or "get_hr_attendance_summary" or
-                "search_sales_invoices" or "search_purchase_invoices" or "get_cash_flow_forecast" or "get_invoice_maturity_summary" ? toolName : "other";
+                "search_sales_orders" or "get_sales_order_details" or "search_purchase_orders" or "get_purchase_order_details" or "search_sales_quotes" or "search_purchase_requests" or "search_manufacturing_orders" or "search_sales_deliveries" or "get_sales_delivery_details" or "search_purchase_receipts" or "search_purchase_delivery_notes" or "get_purchase_delivery_note_details" or "generate_report" or "get_hr_leave_summary" or "get_hr_attendance_summary" or
+                "search_sales_invoices" or "search_sales_invoice_details" or "search_purchase_invoices" or "search_purchase_invoice_details" or "get_cash_flow_forecast" or "get_invoice_maturity_summary" or
+                "search_fixed_assets" or "get_financial_account_balances" or "search_foreign_trade_cases" or "search_crm_opportunities" or "search_credit_facilities" or "get_budget_variance_summary" or "get_operational_project_progress" ? toolName : "other";
             var tags = new TagList { { "tool", safeToolName }, { "outcome", outcome } };
             Calls.Add(1, tags);
             Duration.Record(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, tags);

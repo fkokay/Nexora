@@ -2,6 +2,26 @@ const refreshTokenKey = 'aierp.studioRefreshToken'
 let refreshInFlight: Promise<string | null> | null = null
 const studioSessionHeaders = { 'X-Studio-Session': 'cookie' }
 
+type ApiErrorPayload = { error?: string; detail?: string; title?: string; traceId?: string; errors?: Record<string, string[]> }
+
+function supportCode(response: Response, payload?: ApiErrorPayload | null): string | null {
+  const value = response.headers.get('X-Trace-Id') || payload?.traceId
+  return value && /^[A-Za-z0-9-]{8,80}$/.test(value) ? value : null
+}
+
+function failureMessage(response: Response, payload?: ApiErrorPayload | null, authenticated = false): string {
+  const code = supportCode(response, payload)
+  const suffix = code ? ` (Destek kodu: ${code})` : ''
+  if (response.status === 401) return `${authenticated ? 'Oturum süresi doldu. Lütfen yeniden giriş yapın.' : 'E-posta veya parola hatalı.'}${suffix}`
+  if (response.status >= 500) return `Sunucu hatası. Lütfen daha sonra yeniden deneyin.${suffix}`
+  const validation = Object.values(payload?.errors ?? {}).flat().join(' ')
+  return payload?.error || payload?.detail || validation || (response.status === 403 ? 'Bu işlem için yetkiniz yok.' : payload?.title) || `İstek başarısız (${response.status}).`
+}
+
+async function readErrorPayload(response: Response): Promise<ApiErrorPayload | null> {
+  return await response.json().catch(() => null) as ApiErrorPayload | null
+}
+
 function expireSession() {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('aierp:session-expired'))
 }
@@ -23,6 +43,10 @@ async function refreshAccessToken(): Promise<string | null> {
           headers: { 'Content-Type': 'application/json', ...studioSessionHeaders },
           body: '{}'
         })
+        if (retry.status >= 500) {
+          const payload = await readErrorPayload(retry)
+          throw new Error(`Oturum yenilenemedi. Lütfen daha sonra yeniden deneyin.${supportCode(retry, payload) ? ` (Destek kodu: ${supportCode(retry, payload)})` : ''}`)
+        }
         if (retry.ok) {
           const rotated = await retry.json() as { accessToken?: string }
           if (rotated.accessToken) {
@@ -36,7 +60,12 @@ async function refreshAccessToken(): Promise<string | null> {
         expireSession()
         return null
       }
-      if (!response.ok) throw new Error('Oturum yenilenemedi. Bağlantınızı kontrol edip yeniden deneyin.')
+      if (!response.ok) {
+        const payload = await readErrorPayload(response)
+        throw new Error(response.status >= 500
+          ? failureMessage(response, payload)
+          : 'Oturum yenilenemedi. Bağlantınızı kontrol edip yeniden deneyin.')
+      }
       const result = await response.json() as { accessToken?: string }
       if (!result.accessToken) throw new Error('Oturum yanıtı geçersiz.')
       localStorage.setItem('aierp.accessToken', result.accessToken)
@@ -63,6 +92,9 @@ export async function migrateLegacyRefreshToken(): Promise<void> {
 export async function authorizedFetch(url: string, token?: string, init?: RequestInit): Promise<Response> {
   const send = (accessToken?: string) => fetch(url, {
     ...init,
+    // Tenant/project authorization can change during the GitHub callback flow.
+    // Never let the browser reuse a stale API response for these private reads.
+    cache: init?.cache ?? 'no-store',
     credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
@@ -81,13 +113,12 @@ export async function authorizedFetch(url: string, token?: string, init?: Reques
 export async function api<T>(url: string, token?: string, init?: RequestInit): Promise<T> {
   const response = await authorizedFetch(url, token, init)
   if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { error?: string; detail?: string; title?: string; errors?: Record<string, string[]> } | null
-    const validation = Object.values(payload?.errors ?? {}).flat().join(' ')
+    const payload = await readErrorPayload(response)
     if (response.status === 401 && token) {
       expireSession()
-      throw new Error('Oturum süresi doldu. Lütfen yeniden giriş yapın.')
+      throw new Error(failureMessage(response, payload, true))
     }
-    throw new Error(response.status === 401 ? 'E-posta veya parola hatalı.' : payload?.error || payload?.detail || validation || (response.status === 403 ? 'Bu işlem için yetkiniz yok.' : payload?.title) || `İstek başarısız (${response.status}).`)
+    throw new Error(failureMessage(response, payload))
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>

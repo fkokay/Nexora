@@ -39,8 +39,8 @@ export default function PaymentInstrumentsPage({ token, role }:{token:string;rol
         authenticatedFetch(`/api/finance/payment-instruments/?${params}`, token, {headers:{Authorization:`Bearer ${token}`}}),
         authenticatedFetch('/api/finance/accounts', token, {headers:{Authorization:`Bearer ${token}`}})
       ])
-      if(!rows.ok)throw new Error(`Çek/senet listesi alınamadı (${rows.status}).`)
-      if(!accountRows.ok)throw new Error(`Finans hesapları alınamadı (${accountRows.status}).`)
+      if(!rows.ok)throw new Error(rows.status===403?'Erişim reddedildi (403). Oturumun firma üyeliği veya rolü çek/senet listesine erişemiyor.':'Çek/senet listesi alınamadı ('+rows.status+').')
+      if(!accountRows.ok)throw new Error(accountRows.status===403?'Erişim reddedildi (403). Oturumun firma üyeliği veya rolü finans hesaplarına erişemiyor.':'Finans hesapları alınamadı ('+accountRows.status+').')
       const result=await rows.json() as PageResult;setItems(result.items);setTotalCount(result.totalCount);setSummary(result.summary);setAccounts((await accountRows.json() as FinanceAccount[]).filter(x=>x.isActive))
     } catch(cause) { setError((cause as Error).message) } finally { setLoading(false) }
   },[token,page,filter,kindFilter])
@@ -51,7 +51,7 @@ export default function PaymentInstrumentsPage({ token, role }:{token:string;rol
   const portfolioSummary=summary.openByCurrency.map(x=>`${x.currencyCode} ${x.amount.toLocaleString('tr-TR',{minimumFractionDigits:2})}`).join(' · ')||'—'
   async function request<T>(path:string,method='GET',body?:unknown):Promise<T>{
     const response=await authenticatedFetch(path, token, {method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)})
-    if(!response.ok){const payload=await response.json().catch(()=>null) as {error?:string;title?:string}|null;throw new Error(payload?.error||payload?.title||`İstek başarısız (${response.status}).`)}
+    if(!response.ok){const payload=await response.json().catch(()=>null) as {error?:string;title?:string}|null;throw new Error(payload?.error||payload?.title||(response.status===403?'Erişim reddedildi (403). Bu çek/senet işlemi için firma yöneticisi (TenantAdmin) rolü gerekir.':`İstek başarısız (${response.status}).`))}
     return response.status===204?undefined as T:await response.json() as T
   }
   async function create(event:React.FormEvent){event.preventDefault();if(busy)return;setBusy(true);setError('');setNotice('')

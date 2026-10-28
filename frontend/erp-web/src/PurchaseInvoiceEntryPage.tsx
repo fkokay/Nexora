@@ -2,6 +2,7 @@ import AdvancedDataGrid from './AdvancedDataGrid'
 import { useCallback, useEffect, useState } from 'react'
 import { authenticatedFetch } from './authApi';
 import { FilePlus2, PackageCheck, Search, ShieldCheck } from 'lucide-react'
+import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import './purchase-invoice-entry.css'
 
 type ReceiptOption = {
@@ -21,6 +22,16 @@ type ReceiptOption = {
 }
 type ReceiptPage = { items: ReceiptOption[]; page: number; pageSize: number; totalCount: number }
 type CreatedInvoice = { id: string; code: string; grandTotal: number; currencyCode: string }
+type ReceiptScreenField = { key: string; label: string; visible: boolean; position: number; section?: string | null; fixed?: boolean }
+const defaultReceiptFields: ReceiptScreenField[] = [
+  { key: 'receipt', label: 'Mal kabul / sipariş', visible: true, position: 0 },
+  { key: 'supplier', label: 'Tedarikçi', visible: true, position: 1 },
+  { key: 'receiptDate', label: 'Kabul tarihi', visible: true, position: 2 },
+  { key: 'warehouse', label: 'Depo', visible: true, position: 3 },
+  { key: 'lineCount', label: 'Satır', visible: true, position: 4 },
+  { key: 'purchaseOrderTotal', label: 'Sipariş toplamı', visible: true, position: 5 },
+  { key: 'actions', label: 'Fatura işlemi', visible: true, position: 6, fixed: true }
+]
 
 export type PurchaseInvoiceEntryPageProps = {
   token: string
@@ -56,7 +67,22 @@ export default function PurchaseInvoiceEntryPage({ token, role, onInvoiceCreated
   const [previewReceipt, setPreviewReceipt] = useState<ReceiptOption | null>(null)
   const [invoiceCode, setInvoiceCode] = useState('')
   const [invoiceDate, setInvoiceDate] = useState(localDate())
+  const [screenFields, setScreenFields] = useState<ReceiptScreenField[]>(defaultReceiptFields)
   const pageSize = 25
+
+  useEffect(() => {
+    let cancelled = false
+    void request<{ fields?: ReceiptScreenField[] }>('/api/screen-views/purchase-invoice-receipt-selection/active', token)
+      .then(view => {
+        if (cancelled || !Array.isArray(view.fields)) return
+        const allowed = new Set(defaultReceiptFields.map(field => field.key))
+        const fields = view.fields.filter(field => allowed.has(field.key)).map(field => ({ ...field, fixed: field.key === 'actions' }))
+        if (!fields.some(field => field.key === 'actions')) fields.push({ key: 'actions', label: 'Fatura işlemi', visible: true, position: fields.length, fixed: true })
+        setScreenFields(fields.sort((a, b) => a.position - b.position))
+      })
+      .catch(() => { /* Keep the standard layout if Studio is unavailable. */ })
+    return () => { cancelled = true }
+  }, [token])
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -83,6 +109,16 @@ export default function PurchaseInvoiceEntryPage({ token, role, onInvoiceCreated
   }
 
   const pages = Math.max(1, Math.ceil(total / pageSize))
+  const visibleFields = screenFields.filter(field => field.visible || field.fixed)
+  const fieldValue = (item: ReceiptOption, key: string) => key === 'receipt'
+    ? <><b>{item.receiptCode}</b><small>{item.purchaseOrderCode}</small></>
+    : key === 'supplier' ? <><b>{item.supplierName}</b><small>Sipariş {item.purchaseOrderCode}</small></>
+      : key === 'receiptDate' ? item.receiptDate.split('-').reverse().join('.')
+        : key === 'warehouse' ? `${item.warehouseCode} · ${item.warehouseName}`
+          : key === 'lineCount' ? item.lineCount
+            : key === 'purchaseOrderTotal' ? `${item.purchaseOrderTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${item.currencyCode}`
+              : key === 'actions' ? <button className="pie-primary" onClick={event => { event.stopPropagation(); setPreviewReceipt(item); setSelected(item); setInvoiceCode(''); setInvoiceDate(localDate()) }}><FilePlus2 size={15}/> Fatura gir</button>
+                : null
   return <main className="purchase-invoice-entry">
     <header className="pie-heading"><div><p className="pie-eyebrow">ERP CORE · SATIN ALMA</p><h1>Alış faturası girişi</h1><p>İşlenmiş mal kabullerini seçin; fatura kaydı sipariş ve stok kabulüyle bağlantısını korusun.</p></div><span className="pie-tenant"><ShieldCheck size={15}/>{role} · firma kapsamı</span></header>
     <p className="pie-hint">Bu akış yalnızca sipariş ve işlenmiş mal kabul satırlarına bağlı stok faturalarını destekler. Sipariş/mal kabul bağlantısı olmayan hizmet veya masraf faturaları mevcut modelde yer almıyor; bunlar için ayrı bir domain ve hesap eşlemesi kararı gerekiyor.</p>
@@ -90,9 +126,9 @@ export default function PurchaseInvoiceEntryPage({ token, role, onInvoiceCreated
     {notice && <div className="pie-notice" role="status">{notice}<button onClick={() => setNotice('')}>Kapat</button></div>}
     <section className="pie-summary"><span><PackageCheck size={20}/></span><div><b>{total} faturalanabilir mal kabul</b><small>İptal edilen ve daha önce faturalanmış kabuller listelenmez.</small></div></section>
     <div className="pie-toolbar"><label><Search size={16}/><input value={query} onChange={e => { setPage(1); setQuery(e.target.value) }} placeholder="Mal kabul, sipariş, tedarikçi veya depo ara"/></label><span>{loading ? 'Yükleniyor…' : `${total === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} / ${total}`}</span><button disabled={loading} onClick={() => void load()}>Yenile</button></div>
-    <div className="pie-workbench"><div className="pie-table-wrap"><AdvancedDataGrid><thead><tr><th>Mal kabul</th><th>Tedarikçi / sipariş</th><th>Kabul tarihi</th><th>Depo</th><th>Satır</th><th>Sipariş toplamı</th><th></th></tr></thead><tbody>
-      {loading ? <tr><td colSpan={7} className="pie-empty">Mal kabuller yükleniyor…</td></tr> : items.length === 0 ? <tr><td colSpan={7} className="pie-empty">{query ? 'Aramanızla eşleşen faturalanabilir mal kabul yok.' : 'Faturalanabilir mal kabul yok. Önce satın alma siparişi üzerinden mal kabul kaydedin.'}</td></tr> : items.map(item => <tr key={item.id} aria-selected={previewReceipt?.id===item.id} onClick={() => setPreviewReceipt(item)}>
-        <td><b>{item.receiptCode}</b><small>{item.purchaseOrderCode}</small></td><td><b>{item.supplierName}</b><small>Sipariş {item.purchaseOrderCode}</small></td><td>{item.receiptDate.split('-').reverse().join('.')}</td><td>{item.warehouseCode} · {item.warehouseName}</td><td>{item.lineCount}</td><td>{item.purchaseOrderTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {item.currencyCode}</td><td><button className="pie-primary" onClick={event => { event.stopPropagation(); setPreviewReceipt(item); setSelected(item); setInvoiceCode(''); setInvoiceDate(localDate()) }}><FilePlus2 size={15}/> Fatura gir</button></td>
+    <div className="pie-workbench"><div className="pie-table-wrap"><AdvancedDataGrid hideSearch><thead><ScreenViewGroupHeader fields={visibleFields}/><tr>{visibleFields.map(field => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>
+      {loading ? <tr><td colSpan={visibleFields.length} className="pie-empty">Mal kabuller yükleniyor…</td></tr> : items.length === 0 ? <tr><td colSpan={visibleFields.length} className="pie-empty">{query ? 'Aramanızla eşleşen faturalanabilir mal kabul yok.' : 'Faturalanabilir mal kabul yok. Önce satın alma siparişi üzerinden mal kabul kaydedin.'}</td></tr> : items.map(item => <tr key={item.id} tabIndex={0} aria-selected={previewReceipt?.id===item.id} onClick={() => setPreviewReceipt(item)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPreviewReceipt(item) } }}>
+        {visibleFields.map(field => <td key={field.key}>{fieldValue(item, field.key)}</td>)}
       </tr>)}
     </tbody></AdvancedDataGrid></div><aside className="pie-record-detail" aria-label="Seçili mal kabul ayrıntıları">{previewReceipt?<><small>SEÇİLİ MAL KABUL</small><h2>{previewReceipt.receiptCode}</h2><p>{previewReceipt.supplierName} · {previewReceipt.purchaseOrderCode}</p><dl><div><dt>Kabul tarihi</dt><dd>{previewReceipt.receiptDate.split('-').reverse().join('.')}</dd></div><div><dt>Depo</dt><dd>{previewReceipt.warehouseCode} · {previewReceipt.warehouseName}</dd></div><div><dt>Satır sayısı</dt><dd>{previewReceipt.lineCount}</dd></div><div><dt>Sipariş toplamı</dt><dd>{previewReceipt.purchaseOrderTotal.toLocaleString('tr-TR',{minimumFractionDigits:2})} {previewReceipt.currencyCode}</dd></div></dl><button className="pie-primary" onClick={()=>{setSelected(previewReceipt);setInvoiceCode('');setInvoiceDate(localDate())}}><FilePlus2 size={15}/> Bu mal kabul için fatura gir</button></>:<div className="pie-record-empty"><b>Mal kabul seçin</b><span>Seçili kabulün tedarikçi, depo ve fatura bilgileri burada görünür.</span></div>}</aside></div>
     <footer className="pie-pagination"><span>Sayfa {page} / {pages}</span><div><button disabled={page <= 1 || loading} onClick={() => setPage(x => Math.max(1, x - 1))}>Önceki</button><button disabled={page >= pages || loading} onClick={() => setPage(x => x + 1)}>Sonraki</button></div></footer>

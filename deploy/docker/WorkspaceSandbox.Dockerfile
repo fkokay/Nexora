@@ -64,7 +64,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine
 # Alpine edge carries upstream security patches for Cargo's dynamically linked libssh2.
 COPY deploy/pip-patches/requirements.txt /tmp/pip-patches-requirements.txt
 COPY deploy/pip-patches/update-vendored-sbom.py /tmp/update-pip-vendored-sbom.py
-RUN apk upgrade --no-cache && apk add --no-cache util-linux ca-certificates nodejs npm python3 py3-pip py3-pytest rust cargo build-base && \
+RUN apk upgrade --no-cache && apk add --no-cache util-linux ca-certificates nodejs npm python3 py3-pip py3-pytest rust cargo build-base openjdk21-jdk && \
     rm -rf /usr/share/powershell /usr/bin/pwsh && \
     mkdir -p /test-jobs /tmp/test-jobs /opt/nuget-feed && chown app:app /test-jobs /tmp/test-jobs && chmod 0750 /test-jobs /tmp/test-jobs && \
     npm install --global npm@12.2.0 --ignore-scripts --no-audit --no-fund --loglevel=error && \
@@ -92,7 +92,9 @@ RUN apk add --no-cache /tmp/binutils-2.47-r0.apk && \
     /usr/bin/readelf --version | grep -F 'GNU readelf (GNU Binutils) 2.47' && \
     printf 'int main(void) { return 0; }\n' | gcc -x c -o /tmp/aierp-ld-smoke - && \
     /tmp/aierp-ld-smoke && rm -f /tmp/aierp-ld-smoke /tmp/binutils-2.47-r0.apk && \
-    rustc --version
+    rustc --version && \
+    javac -version 2>&1 | grep -E '^javac 21\.' && \
+    java -version 2>&1 | grep -E 'version "21\.'
 COPY --from=libxml2-package /home/builder/packages/builder/x86_64/libxml2-2.13.9-r3.apk /tmp/libxml2-2.13.9-r3.apk
 COPY --from=libxml2-package /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
 RUN apk add --no-cache /tmp/libxml2-2.13.9-r3.apk && \

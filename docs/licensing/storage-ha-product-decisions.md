@@ -6,7 +6,7 @@
 ## Depolama
 
 - **Sayım alanı — kararlaştırıldı:** Firma başına ayrılmış SQL veritabanındaki SQL `ROWS` data page kullanımı lisans kotasına girer. Transaction logları ve dış dosya deposu dahil değildir.
-- **Aşım davranışı — kararlaştırıldı:** Kullanım lisans sınırına ulaştığında yeni kayıt/güncellemeler reddedilir; okumalar ve SQL data page kullanımını artırmayan silmeler sürer. Ölçüm doğrulanamazsa yazma fail-closed reddedilir. Eşzamanlı yazı ve lisans değişimi aynı tenant SQL application lock ile sıraya alınır.
+- **Aşım davranışı — kararlaştırıldı:** Kullanım lisans sınırına ulaştığında okumalar sürer; tahsisi artıran mutasyonlar reddedilir, tahsisi artırmayan mutasyonlar kabul edilebilir. Silmeler genel olarak muaf değildir; silme ve audit kaydı data page tahsisini artırabilir. Ölçüm doğrulanamazsa yazma fail-closed reddedilir. Eşzamanlı yazı ve lisans değişimi aynı tenant SQL application lock ile sıraya alınır.
 - **Paket eşikleri — ratifikasyon bekliyor:** Kod profili Small 10 GB, Medium 100 GB ve Large için `int.MaxValue` GB kullanır. Ürün sahibi bu değerleri satış/kontrat taahhüdü olarak sunmadan önce onaylamalıdır. Kota sınırı uygulamada hesaplanır; ticari paket taahhüdü ayrıca ratifiye edilmelidir.
 - **Operasyon notu:** SQL data page tahsisi, dosya boyutu veya transaction-log tüketimi ile aynı ölçü değildir; silme data page tahsisini hemen düşürmeyebilir. Firma ayarlarında kullanım ve eşik görünür. Dosya depolama eklenirse kapsam ayrıca kararlaştırılmalıdır.
 

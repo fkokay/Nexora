@@ -25,6 +25,71 @@ namespace AIERP.Api.IntegrationTests;
 public sealed class AIProviderSettingsEndpointsIntegrationTests
 {
     [Fact]
+    public async Task OpenAI_model_lookup_returns_gateway_error_on_provider_transport_failure_without_exposing_key()
+    {
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        await using var factory = new AIProviderSettingsApiFactory(() => new ProviderFailureHandler());
+        await SeedTenantCatalogAsync(factory, tenantId);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-User", userId.ToString("D"));
+
+        const string syntheticKey = "synthetic-provider-key-must-not-appear-in-errors";
+        using var response = await client.PostAsJsonAsync("/api/ai-settings/openai-models", new { apiKey = syntheticKey });
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(syntheticKey, body, StringComparison.Ordinal);
+        Assert.Contains("OpenAI model listesi", body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("/api/ai-settings/openai-models", "OpenAI")]
+    [InlineData("/api/ai-settings/nvidia-models", "NVIDIA")]
+    public async Task Model_lookup_returns_safe_service_unavailable_for_malformed_saved_key_without_calling_provider(
+        string route, string provider)
+    {
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var handler = new ProviderFailureHandler();
+        await using var factory = new AIProviderSettingsApiFactory(() => handler);
+        await SeedTenantCatalogAsync(factory, tenantId);
+        const string malformedCipherText = "v3.synthetic-malformed-ciphertext-secret";
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            db.TenantAIProviderSettings.Add(new TenantAIProviderSettings
+            {
+                TenantId = tenantId,
+                Provider = provider,
+                OpenAIKeyCipherText = provider == "OpenAI" ? malformedCipherText : null,
+                NvidiaKeyCipherText = provider == "NVIDIA" ? malformedCipherText : null,
+                NvidiaModel = provider == "NVIDIA" ? "synthetic-model" : string.Empty
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-User", userId.ToString("D"));
+
+        using var response = await client.PostAsJsonAsync(route, new { apiKey = (string?)null });
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Contains("Anahtarı yeniden kaydedin", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(malformedCipherText, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("synthetic", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, handler.CallCount);
+
+        const string suppliedKey = "synthetic-request-key";
+        using var suppliedKeyResponse = await client.PostAsJsonAsync(route, new { apiKey = suppliedKey });
+        var suppliedKeyBody = await suppliedKeyResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.BadGateway, suppliedKeyResponse.StatusCode);
+        Assert.DoesNotContain(suppliedKey, suppliedKeyBody, StringComparison.Ordinal);
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    [Fact]
     public async Task Tenant_admin_can_read_defaults_and_securely_roundtrip_provider_settings()
     {
         var tenantId = Guid.NewGuid();
@@ -113,19 +178,41 @@ public sealed class AIProviderSettingsEndpointsIntegrationTests
         string NvidiaModel,
         bool LiveEvaluationEnabled);
 
+    private sealed class ProviderFailureHandler : HttpMessageHandler
+    {
+        public int CallCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return Task.FromException<HttpResponseMessage>(new HttpRequestException("Synthetic provider transport failure."));
+        }
+    }
+
     private sealed class AIProviderSettingsApiFactory : WebApplicationFactory<ApiEntryPointMarker>
     {
         private readonly string _databaseName = $"ai-provider-settings-{Guid.NewGuid():N}";
+        private readonly Func<HttpMessageHandler>? _providerMessageHandlerFactory;
+
+        public AIProviderSettingsApiFactory(Func<HttpMessageHandler>? providerMessageHandlerFactory = null) =>
+            _providerMessageHandlerFactory = providerMessageHandlerFactory;
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(Environments.Production);
             builder.ConfigureTestServices(services =>
             {
+                services.RemoveAll<ITenantSqlCredentialReader>();
+                services.AddSingleton<ITenantSqlCredentialReader, AISettingsTenantCredentialReader>();
                 services.RemoveAll<PlatformDbContext>();
                 services.RemoveAll<DbContextOptions<PlatformDbContext>>();
                 services.RemoveAll<IDbContextOptionsConfiguration<PlatformDbContext>>();
                 services.AddDbContext<PlatformDbContext>(options => options.UseInMemoryDatabase(_databaseName));
+                if (_providerMessageHandlerFactory is not null)
+                {
+                    services.AddHttpClient("openai-models").ConfigurePrimaryHttpMessageHandler(_providerMessageHandlerFactory);
+                    services.AddHttpClient("nvidia-models").ConfigurePrimaryHttpMessageHandler(_providerMessageHandlerFactory);
+                }
                 services.AddAuthentication(options =>
                 {
                     options.DefaultAuthenticateScheme = AISettingsTestAuthenticationHandler.SchemeName;
@@ -157,10 +244,30 @@ public sealed class AIProviderSettingsEndpointsIntegrationTests
                     ["ConnectionStrings:AIStudio"] = "Server=localhost;Database=unused;User Id=test;Password=test;TrustServerCertificate=True",
                     ["Database:SeparationEnabled"] = "true",
                     ["Database:ApplyMigrationsOnStartup"] = "false",
+                    ["Vault:Address"] = "https://vault.test",
+                    ["Vault:TenantSqlCredentialReader:RoleId"] = "ai-settings-test-role",
+                    ["Vault:TenantSqlCredentialReader:SecretId"] = "ai-settings-test-secret",
                     ["AI:SettingsEncryptionKey"] = Convert.ToBase64String(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray()),
                     ["AI:LiveEvaluation:Enabled"] = "false"
                 }));
             return base.CreateHost(builder);
+        }
+
+        private sealed class AISettingsTenantCredentialReader : ITenantSqlCredentialReader
+        {
+            public Task<TenantSqlCredential> ReadAsync(Guid tenantId, TenantSqlDatabaseComponent component,
+                string secretReference, CancellationToken cancellationToken = default)
+            {
+                Assert.Equal(TenantSqlCredentialPath.ForTenant(tenantId, component), secretReference);
+                var userName = component switch
+                {
+                    TenantSqlDatabaseComponent.Erp => $"aierp_t_{tenantId:N}",
+                    TenantSqlDatabaseComponent.AiStudio => $"aierp_s_{tenantId:N}",
+                    _ => throw new ArgumentOutOfRangeException(nameof(component))
+                };
+                return Task.FromResult(new TenantSqlCredential(
+                    TenantSqlCredentialPath.DatabaseName(tenantId, component), userName, "synthetic-password", 1));
+            }
         }
 
         private sealed class AISettingsTestAuthenticationHandler(
@@ -188,5 +295,6 @@ public sealed class AIProviderSettingsEndpointsIntegrationTests
                     new AuthenticationTicket(principal, Scheme.Name)));
             }
         }
+
     }
 }

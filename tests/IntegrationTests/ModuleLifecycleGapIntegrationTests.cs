@@ -324,7 +324,10 @@ public sealed class ModuleLifecycleGapIntegrationTests
         ["ConnectionStrings__Tenant"] = "Server=localhost;Database=unused;User Id=test;Password=test;TrustServerCertificate=True",
         ["ConnectionStrings__AIStudio"] = "Server=localhost;Database=unused;User Id=test;Password=test;TrustServerCertificate=True",
         ["Database__SeparationEnabled"] = "true",
-        ["Database__ApplyMigrationsOnStartup"] = "false"
+        ["Database__ApplyMigrationsOnStartup"] = "false",
+        ["Vault__Address"] = "https://vault.test",
+        ["Vault__TenantSqlCredentialReader__RoleId"] = "module-gap-test-role",
+        ["Vault__TenantSqlCredentialReader__SecretId"] = "module-gap-test-secret"
     };
 
     private sealed class ProcessEnvironmentOverride(IReadOnlyDictionary<string, string?> previousValues) : IDisposable
@@ -366,10 +369,15 @@ public sealed class ModuleLifecycleGapIntegrationTests
                 ["ConnectionStrings:AIStudio"] = "Server=localhost;Database=unused;User Id=test;Password=test;TrustServerCertificate=True",
                 ["Database:SeparationEnabled"] = "true",
                 ["Database:ApplyMigrationsOnStartup"] = "false",
+                ["Vault:Address"] = "https://vault.test",
+                ["Vault:TenantSqlCredentialReader:RoleId"] = "module-gap-test-role",
+                ["Vault:TenantSqlCredentialReader:SecretId"] = "module-gap-test-secret",
                 ["ModulePackages:RootPath"] = PackageRoot
             }));
             builder.ConfigureTestServices(services =>
             {
+                services.RemoveAll<ITenantSqlCredentialReader>();
+                services.AddSingleton<ITenantSqlCredentialReader, ModuleGapTenantCredentialReader>();
                 services.RemoveAll<PlatformDbContext>();
                 services.RemoveAll<DbContextOptions<PlatformDbContext>>();
                 services.RemoveAll<IDbContextOptionsConfiguration<PlatformDbContext>>();
@@ -380,6 +388,23 @@ public sealed class ModuleLifecycleGapIntegrationTests
                              && x.ImplementationType?.Name is "IntegrationOperationWorker" or "AuditRetentionWorker" or "TcmbExchangeRateWorker").ToArray())
                     services.Remove(worker);
             });
+        }
+
+        private sealed class ModuleGapTenantCredentialReader : ITenantSqlCredentialReader
+        {
+            public Task<TenantSqlCredential> ReadAsync(Guid tenantId, TenantSqlDatabaseComponent component,
+                string secretReference, CancellationToken cancellationToken = default)
+            {
+                Assert.Equal(TenantSqlCredentialPath.ForTenant(tenantId, component), secretReference);
+                var userName = component switch
+                {
+                    TenantSqlDatabaseComponent.Erp => $"aierp_t_{tenantId:N}",
+                    TenantSqlDatabaseComponent.AiStudio => $"aierp_s_{tenantId:N}",
+                    _ => throw new ArgumentOutOfRangeException(nameof(component))
+                };
+                return Task.FromResult(new TenantSqlCredential(
+                    TenantSqlCredentialPath.DatabaseName(tenantId, component), userName, "synthetic-password", 1));
+            }
         }
 
         protected override void Dispose(bool disposing)

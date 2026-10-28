@@ -70,4 +70,60 @@ public sealed class ERPAssistantInvoiceToolsTests
         Assert.Throws<JsonException>(() => ERPAssistantInvoiceTools.SummarizeSalesInvoices(tooManyRows.RootElement));
         Assert.Throws<JsonException>(() => ERPAssistantInvoiceTools.SummarizeSalesInvoices(inconsistent.RootElement));
     }
+
+    [Fact]
+    public void Sales_invoice_details_keep_bounded_lines_and_remove_identity_and_payment_references()
+    {
+        using var response = JsonDocument.Parse("""
+            {"totalCount":1,"unique":true,"invoice":{"id":"secret-id","customerName":"Private Customer","code":"S-9","invoiceDate":"2026-10-01","currencyCode":"TRY","status":"Posted","total":150,"paid":40,"returned":10,"outstanding":100,"lineCount":1,"linesTruncated":false,"collections":[{"reference":"secret"}],"lines":[{"stockCode":"STK-1","item":"Widget","unit":"EA","quantity":2,"unitPrice":75,"vatPercent":20,"total":150,"stockItemId":"secret-stock-id"}]}}
+            """);
+
+        using var result = JsonDocument.Parse(ERPAssistantInvoiceTools.SummarizeSalesInvoiceDetails(response.RootElement));
+        var invoice = result.RootElement.GetProperty("invoice");
+        Assert.Equal("S-9", invoice.GetProperty("code").GetString());
+        Assert.Equal(100m, invoice.GetProperty("outstanding").GetDecimal());
+        Assert.Equal("STK-1", Assert.Single(invoice.GetProperty("lines").EnumerateArray()).GetProperty("stockCode").GetString());
+        Assert.False(invoice.TryGetProperty("customerName", out _));
+        Assert.False(invoice.TryGetProperty("collections", out _));
+        Assert.False(invoice.GetProperty("lines")[0].TryGetProperty("stockItemId", out _));
+        Assert.DoesNotContain("secret", result.RootElement.GetRawText(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Sales_invoice_details_reject_non_unique_or_unbounded_responses()
+    {
+        using var inconsistent = JsonDocument.Parse("""{"totalCount":1,"unique":false,"matches":[]}""");
+        using var unbounded = JsonDocument.Parse("""{"totalCount":1,"unique":true,"invoice":{"linesTruncated":false,"lines":[{"stockCode":"x"}]}}""");
+
+        Assert.Throws<JsonException>(() => ERPAssistantInvoiceTools.SummarizeSalesInvoiceDetails(inconsistent.RootElement));
+        Assert.Throws<JsonException>(() => ERPAssistantInvoiceTools.SummarizeSalesInvoiceDetails(unbounded.RootElement));
+    }
+
+    [Fact]
+    public void Purchase_invoice_details_keep_bounded_lines_and_remove_supplier_and_payment_identity()
+    {
+        using var response = JsonDocument.Parse("""
+            {"totalCount":1,"unique":true,"invoice":{"id":"secret-id","supplierName":"Private Supplier","code":"P-9","invoiceDate":"2026-10-01","dueDate":"2026-10-30","currencyCode":"EUR","status":"Posted","total":150,"paid":40,"returned":10,"outstanding":100,"lineCount":1,"linesTruncated":false,"payments":[{"reference":"secret"}],"lines":[{"stockCode":"STK-1","item":"Widget","unit":"EA","quantity":2,"unitPrice":75,"vatPercent":20,"total":150,"stockItemId":"secret-stock-id"}]}}
+            """);
+
+        using var result = JsonDocument.Parse(ERPAssistantInvoiceTools.SummarizePurchaseInvoiceDetails(response.RootElement));
+        var invoice = result.RootElement.GetProperty("invoice");
+        Assert.Equal("P-9", invoice.GetProperty("code").GetString());
+        Assert.Equal(100m, invoice.GetProperty("outstanding").GetDecimal());
+        Assert.Equal("STK-1", Assert.Single(invoice.GetProperty("lines").EnumerateArray()).GetProperty("stockCode").GetString());
+        Assert.False(invoice.TryGetProperty("supplierName", out _));
+        Assert.False(invoice.TryGetProperty("payments", out _));
+        Assert.False(invoice.GetProperty("lines")[0].TryGetProperty("stockItemId", out _));
+        Assert.DoesNotContain("secret", result.RootElement.GetRawText(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Purchase_invoice_details_reject_non_unique_or_unbounded_responses()
+    {
+        using var inconsistent = JsonDocument.Parse("""{"totalCount":1,"unique":false,"matches":[]}""");
+        using var unbounded = JsonDocument.Parse("""{"totalCount":1,"unique":true,"invoice":{"linesTruncated":false,"lines":[{"stockCode":"x"}]}}""");
+
+        Assert.Throws<JsonException>(() => ERPAssistantInvoiceTools.SummarizePurchaseInvoiceDetails(inconsistent.RootElement));
+        Assert.Throws<JsonException>(() => ERPAssistantInvoiceTools.SummarizePurchaseInvoiceDetails(unbounded.RootElement));
+    }
 }

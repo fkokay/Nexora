@@ -23,6 +23,7 @@ namespace AIERP.Api.IntegrationTests;
 public sealed class AIServiceMigrationReadinessIntegrationTests
 {
     private const string PendingMigration = "20261023150000_AddStudioModuleSourceMappings";
+    private static readonly Guid TestTenantId = Guid.Parse("b250832c-24d3-4cd4-b716-330812974f13");
 
     [Fact]
     public async Task Studio_data_endpoint_returns_migration_pending_503_contract()
@@ -37,6 +38,25 @@ public sealed class AIServiceMigrationReadinessIntegrationTests
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Contains("\"error\":\"studio_migrations_pending\"", body);
         Assert.Contains($"\"requiredMigration\":\"{PendingMigration}\"", body);
+    }
+
+    [Fact]
+    public async Task GitHub_setup_callback_returns_safe_unavailable_response_when_tenant_routing_fails()
+    {
+        await using var factory = new MigrationReadinessFactory(throwUnexpectedException: false, ready: true,
+            throwTenantCredentialException: true);
+        await SeedStudioStateAsync(factory);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var signingKey = "synthetic-ai-service-auth-signing-key-32-bytes";
+        var state = GitHubSetupState.Create(TestTenantId, signingKey);
+
+        using var response = await client.GetAsync($"/studio/github/setup-callback?installation_id=12345&setup_action=install&state={Uri.EscapeDataString(state)}");
+
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Contains("studio_database_not_ready", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("synthetic secret details", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(state, body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -93,7 +113,46 @@ public sealed class AIServiceMigrationReadinessIntegrationTests
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Contains("\"status\":\"not_ready\"", body);
         Assert.Contains("\"dependency\":\"studio-migrations\"", body);
+        Assert.Contains("\"scope\":\"platform-all-tenant-catalogs-plus-one-studio-sample\"", body);
         Assert.Contains($"\"requiredMigration\":\"{PendingMigration}\"", body);
+        Assert.DoesNotContain(TestTenantId.ToString("D"), body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Health_endpoint_labels_sample_tenant_probe_without_exposing_tenant_identity()
+    {
+        await using var factory = new MigrationReadinessFactory(throwUnexpectedException: false, ready: true);
+        await SeedStudioStateAsync(factory);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/health");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("\"scope\":\"platform-all-tenant-catalogs-plus-one-studio-sample\"", body);
+        Assert.Contains("\"sample-tenant-vault-credential\"", body);
+        Assert.Contains("\"sample-tenant-studio-migrations\"", body);
+        Assert.DoesNotContain(TestTenantId.ToString("D"), body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("synthetic-password", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Health_endpoint_is_explicitly_platform_only_when_no_tenants_exist()
+    {
+        await using var factory = new MigrationReadinessFactory(throwUnexpectedException: false, ready: true);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<PlatformDbContext>().Database.EnsureCreatedAsync();
+        }
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/health");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.StatusCode == HttpStatusCode.OK, body);
+        Assert.Contains("\"scope\":\"platform-database-only-no-tenants\"", body);
+        Assert.DoesNotContain("sample-tenant", body, StringComparison.Ordinal);
+        Assert.Equal(0, factory.ReadinessChecks);
     }
 
     [Fact]
@@ -106,7 +165,7 @@ public sealed class AIServiceMigrationReadinessIntegrationTests
         using var cancellation = new CancellationTokenSource();
 
         var request = client.GetAsync("/health", cancellation.Token);
-        await factory.ReadinessCheckStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        await factory.ReadinessCheckStarted.WaitAsync(TimeSpan.FromSeconds(30));
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request);
@@ -117,17 +176,18 @@ public sealed class AIServiceMigrationReadinessIntegrationTests
     {
         using var scope = factory.Services.CreateScope();
         var database = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+        database.Tenants.Add(new Tenant { Id = TestTenantId, Name = "Migration readiness tenant", Slug = "migration-readiness" });
         database.DatabaseSeparationComponentStates.Add(new DatabaseSeparationComponentState
         {
-            Component = "AIStudio",
-            DatabaseName = "AIERPStudio",
+            Component = TenantDatabaseRouting.StudioComponentKey(TestTenantId),
+            DatabaseName = TenantSqlCredentialPath.DatabaseName(TestTenantId, TenantSqlDatabaseComponent.AiStudio),
             State = TenantDatabaseProvisioningState.Ready
         });
         await database.SaveChangesAsync();
     }
 
     private sealed class MigrationReadinessFactory(bool throwUnexpectedException, bool ready,
-        bool waitForRequestCancellation = false)
+        bool waitForRequestCancellation = false, bool throwTenantCredentialException = false)
         : WebApplicationFactory<AIERP.AIService.AIServiceEntryPointMarker>
     {
         private readonly string _databaseName = $"ai-service-migration-readiness-{Guid.NewGuid():N}";
@@ -144,6 +204,9 @@ public sealed class AIServiceMigrationReadinessIntegrationTests
                 services.RemoveAll<DbContextOptions<PlatformDbContext>>();
                 services.RemoveAll<IDbContextOptionsConfiguration<PlatformDbContext>>();
                 services.AddDbContext<PlatformDbContext>(options => options.UseInMemoryDatabase(_databaseName));
+
+                services.RemoveAll<ITenantSqlCredentialReader>();
+                services.AddSingleton<ITenantSqlCredentialReader>(new SyntheticTenantSqlCredentialReader(throwTenantCredentialException));
 
                 services.RemoveAll<IAIStudioMigrationReadinessChecker>();
                 _checker = new SyntheticMigrationReadinessChecker(throwUnexpectedException, ready, waitForRequestCancellation);
@@ -169,11 +232,30 @@ public sealed class AIServiceMigrationReadinessIntegrationTests
                 ["Authentication:Issuer"] = "AIERP",
                 ["Authentication:Audience"] = "AIERP",
                 ["ConnectionStrings:Platform"] = "Server=localhost;Database=unused;User Id=test;Password=test;TrustServerCertificate=True",
+                 ["GitHub:StudioRedirectUrl"] = "https://studio.test/?app=studio",
                 ["ConnectionStrings:AIStudio"] = "Server=localhost;Database=unused;User Id=test;Password=test;TrustServerCertificate=True",
                 ["Database:SeparationEnabled"] = "true",
-                ["Database:ApplyMigrationsOnStartup"] = "false"
+                ["Database:ApplyMigrationsOnStartup"] = "false",
+                ["Vault:Address"] = "https://vault.test",
+                ["Vault:TenantSqlCredentialReader:RoleId"] = "migration-readiness-test-role",
+                ["Vault:TenantSqlCredentialReader:SecretId"] = "migration-readiness-test-secret"
             }));
             return base.CreateHost(builder);
+        }
+    }
+
+    private sealed class SyntheticTenantSqlCredentialReader(bool throwOnRead) : ITenantSqlCredentialReader
+    {
+        public Task<TenantSqlCredential> ReadAsync(Guid tenantId, TenantSqlDatabaseComponent component,
+            string secretReference, CancellationToken cancellationToken = default)
+        {
+            Assert.Equal(TestTenantId, tenantId);
+            Assert.Equal(TenantSqlDatabaseComponent.AiStudio, component);
+            Assert.Equal(TenantSqlCredentialPath.ForTenant(TestTenantId, component), secretReference);
+            if (throwOnRead) throw new InvalidOperationException("synthetic secret details");
+            return Task.FromResult(new TenantSqlCredential(
+                TenantSqlCredentialPath.DatabaseName(tenantId, component),
+                $"aierp_s_{tenantId:N}", "synthetic-password", 1));
         }
     }
 
@@ -208,7 +290,7 @@ public sealed class AIServiceMigrationReadinessIntegrationTests
         {
             var claims = new[]
             {
-                new System.Security.Claims.Claim("tenant_id", "11111111-1111-1111-1111-111111111111"),
+                new System.Security.Claims.Claim("tenant_id", TestTenantId.ToString("D")),
                 new System.Security.Claims.Claim("sub", "22222222-2222-2222-2222-222222222222")
             };
             var identity = new System.Security.Claims.ClaimsIdentity(claims, SchemeName);

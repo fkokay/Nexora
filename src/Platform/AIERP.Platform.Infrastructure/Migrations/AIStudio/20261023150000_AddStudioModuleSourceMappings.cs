@@ -7,9 +7,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace AIERP.Platform.Infrastructure.Migrations.AIStudio;
 
-[DbContext(typeof(AIStudioDbContext))]
-[Migration("20261023150000_AddStudioModuleSourceMappings")]
-public sealed class AddStudioModuleSourceMappings : Migration
+public sealed partial class AddStudioModuleSourceMappings : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {

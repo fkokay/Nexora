@@ -288,6 +288,35 @@ public sealed class FinanceCreditFacilityIntegrationTests
         Assert.Equal("B-LOAN", otherJson.RootElement[0].GetProperty("code").GetString());
     }
 
+    [Fact]
+    public async Task Assistant_credit_summary_is_tenant_scoped_and_excludes_sensitive_facility_fields()
+    {
+        await using var app = await StartApplicationAsync();
+        using var clientA = app.GetTestClient();
+        using var unauthorized = await clientA.GetAsync("/api/finance/credit-facilities/assistant-summary?term=LOAN");
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+
+        clientA.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        using var responseA = await clientA.GetAsync("/api/finance/credit-facilities/assistant-summary?term=LOAN");
+        Assert.True(responseA.IsSuccessStatusCode, await responseA.Content.ReadAsStringAsync());
+        using var jsonA = JsonDocument.Parse(await responseA.Content.ReadAsStringAsync());
+        var itemA = Assert.Single(jsonA.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal("A-LOAN", itemA.GetProperty("code").GetString());
+        Assert.Equal("TRY", itemA.GetProperty("currencyCode").GetString());
+        Assert.False(itemA.TryGetProperty("id", out _));
+        Assert.False(itemA.TryGetProperty("lenderName", out _));
+        Assert.False(itemA.TryGetProperty("approvedLimit", out _));
+        Assert.False(itemA.TryGetProperty("notes", out _));
+
+        using var clientB = app.GetTestClient();
+        clientB.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var responseB = await clientB.GetAsync("/api/finance/credit-facilities/assistant-summary?term=LOAN");
+        using var jsonB = JsonDocument.Parse(await responseB.Content.ReadAsStringAsync());
+        var itemB = Assert.Single(jsonB.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal("B-LOAN", itemB.GetProperty("code").GetString());
+        Assert.Equal("USD", itemB.GetProperty("currencyCode").GetString());
+    }
+
     private static async Task<WebApplication> StartApplicationAsync()
     {
         var builder = WebApplication.CreateBuilder(); builder.WebHost.UseTestServer();

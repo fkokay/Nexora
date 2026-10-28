@@ -13,6 +13,48 @@ namespace AIERP.Platform.UnitTests;
 
 public sealed class ERPAssistantToolTelemetryTests
 {
+    [Theory]
+    [InlineData("search_fixed_assets", "{\"term\":\"laptop\"}")]
+    [InlineData("get_financial_account_balances", "{}")]
+    [InlineData("get_sales_delivery_details", "{\"code\":\"DN-2026-001\"}")]
+    public async Task ERP_assistant_recent_read_tools_keep_bounded_metric_names(string toolName, string arguments)
+    {
+        var observedTools = new ConcurrentBag<string>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == "AIERP.AIService.ERPAssistant")
+                meterListener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>
+        {
+            if (instrument.Name == "aierp.erp_assistant.tool.calls")
+                observedTools.Add(ReadTag(tags, "tool"));
+        });
+        listener.Start();
+
+        var httpCall = 0;
+        var handler = new StubHandler(_ =>
+        {
+            httpCall++;
+            var payload = httpCall == 1
+                ? $$"""{"status":"completed","output":[{"type":"function_call","name":"{{toolName}}","arguments":{{System.Text.Json.JsonSerializer.Serialize(arguments)}},"call_id":"call-1"}]}"""
+                : """{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"Tamam."}]}]}""";
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            });
+        });
+        var provider = CreateProvider(handler);
+
+        var answer = await provider.ReplyToERPDataQuestionAsync("Verileri özetle.", [], CancellationToken.None,
+            (_, _, _) => Task.FromResult("{}"));
+
+        Assert.Equal("Tamam.", answer);
+        Assert.Contains(toolName, observedTools);
+        Assert.DoesNotContain("other", observedTools);
+    }
+
     [Fact]
     public async Task ERP_assistant_tool_execution_emits_bounded_success_metrics_without_arguments_or_results()
     {

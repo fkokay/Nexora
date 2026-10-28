@@ -59,9 +59,34 @@ public sealed class CustomerValidationTests
     public void Accepts_valid_customer_address()
     {
         var errors = CustomerAddressValidation.Validate(new CustomerAddressWriteRequest(
-            CustomerAddressKind.Billing, "Head office", "Main Street 1", "Istanbul", "Kadikoy", "34710", "TR", true));
+            CustomerAddressKind.Billing, "Head office", "Main Street 1", "Istanbul", "Kadikoy", "34710", "TR", true,
+            Latitude: 40.9917m, Longitude: 29.0277m));
 
         Assert.Null(errors);
+    }
+
+    [Theory]
+    [InlineData(91, 0, "latitude")]
+    [InlineData(0, 181, "longitude")]
+    public void Rejects_out_of_range_customer_address_coordinates(decimal latitude, decimal longitude, string field)
+    {
+        var errors = CustomerAddressValidation.Validate(new CustomerAddressWriteRequest(
+            CustomerAddressKind.General, "Office", "Main Street 1", "Istanbul", null, null, "TR",
+            Latitude: latitude, Longitude: longitude));
+
+        Assert.NotNull(errors);
+        Assert.Contains(field, errors.Keys);
+    }
+
+    [Fact]
+    public void Rejects_partial_customer_address_coordinates()
+    {
+        var errors = CustomerAddressValidation.Validate(new CustomerAddressWriteRequest(
+            CustomerAddressKind.General, "Office", "Main Street 1", "Istanbul", null, null, "TR",
+            Latitude: 40.9917m));
+
+        Assert.NotNull(errors);
+        Assert.Contains("coordinates", errors.Keys);
     }
 
     [Fact]

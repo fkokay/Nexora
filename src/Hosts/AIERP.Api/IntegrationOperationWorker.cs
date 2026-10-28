@@ -190,7 +190,7 @@ public sealed class IntegrationOperationWorker(
         if (outcome.ResultJson is not null)
             operation.EncryptedResult = IntegrationOperationCipher.Encrypt(outcome.ResultJson, configuration, operation.TenantId, operation.Id, "result");
 
-        if (outcome.Retryable && operation.AttemptCount < MaximumDeliveryAttempts)
+        if (ShouldScheduleRetry(outcome.Retryable, outcome.Ambiguous, operation.AttemptCount, MaximumDeliveryAttempts))
         {
             operation.Status = "Queued";
             operation.NextAttemptAt = now.AddSeconds(Math.Min(30, 5 * operation.AttemptCount));
@@ -198,7 +198,7 @@ public sealed class IntegrationOperationWorker(
         }
         else
         {
-            operation.Status = outcome.Retryable ? "Indeterminate" : outcome.Status;
+            operation.Status = outcome.Ambiguous || outcome.Retryable ? "Indeterminate" : outcome.Status;
             operation.CompletedAt = now;
             operation.EncryptedPayload = "";
             if (operation.Status == "Indeterminate") operation.ErrorCode = "delivery_indeterminate";
@@ -259,6 +259,9 @@ public sealed class IntegrationOperationWorker(
 
     private static bool IsRetryable(string? errorCode) => errorCode is
         "temporary_unavailable" or "rate_limited" or "adapter_error" or "deadline_exceeded" or "integration_host_unavailable";
+
+    internal static bool ShouldScheduleRetry(bool retryable, bool ambiguous, int attemptCount, int maximumAttempts) =>
+        retryable && !ambiguous && attemptCount < maximumAttempts;
 
     private static string SanitizeErrorCode(string? value) => value is { Length: > 0 and <= 48 } && value.All(c => char.IsAsciiLetterOrDigit(c) || c == '_')
         ? value : "integration_failed";

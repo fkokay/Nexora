@@ -9,11 +9,18 @@ internal static class ERPAssistantPurchaseDeliveryNoteTools
 {
     private const string SearchPath = "/api/purchasing/delivery-notes/search";
     private const int MaxResults = 10;
+    private const int MaxLines = 50;
 
     public static bool TryValidateSearchTerm(string? value, out string term)
     {
         term = value?.Trim() ?? string.Empty;
         return term.Length is >= 2 and <= 100;
+    }
+
+    public static bool TryValidateDocumentNumber(string? value, out string documentNumber)
+    {
+        documentNumber = value?.Trim() ?? string.Empty;
+        return documentNumber.Length is >= 2 and <= 80 && !documentNumber.Any(char.IsControl);
     }
 
     public static async Task<bool> IsReadAllowedAsync(Guid tenantId, Guid userId, string role,
@@ -53,6 +60,36 @@ internal static class ERPAssistantPurchaseDeliveryNoteTools
         });
     }
 
+    public static string SummarizeNoteDetails(JsonElement response)
+    {
+        if (response.ValueKind != JsonValueKind.Object ||
+            !TryGetInt32(response, "lineCount", out var lineCount) || lineCount < 0 ||
+            !TryGetInt32(response, "returnedLines", out var returnedLines) || returnedLines < 0 || returnedLines > MaxLines || returnedLines > lineCount ||
+            !response.TryGetProperty("hasMoreLines", out var moreLines) || moreLines.ValueKind is not (JsonValueKind.True or JsonValueKind.False) ||
+            moreLines.GetBoolean() != (lineCount > returnedLines) ||
+            !response.TryGetProperty("lines", out var lines) || lines.ValueKind != JsonValueKind.Array || lines.GetArrayLength() != returnedLines)
+            throw new JsonException("Supplier delivery-note detail returned an invalid bounded result shape.");
+
+        var projectedLines = lines.EnumerateArray().Select(line => new
+        {
+            lineNumber = RequiredPositiveInt32(line, "lineNumber"),
+            unitCode = RequiredString(line, "unitCode", 20),
+            quantity = RequiredNonNegativeDecimal(line, "quantity")
+        }).ToArray();
+
+        return JsonSerializer.Serialize(new
+        {
+            documentNumber = RequiredString(response, "documentNumber", 80),
+            purchaseOrderCode = RequiredString(response, "purchaseOrderCode", 80),
+            documentDate = RequiredDate(response, "documentDate").ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            linkedToReceipt = RequiredBoolean(response, "linkedToReceipt"),
+            lineCount,
+            returnedLines,
+            hasMoreLines = moreLines.GetBoolean(),
+            lines = projectedLines
+        });
+    }
+
     private static bool TryGetInt32(JsonElement value, string property, out int result)
     {
         result = 0;
@@ -84,4 +121,14 @@ internal static class ERPAssistantPurchaseDeliveryNoteTools
         value.ValueKind is JsonValueKind.True or JsonValueKind.False
             ? value.GetBoolean()
             : throw new JsonException($"Supplier delivery-note search omitted or invalidated {property}.");
+
+    private static int RequiredPositiveInt32(JsonElement item, string property) =>
+        TryGetInt32(item, property, out var number) && number > 0
+            ? number : throw new JsonException($"Supplier delivery-note detail omitted or invalidated {property}.");
+
+    private static decimal RequiredNonNegativeDecimal(JsonElement item, string property) =>
+        item.ValueKind == JsonValueKind.Object && item.TryGetProperty(property, out var value) &&
+        value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var number) && number >= 0
+            ? number : throw new JsonException($"Supplier delivery-note detail omitted or invalidated {property}.");
+
 }

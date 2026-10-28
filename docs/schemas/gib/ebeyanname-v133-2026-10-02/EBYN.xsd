@@ -1,0 +1,667 @@
+<?xml version="1.0" encoding="ISO-8859-9"?>
+<!-- edited with XML Spy v4.4 U (http://www.xmlspy.com) by fatma (cs) -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:complexType name="genel_type">
+		<xs:sequence>
+			<xs:element name="idari" type="idari_type">
+				<xs:annotation>
+					<xs:documentation>
+						Beyanname içerisinde geçen idari bilgiler bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="mukellef" type="kimlikBilgileri_type">
+				<xs:annotation>
+					<xs:documentation>
+						Beyannamesi verilen mükellefe ait kimlik bilgileri bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="hsv" type="hsv_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Beyannameyi veren kişiye ait kimlik bilgileri ve beyannamenin hangi sıfatla verildiği bilgileri bu etiket altında toplanmıştır.
+						Bu etiketin "sıfat" özelliği(attribute) içerisinde beyannamenin hangi sıfatla verildiği bilgisi aşağıdaki tabloya göre verilecektir.
+						------------------------------------------------------------
+						BEYANNAMENİN HANGİ 	:	ETİKET ALTINDA BULUNMASI
+						SIFATLA VERİLDİĞİ		:	GEREKEN VERİ
+						-----------------------------------------------------------
+						Mükellef / Kendisi	:	kendisi
+						Mirasçısı			:	mirasci
+						Kanuni Temsilcisi		:	temsilci
+						Vergi Sorumlusu		:	sorumlu
+						Diğer				:	diger
+						------------------------------------------------------------
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="duzenleyen" type="kimlikBilgileri_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Beyannameyi düzenleyen kişiye ait kimlik bilgileri bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="gonderen" type="kimlikBilgileri_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+				Yıllık beyannamelerde beyannameyi gonderen kişiye ait kimlik bilgileri bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="ymm" type="kimlikBilgileri_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+					Yıllık beyannamelerde beyannameyi düzenleyen YMM'ye ait kimlik bilgileri bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="darMukellefTemsilcisi" type="kimlikBilgileri_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+					Kurumlar Vergisi beyannamesinde Dar Mükellef Temsilcisi'ne ait kimlik bilgileri bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="idari_type">
+		<xs:sequence>
+			<xs:element name="vdKodu" type="vdKodu_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket beyanname sahibi mükellefin bağlı olduğu Vergi Dairesi kodunu içerir.
+						Ref: VEDOPVDKODU
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="donem" type="donem_type">
+				<xs:annotation>
+					<xs:documentation>
+						Beyannamenin ait olduğu Dönem bilgileri bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="donem_type">
+		<xs:sequence>
+			<xs:element name="tip" type="tip_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Beyannamenin ait olduğu Dönemin tip bilgisini içerir.
+						Aşağıdaki listede dönem tipine göre bu etiket altında bulunması gereken veriler bulunmaktadır.
+						--------------------------------------------------------
+										:	ETİKET ALTINDA BULUNMASI
+						DÖNEM TİPİ			:	GEREKEN VERİ
+						--------------------------------------------------------
+						15 günlük dönemli		:	15gunluk	
+						aylık dönemli		:	aylik
+						3 aylık dönemli		:	3aylik
+						6 aylık dönemli		:	6aylik
+						yıllık dönemli		:	yillik
+						özel dönemli		:	ozel
+						serbest dönemli		:	serbest
+						--------------------------------------------------------
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="yil" type="yil_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Beyannamenin ait olduğu Dönemin yıl bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="ay" type="ay_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Beyannamenin ait olduğu Dönemin ay bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="dilim" type="dilim_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, beyannamenin ait olduğu Dönemin dilim bilgisini içerir. Sadece 15 günlük döneme sahip beyannameler için kullanılır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:sequence minOccurs="0">
+				<xs:element name="baslangic" type="tarih_type">
+					<xs:annotation>
+						<xs:documentation>
+							Bu etiket, beyannamenin ait olduğu Dönemin başlangıç tarihi bilgisini içerir. Sadece serbest ve özel döneme sahip beyannameler için kullanılır.
+						</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+				<xs:element name="bitis" type="tarih_type">
+					<xs:annotation>
+						<xs:documentation>
+							Bu etiket, beyannamenin ait olduğu Dönemin bitiş tarihi bilgisini içerir. Sadece serbest ve özel döneme sahip beyannameler için kullanılır.
+						</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+			</xs:sequence>
+            <xs:sequence minOccurs="0">
+                <xs:element name="bitisay" type="ay_type">
+                    <xs:annotation>
+                        <xs:documentation>
+                            Bu etiket, beyannamenin ait olduğu Dönemin bitiş ayı bilgisini içerir. Sadece kıst dönem beyannameler için kullanılır.
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+                <xs:element name="beyannameTuru" type="turKodu_type">
+                    <xs:annotation>
+                        <xs:documentation>
+                            Bu etiket, beyannamenin ait olduğu Dönemin beyanname türü bilgisini içerir. Sadece kıst dönem beyannameler için kullanılır.
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+            </xs:sequence>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="kimlikBilgileri_type">
+		<xs:sequence>
+			<xs:element name="vergiNo" type="vergiNo_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, beyannamesi verilen mükellefin Vergi Kimlik Numarası bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="soyadi" type="soyad_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, beyannamesi verilen mükellefin gerçek kişiler için Soyadı, tüzel kişiler için Ünvanı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="adi" type="ad_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, beyannamesi verilen mükellefin gerçek kişiler için Adı, tüzel kişiler için Ünvanın devamı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="tcKimlikNo" type="tcKimlikNo_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, beyannamesi verilen mükellefin T.C. Kimlik Numarası bilgisini içerir. Yalnızca gerçek kişi olan mükellefler için doldurulur.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="ticSicilNo" type="ticSicilNo_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, beyannamesi verilen mükellefin Ticaret Sicil Numarası bilgisini içerir. Yalnızca tüzel kişi olan mükellefler için doldurulur.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="eposta" type="eposta_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, beyannamesi verilen mükellefin e-Posta adresi bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="alanKodu" type="alanKodu_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, beyannamesi verilen mükellefin telefon numarasının 3 basamaklı alan kodu bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="telNo" type="telNo_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, beyannamesi verilen mükellefin 7 basamaklı telefon numarası bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="hsv_type">
+		<xs:complexContent>
+			<xs:extension base="kimlikBilgileri_type">
+				<xs:attribute name="sifat" type="sifat_type" use="required"/>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:simpleType name="sifat_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="oran_type">
+		<xs:restriction base="xs:nonNegativeInteger">
+			<xs:minInclusive value="0"/>
+			<xs:maxInclusive value="99"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="tevkifatOrani_type">
+		<xs:restriction base="xs:string"/>
+	</xs:simpleType>
+	<xs:simpleType name="kesirliOran_type">
+		<xs:restriction base="xs:decimal">
+			<xs:minInclusive value="0"/>
+			<xs:maxInclusive value="999.99"/>
+		</xs:restriction>
+	</xs:simpleType> 
+    <xs:simpleType name="kesirliOran2_type">
+        <xs:restriction base="xs:decimal">
+            <xs:minInclusive value="0"/>
+            <xs:maxInclusive value="99.99"/>
+            <xs:fractionDigits value="2"/>
+        </xs:restriction>
+    </xs:simpleType>
+	<xs:simpleType name="vergiNo_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="10"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="adresNumarasi_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="10"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="soyad_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="2"/>
+			<xs:maxLength value="30"/>
+			<xs:whiteSpace value="collapse"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="ad_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="unvan_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="60"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="unvan_type2">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="100"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="tcKimlikNo_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="11"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="ticSicilNo_type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="16"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="eposta_type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="60"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="alanKodu_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="3"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="telNo_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="7"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="adres_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="120"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="adres_type2">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="150"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="tutar_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="tutar_type3">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="3"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="tutar_type4">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="4"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="toplamTutar_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="vdKodu_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="6"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="tip_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="yil_type">
+		<xs:restriction base="xs:positiveInteger"/>
+	</xs:simpleType>
+	<xs:simpleType name="ay_type">
+		<xs:restriction base="xs:positiveInteger"/>
+	</xs:simpleType>
+	<xs:simpleType name="dilim_type">
+		<xs:restriction base="xs:positiveInteger"/>
+	</xs:simpleType>
+	<xs:simpleType name="tarih_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="8"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="adet_type">
+		<xs:restriction base="xs:nonNegativeInteger"/>
+	</xs:simpleType>
+	<xs:simpleType name="turKodu_type">
+		<xs:restriction base="nonEmptyString_type"/>
+	</xs:simpleType>
+	<xs:simpleType name="ulke_type">
+		<xs:restriction base="nonEmptyString_type"/>
+	</xs:simpleType>
+	<xs:simpleType name="nonEmptyString_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="alici_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="60"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="malcinsi_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="500"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="kesirliAdet_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="3"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="katsayi_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="4"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="katsayi8_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="8"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="pay_type">
+		<xs:restriction base="xs:nonNegativeInteger">
+			<xs:minInclusive value="1"/>
+			<xs:maxInclusive value="100"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="bagKurNo_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="10"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="cihazNo_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="11"/>
+			<xs:maxLength value="15"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="faaliyetKonusu_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="6"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="ililce_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="5"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="mernisIlilce_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="4"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="kesirliPay_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="2"/>
+			<xs:minExclusive value="0"/>
+			<xs:maxInclusive value="100"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="yüzde_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="2"/>
+			<xs:minInclusive value="0"/>
+			<xs:maxInclusive value="100"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="maxIkiYuzDecimal_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="2"/>
+			<xs:minInclusive value="0"/>
+			<xs:maxInclusive value="200"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="kesirliPayOran_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="6"/>
+			<xs:minExclusive value="0"/>
+			<xs:maxInclusive value="100"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="kesirliPayOranMin_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="6"/>
+			<xs:minInclusive value="0"/>
+			<xs:maxInclusive value="100"/>
+		</xs:restriction>
+	</xs:simpleType>
+    <xs:simpleType name="string100_type">
+        <xs:restriction base="xs:string">
+            <xs:maxLength value="100"/>
+        </xs:restriction>
+    </xs:simpleType>
+	<xs:simpleType name="string255_type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="255"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="tutar5_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="5"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="vergiDonem_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="12"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="vergiDonem6_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="6"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="sos_guv_mes_tsk_type">
+		<xs:restriction base="nonEmptyString_type">
+			<xs:maxLength value="30"/>
+			<xs:whiteSpace value="collapse"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="beyanimYok_type"/>
+	<xs:simpleType name="faturaNo_type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="20"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="payOrani4_type">
+		<xs:restriction base="xs:decimal">
+			<xs:minInclusive value="0.01"/>
+			<xs:maxInclusive value="100"/>
+			<xs:totalDigits value="7"/>
+			<xs:fractionDigits value="4"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="payOrani_type">
+		<xs:restriction base="xs:decimal">
+			<xs:minInclusive value="0.01"/>
+			<xs:maxInclusive value="100"/>
+			<xs:totalDigits value="5"/>
+			<xs:fractionDigits value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="odemeSekli_type">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="0"/>
+			<xs:enumeration value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="digerVDKodSatiri_type">
+		<xs:sequence>
+			<xs:element name="vdkodu" type="vdKodu_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="digerVDKodSatirlari_type">
+		<xs:sequence>
+			<xs:element name="digerVDKodSatiri" type="digerVDKodSatiri_type" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="positiveTutar_type">
+		<xs:restriction base="xs:decimal">
+			<xs:fractionDigits value="2"/>
+			<xs:minInclusive value="0"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="integer6_type">
+		<xs:restriction base="xs:nonNegativeInteger">
+			<xs:maxInclusive value="999999"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="checkbox_type">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="0"/>
+			<xs:enumeration value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+    <xs:simpleType name="tcvkno_type">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="10"/>
+            <xs:maxLength value="11"/>
+        </xs:restriction>
+    </xs:simpleType>
+	<xs:simpleType name="positiveinteger9_type">
+		<xs:restriction base="xs:nonNegativeInteger">
+			<xs:maxInclusive value="999999999"/>
+			<xs:minExclusive value="0"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="positiveinteger15_type">
+		<xs:restriction base="xs:nonNegativeInteger">
+			<xs:maxInclusive value="999999999999999"/>
+			<xs:minExclusive value="0"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="odemeSekli6736_type">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="1"/>
+			<xs:enumeration value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+    <xs:simpleType name="odemeSekli7143_type">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="1"/>
+            <xs:enumeration value="2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="odemeSekli7326_type">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="1"/>
+            <xs:enumeration value="2"/>
+        </xs:restriction>
+    </xs:simpleType>
+	<xs:simpleType name="odemeSekli7440_type">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="1"/>
+			<xs:enumeration value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="vefatVarMi_type">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="uavt_type">
+		<xs:restriction base="xs:integer">
+			<xs:totalDigits value="10"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="kesirliOran3_type">
+        <xs:restriction base="xs:decimal">
+            <xs:minInclusive value="0"/>
+            <xs:maxInclusive value="100"/>
+            <xs:fractionDigits value="2"/>
+        </xs:restriction>
+    </xs:simpleType>
+	<xs:simpleType name="cinsAdres_type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="15"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="tesisNo_type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="10"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="sdgbSayisi_type">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="ruhsat_sicil_bilgisi_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="9"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="tugs_gemi_sicil_no_type">
+		<xs:restriction base="xs:string">
+			<xs:length value="7"/>
+			<xs:pattern value="\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+</xs:schema>

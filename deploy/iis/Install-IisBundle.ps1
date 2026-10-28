@@ -46,6 +46,17 @@ function Protect-ReleaseTree([string]$Path, [string]$PoolName) {
     & "$env:windir\system32\icacls.exe" $Path '/inheritance:r' '/grant:r' "$systemSid`:(OI)(CI)(F)" "$adminsSid`:(OI)(CI)(F)" $poolIdentity '/T' '/C' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Could not secure release files for $PoolName (icacls exit $LASTEXITCODE)." }
 }
+function Protect-VaultReaderFile([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw 'Vault reader credential file is missing.' }
+    $item = Get-Item -LiteralPath $Path -Force
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or $item.Length -le 0) { throw 'Vault reader credential paths must be non-empty regular files, not reparse points.' }
+    $systemSid = '*S-1-5-18'
+    $adminsSid = '*S-1-5-32-544'
+    $platformPool = 'IIS AppPool\Nexora-PlatformApi:(R)'
+    $aiPool = 'IIS AppPool\Nexora-AIService:(R)'
+    & "$env:windir\system32\icacls.exe" $Path '/inheritance:r' '/grant:r' "$systemSid`:(F)" "$adminsSid`:(F)" $platformPool $aiPool | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not restrict Vault reader credential file ACL.' }
+}
 function Assert-ProtectedSecretsFile([string]$Path) {
     $acl = Get-Acl -LiteralPath $Path
     if ($acl.AreAccessRulesProtected -ne $true) { throw 'Secrets file ACL inheritance must be disabled; grant access explicitly to SYSTEM, Administrators, and the deployment identity.' }
@@ -121,6 +132,18 @@ foreach ($key in $requiredAI) { if ([string]::IsNullOrWhiteSpace([string]$aiEnvi
 if ($platformEnvironment['Database__SeparationEnabled'] -ne 'true' -or $aiEnvironment['Database__SeparationEnabled'] -ne 'true') { throw 'Both PlatformApi and AIService must explicitly set Database__SeparationEnabled=true. Shared company databases are unsupported; perform the controlled backup-and-copy cutover before installing this release.' }
 foreach ($key in @('ConnectionStrings__Tenant','ConnectionStrings__AIStudio')) { if ([string]::IsNullOrWhiteSpace([string]$platformEnvironment[$key]) -or [string]$platformEnvironment[$key] -match 'CHANGE-ME') { throw "PlatformApi setting is required: $key" } }
 if ([string]::IsNullOrWhiteSpace([string]$aiEnvironment['ConnectionStrings__AIStudio']) -or [string]$aiEnvironment['ConnectionStrings__AIStudio'] -match 'CHANGE-ME') { throw 'AIService setting is required: ConnectionStrings__AIStudio' }
+foreach ($key in @('ConnectionStrings__Tenant','ConnectionStrings__AIStudio')) {
+    if ([string]$platformEnvironment[$key] -match '(?i)(^|;)\s*(user\s*id|uid|password|pwd)\s*=' -or ([string]$key -eq 'ConnectionStrings__AIStudio' -and [string]$aiEnvironment[$key] -match '(?i)(^|;)\s*(user\s*id|uid|password|pwd)\s*=')) { throw "Tenant SQL endpoint template must not contain shared SQL credentials: $key" }
+}
+foreach ($environment in @($platformEnvironment, $aiEnvironment)) {
+    if ([string]$environment['Vault__Address'] -notmatch '^https://[^\s/]+(?::\d+)?/?$' -or [string]$environment['Vault__AllowHttpForLocalDevelopment'] -ne 'false') { throw 'PlatformApi and AIService require an HTTPS Vault__Address and Vault__AllowHttpForLocalDevelopment=false.' }
+    if ([string]$environment['Vault__Mount'] -notmatch '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$') { throw 'PlatformApi and AIService require a valid Vault__Mount.' }
+}
+foreach ($key in @('Vault__TenantSqlCredentialReader__RoleIdFile','Vault__TenantSqlCredentialReader__SecretIdFile')) {
+    $readerFile = [string]$platformEnvironment[$key]
+    if ([string]::IsNullOrWhiteSpace($readerFile) -or $readerFile -ne [string]$aiEnvironment[$key] -or -not [IO.Path]::IsPathRooted($readerFile)) { throw "Both services require the same absolute Vault reader file path: $key" }
+    if (-not (Test-Path -LiteralPath $readerFile -PathType Leaf)) { throw "Vault reader credential file is missing: $key" }
+}
 foreach ($key in @('Authentication__SigningKey','PluginHost__SigningKey')) {
     if ([Text.Encoding]::UTF8.GetByteCount([string]$platformEnvironment[$key]) -lt 32) { throw "$key must be at least 32 UTF-8 bytes." }
 }
@@ -151,6 +174,8 @@ try {
 
     Ensure-Site 'Nexora-PlatformApi' 'Nexora-PlatformApi' (Join-Path $releasePath 'platform-api') 'http' '127.0.0.1:5080:'
     Ensure-Site 'Nexora-AIService' 'Nexora-AIService' (Join-Path $releasePath 'ai-service') 'http' '127.0.0.1:5081:'
+    Protect-VaultReaderFile ([string]$platformEnvironment['Vault__TenantSqlCredentialReader__RoleIdFile'])
+    Protect-VaultReaderFile ([string]$platformEnvironment['Vault__TenantSqlCredentialReader__SecretIdFile'])
     Ensure-Site 'Nexora-ERP' 'Nexora-ERP' (Join-Path $releasePath 'erp-web') 'https' "*:443:$HostName"
     Ensure-Site 'Nexora-Studio' 'Nexora-Studio' (Join-Path $releasePath 'development-studio') 'https' "*:443:$StudioHostName"
     Set-WebConfigurationProperty -PSPath 'MACHINE/WEBROOT/APPHOST' -Filter 'system.webServer/proxy' -Name enabled -Value $true

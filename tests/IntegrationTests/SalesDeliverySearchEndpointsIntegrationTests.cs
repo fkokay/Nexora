@@ -54,6 +54,15 @@ public sealed class SalesDeliverySearchEndpointsIntegrationTests
             TenantId = tenantBId, Tenant = tenantB, RequestId = Guid.NewGuid(), OrderId = orderB.Id, Order = orderB,
             WarehouseId = warehouseB.Id, Warehouse = warehouseB, Code = "DN-SEARCH-999", DeliveryDate = today
         };
+        var duplicateDeliveryA = new SalesDelivery { TenantId = tenantAId, Tenant = tenantA, RequestId = Guid.NewGuid(), OrderId = orderA.Id, Order = orderA, WarehouseId = warehouseA.Id, Warehouse = warehouseA, Code = "DN-DUPLICATE", DeliveryDate = today };
+        var duplicateDeliveryB = new SalesDelivery { TenantId = tenantAId, Tenant = tenantA, RequestId = Guid.NewGuid(), OrderId = orderA.Id, Order = orderA, WarehouseId = warehouseA.Id, Warehouse = warehouseA, Code = "DN-DUPLICATE", DeliveryDate = today };
+        var tenantBMatchingCode = new SalesDelivery { TenantId = tenantBId, Tenant = tenantB, RequestId = Guid.NewGuid(), OrderId = orderB.Id, Order = orderB, WarehouseId = warehouseB.Id, Warehouse = warehouseB, Code = "DN-DUPLICATE", DeliveryDate = today };
+        foreach (var line in Enumerable.Range(1, 51).Select(index => new SalesDeliveryLine
+        {
+            TenantId = tenantAId, Delivery = deliveries[0], OrderId = orderA.Id, OrderLineNumber = index,
+            StockItemId = Guid.NewGuid(), StockCode = $"STK-{index:000}", StockName = "Private item name", UnitCode = "EA", Quantity = index
+        }))
+            deliveries[0].Lines.Add(line);
 
         await using (var scope = app.Services.CreateAsyncScope())
         {
@@ -65,7 +74,7 @@ public sealed class SalesDeliverySearchEndpointsIntegrationTests
             db.SalesQuotes.AddRange(quoteA, quoteB);
             db.SalesOrders.AddRange(orderA, orderB);
             db.SalesDeliveries.AddRange(deliveries);
-            db.SalesDeliveries.Add(otherTenantDelivery);
+            db.SalesDeliveries.AddRange(otherTenantDelivery, duplicateDeliveryA, duplicateDeliveryB, tenantBMatchingCode);
             await db.SaveChangesAsync();
         }
 
@@ -87,11 +96,30 @@ public sealed class SalesDeliverySearchEndpointsIntegrationTests
             Assert.False(first.TryGetProperty("customerName", out _));
         }
 
+        using (var detailResponse = await client.GetAsync("/api/sales/deliveries/search/details?code=dn-search-001"))
+        {
+            Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+            using var detail = JsonDocument.Parse(await detailResponse.Content.ReadAsStringAsync());
+            var root = detail.RootElement;
+            Assert.Equal(51, root.GetProperty("lineCount").GetInt32());
+            Assert.Equal(50, root.GetProperty("returnedLines").GetInt32());
+            Assert.True(root.GetProperty("hasMoreLines").GetBoolean());
+            var line = root.GetProperty("lines")[0];
+            Assert.Equal("STK-001", line.GetProperty("stockCode").GetString());
+            Assert.False(root.TryGetProperty("id", out _));
+            Assert.False(root.TryGetProperty("warehouseName", out _));
+            Assert.False(line.TryGetProperty("stockName", out _));
+            Assert.False(line.TryGetProperty("stockItemId", out _));
+        }
+        Assert.Equal(HttpStatusCode.Conflict, (await client.GetAsync("/api/sales/deliveries/search/details?code=DN-DUPLICATE")).StatusCode);
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");
         client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantBId.ToString());
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/sales/deliveries/search/details?code=DN-SEARCH-001")).StatusCode);
         using var otherTenantSearch = JsonDocument.Parse(await (await client.GetAsync("/api/sales/deliveries/search?q=DN-SEARCH")).Content.ReadAsStringAsync());
         Assert.Equal(1, otherTenantSearch.RootElement.GetProperty("totalCount").GetInt32());
         Assert.Equal("DN-SEARCH-999", otherTenantSearch.RootElement.GetProperty("items")[0].GetProperty("code").GetString());
+        using var tenantScopedDetail = JsonDocument.Parse(await (await client.GetAsync("/api/sales/deliveries/search/details?code=DN-DUPLICATE")).Content.ReadAsStringAsync());
+        Assert.Equal("DN-DUPLICATE", tenantScopedDetail.RootElement.GetProperty("code").GetString());
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/sales/deliveries/search?q=x")).StatusCode);
     }
 }

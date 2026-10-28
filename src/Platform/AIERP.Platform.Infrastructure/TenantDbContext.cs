@@ -21,7 +21,11 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
     public DbSet<PurchaseInvoiceDraftLine> PurchaseInvoiceDraftLines => Set<PurchaseInvoiceDraftLine>();
     public DbSet<DirectCashBudgetPlan> DirectCashBudgetPlans => Set<DirectCashBudgetPlan>();
     public DbSet<DirectCashBudgetLine> DirectCashBudgetLines => Set<DirectCashBudgetLine>();
-
+    public DbSet<PayrollEmployeeWorkplaceAssignment> PayrollEmployeeWorkplaceAssignments => Set<PayrollEmployeeWorkplaceAssignment>();
+    public DbSet<WorkplaceDefinition> WorkplaceDefinitions => Set<WorkplaceDefinition>();
+    public DbSet<PayrollWorkplaceCalendar> PayrollWorkplaceCalendars => Set<PayrollWorkplaceCalendar>();
+    public DbSet<PayrollEmployeeWorkCalendarOverride> PayrollEmployeeWorkCalendarOverrides => Set<PayrollEmployeeWorkCalendarOverride>();
+    public DbSet<PayrollPriorEmployerTaxBaseDeclaration> PayrollPriorEmployerTaxBaseDeclarations => Set<PayrollPriorEmployerTaxBaseDeclaration>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -165,11 +169,15 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
                 table.HasCheckConstraint("CK_ForeignTradeCases_Status", "[Status] BETWEEN 1 AND 7");
                 table.HasCheckConstraint("CK_ForeignTradeCases_OrderLink", "([Direction] = 1 AND [PurchaseOrderId] IS NOT NULL AND [SalesOrderId] IS NULL) OR ([Direction] = 2 AND [SalesOrderId] IS NOT NULL AND [PurchaseOrderId] IS NULL)");
                 table.HasCheckConstraint("CK_ForeignTradeCases_Value", "[DeclaredValue] >= 0");
+                table.HasCheckConstraint("CK_ForeignTradeCases_InventoryDocumentDirection", "([PurchaseReceiptId] IS NULL OR ([Direction] = 1 AND [SalesDeliveryId] IS NULL)) AND ([SalesDeliveryId] IS NULL OR ([Direction] = 2 AND [PurchaseReceiptId] IS NULL))");
+                table.HasCheckConstraint("CK_ForeignTradeCases_InventoryAudit", "([PurchaseReceiptId] IS NULL AND [SalesDeliveryId] IS NULL AND [InventoryDocumentLinkedAt] IS NULL AND [InventoryDocumentLinkedByUserId] IS NULL) OR (([PurchaseReceiptId] IS NOT NULL OR [SalesDeliveryId] IS NOT NULL) AND [InventoryDocumentLinkedAt] IS NOT NULL)");
             });
             e.HasKey(x => x.Id);
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasIndex(x => new { x.TenantId, x.ReferenceCode }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.Status, x.UpdatedAt });
+            e.HasIndex(x => new { x.TenantId, x.PurchaseReceiptId }).IsUnique().HasFilter("[PurchaseReceiptId] IS NOT NULL");
+            e.HasIndex(x => new { x.TenantId, x.SalesDeliveryId }).IsUnique().HasFilter("[SalesDeliveryId] IS NOT NULL");
             e.Property(x => x.ReferenceCode).HasMaxLength(50).IsRequired();
             e.Property(x => x.OriginCountryCode).HasMaxLength(2).IsRequired();
             e.Property(x => x.DestinationCountryCode).HasMaxLength(2).IsRequired();
@@ -184,6 +192,8 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<PurchaseOrder>().WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<SalesOrder>().WithMany().HasForeignKey(x => new { x.TenantId, x.SalesOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<PurchaseReceipt>().WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseReceiptId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<SalesDelivery>().WithMany().HasForeignKey(x => new { x.TenantId, x.SalesDeliveryId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<OperationalProject>(e =>
         {
@@ -250,13 +260,16 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             {
                 t.HasCheckConstraint("CK_PurchaseInvoiceDrafts_DueDate", "[DueDate] IS NULL OR [DueDate] >= [InvoiceDate]");
                 t.HasCheckConstraint("CK_PurchaseInvoiceDrafts_Amounts", "[Subtotal] >= 0 AND [DiscountTotal] >= 0 AND [TaxTotal] >= 0 AND [GrandTotal] >= 0");
-                t.HasCheckConstraint("CK_PurchaseInvoiceDrafts_Status", "[Status] = 1");
+                t.HasCheckConstraint("CK_PurchaseInvoiceDrafts_Status", "[Status] IN (1, 2)");
+                t.HasCheckConstraint("CK_PurchaseInvoiceDrafts_Posting", "([Status] = 1 AND [PostedAt] IS NULL AND [PostedByUserId] IS NULL) OR ([Status] = 2 AND [PostedAt] IS NOT NULL AND [PostedByUserId] IS NOT NULL)");
             });
             e.HasKey(x => x.Id);
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasIndex(x => new { x.TenantId, x.RequestId }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.SupplierId, x.InvoiceDate, x.CreatedAt });
+            e.HasIndex(x => new { x.TenantId, x.SupplierId, x.NormalizedInvoiceNumber }).IsUnique().HasFilter("[Status] = 2");
             e.Property(x => x.InvoiceNumber).HasMaxLength(100).IsRequired();
+            e.Property(x => x.NormalizedInvoiceNumber).HasMaxLength(100).IsRequired();
             e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength();
             e.Property(x => x.Notes).HasMaxLength(1000);
             e.Property(x => x.Subtotal).HasPrecision(18, 2);
@@ -283,6 +296,9 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.Property(x => x.DiscountAmount).HasPrecision(18, 2);
             e.Property(x => x.TaxAmount).HasPrecision(18, 2);
             e.Property(x => x.Total).HasPrecision(18, 2);
+            e.Property(x => x.VatRate).HasPrecision(5, 2);
+            e.HasOne<LedgerAccount>().WithMany().HasForeignKey(x => new { x.TenantId, x.ExpenseAccountId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.PurchaseInvoiceDraft).WithMany(x => x.Lines)
                 .HasForeignKey(x => new { x.TenantId, x.PurchaseInvoiceDraftId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);

@@ -423,18 +423,32 @@ public static class ManufacturingEndpoints
                             return Results.Conflict(new { error = "Üretim önerisi mamulün izleme gereksinimleriyle uyumlu değil." });
                         var order = new ManufacturingOrder { TenantId = tenantId, Code = code, BillOfMaterialId = bom.Id, WarehouseId = snapshot.WarehouseId,
                             PlannedQuantity = suggestion.Line.NetRequirement, PlannedDate = suggestion.Line.RecommendedOrderDate, Status = ManufacturingOrderStatus.Planned };
-                        order.Lines = components.Select(x => new ManufacturingOrderLine { TenantId = tenantId, ComponentStockItemId = x.line.ComponentStockItemId,
-                            ComponentCodeSnapshot = items[x.line.ComponentStockItemId].Code, ComponentNameSnapshot = items[x.line.ComponentStockItemId].Name, RequiredQuantity = x.quantity }).ToList();
+                        try
+                        {
+                            order.Lines = components.Select(x =>
+                            {
+                                var plannedCost = decimal.Round(x.quantity * x.line.StandardUnitCostBase, 4, MidpointRounding.AwayFromZero);
+                                if (plannedCost > 99999999999999.9999m) throw new OverflowException();
+                                return new ManufacturingOrderLine { TenantId = tenantId, ComponentStockItemId = x.line.ComponentStockItemId,
+                                    ComponentCodeSnapshot = items[x.line.ComponentStockItemId].Code, ComponentNameSnapshot = items[x.line.ComponentStockItemId].Name,
+                                    RequiredQuantity = x.quantity, StandardUnitCostBaseSnapshot = x.line.StandardUnitCostBase, PlannedCostBase = plannedCost };
+                            }).ToList();
+                        }
+                        catch (OverflowException) { return Results.Conflict(new { error = "MRP üretim önerisinin planlanan malzeme maliyeti sınırı aşılıyor." }); }
                         try
                         {
                             order.Operations = bom.Operations.OrderBy(x => x.Sequence).Select(operation =>
                             {
                                 var center = centers[operation.WorkCenterId];
                                 var runMinutes = decimal.Round(operation.RunMinutesPerOutputUnit * order.PlannedQuantity / bom.OutputQuantity, 2, MidpointRounding.AwayFromZero);
-                                var cost = decimal.Round((operation.SetupMinutes + runMinutes) / 60m * (center.LaborCostPerHourBase + center.OverheadCostPerHourBase), 4, MidpointRounding.AwayFromZero);
-                                if (runMinutes > 9999999999.99m || cost > 99999999999999.9999m) throw new OverflowException();
+                                var plannedEnergyQuantity = decimal.Round(operation.PlannedEnergyKwhPerOutput * order.PlannedQuantity / bom.OutputQuantity, 3, MidpointRounding.AwayFromZero);
+                                var plannedEnergyCost = decimal.Round(plannedEnergyQuantity * operation.PlannedEnergyCostPerKwhBase, 4, MidpointRounding.AwayFromZero);
+                                var cost = decimal.Round((operation.SetupMinutes + runMinutes) / 60m * (center.LaborCostPerHourBase + center.OverheadCostPerHourBase) + plannedEnergyCost, 4, MidpointRounding.AwayFromZero);
+                                if (runMinutes > 9999999999.99m || plannedEnergyQuantity > 99999999999.999m || plannedEnergyCost > 99999999999999.9999m || cost > 99999999999999.9999m) throw new OverflowException();
                                 return new ManufacturingOrderOperation { TenantId = tenantId, Sequence = operation.Sequence, WorkCenterId = center.Id,
                                     WorkCenterCodeSnapshot = center.Code, WorkCenterNameSnapshot = center.Name, SetupMinutes = operation.SetupMinutes,
+                                    PlannedEnergyQuantityKwh = plannedEnergyQuantity, PlannedEnergyCostPerKwhBase = operation.PlannedEnergyCostPerKwhBase,
+                                    PlannedEnergyCostBase = plannedEnergyCost,
                                     RunMinutes = runMinutes, MinimumWaitDaysAfterPrevious = operation.MinimumWaitDaysAfterPrevious,
                                     SetupFamilyCodeSnapshot = NormalizeSetupFamily(operation.SetupFamilyCode)!,
                                     SetupTransitionRulesSnapshotJson = transitionSnapshots[operation.Id],
@@ -476,10 +490,11 @@ public static class ManufacturingEndpoints
                     db.StockItems.Where(s => s.TenantId == tenantId && s.Id == x.ProductStockItemId).Select(s => s.TrackingMode.ToString()).FirstOrDefault() ?? "None",
                     x.OutputQuantity, x.IsActive, x.Lines.OrderBy(l => l.ComponentStockItemId).Select(l => new BomLineView(l.ComponentStockItemId,
                         db.StockItems.Where(s => s.TenantId == tenantId && s.Id == l.ComponentStockItemId).Select(s => s.Code + " · " + s.Name).FirstOrDefault() ?? "",
-                        l.Quantity, l.ScrapPercent)).ToList(), Convert.ToBase64String(x.RowVersion),
+                        l.Quantity, l.ScrapPercent, l.StandardUnitCostBase)).ToList(), Convert.ToBase64String(x.RowVersion),
                     x.Operations.OrderBy(o => o.Sequence).Select(o => new BomOperationView(o.Sequence, o.WorkCenterId,
                         db.ManufacturingWorkCenters.Where(w => w.TenantId == tenantId && w.Id == o.WorkCenterId).Select(w => w.Code + " · " + w.Name).FirstOrDefault() ?? "",
                         o.SetupMinutes, o.RunMinutesPerOutputUnit, o.MinimumWaitDaysAfterPrevious, o.SetupFamilyCode,
+                        o.PlannedEnergyKwhPerOutput, o.PlannedEnergyCostPerKwhBase,
                         o.EligibleWorkCenters.Select(c => c.WorkCenterId).ToList())).ToList()))
                 .ToListAsync(ct);
             return Results.Ok(rows);
@@ -492,6 +507,7 @@ public static class ManufacturingEndpoints
             var operations = request.Operations ?? [];
             if (operations.Count > 50 || operations.Any(x => x.Sequence <= 0 || x.WorkCenterId == Guid.Empty || x.SetupMinutes is < 0m or > 9999999999.99m ||
                     x.RunMinutesPerOutputUnit is < 0m or > 99999999.9999m || x.MinimumWaitDaysAfterPrevious is < 0 or > 365 || NormalizeSetupFamily(x.SetupFamilyCode) is null ||
+                    x.PlannedEnergyKwhPerOutput is < 0m or > 99999999999.999m || x.PlannedEnergyCostPerKwhBase is < 0m or > 999999999999.999999m ||
                     (x.EligibleWorkCenterIds is { Count: > 20 } || x.EligibleWorkCenterIds is not null &&
                         (x.EligibleWorkCenterIds.Distinct().Count() != x.EligibleWorkCenterIds.Count || !x.EligibleWorkCenterIds.Contains(x.WorkCenterId))) ||
                     x.SetupMinutes + x.RunMinutesPerOutputUnit <= 0m) ||
@@ -514,10 +530,12 @@ public static class ManufacturingEndpoints
             var bom = new BillOfMaterial { TenantId = tenantId, Code = code!, Name = name!, ProductStockItemId = product.Id,
                 OutputQuantity = request.OutputQuantity, IsActive = true };
             bom.Lines = request.Lines.Select(x => new BillOfMaterialLine { TenantId = tenantId, ComponentStockItemId = x.ComponentStockItemId,
-                Quantity = x.Quantity, ScrapPercent = x.ScrapPercent }).ToList();
+                Quantity = x.Quantity, ScrapPercent = x.ScrapPercent, StandardUnitCostBase = decimal.Round(x.StandardUnitCostBase, 4, MidpointRounding.AwayFromZero) }).ToList();
             bom.Operations = operations.OrderBy(x => x.Sequence).Select(x => new BillOfMaterialOperation { TenantId = tenantId, Sequence = x.Sequence,
                 WorkCenterId = x.WorkCenterId, SetupMinutes = decimal.Round(x.SetupMinutes, 2, MidpointRounding.AwayFromZero),
                 RunMinutesPerOutputUnit = decimal.Round(x.RunMinutesPerOutputUnit, 4, MidpointRounding.AwayFromZero),
+                PlannedEnergyKwhPerOutput = decimal.Round(x.PlannedEnergyKwhPerOutput, 3, MidpointRounding.AwayFromZero),
+                PlannedEnergyCostPerKwhBase = decimal.Round(x.PlannedEnergyCostPerKwhBase, 6, MidpointRounding.AwayFromZero),
                 MinimumWaitDaysAfterPrevious = x.MinimumWaitDaysAfterPrevious,
                 SetupFamilyCode = NormalizeSetupFamily(x.SetupFamilyCode)!,
                 EligibleWorkCenters = GetEligibleWorkCenterIds(x).Select(id => new BillOfMaterialOperationWorkCenterOption
@@ -557,12 +575,14 @@ public static class ManufacturingEndpoints
                 x.BillOfMaterialId, db.BillOfMaterials.Where(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId).Select(b => b.Code + " · " + b.Name).FirstOrDefault() ?? "",
                 x.WarehouseId, db.Warehouses.Where(w => w.TenantId == tenantId && w.Id == x.WarehouseId).Select(w => w.Code + " · " + w.Name).FirstOrDefault() ?? "",
                 x.PlannedQuantity, x.Status.ToString(), x.PlannedDate, x.CompletedAt,
-                x.Lines.OrderBy(l => l.ComponentCodeSnapshot).Select(l => new OrderLineView(l.ComponentStockItemId, l.ComponentCodeSnapshot, l.ComponentNameSnapshot, l.RequiredQuantity)).ToList(),
+                x.Lines.OrderBy(l => l.ComponentCodeSnapshot).Select(l => new OrderLineView(l.ComponentStockItemId, l.ComponentCodeSnapshot, l.ComponentNameSnapshot,
+                    l.RequiredQuantity, l.StandardUnitCostBaseSnapshot, l.PlannedCostBase)).ToList(),
                 x.Operations.OrderBy(o => o.Sequence).Select(o => new ManufacturingOrderOperationView(o.Id, o.Sequence, o.WorkCenterId,
                     o.WorkCenterCodeSnapshot, o.WorkCenterNameSnapshot, o.SetupMinutes, o.RunMinutes, o.MinimumWaitDaysAfterPrevious,
                     o.SetupFamilyCodeSnapshot, o.SequenceSetupMinutes, o.PlannedCostBase,
                     o.ScheduledStartDate, o.ScheduledEndDate, o.ScheduledStartMinuteOfDay, o.ScheduledEndMinuteOfDay,
-                    o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.Status.ToString(),
+                    o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.PlannedEnergyQuantityKwh,
+                    o.PlannedEnergyCostPerKwhBase, o.PlannedEnergyCostBase, o.Status.ToString(),
                     o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase, o.StartedAt, o.CompletedAt,
                     db.ManufacturingCapacityAllocations.Where(a => a.TenantId == tenantId && a.ManufacturingOrderOperationId == o.Id)
                         .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay)).ToList())).ToList(),
@@ -632,18 +652,33 @@ public static class ManufacturingEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["plannedQuantity"] = ["Seri izlemeli bileşenlerin planlanan tüketim miktarı tam sayı olmalıdır."] });
             var order = new ManufacturingOrder { TenantId = tenantId, Code = code, BillOfMaterialId = bom.Id, WarehouseId = request.WarehouseId,
                 PlannedQuantity = request.PlannedQuantity, PlannedDate = request.PlannedDate, Status = ManufacturingOrderStatus.Planned };
-            order.Lines = lines.Select(x => { var item = items.Single(i => i.Id == x.line.ComponentStockItemId); return new ManufacturingOrderLine {
-                TenantId = tenantId, ComponentStockItemId = item.Id, ComponentCodeSnapshot = item.Code, ComponentNameSnapshot = item.Name, RequiredQuantity = x.required }; }).ToList();
+            try
+            {
+                order.Lines = lines.Select(x =>
+                {
+                    var item = items.Single(i => i.Id == x.line.ComponentStockItemId);
+                    var plannedCost = decimal.Round(x.required * x.line.StandardUnitCostBase, 4, MidpointRounding.AwayFromZero);
+                    if (plannedCost > 99999999999999.9999m) throw new OverflowException();
+                    return new ManufacturingOrderLine { TenantId = tenantId, ComponentStockItemId = item.Id,
+                        ComponentCodeSnapshot = item.Code, ComponentNameSnapshot = item.Name, RequiredQuantity = x.required,
+                        StandardUnitCostBaseSnapshot = x.line.StandardUnitCostBase, PlannedCostBase = plannedCost };
+                }).ToList();
+            }
+            catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["plannedQuantity"] = ["Planlanan malzeme maliyeti desteklenen aralığı aşıyor."] }); }
             try
             {
                 order.Operations = bom.Operations.OrderBy(x => x.Sequence).Select(operation =>
                 {
                     var center = centers[operation.WorkCenterId];
                     var runMinutes = decimal.Round(operation.RunMinutesPerOutputUnit * request.PlannedQuantity / bom.OutputQuantity, 2, MidpointRounding.AwayFromZero);
-                    var cost = decimal.Round((operation.SetupMinutes + runMinutes) / 60m * (center.LaborCostPerHourBase + center.OverheadCostPerHourBase), 4, MidpointRounding.AwayFromZero);
-                    if (runMinutes > 9999999999.99m || cost > 99999999999999.9999m) throw new OverflowException();
+                    var plannedEnergyQuantity = decimal.Round(operation.PlannedEnergyKwhPerOutput * request.PlannedQuantity / bom.OutputQuantity, 3, MidpointRounding.AwayFromZero);
+                    var plannedEnergyCost = decimal.Round(plannedEnergyQuantity * operation.PlannedEnergyCostPerKwhBase, 4, MidpointRounding.AwayFromZero);
+                    var cost = decimal.Round((operation.SetupMinutes + runMinutes) / 60m * (center.LaborCostPerHourBase + center.OverheadCostPerHourBase) + plannedEnergyCost, 4, MidpointRounding.AwayFromZero);
+                    if (runMinutes > 9999999999.99m || plannedEnergyQuantity > 99999999999.999m || plannedEnergyCost > 99999999999999.9999m || cost > 99999999999999.9999m) throw new OverflowException();
                     return new ManufacturingOrderOperation { TenantId = tenantId, Sequence = operation.Sequence, WorkCenterId = center.Id,
                         WorkCenterCodeSnapshot = center.Code, WorkCenterNameSnapshot = center.Name, SetupMinutes = operation.SetupMinutes,
+                    PlannedEnergyQuantityKwh = plannedEnergyQuantity, PlannedEnergyCostPerKwhBase = operation.PlannedEnergyCostPerKwhBase,
+                    PlannedEnergyCostBase = plannedEnergyCost,
                     RunMinutes = runMinutes, MinimumWaitDaysAfterPrevious = operation.MinimumWaitDaysAfterPrevious,
                     SetupFamilyCodeSnapshot = NormalizeSetupFamily(operation.SetupFamilyCode)!,
                     SetupTransitionRulesSnapshotJson = transitionSnapshotsForOrder[operation.Id],
@@ -1054,6 +1089,7 @@ public static class ManufacturingEndpoints
             try { outputUnitCost = totalCost is null ? null : decimal.Round(totalCost.Value / order.PlannedQuantity, 8, MidpointRounding.AwayFromZero); }
             catch (OverflowException) { return Results.Conflict(new { error = "Mamul birim maliyeti desteklenen decimal aralığını aşıyor; stok hareketi kaydedilmedi." }); }
             db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StorageLocationId = finishedGoodsLocation?.Id, StockItemId = product.Id,
+                ManufacturingOrderId = order.Id,
                 EntryDate = movementDate, Direction = InventoryDirection.Receipt, Quantity = order.PlannedQuantity, UnitCostBase = outputUnitCost,
                 Description = $"Üretim {order.Code} mamul girişi",
                 Tracking = finishedTracking.Select(x => new InventoryTransactionTrace { TenantId = tenantId, StockItemId = product.Id,
@@ -1109,7 +1145,7 @@ public static class ManufacturingEndpoints
         if (string.IsNullOrWhiteSpace(name) || name.Length > 160) errors["name"] = ["Reçete adı zorunludur ve en fazla 160 karakter olabilir."];
         if (request.OutputQuantity is <= 0 or > 99999999999999.9999m) errors["outputQuantity"] = ["Çıktı miktarı pozitif ve desteklenen aralıkta olmalıdır."];
         if (request.Lines is null || request.Lines.Count is < 1 or > 100) errors["lines"] = ["Reçete 1–100 bileşen içermelidir."];
-        else if (request.Lines.Any(x => x.Quantity is <= 0 or > 99999999999999.9999m || x.ScrapPercent is < 0 or > 100)) errors["lines"] = ["Bileşen miktarı pozitif, fire oranı ise 0–100 arasında olmalıdır."];
+            else if (request.Lines.Any(x => x.Quantity is <= 0 or > 99999999999999.9999m || x.ScrapPercent is < 0 or > 100 || x.StandardUnitCostBase is < 0m or > 99999999999999.9999m)) errors["lines"] = ["Bileşen miktarı pozitif, fire oranı 0–100, baz para birimindeki standart maliyet ise desteklenen aralıkta olmalıdır."];
         if (errors.Count == 0) { errors = null; return true; } return false;
     }
     private static async Task<(MrpPlanView? Plan, string? Error)> CalculateMrpAsync(TenantDbContext db, Guid tenantId, MrpPlanRequest request, CancellationToken ct)
@@ -1314,22 +1350,25 @@ public static class ManufacturingEndpoints
                 db.StockItems.Where(s => s.TenantId == tenantId && s.Id == x.ProductStockItemId).Select(s => s.TrackingMode.ToString()).FirstOrDefault() ?? "None",
                 x.OutputQuantity, x.IsActive, x.Lines.OrderBy(l => l.ComponentStockItemId).Select(l => new BomLineView(l.ComponentStockItemId,
                     db.StockItems.Where(s => s.TenantId == tenantId && s.Id == l.ComponentStockItemId).Select(s => s.Code + " · " + s.Name).FirstOrDefault() ?? "",
-                    l.Quantity, l.ScrapPercent)).ToList(), Convert.ToBase64String(x.RowVersion),
+                    l.Quantity, l.ScrapPercent, l.StandardUnitCostBase)).ToList(), Convert.ToBase64String(x.RowVersion),
                 x.Operations.OrderBy(o => o.Sequence).Select(o => new BomOperationView(o.Sequence, o.WorkCenterId,
                     db.ManufacturingWorkCenters.Where(w => w.TenantId == tenantId && w.Id == o.WorkCenterId).Select(w => w.Code + " · " + w.Name).FirstOrDefault() ?? "",
                     o.SetupMinutes, o.RunMinutesPerOutputUnit, o.MinimumWaitDaysAfterPrevious, o.SetupFamilyCode,
+                    o.PlannedEnergyKwhPerOutput, o.PlannedEnergyCostPerKwhBase,
                     o.EligibleWorkCenters.Select(c => c.WorkCenterId).ToList())).ToList())).SingleOrDefaultAsync(ct);
     private static async Task<object?> ReadOrderAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) =>
         await db.ManufacturingOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id).Select(x => new OrderView(x.Id, x.Code,
             x.BillOfMaterialId, db.BillOfMaterials.Where(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId).Select(b => b.Code + " · " + b.Name).FirstOrDefault() ?? "",
             x.WarehouseId, db.Warehouses.Where(w => w.TenantId == tenantId && w.Id == x.WarehouseId).Select(w => w.Code + " · " + w.Name).FirstOrDefault() ?? "",
             x.PlannedQuantity, x.Status.ToString(), x.PlannedDate, x.CompletedAt, x.Lines.OrderBy(l => l.ComponentCodeSnapshot)
-                .Select(l => new OrderLineView(l.ComponentStockItemId, l.ComponentCodeSnapshot, l.ComponentNameSnapshot, l.RequiredQuantity)).ToList(),
+                .Select(l => new OrderLineView(l.ComponentStockItemId, l.ComponentCodeSnapshot, l.ComponentNameSnapshot,
+                    l.RequiredQuantity, l.StandardUnitCostBaseSnapshot, l.PlannedCostBase)).ToList(),
             x.Operations.OrderBy(o => o.Sequence).Select(o => new ManufacturingOrderOperationView(o.Id, o.Sequence, o.WorkCenterId,
                 o.WorkCenterCodeSnapshot, o.WorkCenterNameSnapshot, o.SetupMinutes, o.RunMinutes, o.MinimumWaitDaysAfterPrevious,
                 o.SetupFamilyCodeSnapshot, o.SequenceSetupMinutes, o.PlannedCostBase,
                 o.ScheduledStartDate, o.ScheduledEndDate, o.ScheduledStartMinuteOfDay, o.ScheduledEndMinuteOfDay,
-                o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.Status.ToString(),
+                o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.PlannedEnergyQuantityKwh,
+                o.PlannedEnergyCostPerKwhBase, o.PlannedEnergyCostBase, o.Status.ToString(),
                 o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase, o.StartedAt, o.CompletedAt,
                 db.ManufacturingCapacityAllocations.Where(a => a.TenantId == tenantId && a.ManufacturingOrderOperationId == o.Id)
                     .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay)).ToList())).ToList(),
@@ -1406,24 +1445,27 @@ public sealed record SetupTransitionRulesWriteRequest(IReadOnlyList<SetupTransit
 public sealed record SetupTransitionRuleView(string FromSetupFamilyCode, string ToSetupFamilyCode, decimal SetupMinutes, bool IsTransitionAllowed);
 public sealed record BomWriteRequest(string? Code, string? Name, Guid ProductStockItemId, decimal OutputQuantity, IReadOnlyList<BomLineWriteRequest> Lines,
     IReadOnlyList<BomOperationWriteRequest>? Operations = null);
-public sealed record BomLineWriteRequest(Guid ComponentStockItemId, decimal Quantity, decimal ScrapPercent = 0m);
+public sealed record BomLineWriteRequest(Guid ComponentStockItemId, decimal Quantity, decimal ScrapPercent = 0m, decimal StandardUnitCostBase = 0m);
 public sealed record BomOperationWriteRequest(int Sequence, Guid WorkCenterId, decimal SetupMinutes, decimal RunMinutesPerOutputUnit,
-    int MinimumWaitDaysAfterPrevious = 0, IReadOnlyList<Guid>? EligibleWorkCenterIds = null, string? SetupFamilyCode = null);
+    int MinimumWaitDaysAfterPrevious = 0, IReadOnlyList<Guid>? EligibleWorkCenterIds = null, string? SetupFamilyCode = null,
+    decimal PlannedEnergyKwhPerOutput = 0m, decimal PlannedEnergyCostPerKwhBase = 0m);
 public sealed record BomView(Guid Id, string Code, string Name, Guid ProductStockItemId, string ProductName, string ProductTrackingMode, decimal OutputQuantity,
     bool IsActive, IReadOnlyList<BomLineView> Lines, string RowVersion, IReadOnlyList<BomOperationView> Operations);
-public sealed record BomLineView(Guid ComponentStockItemId, string ComponentName, decimal Quantity, decimal ScrapPercent);
+public sealed record BomLineView(Guid ComponentStockItemId, string ComponentName, decimal Quantity, decimal ScrapPercent, decimal StandardUnitCostBase);
 public sealed record BomOperationView(int Sequence, Guid WorkCenterId, string WorkCenterName, decimal SetupMinutes, decimal RunMinutesPerOutputUnit,
-    int MinimumWaitDaysAfterPrevious, string SetupFamilyCode, IReadOnlyList<Guid> EligibleWorkCenterIds);
+    int MinimumWaitDaysAfterPrevious, string SetupFamilyCode, decimal PlannedEnergyKwhPerOutput,
+    decimal PlannedEnergyCostPerKwhBase, IReadOnlyList<Guid> EligibleWorkCenterIds);
 public sealed record ManufacturingOrderWriteRequest(string? Code, Guid BillOfMaterialId, Guid WarehouseId, decimal PlannedQuantity, DateOnly PlannedDate);
 public sealed record OrderView(Guid Id, string Code, Guid BillOfMaterialId, string BillOfMaterialName, Guid WarehouseId, string WarehouseName,
     decimal PlannedQuantity, string Status, DateOnly PlannedDate, DateTimeOffset? CompletedAt, IReadOnlyList<OrderLineView> Lines,
     IReadOnlyList<ManufacturingOrderOperationView> Operations, string RowVersion);
-public sealed record OrderLineView(Guid ComponentStockItemId, string ComponentCode, string ComponentName, decimal RequiredQuantity);
+public sealed record OrderLineView(Guid ComponentStockItemId, string ComponentCode, string ComponentName, decimal RequiredQuantity, decimal StandardUnitCostBaseSnapshot, decimal PlannedCostBase);
 public sealed record CapacityDayView(DateOnly Date, decimal Minutes, int StartMinuteOfDay, int EndMinuteOfDay);
 public sealed record ManufacturingOrderOperationView(Guid Id, int Sequence, Guid WorkCenterId, string WorkCenterCode, string WorkCenterName,
     decimal SetupMinutes, decimal RunMinutes, int MinimumWaitDaysAfterPrevious, string SetupFamilyCode, decimal SequenceSetupMinutes,
     decimal PlannedCostBase, DateOnly? ScheduledStartDate, DateOnly? ScheduledEndDate, int? ScheduledStartMinuteOfDay, int? ScheduledEndMinuteOfDay,
-    decimal LaborCostPerHourBase, decimal OverheadCostPerHourBase, string Status, decimal? ActualSetupMinutes, decimal? ActualRunMinutes,
+    decimal LaborCostPerHourBase, decimal OverheadCostPerHourBase, decimal PlannedEnergyQuantityKwh,
+    decimal PlannedEnergyCostPerKwhBase, decimal PlannedEnergyCostBase, string Status, decimal? ActualSetupMinutes, decimal? ActualRunMinutes,
     decimal? ActualEnergyQuantityKwh, decimal? ActualEnergyCostPerKwhBase, decimal? ActualEnergyCostBase,
     decimal? ActualCostBase, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt, IReadOnlyList<CapacityDayView> CapacityDays);
 public sealed record ManufacturingCompleteRequest(IReadOnlyList<InventoryTrackingAllocationRequest>? FinishedGoodsTracking = null,

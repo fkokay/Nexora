@@ -36,7 +36,15 @@ internal static class TcmbExchangeRateImporter
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var settings = new XmlReaderSettings { Async = true, DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = 1_048_576 };
         using var reader = XmlReader.Create(stream, settings);
-        var document = await XDocument.LoadAsync(reader, LoadOptions.None, cancellationToken);
+        XDocument document;
+        try
+        {
+            document = await XDocument.LoadAsync(reader, LoadOptions.None, cancellationToken);
+        }
+        catch (XmlException exception)
+        {
+            throw new InvalidDataException("TCMB yanıtı geçerli XML değil.", exception);
+        }
         var root = document.Root;
         if (root?.Name.LocalName != "Tarih_Date"
             || !DateOnly.TryParseExact((string?)root.Attribute("Tarih"), "dd.MM.yyyy", CultureInfo.InvariantCulture,

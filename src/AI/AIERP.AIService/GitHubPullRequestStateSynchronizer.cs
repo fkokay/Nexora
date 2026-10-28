@@ -21,9 +21,19 @@ public static class GitHubPullRequestStateSynchronizer
     public static async Task<int> ApplyAsync(AIStudioDbContext db, GitHubPullRequestWebhookEvent webhook, string deliveryId,
         CancellationToken cancellationToken = default)
     {
+        // Never let an unscoped event update every project that happens to use
+        // the same repository/PR number. The HTTP parser requires this value,
+        // but keep the persistence boundary fail-closed as well.
+        if (!webhook.InstallationId.HasValue || webhook.InstallationId.Value <= 0) return 0;
         // Repository names are case-insensitive on GitHub, while database collation can vary.
-        var candidates = await db.ReleaseCandidateRecords.Where(x => x.GitHubPullRequestNumber == webhook.Number)
-            .ToListAsync(cancellationToken);
+        var candidatesQuery = db.ReleaseCandidateRecords.Where(x => x.GitHubPullRequestNumber == webhook.Number);
+        var projectIds = await db.DevelopmentProjects.AsNoTracking()
+            .Where(x => x.GitHubInstallationId == webhook.InstallationId)
+            .Select(x => x.Id)
+            .ToArrayAsync(cancellationToken);
+        if (projectIds.Length == 0) return 0;
+        candidatesQuery = candidatesQuery.Where(x => projectIds.Contains(x.ProjectId));
+        var candidates = await candidatesQuery.ToListAsync(cancellationToken);
         var changed = 0;
         foreach (var candidate in candidates)
         {

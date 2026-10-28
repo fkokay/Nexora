@@ -45,6 +45,67 @@ public sealed class CustomerBalanceIntegrationTests
 
         using var crossTenant = await client.GetAsync($"/api/customers/{AccountIds.TenantB:D}/balance");
         Assert.Equal(HttpStatusCode.NotFound, crossTenant.StatusCode);
+
+    }
+
+    [Fact]
+    public async Task Balance_applies_customer_row_allow_and_deny_rules_before_reading_ledger()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            var permission = await platform.PermissionDefinitions.SingleAsync(x => x.Code == "erp.customers.read");
+            platform.TenantPermissionRules.AddRange(
+                new TenantPermissionRule
+                {
+                    TenantId = TenantA, SubjectType = TenantPermissionSubjectType.Role, SubjectRole = "TenantUser",
+                    PermissionCode = permission.Code, Permission = permission, Effect = TenantPermissionEffect.Allow,
+                    ResourceType = "erp.customers"
+                },
+                new TenantPermissionRule
+                {
+                    TenantId = TenantA, SubjectType = TenantPermissionSubjectType.Role, SubjectRole = "TenantUser",
+                    PermissionCode = permission.Code, Permission = permission, Effect = TenantPermissionEffect.Deny,
+                    ResourceType = "erp.customers", AttributeName = "resource.customerId",
+                    AttributeOperator = TenantPermissionConditionOperator.Equals, AttributeValue = AccountIds.Debit.ToString("D")
+                });
+            await platform.SaveChangesAsync();
+        }
+
+        using var denied = await client.GetAsync($"/api/customers/{AccountIds.Debit:D}/balance");
+        Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
+
+        using var allowed = await client.GetAsync($"/api/customers/{AccountIds.Credit:D}/balance");
+        Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        using var allowedJson = JsonDocument.Parse(await allowed.Content.ReadAsStringAsync());
+        Assert.Equal(-100m, allowedJson.RootElement.GetProperty("balance").GetDecimal());
+        using var crossTenant = await client.GetAsync($"/api/customers/{AccountIds.TenantB:D}/balance");
+        Assert.Equal(HttpStatusCode.NotFound, crossTenant.StatusCode);
+
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            var permission = await platform.PermissionDefinitions.SingleAsync(x => x.Code == "erp.customers.read");
+            platform.TenantPermissionRules.Add(new TenantPermissionRule
+            {
+                TenantId = TenantA, SubjectType = TenantPermissionSubjectType.Role, SubjectRole = "TenantUser",
+                PermissionCode = permission.Code, Permission = permission, Effect = TenantPermissionEffect.Allow,
+                ResourceType = "erp.customers", AttributeName = "resource.unrecognized",
+                AttributeOperator = TenantPermissionConditionOperator.Equals, AttributeValue = "anything"
+            });
+            await platform.SaveChangesAsync();
+        }
+        using var unsupportedAttribute = await client.GetAsync($"/api/customers/{AccountIds.Credit:D}/balance");
+        Assert.Equal(HttpStatusCode.NotFound, unsupportedAttribute.StatusCode);
+        client.DefaultRequestHeaders.Remove("X-Test-Role");
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
+        using var admin = await client.GetAsync($"/api/customers/{AccountIds.Debit:D}/balance");
+        Assert.Equal(HttpStatusCode.OK, admin.StatusCode);
     }
 
     private static async Task<WebApplication> StartApplicationAsync()
@@ -54,6 +115,7 @@ public sealed class CustomerBalanceIntegrationTests
         var databaseName = $"customer-balance-{Guid.NewGuid():N}";
         var root = new InMemoryDatabaseRoot();
         builder.Services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase(databaseName, root));
+        builder.Services.AddDbContext<PlatformDbContext>(options => options.UseInMemoryDatabase($"{databaseName}-platform", root));
         builder.Services.AddAuthentication("report-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
         builder.Services.AddAuthorization();
         var app = builder.Build();
@@ -78,6 +140,10 @@ public sealed class CustomerBalanceIntegrationTests
             Entry(credit, CustomerLedgerDirection.Debit, 25m), Entry(credit, CustomerLedgerDirection.Credit, 125m),
             Entry(otherTenant, CustomerLedgerDirection.Debit, 999m));
         await db.SaveChangesAsync();
+        var platformDb = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+        await platformDb.Database.EnsureCreatedAsync();
+        platformDb.Tenants.Add(new Tenant { Id = TenantA, Name = "Synthetic A", Slug = "synthetic-a" });
+        await platformDb.SaveChangesAsync();
         return app;
     }
 

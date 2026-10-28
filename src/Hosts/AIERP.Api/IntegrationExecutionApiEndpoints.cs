@@ -38,6 +38,7 @@ public sealed record EDocumentSubmissionAdminItem(Guid OperationId, string Docum
 public sealed record EDocumentSourceDocument(Guid Id, string Number, DateOnly IssueDate, string CurrencyCode,
     string CounterpartyName, decimal Total, string Status);
 public sealed record EDocumentSubmissionDraftRequest(string DocumentType, Guid DocumentId);
+public sealed record EDocumentReconciliationRequest(string Outcome, string? ExternalReference, string EvidenceSummary);
 
 public static class IntegrationExecutionApiEndpoints
 {
@@ -192,6 +193,65 @@ public static class IntegrationExecutionApiEndpoints
             try { await db.SaveChangesAsync(cancellationToken); }
             catch (DbUpdateConcurrencyException) { return Results.Conflict(new { errorCode = "submission_state_changed" }); }
             return Results.Accepted($"/api/integrations/operations/{operation.Id:D}", ToResponse(operation, configuration));
+        }).RequireAuthorization();
+
+        app.MapPost("/api/e-documents/submissions/{operationId:guid}/reconcile", async (
+            Guid operationId, EDocumentReconciliationRequest reconciliation, ClaimsPrincipal user,
+            PlatformDbContext db, IConfiguration configuration, CancellationToken cancellationToken) =>
+        {
+            if (!TryGetActor(user, out var tenantId, out var userId) || user.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+            if (reconciliation.Outcome is not ("confirmed_submitted" or "confirmed_not_submitted"))
+                return Results.BadRequest(new { errorCode = "invalid_reconciliation_outcome" });
+            var reference = reconciliation.ExternalReference?.Trim();
+            var evidence = reconciliation.EvidenceSummary?.Trim();
+            if ((reconciliation.Outcome == "confirmed_submitted" &&
+                    (string.IsNullOrWhiteSpace(reference) || reference.Length > 200 || reference.Any(char.IsControl) ||
+                     !reference.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or ':' or '-' or '/'))) ||
+                (reference is not null && (reference.Length > 200 || reference.Any(char.IsControl))) ||
+                string.IsNullOrWhiteSpace(evidence) || evidence.Length is < 10 or > 1000 || evidence.Any(char.IsControl))
+                return Results.BadRequest(new { errorCode = "invalid_reconciliation_evidence" });
+
+            var operation = await db.IntegrationOperations.SingleOrDefaultAsync(x => x.Id == operationId &&
+                x.TenantId == tenantId && x.IntegrationCode == EDocumentIntegrationCode, cancellationToken);
+            if (operation is null) return Results.NotFound();
+            if (operation.Status != "Indeterminate")
+                return Results.Conflict(new { errorCode = "submission_not_indeterminate", status = operation.Status });
+            if (operation.RequestedByUserId == userId)
+                return Results.Conflict(new { errorCode = "independent_reconciliation_required" });
+
+            var payloadJson = IntegrationOperationCipher.Decrypt(operation.EncryptedPayload, configuration, tenantId, operation.Id, "request");
+            var submission = JsonSerializer.Deserialize<EDocumentSubmissionRequest>(payloadJson);
+            if (submission is null || EDocumentSubmissionRules.Validate(submission).Count > 0)
+                return Results.Conflict(new { errorCode = "submission_invalid" });
+
+            var now = DateTimeOffset.UtcNow;
+            var confirmedSubmitted = reconciliation.Outcome == "confirmed_submitted";
+            var resultValue = JsonSerializer.SerializeToElement(new
+            {
+                outcome = reconciliation.Outcome,
+                evidenceSummary = evidence,
+                reconciledAt = now,
+                reconciledByUserId = userId
+            });
+            var providerResult = new AIERP.IntegrationSDK.IntegrationHostExecuteResponse(
+                confirmedSubmitted, resultValue, reference,
+                confirmedSubmitted ? null : "delivery_confirmed_not_submitted", operation.AttemptCount, now);
+            operation.Status = confirmedSubmitted ? "Succeeded" : "Failed";
+            operation.ErrorCode = confirmedSubmitted ? null : "delivery_confirmed_not_submitted";
+            operation.EncryptedResult = IntegrationOperationCipher.Encrypt(JsonSerializer.Serialize(providerResult),
+                configuration, tenantId, operation.Id, "result");
+            operation.UpdatedAt = now;
+            operation.CompletedAt = now;
+            db.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                Action = confirmedSubmitted ? "e-document.submission.reconciled.submitted" : "e-document.submission.reconciled.not-submitted",
+                Resource = $"{submission.DocumentType}:{submission.DocumentNumber}:{operation.Id:N}"
+            });
+            try { await db.SaveChangesAsync(cancellationToken); }
+            catch (DbUpdateConcurrencyException) { return Results.Conflict(new { errorCode = "submission_state_changed" }); }
+            return Results.Ok(ToResponse(operation, configuration));
         }).RequireAuthorization();
 
         app.MapGet("/api/integrations/operations", async (

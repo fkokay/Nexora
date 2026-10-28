@@ -17,6 +17,18 @@ public sealed class ERPAssistantPurchaseDeliveryNoteToolsTests
         Assert.Equal(input?.Trim() ?? string.Empty, term);
     }
 
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(" x ", false)]
+    [InlineData(" SDN-2026-001 ", true)]
+    [InlineData("SDN-\n001", false)]
+    [InlineData("012345678901234567890123456789012345678901234567890123456789012345678901234567890", false)]
+    public void Detail_document_number_is_trimmed_bounded_and_control_free(string? input, bool expected)
+    {
+        Assert.Equal(expected, ERPAssistantPurchaseDeliveryNoteTools.TryValidateDocumentNumber(input, out var documentNumber));
+        Assert.Equal(input?.Trim() ?? string.Empty, documentNumber);
+    }
+
     [Fact]
     public async Task Note_read_requires_the_specific_purchase_delivery_note_permission()
     {
@@ -65,6 +77,38 @@ public sealed class ERPAssistantPurchaseDeliveryNoteToolsTests
             {"totalCount":0,"items":[{"documentNumber":"SDN-1","purchaseOrderCode":"PO-1","documentDate":"2026-10-25","lineCount":1,"linkedToReceipt":false}]}
             """);
         Assert.Throws<JsonException>(() => ERPAssistantPurchaseDeliveryNoteTools.SummarizeNotes(response.RootElement));
+    }
+
+    [Fact]
+    public void Detail_summary_projects_at_most_50_line_facts_and_omits_private_fields()
+    {
+        using var response = JsonDocument.Parse("""
+            {"id":"private-id","documentNumber":"SDN-2026-001","purchaseOrderCode":"PO-2026-001","supplierName":"Private supplier","notes":"private",
+             "documentDate":"2026-10-25","linkedToReceipt":true,"lineCount":51,"returnedLines":1,"hasMoreLines":true,
+             "lines":[{"lineNumber":1,"unitCode":"EA","quantity":5,"stockCode":"private-stock","note":"private"}]}
+            """);
+
+        using var result = JsonDocument.Parse(ERPAssistantPurchaseDeliveryNoteTools.SummarizeNoteDetails(response.RootElement));
+        var root = result.RootElement;
+        Assert.Equal("SDN-2026-001", root.GetProperty("documentNumber").GetString());
+        Assert.Equal(51, root.GetProperty("lineCount").GetInt32());
+        Assert.True(root.GetProperty("hasMoreLines").GetBoolean());
+        var line = Assert.Single(root.GetProperty("lines").EnumerateArray());
+        Assert.Equal(5m, line.GetProperty("quantity").GetDecimal());
+        Assert.False(root.TryGetProperty("supplierName", out _));
+        Assert.False(root.TryGetProperty("id", out _));
+        Assert.False(root.TryGetProperty("notes", out _));
+        Assert.False(line.TryGetProperty("stockCode", out _));
+        Assert.False(line.TryGetProperty("note", out _));
+    }
+
+    [Theory]
+    [InlineData("""{"documentNumber":"SDN-1","purchaseOrderCode":"PO-1","documentDate":"2026-10-25","linkedToReceipt":false,"lineCount":51,"returnedLines":51,"hasMoreLines":false,"lines":[]}""")]
+    [InlineData("""{"documentNumber":"SDN-1","purchaseOrderCode":"PO-1","documentDate":"2026-10-25","linkedToReceipt":false,"lineCount":1,"returnedLines":1,"hasMoreLines":false,"lines":[{}]}""")]
+    public void Detail_summary_rejects_unbounded_or_malformed_shape(string json)
+    {
+        using var response = JsonDocument.Parse(json);
+        Assert.Throws<JsonException>(() => ERPAssistantPurchaseDeliveryNoteTools.SummarizeNoteDetails(response.RootElement));
     }
 
     private sealed class RecordingPermissionAuthorizer(bool allowed, Guid expectedTenantId) : IPlatformPermissionAuthorizer

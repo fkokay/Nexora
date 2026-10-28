@@ -69,6 +69,98 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
         await AssertStatusCodeAsync(HttpStatusCode.OK, statementsResponse);
     }
 
+    [Fact]
+    public async Task Payment_instrument_search_is_bounded_by_term_and_tenant()
+    {
+        var tenantId = Guid.NewGuid();
+        var otherTenantId = Guid.NewGuid();
+        await using var factory = new FinanceApiFactory();
+        await SeedTenantCatalogAsync(factory, tenantId);
+        await SeedTenantCatalogAsync(factory, otherTenantId);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.PaymentInstruments.AddRange(
+                new PaymentInstrument
+                {
+                    TenantId = tenantId, RequestId = Guid.NewGuid(), Type = PaymentInstrumentType.Check,
+                    Direction = PaymentInstrumentDirection.Receivable, Code = "CEK-LOCAL-1", InstrumentNumber = "CHK-001",
+                    CounterpartyName = "Acme Local", BankName = "Local bank", CurrencyCode = "TRY", Amount = 120m,
+                    IssueDate = new DateOnly(2026, 1, 1), DueDate = new DateOnly(2026, 2, 1), PortfolioDate = new DateOnly(2026, 1, 1)
+                },
+                new PaymentInstrument
+                {
+                    TenantId = otherTenantId, RequestId = Guid.NewGuid(), Type = PaymentInstrumentType.Check,
+                    Direction = PaymentInstrumentDirection.Receivable, Code = "CEK-OTHER-1", InstrumentNumber = "CHK-999",
+                    CounterpartyName = "Acme Other", BankName = "Other bank", CurrencyCode = "TRY", Amount = 999m,
+                    IssueDate = new DateOnly(2026, 1, 1), DueDate = new DateOnly(2026, 2, 1), PortfolioDate = new DateOnly(2026, 1, 1)
+                });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-User", Guid.NewGuid().ToString("D"));
+
+        using var response = await client.GetAsync("/api/finance/payment-instruments/?term=Acme&page=1&pageSize=10");
+        await AssertStatusCodeAsync(HttpStatusCode.OK, response);
+        using var body = await response.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(body);
+        Assert.Equal(1, body.RootElement.GetProperty("totalCount").GetInt32());
+        var item = Assert.Single(body.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal("CEK-LOCAL-1", item.GetProperty("code").GetString());
+
+        using var invalidTerm = await client.GetAsync("/api/finance/payment-instruments/?term=x");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidTerm.StatusCode);
+    }
+
+    [Fact]
+    public async Task Finance_screen_collection_routes_accept_the_frontend_paths()
+    {
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        await using var factory = new FinanceApiFactory();
+        await SeedTenantCatalogAsync(factory, tenantId);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            // Cash-flow forecast and currency settings read the tenant's base currency.
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.Tenants.Add(new Tenant { Id = tenantId, Name = "Synthetic finance tenant", Slug = $"synthetic-{tenantId:N}" });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-User", userId.ToString("D"));
+
+        var frontendCollectionPaths = new[]
+        {
+            "/api/finance/currency",
+            "/api/finance/exchange-rates",
+            "/api/finance/fx-exposure",
+            "/api/finance/fx-revaluations/",
+            "/api/finance/maturities",
+            "/api/finance/general-ledger/accounts",
+            "/api/finance/general-ledger/mappings",
+            "/api/finance/general-ledger/entries?page=1&pageSize=50",
+            "/api/finance/general-ledger/sources",
+            "/api/finance/general-ledger/trial-balance",
+            "/api/finance/general-ledger/financial-statements/cash-flow?from=2026-10-01&to=2026-10-31",
+            "/api/finance/cash-flow/forecast?from=2026-10-01&months=12",
+            "/api/finance/cash-budgets/",
+            "/api/finance/budgets/",
+            "/api/finance/credit-facilities/",
+            "/api/finance/payment-instruments/?page=1&pageSize=50",
+            "/api/finance/transfers/"
+        };
+
+        foreach (var path in frontendCollectionPaths)
+        {
+            using var response = await client.GetAsync(path);
+            await AssertStatusCodeAsync(HttpStatusCode.OK, response);
+        }
+    }
+
     private static async Task AssertStatusCodeAsync(HttpStatusCode expected, HttpResponseMessage response)
     {
         var body = await response.Content.ReadAsStringAsync();
@@ -114,6 +206,8 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
                 services.RemoveAll<DbContextOptions<TenantDbContext>>();
                 services.RemoveAll<IDbContextOptionsConfiguration<TenantDbContext>>();
                 services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase($"{_databaseName}-tenant"));
+                services.RemoveAll<ITenantSqlCredentialReader>();
+                services.AddSingleton<ITenantSqlCredentialReader, FinanceTenantCredentialReader>();
                 services.AddAuthentication(options =>
                 {
                     options.DefaultAuthenticateScheme = FinanceTestAuthenticationHandler.SchemeName;
@@ -145,6 +239,9 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
                     ["ConnectionStrings:AIStudio"] = "Server=localhost;Database=unused;User Id=test;Password=test;TrustServerCertificate=True",
                     ["Database:SeparationEnabled"] = "true",
                     ["Database:ApplyMigrationsOnStartup"] = "false",
+                    ["Vault:Address"] = "https://vault.test",
+                    ["Vault:TenantSqlCredentialReader:RoleId"] = "finance-api-route-test-role",
+                    ["Vault:TenantSqlCredentialReader:SecretId"] = "finance-api-route-test-secret",
                     ["AI:SettingsEncryptionKey"] = Convert.ToBase64String(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray()),
                     ["AI:LiveEvaluation:Enabled"] = "false"
                 }));
@@ -174,6 +271,23 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
                 var identity = new ClaimsIdentity(claims, Scheme.Name);
                 return Task.FromResult(AuthenticateResult.Success(
                     new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name)));
+            }
+        }
+
+        private sealed class FinanceTenantCredentialReader : ITenantSqlCredentialReader
+        {
+            public Task<TenantSqlCredential> ReadAsync(Guid tenantId, TenantSqlDatabaseComponent component,
+                string secretReference, CancellationToken cancellationToken = default)
+            {
+                Assert.Equal(TenantSqlCredentialPath.ForTenant(tenantId, component), secretReference);
+                var userName = component switch
+                {
+                    TenantSqlDatabaseComponent.Erp => $"aierp_t_{tenantId:N}",
+                    TenantSqlDatabaseComponent.AiStudio => $"aierp_s_{tenantId:N}",
+                    _ => throw new ArgumentOutOfRangeException(nameof(component))
+                };
+                return Task.FromResult(new TenantSqlCredential(
+                    TenantSqlCredentialPath.DatabaseName(tenantId, component), userName, "synthetic-password", 1));
             }
         }
     }

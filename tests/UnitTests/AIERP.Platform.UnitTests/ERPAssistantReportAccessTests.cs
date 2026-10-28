@@ -44,6 +44,40 @@ public sealed class ERPAssistantReportAccessTests
     }
 
     [Theory]
+    [InlineData("catalog", "erp.reports.read")]
+    [InlineData("run", "erp.reports.execute")]
+    public async Task Report_endpoint_precheck_matches_api_permission_and_selected_tenant(string endpoint, string permissionCode)
+    {
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var authorizer = new RecordingPermissionAuthorizer(allowed: true, expectedTenant: tenantId);
+
+        var allowed = endpoint == "catalog"
+            ? await ERPAssistantReportAccess.IsReportCatalogAllowedAsync(tenantId, userId, "TenantUser", authorizer, CancellationToken.None)
+            : await ERPAssistantReportAccess.IsReportRunAllowedAsync(tenantId, userId, "TenantUser", authorizer, CancellationToken.None);
+
+        Assert.True(allowed);
+        Assert.Equal(permissionCode, authorizer.PermissionCode);
+        Assert.Equal(tenantId, authorizer.ActualTenantId);
+    }
+
+    [Theory]
+    [InlineData("catalog")]
+    [InlineData("run")]
+    public async Task Report_endpoint_precheck_denies_missing_report_grant(string endpoint)
+    {
+        var authorizer = new RecordingPermissionAuthorizer(allowed: false);
+        var tenantId = Guid.NewGuid();
+
+        var allowed = endpoint == "catalog"
+            ? await ERPAssistantReportAccess.IsReportCatalogAllowedAsync(tenantId, Guid.NewGuid(), "TenantUser", authorizer, CancellationToken.None)
+            : await ERPAssistantReportAccess.IsReportRunAllowedAsync(tenantId, Guid.NewGuid(), "TenantUser", authorizer, CancellationToken.None);
+
+        Assert.False(allowed);
+        Assert.NotNull(authorizer.PermissionCode);
+    }
+
+    [Theory]
     [InlineData("salesOrders", "2026-01-01", "2026-12-31", true)]
     [InlineData("salesOrders", "2025-12-30", "2026-12-31", false)]
     [InlineData("salesOrders", "2026-02-01", "2026-01-01", false)]

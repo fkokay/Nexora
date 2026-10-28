@@ -1,7 +1,6 @@
 using AIERP.Platform.Infrastructure;
 using AIERP.Platform.Domain;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Data.SqlClient;
 
 namespace AIERP.AIService;
 
@@ -15,15 +14,18 @@ public sealed class StudioKnowledgeRetentionWorker : BackgroundService
     private readonly ILogger<StudioKnowledgeRetentionWorker> _logger;
     private readonly int _retentionDays;
     private readonly string _platformConnection;
-    private readonly string _studioConnection;
+    private readonly string _studioRuntimeConnection;
+    private readonly ITenantSqlCredentialReader _credentialReader;
 
-    public StudioKnowledgeRetentionWorker(IConfiguration configuration, ILogger<StudioKnowledgeRetentionWorker> logger)
+    public StudioKnowledgeRetentionWorker(IConfiguration configuration, ITenantSqlCredentialReader credentialReader,
+        ILogger<StudioKnowledgeRetentionWorker> logger)
     {
         _logger = logger;
+        _credentialReader = credentialReader;
         _retentionDays = ReadRetentionDays(configuration);
         _platformConnection = configuration.GetConnectionString("Platform")
             ?? throw new InvalidOperationException("ConnectionStrings:Platform is required for Studio knowledge retention.");
-        _studioConnection = configuration.GetConnectionString("AIStudio")
+        _studioRuntimeConnection = configuration.GetConnectionString("AIStudio")
             ?? throw new InvalidOperationException("ConnectionStrings:AIStudio is required for Studio knowledge retention.");
     }
 
@@ -50,19 +52,26 @@ public sealed class StudioKnowledgeRetentionWorker : BackgroundService
     {
         try
         {
-            var studioConnection = await ResolveStudioConnectionAsync(cancellationToken);
-            if (studioConnection is null) return;
-            var options = new DbContextOptionsBuilder<AIStudioDbContext>()
-                .UseSqlServer(studioConnection)
-                .Options;
-            await using var db = new AIStudioDbContext(options);
+            var states = await GetReadyStudioTenantsAsync(cancellationToken);
             var cutoff = DateTimeOffset.UtcNow.AddDays(-_retentionDays);
-            var deleted = await db.StudioKnowledgeDocuments
-                .Where(document => document.IndexedAt < cutoff)
-                .ExecuteDeleteAsync(cancellationToken);
-            var expiredConsents = await db.StudioKnowledgeRefreshConsents
-                .Where(consent => consent.LastRefreshedAt < cutoff)
-                .ExecuteDeleteAsync(cancellationToken);
+            var deleted = 0;
+            var expiredConsents = 0;
+            foreach (var tenantId in states)
+            {
+                var secretReference = TenantSqlCredentialPath.ForTenant(tenantId, TenantSqlDatabaseComponent.AiStudio);
+                var credential = await _credentialReader.ReadAsync(tenantId, TenantSqlDatabaseComponent.AiStudio,
+                    secretReference, cancellationToken);
+                var connection = TenantDatabaseRouting.BuildComponentConnectionString(_studioRuntimeConnection,
+                    tenantId, TenantSqlDatabaseComponent.AiStudio, credential);
+                var options = new DbContextOptionsBuilder<AIStudioDbContext>().UseSqlServer(connection).Options;
+                await using var db = new AIStudioDbContext(options);
+                deleted += await db.StudioKnowledgeDocuments
+                    .Where(document => document.IndexedAt < cutoff)
+                    .ExecuteDeleteAsync(cancellationToken);
+                expiredConsents += await db.StudioKnowledgeRefreshConsents
+                    .Where(consent => consent.LastRefreshedAt < cutoff)
+                    .ExecuteDeleteAsync(cancellationToken);
+            }
 
             _logger.LogInformation(
                 "Studio source index retention completed. Deleted {DeletedCount} expired snapshots and {ExpiredConsentCount} inactive refresh consents older than {RetentionDays} days.",
@@ -81,25 +90,27 @@ public sealed class StudioKnowledgeRetentionWorker : BackgroundService
         }
     }
 
-    private async Task<string?> ResolveStudioConnectionAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<Guid>> GetReadyStudioTenantsAsync(CancellationToken cancellationToken)
     {
         var platformOptions = new DbContextOptionsBuilder<PlatformDbContext>()
             .UseSqlServer(_platformConnection)
             .Options;
         await using var platform = new PlatformDbContext(platformOptions);
-        var state = await platform.DatabaseSeparationComponentStates.AsNoTracking()
-            .SingleOrDefaultAsync(x => x.Component == "AIStudio", cancellationToken);
-        if (state is null || state.State != TenantDatabaseProvisioningState.Ready || state.DatabaseName != "AIERPStudio")
+        var states = await platform.DatabaseSeparationComponentStates.AsNoTracking()
+            .Where(x => x.Component.StartsWith("AIStudio:") && x.State == TenantDatabaseProvisioningState.Ready)
+            .Select(x => new { x.Component, x.DatabaseName })
+            .ToListAsync(cancellationToken);
+        var tenants = new List<Guid>(states.Count);
+        foreach (var state in states)
         {
-            _logger.LogInformation("Studio source index retention skipped because the separated AIStudio database is not ready.");
-            return null;
+            var suffix = state.Component["AIStudio:".Length..];
+            if (!Guid.TryParseExact(suffix, "N", out var tenantId)
+                || TenantDatabaseRouting.StudioComponentKey(tenantId) != state.Component
+                || TenantSqlCredentialPath.DatabaseName(tenantId, TenantSqlDatabaseComponent.AiStudio) != state.DatabaseName)
+                throw new InvalidOperationException("AIStudio tenant catalog entry is not canonical; retention stopped.");
+            tenants.Add(tenantId);
         }
-
-        var builder = new SqlConnectionStringBuilder(_studioConnection)
-        {
-            InitialCatalog = state.DatabaseName
-        };
-        return builder.ConnectionString;
+        return tenants;
     }
 
     private static int ReadRetentionDays(IConfiguration configuration)

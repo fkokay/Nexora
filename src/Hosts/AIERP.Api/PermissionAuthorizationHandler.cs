@@ -23,6 +23,19 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
             || !Guid.TryParse(context.User.FindFirstValue("sub"), out var userId)) return;
         var role = context.User.FindFirstValue("role");
         if (string.IsNullOrWhiteSpace(role)) return;
+        if (http.Request.Path.StartsWithSegments("/api/tenant-license"))
+        {
+            // Company license routes are intentionally restricted to the current tenant admin.
+            // They are not part of the configurable permission catalog because license changes
+            // must not be granted through ordinary per-user or per-role permission rules.
+            if (string.Equals(role, "TenantAdmin", StringComparison.Ordinal)
+                && await authorizer.IsAllowedAsync(tenantId, userId, role,
+                    new ResolvedPlatformPermission(
+                        new PlatformPermissionDefinition("erp.tenant-license.manage", "erp.tenant-license", "manage", "Company license and quota management"),
+                        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)), http.RequestAborted))
+                context.Succeed(requirement);
+            return;
+        }
         var routeValues = http.Request.RouteValues.ToDictionary(x => x.Key, x => x.Value?.ToString(), StringComparer.OrdinalIgnoreCase);
         var routePattern = (http.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? string.Empty;
         if (!PlatformPermissionCatalog.TryResolve(http.Request.Path.Value ?? string.Empty, http.Request.Method,

@@ -15,6 +15,8 @@ public sealed record CodeSuggestion(string Summary, string ProposedContent, IRea
 public sealed record CodeSourceFile(string Path, string Content, string Sha256);
 public sealed record ProposedCodeFile(string Path, string ProposedContent, IReadOnlyList<string> Notes);
 public sealed record MultiFileCodeSuggestion(string Summary, IReadOnlyList<ProposedCodeFile> Changes, IReadOnlyList<string> Risks);
+public sealed record ProposedCodePatch(string Path, string FindText, string ReplaceText, IReadOnlyList<string> Notes);
+public sealed record StudioCodePatchSuggestion(string Summary, IReadOnlyList<ProposedCodePatch> Patches, IReadOnlyList<string> Risks);
 public sealed record StudioChatTurn(string Role, string Content);
 public sealed record ERPAssistantToolCall(string Name, string ArgumentsJson);
 public sealed record StudioEmbeddingBatch(string Model, IReadOnlyList<float[]> Vectors);
@@ -70,6 +72,9 @@ public interface IAIModelProvider
 
     Task<MultiFileCodeSuggestion> CreateMultiFileCodeSuggestionAsync(string request, string projectName, string branchName,
         IReadOnlyList<CodeSourceFile> sources, CancellationToken cancellationToken);
+
+    Task<StudioCodePatchSuggestion> CreateStudioCodePatchSuggestionAsync(string request, string projectName, string branchName,
+        IReadOnlyList<StudioCodeContext> contexts, CancellationToken cancellationToken);
 
     Task<SandboxErrorAnalysis> AnalyzeSandboxErrorAsync(string projectName, string branchName,
         SandboxErrorContext error, CancellationToken cancellationToken);

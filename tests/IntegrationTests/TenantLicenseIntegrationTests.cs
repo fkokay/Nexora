@@ -455,7 +455,8 @@ public sealed class TenantLicenseIntegrationTests
                 ["Database__ApplyMigrationsOnStartup"] = "false",
                 ["ModulePackages__RootPath"] = packageRoot
             });
-            factory = new LicenseRaceApiFactory(connectionString, packageRoot, licensePublicKeyPem);
+            factory = new LicenseRaceApiFactory(connectionString, packageRoot, licensePublicKeyPem,
+                new LicenseRaceTenantCredentialReader(TenantId));
             using var client = factory.CreateClient();
 
             // Hold the same SQL application lock used by both production routes. Start both
@@ -904,8 +905,20 @@ public sealed class TenantLicenseIntegrationTests
         }
     }
 
-    private sealed class LicenseRaceApiFactory(string connectionString, string packageRoot, string licensePublicKeyPem) : WebApplicationFactory<ApiEntryPointMarker>
+    private sealed class LicenseRaceApiFactory(string connectionString, string packageRoot, string licensePublicKeyPem,
+        ITenantSqlCredentialReader credentialReader) : WebApplicationFactory<ApiEntryPointMarker>
     {
+        protected override IHost CreateHost(IHostBuilder builder)
+        {
+            builder.ConfigureHostConfiguration(configuration => configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:Address"] = "https://vault.test",
+                ["Vault:TenantSqlCredentialReader:RoleId"] = "license-race-test-role",
+                ["Vault:TenantSqlCredentialReader:SecretId"] = "license-race-test-secret"
+            }));
+            return base.CreateHost(builder);
+        }
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(Environments.Production);
@@ -926,6 +939,8 @@ public sealed class TenantLicenseIntegrationTests
             }));
             builder.ConfigureTestServices(services =>
             {
+                services.RemoveAll<ITenantSqlCredentialReader>();
+                services.AddSingleton(credentialReader);
                 services.AddAuthentication(options =>
                 {
                     options.DefaultAuthenticateScheme = "license-race-test";
@@ -939,6 +954,20 @@ public sealed class TenantLicenseIntegrationTests
                              && x.ImplementationType?.Name is "IntegrationOperationWorker" or "AuditRetentionWorker" or "TcmbExchangeRateWorker").ToArray())
                     services.Remove(worker);
             });
+        }
+    }
+
+    private sealed class LicenseRaceTenantCredentialReader(Guid tenantId) : ITenantSqlCredentialReader
+    {
+        public Task<TenantSqlCredential> ReadAsync(Guid requestedTenantId, TenantSqlDatabaseComponent component,
+            string secretReference, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (requestedTenantId != tenantId || component != TenantSqlDatabaseComponent.Erp
+                || !string.Equals(secretReference, TenantSqlCredentialPath.ForTenant(tenantId, component), StringComparison.Ordinal))
+                throw new InvalidOperationException("The license race test credential is scoped to one ERP tenant.");
+            return Task.FromResult(new TenantSqlCredential(TenantSqlCredentialPath.DatabaseName(tenantId, component),
+                $"aierp_t_{tenantId:N}", "synthetic-license-race-password", 1));
         }
     }
 

@@ -16,7 +16,8 @@ public sealed class PlatformPermissionAuthorizer(PlatformDbContext db) : IPlatfo
         if (membership is null || !membership.UserIsActive || !membership.TenantIsActive
             || !string.Equals(membership.Role, role, StringComparison.Ordinal)) return false;
         // TenantAdmin remains the existing tenant-wide administrator role and cannot be locked out by policy edits.
-        if (string.Equals(role, "TenantAdmin", StringComparison.Ordinal)) return true;
+        if (string.Equals(role, "TenantAdmin", StringComparison.Ordinal)
+            && !string.Equals(permission.Permission.ResourceType, "erp.payroll-compensation", StringComparison.Ordinal)) return true;
 
         var rules = await db.TenantPermissionRules.AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.IsActive && x.PermissionCode == permission.Permission.Code

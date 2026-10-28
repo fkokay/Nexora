@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAtUtc": "2026-10-25T22:17:53.6041097+00:00",
+  "generatedAtUtc": "2026-10-27T00:55:58.7320681+00:00",
   "evaluationSet": {
     "id": "erp-assistant-orchestration",
-    "version": "1.11.0",
+    "version": "1.14.0",
     "schemaVersion": "1.0.0",
-    "sha256": "3beda084bfcfa3076e9bf74e3cfd9162393c7d7808519fe527a646a4daa477bb"
+    "sha256": "186272646455c6e2fd8a053d20f41c0425b737127bbb115b76b3f2c54253c12b"
   },
   "execution": {
     "mode": "offline-mocked",
@@ -17,8 +17,8 @@
     "testExitCode": 0
   },
   "summary": {
-    "total": 35,
-    "passed": 35,
+    "total": 38,
+    "passed": 38,
     "failed": 0,
     "skipped": 0
   },
@@ -34,6 +34,20 @@
         "tool-result-handoff",
         "aggregate-only",
         "currencies-remain-separate"
+      ]
+    },
+    {
+      "id": "commercial-contract-search",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-contract-summary",
+        "currency-preserved",
+        "no-internal-or-linked-document-ids"
       ]
     },
     {
@@ -55,6 +69,20 @@
         "strict-schema",
         "single-tool-call",
         "tool-result-handoff"
+      ]
+    },
+    {
+      "id": "crm-opportunity-search",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-opportunity-summary",
+        "currency-preserved",
+        "no-customer-identity"
       ]
     },
     {
@@ -112,6 +140,19 @@
         "customer-is-selected-from-authorized-search-results",
         "balance-tool-uses-selected-account-id",
         "both-tool-results-remain-in-conversation"
+      ]
+    },
+    {
+      "id": "foreign-trade-case-search",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-shipping-summary",
+        "no-internal-or-customs-identifiers"
       ]
     },
     {

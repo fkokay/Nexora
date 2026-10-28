@@ -12,6 +12,7 @@
 .sid-heading h1 { margin: 3px 0 5px; font-size: 27px; letter-spacing: -.025em; }
 .sid-heading p:not(.sid-eyebrow) { font-size: 13px; }
 .sid-eyebrow { font-size: 10px; }
+.sid-line-note { margin: -1px 0 0; color: var(--text-muted, #71838c); font-size: 11px; line-height: 1.4; }
 .sid-tenant { padding: 7px 10px; border-radius: 8px; }
 .sid-draft-banner { padding: 12px 14px; margin-bottom: 12px; border-radius: 9px; }
 .sid-form { gap: 12px; }
@@ -32,3 +33,7 @@
 .sid-primary { background: #0f6cbd; }
 .sid-draft-banner>span { background: #eaf3fb; color: #0f6cbd; }
 .sid-status { border: 1px solid #d7e7f5; background: #eaf3fb; color: #0f548c; }
+.sid-status-posted { border-color: #b9e4cc; background: #e9f7ef; color: #216b3a; }
+.sid-row-actions { display: flex; align-items: center; gap: 6px; min-width: max-content; }
+.sid-row-actions > span { color: var(--text-muted, #71838c); font-size: 11px; white-space: nowrap; }
+.sid-post-button { padding: 8px 10px; white-space: nowrap; }

@@ -19,8 +19,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Hosts\AIERP.Api\AIERP.Api.csproj" Aliases="global,Api" />
+    <ProjectReference Include="..\..\src\Hosts\AIERP.TenantProvisioningWorker\AIERP.TenantProvisioningWorker.csproj" />
     <ProjectReference Include="..\..\src\AI\AIERP.AIService\AIERP.AIService.csproj" />
     <ProjectReference Include="..\..\src\Extensions\AIERP.IntegrationHost\AIERP.IntegrationHost.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\deploy\sql\Install-TenantProvisioningBoundary.sql" Link="Install-TenantProvisioningBoundary.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

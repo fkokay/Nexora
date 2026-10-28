@@ -4,6 +4,7 @@ param()
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $preflight = Join-Path $repoRoot 'deploy\linux\preflight.sh'
+$installer = Join-Path $repoRoot 'deploy\linux\install.sh'
 $gitBash = Join-Path ${env:ProgramFiles} 'Git\bin\bash.exe'
 $bash = if (Test-Path -LiteralPath $gitBash) { $gitBash } else { (Get-Command bash -ErrorAction Stop).Source }
 $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('Nexora-linux-preflight-' + [Guid]::NewGuid().ToString('N'))
@@ -52,6 +53,20 @@ function Invoke-ConfigPreflight {
 }
 
 try {
+    $installerSource = [IO.File]::ReadAllText($installer)
+    $permissionMutation = $installerSource.IndexOf('chown root:nexora "$CONFIG"', [StringComparison]::Ordinal)
+    foreach ($guard in @(
+        'if [[ -L "$CONFIG" ]]; then',
+        'if [[ -e "$CONFIG" && ! -d "$CONFIG" ]]; then',
+        'if [[ -L "$config_file" ]]; then',
+        'if [[ -e "$config_file" && ! -f "$config_file" ]]; then'
+    )) {
+        $guardPosition = $installerSource.IndexOf($guard, [StringComparison]::Ordinal)
+        if ($guardPosition -lt 0 -or $guardPosition -gt $permissionMutation) {
+            throw "Installer path guard is missing or appears after ownership changes: $guard"
+        }
+    }
+
     [IO.File]::WriteAllText((Join-Path $releaseRoot 'VERSION'), "fixture-1`n", [Text.Encoding]::ASCII)
     foreach ($componentFile in @('api/AIERP.Api.dll','ai-service/AIERP.AIService.dll','web/index.html','studio/index.html')) {
         $path = Join-Path $releaseRoot $componentFile
@@ -76,10 +91,18 @@ try {
 
     $configRoot = Join-Path $fixtureRoot 'config'
     New-Item -ItemType Directory -Path $configRoot | Out-Null
+    $readerRoleId = Join-Path $fixtureRoot 'vault-reader-role-id'
+    $readerSecretId = Join-Path $fixtureRoot 'vault-reader-secret-id'
+    [IO.File]::WriteAllText($readerRoleId, "fixture-role-id`n", [Text.Encoding]::ASCII)
+    [IO.File]::WriteAllText($readerSecretId, "fixture-secret-id`n", [Text.Encoding]::ASCII)
+    $readerRoleIdUnix = (& $bash -lc "cygpath -u '$readerRoleId'").Trim()
+    $readerSecretIdUnix = (& $bash -lc "cygpath -u '$readerSecretId'").Trim()
+    & $bash -lc "chmod 600 '$readerRoleIdUnix' '$readerSecretIdUnix'"
+    if ($LASTEXITCODE -ne 0) { throw 'Could not secure temporary Vault reader fixtures.' }
     $sharedKey = 'fixture-shared-signing-key-with-at-least-32-bytes'
     $pluginKey = 'fixture-distinct-plugin-key-with-at-least-32-bytes'
-    $platformConfig = @("ConnectionStrings__Platform=Server=fixture;Database=fixture;Encrypt=True;TrustServerCertificate=False", "ConnectionStrings__Tenant=Server=fixture;Database=fixture;Encrypt=True;TrustServerCertificate=False", "ConnectionStrings__AIStudio=Server=fixture;Database=AIERPStudio;Encrypt=True;TrustServerCertificate=False", "Database__SeparationEnabled=true", "Authentication__Issuer=fixture-issuer", "Authentication__Audience=fixture-audience", "Authentication__SigningKey=$sharedKey", "PluginHost__SigningKey=$pluginKey") -join "`n"
-    $aiConfig = @("ConnectionStrings__AIStudio=Server=fixture;Database=AIERPStudio;Encrypt=True;TrustServerCertificate=False", "Database__SeparationEnabled=true", "Authentication__Issuer=fixture-issuer", "Authentication__Audience=fixture-audience", "Authentication__SigningKey=$sharedKey") -join "`n"
+    $platformConfig = @("ConnectionStrings__Platform=Server=fixture;Database=fixture;Encrypt=True;TrustServerCertificate=False", "ConnectionStrings__Tenant=Server=fixture;Database=AIERPPlatform;Encrypt=True;TrustServerCertificate=False", "ConnectionStrings__AIStudio=Server=fixture;Database=AIERPStudio;Encrypt=True;TrustServerCertificate=False", "Database__SeparationEnabled=true", "Vault__Address=https://vault.fixture", "Vault__Mount=secret", "Vault__TenantSqlCredentialReader__RoleIdFile=$readerRoleIdUnix", "Vault__TenantSqlCredentialReader__SecretIdFile=$readerSecretIdUnix", "Vault__AllowHttpForLocalDevelopment=false", "Authentication__Issuer=fixture-issuer", "Authentication__Audience=fixture-audience", "Authentication__SigningKey=$sharedKey", "PluginHost__SigningKey=$pluginKey") -join "`n"
+    $aiConfig = @("ConnectionStrings__AIStudio=Server=fixture;Database=AIERPStudio;Encrypt=True;TrustServerCertificate=False", "Database__SeparationEnabled=true", "Vault__Address=https://vault.fixture", "Vault__Mount=secret", "Vault__TenantSqlCredentialReader__RoleIdFile=$readerRoleIdUnix", "Vault__TenantSqlCredentialReader__SecretIdFile=$readerSecretIdUnix", "Vault__AllowHttpForLocalDevelopment=false", "Authentication__Issuer=fixture-issuer", "Authentication__Audience=fixture-audience", "Authentication__SigningKey=$sharedKey") -join "`n"
     [IO.File]::WriteAllText((Join-Path $configRoot 'platform-api.env'), $platformConfig + "`n", [Text.Encoding]::ASCII)
     [IO.File]::WriteAllText((Join-Path $configRoot 'ai-service.env'), $aiConfig + "`n", [Text.Encoding]::ASCII)
     $result = Invoke-ConfigPreflight

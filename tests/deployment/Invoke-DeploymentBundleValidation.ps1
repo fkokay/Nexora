@@ -191,6 +191,8 @@ try {
         $iisInstaller -notmatch 'Database__ApplyMigrationsOnStartup' -or $iisInstaller -notmatch "'false'" -or
         $iisInstaller -notmatch 'Database__SeparationEnabled.*true' -or $iisInstaller -notmatch 'Shared company databases are unsupported' -or
         $iisInstaller -notmatch 'ConnectionStrings__Tenant' -or $iisInstaller -notmatch 'ConnectionStrings__AIStudio' -or
+        $iisInstaller -notmatch 'Vault__TenantSqlCredentialReader__RoleIdFile' -or $iisInstaller -notmatch 'Vault__TenantSqlCredentialReader__SecretIdFile' -or
+        $iisInstaller -notmatch 'Protect-VaultReaderFile' -or
         $iisInstaller -notmatch 'Versioned release paths are immutable' -or
         $iisInstaller -notmatch 'Secrets file must remain outside the bundle and release directories') {
         throw 'IIS installer static safety contract is incomplete (isolation, database connections, elevation, protected secrets, immutable release path, or migrations-off).'
@@ -246,8 +248,8 @@ try {
     Add-Check 'Linux archive checksum/version/components' $true "Version $version; outer SHA-256 matches; $bundleChecksumCount full-bundle and $checksumCount release file checksums verified with exact manifest coverage."
 
     $expectedEnv = @{
-        'config/platform-api.env.example' = @('ASPNETCORE_URLS=http://127.0.0.1:5080','ConnectionStrings__Platform=','ConnectionStrings__Tenant=','ConnectionStrings__AIStudio=','Database__SeparationEnabled=true','Authentication__SigningKey=','PluginHost__SigningKey=','AIService__BaseUrl=http://127.0.0.1:5081')
-        'config/ai-service.env.example' = @('ASPNETCORE_URLS=http://127.0.0.1:5081','ConnectionStrings__Platform=','ConnectionStrings__AIStudio=','Database__SeparationEnabled=true','Authentication__SigningKey=','PlatformApi__BaseUrl=http://127.0.0.1:5080')
+        'config/platform-api.env.example' = @('ASPNETCORE_URLS=http://127.0.0.1:5080','ConnectionStrings__Platform=','ConnectionStrings__Tenant=','ConnectionStrings__AIStudio=','Database__SeparationEnabled=true','Vault__Address=https://','Vault__Mount=secret','Vault__TenantSqlCredentialReader__RoleIdFile=','Vault__TenantSqlCredentialReader__SecretIdFile=','Vault__AllowHttpForLocalDevelopment=false','Authentication__SigningKey=','PluginHost__SigningKey=','AIService__BaseUrl=http://127.0.0.1:5081')
+        'config/ai-service.env.example' = @('ASPNETCORE_URLS=http://127.0.0.1:5081','ConnectionStrings__Platform=','ConnectionStrings__AIStudio=','Database__SeparationEnabled=true','Vault__Address=https://','Vault__Mount=secret','Vault__TenantSqlCredentialReader__RoleIdFile=','Vault__TenantSqlCredentialReader__SecretIdFile=','Vault__AllowHttpForLocalDevelopment=false','Authentication__SigningKey=','PlatformApi__BaseUrl=http://127.0.0.1:5080')
     }
     foreach ($entry in $expectedEnv.GetEnumerator()) {
         $content = Get-Content -LiteralPath (Assert-File $linuxRoot $entry.Key) -Raw

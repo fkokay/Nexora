@@ -11,13 +11,18 @@ internal static class PaymentInstrumentEndpoints
         var group = app.MapGroup("/api/finance/payment-instruments").WithTags("Çek ve senet").RequireAuthorization();
         group.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, PaymentInstrumentStatus? status,
             PaymentInstrumentType? type, PaymentInstrumentDirection? direction, DateOnly? dueFrom, DateOnly? dueTo,
-            int? page, int? pageSize, CancellationToken ct) =>
+            string? term, int? page, int? pageSize, CancellationToken ct) =>
         {
             if (!TenantId(user, out var tenantId)) return Results.Forbid();
             var currentPage = page ?? 1; var currentPageSize = pageSize ?? 50;
             if (currentPage < 1) return Validation("page", "Sayfa numarası 1 veya daha büyük olmalıdır.");
             if (currentPageSize < 1 || currentPageSize > 250) return Validation("pageSize", "Sayfa boyutu 1–250 arasında olmalıdır.");
+            var searchTerm = term?.Trim();
+            if (term is not null && (searchTerm!.Length is < 2 or > 100))
+                return Validation("term", "Arama terimi 2–100 karakter arasında olmalıdır.");
             var query = db.PaymentInstruments.AsNoTracking().Where(x => x.TenantId == tenantId);
+            if (searchTerm is not null)
+                query = query.Where(x => x.Code.Contains(searchTerm) || x.InstrumentNumber.Contains(searchTerm) || x.CounterpartyName.Contains(searchTerm));
             if (status is { } selectedStatus) query = query.Where(x => x.Status == selectedStatus);
             if (type is { } selectedType) query = query.Where(x => x.Type == selectedType);
             if (direction is { } selectedDirection) query = query.Where(x => x.Direction == selectedDirection);

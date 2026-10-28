@@ -2,6 +2,8 @@
 .direct-cash-budget-page .page-heading{align-items:flex-start;gap:16px}
 .direct-cash-budget-page .page-heading .heading-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .direct-cash-budget-forecast,.direct-cash-budget-list,.direct-cash-budget-editor,.direct-cash-budget-detail{min-width:0}
+.direct-cash-budget-page .ledger-list .customer-table caption{padding:10px 14px;text-align:left;color:var(--erp-muted,#697386);font-size:11px;line-height:1.45}
+.direct-cash-budget-page .direct-cash-budget-description-cell{min-width:220px;max-width:420px;white-space:normal;overflow-wrap:anywhere;line-height:1.45}
 .direct-cash-budget-layout{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(420px,1.4fr);gap:18px;align-items:start}
 .direct-cash-budget-forecast .ledger-list,.direct-cash-budget-detail .ledger-list{max-height:420px}
 .direct-cash-budget-line-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:22px 0 12px}

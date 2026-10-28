@@ -22,6 +22,7 @@ public static class ERPAssistantReportAccess
         ["manufacturingOrders"] = "/api/manufacturing/orders",
         ["manufacturingWorkCenters"] = "/api/manufacturing/work-centers",
         ["inventoryTransactions"] = "/api/stock/items",
+        ["inventoryTracking"] = "/api/inventory-tracking",
         ["salesOrders"] = "/api/sales/orders",
         ["salesOrderFulfillment"] = "/api/sales/orders",
         ["purchaseOrderFulfillment"] = "/api/purchasing/orders",
@@ -66,6 +67,22 @@ public static class ERPAssistantReportAccess
     {
         if (!SourcePaths.TryGetValue(source, out var path)) return false;
         if (!PlatformPermissionCatalog.TryResolve(path, "GET", path, new Dictionary<string, string?>(), tenantId, userId, role,
+                out var permission) || permission is null) return false;
+        return await authorizer.IsAllowedAsync(tenantId, userId, role, permission, cancellationToken);
+    }
+
+    public static Task<bool> IsReportCatalogAllowedAsync(Guid tenantId, Guid userId, string role,
+        IPlatformPermissionAuthorizer authorizer, CancellationToken cancellationToken) =>
+        IsEndpointAllowedAsync("/api/reports/catalog", "GET", tenantId, userId, role, authorizer, cancellationToken);
+
+    public static Task<bool> IsReportRunAllowedAsync(Guid tenantId, Guid userId, string role,
+        IPlatformPermissionAuthorizer authorizer, CancellationToken cancellationToken) =>
+        IsEndpointAllowedAsync("/api/reports/run", "POST", tenantId, userId, role, authorizer, cancellationToken);
+
+    private static async Task<bool> IsEndpointAllowedAsync(string path, string method, Guid tenantId, Guid userId, string role,
+        IPlatformPermissionAuthorizer authorizer, CancellationToken cancellationToken)
+    {
+        if (!PlatformPermissionCatalog.TryResolve(path, method, path, new Dictionary<string, string?>(), tenantId, userId, role,
                 out var permission) || permission is null) return false;
         return await authorizer.IsAllowedAsync(tenantId, userId, role, permission, cancellationToken);
     }

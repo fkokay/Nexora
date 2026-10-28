@@ -51,8 +51,8 @@ $bundle = (Resolve-Path -LiteralPath $BundlePath).Path
 $manifestPath = Join-Path $bundle 'manifest.json'
 $history = Get-Content -LiteralPath $TargetHistoryPath -Raw | ConvertFrom-Json -AsHashtable
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -AsHashtable
-if ($manifest.status -notin @('generated-not-applied', 'generated-applied-local')) {
-    Fail 'manifest status must identify a generated package, optionally applied only to local development databases.'
+if ($manifest.status -notin @('generated-not-applied', 'generated-applied-local', 'generated-applied-development')) {
+    Fail 'manifest status must identify a generated package, optionally applied only to a development database.'
 }
 
 $expectedTargets = @{

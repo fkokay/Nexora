@@ -12,6 +12,12 @@ public sealed class ForeignTradeCase
     public ForeignTradeStatus Status { get; set; } = ForeignTradeStatus.Draft;
     public Guid? PurchaseOrderId { get; set; }
     public Guid? SalesOrderId { get; set; }
+    /// <summary>New cases must reference the standard posted receipt/delivery before they can be finalized.</summary>
+    public bool InventoryPostingRequired { get; set; }
+    public Guid? PurchaseReceiptId { get; set; }
+    public Guid? SalesDeliveryId { get; set; }
+    public DateTimeOffset? InventoryDocumentLinkedAt { get; set; }
+    public Guid? InventoryDocumentLinkedByUserId { get; set; }
     public string ReferenceCode { get; set; } = "";
     public string OriginCountryCode { get; set; } = "";
     public string DestinationCountryCode { get; set; } = "";

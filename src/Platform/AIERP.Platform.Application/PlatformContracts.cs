@@ -12,18 +12,27 @@ public sealed record CreateDevelopmentRequest(string Title, string Description);
 public sealed record CustomerView(Guid Id, string Code, string Name, CounterpartyType Type, string? TaxNumber,
     bool IsActive, DateTimeOffset CreatedAt, byte[] RowVersion, Guid? GroupId = null, string? GroupName = null,
     string CurrencyCode = "TRY", decimal? RiskLimit = null, int PaymentTermDays = 0,
-    string? IdentityNumber = null, string? TaxOffice = null);
+    string? IdentityNumber = null, string? TaxOffice = null, Guid? ParentCompanyId = null,
+    string? ParentCompanyName = null, int SubsidiaryCount = 0);
 public sealed record CustomerWriteRequest(string Code, string Name, CounterpartyType Type, string? TaxNumber,
     bool IsActive = true, byte[]? RowVersion = null, Guid? GroupId = null, string CurrencyCode = "TRY",
     decimal? RiskLimit = null, int PaymentTermDays = 0, IReadOnlyDictionary<string, string?>? CustomFields = null,
-    string? IdentityNumber = null, string? TaxOffice = null, CustomerAddressWriteRequest? Address = null);
+    string? IdentityNumber = null, string? TaxOffice = null, CustomerAddressWriteRequest? Address = null,
+    Guid? ParentCompanyId = null);
+public sealed record CustomerCompanyOption(Guid Id, string Code, string Name);
 public sealed record CustomerPage(IReadOnlyList<CustomerView> Items, int Page, int PageSize, int TotalCount);
 public sealed record CustomerGroupView(Guid Id, string Code, string Name, bool IsActive);
 public sealed record CustomerGroupWriteRequest(string Code, string Name);
 public sealed record CustomerAddressView(Guid Id, CustomerAddressKind Kind, string Label, string AddressLine, string City,
-    string? District, string? PostalCode, string CountryCode, bool IsDefault, bool IsActive);
+    string? District, string? PostalCode, string CountryCode, bool IsDefault, bool IsActive, decimal? Latitude = null, decimal? Longitude = null);
 public sealed record CustomerAddressWriteRequest(CustomerAddressKind Kind, string Label, string AddressLine, string City,
-    string? District, string? PostalCode, string CountryCode = "TR", bool IsDefault = false, bool IsActive = true);
+    string? District, string? PostalCode, string CountryCode = "TR", bool IsDefault = false, bool IsActive = true,
+    decimal? Latitude = null, decimal? Longitude = null);
+public sealed record CustomerLocationProvinceView(int Id, string Name, bool IsActive);
+public sealed record CustomerLocationDistrictView(int Id, int ProvinceId, string Name, bool IsActive);
+public sealed record CustomerLocationDefinitionsView(IReadOnlyList<CustomerLocationProvinceView> Provinces,
+    IReadOnlyList<CustomerLocationDistrictView> Districts);
+public sealed record CustomerLocationDefinitionWriteRequest(string Name, int? ProvinceId = null, bool IsActive = true);
 public sealed record CustomerLedgerView(Guid Id, DateOnly EntryDate, CustomerLedgerDirection Direction, decimal Amount,
     string CurrencyCode, string Description, Guid? ReversalOfId, bool IsReversal, bool HasReversal);
 public sealed record CustomerLedgerWriteRequest(DateOnly EntryDate, CustomerLedgerDirection Direction, decimal Amount,
@@ -560,6 +569,9 @@ public static class CustomerAddressValidation
         if (request.District?.Trim().Length > 100) errors["district"] = ["İlçe en fazla 100 karakter olabilir."];
         if (request.PostalCode?.Trim().Length > 20) errors["postalCode"] = ["Posta kodu en fazla 20 karakter olabilir."];
         if (request.CountryCode?.Trim().Length != 2 || request.CountryCode.Any(c => !char.IsAsciiLetter(c))) errors["countryCode"] = ["Ülke kodu 2 harfli ISO kodu olmalıdır."];
+        if ((request.Latitude is null) != (request.Longitude is null)) errors["coordinates"] = ["Harita konumu için enlem ve boylam birlikte girilmelidir."];
+        if (request.Latitude is < -90 or > 90) errors["latitude"] = ["Enlem -90 ile 90 arasında olmalıdır."];
+        if (request.Longitude is < -180 or > 180) errors["longitude"] = ["Boylam -180 ile 180 arasında olmalıdır."];
         return errors.Count == 0 ? null : errors;
     }
 }

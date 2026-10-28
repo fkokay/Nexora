@@ -1,10 +1,29 @@
 import AdvancedDataGrid from './AdvancedDataGrid'
+import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import { useCallback, useEffect, useState } from 'react'
 import { authenticatedFetch } from './authApi';
 import type { FormEvent } from 'react'
 import './sales-promotions.css'
 
 type Campaign = { id:string; code:string; name:string; discountPercent:number; effectiveFrom:string; effectiveThrough:string; isActive:boolean; applicationCount:number }
+type CampaignScreenField = { key:string; label:string; visible:boolean; position:number }
+type PerformanceScreenField = { key:string; label:string; visible:boolean; position:number }
+const defaultCampaignScreenFields: CampaignScreenField[] = [
+  { key:'code', label:'Kampanya kodu', visible:true, position:0 },
+  { key:'name', label:'Kampanya adı', visible:true, position:1 },
+  { key:'discountPercent', label:'İndirim', visible:true, position:2 },
+  { key:'effectiveFrom', label:'Başlangıç', visible:true, position:3 },
+  { key:'effectiveThrough', label:'Bitiş', visible:true, position:4 },
+  { key:'status', label:'Durum', visible:true, position:5 },
+  { key:'applicationCount', label:'Uygulama', visible:true, position:6 },
+]
+const campaignScreenKeys = new Set(defaultCampaignScreenFields.map(field => field.key))
+const defaultPerformanceScreenFields:PerformanceScreenField[]=[
+  {key:'campaign',label:'Kampanya',visible:true,position:0},{key:'applications',label:'Uygulama',visible:true,position:1},
+  {key:'appliedQuotes',label:'Uygulanan teklifler',visible:true,position:2},{key:'discountTotals',label:'İndirim tutarı',visible:true,position:3},
+  {key:'linkedOrders',label:'Bağlantılı sipariş',visible:true,position:4},{key:'linkedOrderTotals',label:'Sipariş toplamı',visible:true,position:5}
+]
+const performanceScreenKeys=new Set(defaultPerformanceScreenFields.map(field=>field.key))
 type Quote = { id:string; code:string; customerName:string; quoteDate:string; status:string; grandTotal:number; lineCount:number }
 type QuotePage = { items:Quote[]; page:number; pageSize:number; totalCount:number }
 type Performance = { campaignId:string;code:string;name:string;discountPercent:number;effectiveFrom:string;effectiveThrough:string;isActive:boolean;applications:number;discountTotals:{currencyCode:string;amount:number}[];appliedQuotes:number;linkedOrders:number;linkedOrderTotals:{currencyCode:string;amount:number}[] }
@@ -22,23 +41,68 @@ export default function SalesPromotionsPage({token,role,onBack}:Props){
   const [code,setCode]=useState(''),[name,setName]=useState(''),[percent,setPercent]=useState('10'),[from,setFrom]=useState(new Date().toISOString().slice(0,10)),[through,setThrough]=useState(new Date(Date.now()+30*86400000).toISOString().slice(0,10))
   const [campaignId,setCampaignId]=useState(''),[quoteId,setQuoteId]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
   const [createOpen,setCreateOpen]=useState(false)
+  const [campaignScreenFields,setCampaignScreenFields]=useState(defaultCampaignScreenFields)
+  const [performanceScreenFields,setPerformanceScreenFields]=useState(defaultPerformanceScreenFields)
   const [campaignQuery,setCampaignQuery]=useState('')
   const [performance,setPerformance]=useState<PerformancePage|null>(null),[reportQuery,setReportQuery]=useState(''),[reportFrom,setReportFrom]=useState(''),[reportThrough,setReportThrough]=useState(''),[reportPage,setReportPage]=useState(1)
   const load=useCallback(async()=>{const [campaignRows,quotePage]=await Promise.all([request<Campaign[]>('/api/sales/promotions/',token),request<QuotePage>('/api/sales/quotes/?page=1&pageSize=100',token)]);setCampaigns(campaignRows);setQuotes(quotePage.items.filter(x=>x.status==='Draft'&&x.lineCount>0));if(!campaignId)setCampaignId(campaignRows.find(x=>x.isActive)?.id||'')},[token,campaignId])
   const loadPerformance=useCallback(async()=>{const params=new URLSearchParams({page:String(reportPage),pageSize:'25'});if(reportQuery.trim())params.set('q',reportQuery.trim());if(reportFrom)params.set('from',reportFrom);if(reportThrough)params.set('through',reportThrough);setPerformance(await request<PerformancePage>(`/api/sales/quotes/campaign-performance?${params}`,token))},[token,reportQuery,reportFrom,reportThrough,reportPage])
   useEffect(()=>{void load().catch(e=>setError((e as Error).message))},[load])
+  useEffect(()=>{
+    let current=true
+    void request<{fields?:CampaignScreenField[]}>('/api/screen-views/sales-promotions/active',token)
+      .then(view=>{
+        if(!current||!Array.isArray(view.fields))return
+        const allowed=view.fields.filter(field=>campaignScreenKeys.has(field.key))
+        setCampaignScreenFields(defaultCampaignScreenFields.map(fallback=>({...fallback,...(allowed.find(field=>field.key===fallback.key)??{})})).sort((a,b)=>a.position-b.position))
+      })
+      .catch(()=>{if(current)setCampaignScreenFields(defaultCampaignScreenFields)})
+    return()=>{current=false}
+  },[token])
+  useEffect(()=>{
+    let current=true
+    void request<{fields?:PerformanceScreenField[]}>('/api/screen-views/sales-campaign-performance/active',token)
+      .then(view=>{if(!current||!Array.isArray(view.fields))return;const allowed=view.fields.filter(field=>performanceScreenKeys.has(field.key));setPerformanceScreenFields(defaultPerformanceScreenFields.map(fallback=>({...fallback,...(allowed.find(field=>field.key===fallback.key)??{})})).sort((a,b)=>a.position-b.position))})
+      .catch(()=>{if(current)setPerformanceScreenFields(defaultPerformanceScreenFields)})
+    return()=>{current=false}
+  },[token])
   useEffect(()=>{void loadPerformance().catch(e=>setError((e as Error).message))},[loadPerformance])
   async function create(e:FormEvent):Promise<boolean>{e.preventDefault();setBusy(true);setError('');setNotice('');try{const row=await request<Campaign>('/api/sales/promotions/',token,{method:'POST',body:JSON.stringify({code,name,discountPercent:Number(percent),effectiveFrom:from,effectiveThrough:through,isActive:true})});setCampaigns(current=>[row,...current]);setCampaignId(row.id);setCode('');setName('');setNotice('Kampanya oluşturuldu. Teklif tarihinin kampanya aralığında olması gerekir.');return true}catch(e){setError((e as Error).message);return false}finally{setBusy(false)}}
   async function apply(e:FormEvent){e.preventDefault();setBusy(true);setError('');setNotice('');try{const result=await request<{discountAmount:number;grandTotal:number}>('/api/sales/promotions/'+campaignId+'/apply',token,{method:'POST',body:JSON.stringify({quoteId})});setNotice(`Kampanya uygulandı. Ek indirim: ${result.discountAmount.toLocaleString('tr-TR',{minimumFractionDigits:2})} · Yeni toplam: ${result.grandTotal.toLocaleString('tr-TR',{minimumFractionDigits:2})}`);await load()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
   const selectedCampaign=campaigns.find(item=>item.id===campaignId)||null
   const visibleCampaigns=campaigns.filter(item=>`${item.code} ${item.name}`.toLocaleLowerCase('tr-TR').includes(campaignQuery.trim().toLocaleLowerCase('tr-TR')))
+  const visibleCampaignFields=campaignScreenFields.filter(field=>field.visible)
+  const visiblePerformanceFields=performanceScreenFields.filter(field=>field.visible)
+  const performanceCell=(item:Performance,key:string)=>{
+    switch(key){
+      case 'campaign': return <><b>{item.code}</b><br/><span className="muted">{item.name}</span></>
+      case 'applications': return item.applications
+      case 'appliedQuotes': return item.appliedQuotes
+      case 'discountTotals': return item.discountTotals.map(t=>`${t.currencyCode} ${t.amount.toLocaleString('tr-TR',{minimumFractionDigits:2})}`).join(' · ')||'—'
+      case 'linkedOrders': return item.linkedOrders
+      case 'linkedOrderTotals': return item.linkedOrderTotals.map(t=>`${t.currencyCode} ${t.amount.toLocaleString('tr-TR',{minimumFractionDigits:2})}`).join(' · ')||'—'
+      default:return null
+    }
+  }
+  const campaignCell=(campaign:Campaign,key:string)=>{
+    switch(key){
+      case 'code': return <b>{campaign.code}</b>
+      case 'name': return campaign.name
+      case 'discountPercent': return `%${campaign.discountPercent}`
+      case 'effectiveFrom': return campaign.effectiveFrom
+      case 'effectiveThrough': return campaign.effectiveThrough
+      case 'status': return campaign.isActive?'Aktif':'Pasif'
+      case 'applicationCount': return campaign.applicationCount
+      default: return null
+    }
+  }
   return <main className="sales-promotions-page">
     <header className="sales-promotions-header"><div><p className="eyebrow">SATIŞ YÖNETİMİ</p><h1>Kampanyalar ve promosyonlar</h1><p className="muted">Tarih aralığına bağlı yüzde indirimi taslak satış tekliflerine uygulayın.</p></div><div className="sales-promotions-header-actions">{onBack&&<button className="secondary" onClick={onBack}>Satışa dön</button>}{role==='TenantAdmin'&&<button className="primary" onClick={()=>setCreateOpen(true)}>+ Kampanya oluştur</button>}</div></header>
     {error&&<div className="alert inline-alert" role="alert">{error}</div>}{notice&&<div className="notice inline-notice" role="status">{notice}</div>}
     <section className="panel sales-campaign-workbench"><div className="panel-heading"><div><b>Tanımlı kampanyalar</b><small>{campaigns.length} kayıt · indirim teklif satırlarına bileşik uygulanır</small></div><button className="secondary" onClick={()=>void load().catch(e=>setError((e as Error).message))}>Yenile</button></div>
-      <label className="sales-campaign-search">Kampanya ara<input type="search" value={campaignQuery} onChange={event=>setCampaignQuery(event.target.value)} placeholder="Kod veya kampanya adı"/></label><div className="sales-campaign-layout"><div className="table-scroll"><AdvancedDataGrid><thead><tr><th>Kod / Kampanya</th><th>İndirim</th><th>Geçerlilik</th><th>Durum</th><th>Uygulama</th></tr></thead><tbody>{visibleCampaigns.map(x=><tr key={x.id} aria-selected={x.id===campaignId} onClick={()=>setCampaignId(x.id)}><td><b>{x.code}</b><br/><span className="muted">{x.name}</span></td><td>%{x.discountPercent}</td><td>{x.effectiveFrom} – {x.effectiveThrough}</td><td>{x.isActive?'Aktif':'Pasif'}</td><td>{x.applicationCount}</td></tr>)}{visibleCampaigns.length===0&&<tr><td colSpan={5}>{campaignQuery?'Aramayla eşleşen kampanya yok.':'Henüz kampanya tanımlanmadı.'}</td></tr>}</tbody></AdvancedDataGrid></div><aside className="sales-campaign-detail">{selectedCampaign?<><small>SEÇİLİ KAMPANYA</small><h2>{selectedCampaign.name}</h2><p>{selectedCampaign.code}</p><dl><div><dt>İndirim</dt><dd>%{selectedCampaign.discountPercent}</dd></div><div><dt>Geçerlilik</dt><dd>{selectedCampaign.effectiveFrom} – {selectedCampaign.effectiveThrough}</dd></div><div><dt>Durum</dt><dd>{selectedCampaign.isActive?'Aktif':'Pasif'}</dd></div><div><dt>Uygulama sayısı</dt><dd>{selectedCampaign.applicationCount}</dd></div></dl></>:<p>Kampanya seçildiğinde özeti burada görünür.</p>}</aside></div>
+      <label className="sales-campaign-search">Kampanya ara<input type="search" value={campaignQuery} onChange={event=>setCampaignQuery(event.target.value)} placeholder="Kod veya kampanya adı"/></label><div className="sales-campaign-layout"><div className="table-scroll"><AdvancedDataGrid hideSearch><thead><tr>{visibleCampaignFields.map(field=><th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleCampaigns.map(x=><tr key={x.id} aria-selected={x.id===campaignId} onClick={()=>setCampaignId(x.id)}>{visibleCampaignFields.map(field=><td key={field.key}>{campaignCell(x,field.key)}</td>)}</tr>)}{visibleCampaigns.length===0&&<tr><td colSpan={Math.max(1,visibleCampaignFields.length)}>{campaignQuery?'Aramayla eşleşen kampanya yok.':'Henüz kampanya tanımlanmadı.'}</td></tr>}</tbody></AdvancedDataGrid></div><aside className="sales-campaign-detail">{selectedCampaign?<><small>SEÇİLİ KAMPANYA</small><h2>{selectedCampaign.name}</h2><p>{selectedCampaign.code}</p><dl><div><dt>İndirim</dt><dd>%{selectedCampaign.discountPercent}</dd></div><div><dt>Geçerlilik</dt><dd>{selectedCampaign.effectiveFrom} – {selectedCampaign.effectiveThrough}</dd></div><div><dt>Durum</dt><dd>{selectedCampaign.isActive?'Aktif':'Pasif'}</dd></div><div><dt>Uygulama sayısı</dt><dd>{selectedCampaign.applicationCount}</dd></div></dl></>:<p>Kampanya seçildiğinde özeti burada görünür.</p>}</aside></div>
     </section>
-    <section className="panel sales-campaign-performance"><div className="panel-heading sales-campaign-performance-heading"><div className="sales-campaign-performance-title"><b>Kampanya performansı</b><small>Uygulanan indirimler ve bağlantılı siparişler</small></div><button className="secondary" onClick={()=>void loadPerformance().catch(e=>setError((e as Error).message))}>Raporu yenile</button></div><div className="form-two sales-campaign-filters"><label className="sales-campaign-filter-label">Kampanya ara<input value={reportQuery} maxLength={120} onChange={e=>{setReportQuery(e.target.value);setReportPage(1)}} placeholder="Kod veya ad"/></label><label className="sales-campaign-filter-label">Uygulama tarihi başlangıç<input type="date" value={reportFrom} onChange={e=>{setReportFrom(e.target.value);setReportPage(1)}}/></label><label className="sales-campaign-filter-label">Uygulama tarihi bitiş<input type="date" value={reportThrough} onChange={e=>{setReportThrough(e.target.value);setReportPage(1)}}/></label></div>{performance&&<><div className="table-scroll sales-campaign-report-table" role="region" aria-label="Kampanya performans raporu" tabIndex={0}><AdvancedDataGrid><thead><tr><th>Kampanya</th><th>Uygulama</th><th>Uygulanan teklif</th><th>İndirim tutarı (para birimi bazında)</th><th>Bağlantılı sipariş</th><th>Sipariş toplamı (para birimi bazında)</th></tr></thead><tbody>{performance.items.map(x=><tr key={x.campaignId}><td><b>{x.code}</b><br/><span className="muted">{x.name}</span></td><td>{x.applications}</td><td>{x.appliedQuotes}</td><td>{x.discountTotals.map(t=>`${t.currencyCode} ${t.amount.toLocaleString('tr-TR',{minimumFractionDigits:2})}`).join(' · ')||'—'}</td><td>{x.linkedOrders}</td><td>{x.linkedOrderTotals.map(t=>`${t.currencyCode} ${t.amount.toLocaleString('tr-TR',{minimumFractionDigits:2})}`).join(' · ')||'—'}</td></tr>)}{performance.items.length===0&&<tr className="sales-campaign-empty"><td colSpan={6}>Eşleşen kampanya bulunamadı.</td></tr>}</tbody></AdvancedDataGrid></div><div className="panel-heading sales-campaign-pagination"><small className="muted">{performance.method} · {performance.totalCount} kampanya</small><div><button className="secondary" disabled={reportPage<=1} onClick={()=>setReportPage(x=>Math.max(1,x-1))}>Önceki</button><span aria-live="polite">{reportPage}</span><button className="secondary" disabled={reportPage*performance.pageSize>=performance.totalCount} onClick={()=>setReportPage(x=>x+1)}>Sonraki</button></div></div></>}</section>
+    <section className="panel sales-campaign-performance"><div className="panel-heading sales-campaign-performance-heading"><div className="sales-campaign-performance-title"><b>Kampanya performansı</b><small>Uygulanan indirimler ve bağlantılı siparişler</small></div><button className="secondary" onClick={()=>void loadPerformance().catch(e=>setError((e as Error).message))}>Raporu yenile</button></div><div className="form-two sales-campaign-filters"><label className="sales-campaign-filter-label">Kampanya ara<input value={reportQuery} maxLength={120} onChange={e=>{setReportQuery(e.target.value);setReportPage(1)}} placeholder="Kod veya ad"/></label><label className="sales-campaign-filter-label">Uygulama tarihi başlangıç<input type="date" value={reportFrom} onChange={e=>{setReportFrom(e.target.value);setReportPage(1)}}/></label><label className="sales-campaign-filter-label">Uygulama tarihi bitiş<input type="date" value={reportThrough} onChange={e=>{setReportThrough(e.target.value);setReportPage(1)}}/></label></div>{performance&&<><div className="table-scroll sales-campaign-report-table" role="region" aria-label="Kampanya performans raporu" tabIndex={0}><AdvancedDataGrid hideSearch><thead><ScreenViewGroupHeader fields={visiblePerformanceFields}/><tr>{visiblePerformanceFields.map(field=><th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{performance.items.map(x=><tr key={x.campaignId}>{visiblePerformanceFields.map(field=><td key={field.key}>{performanceCell(x,field.key)}</td>)}</tr>)}{performance.items.length===0&&<tr className="sales-campaign-empty"><td colSpan={Math.max(1,visiblePerformanceFields.length)}>Eşleşen kampanya bulunamadı.</td></tr>}</tbody></AdvancedDataGrid></div><div className="panel-heading sales-campaign-pagination"><small className="muted">{performance.method} · {performance.totalCount} kampanya</small><div><button className="secondary" disabled={reportPage<=1} onClick={()=>setReportPage(x=>Math.max(1,x-1))}>Önceki</button><span aria-live="polite">{reportPage}</span><button className="secondary" disabled={reportPage*performance.pageSize>=performance.totalCount} onClick={()=>setReportPage(x=>x+1)}>Sonraki</button></div></div></>}</section>
     {createOpen&&role==='TenantAdmin'&&<div className="sales-promotion-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setCreateOpen(false)}}><section className="panel sales-campaign-create" role="dialog" aria-modal="true" aria-labelledby="sales-campaign-create-title"><div className="panel-heading"><div><b id="sales-campaign-create-title">Kampanya oluştur</b><small>Yönetim işlemleri firma yöneticisi yetkisi gerektirir.</small></div><button type="button" className="secondary" onClick={()=>setCreateOpen(false)}>Kapat</button></div><form onSubmit={event=>{void create(event).then(created=>{if(created)setCreateOpen(false)})}} className="form-two">
       <label>Kampanya kodu<input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} required maxLength={40}/></label><label>Kampanya adı<input value={name} onChange={e=>setName(e.target.value)} required maxLength={120}/></label>
       <label>İndirim yüzdesi<input type="number" min="0.01" max="100" step="0.01" value={percent} onChange={e=>setPercent(e.target.value)} required/></label><label>Başlangıç tarihi<input type="date" value={from} onChange={e=>setFrom(e.target.value)} required/></label><label>Bitiş tarihi<input type="date" value={through} onChange={e=>setThrough(e.target.value)} required/></label>

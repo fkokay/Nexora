@@ -270,6 +270,12 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasPrecision(9, 4)
                         .HasColumnType("decimal(9,4)");
 
+                    b.Property<decimal>("StandardUnitCostBase")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)")
+                        .HasDefaultValue(0m);
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -284,7 +290,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
                     b.ToTable("BillOfMaterialLines", t =>
                         {
-                            t.HasCheckConstraint("CK_BillOfMaterialLines_Quantities", "[Quantity] > 0 AND [ScrapPercent] >= 0 AND [ScrapPercent] <= 100");
+                            t.HasCheckConstraint("CK_BillOfMaterialLines_Quantities", "[Quantity] > 0 AND [ScrapPercent] >= 0 AND [ScrapPercent] <= 100 AND [StandardUnitCostBase] >= 0");
                         });
                 });
 
@@ -299,6 +305,18 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
                     b.Property<int>("MinimumWaitDaysAfterPrevious")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("PlannedEnergyCostPerKwhBase")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("PlannedEnergyKwhPerOutput")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(14, 3)
+                        .HasColumnType("decimal(14,3)")
+                        .HasDefaultValue(0m);
 
                     b.Property<decimal>("RunMinutesPerOutputUnit")
                         .HasPrecision(12, 4)
@@ -335,6 +353,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.ToTable("BillOfMaterialOperations", t =>
                         {
                             t.HasCheckConstraint("CK_BillOfMaterialOperations_Minutes", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutesPerOutputUnit] >= 0 AND ([SetupMinutes] + [RunMinutesPerOutputUnit]) > 0");
+
+                            t.HasCheckConstraint("CK_BillOfMaterialOperations_PlannedEnergy", "[PlannedEnergyKwhPerOutput] >= 0 AND [PlannedEnergyCostPerKwhBase] >= 0");
                         });
                 });
 
@@ -835,6 +855,9 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<Guid?>("ParentCompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("PaymentTermDays")
                         .HasColumnType("int");
 
@@ -870,6 +893,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasIndex("TenantId", "GroupId");
 
                     b.HasIndex("TenantId", "Name");
+
+                    b.HasIndex("TenantId", "ParentCompanyId");
 
                     b.ToTable("CustomerAccounts");
                 });
@@ -917,6 +942,14 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
 
+                    b.Property<decimal?>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<decimal?>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
                     b.Property<string>("PostalCode")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -928,7 +961,10 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
                     b.HasIndex("TenantId", "CustomerId");
 
-                    b.ToTable("CustomerAddresses");
+                    b.ToTable("CustomerAddresses", t =>
+                        {
+                            t.HasCheckConstraint("CK_CustomerAddresses_Coordinates", "([Latitude] IS NULL AND [Longitude] IS NULL) OR ([Latitude] BETWEEN -90 AND 90 AND [Longitude] BETWEEN -180 AND 180)");
+                        });
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.CustomerCollection", b =>
@@ -1277,6 +1313,9 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<DateOnly>("EntryDate")
                         .HasColumnType("date");
 
+                    b.Property<Guid?>("PurchaseInvoiceDraftId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("PurchaseInvoiceId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1301,6 +1340,10 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "CustomerCollectionId");
+
+                    b.HasIndex("TenantId", "PurchaseInvoiceDraftId")
+                        .IsUnique()
+                        .HasFilter("[PurchaseInvoiceDraftId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "PurchaseInvoiceId");
 
@@ -1327,6 +1370,7358 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.ToTable("CustomerLedgerEntries", t =>
                         {
                             t.HasCheckConstraint("CK_CustomerLedgerEntries_AmountPositive", "[Amount] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CustomerLocationDistrict", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ProvinceId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProvinceId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("CustomerLocationDistricts");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1757,
+                            IsActive = true,
+                            Name = "Aladağ",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1219,
+                            IsActive = true,
+                            Name = "Ceyhan",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 2033,
+                            IsActive = true,
+                            Name = "Çukurova",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1329,
+                            IsActive = true,
+                            Name = "Feke",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1806,
+                            IsActive = true,
+                            Name = "İmamoğlu",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1437,
+                            IsActive = true,
+                            Name = "Karaisalı",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1443,
+                            IsActive = true,
+                            Name = "Karataş",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1486,
+                            IsActive = true,
+                            Name = "Kozan",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1580,
+                            IsActive = true,
+                            Name = "Pozantı",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1588,
+                            IsActive = true,
+                            Name = "Saimbeyli",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 2032,
+                            IsActive = true,
+                            Name = "Sarıçam",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1104,
+                            IsActive = true,
+                            Name = "Seyhan",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1687,
+                            IsActive = true,
+                            Name = "Tufanbeyli",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1734,
+                            IsActive = true,
+                            Name = "Yumurtalık",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1748,
+                            IsActive = true,
+                            Name = "Yüreğir",
+                            ProvinceId = 1
+                        },
+                        new
+                        {
+                            Id = 1182,
+                            IsActive = true,
+                            Name = "Besni",
+                            ProvinceId = 2
+                        },
+                        new
+                        {
+                            Id = 1246,
+                            IsActive = true,
+                            Name = "Çelikhan",
+                            ProvinceId = 2
+                        },
+                        new
+                        {
+                            Id = 1347,
+                            IsActive = true,
+                            Name = "Gerger",
+                            ProvinceId = 2
+                        },
+                        new
+                        {
+                            Id = 1354,
+                            IsActive = true,
+                            Name = "Gölbaşı",
+                            ProvinceId = 2
+                        },
+                        new
+                        {
+                            Id = 1425,
+                            IsActive = true,
+                            Name = "Kahta",
+                            ProvinceId = 2
+                        },
+                        new
+                        {
+                            Id = 1105,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 2
+                        },
+                        new
+                        {
+                            Id = 1592,
+                            IsActive = true,
+                            Name = "Samsat",
+                            ProvinceId = 2
+                        },
+                        new
+                        {
+                            Id = 1985,
+                            IsActive = true,
+                            Name = "Sincik",
+                            ProvinceId = 2
+                        },
+                        new
+                        {
+                            Id = 1989,
+                            IsActive = true,
+                            Name = "Tut",
+                            ProvinceId = 2
+                        },
+                        new
+                        {
+                            Id = 1771,
+                            IsActive = true,
+                            Name = "Başmakçı",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1773,
+                            IsActive = true,
+                            Name = "Bayat",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1200,
+                            IsActive = true,
+                            Name = "Bolvadin",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1239,
+                            IsActive = true,
+                            Name = "Çay",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1906,
+                            IsActive = true,
+                            Name = "Çobanlar",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1267,
+                            IsActive = true,
+                            Name = "Dazkırı",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1281,
+                            IsActive = true,
+                            Name = "Dinar",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1306,
+                            IsActive = true,
+                            Name = "Emirdağ",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1923,
+                            IsActive = true,
+                            Name = "Evciler",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1944,
+                            IsActive = true,
+                            Name = "Hocalar",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1404,
+                            IsActive = true,
+                            Name = "İhsaniye",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1809,
+                            IsActive = true,
+                            Name = "İscehisar",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1961,
+                            IsActive = true,
+                            Name = "Kızılören",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1108,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1594,
+                            IsActive = true,
+                            Name = "Sandıklı",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1626,
+                            IsActive = true,
+                            Name = "Sinanpaşa",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1639,
+                            IsActive = true,
+                            Name = "Sultandağı",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1664,
+                            IsActive = true,
+                            Name = "Şuhut",
+                            ProvinceId = 3
+                        },
+                        new
+                        {
+                            Id = 1283,
+                            IsActive = true,
+                            Name = "Diyadin",
+                            ProvinceId = 4
+                        },
+                        new
+                        {
+                            Id = 1287,
+                            IsActive = true,
+                            Name = "Doğubayazıt",
+                            ProvinceId = 4
+                        },
+                        new
+                        {
+                            Id = 1301,
+                            IsActive = true,
+                            Name = "Eleşkirt",
+                            ProvinceId = 4
+                        },
+                        new
+                        {
+                            Id = 1379,
+                            IsActive = true,
+                            Name = "Hamur",
+                            ProvinceId = 4
+                        },
+                        new
+                        {
+                            Id = 1111,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 4
+                        },
+                        new
+                        {
+                            Id = 1568,
+                            IsActive = true,
+                            Name = "Patnos",
+                            ProvinceId = 4
+                        },
+                        new
+                        {
+                            Id = 1667,
+                            IsActive = true,
+                            Name = "Taşlıçay",
+                            ProvinceId = 4
+                        },
+                        new
+                        {
+                            Id = 1691,
+                            IsActive = true,
+                            Name = "Tutak",
+                            ProvinceId = 4
+                        },
+                        new
+                        {
+                            Id = 1363,
+                            IsActive = true,
+                            Name = "Göynücek",
+                            ProvinceId = 5
+                        },
+                        new
+                        {
+                            Id = 1368,
+                            IsActive = true,
+                            Name = "Gümüşhacıköy",
+                            ProvinceId = 5
+                        },
+                        new
+                        {
+                            Id = 1938,
+                            IsActive = true,
+                            Name = "Hamamözü",
+                            ProvinceId = 5
+                        },
+                        new
+                        {
+                            Id = 1134,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 5
+                        },
+                        new
+                        {
+                            Id = 1524,
+                            IsActive = true,
+                            Name = "Merzifon",
+                            ProvinceId = 5
+                        },
+                        new
+                        {
+                            Id = 1641,
+                            IsActive = true,
+                            Name = "Suluova",
+                            ProvinceId = 5
+                        },
+                        new
+                        {
+                            Id = 1668,
+                            IsActive = true,
+                            Name = "Taşova",
+                            ProvinceId = 5
+                        },
+                        new
+                        {
+                            Id = 1872,
+                            IsActive = true,
+                            Name = "Akyurt",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1130,
+                            IsActive = true,
+                            Name = "Altındağ",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1157,
+                            IsActive = true,
+                            Name = "Ayaş",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1167,
+                            IsActive = true,
+                            Name = "Bala",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1187,
+                            IsActive = true,
+                            Name = "Beypazarı",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1227,
+                            IsActive = true,
+                            Name = "Çamlıdere",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1231,
+                            IsActive = true,
+                            Name = "Çankaya",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1260,
+                            IsActive = true,
+                            Name = "Çubuk",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1302,
+                            IsActive = true,
+                            Name = "Elmadağ",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1922,
+                            IsActive = true,
+                            Name = "Etimesgut",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1924,
+                            IsActive = true,
+                            Name = "Evren",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1744,
+                            IsActive = true,
+                            Name = "Gölbaşı",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1365,
+                            IsActive = true,
+                            Name = "Güdül",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1387,
+                            IsActive = true,
+                            Name = "Haymana",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1815,
+                            IsActive = true,
+                            Name = "Kahramankazan",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1427,
+                            IsActive = true,
+                            Name = "Kalecik",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1745,
+                            IsActive = true,
+                            Name = "Keçiören",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1473,
+                            IsActive = true,
+                            Name = "Kızılcahamam",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1746,
+                            IsActive = true,
+                            Name = "Mamak",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1539,
+                            IsActive = true,
+                            Name = "Nallıhan",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1578,
+                            IsActive = true,
+                            Name = "Polatlı",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 2034,
+                            IsActive = true,
+                            Name = "Pursaklar",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1747,
+                            IsActive = true,
+                            Name = "Sincan",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1658,
+                            IsActive = true,
+                            Name = "Şereflikoçhisar",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1723,
+                            IsActive = true,
+                            Name = "Yenimahalle",
+                            ProvinceId = 6
+                        },
+                        new
+                        {
+                            Id = 1121,
+                            IsActive = true,
+                            Name = "Akseki",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 2035,
+                            IsActive = true,
+                            Name = "Aksu",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1126,
+                            IsActive = true,
+                            Name = "Alanya",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1811,
+                            IsActive = true,
+                            Name = "Demre",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 2036,
+                            IsActive = true,
+                            Name = "Döşemealtı",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1303,
+                            IsActive = true,
+                            Name = "Elmalı",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1333,
+                            IsActive = true,
+                            Name = "Finike",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1337,
+                            IsActive = true,
+                            Name = "Gazipaşa",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1370,
+                            IsActive = true,
+                            Name = "Gündoğmuş",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1946,
+                            IsActive = true,
+                            Name = "İbradı",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1451,
+                            IsActive = true,
+                            Name = "Kaş",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1959,
+                            IsActive = true,
+                            Name = "Kemer",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 2037,
+                            IsActive = true,
+                            Name = "Kepez",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 2038,
+                            IsActive = true,
+                            Name = "Konyaaltı",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1483,
+                            IsActive = true,
+                            Name = "Korkuteli",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1492,
+                            IsActive = true,
+                            Name = "Kumluca",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1512,
+                            IsActive = true,
+                            Name = "Manavgat",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 2039,
+                            IsActive = true,
+                            Name = "Muratpaşa",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1616,
+                            IsActive = true,
+                            Name = "Serik",
+                            ProvinceId = 7
+                        },
+                        new
+                        {
+                            Id = 1145,
+                            IsActive = true,
+                            Name = "Ardanuç",
+                            ProvinceId = 8
+                        },
+                        new
+                        {
+                            Id = 1147,
+                            IsActive = true,
+                            Name = "Arhavi",
+                            ProvinceId = 8
+                        },
+                        new
+                        {
+                            Id = 1202,
+                            IsActive = true,
+                            Name = "Borçka",
+                            ProvinceId = 8
+                        },
+                        new
+                        {
+                            Id = 1395,
+                            IsActive = true,
+                            Name = "Hopa",
+                            ProvinceId = 8
+                        },
+                        new
+                        {
+                            Id = 2105,
+                            IsActive = true,
+                            Name = "Kemalpaşa",
+                            ProvinceId = 8
+                        },
+                        new
+                        {
+                            Id = 1152,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 8
+                        },
+                        new
+                        {
+                            Id = 1828,
+                            IsActive = true,
+                            Name = "Murgul",
+                            ProvinceId = 8
+                        },
+                        new
+                        {
+                            Id = 1653,
+                            IsActive = true,
+                            Name = "Şavşat",
+                            ProvinceId = 8
+                        },
+                        new
+                        {
+                            Id = 1736,
+                            IsActive = true,
+                            Name = "Yusufeli",
+                            ProvinceId = 8
+                        },
+                        new
+                        {
+                            Id = 1206,
+                            IsActive = true,
+                            Name = "Bozdoğan",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1781,
+                            IsActive = true,
+                            Name = "Buharkent",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1256,
+                            IsActive = true,
+                            Name = "Çine",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 2000,
+                            IsActive = true,
+                            Name = "Didim",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 2076,
+                            IsActive = true,
+                            Name = "Efeler",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1348,
+                            IsActive = true,
+                            Name = "Germencik",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1807,
+                            IsActive = true,
+                            Name = "İncirliova",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1435,
+                            IsActive = true,
+                            Name = "Karacasu",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1957,
+                            IsActive = true,
+                            Name = "Karpuzlu",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1479,
+                            IsActive = true,
+                            Name = "Koçarlı",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1968,
+                            IsActive = true,
+                            Name = "Köşk",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1497,
+                            IsActive = true,
+                            Name = "Kuşadası",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1498,
+                            IsActive = true,
+                            Name = "Kuyucak",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1542,
+                            IsActive = true,
+                            Name = "Nazilli",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1637,
+                            IsActive = true,
+                            Name = "Söke",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1640,
+                            IsActive = true,
+                            Name = "Sultanhisar",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 1724,
+                            IsActive = true,
+                            Name = "Yenipazar",
+                            ProvinceId = 9
+                        },
+                        new
+                        {
+                            Id = 2077,
+                            IsActive = true,
+                            Name = "Altıeylül",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1161,
+                            IsActive = true,
+                            Name = "Ayvalık",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1169,
+                            IsActive = true,
+                            Name = "Balya",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1171,
+                            IsActive = true,
+                            Name = "Bandırma",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1191,
+                            IsActive = true,
+                            Name = "Bigadiç",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1216,
+                            IsActive = true,
+                            Name = "Burhaniye",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1291,
+                            IsActive = true,
+                            Name = "Dursunbey",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1294,
+                            IsActive = true,
+                            Name = "Edremit",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1310,
+                            IsActive = true,
+                            Name = "Erdek",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1928,
+                            IsActive = true,
+                            Name = "Gömeç",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1360,
+                            IsActive = true,
+                            Name = "Gönen",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1384,
+                            IsActive = true,
+                            Name = "Havran",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1418,
+                            IsActive = true,
+                            Name = "İvrindi",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 2078,
+                            IsActive = true,
+                            Name = "Karesi",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1462,
+                            IsActive = true,
+                            Name = "Kepsut",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1514,
+                            IsActive = true,
+                            Name = "Manyas",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1824,
+                            IsActive = true,
+                            Name = "Marmara",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1608,
+                            IsActive = true,
+                            Name = "Savaştepe",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1619,
+                            IsActive = true,
+                            Name = "Sındırgı",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1644,
+                            IsActive = true,
+                            Name = "Susurluk",
+                            ProvinceId = 10
+                        },
+                        new
+                        {
+                            Id = 1210,
+                            IsActive = true,
+                            Name = "Bozüyük",
+                            ProvinceId = 11
+                        },
+                        new
+                        {
+                            Id = 1359,
+                            IsActive = true,
+                            Name = "Gölpazarı",
+                            ProvinceId = 11
+                        },
+                        new
+                        {
+                            Id = 1948,
+                            IsActive = true,
+                            Name = "İnhisar",
+                            ProvinceId = 11
+                        },
+                        new
+                        {
+                            Id = 1192,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 11
+                        },
+                        new
+                        {
+                            Id = 1559,
+                            IsActive = true,
+                            Name = "Osmaneli",
+                            ProvinceId = 11
+                        },
+                        new
+                        {
+                            Id = 1571,
+                            IsActive = true,
+                            Name = "Pazaryeri",
+                            ProvinceId = 11
+                        },
+                        new
+                        {
+                            Id = 1636,
+                            IsActive = true,
+                            Name = "Söğüt",
+                            ProvinceId = 11
+                        },
+                        new
+                        {
+                            Id = 1857,
+                            IsActive = true,
+                            Name = "Yenipazar",
+                            ProvinceId = 11
+                        },
+                        new
+                        {
+                            Id = 1750,
+                            IsActive = true,
+                            Name = "Adaklı",
+                            ProvinceId = 12
+                        },
+                        new
+                        {
+                            Id = 1344,
+                            IsActive = true,
+                            Name = "Genç",
+                            ProvinceId = 12
+                        },
+                        new
+                        {
+                            Id = 1446,
+                            IsActive = true,
+                            Name = "Karlıova",
+                            ProvinceId = 12
+                        },
+                        new
+                        {
+                            Id = 1475,
+                            IsActive = true,
+                            Name = "Kiğı",
+                            ProvinceId = 12
+                        },
+                        new
+                        {
+                            Id = 1193,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 12
+                        },
+                        new
+                        {
+                            Id = 1633,
+                            IsActive = true,
+                            Name = "Solhan",
+                            ProvinceId = 12
+                        },
+                        new
+                        {
+                            Id = 1855,
+                            IsActive = true,
+                            Name = "Yayladere",
+                            ProvinceId = 12
+                        },
+                        new
+                        {
+                            Id = 1996,
+                            IsActive = true,
+                            Name = "Yedisu",
+                            ProvinceId = 12
+                        },
+                        new
+                        {
+                            Id = 1106,
+                            IsActive = true,
+                            Name = "Adilcevaz",
+                            ProvinceId = 13
+                        },
+                        new
+                        {
+                            Id = 1112,
+                            IsActive = true,
+                            Name = "Ahlat",
+                            ProvinceId = 13
+                        },
+                        new
+                        {
+                            Id = 1798,
+                            IsActive = true,
+                            Name = "Güroymak",
+                            ProvinceId = 13
+                        },
+                        new
+                        {
+                            Id = 1394,
+                            IsActive = true,
+                            Name = "Hizan",
+                            ProvinceId = 13
+                        },
+                        new
+                        {
+                            Id = 1196,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 13
+                        },
+                        new
+                        {
+                            Id = 1537,
+                            IsActive = true,
+                            Name = "Mutki",
+                            ProvinceId = 13
+                        },
+                        new
+                        {
+                            Id = 1669,
+                            IsActive = true,
+                            Name = "Tatvan",
+                            ProvinceId = 13
+                        },
+                        new
+                        {
+                            Id = 1916,
+                            IsActive = true,
+                            Name = "Dörtdivan",
+                            ProvinceId = 14
+                        },
+                        new
+                        {
+                            Id = 1346,
+                            IsActive = true,
+                            Name = "Gerede",
+                            ProvinceId = 14
+                        },
+                        new
+                        {
+                            Id = 1364,
+                            IsActive = true,
+                            Name = "Göynük",
+                            ProvinceId = 14
+                        },
+                        new
+                        {
+                            Id = 1466,
+                            IsActive = true,
+                            Name = "Kıbrıscık",
+                            ProvinceId = 14
+                        },
+                        new
+                        {
+                            Id = 1522,
+                            IsActive = true,
+                            Name = "Mengen",
+                            ProvinceId = 14
+                        },
+                        new
+                        {
+                            Id = 1199,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 14
+                        },
+                        new
+                        {
+                            Id = 1531,
+                            IsActive = true,
+                            Name = "Mudurnu",
+                            ProvinceId = 14
+                        },
+                        new
+                        {
+                            Id = 1610,
+                            IsActive = true,
+                            Name = "Seben",
+                            ProvinceId = 14
+                        },
+                        new
+                        {
+                            Id = 1997,
+                            IsActive = true,
+                            Name = "Yeniçağa",
+                            ProvinceId = 14
+                        },
+                        new
+                        {
+                            Id = 1109,
+                            IsActive = true,
+                            Name = "Ağlasun",
+                            ProvinceId = 15
+                        },
+                        new
+                        {
+                            Id = 1874,
+                            IsActive = true,
+                            Name = "Altınyayla",
+                            ProvinceId = 15
+                        },
+                        new
+                        {
+                            Id = 1211,
+                            IsActive = true,
+                            Name = "Bucak",
+                            ProvinceId = 15
+                        },
+                        new
+                        {
+                            Id = 1899,
+                            IsActive = true,
+                            Name = "Çavdır",
+                            ProvinceId = 15
+                        },
+                        new
+                        {
+                            Id = 1903,
+                            IsActive = true,
+                            Name = "Çeltikçi",
+                            ProvinceId = 15
+                        },
+                        new
+                        {
+                            Id = 1357,
+                            IsActive = true,
+                            Name = "Gölhisar",
+                            ProvinceId = 15
+                        },
+                        new
+                        {
+                            Id = 1813,
+                            IsActive = true,
+                            Name = "Karamanlı",
+                            ProvinceId = 15
+                        },
+                        new
+                        {
+                            Id = 1816,
+                            IsActive = true,
+                            Name = "Kemer",
+                            ProvinceId = 15
+                        },
+                        new
+                        {
+                            Id = 1215,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 15
+                        },
+                        new
+                        {
+                            Id = 1672,
+                            IsActive = true,
+                            Name = "Tefenni",
+                            ProvinceId = 15
+                        },
+                        new
+                        {
+                            Id = 1728,
+                            IsActive = true,
+                            Name = "Yeşilova",
+                            ProvinceId = 15
+                        },
+                        new
+                        {
+                            Id = 1783,
+                            IsActive = true,
+                            Name = "Büyükorhan",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1343,
+                            IsActive = true,
+                            Name = "Gemlik",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1935,
+                            IsActive = true,
+                            Name = "Gürsu",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1799,
+                            IsActive = true,
+                            Name = "Harmancık",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1411,
+                            IsActive = true,
+                            Name = "İnegöl",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1420,
+                            IsActive = true,
+                            Name = "İznik",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1434,
+                            IsActive = true,
+                            Name = "Karacabey",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1457,
+                            IsActive = true,
+                            Name = "Keles",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1960,
+                            IsActive = true,
+                            Name = "Kestel",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1530,
+                            IsActive = true,
+                            Name = "Mudanya",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1535,
+                            IsActive = true,
+                            Name = "Mustafakemalpaşa",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1829,
+                            IsActive = true,
+                            Name = "Nilüfer",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1553,
+                            IsActive = true,
+                            Name = "Orhaneli",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1554,
+                            IsActive = true,
+                            Name = "Orhangazi",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1832,
+                            IsActive = true,
+                            Name = "Osmangazi",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1725,
+                            IsActive = true,
+                            Name = "Yenişehir",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1859,
+                            IsActive = true,
+                            Name = "Yıldırım",
+                            ProvinceId = 16
+                        },
+                        new
+                        {
+                            Id = 1160,
+                            IsActive = true,
+                            Name = "Ayvacık",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1180,
+                            IsActive = true,
+                            Name = "Bayramiç",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1190,
+                            IsActive = true,
+                            Name = "Biga",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1205,
+                            IsActive = true,
+                            Name = "Bozcaada",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1229,
+                            IsActive = true,
+                            Name = "Çan",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1293,
+                            IsActive = true,
+                            Name = "Eceabat",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1326,
+                            IsActive = true,
+                            Name = "Ezine",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1340,
+                            IsActive = true,
+                            Name = "Gelibolu",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1408,
+                            IsActive = true,
+                            Name = "Gökçeada",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1503,
+                            IsActive = true,
+                            Name = "Lapseki",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1230,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1722,
+                            IsActive = true,
+                            Name = "Yenice",
+                            ProvinceId = 17
+                        },
+                        new
+                        {
+                            Id = 1765,
+                            IsActive = true,
+                            Name = "Atkaracalar",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1885,
+                            IsActive = true,
+                            Name = "Bayramören",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1248,
+                            IsActive = true,
+                            Name = "Çerkeş",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1300,
+                            IsActive = true,
+                            Name = "Eldivan",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1399,
+                            IsActive = true,
+                            Name = "Ilgaz",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1817,
+                            IsActive = true,
+                            Name = "Kızılırmak",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1963,
+                            IsActive = true,
+                            Name = "Korgun",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1494,
+                            IsActive = true,
+                            Name = "Kurşunlu",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1232,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1555,
+                            IsActive = true,
+                            Name = "Orta",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1649,
+                            IsActive = true,
+                            Name = "Şabanözü",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1718,
+                            IsActive = true,
+                            Name = "Yapraklı",
+                            ProvinceId = 18
+                        },
+                        new
+                        {
+                            Id = 1124,
+                            IsActive = true,
+                            Name = "Alaca",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1177,
+                            IsActive = true,
+                            Name = "Bayat",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1778,
+                            IsActive = true,
+                            Name = "Boğazkale",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1911,
+                            IsActive = true,
+                            Name = "Dodurga",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1414,
+                            IsActive = true,
+                            Name = "İskilip",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1445,
+                            IsActive = true,
+                            Name = "Kargı",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1972,
+                            IsActive = true,
+                            Name = "Laçin",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1520,
+                            IsActive = true,
+                            Name = "Mecitözü",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1259,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1976,
+                            IsActive = true,
+                            Name = "Oğuzlar",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1556,
+                            IsActive = true,
+                            Name = "Ortaköy",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1558,
+                            IsActive = true,
+                            Name = "Osmancık",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1642,
+                            IsActive = true,
+                            Name = "Sungurlu",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1850,
+                            IsActive = true,
+                            Name = "Uğurludağ",
+                            ProvinceId = 19
+                        },
+                        new
+                        {
+                            Id = 1102,
+                            IsActive = true,
+                            Name = "Acıpayam",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1769,
+                            IsActive = true,
+                            Name = "Babadağ",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1881,
+                            IsActive = true,
+                            Name = "Baklan",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1774,
+                            IsActive = true,
+                            Name = "Bekilli",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1888,
+                            IsActive = true,
+                            Name = "Beyağaç",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1889,
+                            IsActive = true,
+                            Name = "Bozkurt",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1214,
+                            IsActive = true,
+                            Name = "Buldan",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1224,
+                            IsActive = true,
+                            Name = "Çal",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1226,
+                            IsActive = true,
+                            Name = "Çameli",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1233,
+                            IsActive = true,
+                            Name = "Çardak",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1257,
+                            IsActive = true,
+                            Name = "Çivril",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1371,
+                            IsActive = true,
+                            Name = "Güney",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1803,
+                            IsActive = true,
+                            Name = "Honaz",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1426,
+                            IsActive = true,
+                            Name = "Kale",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 2079,
+                            IsActive = true,
+                            Name = "Merkezefendi",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1871,
+                            IsActive = true,
+                            Name = "Pamukkale",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1597,
+                            IsActive = true,
+                            Name = "Sarayköy",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1840,
+                            IsActive = true,
+                            Name = "Serinhisar",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 1670,
+                            IsActive = true,
+                            Name = "Tavas",
+                            ProvinceId = 20
+                        },
+                        new
+                        {
+                            Id = 2040,
+                            IsActive = true,
+                            Name = "Bağlar",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1195,
+                            IsActive = true,
+                            Name = "Bismil",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1249,
+                            IsActive = true,
+                            Name = "Çermik",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1253,
+                            IsActive = true,
+                            Name = "Çınar",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1263,
+                            IsActive = true,
+                            Name = "Çüngüş",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1278,
+                            IsActive = true,
+                            Name = "Dicle",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1791,
+                            IsActive = true,
+                            Name = "Eğil",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1315,
+                            IsActive = true,
+                            Name = "Ergani",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1381,
+                            IsActive = true,
+                            Name = "Hani",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1389,
+                            IsActive = true,
+                            Name = "Hazro",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 2041,
+                            IsActive = true,
+                            Name = "Kayapınar",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1962,
+                            IsActive = true,
+                            Name = "Kocaköy",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1490,
+                            IsActive = true,
+                            Name = "Kulp",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1504,
+                            IsActive = true,
+                            Name = "Lice",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1624,
+                            IsActive = true,
+                            Name = "Silvan",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 2042,
+                            IsActive = true,
+                            Name = "Sur",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 2043,
+                            IsActive = true,
+                            Name = "Yenişehir",
+                            ProvinceId = 21
+                        },
+                        new
+                        {
+                            Id = 1307,
+                            IsActive = true,
+                            Name = "Enez",
+                            ProvinceId = 22
+                        },
+                        new
+                        {
+                            Id = 1385,
+                            IsActive = true,
+                            Name = "Havsa",
+                            ProvinceId = 22
+                        },
+                        new
+                        {
+                            Id = 1412,
+                            IsActive = true,
+                            Name = "İpsala",
+                            ProvinceId = 22
+                        },
+                        new
+                        {
+                            Id = 1464,
+                            IsActive = true,
+                            Name = "Keşan",
+                            ProvinceId = 22
+                        },
+                        new
+                        {
+                            Id = 1502,
+                            IsActive = true,
+                            Name = "Lalapaşa",
+                            ProvinceId = 22
+                        },
+                        new
+                        {
+                            Id = 1523,
+                            IsActive = true,
+                            Name = "Meriç",
+                            ProvinceId = 22
+                        },
+                        new
+                        {
+                            Id = 1295,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 22
+                        },
+                        new
+                        {
+                            Id = 1988,
+                            IsActive = true,
+                            Name = "Süloğlu",
+                            ProvinceId = 22
+                        },
+                        new
+                        {
+                            Id = 1705,
+                            IsActive = true,
+                            Name = "Uzunköprü",
+                            ProvinceId = 22
+                        },
+                        new
+                        {
+                            Id = 1110,
+                            IsActive = true,
+                            Name = "Ağın",
+                            ProvinceId = 23
+                        },
+                        new
+                        {
+                            Id = 1873,
+                            IsActive = true,
+                            Name = "Alacakaya",
+                            ProvinceId = 23
+                        },
+                        new
+                        {
+                            Id = 1762,
+                            IsActive = true,
+                            Name = "Arıcak",
+                            ProvinceId = 23
+                        },
+                        new
+                        {
+                            Id = 1173,
+                            IsActive = true,
+                            Name = "Baskil",
+                            ProvinceId = 23
+                        },
+                        new
+                        {
+                            Id = 1438,
+                            IsActive = true,
+                            Name = "Karakoçan",
+                            ProvinceId = 23
+                        },
+                        new
+                        {
+                            Id = 1455,
+                            IsActive = true,
+                            Name = "Keban",
+                            ProvinceId = 23
+                        },
+                        new
+                        {
+                            Id = 1820,
+                            IsActive = true,
+                            Name = "Kovancılar",
+                            ProvinceId = 23
+                        },
+                        new
+                        {
+                            Id = 1506,
+                            IsActive = true,
+                            Name = "Maden",
+                            ProvinceId = 23
+                        },
+                        new
+                        {
+                            Id = 1298,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 23
+                        },
+                        new
+                        {
+                            Id = 1566,
+                            IsActive = true,
+                            Name = "Palu",
+                            ProvinceId = 23
+                        },
+                        new
+                        {
+                            Id = 1631,
+                            IsActive = true,
+                            Name = "Sivrice",
+                            ProvinceId = 23
+                        },
+                        new
+                        {
+                            Id = 1243,
+                            IsActive = true,
+                            Name = "Çayırlı",
+                            ProvinceId = 24
+                        },
+                        new
+                        {
+                            Id = 1406,
+                            IsActive = true,
+                            Name = "İliç",
+                            ProvinceId = 24
+                        },
+                        new
+                        {
+                            Id = 1459,
+                            IsActive = true,
+                            Name = "Kemah",
+                            ProvinceId = 24
+                        },
+                        new
+                        {
+                            Id = 1460,
+                            IsActive = true,
+                            Name = "Kemaliye",
+                            ProvinceId = 24
+                        },
+                        new
+                        {
+                            Id = 1318,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 24
+                        },
+                        new
+                        {
+                            Id = 1977,
+                            IsActive = true,
+                            Name = "Otlukbeli",
+                            ProvinceId = 24
+                        },
+                        new
+                        {
+                            Id = 1583,
+                            IsActive = true,
+                            Name = "Refahiye",
+                            ProvinceId = 24
+                        },
+                        new
+                        {
+                            Id = 1675,
+                            IsActive = true,
+                            Name = "Tercan",
+                            ProvinceId = 24
+                        },
+                        new
+                        {
+                            Id = 1853,
+                            IsActive = true,
+                            Name = "Üzümlü",
+                            ProvinceId = 24
+                        },
+                        new
+                        {
+                            Id = 1153,
+                            IsActive = true,
+                            Name = "Aşkale",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1945,
+                            IsActive = true,
+                            Name = "Aziziye",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1235,
+                            IsActive = true,
+                            Name = "Çat",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1392,
+                            IsActive = true,
+                            Name = "Hınıs",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1396,
+                            IsActive = true,
+                            Name = "Horasan",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1416,
+                            IsActive = true,
+                            Name = "İspir",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1812,
+                            IsActive = true,
+                            Name = "Karaçoban",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1444,
+                            IsActive = true,
+                            Name = "Karayazı",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1967,
+                            IsActive = true,
+                            Name = "Köprüköy",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1540,
+                            IsActive = true,
+                            Name = "Narman",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1550,
+                            IsActive = true,
+                            Name = "Oltu",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1551,
+                            IsActive = true,
+                            Name = "Olur",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 2044,
+                            IsActive = true,
+                            Name = "Palandöken",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1567,
+                            IsActive = true,
+                            Name = "Pasinler",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1865,
+                            IsActive = true,
+                            Name = "Pazaryolu",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1657,
+                            IsActive = true,
+                            Name = "Şenkaya",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1674,
+                            IsActive = true,
+                            Name = "Tekman",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1683,
+                            IsActive = true,
+                            Name = "Tortum",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1851,
+                            IsActive = true,
+                            Name = "Uzundere",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 2045,
+                            IsActive = true,
+                            Name = "Yakutiye",
+                            ProvinceId = 25
+                        },
+                        new
+                        {
+                            Id = 1759,
+                            IsActive = true,
+                            Name = "Alpu",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1777,
+                            IsActive = true,
+                            Name = "Beylikova",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1255,
+                            IsActive = true,
+                            Name = "Çifteler",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1934,
+                            IsActive = true,
+                            Name = "Günyüzü",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1939,
+                            IsActive = true,
+                            Name = "Han",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1808,
+                            IsActive = true,
+                            Name = "İnönü",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1508,
+                            IsActive = true,
+                            Name = "Mahmudiye",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1973,
+                            IsActive = true,
+                            Name = "Mihalgazi",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1527,
+                            IsActive = true,
+                            Name = "Mihalıççık",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 2046,
+                            IsActive = true,
+                            Name = "Odunpazarı",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1599,
+                            IsActive = true,
+                            Name = "Sarıcakaya",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1618,
+                            IsActive = true,
+                            Name = "Seyitgazi",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1632,
+                            IsActive = true,
+                            Name = "Sivrihisar",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 2047,
+                            IsActive = true,
+                            Name = "Tepebaşı",
+                            ProvinceId = 26
+                        },
+                        new
+                        {
+                            Id = 1139,
+                            IsActive = true,
+                            Name = "Araban",
+                            ProvinceId = 27
+                        },
+                        new
+                        {
+                            Id = 1415,
+                            IsActive = true,
+                            Name = "İslahiye",
+                            ProvinceId = 27
+                        },
+                        new
+                        {
+                            Id = 1956,
+                            IsActive = true,
+                            Name = "Karkamış",
+                            ProvinceId = 27
+                        },
+                        new
+                        {
+                            Id = 1546,
+                            IsActive = true,
+                            Name = "Nizip",
+                            ProvinceId = 27
+                        },
+                        new
+                        {
+                            Id = 1974,
+                            IsActive = true,
+                            Name = "Nurdağı",
+                            ProvinceId = 27
+                        },
+                        new
+                        {
+                            Id = 1549,
+                            IsActive = true,
+                            Name = "Oğuzeli",
+                            ProvinceId = 27
+                        },
+                        new
+                        {
+                            Id = 1841,
+                            IsActive = true,
+                            Name = "Şahinbey",
+                            ProvinceId = 27
+                        },
+                        new
+                        {
+                            Id = 1844,
+                            IsActive = true,
+                            Name = "Şehitkamil",
+                            ProvinceId = 27
+                        },
+                        new
+                        {
+                            Id = 1720,
+                            IsActive = true,
+                            Name = "Yavuzeli",
+                            ProvinceId = 27
+                        },
+                        new
+                        {
+                            Id = 1133,
+                            IsActive = true,
+                            Name = "Alucra",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1212,
+                            IsActive = true,
+                            Name = "Bulancak",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1893,
+                            IsActive = true,
+                            Name = "Çamoluk",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1894,
+                            IsActive = true,
+                            Name = "Çanakçı",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1272,
+                            IsActive = true,
+                            Name = "Dereli",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1912,
+                            IsActive = true,
+                            Name = "Doğankent",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1320,
+                            IsActive = true,
+                            Name = "Espiye",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1324,
+                            IsActive = true,
+                            Name = "Eynesil",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1361,
+                            IsActive = true,
+                            Name = "Görele",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1930,
+                            IsActive = true,
+                            Name = "Güce",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1465,
+                            IsActive = true,
+                            Name = "Keşap",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1352,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1837,
+                            IsActive = true,
+                            Name = "Piraziz",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1654,
+                            IsActive = true,
+                            Name = "Şebinkarahisar",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1678,
+                            IsActive = true,
+                            Name = "Tirebolu",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1854,
+                            IsActive = true,
+                            Name = "Yağlıdere",
+                            ProvinceId = 28
+                        },
+                        new
+                        {
+                            Id = 1458,
+                            IsActive = true,
+                            Name = "Kelkit",
+                            ProvinceId = 29
+                        },
+                        new
+                        {
+                            Id = 1822,
+                            IsActive = true,
+                            Name = "Köse",
+                            ProvinceId = 29
+                        },
+                        new
+                        {
+                            Id = 1971,
+                            IsActive = true,
+                            Name = "Kürtün",
+                            ProvinceId = 29
+                        },
+                        new
+                        {
+                            Id = 1369,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 29
+                        },
+                        new
+                        {
+                            Id = 1660,
+                            IsActive = true,
+                            Name = "Şiran",
+                            ProvinceId = 29
+                        },
+                        new
+                        {
+                            Id = 1684,
+                            IsActive = true,
+                            Name = "Torul",
+                            ProvinceId = 29
+                        },
+                        new
+                        {
+                            Id = 1261,
+                            IsActive = true,
+                            Name = "Çukurca",
+                            ProvinceId = 30
+                        },
+                        new
+                        {
+                            Id = 2107,
+                            IsActive = true,
+                            Name = "Derecik",
+                            ProvinceId = 30
+                        },
+                        new
+                        {
+                            Id = 1377,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 30
+                        },
+                        new
+                        {
+                            Id = 1656,
+                            IsActive = true,
+                            Name = "Şemdinli",
+                            ProvinceId = 30
+                        },
+                        new
+                        {
+                            Id = 1737,
+                            IsActive = true,
+                            Name = "Yüksekova",
+                            ProvinceId = 30
+                        },
+                        new
+                        {
+                            Id = 1131,
+                            IsActive = true,
+                            Name = "Altınözü",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 2080,
+                            IsActive = true,
+                            Name = "Antakya",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 2081,
+                            IsActive = true,
+                            Name = "Arsuz",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 1887,
+                            IsActive = true,
+                            Name = "Belen",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 2082,
+                            IsActive = true,
+                            Name = "Defne",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 1289,
+                            IsActive = true,
+                            Name = "Dörtyol",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 1792,
+                            IsActive = true,
+                            Name = "Erzin",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 1382,
+                            IsActive = true,
+                            Name = "Hassa",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 1413,
+                            IsActive = true,
+                            Name = "İskenderun",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 1468,
+                            IsActive = true,
+                            Name = "Kırıkhan",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 1970,
+                            IsActive = true,
+                            Name = "Kumlu",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 2083,
+                            IsActive = true,
+                            Name = "Payas",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 1585,
+                            IsActive = true,
+                            Name = "Reyhanlı",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 1591,
+                            IsActive = true,
+                            Name = "Samandağ",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 1721,
+                            IsActive = true,
+                            Name = "Yayladağı",
+                            ProvinceId = 31
+                        },
+                        new
+                        {
+                            Id = 1755,
+                            IsActive = true,
+                            Name = "Aksu",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 1154,
+                            IsActive = true,
+                            Name = "Atabey",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 1297,
+                            IsActive = true,
+                            Name = "Eğirdir",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 1341,
+                            IsActive = true,
+                            Name = "Gelendost",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 1929,
+                            IsActive = true,
+                            Name = "Gönen",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 1456,
+                            IsActive = true,
+                            Name = "Keçiborlu",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 1401,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 1615,
+                            IsActive = true,
+                            Name = "Senirkent",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 1648,
+                            IsActive = true,
+                            Name = "Sütçüler",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 1651,
+                            IsActive = true,
+                            Name = "Şarkikaraağaç",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 1699,
+                            IsActive = true,
+                            Name = "Uluborlu",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 1717,
+                            IsActive = true,
+                            Name = "Yalvaç",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 2001,
+                            IsActive = true,
+                            Name = "Yenişarbademli",
+                            ProvinceId = 32
+                        },
+                        new
+                        {
+                            Id = 2064,
+                            IsActive = true,
+                            Name = "Akdeniz",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 1135,
+                            IsActive = true,
+                            Name = "Anamur",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 1766,
+                            IsActive = true,
+                            Name = "Aydıncık",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 1779,
+                            IsActive = true,
+                            Name = "Bozyazı",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 1892,
+                            IsActive = true,
+                            Name = "Çamlıyayla",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 1311,
+                            IsActive = true,
+                            Name = "Erdemli",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 1366,
+                            IsActive = true,
+                            Name = "Gülnar",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 2065,
+                            IsActive = true,
+                            Name = "Mezitli",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 1536,
+                            IsActive = true,
+                            Name = "Mut",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 1621,
+                            IsActive = true,
+                            Name = "Silifke",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 1665,
+                            IsActive = true,
+                            Name = "Tarsus",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 2066,
+                            IsActive = true,
+                            Name = "Toroslar",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 2067,
+                            IsActive = true,
+                            Name = "Yenişehir",
+                            ProvinceId = 33
+                        },
+                        new
+                        {
+                            Id = 1103,
+                            IsActive = true,
+                            Name = "Adalar",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2048,
+                            IsActive = true,
+                            Name = "Arnavutköy",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2049,
+                            IsActive = true,
+                            Name = "Ataşehir",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2003,
+                            IsActive = true,
+                            Name = "Avcılar",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2004,
+                            IsActive = true,
+                            Name = "Bağcılar",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2005,
+                            IsActive = true,
+                            Name = "Bahçelievler",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1166,
+                            IsActive = true,
+                            Name = "Bakırköy",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2050,
+                            IsActive = true,
+                            Name = "Başakşehir",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1886,
+                            IsActive = true,
+                            Name = "Bayrampaşa",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1183,
+                            IsActive = true,
+                            Name = "Beşiktaş",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1185,
+                            IsActive = true,
+                            Name = "Beykoz",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2051,
+                            IsActive = true,
+                            Name = "Beylikdüzü",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1186,
+                            IsActive = true,
+                            Name = "Beyoğlu",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1782,
+                            IsActive = true,
+                            Name = "Büyükçekmece",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1237,
+                            IsActive = true,
+                            Name = "Çatalca",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2052,
+                            IsActive = true,
+                            Name = "Çekmeköy",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2016,
+                            IsActive = true,
+                            Name = "Esenler",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2053,
+                            IsActive = true,
+                            Name = "Esenyurt",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1325,
+                            IsActive = true,
+                            Name = "Eyüpsultan",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1327,
+                            IsActive = true,
+                            Name = "Fatih",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1336,
+                            IsActive = true,
+                            Name = "Gaziosmanpaşa",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2010,
+                            IsActive = true,
+                            Name = "Güngören",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1421,
+                            IsActive = true,
+                            Name = "Kadıköy",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1810,
+                            IsActive = true,
+                            Name = "Kağıthane",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1449,
+                            IsActive = true,
+                            Name = "Kartal",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1823,
+                            IsActive = true,
+                            Name = "Küçükçekmece",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2012,
+                            IsActive = true,
+                            Name = "Maltepe",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1835,
+                            IsActive = true,
+                            Name = "Pendik",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2054,
+                            IsActive = true,
+                            Name = "Sancaktepe",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1604,
+                            IsActive = true,
+                            Name = "Sarıyer",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1622,
+                            IsActive = true,
+                            Name = "Silivri",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2014,
+                            IsActive = true,
+                            Name = "Sultanbeyli",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2055,
+                            IsActive = true,
+                            Name = "Sultangazi",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1659,
+                            IsActive = true,
+                            Name = "Şile",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1663,
+                            IsActive = true,
+                            Name = "Şişli",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 2015,
+                            IsActive = true,
+                            Name = "Tuzla",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1852,
+                            IsActive = true,
+                            Name = "Ümraniye",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1708,
+                            IsActive = true,
+                            Name = "Üsküdar",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1739,
+                            IsActive = true,
+                            Name = "Zeytinburnu",
+                            ProvinceId = 34
+                        },
+                        new
+                        {
+                            Id = 1128,
+                            IsActive = true,
+                            Name = "Aliağa",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 2006,
+                            IsActive = true,
+                            Name = "Balçova",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1178,
+                            IsActive = true,
+                            Name = "Bayındır",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 2056,
+                            IsActive = true,
+                            Name = "Bayraklı",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1181,
+                            IsActive = true,
+                            Name = "Bergama",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1776,
+                            IsActive = true,
+                            Name = "Beydağ",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1203,
+                            IsActive = true,
+                            Name = "Bornova",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1780,
+                            IsActive = true,
+                            Name = "Buca",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1251,
+                            IsActive = true,
+                            Name = "Çeşme",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 2007,
+                            IsActive = true,
+                            Name = "Çiğli",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1280,
+                            IsActive = true,
+                            Name = "Dikili",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1334,
+                            IsActive = true,
+                            Name = "Foça",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 2009,
+                            IsActive = true,
+                            Name = "Gaziemir",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 2018,
+                            IsActive = true,
+                            Name = "Güzelbahçe",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 2057,
+                            IsActive = true,
+                            Name = "Karabağlar",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1432,
+                            IsActive = true,
+                            Name = "Karaburun",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1448,
+                            IsActive = true,
+                            Name = "Karşıyaka",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1461,
+                            IsActive = true,
+                            Name = "Kemalpaşa",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1467,
+                            IsActive = true,
+                            Name = "Kınık",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1477,
+                            IsActive = true,
+                            Name = "Kiraz",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1819,
+                            IsActive = true,
+                            Name = "Konak",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1826,
+                            IsActive = true,
+                            Name = "Menderes",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1521,
+                            IsActive = true,
+                            Name = "Menemen",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 2013,
+                            IsActive = true,
+                            Name = "Narlıdere",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1563,
+                            IsActive = true,
+                            Name = "Ödemiş",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1611,
+                            IsActive = true,
+                            Name = "Seferihisar",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1612,
+                            IsActive = true,
+                            Name = "Selçuk",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1677,
+                            IsActive = true,
+                            Name = "Tire",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1682,
+                            IsActive = true,
+                            Name = "Torbalı",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1703,
+                            IsActive = true,
+                            Name = "Urla",
+                            ProvinceId = 35
+                        },
+                        new
+                        {
+                            Id = 1756,
+                            IsActive = true,
+                            Name = "Akyaka",
+                            ProvinceId = 36
+                        },
+                        new
+                        {
+                            Id = 1149,
+                            IsActive = true,
+                            Name = "Arpaçay",
+                            ProvinceId = 36
+                        },
+                        new
+                        {
+                            Id = 1279,
+                            IsActive = true,
+                            Name = "Digor",
+                            ProvinceId = 36
+                        },
+                        new
+                        {
+                            Id = 1424,
+                            IsActive = true,
+                            Name = "Kağızman",
+                            ProvinceId = 36
+                        },
+                        new
+                        {
+                            Id = 1447,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 36
+                        },
+                        new
+                        {
+                            Id = 1601,
+                            IsActive = true,
+                            Name = "Sarıkamış",
+                            ProvinceId = 36
+                        },
+                        new
+                        {
+                            Id = 1614,
+                            IsActive = true,
+                            Name = "Selim",
+                            ProvinceId = 36
+                        },
+                        new
+                        {
+                            Id = 1645,
+                            IsActive = true,
+                            Name = "Susuz",
+                            ProvinceId = 36
+                        },
+                        new
+                        {
+                            Id = 1101,
+                            IsActive = true,
+                            Name = "Abana",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1867,
+                            IsActive = true,
+                            Name = "Ağlı",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1140,
+                            IsActive = true,
+                            Name = "Araç",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1162,
+                            IsActive = true,
+                            Name = "Azdavay",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1208,
+                            IsActive = true,
+                            Name = "Bozkurt",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1221,
+                            IsActive = true,
+                            Name = "Cide",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1238,
+                            IsActive = true,
+                            Name = "Çatalzeytin",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1264,
+                            IsActive = true,
+                            Name = "Daday",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1277,
+                            IsActive = true,
+                            Name = "Devrekani",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1915,
+                            IsActive = true,
+                            Name = "Doğanyurt",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1940,
+                            IsActive = true,
+                            Name = "Hanönü",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1805,
+                            IsActive = true,
+                            Name = "İhsangazi",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1410,
+                            IsActive = true,
+                            Name = "İnebolu",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1499,
+                            IsActive = true,
+                            Name = "Küre",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1450,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1836,
+                            IsActive = true,
+                            Name = "Pınarbaşı",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1984,
+                            IsActive = true,
+                            Name = "Seydiler",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1845,
+                            IsActive = true,
+                            Name = "Şenpazar",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1666,
+                            IsActive = true,
+                            Name = "Taşköprü",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1685,
+                            IsActive = true,
+                            Name = "Tosya",
+                            ProvinceId = 37
+                        },
+                        new
+                        {
+                            Id = 1752,
+                            IsActive = true,
+                            Name = "Akkışla",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1218,
+                            IsActive = true,
+                            Name = "Bünyan",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1275,
+                            IsActive = true,
+                            Name = "Develi",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1330,
+                            IsActive = true,
+                            Name = "Felahiye",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1936,
+                            IsActive = true,
+                            Name = "Hacılar",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1409,
+                            IsActive = true,
+                            Name = "İncesu",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1863,
+                            IsActive = true,
+                            Name = "Kocasinan",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1864,
+                            IsActive = true,
+                            Name = "Melikgazi",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1978,
+                            IsActive = true,
+                            Name = "Özvatan",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1576,
+                            IsActive = true,
+                            Name = "Pınarbaşı",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1603,
+                            IsActive = true,
+                            Name = "Sarıoğlan",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1605,
+                            IsActive = true,
+                            Name = "Sarız",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1846,
+                            IsActive = true,
+                            Name = "Talas",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1680,
+                            IsActive = true,
+                            Name = "Tomarza",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1715,
+                            IsActive = true,
+                            Name = "Yahyalı",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1727,
+                            IsActive = true,
+                            Name = "Yeşilhisar",
+                            ProvinceId = 38
+                        },
+                        new
+                        {
+                            Id = 1163,
+                            IsActive = true,
+                            Name = "Babaeski",
+                            ProvinceId = 39
+                        },
+                        new
+                        {
+                            Id = 1270,
+                            IsActive = true,
+                            Name = "Demirköy",
+                            ProvinceId = 39
+                        },
+                        new
+                        {
+                            Id = 1480,
+                            IsActive = true,
+                            Name = "Kofçaz",
+                            ProvinceId = 39
+                        },
+                        new
+                        {
+                            Id = 1505,
+                            IsActive = true,
+                            Name = "Lüleburgaz",
+                            ProvinceId = 39
+                        },
+                        new
+                        {
+                            Id = 1471,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 39
+                        },
+                        new
+                        {
+                            Id = 1572,
+                            IsActive = true,
+                            Name = "Pehlivanköy",
+                            ProvinceId = 39
+                        },
+                        new
+                        {
+                            Id = 1577,
+                            IsActive = true,
+                            Name = "Pınarhisar",
+                            ProvinceId = 39
+                        },
+                        new
+                        {
+                            Id = 1714,
+                            IsActive = true,
+                            Name = "Vize",
+                            ProvinceId = 39
+                        },
+                        new
+                        {
+                            Id = 1869,
+                            IsActive = true,
+                            Name = "Akçakent",
+                            ProvinceId = 40
+                        },
+                        new
+                        {
+                            Id = 1754,
+                            IsActive = true,
+                            Name = "Akpınar",
+                            ProvinceId = 40
+                        },
+                        new
+                        {
+                            Id = 1890,
+                            IsActive = true,
+                            Name = "Boztepe",
+                            ProvinceId = 40
+                        },
+                        new
+                        {
+                            Id = 1254,
+                            IsActive = true,
+                            Name = "Çiçekdağı",
+                            ProvinceId = 40
+                        },
+                        new
+                        {
+                            Id = 1429,
+                            IsActive = true,
+                            Name = "Kaman",
+                            ProvinceId = 40
+                        },
+                        new
+                        {
+                            Id = 1472,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 40
+                        },
+                        new
+                        {
+                            Id = 1529,
+                            IsActive = true,
+                            Name = "Mucur",
+                            ProvinceId = 40
+                        },
+                        new
+                        {
+                            Id = 2058,
+                            IsActive = true,
+                            Name = "Başiskele",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 2059,
+                            IsActive = true,
+                            Name = "Çayırova",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 2060,
+                            IsActive = true,
+                            Name = "Darıca",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 2030,
+                            IsActive = true,
+                            Name = "Derince",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 2061,
+                            IsActive = true,
+                            Name = "Dilovası",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 1338,
+                            IsActive = true,
+                            Name = "Gebze",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 1355,
+                            IsActive = true,
+                            Name = "Gölcük",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 2062,
+                            IsActive = true,
+                            Name = "İzmit",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 1430,
+                            IsActive = true,
+                            Name = "Kandıra",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 1440,
+                            IsActive = true,
+                            Name = "Karamürsel",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 2063,
+                            IsActive = true,
+                            Name = "Kartepe",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 1821,
+                            IsActive = true,
+                            Name = "Körfez",
+                            ProvinceId = 41
+                        },
+                        new
+                        {
+                            Id = 1868,
+                            IsActive = true,
+                            Name = "Ahırlı",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1753,
+                            IsActive = true,
+                            Name = "Akören",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1122,
+                            IsActive = true,
+                            Name = "Akşehir",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1760,
+                            IsActive = true,
+                            Name = "Altınekin",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1188,
+                            IsActive = true,
+                            Name = "Beyşehir",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1207,
+                            IsActive = true,
+                            Name = "Bozkır",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1222,
+                            IsActive = true,
+                            Name = "Cihanbeyli",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1902,
+                            IsActive = true,
+                            Name = "Çeltik",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1262,
+                            IsActive = true,
+                            Name = "Çumra",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1907,
+                            IsActive = true,
+                            Name = "Derbent",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1789,
+                            IsActive = true,
+                            Name = "Derebucak",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1285,
+                            IsActive = true,
+                            Name = "Doğanhisar",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1920,
+                            IsActive = true,
+                            Name = "Emirgazi",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1312,
+                            IsActive = true,
+                            Name = "Ereğli",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1933,
+                            IsActive = true,
+                            Name = "Güneysınır",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1375,
+                            IsActive = true,
+                            Name = "Hadim",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1937,
+                            IsActive = true,
+                            Name = "Halkapınar",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1804,
+                            IsActive = true,
+                            Name = "Hüyük",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1400,
+                            IsActive = true,
+                            Name = "Ilgın",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1422,
+                            IsActive = true,
+                            Name = "Kadınhanı",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1441,
+                            IsActive = true,
+                            Name = "Karapınar",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1814,
+                            IsActive = true,
+                            Name = "Karatay",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1491,
+                            IsActive = true,
+                            Name = "Kulu",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1827,
+                            IsActive = true,
+                            Name = "Meram",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1598,
+                            IsActive = true,
+                            Name = "Sarayönü",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1839,
+                            IsActive = true,
+                            Name = "Selçuklu",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1617,
+                            IsActive = true,
+                            Name = "Seydişehir",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1848,
+                            IsActive = true,
+                            Name = "Taşkent",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1990,
+                            IsActive = true,
+                            Name = "Tuzlukçu",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1994,
+                            IsActive = true,
+                            Name = "Yalıhüyük",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1735,
+                            IsActive = true,
+                            Name = "Yunak",
+                            ProvinceId = 42
+                        },
+                        new
+                        {
+                            Id = 1132,
+                            IsActive = true,
+                            Name = "Altıntaş",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1764,
+                            IsActive = true,
+                            Name = "Aslanapa",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1898,
+                            IsActive = true,
+                            Name = "Çavdarhisar",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1288,
+                            IsActive = true,
+                            Name = "Domaniç",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1790,
+                            IsActive = true,
+                            Name = "Dumlupınar",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1304,
+                            IsActive = true,
+                            Name = "Emet",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1339,
+                            IsActive = true,
+                            Name = "Gediz",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1802,
+                            IsActive = true,
+                            Name = "Hisarcık",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1500,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1979,
+                            IsActive = true,
+                            Name = "Pazarlar",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1625,
+                            IsActive = true,
+                            Name = "Simav",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1843,
+                            IsActive = true,
+                            Name = "Şaphane",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1671,
+                            IsActive = true,
+                            Name = "Tavşanlı",
+                            ProvinceId = 43
+                        },
+                        new
+                        {
+                            Id = 1114,
+                            IsActive = true,
+                            Name = "Akçadağ",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1143,
+                            IsActive = true,
+                            Name = "Arapgir",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1148,
+                            IsActive = true,
+                            Name = "Arguvan",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1772,
+                            IsActive = true,
+                            Name = "Battalgazi",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1265,
+                            IsActive = true,
+                            Name = "Darende",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1286,
+                            IsActive = true,
+                            Name = "Doğanşehir",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1914,
+                            IsActive = true,
+                            Name = "Doğanyol",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1390,
+                            IsActive = true,
+                            Name = "Hekimhan",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1953,
+                            IsActive = true,
+                            Name = "Kale",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1969,
+                            IsActive = true,
+                            Name = "Kuluncak",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1582,
+                            IsActive = true,
+                            Name = "Pütürge",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1995,
+                            IsActive = true,
+                            Name = "Yazıhan",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1729,
+                            IsActive = true,
+                            Name = "Yeşilyurt",
+                            ProvinceId = 44
+                        },
+                        new
+                        {
+                            Id = 1751,
+                            IsActive = true,
+                            Name = "Ahmetli",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1118,
+                            IsActive = true,
+                            Name = "Akhisar",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1127,
+                            IsActive = true,
+                            Name = "Alaşehir",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1269,
+                            IsActive = true,
+                            Name = "Demirci",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1793,
+                            IsActive = true,
+                            Name = "Gölmarmara",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1362,
+                            IsActive = true,
+                            Name = "Gördes",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1470,
+                            IsActive = true,
+                            Name = "Kırkağaç",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1965,
+                            IsActive = true,
+                            Name = "Köprübaşı",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1489,
+                            IsActive = true,
+                            Name = "Kula",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1590,
+                            IsActive = true,
+                            Name = "Salihli",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1600,
+                            IsActive = true,
+                            Name = "Sarıgöl",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1606,
+                            IsActive = true,
+                            Name = "Saruhanlı",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1613,
+                            IsActive = true,
+                            Name = "Selendi",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1634,
+                            IsActive = true,
+                            Name = "Soma",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 2086,
+                            IsActive = true,
+                            Name = "Şehzadeler",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1689,
+                            IsActive = true,
+                            Name = "Turgutlu",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 2087,
+                            IsActive = true,
+                            Name = "Yunusemre",
+                            ProvinceId = 45
+                        },
+                        new
+                        {
+                            Id = 1107,
+                            IsActive = true,
+                            Name = "Afşin",
+                            ProvinceId = 46
+                        },
+                        new
+                        {
+                            Id = 1136,
+                            IsActive = true,
+                            Name = "Andırın",
+                            ProvinceId = 46
+                        },
+                        new
+                        {
+                            Id = 1785,
+                            IsActive = true,
+                            Name = "Çağlayancerit",
+                            ProvinceId = 46
+                        },
+                        new
+                        {
+                            Id = 2084,
+                            IsActive = true,
+                            Name = "Dulkadiroğlu",
+                            ProvinceId = 46
+                        },
+                        new
+                        {
+                            Id = 1919,
+                            IsActive = true,
+                            Name = "Ekinözü",
+                            ProvinceId = 46
+                        },
+                        new
+                        {
+                            Id = 1299,
+                            IsActive = true,
+                            Name = "Elbistan",
+                            ProvinceId = 46
+                        },
+                        new
+                        {
+                            Id = 1353,
+                            IsActive = true,
+                            Name = "Göksun",
+                            ProvinceId = 46
+                        },
+                        new
+                        {
+                            Id = 1975,
+                            IsActive = true,
+                            Name = "Nurhak",
+                            ProvinceId = 46
+                        },
+                        new
+                        {
+                            Id = 2085,
+                            IsActive = true,
+                            Name = "Onikişubat",
+                            ProvinceId = 46
+                        },
+                        new
+                        {
+                            Id = 1570,
+                            IsActive = true,
+                            Name = "Pazarcık",
+                            ProvinceId = 46
+                        },
+                        new
+                        {
+                            Id = 1694,
+                            IsActive = true,
+                            Name = "Türkoğlu",
+                            ProvinceId = 46
+                        },
+                        new
+                        {
+                            Id = 2088,
+                            IsActive = true,
+                            Name = "Artuklu",
+                            ProvinceId = 47
+                        },
+                        new
+                        {
+                            Id = 1787,
+                            IsActive = true,
+                            Name = "Dargeçit",
+                            ProvinceId = 47
+                        },
+                        new
+                        {
+                            Id = 1273,
+                            IsActive = true,
+                            Name = "Derik",
+                            ProvinceId = 47
+                        },
+                        new
+                        {
+                            Id = 1474,
+                            IsActive = true,
+                            Name = "Kızıltepe",
+                            ProvinceId = 47
+                        },
+                        new
+                        {
+                            Id = 1519,
+                            IsActive = true,
+                            Name = "Mazıdağı",
+                            ProvinceId = 47
+                        },
+                        new
+                        {
+                            Id = 1526,
+                            IsActive = true,
+                            Name = "Midyat",
+                            ProvinceId = 47
+                        },
+                        new
+                        {
+                            Id = 1547,
+                            IsActive = true,
+                            Name = "Nusaybin",
+                            ProvinceId = 47
+                        },
+                        new
+                        {
+                            Id = 1564,
+                            IsActive = true,
+                            Name = "Ömerli",
+                            ProvinceId = 47
+                        },
+                        new
+                        {
+                            Id = 1609,
+                            IsActive = true,
+                            Name = "Savur",
+                            ProvinceId = 47
+                        },
+                        new
+                        {
+                            Id = 2002,
+                            IsActive = true,
+                            Name = "Yeşilli",
+                            ProvinceId = 47
+                        },
+                        new
+                        {
+                            Id = 1197,
+                            IsActive = true,
+                            Name = "Bodrum",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 1742,
+                            IsActive = true,
+                            Name = "Dalaman",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 1266,
+                            IsActive = true,
+                            Name = "Datça",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 1331,
+                            IsActive = true,
+                            Name = "Fethiye",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 1958,
+                            IsActive = true,
+                            Name = "Kavaklıdere",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 1488,
+                            IsActive = true,
+                            Name = "Köyceğiz",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 1517,
+                            IsActive = true,
+                            Name = "Marmaris",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 2089,
+                            IsActive = true,
+                            Name = "Menteşe",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 1528,
+                            IsActive = true,
+                            Name = "Milas",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 1831,
+                            IsActive = true,
+                            Name = "Ortaca",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 2090,
+                            IsActive = true,
+                            Name = "Seydikemer",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 1695,
+                            IsActive = true,
+                            Name = "Ula",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 1719,
+                            IsActive = true,
+                            Name = "Yatağan",
+                            ProvinceId = 48
+                        },
+                        new
+                        {
+                            Id = 1213,
+                            IsActive = true,
+                            Name = "Bulanık",
+                            ProvinceId = 49
+                        },
+                        new
+                        {
+                            Id = 1801,
+                            IsActive = true,
+                            Name = "Hasköy",
+                            ProvinceId = 49
+                        },
+                        new
+                        {
+                            Id = 1964,
+                            IsActive = true,
+                            Name = "Korkut",
+                            ProvinceId = 49
+                        },
+                        new
+                        {
+                            Id = 1510,
+                            IsActive = true,
+                            Name = "Malazgirt",
+                            ProvinceId = 49
+                        },
+                        new
+                        {
+                            Id = 1534,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 49
+                        },
+                        new
+                        {
+                            Id = 1711,
+                            IsActive = true,
+                            Name = "Varto",
+                            ProvinceId = 49
+                        },
+                        new
+                        {
+                            Id = 1749,
+                            IsActive = true,
+                            Name = "Acıgöl",
+                            ProvinceId = 50
+                        },
+                        new
+                        {
+                            Id = 1155,
+                            IsActive = true,
+                            Name = "Avanos",
+                            ProvinceId = 50
+                        },
+                        new
+                        {
+                            Id = 1274,
+                            IsActive = true,
+                            Name = "Derinkuyu",
+                            ProvinceId = 50
+                        },
+                        new
+                        {
+                            Id = 1367,
+                            IsActive = true,
+                            Name = "Gülşehir",
+                            ProvinceId = 50
+                        },
+                        new
+                        {
+                            Id = 1374,
+                            IsActive = true,
+                            Name = "Hacıbektaş",
+                            ProvinceId = 50
+                        },
+                        new
+                        {
+                            Id = 1485,
+                            IsActive = true,
+                            Name = "Kozaklı",
+                            ProvinceId = 50
+                        },
+                        new
+                        {
+                            Id = 1543,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 50
+                        },
+                        new
+                        {
+                            Id = 1707,
+                            IsActive = true,
+                            Name = "Ürgüp",
+                            ProvinceId = 50
+                        },
+                        new
+                        {
+                            Id = 1876,
+                            IsActive = true,
+                            Name = "Altunhisar",
+                            ProvinceId = 51
+                        },
+                        new
+                        {
+                            Id = 1201,
+                            IsActive = true,
+                            Name = "Bor",
+                            ProvinceId = 51
+                        },
+                        new
+                        {
+                            Id = 1225,
+                            IsActive = true,
+                            Name = "Çamardı",
+                            ProvinceId = 51
+                        },
+                        new
+                        {
+                            Id = 1904,
+                            IsActive = true,
+                            Name = "Çiftlik",
+                            ProvinceId = 51
+                        },
+                        new
+                        {
+                            Id = 1544,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 51
+                        },
+                        new
+                        {
+                            Id = 1700,
+                            IsActive = true,
+                            Name = "Ulukışla",
+                            ProvinceId = 51
+                        },
+                        new
+                        {
+                            Id = 1119,
+                            IsActive = true,
+                            Name = "Akkuş",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 2103,
+                            IsActive = true,
+                            Name = "Altınordu",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1158,
+                            IsActive = true,
+                            Name = "Aybastı",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1891,
+                            IsActive = true,
+                            Name = "Çamaş",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1897,
+                            IsActive = true,
+                            Name = "Çatalpınar",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1900,
+                            IsActive = true,
+                            Name = "Çaybaşı",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1328,
+                            IsActive = true,
+                            Name = "Fatsa",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1358,
+                            IsActive = true,
+                            Name = "Gölköy",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1795,
+                            IsActive = true,
+                            Name = "Gülyalı",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1797,
+                            IsActive = true,
+                            Name = "Gürgentepe",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1947,
+                            IsActive = true,
+                            Name = "İkizce",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1950,
+                            IsActive = true,
+                            Name = "Kabadüz",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1951,
+                            IsActive = true,
+                            Name = "Kabataş",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1482,
+                            IsActive = true,
+                            Name = "Korgan",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1493,
+                            IsActive = true,
+                            Name = "Kumru",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1525,
+                            IsActive = true,
+                            Name = "Mesudiye",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1573,
+                            IsActive = true,
+                            Name = "Perşembe",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1696,
+                            IsActive = true,
+                            Name = "Ulubey",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1706,
+                            IsActive = true,
+                            Name = "Ünye",
+                            ProvinceId = 52
+                        },
+                        new
+                        {
+                            Id = 1146,
+                            IsActive = true,
+                            Name = "Ardeşen",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 1228,
+                            IsActive = true,
+                            Name = "Çamlıhemşin",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 1241,
+                            IsActive = true,
+                            Name = "Çayeli",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 1908,
+                            IsActive = true,
+                            Name = "Derepazarı",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 1332,
+                            IsActive = true,
+                            Name = "Fındıklı",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 1796,
+                            IsActive = true,
+                            Name = "Güneysu",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 1943,
+                            IsActive = true,
+                            Name = "Hemşin",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 1405,
+                            IsActive = true,
+                            Name = "İkizdere",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 1949,
+                            IsActive = true,
+                            Name = "İyidere",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 1428,
+                            IsActive = true,
+                            Name = "Kalkandere",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 1586,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 1569,
+                            IsActive = true,
+                            Name = "Pazar",
+                            ProvinceId = 53
+                        },
+                        new
+                        {
+                            Id = 2068,
+                            IsActive = true,
+                            Name = "Adapazarı",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1123,
+                            IsActive = true,
+                            Name = "Akyazı",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 2069,
+                            IsActive = true,
+                            Name = "Arifiye",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 2070,
+                            IsActive = true,
+                            Name = "Erenler",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1925,
+                            IsActive = true,
+                            Name = "Ferizli",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1351,
+                            IsActive = true,
+                            Name = "Geyve",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1391,
+                            IsActive = true,
+                            Name = "Hendek",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1955,
+                            IsActive = true,
+                            Name = "Karapürçek",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1442,
+                            IsActive = true,
+                            Name = "Karasu",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1453,
+                            IsActive = true,
+                            Name = "Kaynarca",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1818,
+                            IsActive = true,
+                            Name = "Kocaali",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1833,
+                            IsActive = true,
+                            Name = "Pamukova",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1595,
+                            IsActive = true,
+                            Name = "Sapanca",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 2071,
+                            IsActive = true,
+                            Name = "Serdivan",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1986,
+                            IsActive = true,
+                            Name = "Söğütlü",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1847,
+                            IsActive = true,
+                            Name = "Taraklı",
+                            ProvinceId = 54
+                        },
+                        new
+                        {
+                            Id = 1830,
+                            IsActive = true,
+                            Name = "19 Mayıs",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1125,
+                            IsActive = true,
+                            Name = "Alaçam",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1763,
+                            IsActive = true,
+                            Name = "Asarcık",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 2072,
+                            IsActive = true,
+                            Name = "Atakum",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1879,
+                            IsActive = true,
+                            Name = "Ayvacık",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1164,
+                            IsActive = true,
+                            Name = "Bafra",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 2073,
+                            IsActive = true,
+                            Name = "Canik",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1234,
+                            IsActive = true,
+                            Name = "Çarşamba",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1386,
+                            IsActive = true,
+                            Name = "Havza",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 2074,
+                            IsActive = true,
+                            Name = "İlkadım",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1452,
+                            IsActive = true,
+                            Name = "Kavak",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1501,
+                            IsActive = true,
+                            Name = "Ladik",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1838,
+                            IsActive = true,
+                            Name = "Salıpazarı",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1849,
+                            IsActive = true,
+                            Name = "Tekkeköy",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1676,
+                            IsActive = true,
+                            Name = "Terme",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1712,
+                            IsActive = true,
+                            Name = "Vezirköprü",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1993,
+                            IsActive = true,
+                            Name = "Yakakent",
+                            ProvinceId = 55
+                        },
+                        new
+                        {
+                            Id = 1179,
+                            IsActive = true,
+                            Name = "Baykan",
+                            ProvinceId = 56
+                        },
+                        new
+                        {
+                            Id = 1317,
+                            IsActive = true,
+                            Name = "Eruh",
+                            ProvinceId = 56
+                        },
+                        new
+                        {
+                            Id = 1495,
+                            IsActive = true,
+                            Name = "Kurtalan",
+                            ProvinceId = 56
+                        },
+                        new
+                        {
+                            Id = 1620,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 56
+                        },
+                        new
+                        {
+                            Id = 1575,
+                            IsActive = true,
+                            Name = "Pervari",
+                            ProvinceId = 56
+                        },
+                        new
+                        {
+                            Id = 1662,
+                            IsActive = true,
+                            Name = "Şirvan",
+                            ProvinceId = 56
+                        },
+                        new
+                        {
+                            Id = 1878,
+                            IsActive = true,
+                            Name = "Tillo",
+                            ProvinceId = 56
+                        },
+                        new
+                        {
+                            Id = 1156,
+                            IsActive = true,
+                            Name = "Ayancık",
+                            ProvinceId = 57
+                        },
+                        new
+                        {
+                            Id = 1204,
+                            IsActive = true,
+                            Name = "Boyabat",
+                            ProvinceId = 57
+                        },
+                        new
+                        {
+                            Id = 1910,
+                            IsActive = true,
+                            Name = "Dikmen",
+                            ProvinceId = 57
+                        },
+                        new
+                        {
+                            Id = 1290,
+                            IsActive = true,
+                            Name = "Durağan",
+                            ProvinceId = 57
+                        },
+                        new
+                        {
+                            Id = 1314,
+                            IsActive = true,
+                            Name = "Erfelek",
+                            ProvinceId = 57
+                        },
+                        new
+                        {
+                            Id = 1349,
+                            IsActive = true,
+                            Name = "Gerze",
+                            ProvinceId = 57
+                        },
+                        new
+                        {
+                            Id = 1627,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 57
+                        },
+                        new
+                        {
+                            Id = 1981,
+                            IsActive = true,
+                            Name = "Saraydüzü",
+                            ProvinceId = 57
+                        },
+                        new
+                        {
+                            Id = 1693,
+                            IsActive = true,
+                            Name = "Türkeli",
+                            ProvinceId = 57
+                        },
+                        new
+                        {
+                            Id = 1870,
+                            IsActive = true,
+                            Name = "Akıncılar",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1875,
+                            IsActive = true,
+                            Name = "Altınyayla",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1282,
+                            IsActive = true,
+                            Name = "Divriği",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1913,
+                            IsActive = true,
+                            Name = "Doğanşar",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1342,
+                            IsActive = true,
+                            Name = "Gemerek",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1927,
+                            IsActive = true,
+                            Name = "Gölova",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1373,
+                            IsActive = true,
+                            Name = "Gürün",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1376,
+                            IsActive = true,
+                            Name = "Hafik",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1407,
+                            IsActive = true,
+                            Name = "İmranlı",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1431,
+                            IsActive = true,
+                            Name = "Kangal",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1484,
+                            IsActive = true,
+                            Name = "Koyulhisar",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1628,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1646,
+                            IsActive = true,
+                            Name = "Suşehri",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1650,
+                            IsActive = true,
+                            Name = "Şarkışla",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1991,
+                            IsActive = true,
+                            Name = "Ulaş",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1731,
+                            IsActive = true,
+                            Name = "Yıldızeli",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1738,
+                            IsActive = true,
+                            Name = "Zara",
+                            ProvinceId = 58
+                        },
+                        new
+                        {
+                            Id = 1250,
+                            IsActive = true,
+                            Name = "Çerkezköy",
+                            ProvinceId = 59
+                        },
+                        new
+                        {
+                            Id = 1258,
+                            IsActive = true,
+                            Name = "Çorlu",
+                            ProvinceId = 59
+                        },
+                        new
+                        {
+                            Id = 2094,
+                            IsActive = true,
+                            Name = "Ergene",
+                            ProvinceId = 59
+                        },
+                        new
+                        {
+                            Id = 1388,
+                            IsActive = true,
+                            Name = "Hayrabolu",
+                            ProvinceId = 59
+                        },
+                        new
+                        {
+                            Id = 2095,
+                            IsActive = true,
+                            Name = "Kapaklı",
+                            ProvinceId = 59
+                        },
+                        new
+                        {
+                            Id = 1511,
+                            IsActive = true,
+                            Name = "Malkara",
+                            ProvinceId = 59
+                        },
+                        new
+                        {
+                            Id = 1825,
+                            IsActive = true,
+                            Name = "Marmaraereğlisi",
+                            ProvinceId = 59
+                        },
+                        new
+                        {
+                            Id = 1538,
+                            IsActive = true,
+                            Name = "Muratlı",
+                            ProvinceId = 59
+                        },
+                        new
+                        {
+                            Id = 1596,
+                            IsActive = true,
+                            Name = "Saray",
+                            ProvinceId = 59
+                        },
+                        new
+                        {
+                            Id = 2096,
+                            IsActive = true,
+                            Name = "Süleymanpaşa",
+                            ProvinceId = 59
+                        },
+                        new
+                        {
+                            Id = 1652,
+                            IsActive = true,
+                            Name = "Şarköy",
+                            ProvinceId = 59
+                        },
+                        new
+                        {
+                            Id = 1129,
+                            IsActive = true,
+                            Name = "Almus",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1151,
+                            IsActive = true,
+                            Name = "Artova",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1883,
+                            IsActive = true,
+                            Name = "Başçiftlik",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1308,
+                            IsActive = true,
+                            Name = "Erbaa",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1679,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1545,
+                            IsActive = true,
+                            Name = "Niksar",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1834,
+                            IsActive = true,
+                            Name = "Pazar",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1584,
+                            IsActive = true,
+                            Name = "Reşadiye",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1987,
+                            IsActive = true,
+                            Name = "Sulusaray",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1690,
+                            IsActive = true,
+                            Name = "Turhal",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1858,
+                            IsActive = true,
+                            Name = "Yeşilyurt",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1740,
+                            IsActive = true,
+                            Name = "Zile",
+                            ProvinceId = 60
+                        },
+                        new
+                        {
+                            Id = 1113,
+                            IsActive = true,
+                            Name = "Akçaabat",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1141,
+                            IsActive = true,
+                            Name = "Araklı",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1150,
+                            IsActive = true,
+                            Name = "Arsin",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1775,
+                            IsActive = true,
+                            Name = "Beşikdüzü",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1896,
+                            IsActive = true,
+                            Name = "Çarşıbaşı",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1244,
+                            IsActive = true,
+                            Name = "Çaykara",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1909,
+                            IsActive = true,
+                            Name = "Dernekpazarı",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1917,
+                            IsActive = true,
+                            Name = "Düzköy",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1942,
+                            IsActive = true,
+                            Name = "Hayrat",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1966,
+                            IsActive = true,
+                            Name = "Köprübaşı",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1507,
+                            IsActive = true,
+                            Name = "Maçka",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1548,
+                            IsActive = true,
+                            Name = "Of",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 2097,
+                            IsActive = true,
+                            Name = "Ortahisar",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1647,
+                            IsActive = true,
+                            Name = "Sürmene",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1842,
+                            IsActive = true,
+                            Name = "Şalpazarı",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1681,
+                            IsActive = true,
+                            Name = "Tonya",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1709,
+                            IsActive = true,
+                            Name = "Vakfıkebir",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1732,
+                            IsActive = true,
+                            Name = "Yomra",
+                            ProvinceId = 61
+                        },
+                        new
+                        {
+                            Id = 1247,
+                            IsActive = true,
+                            Name = "Çemişgezek",
+                            ProvinceId = 62
+                        },
+                        new
+                        {
+                            Id = 1397,
+                            IsActive = true,
+                            Name = "Hozat",
+                            ProvinceId = 62
+                        },
+                        new
+                        {
+                            Id = 1518,
+                            IsActive = true,
+                            Name = "Mazgirt",
+                            ProvinceId = 62
+                        },
+                        new
+                        {
+                            Id = 1688,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 62
+                        },
+                        new
+                        {
+                            Id = 1541,
+                            IsActive = true,
+                            Name = "Nazımiye",
+                            ProvinceId = 62
+                        },
+                        new
+                        {
+                            Id = 1562,
+                            IsActive = true,
+                            Name = "Ovacık",
+                            ProvinceId = 62
+                        },
+                        new
+                        {
+                            Id = 1574,
+                            IsActive = true,
+                            Name = "Pertek",
+                            ProvinceId = 62
+                        },
+                        new
+                        {
+                            Id = 1581,
+                            IsActive = true,
+                            Name = "Pülümür",
+                            ProvinceId = 62
+                        },
+                        new
+                        {
+                            Id = 1115,
+                            IsActive = true,
+                            Name = "Akçakale",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 1194,
+                            IsActive = true,
+                            Name = "Birecik",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 1209,
+                            IsActive = true,
+                            Name = "Bozova",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 1220,
+                            IsActive = true,
+                            Name = "Ceylanpınar",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 2091,
+                            IsActive = true,
+                            Name = "Eyyübiye",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 1378,
+                            IsActive = true,
+                            Name = "Halfeti",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 2092,
+                            IsActive = true,
+                            Name = "Haliliye",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 1800,
+                            IsActive = true,
+                            Name = "Harran",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 1393,
+                            IsActive = true,
+                            Name = "Hilvan",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 2093,
+                            IsActive = true,
+                            Name = "Karaköprü",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 1630,
+                            IsActive = true,
+                            Name = "Siverek",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 1643,
+                            IsActive = true,
+                            Name = "Suruç",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 1713,
+                            IsActive = true,
+                            Name = "Viranşehir",
+                            ProvinceId = 63
+                        },
+                        new
+                        {
+                            Id = 1170,
+                            IsActive = true,
+                            Name = "Banaz",
+                            ProvinceId = 64
+                        },
+                        new
+                        {
+                            Id = 1323,
+                            IsActive = true,
+                            Name = "Eşme",
+                            ProvinceId = 64
+                        },
+                        new
+                        {
+                            Id = 1436,
+                            IsActive = true,
+                            Name = "Karahallı",
+                            ProvinceId = 64
+                        },
+                        new
+                        {
+                            Id = 1704,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 64
+                        },
+                        new
+                        {
+                            Id = 1629,
+                            IsActive = true,
+                            Name = "Sivaslı",
+                            ProvinceId = 64
+                        },
+                        new
+                        {
+                            Id = 1697,
+                            IsActive = true,
+                            Name = "Ulubey",
+                            ProvinceId = 64
+                        },
+                        new
+                        {
+                            Id = 1770,
+                            IsActive = true,
+                            Name = "Bahçesaray",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 1175,
+                            IsActive = true,
+                            Name = "Başkale",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 1786,
+                            IsActive = true,
+                            Name = "Çaldıran",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 1236,
+                            IsActive = true,
+                            Name = "Çatak",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 1918,
+                            IsActive = true,
+                            Name = "Edremit",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 1309,
+                            IsActive = true,
+                            Name = "Erciş",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 1350,
+                            IsActive = true,
+                            Name = "Gevaş",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 1372,
+                            IsActive = true,
+                            Name = "Gürpınar",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 2098,
+                            IsActive = true,
+                            Name = "İpekyolu",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 1533,
+                            IsActive = true,
+                            Name = "Muradiye",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 1565,
+                            IsActive = true,
+                            Name = "Özalp",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 1980,
+                            IsActive = true,
+                            Name = "Saray",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 2099,
+                            IsActive = true,
+                            Name = "Tuşba",
+                            ProvinceId = 65
+                        },
+                        new
+                        {
+                            Id = 1117,
+                            IsActive = true,
+                            Name = "Akdağmadeni",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1877,
+                            IsActive = true,
+                            Name = "Aydıncık",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1198,
+                            IsActive = true,
+                            Name = "Boğazlıyan",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1895,
+                            IsActive = true,
+                            Name = "Çandır",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1242,
+                            IsActive = true,
+                            Name = "Çayıralan",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1245,
+                            IsActive = true,
+                            Name = "Çekerek",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1952,
+                            IsActive = true,
+                            Name = "Kadışehri",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1733,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1982,
+                            IsActive = true,
+                            Name = "Saraykent",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1602,
+                            IsActive = true,
+                            Name = "Sarıkaya",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1635,
+                            IsActive = true,
+                            Name = "Sorgun",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1655,
+                            IsActive = true,
+                            Name = "Şefaatli",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1998,
+                            IsActive = true,
+                            Name = "Yenifakılı",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1726,
+                            IsActive = true,
+                            Name = "Yerköy",
+                            ProvinceId = 66
+                        },
+                        new
+                        {
+                            Id = 1758,
+                            IsActive = true,
+                            Name = "Alaplı",
+                            ProvinceId = 67
+                        },
+                        new
+                        {
+                            Id = 1240,
+                            IsActive = true,
+                            Name = "Çaycuma",
+                            ProvinceId = 67
+                        },
+                        new
+                        {
+                            Id = 1276,
+                            IsActive = true,
+                            Name = "Devrek",
+                            ProvinceId = 67
+                        },
+                        new
+                        {
+                            Id = 1313,
+                            IsActive = true,
+                            Name = "Ereğli",
+                            ProvinceId = 67
+                        },
+                        new
+                        {
+                            Id = 1926,
+                            IsActive = true,
+                            Name = "Gökçebey",
+                            ProvinceId = 67
+                        },
+                        new
+                        {
+                            Id = 2100,
+                            IsActive = true,
+                            Name = "Kilimli",
+                            ProvinceId = 67
+                        },
+                        new
+                        {
+                            Id = 2101,
+                            IsActive = true,
+                            Name = "Kozlu",
+                            ProvinceId = 67
+                        },
+                        new
+                        {
+                            Id = 1741,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 67
+                        },
+                        new
+                        {
+                            Id = 1860,
+                            IsActive = true,
+                            Name = "Ağaçören",
+                            ProvinceId = 68
+                        },
+                        new
+                        {
+                            Id = 1921,
+                            IsActive = true,
+                            Name = "Eskil",
+                            ProvinceId = 68
+                        },
+                        new
+                        {
+                            Id = 1932,
+                            IsActive = true,
+                            Name = "Gülağaç",
+                            ProvinceId = 68
+                        },
+                        new
+                        {
+                            Id = 1861,
+                            IsActive = true,
+                            Name = "Güzelyurt",
+                            ProvinceId = 68
+                        },
+                        new
+                        {
+                            Id = 1120,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 68
+                        },
+                        new
+                        {
+                            Id = 1557,
+                            IsActive = true,
+                            Name = "Ortaköy",
+                            ProvinceId = 68
+                        },
+                        new
+                        {
+                            Id = 1866,
+                            IsActive = true,
+                            Name = "Sarıyahşi",
+                            ProvinceId = 68
+                        },
+                        new
+                        {
+                            Id = 2106,
+                            IsActive = true,
+                            Name = "Sultanhanı",
+                            ProvinceId = 68
+                        },
+                        new
+                        {
+                            Id = 1767,
+                            IsActive = true,
+                            Name = "Aydıntepe",
+                            ProvinceId = 69
+                        },
+                        new
+                        {
+                            Id = 1788,
+                            IsActive = true,
+                            Name = "Demirözü",
+                            ProvinceId = 69
+                        },
+                        new
+                        {
+                            Id = 1176,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 69
+                        },
+                        new
+                        {
+                            Id = 1768,
+                            IsActive = true,
+                            Name = "Ayrancı",
+                            ProvinceId = 70
+                        },
+                        new
+                        {
+                            Id = 1884,
+                            IsActive = true,
+                            Name = "Başyayla",
+                            ProvinceId = 70
+                        },
+                        new
+                        {
+                            Id = 1316,
+                            IsActive = true,
+                            Name = "Ermenek",
+                            ProvinceId = 70
+                        },
+                        new
+                        {
+                            Id = 1862,
+                            IsActive = true,
+                            Name = "Kazımkarabekir",
+                            ProvinceId = 70
+                        },
+                        new
+                        {
+                            Id = 1439,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 70
+                        },
+                        new
+                        {
+                            Id = 1983,
+                            IsActive = true,
+                            Name = "Sarıveliler",
+                            ProvinceId = 70
+                        },
+                        new
+                        {
+                            Id = 1880,
+                            IsActive = true,
+                            Name = "Bahşılı",
+                            ProvinceId = 71
+                        },
+                        new
+                        {
+                            Id = 1882,
+                            IsActive = true,
+                            Name = "Balışeyh",
+                            ProvinceId = 71
+                        },
+                        new
+                        {
+                            Id = 1901,
+                            IsActive = true,
+                            Name = "Çelebi",
+                            ProvinceId = 71
+                        },
+                        new
+                        {
+                            Id = 1268,
+                            IsActive = true,
+                            Name = "Delice",
+                            ProvinceId = 71
+                        },
+                        new
+                        {
+                            Id = 1954,
+                            IsActive = true,
+                            Name = "Karakeçili",
+                            ProvinceId = 71
+                        },
+                        new
+                        {
+                            Id = 1463,
+                            IsActive = true,
+                            Name = "Keskin",
+                            ProvinceId = 71
+                        },
+                        new
+                        {
+                            Id = 1469,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 71
+                        },
+                        new
+                        {
+                            Id = 1638,
+                            IsActive = true,
+                            Name = "Sulakyurt",
+                            ProvinceId = 71
+                        },
+                        new
+                        {
+                            Id = 1992,
+                            IsActive = true,
+                            Name = "Yahşihan",
+                            ProvinceId = 71
+                        },
+                        new
+                        {
+                            Id = 1184,
+                            IsActive = true,
+                            Name = "Beşiri",
+                            ProvinceId = 72
+                        },
+                        new
+                        {
+                            Id = 1345,
+                            IsActive = true,
+                            Name = "Gercüş",
+                            ProvinceId = 72
+                        },
+                        new
+                        {
+                            Id = 1941,
+                            IsActive = true,
+                            Name = "Hasankeyf",
+                            ProvinceId = 72
+                        },
+                        new
+                        {
+                            Id = 1487,
+                            IsActive = true,
+                            Name = "Kozluk",
+                            ProvinceId = 72
+                        },
+                        new
+                        {
+                            Id = 1174,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 72
+                        },
+                        new
+                        {
+                            Id = 1607,
+                            IsActive = true,
+                            Name = "Sason",
+                            ProvinceId = 72
+                        },
+                        new
+                        {
+                            Id = 1189,
+                            IsActive = true,
+                            Name = "Beytüşşebap",
+                            ProvinceId = 73
+                        },
+                        new
+                        {
+                            Id = 1223,
+                            IsActive = true,
+                            Name = "Cizre",
+                            ProvinceId = 73
+                        },
+                        new
+                        {
+                            Id = 1931,
+                            IsActive = true,
+                            Name = "Güçlükonak",
+                            ProvinceId = 73
+                        },
+                        new
+                        {
+                            Id = 1403,
+                            IsActive = true,
+                            Name = "İdil",
+                            ProvinceId = 73
+                        },
+                        new
+                        {
+                            Id = 1661,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 73
+                        },
+                        new
+                        {
+                            Id = 1623,
+                            IsActive = true,
+                            Name = "Silopi",
+                            ProvinceId = 73
+                        },
+                        new
+                        {
+                            Id = 1698,
+                            IsActive = true,
+                            Name = "Uludere",
+                            ProvinceId = 73
+                        },
+                        new
+                        {
+                            Id = 1761,
+                            IsActive = true,
+                            Name = "Amasra",
+                            ProvinceId = 74
+                        },
+                        new
+                        {
+                            Id = 1496,
+                            IsActive = true,
+                            Name = "Kurucaşile",
+                            ProvinceId = 74
+                        },
+                        new
+                        {
+                            Id = 1172,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 74
+                        },
+                        new
+                        {
+                            Id = 1701,
+                            IsActive = true,
+                            Name = "Ulus",
+                            ProvinceId = 74
+                        },
+                        new
+                        {
+                            Id = 1252,
+                            IsActive = true,
+                            Name = "Çıldır",
+                            ProvinceId = 75
+                        },
+                        new
+                        {
+                            Id = 2008,
+                            IsActive = true,
+                            Name = "Damal",
+                            ProvinceId = 75
+                        },
+                        new
+                        {
+                            Id = 1356,
+                            IsActive = true,
+                            Name = "Göle",
+                            ProvinceId = 75
+                        },
+                        new
+                        {
+                            Id = 1380,
+                            IsActive = true,
+                            Name = "Hanak",
+                            ProvinceId = 75
+                        },
+                        new
+                        {
+                            Id = 1144,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 75
+                        },
+                        new
+                        {
+                            Id = 1579,
+                            IsActive = true,
+                            Name = "Posof",
+                            ProvinceId = 75
+                        },
+                        new
+                        {
+                            Id = 1142,
+                            IsActive = true,
+                            Name = "Aralık",
+                            ProvinceId = 76
+                        },
+                        new
+                        {
+                            Id = 2011,
+                            IsActive = true,
+                            Name = "Karakoyunlu",
+                            ProvinceId = 76
+                        },
+                        new
+                        {
+                            Id = 1398,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 76
+                        },
+                        new
+                        {
+                            Id = 1692,
+                            IsActive = true,
+                            Name = "Tuzluca",
+                            ProvinceId = 76
+                        },
+                        new
+                        {
+                            Id = 2019,
+                            IsActive = true,
+                            Name = "Altınova",
+                            ProvinceId = 77
+                        },
+                        new
+                        {
+                            Id = 2020,
+                            IsActive = true,
+                            Name = "Armutlu",
+                            ProvinceId = 77
+                        },
+                        new
+                        {
+                            Id = 2021,
+                            IsActive = true,
+                            Name = "Çınarcık",
+                            ProvinceId = 77
+                        },
+                        new
+                        {
+                            Id = 2022,
+                            IsActive = true,
+                            Name = "Çiftlikköy",
+                            ProvinceId = 77
+                        },
+                        new
+                        {
+                            Id = 1716,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 77
+                        },
+                        new
+                        {
+                            Id = 2026,
+                            IsActive = true,
+                            Name = "Termal",
+                            ProvinceId = 77
+                        },
+                        new
+                        {
+                            Id = 1296,
+                            IsActive = true,
+                            Name = "Eflani",
+                            ProvinceId = 78
+                        },
+                        new
+                        {
+                            Id = 1321,
+                            IsActive = true,
+                            Name = "Eskipazar",
+                            ProvinceId = 78
+                        },
+                        new
+                        {
+                            Id = 1433,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 78
+                        },
+                        new
+                        {
+                            Id = 1561,
+                            IsActive = true,
+                            Name = "Ovacık",
+                            ProvinceId = 78
+                        },
+                        new
+                        {
+                            Id = 1587,
+                            IsActive = true,
+                            Name = "Safranbolu",
+                            ProvinceId = 78
+                        },
+                        new
+                        {
+                            Id = 1856,
+                            IsActive = true,
+                            Name = "Yenice",
+                            ProvinceId = 78
+                        },
+                        new
+                        {
+                            Id = 2023,
+                            IsActive = true,
+                            Name = "Elbeyli",
+                            ProvinceId = 79
+                        },
+                        new
+                        {
+                            Id = 1476,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 79
+                        },
+                        new
+                        {
+                            Id = 2024,
+                            IsActive = true,
+                            Name = "Musabeyli",
+                            ProvinceId = 79
+                        },
+                        new
+                        {
+                            Id = 2025,
+                            IsActive = true,
+                            Name = "Polateli",
+                            ProvinceId = 79
+                        },
+                        new
+                        {
+                            Id = 1165,
+                            IsActive = true,
+                            Name = "Bahçe",
+                            ProvinceId = 80
+                        },
+                        new
+                        {
+                            Id = 1743,
+                            IsActive = true,
+                            Name = "Düziçi",
+                            ProvinceId = 80
+                        },
+                        new
+                        {
+                            Id = 2027,
+                            IsActive = true,
+                            Name = "Hasanbeyli",
+                            ProvinceId = 80
+                        },
+                        new
+                        {
+                            Id = 1423,
+                            IsActive = true,
+                            Name = "Kadirli",
+                            ProvinceId = 80
+                        },
+                        new
+                        {
+                            Id = 1560,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 80
+                        },
+                        new
+                        {
+                            Id = 2028,
+                            IsActive = true,
+                            Name = "Sumbas",
+                            ProvinceId = 80
+                        },
+                        new
+                        {
+                            Id = 2029,
+                            IsActive = true,
+                            Name = "Toprakkale",
+                            ProvinceId = 80
+                        },
+                        new
+                        {
+                            Id = 1116,
+                            IsActive = true,
+                            Name = "Akçakoca",
+                            ProvinceId = 81
+                        },
+                        new
+                        {
+                            Id = 1784,
+                            IsActive = true,
+                            Name = "Cumayeri",
+                            ProvinceId = 81
+                        },
+                        new
+                        {
+                            Id = 1905,
+                            IsActive = true,
+                            Name = "Çilimli",
+                            ProvinceId = 81
+                        },
+                        new
+                        {
+                            Id = 1794,
+                            IsActive = true,
+                            Name = "Gölyaka",
+                            ProvinceId = 81
+                        },
+                        new
+                        {
+                            Id = 2017,
+                            IsActive = true,
+                            Name = "Gümüşova",
+                            ProvinceId = 81
+                        },
+                        new
+                        {
+                            Id = 2031,
+                            IsActive = true,
+                            Name = "Kaynaşlı",
+                            ProvinceId = 81
+                        },
+                        new
+                        {
+                            Id = 1292,
+                            IsActive = true,
+                            Name = "Merkez",
+                            ProvinceId = 81
+                        },
+                        new
+                        {
+                            Id = 1730,
+                            IsActive = true,
+                            Name = "Yığılca",
+                            ProvinceId = 81
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CustomerLocationProvince", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("CustomerLocationProvinces");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            IsActive = true,
+                            Name = "Adana"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            IsActive = true,
+                            Name = "Adıyaman"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            IsActive = true,
+                            Name = "Afyonkarahisar"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            IsActive = true,
+                            Name = "Ağrı"
+                        },
+                        new
+                        {
+                            Id = 68,
+                            IsActive = true,
+                            Name = "Aksaray"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            IsActive = true,
+                            Name = "Amasya"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            IsActive = true,
+                            Name = "Ankara"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            IsActive = true,
+                            Name = "Antalya"
+                        },
+                        new
+                        {
+                            Id = 75,
+                            IsActive = true,
+                            Name = "Ardahan"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            IsActive = true,
+                            Name = "Artvin"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            IsActive = true,
+                            Name = "Aydın"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            IsActive = true,
+                            Name = "Balıkesir"
+                        },
+                        new
+                        {
+                            Id = 74,
+                            IsActive = true,
+                            Name = "Bartın"
+                        },
+                        new
+                        {
+                            Id = 72,
+                            IsActive = true,
+                            Name = "Batman"
+                        },
+                        new
+                        {
+                            Id = 69,
+                            IsActive = true,
+                            Name = "Bayburt"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            IsActive = true,
+                            Name = "Bilecik"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            IsActive = true,
+                            Name = "Bingöl"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            IsActive = true,
+                            Name = "Bitlis"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            IsActive = true,
+                            Name = "Bolu"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            IsActive = true,
+                            Name = "Burdur"
+                        },
+                        new
+                        {
+                            Id = 16,
+                            IsActive = true,
+                            Name = "Bursa"
+                        },
+                        new
+                        {
+                            Id = 17,
+                            IsActive = true,
+                            Name = "Çanakkale"
+                        },
+                        new
+                        {
+                            Id = 18,
+                            IsActive = true,
+                            Name = "Çankırı"
+                        },
+                        new
+                        {
+                            Id = 19,
+                            IsActive = true,
+                            Name = "Çorum"
+                        },
+                        new
+                        {
+                            Id = 20,
+                            IsActive = true,
+                            Name = "Denizli"
+                        },
+                        new
+                        {
+                            Id = 21,
+                            IsActive = true,
+                            Name = "Diyarbakır"
+                        },
+                        new
+                        {
+                            Id = 81,
+                            IsActive = true,
+                            Name = "Düzce"
+                        },
+                        new
+                        {
+                            Id = 22,
+                            IsActive = true,
+                            Name = "Edirne"
+                        },
+                        new
+                        {
+                            Id = 23,
+                            IsActive = true,
+                            Name = "Elazığ"
+                        },
+                        new
+                        {
+                            Id = 24,
+                            IsActive = true,
+                            Name = "Erzincan"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            IsActive = true,
+                            Name = "Erzurum"
+                        },
+                        new
+                        {
+                            Id = 26,
+                            IsActive = true,
+                            Name = "Eskişehir"
+                        },
+                        new
+                        {
+                            Id = 27,
+                            IsActive = true,
+                            Name = "Gaziantep"
+                        },
+                        new
+                        {
+                            Id = 28,
+                            IsActive = true,
+                            Name = "Giresun"
+                        },
+                        new
+                        {
+                            Id = 29,
+                            IsActive = true,
+                            Name = "Gümüşhane"
+                        },
+                        new
+                        {
+                            Id = 30,
+                            IsActive = true,
+                            Name = "Hakkari"
+                        },
+                        new
+                        {
+                            Id = 31,
+                            IsActive = true,
+                            Name = "Hatay"
+                        },
+                        new
+                        {
+                            Id = 76,
+                            IsActive = true,
+                            Name = "Iğdır"
+                        },
+                        new
+                        {
+                            Id = 32,
+                            IsActive = true,
+                            Name = "Isparta"
+                        },
+                        new
+                        {
+                            Id = 34,
+                            IsActive = true,
+                            Name = "İstanbul"
+                        },
+                        new
+                        {
+                            Id = 35,
+                            IsActive = true,
+                            Name = "İzmir"
+                        },
+                        new
+                        {
+                            Id = 46,
+                            IsActive = true,
+                            Name = "Kahramanmaraş"
+                        },
+                        new
+                        {
+                            Id = 78,
+                            IsActive = true,
+                            Name = "Karabük"
+                        },
+                        new
+                        {
+                            Id = 70,
+                            IsActive = true,
+                            Name = "Karaman"
+                        },
+                        new
+                        {
+                            Id = 36,
+                            IsActive = true,
+                            Name = "Kars"
+                        },
+                        new
+                        {
+                            Id = 37,
+                            IsActive = true,
+                            Name = "Kastamonu"
+                        },
+                        new
+                        {
+                            Id = 38,
+                            IsActive = true,
+                            Name = "Kayseri"
+                        },
+                        new
+                        {
+                            Id = 71,
+                            IsActive = true,
+                            Name = "Kırıkkale"
+                        },
+                        new
+                        {
+                            Id = 39,
+                            IsActive = true,
+                            Name = "Kırklareli"
+                        },
+                        new
+                        {
+                            Id = 40,
+                            IsActive = true,
+                            Name = "Kırşehir"
+                        },
+                        new
+                        {
+                            Id = 79,
+                            IsActive = true,
+                            Name = "Kilis"
+                        },
+                        new
+                        {
+                            Id = 41,
+                            IsActive = true,
+                            Name = "Kocaeli"
+                        },
+                        new
+                        {
+                            Id = 42,
+                            IsActive = true,
+                            Name = "Konya"
+                        },
+                        new
+                        {
+                            Id = 43,
+                            IsActive = true,
+                            Name = "Kütahya"
+                        },
+                        new
+                        {
+                            Id = 44,
+                            IsActive = true,
+                            Name = "Malatya"
+                        },
+                        new
+                        {
+                            Id = 45,
+                            IsActive = true,
+                            Name = "Manisa"
+                        },
+                        new
+                        {
+                            Id = 47,
+                            IsActive = true,
+                            Name = "Mardin"
+                        },
+                        new
+                        {
+                            Id = 33,
+                            IsActive = true,
+                            Name = "Mersin"
+                        },
+                        new
+                        {
+                            Id = 48,
+                            IsActive = true,
+                            Name = "Muğla"
+                        },
+                        new
+                        {
+                            Id = 49,
+                            IsActive = true,
+                            Name = "Muş"
+                        },
+                        new
+                        {
+                            Id = 50,
+                            IsActive = true,
+                            Name = "Nevşehir"
+                        },
+                        new
+                        {
+                            Id = 51,
+                            IsActive = true,
+                            Name = "Niğde"
+                        },
+                        new
+                        {
+                            Id = 52,
+                            IsActive = true,
+                            Name = "Ordu"
+                        },
+                        new
+                        {
+                            Id = 80,
+                            IsActive = true,
+                            Name = "Osmaniye"
+                        },
+                        new
+                        {
+                            Id = 53,
+                            IsActive = true,
+                            Name = "Rize"
+                        },
+                        new
+                        {
+                            Id = 54,
+                            IsActive = true,
+                            Name = "Sakarya"
+                        },
+                        new
+                        {
+                            Id = 55,
+                            IsActive = true,
+                            Name = "Samsun"
+                        },
+                        new
+                        {
+                            Id = 56,
+                            IsActive = true,
+                            Name = "Siirt"
+                        },
+                        new
+                        {
+                            Id = 57,
+                            IsActive = true,
+                            Name = "Sinop"
+                        },
+                        new
+                        {
+                            Id = 58,
+                            IsActive = true,
+                            Name = "Sivas"
+                        },
+                        new
+                        {
+                            Id = 63,
+                            IsActive = true,
+                            Name = "Şanlıurfa"
+                        },
+                        new
+                        {
+                            Id = 73,
+                            IsActive = true,
+                            Name = "Şırnak"
+                        },
+                        new
+                        {
+                            Id = 59,
+                            IsActive = true,
+                            Name = "Tekirdağ"
+                        },
+                        new
+                        {
+                            Id = 60,
+                            IsActive = true,
+                            Name = "Tokat"
+                        },
+                        new
+                        {
+                            Id = 61,
+                            IsActive = true,
+                            Name = "Trabzon"
+                        },
+                        new
+                        {
+                            Id = 62,
+                            IsActive = true,
+                            Name = "Tunceli"
+                        },
+                        new
+                        {
+                            Id = 64,
+                            IsActive = true,
+                            Name = "Uşak"
+                        },
+                        new
+                        {
+                            Id = 65,
+                            IsActive = true,
+                            Name = "Van"
+                        },
+                        new
+                        {
+                            Id = 77,
+                            IsActive = true,
+                            Name = "Yalova"
+                        },
+                        new
+                        {
+                            Id = 66,
+                            IsActive = true,
+                            Name = "Yozgat"
+                        },
+                        new
+                        {
+                            Id = 67,
+                            IsActive = true,
+                            Name = "Zonguldak"
                         });
                 });
 
@@ -2164,6 +9559,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
 
+                    b.Property<DateTimeOffset?>("InventoryDocumentLinkedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("InventoryDocumentLinkedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("InventoryPostingRequired")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -2182,10 +9586,16 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<Guid?>("PurchaseOrderId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("PurchaseReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ReferenceCode")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid?>("SalesDeliveryId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("SalesOrderId")
                         .HasColumnType("uniqueidentifier");
@@ -2210,8 +9620,16 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
                     b.HasIndex("TenantId", "PurchaseOrderId");
 
+                    b.HasIndex("TenantId", "PurchaseReceiptId")
+                        .IsUnique()
+                        .HasFilter("[PurchaseReceiptId] IS NOT NULL");
+
                     b.HasIndex("TenantId", "ReferenceCode")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "SalesDeliveryId")
+                        .IsUnique()
+                        .HasFilter("[SalesDeliveryId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "SalesOrderId");
 
@@ -2220,6 +9638,10 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.ToTable("ForeignTradeCases", null, t =>
                         {
                             t.HasCheckConstraint("CK_ForeignTradeCases_Direction", "[Direction] IN (1,2)");
+
+                            t.HasCheckConstraint("CK_ForeignTradeCases_InventoryAudit", "([PurchaseReceiptId] IS NULL AND [SalesDeliveryId] IS NULL AND [InventoryDocumentLinkedAt] IS NULL AND [InventoryDocumentLinkedByUserId] IS NULL) OR (([PurchaseReceiptId] IS NOT NULL OR [SalesDeliveryId] IS NOT NULL) AND [InventoryDocumentLinkedAt] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_ForeignTradeCases_InventoryDocumentDirection", "([PurchaseReceiptId] IS NULL OR ([Direction] = 1 AND [SalesDeliveryId] IS NULL)) AND ([SalesDeliveryId] IS NULL OR ([Direction] = 2 AND [PurchaseReceiptId] IS NULL))");
 
                             t.HasCheckConstraint("CK_ForeignTradeCases_OrderLink", "([Direction] = 1 AND [PurchaseOrderId] IS NOT NULL AND [SalesOrderId] IS NULL) OR ([Direction] = 2 AND [SalesOrderId] IS NOT NULL AND [PurchaseOrderId] IS NULL)");
 
@@ -3044,9 +10466,21 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<Guid>("ManufacturingOrderId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal>("PlannedCostBase")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)")
+                        .HasDefaultValue(0m);
+
                     b.Property<decimal>("RequiredQuantity")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("StandardUnitCostBaseSnapshot")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)")
+                        .HasDefaultValue(0m);
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -3062,7 +10496,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
                     b.ToTable("ManufacturingOrderLines", t =>
                         {
-                            t.HasCheckConstraint("CK_ManufacturingOrderLines_RequiredQuantityPositive", "[RequiredQuantity] > 0");
+                            t.HasCheckConstraint("CK_ManufacturingOrderLines_RequiredQuantityPositive", "[RequiredQuantity] > 0 AND [StandardUnitCostBaseSnapshot] >= 0 AND [PlannedCostBase] >= 0");
                         });
                 });
 
@@ -3116,6 +10550,24 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<decimal>("PlannedCostBase")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("PlannedEnergyCostBase")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("PlannedEnergyCostPerKwhBase")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("PlannedEnergyQuantityKwh")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(14, 3)
+                        .HasColumnType("decimal(14,3)")
+                        .HasDefaultValue(0m);
 
                     b.Property<decimal>("RunMinutes")
                         .HasPrecision(12, 2)
@@ -3197,6 +10649,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                             t.HasCheckConstraint("CK_ManufacturingOrderOperations_Actuals", "([ActualSetupMinutes] IS NULL OR [ActualSetupMinutes] >= 0) AND ([ActualRunMinutes] IS NULL OR [ActualRunMinutes] >= 0) AND ([ActualEnergyQuantityKwh] IS NULL OR [ActualEnergyQuantityKwh] >= 0) AND ([ActualEnergyCostPerKwhBase] IS NULL OR [ActualEnergyCostPerKwhBase] >= 0) AND ([ActualEnergyCostBase] IS NULL OR [ActualEnergyCostBase] >= 0) AND ([ActualCostBase] IS NULL OR [ActualCostBase] >= 0)");
 
                             t.HasCheckConstraint("CK_ManufacturingOrderOperations_MinutesAndCost", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutes] >= 0 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0 AND [PlannedCostBase] >= 0");
+
+                            t.HasCheckConstraint("CK_ManufacturingOrderOperations_PlannedEnergy", "[PlannedEnergyQuantityKwh] >= 0 AND [PlannedEnergyCostPerKwhBase] >= 0 AND [PlannedEnergyCostBase] >= 0");
                         });
                 });
 
@@ -3968,6 +11422,335 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollCompensationRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("char(3)")
+                        .IsFixedLength();
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PayBasisCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("RejectedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<string>("TargetKind")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(8)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "EmployeeId", "EffectiveFrom")
+                        .IsUnique()
+                        .HasFilter("[Status] = 'Approved'");
+
+                    b.HasIndex("TenantId", "EmployeeId", "EffectiveFrom", "Status");
+
+                    b.HasIndex("TenantId", "EmployeeId", "EffectiveFrom", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PayrollCompensationRecords", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollCompensationRecords_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_PayrollCompensationRecords_Status", "[Status] IN ('PendingApproval','Approved','Rejected')");
+
+                            t.HasCheckConstraint("CK_PayrollCompensationRecords_TargetKind", "[TargetKind] IN ('Gross','Net')");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollEmployeeWorkCalendarOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DateOverridesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PolicyReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("RejectedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.Property<string>("WeeklyMinutesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "EmployeeId", "EffectiveFrom")
+                        .IsUnique()
+                        .HasFilter("[Status] = 'Approved'");
+
+                    b.HasIndex("TenantId", "EmployeeId", "EffectiveFrom", "Status");
+
+                    b.HasIndex("TenantId", "EmployeeId", "EffectiveFrom", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PayrollEmployeeWorkCalendarOverrides", t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollEmployeeWorkCalendarOverrides_Status", "[Status] IN ('PendingApproval','Approved','Rejected')");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollEmployeeWorkplaceAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("RejectedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.Property<string>("WorkplaceCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "EmployeeId", "EffectiveFrom")
+                        .IsUnique()
+                        .HasFilter("[Status] = 'Approved'");
+
+                    b.HasIndex("TenantId", "EmployeeId", "EffectiveFrom", "Status");
+
+                    b.HasIndex("TenantId", "EmployeeId", "EffectiveFrom", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PayrollEmployeeWorkplaceAssignments", t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollEmployeeWorkplaceAssignments_Status", "[Status] IN ('PendingApproval','Approved','Rejected')");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollPriorEmployerTaxBaseDeclaration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BaseEntriesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DeclarationKind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("RejectedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<int>("TaxYear")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "EmployeeId", "TaxYear", "Status");
+
+                    b.HasIndex("TenantId", "EmployeeId", "TaxYear", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PayrollPriorEmployerTaxBaseDeclarations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollPriorEmployerTaxBaseDeclarations_Kind", "[DeclarationKind] IN ('HasPriorEmployer','NoPriorEmployer')");
+
+                            t.HasCheckConstraint("CK_PayrollPriorEmployerTaxBaseDeclarations_Status", "[Status] IN ('PendingApproval','Approved','Rejected')");
+
+                            t.HasCheckConstraint("CK_PayrollPriorEmployerTaxBaseDeclarations_Year", "[TaxYear] BETWEEN 2000 AND 2100");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.PayrollRuleSet", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4041,6 +11824,258 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.ToTable("PayrollRuleSets", t =>
                         {
                             t.HasCheckConstraint("CK_PayrollRuleSets_EffectiveDates", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollRunCalculation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("FinalizedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("FinalizedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("RejectedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ResultSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("RunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RunSnapshotSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "RunId", "Status");
+
+                    b.HasIndex("TenantId", "RunId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PayrollRunCalculations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollRunCalculations_ResultHash", "LEN([ResultSha256]) = 64");
+
+                            t.HasCheckConstraint("CK_PayrollRunCalculations_SnapshotHash", "LEN([RunSnapshotSha256]) = 64");
+
+                            t.HasCheckConstraint("CK_PayrollRunCalculations_Status", "[Status] IN ('PendingApproval','Approved','Rejected','Finalized')");
+
+                            t.HasCheckConstraint("CK_PayrollRunCalculations_Version", "[Version] >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollRunSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BlockersJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("EmployeeCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("PeriodEnd")
+                        .HasColumnType("date");
+
+                    b.Property<string>("PeriodKind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<DateOnly>("PeriodStart")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ProfileCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SnapshotSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreatedAt");
+
+                    b.ToTable("PayrollRunSnapshots", t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollRunSnapshots_Hash", "LEN([SnapshotSha256]) = 64");
+
+                            t.HasCheckConstraint("CK_PayrollRunSnapshots_Period", "[PeriodEnd] >= [PeriodStart]");
+
+                            t.HasCheckConstraint("CK_PayrollRunSnapshots_PeriodKind", "[PeriodKind] IN ('CalendarMonth','EmployerDefined')");
+
+                            t.HasCheckConstraint("CK_PayrollRunSnapshots_Status", "[Status] IN ('Blocked')");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollWorkplaceCalendar", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DateOverridesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<string>("PolicyReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("RejectedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.Property<string>("WeeklyMinutesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("WorkplaceCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "WorkplaceCode", "EffectiveFrom")
+                        .IsUnique()
+                        .HasFilter("[Status] = 'Approved'");
+
+                    b.HasIndex("TenantId", "WorkplaceCode", "EffectiveFrom", "Status");
+
+                    b.HasIndex("TenantId", "WorkplaceCode", "EffectiveFrom", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PayrollWorkplaceCalendars", t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollWorkplaceCalendars_Status", "[Status] IN ('PendingApproval','Approved','Rejected')");
                         });
                 });
 
@@ -4405,9 +12440,20 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("NormalizedInvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("PostedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("PostedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
@@ -4443,6 +12489,10 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasIndex("TenantId", "RequestId")
                         .IsUnique();
 
+                    b.HasIndex("TenantId", "SupplierId", "NormalizedInvoiceNumber")
+                        .IsUnique()
+                        .HasFilter("[Status] = 2");
+
                     b.HasIndex("TenantId", "SupplierId", "InvoiceDate", "CreatedAt");
 
                     b.ToTable("PurchaseInvoiceDrafts", null, t =>
@@ -4451,7 +12501,9 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
                             t.HasCheckConstraint("CK_PurchaseInvoiceDrafts_DueDate", "[DueDate] IS NULL OR [DueDate] >= [InvoiceDate]");
 
-                            t.HasCheckConstraint("CK_PurchaseInvoiceDrafts_Status", "[Status] = 1");
+                            t.HasCheckConstraint("CK_PurchaseInvoiceDrafts_Posting", "([Status] = 1 AND [PostedAt] IS NULL AND [PostedByUserId] IS NULL) OR ([Status] = 2 AND [PostedAt] IS NOT NULL AND [PostedByUserId] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_PurchaseInvoiceDrafts_Status", "[Status] IN (1, 2)");
                         });
                 });
 
@@ -4469,6 +12521,9 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<decimal>("DiscountAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("ExpenseAccountId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("LineNumber")
                         .HasColumnType("int");
@@ -4503,9 +12558,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<decimal?>("VatRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
                     b.HasKey("Id");
 
                     b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "ExpenseAccountId");
 
                     b.HasIndex("TenantId", "PurchaseInvoiceDraftId", "LineNumber")
                         .IsUnique();
@@ -9197,6 +17258,54 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.ToTable("WarehouseLocations");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.WorkplaceDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("WorkplaceDefinitions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_WorkplaceDefinitions_Kind", "[Kind] IN ('Workplace','Branch','Factory')");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.BankStatement", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
@@ -9452,7 +17561,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasForeignKey("TenantId", "GroupId")
                         .HasPrincipalKey("TenantId", "Id");
 
+                    b.HasOne("AIERP.Platform.Domain.CustomerAccount", "ParentCompany")
+                        .WithMany("Subsidiaries")
+                        .HasForeignKey("TenantId", "ParentCompanyId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Group");
+
+                    b.Navigation("ParentCompany");
 
                     b.Navigation("Tenant");
                 });
@@ -9609,6 +17726,12 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("AIERP.Platform.Domain.PurchaseInvoiceDraft", "PurchaseInvoiceDraft")
+                        .WithOne("LedgerEntry")
+                        .HasForeignKey("AIERP.Platform.Domain.CustomerLedgerEntry", "TenantId", "PurchaseInvoiceDraftId")
+                        .HasPrincipalKey("AIERP.Platform.Domain.PurchaseInvoiceDraft", "TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AIERP.Platform.Domain.CustomerLedgerEntry", "ReversalOf")
                         .WithOne("ReversalEntry")
                         .HasForeignKey("AIERP.Platform.Domain.CustomerLedgerEntry", "TenantId", "ReversalOfId")
@@ -9650,6 +17773,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
                     b.Navigation("PurchaseInvoice");
 
+                    b.Navigation("PurchaseInvoiceDraft");
+
                     b.Navigation("ReversalOf");
 
                     b.Navigation("SalesInvoice");
@@ -9659,6 +17784,17 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Navigation("SupplierPayment");
 
                     b.Navigation("SupplierReturn");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CustomerLocationDistrict", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.CustomerLocationProvince", "Province")
+                        .WithMany("Districts")
+                        .HasForeignKey("ProvinceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Province");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.DirectCashBudgetLine", b =>
@@ -9884,6 +18020,18 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasOne("AIERP.Platform.Domain.PurchaseOrder", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "PurchaseOrderId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.PurchaseReceipt", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PurchaseReceiptId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.SalesDelivery", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SalesDeliveryId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
@@ -10448,7 +18596,99 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Navigation("PaymentInstrument");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollCompensationRecord", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.EmployeeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollEmployeeWorkCalendarOverride", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.EmployeeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollEmployeeWorkplaceAssignment", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.EmployeeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollPriorEmployerTaxBaseDeclaration", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.EmployeeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.PayrollRuleSet", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollRunCalculation", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.PayrollRunSnapshot", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "RunId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollRunSnapshot", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.PayrollWorkplaceCalendar", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", null)
                         .WithMany()
@@ -10559,6 +18799,12 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseInvoiceDraftLine", b =>
                 {
+                    b.HasOne("AIERP.Platform.Domain.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ExpenseAccountId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AIERP.Platform.Domain.PurchaseInvoiceDraft", "PurchaseInvoiceDraft")
                         .WithMany("Lines")
                         .HasForeignKey("TenantId", "PurchaseInvoiceDraftId")
@@ -12129,6 +20375,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Navigation("Warehouse");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.WorkplaceDefinition", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.BankStatement", b =>
                 {
                     b.Navigation("Lines");
@@ -12168,6 +20423,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Navigation("Addresses");
 
                     b.Navigation("LedgerEntries");
+
+                    b.Navigation("Subsidiaries");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.CustomerCollection", b =>
@@ -12187,6 +20444,11 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
             modelBuilder.Entity("AIERP.Platform.Domain.CustomerLedgerEntry", b =>
                 {
                     b.Navigation("ReversalEntry");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CustomerLocationProvince", b =>
+                {
+                    b.Navigation("Districts");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.DirectCashBudgetPlan", b =>
@@ -12275,6 +20537,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseInvoiceDraft", b =>
                 {
+                    b.Navigation("LedgerEntry");
+
                     b.Navigation("Lines");
                 });
 

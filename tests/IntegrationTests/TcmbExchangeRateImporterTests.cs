@@ -35,6 +35,18 @@ public sealed class TcmbExchangeRateImporterTests
     }
 
     [Fact]
+    public async Task Fetch_translates_malformed_xml_to_invalid_data()
+    {
+        using var client = new HttpClient(new StaticResponseHandler("<Tarih_Date Tarih=\"21.10.2026\"><Currency>"));
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            TcmbExchangeRateImporter.FetchAsync(client, CancellationToken.None));
+
+        Assert.Equal("TCMB yanıtı geçerli XML değil.", error.Message);
+        Assert.IsType<System.Xml.XmlException>(error.InnerException);
+    }
+
+    [Fact]
     public async Task Fetch_marks_a_dated_but_unpublished_rate_document_as_empty()
     {
         using var client = new HttpClient(new StaticResponseHandler(

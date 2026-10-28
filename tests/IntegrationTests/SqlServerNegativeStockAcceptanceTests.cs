@@ -34,6 +34,7 @@ public sealed class SqlServerNegativeStockAcceptanceTests
         var studioConnection = BuildDatabaseConnection(configuredConnection!, $"AIERP_NegativeStockStudio_{suffix}");
         var platformCreated = false;
         var tenantCreated = false;
+        SqlAcceptanceTenantCredential? tenantCredential = null;
         try
         {
             var platformOptions = new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options;
@@ -44,6 +45,7 @@ public sealed class SqlServerNegativeStockAcceptanceTests
             tenantCreated = await tenantDb.Database.EnsureCreatedAsync();
             Assert.True(platformCreated);
             Assert.True(tenantCreated);
+            tenantCredential = await SqlAcceptanceTenantCredential.CreateAsync(configuredConnection!, TenantId);
 
             var tenant = new Tenant { Id = TenantId, Name = "Negative stock acceptance", Slug = $"negative-stock-{suffix}" };
             var warehouse = new Warehouse { TenantId = TenantId, Tenant = tenant, Code = "WH-NEG", Name = "Negative source" };
@@ -114,7 +116,7 @@ public sealed class SqlServerNegativeStockAcceptanceTests
                 ["Database__SeparationEnabled"] = "true",
                 ["Database__ApplyMigrationsOnStartup"] = "false"
             });
-            using var factory = new NegativeStockApiFactory(platformConnection, tenantConnection, studioConnection);
+            using var factory = new NegativeStockApiFactory(platformConnection, tenantConnection, studioConnection, tenantCredential.CredentialReader);
             using var client = factory.CreateClient();
             client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantId.ToString("D"));
             client.DefaultRequestHeaders.Add("X-Test-User", UserId.ToString("D"));
@@ -224,6 +226,7 @@ public sealed class SqlServerNegativeStockAcceptanceTests
                 await using var cleanup = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(platformConnection).Options);
                 await cleanup.Database.EnsureDeletedAsync();
             }
+            if (tenantCredential is not null) await tenantCredential.DisposeAsync();
         }
     }
 
@@ -248,8 +251,20 @@ public sealed class SqlServerNegativeStockAcceptanceTests
         }
     }
 
-    private sealed class NegativeStockApiFactory(string platformConnection, string tenantConnection, string studioConnection) : WebApplicationFactory<ApiEntryPointMarker>
+    private sealed class NegativeStockApiFactory(string platformConnection, string tenantConnection, string studioConnection,
+        ITenantSqlCredentialReader credentialReader) : WebApplicationFactory<ApiEntryPointMarker>
     {
+        protected override IHost CreateHost(IHostBuilder builder)
+        {
+            builder.ConfigureHostConfiguration(configuration => configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:Address"] = "https://vault.test",
+                ["Vault:TenantSqlCredentialReader:RoleId"] = "negative-stock-test-role",
+                ["Vault:TenantSqlCredentialReader:SecretId"] = "negative-stock-test-secret"
+            }));
+            return base.CreateHost(builder);
+        }
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(Environments.Production);
@@ -264,6 +279,8 @@ public sealed class SqlServerNegativeStockAcceptanceTests
             }));
             builder.ConfigureTestServices(services =>
             {
+                services.RemoveAll<ITenantSqlCredentialReader>();
+                services.AddSingleton(credentialReader);
                 services.AddAuthentication("report-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
                 foreach (var worker in services.Where(x => x.ServiceType == typeof(IHostedService)
                              && x.ImplementationType?.Name is "IntegrationOperationWorker" or "AuditRetentionWorker" or "TcmbExchangeRateWorker").ToArray())

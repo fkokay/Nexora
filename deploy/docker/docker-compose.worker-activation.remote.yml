@@ -1,0 +1,91 @@
+services:
+  tenant-provisioning-secrets-init:
+    image: busybox:1.37.0
+    command:
+      - sh
+      - -c
+      - >-
+        set -eu;
+        for name in tenant_provisioning_sql_connection vault_tenant_sql_reader_role_id
+        vault_tenant_sql_reader_secret_id vault_tenant_sql_writer_role_id
+        vault_tenant_sql_writer_secret_id vault-ca.crt; do
+        test -s /run/secrets/$$name;
+        cp /run/secrets/$$name /prepared/$$name;
+        chown 1654:1654 /prepared/$$name;
+        chmod 0440 /prepared/$$name;
+        done;
+        chown 1654:1654 /prepared;
+        chmod 0550 /prepared
+    network_mode: none
+    user: "0:0"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 16
+    mem_limit: 64m
+    restart: "no"
+    volumes:
+      - tenant-provisioning-secrets:/prepared
+    secrets:
+      - tenant_provisioning_sql_connection
+      - vault_tenant_sql_reader_role_id
+      - vault_tenant_sql_reader_secret_id
+      - vault_tenant_sql_writer_role_id
+      - vault_tenant_sql_writer_secret_id
+      - source: vault_ca_cert
+        target: vault-ca.crt
+
+  tenant-provisioning-worker:
+    image: nexora-tenant-provisioning-worker:latest
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__ProvisioningFile: /run/provisioning-secrets/tenant_provisioning_sql_connection
+      Database__SeparationEnabled: "true"
+      Vault__Address: https://nexora-vault:8200
+      Vault__Mount: secret
+      Vault__TenantSqlCredentialReader__RoleIdFile: /run/provisioning-secrets/vault_tenant_sql_reader_role_id
+      Vault__TenantSqlCredentialReader__SecretIdFile: /run/provisioning-secrets/vault_tenant_sql_reader_secret_id
+      Vault__TenantSqlCredentialWriter__RoleIdFile: /run/provisioning-secrets/vault_tenant_sql_writer_role_id
+      Vault__TenantSqlCredentialWriter__SecretIdFile: /run/provisioning-secrets/vault_tenant_sql_writer_secret_id
+      Vault__AllowHttpForLocalDevelopment: "false"
+      SSL_CERT_FILE: /tmp/nexora-ca-bundle.crt
+    depends_on:
+      tenant-provisioning-secrets-init:
+        condition: service_completed_successfully
+    networks:
+      - default
+    volumes:
+      - tenant-provisioning-secrets:/run/provisioning-secrets:ro
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    user: "1654:1654"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+
+volumes:
+  tenant-provisioning-secrets:
+
+secrets:
+  tenant_provisioning_sql_connection:
+    file: C:/ProgramData/Nexora/secrets/tenant_provisioning_sql_connection
+  vault_tenant_sql_reader_role_id:
+    file: C:/ProgramData/Nexora/secrets/vault_tenant_sql_reader_role_id
+  vault_tenant_sql_reader_secret_id:
+    file: C:/ProgramData/Nexora/secrets/vault_tenant_sql_reader_secret_id
+  vault_tenant_sql_writer_role_id:
+    file: C:/ProgramData/Nexora/secrets/vault_tenant_sql_writer_role_id
+  vault_tenant_sql_writer_secret_id:
+    file: C:/ProgramData/Nexora/secrets/vault_tenant_sql_writer_secret_id
+  vault_ca_cert:
+    file: C:/ProgramData/Nexora/secrets/vault-ca.crt
+
+networks:
+  default:
+    external: true
+    name: nexora_default

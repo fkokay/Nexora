@@ -6,6 +6,50 @@ namespace AIERP.Platform.UnitTests;
 public sealed class TenantDatabaseProvisionerTests
 {
     [Theory]
+    [InlineData(TenantSqlDatabaseComponent.Erp, 1)]
+    [InlineData(TenantSqlDatabaseComponent.AiStudio, 2)]
+    public void Signed_sql_component_contract_maps_zero_based_enum_to_one_based_code(
+        TenantSqlDatabaseComponent component, byte expectedCode)
+    {
+        Assert.Equal(expectedCode, TenantDatabaseProvisioner.ComponentCode(component));
+    }
+
+    [Fact]
+    public void Signed_sql_component_contract_rejects_unknown_enum_values()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            TenantDatabaseProvisioner.ComponentCode((TenantSqlDatabaseComponent)255));
+    }
+
+    [Fact]
+    public async Task Shared_AIStudio_database_provisioning_is_rejected_before_database_access()
+    {
+        var provisioner = new TenantDatabaseProvisioner("Server=invalid;Database=AIERPPlatform;User Id=unused;Password=unused");
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => provisioner.ProvisionAIStudioAsync());
+
+        Assert.Contains("separate AIERPStudio_", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(TenantSqlDatabaseComponent.Erp, "AIERPTenant_", "aierp_t_")]
+    [InlineData(TenantSqlDatabaseComponent.AiStudio, "AIERPStudio_", "aierp_s_")]
+    public void Tenant_runtime_credentials_use_unique_database_and_login_identity(TenantSqlDatabaseComponent component,
+        string databasePrefix, string loginPrefix)
+    {
+        var tenantId = Guid.NewGuid();
+
+        var first = TenantDatabaseProvisioner.CreateTenantRuntimeCredential(tenantId, component);
+        var second = TenantDatabaseProvisioner.CreateTenantRuntimeCredential(tenantId, component);
+
+        Assert.Equal($"{databasePrefix}{tenantId:N}", first.DatabaseName);
+        Assert.Equal($"{loginPrefix}{tenantId:N}", first.UserName);
+        Assert.True(TenantSqlCredentialPath.IsValidUserName(tenantId, component, first.UserName));
+        Assert.Equal(64, first.Password.Length);
+        Assert.NotEqual(first.Password, second.Password);
+    }
+
+    [Theory]
     [InlineData("Provider error: {\"password\":\"p@ss, with spaces\",\"client_secret\":\"client-value\"}", "p@ss, with spaces|client-value")]
     [InlineData("client_secret:secret-value, api-key: api-value", "secret-value|api-value")]
     [InlineData("pwd=plain-password; access token='token with spaces'", "plain-password|token with spaces")]
@@ -128,6 +172,21 @@ public sealed class TenantDatabaseProvisionerTests
     }
 
     [Fact]
+    public void Studio_provisioning_verification_rejects_the_legacy_shared_database_state()
+    {
+        var tenantId = Guid.NewGuid();
+        var legacyState = new DatabaseSeparationComponentState
+        {
+            Component = "AIStudio",
+            DatabaseName = "AIERPStudio",
+            State = TenantDatabaseProvisioningState.Copying
+        };
+
+        Assert.Throws<InvalidOperationException>(() => TenantDatabaseSeparationVerifier.GetStudioDatabaseNameForVerification(
+            tenantId, legacyState, TenantDatabaseProvisioningState.Copying));
+    }
+
+    [Fact]
     public void Provisioning_verification_rejects_catalog_entry_not_in_copying_state()
     {
         var tenantId = Guid.NewGuid();
@@ -189,10 +248,11 @@ public sealed class TenantDatabaseProvisionerTests
     [Fact]
     public async Task AIStudio_provisioning_verifies_copying_component_before_persisting_ready()
     {
+        var tenantId = Guid.NewGuid();
         var state = new DatabaseSeparationComponentState
         {
-            Component = "AIStudio",
-            DatabaseName = "AIERPStudio",
+            Component = TenantDatabaseRouting.StudioComponentKey(tenantId),
+            DatabaseName = TenantSqlCredentialPath.DatabaseName(tenantId, TenantSqlDatabaseComponent.AiStudio),
             State = TenantDatabaseProvisioningState.Ready
         };
         var operations = new List<string>();
@@ -204,8 +264,8 @@ public sealed class TenantDatabaseProvisionerTests
             _ =>
             {
                 operations.Add("verify");
-                Assert.Equal("AIERPStudio", TenantDatabaseSeparationVerifier.GetStudioDatabaseNameForVerification(
-                    state, TenantDatabaseProvisioningState.Copying));
+                Assert.Equal(TenantSqlCredentialPath.DatabaseName(tenantId, TenantSqlDatabaseComponent.AiStudio),
+                    TenantDatabaseSeparationVerifier.GetStudioDatabaseNameForVerification(tenantId, state, TenantDatabaseProvisioningState.Copying));
                 Assert.Equal(TenantDatabaseProvisioningState.Copying, state.State);
                 return Task.CompletedTask;
             },
@@ -230,10 +290,11 @@ public sealed class TenantDatabaseProvisionerTests
     [InlineData(TenantDatabaseProvisioningState.Copying)]
     public async Task AIStudio_with_ready_timestamp_retries_migrations_without_copying_rows(TenantDatabaseProvisioningState initialState)
     {
+        var tenantId = Guid.NewGuid();
         var state = new DatabaseSeparationComponentState
         {
-            Component = "AIStudio",
-            DatabaseName = "AIERPStudio",
+            Component = TenantDatabaseRouting.StudioComponentKey(tenantId),
+            DatabaseName = TenantSqlCredentialPath.DatabaseName(tenantId, TenantSqlDatabaseComponent.AiStudio),
             State = initialState,
             ReadyAt = DateTimeOffset.UtcNow.AddMinutes(-5)
         };
@@ -249,8 +310,8 @@ public sealed class TenantDatabaseProvisionerTests
                 _ =>
                 {
                     operations.Add("verify");
-                    Assert.Equal("AIERPStudio", TenantDatabaseSeparationVerifier.GetStudioDatabaseNameForVerification(
-                        state, TenantDatabaseProvisioningState.Copying));
+                    Assert.Equal(TenantSqlCredentialPath.DatabaseName(tenantId, TenantSqlDatabaseComponent.AiStudio),
+                        TenantDatabaseSeparationVerifier.GetStudioDatabaseNameForVerification(tenantId, state, TenantDatabaseProvisioningState.Copying));
                     return Task.CompletedTask;
                 },
                 (nextState, _, _) =>
