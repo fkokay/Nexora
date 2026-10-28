@@ -1,5 +1,9 @@
 # Master Prompt Phase Status
 
+### 2026-10-29 repeated isolated two-tenant SQL/Vault acceptance
+
+Rebuilt the acceptance runner from the current workspace and ran the explicitly isolated remote Compose project `nexora-tenant-iso-b7007ceef6` with fresh ephemeral SQL and Vault credentials. Both tests passed (2/2): the API/Worker path provisioned two synthetic tenants with separate ERP and AI Studio databases, replay-safe jobs, Vault credential write/read-back, signed tenant selection and routing, and cross-tenant/Platform database denial; the SQL boundary test allowed only the canonical signed provisioning procedures and denied direct server DDL. Runtime: 8m 10s. The temporary containers, SQL volume, network, credentials, and uniquely named runner image were removed. A post-cleanup remote inventory found no resources with the acceptance project prefix; all persistent Nexora containers remained running and the API, AI Service, ERP Web, Studio, SQL Server, Runner, and ReleaseDeployer remained healthy. No persistent SQL/Vault database, volume, or application configuration was changed. This is current-source disposable-host evidence only: it does not establish persistent-host DBA sign-off, production key custody/configuration, existing-tenant grant inventory, or legacy shared-login retirement.
+
 ### 2026-10-29 AI assistant offline evaluation refresh
 
 Ran `tests/integration/Invoke-OfflineErpAssistantEvaluation.ps1` against the current versioned orchestration set (v1.19.0, SHA-256 `77f58d12a7bec56608a4fbaaa7772af9f4211ed222e1b7c646d90e5c32ba71be`). All 45 mapped cases passed, with zero failures, skips, unmapped tests or external requests. Updated `docs/ai-evaluation-offline-report.json`. This verifies mocked routing, bounded outputs, data minimization and evaluation contracts only; semantic model quality is not scored. The two-independent-human-reviewer live quality gate remains open.
