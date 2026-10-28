@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAtUtc": "2026-10-27T00:55:58.7320681+00:00",
+  "generatedAtUtc": "2026-10-28T22:23:13.6998474+00:00",
   "evaluationSet": {
     "id": "erp-assistant-orchestration",
-    "version": "1.14.0",
+    "version": "1.19.0",
     "schemaVersion": "1.0.0",
-    "sha256": "186272646455c6e2fd8a053d20f41c0425b737127bbb115b76b3f2c54253c12b"
+    "sha256": "77f58d12a7bec56608a4fbaaa7772af9f4211ed222e1b7c646d90e5c32ba71be"
   },
   "execution": {
     "mode": "offline-mocked",
@@ -17,8 +17,8 @@
     "testExitCode": 0
   },
   "summary": {
-    "total": 38,
-    "passed": 38,
+    "total": 45,
+    "passed": 45,
     "failed": 0,
     "skipped": 0
   },
@@ -211,6 +211,23 @@
       ]
     },
     {
+      "id": "inventory-lot-genealogy",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "read-only",
+        "tenant-scoped",
+        "bounded-50-events",
+        "unit-and-direction-preserved",
+        "incomplete-coverage-disclosed",
+        "no-internal-ids-or-sensitive-fields"
+      ]
+    },
+    {
       "id": "invoice-maturity-summary",
       "kind": "tool-routing",
       "outcome": "Passed",
@@ -257,6 +274,20 @@
       ]
     },
     {
+      "id": "operational-project-progress",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "read-only",
+        "bounded-period",
+        "no-identifiers-employees-or-notes"
+      ]
+    },
+    {
       "id": "provider-429-classification",
       "kind": "provider-failure-classification",
       "outcome": "Passed",
@@ -264,6 +295,33 @@
         "http-429-classified-without-response-body",
         "rate-limit-versus-quota-remains-unknown",
         "no-automatic-retry"
+      ]
+    },
+    {
+      "id": "purchase-invoice-details",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "currency-preserved",
+        "no-supplier-identity-or-payment-references"
+      ]
+    },
+    {
+      "id": "purchase-order-details",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-lines",
+        "currency-preserved",
+        "no-supplier-identity-or-notes"
       ]
     },
     {
@@ -336,6 +394,20 @@
       ]
     },
     {
+      "id": "sales-delivery-details",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "read-only",
+        "bounded-lines",
+        "no-identifiers-or-sensitive-fields"
+      ]
+    },
+    {
       "id": "sales-delivery-search",
       "kind": "tool-routing",
       "outcome": "Passed",
@@ -345,6 +417,21 @@
         "single-tool-call",
         "tool-result-handoff",
         "bounded-delivery-summary"
+      ]
+    },
+    {
+      "id": "sales-order-details",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "bounded-lines",
+        "ordered-delivered-outstanding-reconciles",
+        "currency-preserved",
+        "no-customer-identity-or-notes"
       ]
     },
     {
@@ -378,6 +465,20 @@
         "strict-schema",
         "single-tool-call",
         "tool-result-handoff"
+      ]
+    },
+    {
+      "id": "supplier-delivery-note-details",
+      "kind": "tool-routing",
+      "outcome": "Passed",
+      "declaredAssertions": [
+        "exact-tool",
+        "strict-schema",
+        "single-tool-call",
+        "tool-result-handoff",
+        "read-only",
+        "bounded-lines",
+        "no-identifiers-or-supplier-identity"
       ]
     },
     {
