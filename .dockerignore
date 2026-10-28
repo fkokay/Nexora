@@ -13,5 +13,6 @@
 **/.vite
 .local-scout-cache/
 .codeql-model-check/
+.codex-ai-service-deploy-context/
 .codex-build/
 deploy/docker/sandbox-package-cache/
