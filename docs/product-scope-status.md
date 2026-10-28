@@ -53,3 +53,7 @@ The schedule is an operational book-depreciation estimate: equal monthly amounts
 
 
 The stock-card movement history grid is now a separate allowlisted tenant Studio layout (inventory-stock-movements) for ordering, labels, and visibility; the reversal action remains fixed. This applies only to the persisted history list, not the movement-entry form. Verification is recorded in docs/phase-status.md; no schema migration or deployment is required.
+
+## AI assistant verification update — 2026-10-29
+
+The read-only assistant already includes `search_purchase_receipts`, despite an older 2026-10-25 phase note listing direct purchase-receipt lookup as open. It requires `erp.purchase-receipts.read`, trims and bounds the search term, queries the authenticated tenant's API, caps results at ten, and strips supplier, warehouse, and internal identifiers from the AI-facing summary. Focused verification passed 8/8 assistant-tool unit cases and 1/1 API integration case for authentication, tenant isolation, paging bounds, and field minimization. The current offline orchestration evaluation set v1.19.0 passed 45/45 mapped cases with zero external provider requests; report: [ai-evaluation-offline-report.json](ai-evaluation-offline-report.json). This does not score live model quality or close the independent-human-review gate.

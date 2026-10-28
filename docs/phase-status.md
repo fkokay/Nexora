@@ -4,6 +4,10 @@
 
 Ran `tests/integration/Invoke-OfflineErpAssistantEvaluation.ps1` against the current versioned orchestration set (v1.19.0, SHA-256 `77f58d12a7bec56608a4fbaaa7772af9f4211ed222e1b7c646d90e5c32ba71be`). All 45 mapped cases passed, with zero failures, skips, unmapped tests or external requests. Updated `docs/ai-evaluation-offline-report.json`. This verifies mocked routing, bounded outputs, data minimization and evaluation contracts only; semantic model quality is not scored. The two-independent-human-reviewer live quality gate remains open.
 
+### 2026-10-29 Purchase receipt assistant coverage reconciliation
+
+The 2026-10-25 note that direct purchase-receipt lookup was open is superseded: the current source already has a permission-gated `search_purchase_receipts` tool. It requires `erp.purchase-receipts.read`, calls the tenant-authenticated receipt search API, caps results at ten and projects only receipt/order codes, date, status and line count. Release verification passed the focused assistant tool suite (8/8) and API endpoint integration case (1/1), including authentication, tenant isolation, bounded paging and removal of supplier, warehouse and internal identifiers. The v1.19.0 offline evaluation also includes the purchase-receipt routing case (45/45 overall, zero external requests). No migration or deployment is required for this read-only tool. Live semantic scoring remains open.
+
 ### 2026-10-29 remote development migration-history verification
 
 Read-only SQL Server queries through the `nexora-remote` Docker context confirmed the active development databases remain at Platform `20261028120000_AddPlannedManufacturingEnergyCost`, tenant `20261028160000_AddPlannedManufacturingMaterialCostAndTradeInventoryLinks`, and tenant Studio `20261023150000_AddStudioModuleSourceMappings`. The only active tenant database is `AIERPTenant_207af7e7d83f41c288d7cba5856f1109`; R9 rehearsal databases and an isolated supplier-payment acceptance database are also present. No migration or data was changed. This is single-development-tenant evidence, not all-firm or production migration acceptance.
