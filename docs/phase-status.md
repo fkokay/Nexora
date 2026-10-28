@@ -1,5 +1,9 @@
 # Master Prompt Phase Status
 
+### 2026-10-29 payment-instrument SQL Server lifecycle acceptance
+
+Ran `PaymentInstrumentSqlAcceptanceTests` against the remote development SQL Server through the SSH tunnel. The disposable-database test passed 1/1 in 27 seconds, covering unauthenticated rejection, tenant isolation, receivable check and payable promissory-note creation, idempotent replay, collection/payment, bounce contra movement, balanced journals, audit events, and a SQL-trigger-controlled fiscal-close/collection race followed by closed-period mutation rejection. The test's `finally` cleanup completed; a follow-up SQL query found zero databases with the acceptance prefix. No application code, migration history, active tenant database, persistent volume, or service image was changed.
+
 ### 2026-10-29 standalone supplier invoice draft SQL Server acceptance
 
 Closed the previously open SQL translation/rowversion acceptance gate for standalone supplier invoice drafts using the persistent remote development SQL Server through an SSH tunnel to its published port. The acceptance test passed 1/1 against fresh, uniquely named Platform and Tenant databases. It exercised draft creation and update with SQL `rowversion`, stale-version conflict, posting with explicit account mappings, idempotent repost, cross-tenant denial, and confirmation that draft/posting produced only the expected ledger/journal effects. The test's `finally` cleanup completed; a follow-up SQL Server query found zero databases with the temporary test prefix. No active firm database, migration history, persistent volume, service configuration, or application image was changed. The remote API, ERP Web, Studio, AI Service, and SQL Server remained healthy. The configured remote SQL credential was passed only to the test process and was not emitted.
