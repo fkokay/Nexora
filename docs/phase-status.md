@@ -1,5 +1,9 @@
 # Master Prompt Phase Status
 
+### 2026-10-29 Studio projects-panel refresh and product decisions
+
+Recorded the current product defaults for per-company storage tiers (10/50/250 GB with 80%/95% warning thresholds), orderless delivery/receipt stock and reversal behavior, fixed-asset VUK/book-depreciation policy, and credit/guarantee/TMS 7 reporting. These are product decisions; the related missing application behavior remains explicitly marked partial in `docs/product-scope-status.md`. The pending Studio projects-panel/overview improvements passed the Development Studio TypeScript/Vite production build (2,838 modules; 449.44 KB entry JS). Pushed `6d1999a` and `411ede0` to `codex/phase-completion-clean`, then rebuilt/recreated only remote `development-studio` via the guarded UI script. Remote image `sha256:b474b934d389b3f35a3887b7a0a66c11f2a0f3b37dfc1ce21ad3709a8298d030` is healthy; public Studio health and page return HTTP 200 and the page references the new bundle. Authenticated in-browser layout/interaction review remains unverified. No API, AI Service, SQL, Vault, Worker, or database was changed.
+
 ### 2026-10-29 access-control SQL acceptance attempt
 
 Opened a temporary SSH forward to the remote development SQL Server and ran `SqlServerAccessControlAcceptanceTests` against a uniquely named disposable database target. SQL Server rejected the configured `sa` credential before database creation (`Login failed for user 'sa'`); the acceptance test failed 1/1 and created no test database. The SSH forward was closed and the process-only connection variable was removed. This is an environment credential mismatch, not evidence about the route behavior; re-run after using the current authorized SQL acceptance credential. No active tenant database, persistent service, volume, Vault secret, or application configuration was changed.
