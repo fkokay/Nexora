@@ -135,6 +135,8 @@ public sealed class EmployeeRecord
     public Guid? UserId { get; set; }
     public string? Department { get; set; }
     public string? JobTitle { get; set; }
+    /// <summary>Employer-defined category used to group employees for payroll policy selection.</summary>
+    public string? EmploymentCategory { get; set; }
     public string? WorkEmail { get; set; }
     public DateOnly HireDate { get; set; }
     public DateOnly? TerminationDate { get; set; }
@@ -172,6 +174,9 @@ public sealed class EmployeeAttendanceRecord
     public int OvertimeMinutes { get; set; }
     public string? Note { get; set; }
     public Guid RecordedByUserId { get; set; }
+    public string ApprovalStatus { get; set; } = "PendingApproval";
+    public Guid? ApprovedByUserId { get; set; }
+    public DateTimeOffset? ApprovedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public byte[] RowVersion { get; set; } = [];
 }
@@ -575,6 +580,7 @@ public static class LedgerMappingKeys
     public const string FinancialAccountPrefix = "financial-account.";
     public const string CreditFacilityPrincipal = "credit-facility.principal";
     public const string CreditFacilityInterestExpense = "credit-facility.interest-expense";
+    public const string CreditFacilityAccruedInterest = "credit-facility.accrued-interest";
     public const string CreditFacilityFeeExpense = "credit-facility.fee-expense";
     public const string SalesReceivable = "sales.receivable";
     public const string SalesRevenue = "sales.revenue";
@@ -1270,6 +1276,10 @@ public sealed class InventoryTransaction
     public SalesReturnLine? SalesReturnLine { get; set; }
     public Guid? PurchaseReceiptLineId { get; set; }
     public PurchaseReceiptLine? PurchaseReceiptLine { get; set; }
+    public Guid? StandaloneSalesDeliveryLineId { get; set; }
+    public StandaloneSalesDeliveryLine? StandaloneSalesDeliveryLine { get; set; }
+    public Guid? StandalonePurchaseReceiptLineId { get; set; }
+    public StandalonePurchaseReceiptLine? StandalonePurchaseReceiptLine { get; set; }
     public Guid? SupplierReturnLineId { get; set; }
     public SupplierReturnLine? SupplierReturnLine { get; set; }
     /// <summary>Stable tenant-scoped source for material issues posted while completing a manufacturing order.</summary>
@@ -1300,6 +1310,8 @@ public sealed class InventoryCostAdjustment
     public DateOnly EntryDate { get; set; }
     public InventoryCostAdjustmentKind Kind { get; set; }
     public Guid? PurchaseReceiptId { get; set; }
+    public Guid? StandalonePurchaseReceiptId { get; set; }
+    public Guid? PurchaseInvoiceDraftId { get; set; }
     public string Description { get; set; } = "";
     public Guid? ReversalOfId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -1316,6 +1328,7 @@ public sealed class InventoryCostAdjustmentLine
     public Guid WarehouseId { get; set; }
     public Guid StockItemId { get; set; }
     public Guid? PurchaseReceiptLineId { get; set; }
+    public Guid? StandalonePurchaseReceiptLineId { get; set; }
     public decimal QuantitySnapshot { get; set; }
     public decimal? UnitCostSnapshotBase { get; set; }
     public decimal AmountBase { get; set; }
@@ -1626,6 +1639,85 @@ public sealed class PurchaseOrderLine
 }
 
 public enum PurchaseReceiptStatus { Posted = 1, Voided = 2 }
+
+public enum StandaloneInventoryDocumentStatus { Draft = 0, Posted = 1, Voided = 2 }
+
+/// <summary>Sales dispatch that is not sourced from a sales order.</summary>
+public sealed class StandaloneSalesDelivery
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid RequestId { get; set; }
+    public Guid CustomerId { get; set; }
+    public CustomerAccount Customer { get; set; } = null!;
+    public Guid WarehouseId { get; set; }
+    public Warehouse Warehouse { get; set; } = null!;
+    public string Code { get; set; } = "";
+    public DateOnly DeliveryDate { get; set; }
+    public StandaloneInventoryDocumentStatus Status { get; set; } = StandaloneInventoryDocumentStatus.Draft;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<StandaloneSalesDeliveryLine> Lines { get; set; } = new List<StandaloneSalesDeliveryLine>();
+}
+
+public sealed class StandaloneSalesDeliveryLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid DeliveryId { get; set; }
+    public StandaloneSalesDelivery Delivery { get; set; } = null!;
+    public int LineNumber { get; set; }
+    public Guid StockItemId { get; set; }
+    public string StockCode { get; set; } = "";
+    public string StockName { get; set; } = "";
+    public string UnitCode { get; set; } = "EA";
+    public decimal Quantity { get; set; }
+    public decimal? EnteredQuantity { get; set; }
+    public string? EnteredUnitCode { get; set; }
+    public string? TrackingCode { get; set; }
+    public DateOnly? ExpiryDate { get; set; }
+    public Guid? StorageLocationId { get; set; }
+    public WarehouseLocation? StorageLocation { get; set; }
+    public ICollection<InventoryTransaction> InventoryTransactions { get; set; } = new List<InventoryTransaction>();
+}
+
+/// <summary>Purchase receipt that is not sourced from a purchase order.</summary>
+public sealed class StandalonePurchaseReceipt
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid RequestId { get; set; }
+    public Guid SupplierId { get; set; }
+    public CustomerAccount Supplier { get; set; } = null!;
+    public Guid WarehouseId { get; set; }
+    public Warehouse Warehouse { get; set; } = null!;
+    public string Code { get; set; } = "";
+    public DateOnly ReceiptDate { get; set; }
+    public StandaloneInventoryDocumentStatus Status { get; set; } = StandaloneInventoryDocumentStatus.Draft;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<StandalonePurchaseReceiptLine> Lines { get; set; } = new List<StandalonePurchaseReceiptLine>();
+}
+
+public sealed class StandalonePurchaseReceiptLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ReceiptId { get; set; }
+    public StandalonePurchaseReceipt Receipt { get; set; } = null!;
+    public int LineNumber { get; set; }
+    public Guid StockItemId { get; set; }
+    public string StockCode { get; set; } = "";
+    public string StockName { get; set; } = "";
+    public string UnitCode { get; set; } = "EA";
+    public decimal Quantity { get; set; }
+    public decimal UnitCostBase { get; set; }
+    public decimal? EnteredQuantity { get; set; }
+    public string? EnteredUnitCode { get; set; }
+    public string? TrackingCode { get; set; }
+    public DateOnly? ExpiryDate { get; set; }
+    public Guid? StorageLocationId { get; set; }
+    public WarehouseLocation? StorageLocation { get; set; }
+    public ICollection<InventoryTransaction> InventoryTransactions { get; set; } = new List<InventoryTransaction>();
+}
 
 public sealed class PurchaseReceipt
 {

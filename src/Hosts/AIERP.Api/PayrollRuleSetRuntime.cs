@@ -37,6 +37,11 @@ internal static class PayrollRuleSetRuntime
                 case "compensation.periodAmount":
                 case "calculation.grossCandidate":
                     continue;
+                case "employee.employmentCategory":
+                    if (!TryString(employeeSnapshot, "employmentCategory", out var employmentCategory))
+                        return Fail("Çalışanın firma kategorisi eksik; kategoriye bağlı bordro kuralı uygulanamaz.", out inputs, out error);
+                    values[key] = new("choice", employmentCategory, null);
+                    break;
                 case "period.calendarDays":
                     values[key] = new("integer", periodEnd.DayNumber - periodStart.DayNumber + 1m, "day");
                     break;
@@ -84,6 +89,9 @@ internal static class PayrollRuleSetRuntime
                     long total = 0;
                     foreach (var day in attendance.EnumerateArray())
                     {
+                        if (!TryGetPropertyIgnoreCase(day, "status", out var approvalStatus) || approvalStatus.ValueKind != JsonValueKind.String ||
+                            !StringComparer.Ordinal.Equals(approvalStatus.GetString(), "Approved"))
+                            return Fail($"'{key}' bordro girdisinde onaylanmamış puantaj kaydı var.", out inputs, out error);
                         if (!TryDate(day, "workDate", out var workDate) || workDate < periodStart || workDate > periodEnd ||
                             !TryGetPropertyIgnoreCase(day, source == "attendance.workedMinutes" ? "workedMinutes" : "overtimeMinutes", out var minutes) ||
                             !minutes.TryGetInt32(out var dayMinutes) || dayMinutes < 0)
@@ -320,7 +328,7 @@ internal static class PayrollRuleSetRuntime
         if (!TryBindSnapshotInputs(rules, employeeSnapshot, profile, periodStart, periodEnd, targetAmount,
                 out _, out var targetMultiplier, out _, out error)) return false;
         decimal periodTargetAmount;
-        try { periodTargetAmount = checked(targetAmount * targetMultiplier); }
+        try { periodTargetAmount = decimal.Round(checked(targetAmount * targetMultiplier), 2, MidpointRounding.AwayFromZero); }
         catch (OverflowException) { return Fail("Brüt/net hedefinin dönem tutarı decimal sınırını aştı.", out error); }
         if (targetKind == "Net" && periodTargetAmount <= 0m)
             return Fail("Net hedefin dönem çarpanı sıfır veya negatif; dönem tutarı çözülemedi.", out error);
@@ -510,7 +518,11 @@ internal static class PayrollRuleSetRuntime
                     }
                 }
             }
-            output.Add(new(key, label, category, decimalAmount, unit, mappingCodes, mappingTreatments));
+            // Payroll amounts are rounded per component/line before gross, deductions,
+            // net pay and statutory bases are aggregated. This is an owner-approved
+            // product rule; it does not imply statutory calculation approval.
+            output.Add(new(key, label, category, decimal.Round(decimalAmount, 2, MidpointRounding.AwayFromZero), unit,
+                mappingCodes, mappingTreatments));
         }
 
         results = output;

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AIERP.Platform.Application;
@@ -91,7 +92,10 @@ public sealed class HumanResourcesEndpointsIntegrationTests
             })).StatusCode);
 
         SetIdentity(client, TenantA, Admin, "TenantAdmin");
-        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/hr/employees/", EmployeeWrite("E-NEW"))).StatusCode);
+        var createdEmployeeResponse = await client.PostAsJsonAsync("/api/hr/employees/", EmployeeWrite("E-NEW"));
+        Assert.Equal(HttpStatusCode.Created, createdEmployeeResponse.StatusCode);
+        var createdEmployee = await createdEmployeeResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Office", createdEmployee.GetProperty("employmentCategory").GetString());
         Assert.Equal(HttpStatusCode.BadRequest,
             (await client.PostAsJsonAsync("/api/hr/attendance/", AttendanceWrite(EmployeeB))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest,
@@ -118,7 +122,7 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         var employee = Assert.Single(employees!, x => x.GetProperty("id").GetGuid() == EmployeeA);
         var response = await client.PutAsJsonAsync($"/api/hr/employees/{EmployeeA}", new
         {
-            personnelCode = "A-001", fullName = "Updated Employee", department = "Finance", jobTitle = "Analyst",
+            personnelCode = "A-001", fullName = "Updated Employee", department = "Finance", jobTitle = "Analyst", employmentCategory = "Field staff",
             workEmail = "updated@example.test", hireDate = "2024-01-01", terminationDate = "2026-10-21",
             userId = EmployeeUserA, rowVersion = employee.GetProperty("rowVersion").GetString()
         });
@@ -126,6 +130,7 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var updated = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Updated Employee", updated.GetProperty("fullName").GetString());
+        Assert.Equal("Field staff", updated.GetProperty("employmentCategory").GetString());
         Assert.Equal("Terminated", updated.GetProperty("status").GetString());
         Assert.Equal("2026-10-21", updated.GetProperty("terminationDate").GetString());
     }
@@ -142,6 +147,37 @@ public sealed class HumanResourcesEndpointsIntegrationTests
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Contains("zaten bir puantaj kaydı", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Attendance_requires_a_second_tenant_admin_approval_and_correction_resets_it()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+
+        var rows = await client.GetFromJsonAsync<JsonElement[]>("/api/hr/attendance/");
+        var ownEntry = Assert.Single(rows!, x => x.GetProperty("id").GetGuid() == AttendanceA);
+        Assert.Equal("PendingApproval", ownEntry.GetProperty("approvalStatus").GetString());
+        var selfApproval = await client.PostAsJsonAsync($"/api/hr/attendance/{AttendanceA}/approve",
+            new { rowVersion = ownEntry.GetProperty("rowVersion").GetString() });
+        Assert.Equal(HttpStatusCode.Conflict, selfApproval.StatusCode);
+
+        var otherEntry = Assert.Single(rows!, x => x.GetProperty("id").GetGuid() == AttendanceAOtherDay);
+        var approved = await client.PostAsJsonAsync($"/api/hr/attendance/{AttendanceAOtherDay}/approve",
+            new { rowVersion = otherEntry.GetProperty("rowVersion").GetString() });
+        Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
+        Assert.Equal("Approved", (await approved.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+
+        var approvedEntry = (await client.GetFromJsonAsync<JsonElement[]>("/api/hr/attendance/"))!
+            .Single(x => x.GetProperty("id").GetGuid() == AttendanceAOtherDay);
+        var correction = await client.PutAsJsonAsync($"/api/hr/attendance/{AttendanceAOtherDay}",
+            AttendanceWrite(EmployeeA) with { WorkDate = new DateOnly(2026, 10, 21), RowVersion = approvedEntry.GetProperty("rowVersion").GetString() });
+        Assert.Equal(HttpStatusCode.OK, correction.StatusCode);
+        var correctedEntry = (await client.GetFromJsonAsync<JsonElement[]>("/api/hr/attendance/"))!
+            .Single(x => x.GetProperty("id").GetGuid() == AttendanceAOtherDay);
+        Assert.Equal("PendingApproval", correctedEntry.GetProperty("approvalStatus").GetString());
+        Assert.Equal(JsonValueKind.Null, correctedEntry.GetProperty("approvedByUserId").ValueKind);
     }
 
     [Fact]
@@ -440,7 +476,23 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         const string rulesJson = """
         {
           "schemaVersion": 1,
-          "parameters": [],
+          "parameters": [{
+            "key": "hourly-category", "label": "Hourly category", "valueType": "choice", "value": "Hourly staff", "unit": null,
+            "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null,
+            "sources": [
+              { "kind": "official", "reference": "Synthetic schema fixture", "url": "https://example.gov.tr/payroll" },
+              { "kind": "employerPolicy", "reference": "Synthetic company category", "url": null }
+            ]
+          }],
+          "inputs": [{
+            "key": "employee-category", "label": "Employee category", "valueType": "choice", "unit": null,
+            "sourceBinding": "employee.employmentCategory", "profile": "TR-4A-PRIVATE",
+            "effectiveFrom": "2026-01-01", "effectiveTo": null,
+            "sources": [
+              { "kind": "official", "reference": "Synthetic schema fixture", "url": "https://example.gov.tr/payroll" },
+              { "kind": "employerPolicy", "reference": "Synthetic company category", "url": null }
+            ]
+          }],
           "payBases": [{
             "code": "synthetic-monthly", "label": "Synthetic monthly", "unit": "month",
             "periodMultiplier": { "op": "constant", "value": 1, "unit": "month" },
@@ -453,7 +505,16 @@ public sealed class HumanResourcesEndpointsIntegrationTests
           "components": [{
             "key": "base-pay", "label": "Base pay", "category": "earning", "unit": "TRY",
             "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null,
-            "formula": { "op": "constant", "value": 1234.56, "unit": "TRY" },
+            "formula": {
+              "op": "if",
+              "condition": {
+                "op": "eq",
+                "left": { "op": "input", "key": "employee-category", "valueType": "choice", "unit": null },
+                "right": { "op": "parameter", "key": "hourly-category", "valueType": "choice", "unit": null }
+              },
+              "then": { "op": "constant", "value": 1234.565, "unit": "TRY" },
+              "else": { "op": "constant", "value": 0, "unit": "TRY" }
+            },
             "sources": [
               { "kind": "official", "reference": "Synthetic schema fixture", "url": "https://example.gov.tr/payroll" },
               { "kind": "employerPolicy", "reference": "Synthetic company policy", "url": null }
@@ -472,7 +533,7 @@ public sealed class HumanResourcesEndpointsIntegrationTests
             schemaVersion = 1,
             employees = new[] { new
             {
-                id = EmployeeA, personnelCode = "A-001", fullName = "Synthetic employee",
+                id = EmployeeA, personnelCode = "A-001", fullName = "Synthetic <employee>", employmentCategory = "Hourly staff",
                 compensation = new[] { new
                 {
                     amount = 1234.56m, targetKind = "Gross", currencyCode = "TRY",
@@ -524,7 +585,7 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         var employee = Assert.Single(payload.GetProperty("employees").EnumerateArray());
         var component = Assert.Single(employee.GetProperty("components").EnumerateArray());
         Assert.Equal("base-pay", component.GetProperty("key").GetString());
-        Assert.Equal(1234.56m, component.GetProperty("amount").GetDecimal());
+        Assert.Equal(1234.57m, component.GetProperty("amount").GetDecimal());
         Assert.Equal("TRY", component.GetProperty("unit").GetString());
         Assert.Equal("EXCLUDED", component.GetProperty("mappingCodes").GetProperty("incomeTaxBase").GetString());
 
@@ -548,6 +609,7 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         Assert.NotNull(resultEnvelope);
         Assert.Equal("FormulaTargetPreviewOnly", resultEnvelope.Stage);
         Assert.False(resultEnvelope.IsOfficialPayrollResult);
+        Assert.Equal(1234.57m, Assert.Single(Assert.Single(resultEnvelope.Employees).Components).Amount);
 
         using var selfApproval = await client.PostAsync(
             $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/approve", content: null);
@@ -569,6 +631,45 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         Assert.Equal("Approved", finalCalculation.Status);
         Assert.Contains(finalDb.AuditEvents, x => x.TenantId == TenantA && x.UserId == EmployeeUserA &&
             x.Action == "hr.payroll-run.formula-result-approved");
+
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+        using var finalizeResponse = await client.PostAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/finalize", content: null);
+        Assert.Equal(HttpStatusCode.OK, finalizeResponse.StatusCode);
+        using var payslipResponse = await client.GetAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/payslips");
+        Assert.Equal(HttpStatusCode.OK, payslipResponse.StatusCode);
+        Assert.StartsWith("text/html", payslipResponse.Content.Headers.ContentType!.ToString(), StringComparison.OrdinalIgnoreCase);
+        var payslips = await payslipResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Synthetic &lt;employee&gt;", payslips);
+        Assert.Contains("Resmî bordro pusulası değildir.", payslips);
+        Assert.DoesNotContain("Synthetic <employee>", payslips);
+
+        using var packageResponse = await client.GetAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/manual-package");
+        Assert.Equal(HttpStatusCode.OK, packageResponse.StatusCode);
+        await using var packageStream = await packageResponse.Content.ReadAsStreamAsync();
+        using var package = new ZipArchive(packageStream, ZipArchiveMode.Read);
+        var voucherEntry = Assert.Single(package.Entries, x => x.FullName == "muhasebe-fisi-taslagi.csv");
+        using var voucherReader = new StreamReader(voucherEntry.Open(), Encoding.UTF8);
+        var voucher = await voucherReader.ReadToEndAsync();
+        Assert.Contains("Date,EmployeeCode,EmployeeName,Description,AccountCode,Debit,Credit,Currency", voucher);
+        Assert.Contains("\"A-001\",\"Synthetic <employee>\",\"Base pay\",,1234.57,0.00,\"TRY\"", voucher);
+        Assert.Contains("\"Net ücret ödeme borcu\",,0.00,1234.57,\"TRY\"", voucher);
+        Assert.Contains("hesap kodu tanımlı değildir", await ReadZipEntryAsync(package, "OKU.txt"));
+
+        await using var artifactAuditScope = app.Services.CreateAsyncScope();
+        var artifactAuditDb = artifactAuditScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        Assert.Contains(artifactAuditDb.AuditEvents, x => x.TenantId == TenantA && x.UserId == Admin &&
+            x.Action == "hr.payroll-run.internal-payslips-generated");
+        Assert.Contains(artifactAuditDb.AuditEvents, x => x.TenantId == TenantA && x.UserId == Admin &&
+            x.Action == "hr.payroll-run.manual-package-generated");
+    }
+
+    private static async Task<string> ReadZipEntryAsync(ZipArchive archive, string entryName)
+    {
+        using var reader = new StreamReader(Assert.Single(archive.Entries, x => x.FullName == entryName).Open(), Encoding.UTF8);
+        return await reader.ReadToEndAsync();
     }
 
     [Fact]
@@ -629,7 +730,7 @@ public sealed class HumanResourcesEndpointsIntegrationTests
     private static object EmployeeWrite(string code) => new
     {
         personnelCode = code, fullName = "New Employee", department = "Operations", jobTitle = "Operator",
-        workEmail = "new@example.test", hireDate = "2026-01-05", terminationDate = (string?)null, userId = (Guid?)null
+        employmentCategory = "Office", workEmail = "new@example.test", hireDate = "2026-01-05", terminationDate = (string?)null, userId = (Guid?)null
     };
 
     private static AttendanceWriteRequest AttendanceWrite(Guid employeeId) =>
@@ -677,8 +778,8 @@ public sealed class HumanResourcesEndpointsIntegrationTests
             new EmployeeLeaveRequest { Id = LeaveA, TenantId = TenantA, EmployeeId = EmployeeA, LeaveType = "Annual", StartDate = new DateOnly(2026, 12, 1), EndDate = new DateOnly(2026, 12, 2), RequestedDays = 2, RequestedByUserId = EmployeeUserA, RowVersion = new byte[8] },
             new EmployeeLeaveRequest { Id = LeaveB, TenantId = TenantB, EmployeeId = EmployeeB, LeaveType = "Annual", StartDate = new DateOnly(2026, 12, 1), EndDate = new DateOnly(2026, 12, 2), RequestedDays = 2, RequestedByUserId = EmployeeUserB, RowVersion = new byte[8] });
         db.EmployeeAttendanceRecords.AddRange(
-            new EmployeeAttendanceRecord { Id = AttendanceA, TenantId = TenantA, EmployeeId = EmployeeA, WorkDate = new DateOnly(2026, 10, 20), WorkedMinutes = 480, RecordedByUserId = Admin },
-            new EmployeeAttendanceRecord { Id = AttendanceAOtherDay, TenantId = TenantA, EmployeeId = EmployeeA, WorkDate = new DateOnly(2026, 10, 21), WorkedMinutes = 420, RecordedByUserId = Admin },
+            new EmployeeAttendanceRecord { Id = AttendanceA, TenantId = TenantA, EmployeeId = EmployeeA, WorkDate = new DateOnly(2026, 10, 20), WorkedMinutes = 480, RecordedByUserId = Admin, RowVersion = new byte[8] },
+            new EmployeeAttendanceRecord { Id = AttendanceAOtherDay, TenantId = TenantA, EmployeeId = EmployeeA, WorkDate = new DateOnly(2026, 10, 21), WorkedMinutes = 420, RecordedByUserId = HrApprover, RowVersion = new byte[8] },
             new EmployeeAttendanceRecord { Id = AttendanceB, TenantId = TenantB, EmployeeId = EmployeeB, WorkDate = new DateOnly(2026, 10, 20), WorkedMinutes = 480, RecordedByUserId = Admin });
         await db.SaveChangesAsync();
         return app;

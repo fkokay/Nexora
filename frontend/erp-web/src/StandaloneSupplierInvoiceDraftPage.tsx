@@ -8,16 +8,17 @@ import './standalone-supplier-invoice-draft.css'
 type Supplier = { id: string; code: string; name: string; currencyCode: string }
 type SupplierPage = { items: Supplier[]; totalCount: number }
 type ExpenseAccount = { id: string; code: string; name: string; isActive: boolean; statementSection: string }
-type DraftLineInput = { description: string; quantity: string; unitCode: string; unitPrice: string; subtotal: string; discountAmount: string; taxAmount: string; total: string; expenseAccountId: string; vatRate: string }
+type DraftLineInput = { description: string; quantity: string; unitCode: string; unitPrice: string; subtotal: string; discountAmount: string; taxAmount: string; total: string; expenseAccountId: string; vatRate: string; standalonePurchaseReceiptLineId: string }
 type DraftInput = { requestId: string; supplierId: string; invoiceNumber: string; invoiceDate: string; dueDate: string; currencyCode: string; notes: string; subtotal: string; discountTotal: string; taxTotal: string; grandTotal: string; lines: DraftLineInput[] }
 type DraftSummary = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; grandTotal: number; lineCount: number; status: string; createdAt: string }
 type DraftPage = { items: DraftSummary[]; page: number; pageSize: number; totalCount: number }
+type ReceiptOption = { lineId: string; receiptId: string; receiptCode: string; receiptDate: string; stockCode: string; stockName: string; quantity: number; unitCode: string; unitCostBase: number }
 type DraftScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null }
-type DraftDetail = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; notes: string | null; subtotal: number; discountTotal: number; taxTotal: number; grandTotal: number; status: string; rowVersion: string; lines: Array<{ lineNumber: number; description: string; quantity: number | null; unitCode: string | null; unitPrice: number | null; subtotal: number; discountAmount: number; taxAmount: number; total: number; expenseAccountId: string | null; vatRate: number | null }> }
+type DraftDetail = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; notes: string | null; subtotal: number; discountTotal: number; taxTotal: number; grandTotal: number; status: string; rowVersion: string; lines: Array<{ lineNumber: number; description: string; quantity: number | null; unitCode: string | null; unitPrice: number | null; subtotal: number; discountAmount: number; taxAmount: number; total: number; expenseAccountId: string | null; vatRate: number | null; standalonePurchaseReceiptLineId: string | null }> }
 
 export type StandaloneSupplierInvoiceDraftPageProps = { token: string; role: string }
 
-const blankLine = (): DraftLineInput => ({ description: '', quantity: '', unitCode: '', unitPrice: '', subtotal: '', discountAmount: '0', taxAmount: '', total: '', expenseAccountId: '', vatRate: '' })
+const blankLine = (): DraftLineInput => ({ description: '', quantity: '', unitCode: '', unitPrice: '', subtotal: '', discountAmount: '0', taxAmount: '', total: '', expenseAccountId: '', vatRate: '', standalonePurchaseReceiptLineId: '' })
 const defaultDraftScreenFields: DraftScreenField[] = [
   { key: 'invoiceNumber', label: 'Fatura no', visible: true, position: 0 }, { key: 'supplierName', label: 'Tedarikçi', visible: true, position: 1 },
   { key: 'invoiceDate', label: 'Fatura tarihi', visible: true, position: 2 }, { key: 'dueDate', label: 'Vade tarihi', visible: true, position: 3 },
@@ -47,6 +48,7 @@ function requiredNumber(value: string): number { return Number(value) }
 export default function StandaloneSupplierInvoiceDraftPage({ token, role }: StandaloneSupplierInvoiceDraftPageProps) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [expenseAccounts, setExpenseAccounts] = useState<ExpenseAccount[]>([])
+  const [receiptOptions, setReceiptOptions] = useState<ReceiptOption[]>([])
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [drafts, setDrafts] = useState<DraftSummary[]>([])
   const [draftScreenFields, setDraftScreenFields] = useState(defaultDraftScreenFields)
@@ -93,6 +95,16 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
     return () => { active = false; window.clearTimeout(timer) }
   }, [supplierSearch, token])
 
+  useEffect(() => {
+    let active = true
+    setReceiptOptions([])
+    if (!draft.supplierId || !draft.invoiceDate) return () => { active = false }
+    void request<ReceiptOption[]>(`/api/purchasing/standalone-invoices/receipts?supplierId=${encodeURIComponent(draft.supplierId)}&invoiceDate=${encodeURIComponent(draft.invoiceDate)}${editing ? `&draftId=${encodeURIComponent(editing.id)}` : ''}`, token)
+      .then(items => { if (active) setReceiptOptions(items) })
+      .catch(() => { if (active) setReceiptOptions([]) })
+    return () => { active = false }
+  }, [draft.supplierId, draft.invoiceDate, editing, token])
+
   const visibleSuppliers = useMemo(() => {
     if (!selectedSupplier || suppliers.some(x => x.id === selectedSupplier.id)) return suppliers
     return [...suppliers, selectedSupplier]
@@ -101,6 +113,13 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
   function update<K extends keyof DraftInput>(field: K, value: DraftInput[K]) { setDraft(current => ({ ...current, [field]: value })) }
   function updateLine(index: number, field: keyof DraftLineInput, value: string) {
     setDraft(current => ({ ...current, lines: current.lines.map((line, i) => i === index ? { ...line, [field]: value } : line) }))
+  }
+  function selectReceiptLine(index: number, receiptLineId: string) {
+    const receipt = receiptOptions.find(x => x.lineId === receiptLineId)
+    setDraft(current => ({ ...current, lines: current.lines.map((line, i) => i === index ? {
+      ...line, standalonePurchaseReceiptLineId: receiptLineId, expenseAccountId: receiptLineId ? '' : line.expenseAccountId,
+      ...(receiptLineId && receipt ? { description: `${receipt.stockCode} · ${receipt.stockName}`, quantity: String(receipt.quantity), unitCode: receipt.unitCode } : {}),
+    } : line) }))
   }
   function selectSupplier(id: string) {
     const supplier = suppliers.find(x => x.id === id)
@@ -124,7 +143,8 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
         lines: saved.lines.map(line => ({ description: line.description, quantity: line.quantity == null ? '' : String(line.quantity),
           unitCode: line.unitCode || '', unitPrice: line.unitPrice == null ? '' : String(line.unitPrice), subtotal: String(line.subtotal),
           discountAmount: String(line.discountAmount), taxAmount: String(line.taxAmount), total: String(line.total),
-          expenseAccountId: line.expenseAccountId || '', vatRate: line.vatRate == null ? '' : String(line.vatRate) })) })
+          expenseAccountId: line.expenseAccountId || '', vatRate: line.vatRate == null ? '' : String(line.vatRate),
+          standalonePurchaseReceiptLineId: line.standalonePurchaseReceiptLineId || '' })) })
       setNotice(`${saved.invoiceNumber} taslağı düzenleniyor.`)
       document.querySelector('.sid-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
@@ -150,6 +170,7 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
           subtotal: requiredNumber(line.subtotal), discountAmount: requiredNumber(line.discountAmount),
           taxAmount: requiredNumber(line.taxAmount), total: requiredNumber(line.total),
           expenseAccountId: line.expenseAccountId || null, vatRate: optionalNumber(line.vatRate),
+          standalonePurchaseReceiptLineId: line.standalonePurchaseReceiptLineId || null,
         })),
       }
       if (editing) {
@@ -167,19 +188,19 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
 
   async function postDraft(item: DraftSummary) {
     if (item.status !== 'Draft' || busy) return
-    const confirmed = window.confirm(`${item.invoiceNumber} numaralı tedarikçi faturası muhasebeleştirilsin mi? Bu işlem geri alınamaz; gider, varsa indirilecek KDV, tedarikçi borcu ve yevmiye kaydı oluşturur. Stok veya ödeme hareketi oluşturmaz.`)
+    const confirmed = window.confirm(`${item.invoiceNumber} numaralı tedarikçi faturası muhasebeleştirilsin mi? Bu işlem gider veya mal kabule bağlı stok maliyeti, varsa indirilecek KDV, tedarikçi borcu ve yevmiye kaydı oluşturur. Stok miktar hareketi veya ödeme kaydı oluşturmaz.`)
     if (!confirmed) return
     setBusy(true); setError(''); setNotice('')
     try {
       await request<{ draftId: string; status: string; journalEntryId: string; ledgerEntryId: string }>(
         `/api/purchasing/standalone-invoices/${item.id}/post`, token, { method: 'POST' })
-      setNotice(`${item.invoiceNumber} muhasebeleştirildi. Yevmiye ve tedarikçi cari hareketi oluşturuldu; stok ve ödeme hareketi oluşturulmadı.`)
+      setNotice(`${item.invoiceNumber} muhasebeleştirildi. Yevmiye ve tedarikçi cari hareketi oluşturuldu; stok miktarı ve ödeme hareketi oluşturulmadı.`)
       await load()
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
 
   return <main className="standalone-invoice-page">
-    <header className="sid-heading"><div><p className="sid-eyebrow">ERP CORE · SATIN ALMA</p><h1>Bağımsız alış faturası taslakları</h1><p>Sipariş ve mal kabul bağlantısı olmadan tedarikçi belgesini kaydedin.</p></div><span className="sid-tenant"><ShieldCheck size={15}/>{role} · firma kapsamı</span></header>
+    <header className="sid-heading"><div><p className="sid-eyebrow">ERP CORE · SATIN ALMA</p><h1>Bağımsız alış faturası taslakları</h1><p>Siparişsiz tedarikçi faturasını kaydedin; uygunsa mal kabul satırıyla eşleştirip maliyet farkını aktarın.</p></div><span className="sid-tenant"><ShieldCheck size={15}/>{role} · firma kapsamı</span></header>
     <section className="sid-draft-banner" role="status"><span><FilePlus2 size={18}/></span><div><b>Taslak · muhasebeleştirilmedi</b><p>Bu kayıt yalnızca belge bilgisidir. Kaydetmek stok, cari borç, ödeme veya yevmiye hareketi oluşturmaz.</p></div></section>
     {error && <div className="sid-alert" role="alert">{error}<button type="button" onClick={() => setError('')}>Kapat</button></div>}
     {notice && <div className="sid-notice" role="status">{notice}<button type="button" onClick={() => setNotice('')}>Kapat</button></div>}
@@ -201,6 +222,7 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
         <div className="sid-card-heading"><div><h2>Fatura satırları</h2><p>Miktar ve birim fiyat isteğe bağlıdır; satır tutarları kaynak belgeden girilir, yeniden hesaplanmaz.</p></div><button type="button" className="sid-secondary" onClick={addLine}><Plus size={15}/> Satır ekle</button></div>
         <div className="sid-lines">{draft.lines.map((line, index) => <div className="sid-line" key={index}>
           <div className="sid-line-title"><b>Satır {index + 1}</b><button type="button" className="sid-icon-button" disabled={draft.lines.length === 1} aria-label={`Satır ${index + 1} sil`} onClick={() => removeLine(index)}><Trash2 size={15}/></button></div>
+          <label className="sid-wide">Siparişsiz mal kabul satırı<select value={line.standalonePurchaseReceiptLineId} onChange={e => selectReceiptLine(index, e.target.value)}><option value="">Mal kabule bağlı değil · gider hesabı seçin</option>{receiptOptions.map(receipt => <option key={receipt.lineId} value={receipt.lineId}>{receipt.receiptCode} · {receipt.receiptDate} · {receipt.stockCode} — kalan {receipt.quantity} {receipt.unitCode} · birim maliyet {receipt.unitCostBase.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} baz para</option>)}</select></label>
           <label className="sid-wide">Açıklama *<input value={line.description} onChange={e => updateLine(index, 'description', e.target.value)} maxLength={240} required/></label>
           <label>Miktar<input type="number" min="0" step="0.0001" value={line.quantity} onChange={e => updateLine(index, 'quantity', e.target.value)}/></label>
           <label>Birim<input value={line.unitCode} onChange={e => updateLine(index, 'unitCode', e.target.value)} maxLength={12}/></label>
@@ -209,9 +231,9 @@ export default function StandaloneSupplierInvoiceDraftPage({ token, role }: Stan
           <label>İskonto *<input type="number" min="0" step="0.01" value={line.discountAmount} onChange={e => updateLine(index, 'discountAmount', e.target.value)} required/></label>
           <label>Vergi tutarı *<input type="number" min="0" step="0.01" value={line.taxAmount} onChange={e => updateLine(index, 'taxAmount', e.target.value)} required/></label>
           <label>Belgedeki KDV oranı (%)<input type="number" min="0" max="100" step="0.01" value={line.vatRate} onChange={e => updateLine(index, 'vatRate', e.target.value)}/></label>
-          <label>Gider hesabı<select value={line.expenseAccountId} onChange={e => updateLine(index, 'expenseAccountId', e.target.value)}><option value="">Şimdi seçme</option>{expenseAccounts.map(account => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}</select></label>
+          {!line.standalonePurchaseReceiptLineId && <label>Gider hesabı<select value={line.expenseAccountId} onChange={e => updateLine(index, 'expenseAccountId', e.target.value)}><option value="">Şimdi seçme</option>{expenseAccounts.map(account => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}</select></label>}
           <label>Satır toplamı *<input type="number" min="0" step="0.01" value={line.total} onChange={e => updateLine(index, 'total', e.target.value)} required/></label>
-          <p className="sid-line-note sid-wide">KDV oranı belge üzerinden kaydedilir; yeniden hesaplanmaz. Gider hesabı yalnız sonraki muhasebeleştirme için sınıflandırmadır.</p>
+          <p className="sid-line-note sid-wide">{line.standalonePurchaseReceiptLineId ? 'Bu satır mal kabul maliyetini faturadaki net tutara günceller. Yalnız kalan, tüketilmemiş stok için aktarılır; stok miktarı değişmez.' : 'KDV oranı belge üzerinden kaydedilir; yeniden hesaplanmaz. Gider hesabı yalnız sonraki muhasebeleştirme için sınıflandırmadır.'}</p>
         </div>)}</div>
       </section>
 

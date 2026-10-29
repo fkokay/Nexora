@@ -500,6 +500,7 @@
 .studio-vscode-language{display:inline-flex;align-items:center;gap:5px;margin-left:auto;padding-left:9px;border-left:1px solid #2a3b4f;color:#9aafc3}
 .studio-vscode-language>svg{color:#87c7f7}
 .studio-vscode-canvas{flex:1;min-height:0;background:#0d1725}
+.studio-editor-loading{display:grid;height:100%;min-height:240px;place-items:center;color:#9cb4ca;font-size:12px}
 .studio-vscode-canvas>.monaco-editor,.studio-vscode-canvas>.monaco-editor .overflow-guard{border-radius:0 0 10px 10px}
 .studio-vscode-statusbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:25px;padding:0 10px;background:#155d91;color:#e4f3ff;font-size:8px;font-weight:600;font-variant-numeric:tabular-nums}
 .studio-vscode-status-left,.studio-vscode-status-right{display:flex;align-items:center;gap:13px;min-width:0}
@@ -578,8 +579,8 @@
 
 /* Full-page VS Code-inspired workspace IDE. */
 .modal-backdrop:has(.studio-file-explorer){background:#1e1e1e}
-.modal-backdrop:has(.studio-file-explorer)>.studio-file-explorer{display:grid;width:100%;height:100dvh;max-height:100dvh;grid-template-columns:48px 258px minmax(0,1fr);grid-template-rows:64px 0 48px auto minmax(0,1fr) auto;grid-template-areas:"header header header" "intro intro intro" "tools tools tools" "error error error" "activity sidebar workbench" "footer footer footer";gap:0;padding:0;overflow:hidden;align-content:stretch;border:0;border-radius:0;background:#1e1e1e;color:#d4d4d4;box-shadow:none}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar){grid-template-columns:48px 258px minmax(0,1fr);grid-template-rows:64px 0 48px auto minmax(0,1fr) auto;grid-template-areas:"header header header" "intro intro intro" "tools tools tools" "error error error" "activity sidebar workbench" "footer footer footer";gap:0;align-content:stretch;overflow:hidden;background:#1e1e1e;color:#d4d4d4}
+.modal-backdrop:has(.studio-file-explorer)>.studio-file-explorer{display:grid;width:100%;height:100dvh;max-height:100dvh;grid-template-columns:48px 258px minmax(0,1fr);grid-template-rows:64px 0 auto auto minmax(0,1fr) auto;grid-template-areas:"header header header" "intro intro intro" "tools tools tools" "error error error" "activity sidebar workbench" "footer footer footer";gap:0;padding:0;overflow:hidden;align-content:stretch;border:0;border-radius:0;background:#1e1e1e;color:#d4d4d4;box-shadow:none}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar){grid-template-columns:48px 258px minmax(0,1fr);grid-template-rows:64px 0 auto auto minmax(0,1fr) auto;grid-template-areas:"header header header" "intro intro intro" "tools tools tools" "error error error" "activity sidebar workbench" "footer footer footer";gap:0;align-content:stretch;overflow:hidden;background:#1e1e1e;color:#d4d4d4}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{grid-area:header;position:relative;top:auto;z-index:5;display:flex;align-items:center;min-width:0;margin:0;padding:10px 22px;border:0;border-bottom:1px solid #111820;border-radius:0;background:#181818;color:#e5e5e5;box-shadow:none}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2{font-size:16px;font-weight:600;letter-spacing:0}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .eyebrow{color:#858585}
@@ -593,6 +594,17 @@
 .studio-workbench-tools>button.is-active{border-color:#454545;background:#37373d;color:#fff;box-shadow:none}
 .studio-workbench-tools>button.is-active>svg{color:#75beff}
 .studio-workbench-tools>.database-engineer-trigger{height:32px!important}
+.studio-workbench-group{display:inline-flex;flex:none;align-items:center;gap:2px;padding:0 8px 0 2px;border-right:1px solid #3a3a3a}
+.studio-workbench-group:last-child{padding-right:2px;border-right:0}
+.studio-workbench-group>span{flex:none;margin:0 5px;color:#858585;font-size:8px;font-weight:700;letter-spacing:.45px;text-transform:uppercase}
+.studio-workbench-group>button,.studio-workbench-group>.database-engineer-trigger{display:inline-flex;flex:none;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:0 9px;border:1px solid transparent;border-radius:4px;background:transparent;color:#ccc;font:500 10px "DM Sans",sans-serif;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.studio-workbench-group>button>svg{flex:none;color:#9da5ad}
+.studio-workbench-group>button:hover:not(:disabled),.studio-workbench-group>.database-engineer-trigger:hover:not(:disabled){border-color:#454545;background:#333;color:#fff}
+.studio-workbench-group>button:focus-visible,.studio-workbench-group>.database-engineer-trigger:focus-visible{outline:2px solid #75beff;outline-offset:2px}
+.studio-workbench-group>button.is-active{border-color:#454545;background:#37373d;color:#fff}
+.studio-workbench-group>button.is-active>svg{color:#75beff}
+.studio-workbench-group>button:disabled,.studio-workbench-group>.database-engineer-trigger:disabled{opacity:.48;cursor:not-allowed}
+.studio-workbench-group>.database-engineer-trigger{height:32px!important;margin:0!important}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.alert{grid-area:error;margin:8px 12px 0}
 .studio-vscode-activity-bar{grid-area:activity;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;min-height:0;padding:10px 0;border-right:1px solid #252526;background:#333333;color:#858585}
 .studio-vscode-activity-bar>button{position:relative;display:grid;place-items:center;width:48px;height:44px;border:0;border-left:2px solid transparent;background:transparent;color:#858585;cursor:pointer}
@@ -683,7 +695,7 @@
 @media(max-width:760px){.studio-knowledge-heading{min-height:40px}.studio-knowledge-heading>span:first-child{flex-wrap:wrap;gap:2px 7px}.studio-knowledge-content{max-height:42dvh}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.boundary-note{max-height:36px;white-space:normal}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.boundary-note>span{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;white-space:normal}}
 
 /* Compact, aligned project title bar for the IDE shell. */
-.modal-backdrop:has(.studio-file-explorer)>.studio-file-explorer,.studio-file-explorer:has(.studio-vscode-explorer-sidebar){grid-template-rows:60px 0 46px auto minmax(0,1fr) auto auto auto}
+.modal-backdrop:has(.studio-file-explorer)>.studio-file-explorer,.studio-file-explorer:has(.studio-vscode-explorer-sidebar){grid-template-rows:60px 0 auto auto minmax(0,1fr) auto auto auto}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{box-sizing:border-box;height:60px;min-height:60px;padding:0 20px}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head>div{display:flex;align-items:center;gap:14px;min-width:0}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow{flex:none;gap:6px;margin:0;color:#9da7b3;font-size:8px;letter-spacing:.9px;white-space:nowrap}
@@ -693,7 +705,7 @@
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-branch{padding:4px 8px;border-color:#4b4b4b;border-radius:4px;background:#2d2d30;color:#c7d6e5;font-size:9px}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .icon-button{flex:none;width:30px;height:30px;margin-left:auto;border:1px solid #3d3d3d;border-radius:4px;background:#242424;color:#bbb}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .icon-button:hover{border-color:#666;background:#333;color:#fff}
-@media(max-width:760px){.modal-backdrop:has(.studio-file-explorer)>.studio-file-explorer,.studio-file-explorer:has(.studio-vscode-explorer-sidebar){grid-template-rows:58px 0 42px auto minmax(0,1fr) auto}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{height:58px;min-height:58px;padding:0 10px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head>div{gap:8px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow{font-size:0}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow>svg{width:17px;height:17px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow>span{display:none}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2{font-size:14px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-branch{font-size:8px}}
+@media(max-width:760px){.modal-backdrop:has(.studio-file-explorer)>.studio-file-explorer,.studio-file-explorer:has(.studio-vscode-explorer-sidebar){grid-template-rows:58px 0 auto auto minmax(0,1fr) auto}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{height:58px;min-height:58px;padding:0 10px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head>div{gap:8px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow{font-size:0}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow>svg{width:17px;height:17px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow>span{display:none}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2{font-size:14px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-branch{font-size:8px}}
 
 /* Fix IDE title, breadcrumb contrast, and welcome shortcut spacing. */
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{display:flex!important;visibility:visible!important;overflow:hidden;background:#161b22;color:#edf2f7}
@@ -967,6 +979,71 @@
 .modal-backdrop:has(#database-engineer-title)>.modal>form>label{display:grid;gap:7px;color:#43566c;font-size:11px;font-weight:650;line-height:1.45}
 .modal-backdrop:has(#database-engineer-title)>.modal textarea{min-height:88px;padding:10px 12px;border:1px solid #cfdbe7;border-radius:8px;background:#fff;color:#26384b;font-size:12px;line-height:1.5}
 .modal-backdrop:has(#database-engineer-title)>.modal textarea:focus{border-color:#3688c9;outline:0;box-shadow:0 0 0 3px rgba(15,108,189,.12)}
+
+/* IDE source search uses the same dark, high-density surface as the editor. */
+.modal-backdrop.studio-source-search-backdrop{z-index:1250;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(5,11,18,.82);backdrop-filter:blur(4px)}
+.studio-source-search-modal{display:flex;flex-direction:column;width:min(1120px,calc(100vw - 48px));height:min(820px,calc(100dvh - 48px));max-height:calc(100dvh - 48px);padding:0;overflow:hidden;border:1px solid #39495a;border-radius:10px;background:#1e1e1e;color:#d4d4d4;box-shadow:0 30px 100px #0009}
+.studio-source-search-header{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:82px;padding:14px 22px;border-bottom:1px solid #303944;background:#181818}
+.studio-source-search-heading{display:grid;gap:5px;min-width:0}
+.studio-source-search-kicker{display:flex;align-items:center;gap:7px;color:#82b9e7;font-size:9px;font-weight:750;letter-spacing:.8px}
+.studio-source-search-heading h2{margin:0;color:#f0f3f7;font-size:18px;font-weight:650;letter-spacing:-.2px}
+.studio-source-search-scope{display:flex;align-items:center;gap:8px;min-width:0;color:#9ca8b5;font-size:10px}
+.studio-source-search-scope b{overflow:hidden;color:#d7e0e9;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.studio-source-search-scope code{padding:2px 6px;border:1px solid #3a4653;border-radius:4px;background:#222a33;color:#9eb9d2;font:10px ui-monospace,SFMono-Regular,Consolas,monospace}
+.studio-source-search-close{display:grid;flex:none;place-items:center;width:34px;height:34px;border:1px solid #414b55;border-radius:6px;background:#252a30;color:#d7e0e8;cursor:pointer}
+.studio-source-search-close:hover{border-color:#6c8aa5;background:#303841;color:#fff}
+.studio-source-search-intro{margin:0;padding:12px 24px;color:#98a6b4;font-size:10px;line-height:1.5}
+.studio-source-search-backdrop .alert{margin:0 24px 10px}
+.studio-source-search-form{display:grid;gap:8px;margin:0 24px 14px;padding:14px 16px;border:1px solid #384756;border-radius:7px;background:#252a30}
+.studio-source-search-form>label{color:#d8e2ec;font-size:10px;font-weight:650}
+.studio-source-search-input-row{display:flex;align-items:center;gap:10px;min-height:46px;padding:0 6px 0 12px;border:1px solid #455363;border-radius:6px;background:#171c22;color:#7daed7}
+.studio-source-search-input-row:focus-within{border-color:#398dcc;box-shadow:0 0 0 2px #238bd522}
+.studio-source-search-input-row>svg{flex:none}
+.studio-source-search-input-row>input{width:100%;min-width:0;height:40px!important;padding:0!important;border:0!important;outline:0!important;background:transparent!important;color:#e7edf3!important;font:12px ui-monospace,SFMono-Regular,Consolas,monospace!important;box-shadow:none!important}
+.studio-source-search-input-row>input::placeholder{color:#778493}
+.studio-source-search-input-row>.primary{display:inline-flex;flex:none;align-items:center;gap:7px;min-height:32px!important;padding:0 12px!important;border:1px solid #2779ad!important;border-radius:5px!important;background:#155d91!important;color:#f4f9fd!important;font-size:10px!important}
+.studio-source-search-input-row>.primary:disabled{opacity:.48}
+.studio-source-search-hint{display:flex;justify-content:space-between;gap:10px;color:#8b98a6;font-size:9px}
+.studio-source-search-hint>span:first-child{color:#77bf9e}
+.studio-source-search-results{display:flex;flex:1;flex-direction:column;min-height:100px;margin:0 24px 14px;overflow:hidden;border:1px solid #333d48;border-radius:7px;background:#1b2026}
+.studio-source-search-results-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:8px 14px;border-bottom:1px solid #333d48;background:#232a32}
+.studio-source-search-results-heading>div{display:flex;align-items:baseline;gap:10px;min-width:0}
+.studio-source-search-results-heading b{color:#e3ebf2;font-size:11px}
+.studio-source-search-results-heading span,.studio-source-search-results-heading>small{color:#91a0ae;font-size:9px}
+.studio-source-search-results-heading>small{padding:3px 7px;border:1px solid #3b4a58;border-radius:99px;background:#1b232b;color:#9cc8e9}
+.studio-source-search-results-list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:7px}
+.studio-source-search-result{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;margin-bottom:6px;padding:10px;border:1px solid #303b46;border-radius:6px;background:#20262d}
+.studio-source-search-result:hover{border-color:#486176;background:#242d36}
+.studio-source-search-result-select{display:flex!important;align-items:flex-start!important;gap:7px!important;margin:2px 0 0!important;color:#aab7c3!important;font-size:9px!important;font-weight:500!important}
+.studio-source-search-result-select input{width:14px!important;height:14px;flex:none;margin:0;accent-color:#238bd1}
+.studio-source-search-result-content{min-width:0}
+.studio-source-search-result-path{display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:7px;color:#77b7e9;font-size:10px}
+.studio-source-search-result-path b{overflow:hidden;color:#b9cee0;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:10px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.studio-source-search-result-path code{flex:none;color:#e2b66e;font:10px ui-monospace,SFMono-Regular,Consolas,monospace}
+.studio-source-search-result-content pre{max-width:100%;margin:0;padding:10px 12px;overflow:auto;border:1px solid #303a44;border-radius:5px;background:#151a20;color:#c9d3dd;font:11px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:2}
+.studio-source-search-empty{display:grid;justify-items:center;gap:7px;padding:34px 12px;color:#7d8a98;text-align:center}
+.studio-source-search-empty svg{color:#5f87a8}
+.studio-source-search-empty b{color:#d2dbe4;font-size:11px}
+.studio-source-search-empty span{font-size:9px}
+.studio-source-search-analysis,.studio-source-search-answer{display:grid;gap:11px;margin:0 24px 14px;padding:14px 16px;border:1px solid #3b4a58;border-radius:7px;background:#222a32}
+.studio-source-search-analysis-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.studio-source-search-analysis-heading>div{display:grid;gap:4px}
+.studio-source-search-analysis-heading b{color:#e4edf5;font-size:11px}
+.studio-source-search-analysis-heading span{color:#93a2b1;font-size:9px}
+.studio-source-search-analysis-heading>svg{color:#85bce5}
+.studio-source-search-analysis>label:not(.studio-source-search-consent){display:grid;gap:7px;color:#c5d0da;font-size:10px;font-weight:600}
+.studio-source-search-analysis textarea{min-height:58px;padding:9px 11px;border:1px solid #455363;border-radius:5px;background:#171c22;color:#e7edf3;font:11px/1.5 "DM Sans",sans-serif;resize:vertical}
+.studio-source-search-analysis textarea:focus{border-color:#398dcc;outline:0;box-shadow:0 0 0 2px #238bd522}
+.studio-source-search-consent{display:flex;align-items:flex-start;gap:8px;margin:0;color:#a9b6c2;font-size:9px;font-weight:450;line-height:1.5}
+.studio-source-search-consent input{width:14px;height:14px;flex:none;margin:1px 0 0;accent-color:#238bd1}
+.studio-source-search-analysis-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:10px;border-top:1px solid #37414c;color:#909eac;font-size:9px}
+.studio-source-search-analysis-footer>.primary{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border:1px solid #287cb1;border-radius:5px;background:#155d91;color:#f3f8fc;font-size:10px;font-weight:650}
+.studio-source-search-analysis-footer>.primary:disabled{opacity:.45}
+.studio-source-search-answer{margin-bottom:12px;background:#1b232b}
+.studio-source-search-answer>p{margin:0;color:#c7d1db;font-size:11px;line-height:1.65;white-space:pre-wrap}
+.studio-source-search-footer{display:flex;align-items:center;gap:7px;min-height:36px;padding:0 24px;border-top:1px solid #303944;background:#181818;color:#8795a3;font-size:9px}
+.studio-source-search-footer svg{flex:none;color:#70b695}
+@media(max-width:760px){.modal-backdrop.studio-source-search-backdrop{align-items:stretch;padding:8px}.studio-source-search-modal{width:100%;height:100%;max-height:100%;border-radius:8px}.studio-source-search-header{min-height:72px;padding:12px 14px}.studio-source-search-intro{padding:10px 14px}.studio-source-search-form{margin:0 12px 10px;padding:11px}.studio-source-search-input-row{flex-wrap:wrap;padding:6px}.studio-source-search-input-row>.primary{margin-left:auto}.studio-source-search-results{margin:0 12px 10px}.studio-source-search-result{grid-template-columns:1fr;gap:8px;padding:9px}.studio-source-search-result-select{align-items:center!important}.studio-source-search-analysis,.studio-source-search-answer{margin:0 12px 10px;padding:11px}.studio-source-search-footer{padding:0 14px}}
 .modal-backdrop:has(#database-engineer-title)>.modal .modal-foot{gap:12px;margin-top:4px;padding-top:13px;border-top:1px solid #e2e9f0}
 @media(max-width:760px){.modal-backdrop:has(#database-engineer-title){align-items:stretch;padding:8px}.modal-backdrop:has(#database-engineer-title)>.modal{width:100%;max-width:none;max-height:100%;padding:14px;border-radius:11px}.modal-backdrop:has(#database-engineer-title)>.modal>.modal-head{min-height:58px;margin:-14px -14px 14px;padding:11px 14px}}
 
@@ -1031,3 +1108,107 @@
 .studio-workspace-requests>.requests-list>.empty-small{min-height:100px;justify-content:center;border:1px dashed #d7e3ed;border-radius:11px;background:#f8fbfe;color:#687d91}
 @media(max-width:760px){.studio-workspace-requests>.list-toolbar{align-items:flex-start}.studio-workspace-requests>.list-toolbar h3{font-size:16px}.studio-workspace-requests>.list-toolbar>.small-button{margin-left:auto}.studio-workspace-requests>.requests-list>.workspace-request-row{padding:13px 12px 13px 14px}.studio-workspace-requests .workspace-request-row .request-info{flex:1 1 calc(100% - 56px)}.studio-workspace-requests .workspace-request-heading{align-items:flex-start}.studio-workspace-requests .workspace-request-status{margin-top:1px}}
 @media(max-width:560px){.studio-workspace-requests>.list-toolbar{gap:10px}.studio-workspace-requests>.list-toolbar>.small-button{min-height:32px;padding:0 8px;font-size:9px}.studio-workspace-requests .workspace-request-heading{align-items:flex-start;flex-direction:column;gap:7px}.studio-workspace-requests .workspace-request-heading>b{white-space:normal;overflow-wrap:anywhere}.studio-workspace-requests .workspace-request-actions{margin-left:0!important}.studio-workspace-requests .workspace-request-row>.small-button{margin-left:0!important}}
+
+
+/* Keep file source selection out of the way until a row is inspected. */
+.studio-vscode-tree-row>.studio-knowledge-source-checkbox{flex:none;width:14px;height:14px;margin:0;opacity:0;transition:opacity .12s}
+.studio-vscode-tree-row:hover>.studio-knowledge-source-checkbox,.studio-vscode-tree-row:focus-within>.studio-knowledge-source-checkbox,.studio-vscode-tree-row>.studio-knowledge-source-checkbox:checked{opacity:1}
+
+/* Nested workspace dialogs must sit above the full-screen IDE workbench. */
+.studio-git-status-backdrop,.studio-change-history-backdrop{position:fixed;inset:0;z-index:1250;display:grid;place-items:center;padding:20px;background:rgba(5,11,18,.78);backdrop-filter:blur(4px)}
+.studio-git-status-backdrop>.modal,.studio-change-history-backdrop>.modal{max-height:calc(100dvh - 40px);overflow:auto}
+
+
+/* Clear, responsive tool groups for the full-screen IDE. */
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar){width:100vw;max-width:100vw;min-width:0}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools{width:100%;max-width:100%;min-width:0;display:flex;flex-wrap:nowrap;align-items:stretch;gap:7px;overflow-x:auto;overflow-y:hidden;padding:8px 12px;border:0;border-bottom:1px solid #343b45;border-radius:0;background:#20262e;box-shadow:inset 0 1px #ffffff05;scrollbar-width:thin;scrollbar-color:#46515e #20262e}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools:before{content:none}
+.studio-workbench-group{flex:0 0 auto;width:max-content;max-width:none;min-width:0;display:flex;flex-wrap:wrap;align-content:flex-start;align-items:center;gap:4px;padding:6px 7px;border:1px solid #39424d;border-left:2px solid #356b91;border-radius:7px;background:linear-gradient(145deg,#272e37,#232a32)}
+.studio-workbench-group>span{flex:0 0 100%;margin:0 2px 2px;color:#9baaba;font-size:8px;font-weight:750;letter-spacing:.9px;line-height:1.3;text-transform:uppercase}
+.studio-workbench-group>button,.studio-workbench-group>.database-engineer-trigger{flex:0 0 auto;min-height:32px;padding:0 9px;border:1px solid #414a56;border-radius:5px;background:#303741;color:#d1d9e2;font:550 10px/1 "DM Sans",sans-serif;white-space:nowrap;transition:background .15s,border-color .15s,color .15s,box-shadow .15s}
+.studio-workbench-group>button>svg{color:#91a9bd}
+.studio-workbench-group>button:hover:not(:disabled),.studio-workbench-group>.database-engineer-trigger:hover:not(:disabled){border-color:#4e86ae;background:#354858;color:#fff}
+.studio-workbench-group>button:focus-visible,.studio-workbench-group>.database-engineer-trigger:focus-visible{outline:2px solid #75beff;outline-offset:2px}
+.studio-workbench-group>button.is-active{border-color:#3786bd;background:#16496c;color:#fff;box-shadow:inset 0 0 0 1px #4292c522}
+.studio-workbench-group>button.is-active>svg{color:#8ccfff}
+.studio-workbench-group>button:disabled,.studio-workbench-group>.database-engineer-trigger:disabled{opacity:.48;cursor:not-allowed}
+.studio-workbench-group>.database-engineer-trigger{height:32px!important;margin:0!important}
+@media(max-width:760px){.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools{padding:7px 9px;scroll-snap-type:x proximity}.studio-workbench-group{max-width:84vw;scroll-snap-align:start}.studio-workbench-group>button,.studio-workbench-group>.database-engineer-trigger{min-height:31px;padding:0 8px;font-size:9px}}
+
+
+/* Compact, consistent IDE search dialog; results scroll inside the dialog. */
+.modal-backdrop.studio-source-search-backdrop{align-items:center;justify-content:center;padding:24px;background:rgba(5,11,18,.78);backdrop-filter:blur(5px)}
+.modal-backdrop.studio-source-search-backdrop>.studio-source-search-modal{display:flex;flex-direction:column;width:min(960px,calc(100vw - 48px));height:auto;max-height:calc(100dvh - 48px);min-height:0;padding:0;overflow:hidden;border:1px solid #39495a;border-top:2px solid #1685d0;border-radius:10px;background:#20262e;color:#d4dce4;box-shadow:0 28px 90px #0009}
+.modal-backdrop.studio-source-search-backdrop>.studio-source-search-modal:has(.studio-source-search-results){height:min(760px,calc(100dvh - 64px))}
+.modal-backdrop.studio-source-search-backdrop>.studio-source-search-modal:has(.studio-source-search-empty){height:auto}
+.studio-source-search-header{min-height:76px;padding:12px 20px;border-bottom:1px solid #303a44;background:linear-gradient(110deg,#1a222b,#1d252e)}
+.studio-source-search-heading h2{font-size:19px;letter-spacing:-.35px}
+.studio-source-search-scope{gap:9px;color:#aab7c4}
+.studio-source-search-scope b{font-weight:650}
+.studio-source-search-scope code{padding:3px 7px;border-color:#3d4a57;background:#252f39;color:#a9ccec}
+.studio-source-search-intro{padding:10px 22px;color:#9cabb9;font-size:10px}
+.modal-backdrop.studio-source-search-backdrop .studio-source-search-form{gap:9px;margin:0 20px 12px;padding:12px 14px;border-color:#3a4652;border-radius:8px;background:#252c34}
+.modal-backdrop.studio-source-search-backdrop .studio-source-search-form>label{color:#d4dee8;font-size:10px}
+.studio-source-search-input-row{min-height:44px;border-color:#465361;background:#171d24}
+.studio-source-search-input-row>input{color:#e4edf5!important}
+.studio-source-search-input-row>.primary{min-height:34px!important;border-color:#2583bd!important;background:#126ba3!important}
+.studio-source-search-input-row>.primary:disabled{background:#293d4b!important}
+.studio-source-search-hint{color:#94a2af}
+.studio-source-search-results{min-height:120px;margin:0 20px 12px;border-color:#39434e;background:#1c2229}
+.studio-source-search-results-heading{border-color:#39434e;background:#252d36}
+.studio-source-search-results-heading b{color:#e5edf4}
+.studio-source-search-results-list{min-height:0}
+.studio-source-search-result{border-color:#343f4a;background:#242b33}
+.studio-source-search-result:hover{border-color:#4a718f;background:#28333d}
+.studio-source-search-result-select{color:#b0bdc9!important}
+.modal-backdrop.studio-source-search-backdrop .studio-source-search-analysis,.modal-backdrop.studio-source-search-backdrop .studio-source-search-answer{margin:0 20px 12px;border-color:#3a4652;background:#252d36}
+.modal-backdrop.studio-source-search-backdrop .studio-source-search-analysis>label:not(.studio-source-search-consent){color:#d4dee8}
+.modal-backdrop.studio-source-search-backdrop .studio-source-search-consent{color:#b0bdc9;font-size:9px}
+.modal-backdrop.studio-source-search-backdrop .studio-source-search-analysis textarea{border-color:#465361;background:#171d24;color:#e4edf5}
+.studio-source-search-analysis-footer{border-color:#3a4652;color:#a1afbd}
+.modal-backdrop.studio-source-search-backdrop .studio-source-search-answer{background:#202933}
+.studio-source-search-answer>p{color:#d0dbe5}
+.studio-source-search-footer{flex:none;min-height:38px;padding:0 20px;border-top:1px solid #303a44;background:#181e25;color:#98a6b3}
+@media(max-width:760px){.modal-backdrop.studio-source-search-backdrop{align-items:stretch;padding:8px}.modal-backdrop.studio-source-search-backdrop>.studio-source-search-modal{width:100%;height:auto;max-height:100%;border-radius:8px}.modal-backdrop.studio-source-search-backdrop>.studio-source-search-modal:has(.studio-source-search-results){height:min(100%,calc(100dvh - 16px))}.modal-backdrop.studio-source-search-backdrop>.studio-source-search-modal:has(.studio-source-search-empty){height:auto}.studio-source-search-header{min-height:68px;padding:11px 13px}.studio-source-search-intro{padding:9px 13px}.modal-backdrop.studio-source-search-backdrop .studio-source-search-form{margin:0 11px 10px;padding:10px}.studio-source-search-input-row{flex-wrap:wrap;padding:5px}.studio-source-search-input-row>.primary{margin-left:auto}.studio-source-search-results{margin:0 11px 10px}.studio-source-search-result{grid-template-columns:1fr;gap:8px;padding:9px}.studio-source-search-result-select{align-items:center!important}.modal-backdrop.studio-source-search-backdrop .studio-source-search-analysis,.modal-backdrop.studio-source-search-backdrop .studio-source-search-answer{margin:0 11px 10px;padding:10px}.studio-source-search-footer{padding:0 13px}}
+
+
+/* Create files from the Explorer, next to the current file listing. */
+.studio-vscode-explorer-heading{gap:8px}
+.studio-vscode-explorer-actions{display:flex;align-items:center;gap:6px;flex:none}
+.studio-vscode-explorer-actions>button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:27px;padding:0 7px;border:1px solid #3d5265;border-radius:5px;background:#263746;color:#c7dbea;font:550 9px/1 "DM Sans",sans-serif;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.studio-vscode-explorer-actions>button>svg{color:#75beff}
+.studio-vscode-explorer-actions>button:hover{border-color:#4d8bb8;background:#304b60;color:#fff}
+.studio-vscode-explorer-actions>button:focus-visible{outline:2px solid #75beff;outline-offset:2px}
+.studio-vscode-explorer-actions>small{display:grid;place-items:center;min-width:21px;height:20px;margin:0;padding:0 5px;border-radius:10px;background:#373737;color:#ccc;font-size:9px}
+@media(max-width:420px){.studio-vscode-explorer-actions>button>span{display:none}.studio-vscode-explorer-actions>button{width:28px;padding:0}}
+
+/* Right-side AI dock for the full-screen workbench. */
+.studio-vscode-main{position:relative}
+.studio-ai-dock-toggle-group>button{gap:7px}
+.studio-ai-dock-toggle-group>button>.is-expanded{transform:rotate(180deg)}
+.studio-ai-dock{position:absolute;z-index:24;top:80px;right:0;bottom:24px;display:flex;width:min(340px,100%);flex-direction:column;overflow:auto;border-left:1px solid #3b4652;background:#20262e;color:#d7e0e9;box-shadow:-18px 0 42px #0005;animation:studio-ai-dock-in .18s ease-out}
+.studio-ai-dock-header{position:sticky;top:0;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:17px 16px 14px;border-bottom:1px solid #39424d;background:#20262e}
+.studio-ai-dock-header>div{display:grid;gap:5px;min-width:0}
+.studio-ai-dock-header>div>span,.studio-ai-dock-section>p{margin:0;color:#8da7bb;font-size:8px;font-weight:750;letter-spacing:1px}
+.studio-ai-dock-header>div>b{color:#f0f5fa;font-size:14px}
+.studio-ai-dock-header>div>small{overflow:hidden;color:#9aa9b7;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+.studio-ai-dock-header>.icon-button{flex:none;border:1px solid #3a4652;color:#b7c5d2}
+.studio-ai-dock-section{display:grid;gap:7px;padding:14px 12px;border-bottom:1px solid #343d47}
+.studio-ai-dock-section>p{padding:0 4px 3px}
+.studio-ai-dock-section>button{display:flex;min-height:48px;align-items:center;gap:11px;padding:8px 10px;border:1px solid #394653;border-radius:6px;background:#27313b;color:#91b9d5;text-align:left;cursor:pointer;transition:background .15s,border-color .15s}
+.studio-ai-dock-section>button:hover:not(:disabled){border-color:#4c82a5;background:#2d3b47}
+.studio-ai-dock-section>button:focus-visible{outline:2px solid #75beff;outline-offset:2px}
+.studio-ai-dock-section>button:disabled{opacity:.48;cursor:not-allowed}
+.studio-ai-dock-section>button>svg:first-child{flex:none;color:#81c4f5}
+.studio-ai-dock-section>button>svg:last-child{flex:none;margin-left:auto;color:#91a2b2}
+.studio-ai-dock-section>button>span{display:grid;gap:3px;min-width:0}
+.studio-ai-dock-section>button b{color:#e0e8ef;font-size:10px;font-weight:650}
+.studio-ai-dock-section>button small,.studio-ai-dock-database>small{color:#98a8b7;font-size:9px;line-height:1.4}
+.studio-ai-dock-database{display:grid;gap:5px;padding:8px 10px;border:1px solid #394653;border-radius:6px;background:#27313b}
+.studio-ai-dock-database>.secondary{width:100%;justify-content:flex-start;min-height:32px;border-color:#414a56;background:#303741;color:#d1d9e2}
+.studio-ai-dock-database>.secondary:hover{border-color:#4e86ae;background:#354858;color:#fff}
+.studio-ai-dock-database>small{padding-left:2px}
+.studio-ai-dock-note{display:flex;align-items:flex-start;gap:8px;margin:12px;padding:10px;border:1px solid #34444f;border-radius:6px;background:#242f38;color:#9bb1c1;font-size:9px;line-height:1.5}
+.studio-ai-dock-note>svg{flex:none;color:#69b994}
+@keyframes studio-ai-dock-in{from{opacity:.5;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
+@media(max-width:600px){.studio-ai-dock{top:80px;width:min(340px,100%);border-left:1px solid #3b4652}.studio-ai-dock-header{padding:13px 12px 11px}.studio-ai-dock-section{padding:11px 9px}}

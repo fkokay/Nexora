@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -134,6 +135,39 @@ public sealed class BalanceSheetIntegrationTests
         using var tenantBJson = JsonDocument.Parse(await tenantB.Content.ReadAsStringAsync());
         Assert.Equal(1, tenantBJson.RootElement.GetProperty("accounts").GetArrayLength());
         Assert.Equal(0m, tenantBJson.RootElement.GetProperty("totals").GetProperty("assets").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Tms7_cash_flow_requires_account_classification_and_keeps_tenant_scope()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        using var before = await client.GetAsync("/api/finance/general-ledger/financial-statements/tms7/cash-flow?from=2026-12-31&to=2026-12-31");
+        Assert.True(before.IsSuccessStatusCode, await before.Content.ReadAsStringAsync());
+        using var beforeJson = JsonDocument.Parse(await before.Content.ReadAsStringAsync());
+        Assert.Equal("TMS 7", beforeJson.RootElement.GetProperty("standard").GetString());
+        Assert.Equal("Indirect", beforeJson.RootElement.GetProperty("method").GetString());
+        Assert.False(beforeJson.RootElement.GetProperty("certified").GetBoolean());
+        Assert.False(beforeJson.RootElement.GetProperty("isComplete").GetBoolean());
+        Assert.Equal(3, beforeJson.RootElement.GetProperty("unclassifiedBalanceAccounts").GetArrayLength());
+
+        using var accountsResponse = await client.GetAsync("/api/finance/general-ledger/financial-statements/tms7/cash-flow-classifications");
+        Assert.True(accountsResponse.IsSuccessStatusCode, await accountsResponse.Content.ReadAsStringAsync());
+        using var accountsJson = JsonDocument.Parse(await accountsResponse.Content.ReadAsStringAsync());
+        var cashAccount = accountsJson.RootElement.EnumerateArray().Single(x => x.GetProperty("code").GetString() == "A100");
+        var cashAccountId = cashAccount.GetProperty("id").GetGuid();
+        using var wrongClass = await client.PutAsJsonAsync($"/api/finance/general-ledger/financial-statements/tms7/cash-flow-classifications/{cashAccountId}", new { classification = "WorkingCapitalLiability" });
+        Assert.Equal(HttpStatusCode.BadRequest, wrongClass.StatusCode);
+        using var update = await client.PutAsJsonAsync($"/api/finance/general-ledger/financial-statements/tms7/cash-flow-classifications/{cashAccountId}", new { classification = "CashEquivalent" });
+        Assert.True(update.IsSuccessStatusCode, await update.Content.ReadAsStringAsync());
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var tenantBAccounts = await client.GetAsync("/api/finance/general-ledger/financial-statements/tms7/cash-flow-classifications");
+        Assert.True(tenantBAccounts.IsSuccessStatusCode, await tenantBAccounts.Content.ReadAsStringAsync());
+        using var tenantBJson = JsonDocument.Parse(await tenantBAccounts.Content.ReadAsStringAsync());
+        Assert.Single(tenantBJson.RootElement.EnumerateArray());
+        Assert.All(tenantBJson.RootElement.EnumerateArray(), x => Assert.NotEqual(cashAccountId, x.GetProperty("id").GetGuid()));
     }
 
     private static async Task<WebApplication> StartApplicationAsync(bool includeUnclassified = false)

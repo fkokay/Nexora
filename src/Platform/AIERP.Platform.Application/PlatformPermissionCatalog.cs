@@ -152,6 +152,12 @@ public static class PlatformPermissionCatalog
             // Standalone invoice drafts share the existing purchase-invoice permission family.
             resource = Resources.First(x => x.ResourceType == "erp.purchase-invoices");
         }
+        else if (path.TrimEnd('/').Equals("/api/sales/standalone-deliveries", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/sales/standalone-deliveries/", StringComparison.OrdinalIgnoreCase))
+            resource = Resources.First(x => x.ResourceType == "erp.sales-deliveries");
+        else if (path.TrimEnd('/').Equals("/api/purchasing/standalone-receipts", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/purchasing/standalone-receipts/", StringComparison.OrdinalIgnoreCase))
+            resource = Resources.First(x => x.ResourceType == "erp.purchase-receipts");
         if (path.StartsWith("/api/sales/invoices/", StringComparison.OrdinalIgnoreCase)
             && method.Equals("POST", StringComparison.OrdinalIgnoreCase)
             && normalizedRoute.EndsWith("/{id:guid}/collections", StringComparison.OrdinalIgnoreCase))

@@ -239,6 +239,7 @@ app.MapInventoryTrackingInquiryEndpoints();
 app.MapSalesOrderEndpoints();
 app.MapSalesDeliverySearchEndpoints();
 app.MapPurchaseReceiptSearchEndpoints();
+app.MapStandaloneInventoryDocumentEndpoints();
 app.MapSalesPromotionEndpoints();
 app.MapSalesPlanningInquiryEndpoints();
 app.MapPurchaseInvoiceEntryEndpoints();
@@ -6469,6 +6470,7 @@ var ledgerMappingLabels = new Dictionary<string, string>(StringComparer.Ordinal)
 {
     [LedgerMappingKeys.CreditFacilityPrincipal] = "Kredi kullandırım/geri ödeme · anapara borç hesabı",
     [LedgerMappingKeys.CreditFacilityInterestExpense] = "Kredi geri ödemesi · faiz gideri hesabı",
+    [LedgerMappingKeys.CreditFacilityAccruedInterest] = "Kredi aylık tahakkuku · tahakkuk etmiş faiz borcu",
     [LedgerMappingKeys.CreditFacilityFeeExpense] = "Kredi geri ödemesi · ücret/komisyon gideri hesabı",
     [LedgerMappingKeys.SalesReceivable] = "Satış faturası · alacak hesabı",
     [LedgerMappingKeys.SalesRevenue] = "Satış faturası · gelir hesabı",
@@ -6671,7 +6673,8 @@ generalLedger.MapGet("/sources", async (ClaimsPrincipal principal, TenantDbConte
         }).ToListAsync();
     var fx = await db.FxRevaluationVouchers.AsNoTracking().Where(x => x.TenantId == tenantId && !fxDone.Contains(x.Id))
         .OrderByDescending(x => x.AsOfDate).Take(200).Include(x => x.Lines).ToListAsync();
-    var inventory = await db.InventoryCostAdjustments.AsNoTracking().Where(x => x.TenantId == tenantId && !inventoryDone.Contains(x.Id))
+    var inventory = await db.InventoryCostAdjustments.AsNoTracking().Where(x => x.TenantId == tenantId
+            && x.PurchaseInvoiceDraftId == null && !inventoryDone.Contains(x.Id))
         .OrderByDescending(x => x.EntryDate).Take(200).Include(x => x.Lines).ToListAsync();
     return Results.Ok(new
     {
@@ -7183,6 +7186,8 @@ generalLedger.MapPost("/transfer", async (JournalTransferRequest request, Claims
     {
         var source = await db.InventoryCostAdjustments.Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
         if (source is null) return Results.NotFound();
+        if (source.PurchaseInvoiceDraftId.HasValue)
+            return Results.Conflict(new { error = "Bu stok maliyet farkı tedarikçi faturası yevmiyesinde zaten muhasebeleştiriliyor; ikinci kez aktarılamaz." });
         entryDate = source.EntryDate; sourceCode = source.Code; description = $"Stok maliyet hareketi · {source.Code} · {source.Description}";
         var offsetKey = source.Kind switch { InventoryCostAdjustmentKind.LandedCost => LedgerMappingKeys.InventoryLandedCostOffset, InventoryCostAdjustmentKind.Reversal => LedgerMappingKeys.InventoryReversalOffset, _ => LedgerMappingKeys.InventoryRevaluationOffset };
         if (!map.TryGetValue(LedgerMappingKeys.InventoryAsset, out var stockId) || !map.TryGetValue(offsetKey, out var offsetId) || !activeAccounts.ContainsKey(stockId) || !activeAccounts.ContainsKey(offsetId))

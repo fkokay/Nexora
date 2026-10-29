@@ -1,8 +1,8 @@
 namespace AIERP.Platform.Domain;
 
 /// <summary>
-/// Captures supplier-provided invoice data without posting or creating accounting,
-/// inventory, payment, return, or journal effects.
+/// Captures supplier invoice data as a draft. Posting occurs only after validation;
+/// lines may classify expenses or reconcile a standalone purchase receipt cost.
 /// </summary>
 public sealed class PurchaseInvoiceDraft
 {
@@ -52,6 +52,9 @@ public sealed class PurchaseInvoiceDraftLine
     public decimal Total { get; set; }
     /// <summary>Optional tenant ledger expense account selected for later posting; never posted while this is a draft.</summary>
     public Guid? ExpenseAccountId { get; set; }
+    /// <summary>Optional stock receipt source for an invoice line that capitalizes a standalone purchase receipt.</summary>
+    public Guid? StandalonePurchaseReceiptLineId { get; set; }
+    public StandalonePurchaseReceiptLine? StandalonePurchaseReceiptLine { get; set; }
     /// <summary>VAT percentage copied from the supplier document; it is not calculated or treated as a tax determination.</summary>
     public decimal? VatRate { get; set; }
 }

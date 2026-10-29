@@ -508,7 +508,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/new-file-target", (Guid work
     if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
     if (!WorkspaceSecurity.IsWritableSourcePath(path)) return Results.BadRequest(new { error = "Yeni dosya yolu izinli kaynak kapsamı dışında." });
     var root = WorkspaceRootPath;
-    if (!WorkspaceSecurity.TryResolveNewFile(root, workspaceId, path, out _, out var error))
+    if (!WorkspaceSecurity.TryResolveNewFile(root, workspaceId, path, out _, out var error, allowMissingParentDirectories: true))
         return error switch
         {
             "workspace_missing" => Results.NotFound(new { error = "Çalışma alanı bulunamadı." }),
@@ -989,7 +989,8 @@ internal static class WorkspaceSecurity
         segment.StartsWith(".env.", StringComparison.OrdinalIgnoreCase) ||
         segment.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
         segment.Contains("credential", StringComparison.OrdinalIgnoreCase));
-    internal static bool TryResolveNewFile(string root, Guid workspaceId, string? relativePath, out string? filePath, out string? error)
+    internal static bool TryResolveNewFile(string root, Guid workspaceId, string? relativePath, out string? filePath, out string? error,
+        bool allowMissingParentDirectories = false)
     {
         filePath = null; error = null;
         if (string.IsNullOrWhiteSpace(relativePath) || relativePath.StartsWith('/') || relativePath.Contains('\\') ||
@@ -1001,13 +1002,70 @@ internal static class WorkspaceSecurity
         if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || HasWindowsTrailingDotOrSpace(name) ||
             string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase))
         { error = "Dosya yolu geçersiz."; return false; }
-        if (!TryResolveDirectory(root, workspaceId, parent, out var directory, out error)) return false;
-        var candidate = Path.GetFullPath(Path.Combine(directory!, name));
         var workspace = Path.GetFullPath(Path.Combine(root, workspaceId.ToString("N")));
-        if (!candidate.StartsWith(workspace + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        if (!TryResolveDirectory(root, workspaceId, null, out _, out error)) return false;
+        var rootPrefix = Path.EndsInDirectorySeparator(workspace) ? workspace : workspace + Path.DirectorySeparatorChar;
+        var directory = workspace;
+        if (!string.IsNullOrEmpty(parent))
+        {
+            foreach (var segment in parent.Split('/'))
+            {
+                if (segment.Length == 0 || segment is "." or ".." || HasWindowsTrailingDotOrSpace(segment) ||
+                    string.Equals(segment, ".git", StringComparison.OrdinalIgnoreCase) || segment.Any(char.IsControl))
+                { error = "Dosya yolu geçersiz."; return false; }
+                var next = Path.GetFullPath(Path.Combine(directory, segment));
+                if (!next.StartsWith(rootPrefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                { error = "Dosya yolu workspace dışına çıkamaz."; return false; }
+                if (Directory.Exists(next))
+                {
+                    if ((File.GetAttributes(next) & FileAttributes.ReparsePoint) != 0)
+                    { error = "Bağlantı üzerinden klasör gezintisine izin verilmiyor."; return false; }
+                }
+                else if (File.Exists(next) || !allowMissingParentDirectories)
+                { error = "Klasör bulunamadı."; return false; }
+                directory = next;
+            }
+        }
+        var candidate = Path.GetFullPath(Path.Combine(directory, name));
+        if (!candidate.StartsWith(rootPrefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
         { error = "Dosya yolu workspace dışına çıkamaz."; return false; }
         if (File.Exists(candidate) || Directory.Exists(candidate)) { error = "file_exists"; return false; }
         filePath = candidate; return true;
+    }
+    private static bool EnsureSafeNewFileParentDirectories(string root, Guid workspaceId, string relativePath, out string? error)
+    {
+        error = null;
+        var separator = relativePath.LastIndexOf('/');
+        var parent = separator < 0 ? "" : relativePath[..separator];
+        if (string.IsNullOrEmpty(parent)) return TryResolveDirectory(root, workspaceId, null, out _, out error);
+        if (!TryResolveDirectory(root, workspaceId, null, out _, out error)) return false;
+        var workspace = Path.GetFullPath(Path.Combine(root, workspaceId.ToString("N")));
+        var rootPrefix = Path.EndsInDirectorySeparator(workspace) ? workspace : workspace + Path.DirectorySeparatorChar;
+        var current = workspace;
+        foreach (var segment in parent.Split('/'))
+        {
+            if (segment.Length == 0 || segment is "." or ".." || HasWindowsTrailingDotOrSpace(segment) ||
+                string.Equals(segment, ".git", StringComparison.OrdinalIgnoreCase) || segment.Any(char.IsControl))
+            { error = "Dosya yolu geçersiz."; return false; }
+            var next = Path.GetFullPath(Path.Combine(current, segment));
+            if (!next.StartsWith(rootPrefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            { error = "Dosya yolu workspace dışına çıkamaz."; return false; }
+            if (Directory.Exists(next))
+            {
+                if ((File.GetAttributes(next) & FileAttributes.ReparsePoint) != 0)
+                { error = "Bağlantı üzerinden klasör gezintisine izin verilmiyor."; return false; }
+            }
+            else if (File.Exists(next))
+            { error = "Klasör bulunamadı."; return false; }
+            else
+            {
+                Directory.CreateDirectory(next);
+                if (!Directory.Exists(next) || (File.GetAttributes(next) & FileAttributes.ReparsePoint) != 0)
+                { error = "Yeni dosya klasörü güvenli biçimde oluşturulamadı."; return false; }
+            }
+            current = next;
+        }
+        return true;
     }
     private static bool HasWindowsTrailingDotOrSpace(string segment) => OperatingSystem.IsWindows() &&
         (segment.EndsWith(' ') || segment.EndsWith('.'));
@@ -1141,7 +1199,7 @@ internal static class WorkspaceSecurity
         await gate.WaitAsync(cancellationToken);
         try
         {
-            if (!TryResolveNewFile(root, workspaceId, relativePath, out var filePath, out var error))
+            if (!TryResolveNewFile(root, workspaceId, relativePath, out var filePath, out var error, allowMissingParentDirectories: true))
                 return new(false, error is "workspace_missing" ? error : error == "file_exists" ? error : "invalid_path", null);
             var appliedAt = DateTimeOffset.UtcNow;
             var appliedHash = Convert.ToHexString(SHA256.HashData(bytes));
@@ -1152,6 +1210,9 @@ internal static class WorkspaceSecurity
             var backupDirectory = GetChangeBackupDirectory(root, workspaceId);
             if (Directory.Exists(backupDirectory) && Directory.EnumerateFiles(backupDirectory, "*.json").Take(MaxSavedCodeChangesPerWorkspace).Count() >= MaxSavedCodeChangesPerWorkspace)
                 return new(false, "change_limit", null);
+            if (!EnsureSafeNewFileParentDirectories(root, workspaceId, relativePath, out error) ||
+                !TryResolveNewFile(root, workspaceId, relativePath, out filePath, out error))
+                return new(false, error is "workspace_missing" ? error : "invalid_path", null);
             await WriteBackupAsync(backupPath, changeBackup, cancellationToken);
             try
             {

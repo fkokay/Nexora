@@ -4,6 +4,8 @@ import type { editor as MonacoEditor, IDisposable } from 'monaco-editor'
 import { Braces, Check, Columns2, FileCode2, FileText, Search, Save, WrapText } from 'lucide-react'
 import './monacoSetup'
 
+const monacoLanguageLoaders = import.meta.glob('../node_modules/monaco-editor/esm/vs/languages/definitions/*/register.js')
+
 type WorkspaceCodeEditorProps = {
   path: string
   value: string
@@ -40,11 +42,29 @@ export function WorkspaceCodeEditor({ path, value, readOnly = false, dirty = fal
   const [diagnostics, setDiagnostics] = useState(0)
   const [wordWrap, setWordWrap] = useState(false)
   const [minimap, setMinimap] = useState(true)
+  const [languageReady, setLanguageReady] = useState<string | null>(null)
   const language = languageForPath(path)
   const fileName = path.split('/').filter(Boolean).at(-1) ?? path
   const byteLength = new TextEncoder().encode(value).length
 
   saveRef.current = onSave
+
+  useEffect(() => {
+    let active = true
+    const contributionPath = Object.keys(monacoLanguageLoaders).find(key => key.endsWith(`/definitions/${language}/register.js`))
+    const loadContribution = contributionPath ? monacoLanguageLoaders[contributionPath] : undefined
+    if (!loadContribution) {
+      setLanguageReady(language)
+      return () => { active = false }
+    }
+    setLanguageReady(null)
+    void loadContribution().then(() => {
+      if (active) setLanguageReady(language)
+    }).catch(() => {
+      if (active) setLanguageReady('plaintext')
+    })
+    return () => { active = false }
+  }, [language])
 
   const onMount = useCallback<OnMount>((editor, monaco) => {
     editorRef.current = editor
@@ -110,10 +130,11 @@ export function WorkspaceCodeEditor({ path, value, readOnly = false, dirty = fal
     </div>
     <div className="studio-vscode-breadcrumbs"><span>{path.split('/').filter(Boolean).slice(0,-1).join('  ›  ') || 'Proje kökü'}</span><span className="studio-vscode-breadcrumb-separator">›</span><b><FileText size={13}/>{fileName}</b><span className="studio-vscode-language"><Braces size={13}/>{labelForLanguage(language)}</span></div>
     <div className="studio-vscode-canvas">
+      {languageReady !== language && languageReady !== 'plaintext' ? <div className="studio-editor-loading" role="status">Dil desteği yükleniyor…</div> :
       <Editor
         height="100%"
         path={`workspace://${path}`}
-        language={language}
+        language={languageReady === 'plaintext' ? 'plaintext' : language}
         value={value}
         theme="nexora-vscode-dark"
         onChange={next => onChange?.(next ?? '')}
@@ -152,6 +173,7 @@ export function WorkspaceCodeEditor({ path, value, readOnly = false, dirty = fal
           'semanticHighlighting.enabled': true,
         }}
       />
+      }
     </div>
     <div className="studio-vscode-statusbar"><div className="studio-vscode-status-left"><span className={readOnly ? 'status-readonly' : 'status-workspace'}>{readOnly ? 'ÖNİZLEME · SALT OKUNUR' : 'İZOLE WORKSPACE'}</span><span>{diagnostics ? `${diagnostics} hata` : 'Sorun yok'}</span></div><div className="studio-vscode-status-right"><span>Ln {cursor.line}, Col {cursor.column}</span><span>UTF-8</span><span>Spaces: 2</span><span>{byteLength.toLocaleString('tr-TR')} bayt</span></div></div>
   </section>

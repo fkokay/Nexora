@@ -25,6 +25,7 @@ public sealed class FinanceCreditFacilityIntegrationTests
     private static readonly Guid PrincipalLedgerA = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
     private static readonly Guid InterestLedgerA = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
     private static readonly Guid FeeLedgerA = Guid.Parse("abababab-abab-abab-abab-abababababab");
+    private static readonly Guid AccruedInterestLedgerA = Guid.Parse("cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd");
 
     [Fact]
     public async Task Facility_cannot_close_with_outstanding_principal_after_schedules_are_cancelled()
@@ -289,6 +290,75 @@ public sealed class FinanceCreditFacilityIntegrationTests
     }
 
     [Fact]
+    public async Task Interest_accrual_preview_uses_actual_365_daily_balance_reversals_and_tenant_scope()
+    {
+        await using var app = await StartApplicationAsync();
+        var drawdownTransaction = new FinancialAccountTransaction { TenantId = TenantA, FinancialAccountId = AccountA,
+            CurrencyCode = "TRY", TransactionDate = new DateOnly(2026, 1, 1), Direction = FinancialDirection.Inflow,
+            CashFlowCategory = CashFlowCategory.Financing, Amount = 1000m, Description = "Test drawdown" };
+        var repaymentTransaction = new FinancialAccountTransaction { TenantId = TenantA, FinancialAccountId = AccountA,
+            CurrencyCode = "TRY", TransactionDate = new DateOnly(2026, 1, 2), Direction = FinancialDirection.Outflow,
+            CashFlowCategory = CashFlowCategory.Financing, Amount = 365m, Description = "Test repayment" };
+        var reversalTransaction = new FinancialAccountTransaction { TenantId = TenantA, FinancialAccountId = AccountA,
+            CurrencyCode = "TRY", TransactionDate = new DateOnly(2026, 1, 4), Direction = FinancialDirection.Inflow,
+            CashFlowCategory = CashFlowCategory.Financing, Amount = 365m, Description = "Test reversal", ReversalOf = repaymentTransaction };
+        var repayment = new CreditFacilityMovement { TenantId = TenantA, CreditFacilityId = FacilityA, Type = CreditFacilityMovementType.Repayment,
+            TransactionDate = new DateOnly(2026, 1, 2), PrincipalAmount = 365m, RequestId = Guid.NewGuid(), FinancialAccountTransaction = repaymentTransaction };
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.CreditFacilityMovements.AddRange(
+                new CreditFacilityMovement { TenantId = TenantA, CreditFacilityId = FacilityA, Type = CreditFacilityMovementType.Drawdown,
+                    TransactionDate = new DateOnly(2026, 1, 1), PrincipalAmount = 1000m, RequestId = Guid.NewGuid(), FinancialAccountTransaction = drawdownTransaction },
+                repayment,
+                new CreditFacilityMovement { TenantId = TenantA, CreditFacilityId = FacilityA, Type = CreditFacilityMovementType.Reversal,
+                    TransactionDate = new DateOnly(2026, 1, 4), PrincipalAmount = 365m, RequestId = Guid.NewGuid(),
+                    ReversesMovement = repayment, FinancialAccountTransaction = reversalTransaction });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        using var preview = await client.GetAsync($"/api/finance/credit-facilities/{FacilityA}/interest-accrual-preview?from=2026-01-01&to=2026-01-04");
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        using var json = JsonDocument.Parse(await preview.Content.ReadAsStringAsync());
+        Assert.Equal("Actual/365", json.RootElement.GetProperty("dayCountConvention").GetString());
+        Assert.Equal(3.27m, json.RootElement.GetProperty("totalAccruedInterest").GetDecimal());
+        Assert.False(json.RootElement.GetProperty("accountingPosted").GetBoolean());
+
+        await using (var mappingScope = app.Services.CreateAsyncScope())
+        {
+            var db = mappingScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.LedgerAccounts.Add(new LedgerAccount { Id = AccruedInterestLedgerA, TenantId = TenantA, Code = "381", Name = "Accrued interest payable", StatementSection = LedgerAccountStatementSection.Liability });
+            db.LedgerAccountMappings.Add(new LedgerAccountMapping { TenantId = TenantA, MappingKey = LedgerMappingKeys.CreditFacilityAccruedInterest, AccountId = AccruedInterestLedgerA });
+            await db.SaveChangesAsync();
+        }
+        using var posted = await client.PostAsync($"/api/finance/credit-facilities/{FacilityA}/interest-accruals/2026/1", null);
+        Assert.Equal(HttpStatusCode.Created, posted.StatusCode);
+        using var postedJson = JsonDocument.Parse(await posted.Content.ReadAsStringAsync());
+        Assert.Equal(30.27m, postedJson.RootElement.GetProperty("accruedInterest").GetDecimal());
+        using var replayed = await client.PostAsync($"/api/finance/credit-facilities/{FacilityA}/interest-accruals/2026/1", null);
+        Assert.Equal(HttpStatusCode.OK, replayed.StatusCode);
+        using var replayJson = JsonDocument.Parse(await replayed.Content.ReadAsStringAsync());
+        Assert.True(replayJson.RootElement.GetProperty("replayed").GetBoolean());
+        await using (var journalScope = app.Services.CreateAsyncScope())
+        {
+            var db = journalScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var journals = await db.JournalEntries.Include(x => x.Lines).Where(x => x.TenantId == TenantA && x.SourceType == "CreditFacilityInterestAccrual").ToListAsync();
+            var journal = Assert.Single(journals);
+            Assert.Equal(30.27m, journal.Lines.Sum(x => x.Debit));
+            Assert.Equal(30.27m, journal.Lines.Sum(x => x.Credit));
+            Assert.Contains(journal.Lines, x => x.AccountId == InterestLedgerA && x.Debit == 30.27m);
+            Assert.Contains(journal.Lines, x => x.AccountId == AccruedInterestLedgerA && x.Credit == 30.27m);
+        }
+
+        using var foreignClient = app.GetTestClient();
+        foreignClient.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var foreign = await foreignClient.GetAsync($"/api/finance/credit-facilities/{FacilityA}/interest-accrual-preview?from=2026-01-01&to=2026-01-04");
+        Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
+    }
+
+    [Fact]
     public async Task Assistant_credit_summary_is_tenant_scoped_and_excludes_sensitive_facility_fields()
     {
         await using var app = await StartApplicationAsync();
@@ -329,7 +399,7 @@ public sealed class FinanceCreditFacilityIntegrationTests
         await db.Database.EnsureCreatedAsync();
         db.Tenants.AddRange(new Tenant { Id = TenantA, Name = "A", Slug = "credit-a" }, new Tenant { Id = TenantB, Name = "B", Slug = "credit-b" });
         db.CreditFacilities.AddRange(
-            new CreditFacility { Id = FacilityA, TenantId = TenantA, Code = "A-LOAN", LenderName = "A Bank", FacilityType = "Loan", CurrencyCode = "TRY", ApprovedLimit = 100000m, StartDate = new DateOnly(2025, 1, 1), MaturityDate = new DateOnly(2027, 12, 31) },
+            new CreditFacility { Id = FacilityA, TenantId = TenantA, Code = "A-LOAN", LenderName = "A Bank", FacilityType = "Loan", CurrencyCode = "TRY", ApprovedLimit = 100000m, StartDate = new DateOnly(2025, 1, 1), MaturityDate = new DateOnly(2027, 12, 31), AnnualInterestRatePercent = 36.5m },
             new CreditFacility { TenantId = TenantB, Code = "B-LOAN", LenderName = "B Bank", FacilityType = "Loan", CurrencyCode = "USD", ApprovedLimit = 100000m, StartDate = new DateOnly(2025, 1, 1), MaturityDate = new DateOnly(2027, 12, 31) });
         db.FinancialAccounts.Add(new FinancialAccount { Id = AccountA, TenantId = TenantA, Code = "BANK-TRY", Name = "TRY Bank", Type = FinancialAccountType.Bank, CurrencyCode = "TRY" });
         db.FinancialAccounts.Add(new FinancialAccount { Id = AccountB, TenantId = TenantB, Code = "BANK-USD", Name = "USD Bank", Type = FinancialAccountType.Bank, CurrencyCode = "USD" });

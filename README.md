@@ -4,6 +4,8 @@ Multi-tenant ERP platform foundation with a separately hosted AI Development Ser
 
 See [master prompt phase status](docs/phase-status.md) for the verified implementation scope and remaining work by phase.
 
+Use the [project map](docs/project-map.md) to find the right service, frontend, test suite, or deployment area when developing.
+
 ## Run locally
 
 1. Copy `.env.example` to `deploy/docker/.env` and replace the sample values.

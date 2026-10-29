@@ -71,6 +71,8 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
         var route = path.TrimEnd('/');
         return (resourceType, route) is
             ("erp.customers", "/api/customers") or
+            ("erp.sales-deliveries", "/api/sales/standalone-deliveries") or
+            ("erp.purchase-receipts", "/api/purchasing/standalone-receipts") or
             ("erp.sales-quotes", "/api/sales/quotes") or
             ("erp.sales-orders", "/api/sales/orders") or
             ("erp.sales-invoices", "/api/sales/invoices") or
@@ -113,6 +115,18 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
             var value = await db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
                 .Select(x => new { x.Status, x.CustomerId }).SingleOrDefaultAsync(cancellationToken);
             return value is null ? null : ResourceAttributes(value.Status.ToString(), customerId: value.CustomerId);
+        }
+        if (resourceType == "erp.sales-deliveries")
+        {
+            var value = await db.StandaloneSalesDeliveries.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Status, x.CustomerId }).SingleOrDefaultAsync(cancellationToken);
+            return value is null ? null : ResourceAttributes(value.Status.ToString(), customerId: value.CustomerId);
+        }
+        if (resourceType == "erp.purchase-receipts")
+        {
+            var value = await db.StandalonePurchaseReceipts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Status, x.SupplierId }).SingleOrDefaultAsync(cancellationToken);
+            return value is null ? null : ResourceAttributes(value.Status.ToString(), supplierId: value.SupplierId);
         }
         if (resourceType == "erp.purchase-invoices")
         {

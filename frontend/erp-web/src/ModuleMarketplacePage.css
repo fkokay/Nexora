@@ -149,6 +149,34 @@
 .module-marketplace-page .marketplace-spinner { width: 17px; height: 17px; border: 2px solid #e2def8; border-top-color: #7161d7; border-radius: 50%; animation: marketplace-spin .8s linear infinite; }
 @keyframes marketplace-spin { to { transform: rotate(360deg); } }
 
+.module-marketplace-page .module-starter-gallery{display:grid;gap:14px;margin:20px 0;padding:20px;border:1px solid #dfe5ed;border-radius:13px;background:linear-gradient(145deg,#fff,#f8faff)}
+.module-marketplace-page .module-starter-gallery>header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.module-marketplace-page .module-starter-gallery>header .eyebrow{margin:0 0 5px;color:#6657d8;font-size:9px;font-weight:750;letter-spacing:.1em}
+.module-marketplace-page .module-starter-gallery>header h2{margin:0;color:#202a40;font-size:18px}
+.module-marketplace-page .module-starter-gallery>header p:last-child{max-width:720px;margin:6px 0 0;color:#69758d;font-size:11px;line-height:1.5}
+.module-marketplace-page .module-starter-count{flex:none;padding:6px 9px;border:1px solid #e2e5ef;border-radius:999px;background:#fff;color:#6657d8;font-size:10px;font-weight:700}
+.module-marketplace-page .module-starter-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:start;gap:12px}
+.module-marketplace-page .module-starter-card{display:flex;min-width:0;flex-direction:column;gap:9px;padding:15px;border:1px solid #e1e6ef;border-radius:10px;background:#fff}
+.module-marketplace-page .module-starter-card-heading{display:flex;align-items:center;justify-content:space-between}
+.module-marketplace-page .module-starter-card-heading>span{display:grid;width:34px;height:34px;place-items:center;border-radius:9px;background:#f1efff;color:#6657d8}
+.module-marketplace-page .module-starter-card-heading>small{color:#8791a5;font-size:9px;font-weight:700;letter-spacing:.06em}
+.module-marketplace-page .module-starter-card h3{margin:0;color:#29354c;font-size:13px}
+.module-marketplace-page .module-starter-card>p{min-height:33px;margin:0;color:#69758d;font-size:10px;line-height:1.55}
+.module-marketplace-page .module-starter-develop{display:inline-flex;align-items:center;align-self:flex-start;gap:6px}
+.module-marketplace-page .module-starter-card details{border-top:1px solid #edf0f5}
+.module-marketplace-page .module-starter-card summary{padding:10px 0 2px;color:#584bc2;cursor:pointer;font-size:10px;font-weight:700}
+.module-marketplace-page .module-starter-files{display:grid;gap:12px;padding-top:10px}
+.module-marketplace-page .module-starter-files>div{display:grid;gap:6px;min-width:0}
+.module-marketplace-page .module-starter-files>div>b{color:#59647c;font-size:10px}
+.module-marketplace-page .module-starter-files pre{max-height:260px;overflow:auto;margin:0;padding:10px;border:1px solid #e7eaf1;border-radius:7px;background:#f7f8fb;color:#344158;font:10px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.module-marketplace-page .module-starter-actions{display:flex;gap:6px}.module-marketplace-page .module-starter-actions button{display:inline-flex;align-items:center;gap:5px;min-height:29px;font-size:9px}
+@media(max-width:900px){.module-marketplace-page .module-starter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.module-marketplace-page .module-starter-gallery{padding:14px}.module-marketplace-page .module-starter-gallery>header{flex-direction:column}.module-marketplace-page .module-starter-grid{grid-template-columns:minmax(0,1fr)}}
+html[data-theme="dark"] .module-marketplace-page .module-starter-gallery{border-color:var(--erp-border);background:linear-gradient(145deg,var(--erp-surface),#1b2232)}
+html[data-theme="dark"] .module-marketplace-page .module-starter-gallery>header h2,html[data-theme="dark"] .module-marketplace-page .module-starter-card h3{color:var(--erp-text)}
+html[data-theme="dark"] .module-marketplace-page .module-starter-card{border-color:var(--erp-border);background:var(--erp-surface)}
+html[data-theme="dark"] .module-marketplace-page .module-starter-files pre{border-color:var(--erp-border);background:#131927;color:var(--erp-text)}
+
 .module-marketplace-page .module-invoke { margin: 0 0 14px; padding: 13px; border: 1px solid #e4e7f0; border-radius: 9px; background: #fafaff; }
 .module-marketplace-page .module-invoke > div:first-child { display: grid; gap: 4px; margin-bottom: 10px; }
 .module-marketplace-page .module-invoke > div:first-child b { color: #303b54; font-size: 11px; }

@@ -109,7 +109,7 @@ public static partial class HumanResourcesEndpoints
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             return Results.Ok(await db.EmployeeRecords.AsNoTracking().Where(x => x.TenantId == tenantId &&
                     (admin || x.UserId == userId)).OrderBy(x => x.PersonnelCode).Take(500)
-                .Select(x => new EmployeeView(x.Id, x.PersonnelCode, x.FullName, x.Department, x.JobTitle, x.WorkEmail,
+                .Select(x => new EmployeeView(x.Id, x.PersonnelCode, x.FullName, x.Department, x.JobTitle, x.EmploymentCategory, x.WorkEmail,
                     x.HireDate, x.TerminationDate, x.TerminationDate == null || x.TerminationDate >= today ? "Active" : "Terminated",
                     x.UserId, Convert.ToBase64String(x.RowVersion))).ToListAsync(ct));
         });
@@ -125,7 +125,7 @@ public static partial class HumanResourcesEndpoints
                     request.UserId != null && x.UserId == request.UserId), ct))
                 return Results.Conflict(new { error = "Personel kodu veya kullanıcı eşlemesi bu firmada zaten kullanılıyor." });
             var employee = new EmployeeRecord { TenantId = tenantId, PersonnelCode = code, FullName = request.FullName!.Trim(),
-                Department = Clean(request.Department), JobTitle = Clean(request.JobTitle), WorkEmail = Clean(request.WorkEmail),
+                Department = Clean(request.Department), JobTitle = Clean(request.JobTitle), EmploymentCategory = Clean(request.EmploymentCategory), WorkEmail = Clean(request.WorkEmail),
                 HireDate = request.HireDate, TerminationDate = request.TerminationDate, UserId = request.UserId,
                 Status = request.TerminationDate is null || request.TerminationDate >= today ? EmployeeEmploymentStatus.Active : EmployeeEmploymentStatus.Terminated };
             db.EmployeeRecords.Add(employee);
@@ -136,7 +136,7 @@ public static partial class HumanResourcesEndpoints
                 return Results.Conflict(new { error = "Personel kodu veya kullanıcı eşlemesi bu firmada zaten kullanılıyor." });
             }
             return Results.Created($"/api/hr/employees/{employee.Id}", new EmployeeView(employee.Id, employee.PersonnelCode,
-                employee.FullName, employee.Department, employee.JobTitle, employee.WorkEmail, employee.HireDate,
+                employee.FullName, employee.Department, employee.JobTitle, employee.EmploymentCategory, employee.WorkEmail, employee.HireDate,
                 employee.TerminationDate, employee.Status.ToString(), employee.UserId, Convert.ToBase64String(employee.RowVersion)));
         });
 
@@ -156,7 +156,7 @@ public static partial class HumanResourcesEndpoints
                     (x.PersonnelCode == code || request.UserId != null && x.UserId == request.UserId), ct))
                 return Results.Conflict(new { error = "Personel kodu veya kullanıcı eşlemesi bu firmada zaten kullanılıyor." });
             employee.PersonnelCode = code; employee.FullName = request.FullName!.Trim(); employee.Department = Clean(request.Department);
-            employee.JobTitle = Clean(request.JobTitle); employee.WorkEmail = Clean(request.WorkEmail); employee.HireDate = request.HireDate;
+            employee.JobTitle = Clean(request.JobTitle); employee.EmploymentCategory = Clean(request.EmploymentCategory); employee.WorkEmail = Clean(request.WorkEmail); employee.HireDate = request.HireDate;
             employee.TerminationDate = request.TerminationDate; employee.UserId = request.UserId;
             employee.Status = request.TerminationDate is null || request.TerminationDate >= today ? EmployeeEmploymentStatus.Active : EmployeeEmploymentStatus.Terminated;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "hr.employee.updated", Resource = employee.PersonnelCode });
@@ -167,7 +167,7 @@ public static partial class HumanResourcesEndpoints
                 return Results.Conflict(new { error = "Personel kodu veya kullanıcı eşlemesi bu firmada zaten kullanılıyor." });
             }
             return Results.Ok(new EmployeeView(employee.Id, employee.PersonnelCode, employee.FullName, employee.Department,
-                employee.JobTitle, employee.WorkEmail, employee.HireDate, employee.TerminationDate, employee.Status.ToString(),
+                employee.JobTitle, employee.EmploymentCategory, employee.WorkEmail, employee.HireDate, employee.TerminationDate, employee.Status.ToString(),
                 employee.UserId, Convert.ToBase64String(employee.RowVersion)));
         });
 
@@ -273,7 +273,8 @@ public static partial class HumanResourcesEndpoints
             if (to is not null) query = query.Where(x => x.WorkDate <= to);
             return Results.Ok(await query.OrderByDescending(x => x.WorkDate).Take(500).Select(x => new AttendanceView(x.Id, x.EmployeeId,
                 db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == x.EmployeeId).Select(e => e.PersonnelCode + " · " + e.FullName).FirstOrDefault() ?? "",
-                x.WorkDate, x.WorkedMinutes, x.OvertimeMinutes, x.Note, x.RecordedByUserId, x.CreatedAt, Convert.ToBase64String(x.RowVersion))).ToListAsync(ct));
+                x.WorkDate, x.WorkedMinutes, x.OvertimeMinutes, x.Note, x.RecordedByUserId, x.ApprovalStatus, x.ApprovedByUserId, x.ApprovedAt,
+                x.CreatedAt, Convert.ToBase64String(x.RowVersion))).ToListAsync(ct));
         });
 
         attendance.MapPost("/", async (AttendanceWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -301,6 +302,28 @@ public static partial class HumanResourcesEndpoints
             return Results.Created($"/api/hr/attendance/{record.Id}", new { record.Id, record.WorkDate });
         });
 
+        attendance.MapPost("/{id:guid}/approve", async (Guid id, AttendanceApproveRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out var userId) || !IsTenantAdmin(user)) return Results.Forbid();
+            if (!TryDecodeRowVersion(request.RowVersion, out var version))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["rowVersion"] = ["Güncel puantaj kayıt sürümü zorunludur."] });
+            var record = await db.EmployeeAttendanceRecords.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (record is null) return Results.NotFound();
+            if (record.RecordedByUserId == userId)
+                return Results.Conflict(new { error = "Puantajı kaydeden yönetici aynı kaydı onaylayamaz." });
+            if (record.ApprovalStatus != "PendingApproval")
+                return Results.Conflict(new { error = "Yalnız bekleyen puantaj kayıtları onaylanabilir." });
+            db.Entry(record).Property(x => x.RowVersion).OriginalValue = version;
+            record.ApprovalStatus = "Approved";
+            record.ApprovedByUserId = userId;
+            record.ApprovedAt = DateTimeOffset.UtcNow;
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "hr.attendance.approved", Resource = id.ToString("D") });
+            try { await db.SaveChangesAsync(ct); }
+            catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Puantaj kaydı başka bir kullanıcı tarafından değiştirildi." }); }
+            return Results.Ok(new { record.Id, status = record.ApprovalStatus, record.ApprovedByUserId, record.ApprovedAt,
+                rowVersion = Convert.ToBase64String(record.RowVersion) });
+        });
+
         attendance.MapPut("/{id:guid}", async (Guid id, AttendanceWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out var userId) || !IsTenantAdmin(user)) return Results.Forbid();
@@ -318,6 +341,7 @@ public static partial class HumanResourcesEndpoints
                 return Results.Conflict(new { error = "Bu personel için hedef tarihte zaten bir puantaj kaydı var." });
             db.Entry(record).Property(x => x.RowVersion).OriginalValue = version;
             record.WorkDate = request.WorkDate; record.WorkedMinutes = request.WorkedMinutes; record.OvertimeMinutes = request.OvertimeMinutes; record.Note = Clean(request.Note);
+            record.ApprovalStatus = "PendingApproval"; record.ApprovedByUserId = null; record.ApprovedAt = null;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "hr.attendance.corrected", Resource = id.ToString("D") });
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Puantaj kaydı başka bir kullanıcı tarafından değiştirildi." }); }
@@ -1209,6 +1233,44 @@ public static partial class HumanResourcesEndpoints
             return Results.File(packageBytes, "application/zip", $"bordro-manuel-paket-{run.PeriodStart:yyyy-MM}.zip");
         });
 
+        payrollRuns.MapGet("/{id:guid}/calculations/{calculationId:guid}/payslips", async (Guid id, Guid calculationId,
+            ClaimsPrincipal user, IPlatformPermissionAuthorizer authorizer, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var role = user.FindFirstValue("role") ?? "";
+            if (!await HasCompensationPermissionAsync(authorizer, tenantId, userId, role, "view", ct)) return Results.Forbid();
+            var run = await db.PayrollRunSnapshots.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            var calculation = await db.PayrollRunCalculations.AsNoTracking().SingleOrDefaultAsync(x =>
+                x.TenantId == tenantId && x.RunId == id && x.Id == calculationId, ct);
+            if (run is null || calculation is null) return Results.NotFound();
+            if (calculation.Status != "Finalized") return Results.Conflict(new { error = "Pusulalar yalnızca kesinleştirilmiş iç bordro sonucundan üretilebilir." });
+            if (calculation.RunSnapshotSha256 != run.SnapshotSha256 ||
+                !PayrollSnapshotHashMatches(run.SnapshotJson, run.SnapshotSha256) ||
+                !PayrollSnapshotHashMatches(calculation.ResultJson, calculation.ResultSha256))
+                return Results.Conflict(new { error = "Pusula üretiminden önce girdi ve sonuç özetleri doğrulanamadı." });
+            PayrollFormulaResultEnvelope? envelope;
+            try { envelope = JsonSerializer.Deserialize<PayrollFormulaResultEnvelope>(calculation.ResultJson); }
+            catch (JsonException) { envelope = null; }
+            if (envelope is null || envelope.RunId != run.Id || envelope.RunSnapshotSha256 != run.SnapshotSha256 ||
+                envelope.IsOfficialPayrollResult || envelope.Employees.Count == 0)
+                return Results.Conflict(new { error = "Pusula üretimi için uygun iç bordro sonucu bulunamadı." });
+
+            static string Html(string? value) => System.Net.WebUtility.HtmlEncode(value ?? "");
+            static string Money(decimal value) => value.ToString("N2", CultureInfo.GetCultureInfo("tr-TR"));
+            var slips = new StringBuilder();
+            foreach (var employee in envelope.Employees)
+            {
+                var rows = string.Join("", employee.Components.Select(component =>
+                    $"<tr><td>{Html(component.Label)}</td><td>{Html(component.Category)}</td><td class=\"amount\">{Money(component.Amount)} {Html(component.Unit)}</td></tr>"));
+                slips.Append($"<article class=\"slip\"><header><div><p class=\"eyebrow\">NEXORA · İÇ BORDRO ÖZETİ</p><h1>{Html(employee.FullName)}</h1><p>Personel kodu: {Html(employee.PersonnelCode)} · Dönem: {run.PeriodStart:dd.MM.yyyy} – {run.PeriodEnd:dd.MM.yyyy}</p></div><span class=\"badge\">İÇ KULLANIM</span></header><div class=\"notice\"><strong>Resmî bordro pusulası değildir.</strong> Şirket formüllerine göre hazırlanmış, kesinleştirilmiş iç hesap özetidir. Yasal bordro ve tahakkuk doğrulaması yapılmamıştır.</div><table><thead><tr><th>Ücret kalemi</th><th>Tür</th><th class=\"amount\">Tutar</th></tr></thead><tbody>{rows}</tbody></table><dl><div><dt>Ücret hedefi</dt><dd>{Money(employee.PeriodTargetAmount)} TRY</dd></div><div><dt>Brüt kazanç</dt><dd>{Money(employee.GrossEarnings)} TRY</dd></div><div><dt>Çalışan kesintileri</dt><dd>{Money(employee.EmployeeDeductions)} TRY</dd></div><div class=\"net\"><dt>Net ödeme adayı</dt><dd>{Money(employee.NetPay)} TRY</dd></div></dl><footer>Hesaplama sürümü {calculation.Version} · Sonuç SHA-256: {calculation.ResultSha256}</footer></article>");
+            }
+            var document = $"<!doctype html><html lang=\"tr\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>İç bordro özetleri · {run.PeriodStart:yyyy-MM}</title><style>body{{font:14px Arial,sans-serif;color:#17243b;background:#eef2f7;margin:0;padding:24px}}.toolbar{{max-width:900px;margin:0 auto 16px;text-align:right}}button{{padding:10px 16px;border:0;border-radius:6px;background:#1264c8;color:white;font-weight:600;cursor:pointer}}.slip{{box-sizing:border-box;max-width:900px;margin:0 auto 24px;padding:36px;background:white;border:1px solid #dce4ef;border-radius:10px;box-shadow:0 4px 18px #142b4610;page-break-after:always}}header{{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #dce4ef;padding-bottom:18px}}h1{{margin:6px 0;font-size:24px}}p{{color:#5c6d84}}.eyebrow{{font-size:11px;letter-spacing:1.4px;color:#1264c8;font-weight:bold}}.badge{{border:1px solid #b9d2f0;background:#eef6ff;color:#155da9;border-radius:20px;padding:7px 12px;font-size:11px}}.notice{{margin:20px 0;padding:14px;background:#fff8e8;border:1px solid #f1dca7;border-radius:6px;color:#755817;line-height:1.5}}table{{width:100%;border-collapse:collapse;margin:20px 0}}th,td{{padding:11px;border-bottom:1px solid #e5eaf1;text-align:left}}th{{background:#f5f7fa}}.amount{{text-align:right;white-space:nowrap}}dl{{margin-left:auto;max-width:380px}}dl div{{display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #e5eaf1}}dt{{color:#5c6d84}}dd{{margin:0;font-weight:600}}.net{{font-size:17px;background:#f4f7fb}}footer{{margin-top:24px;border-top:1px solid #e5eaf1;padding-top:12px;color:#7b8798;font-size:10px;overflow-wrap:anywhere}}@media print{{body{{background:white;padding:0}}.toolbar{{display:none}}.slip{{box-shadow:none;border:0;margin:0 auto;padding:18mm;min-height:260mm}}}}</style><body><div class=\"toolbar\"><button onclick=\"window.print()\">Yazdır / PDF kaydet</button></div>{slips}</body></html>";
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId,
+                Action = "hr.payroll-run.internal-payslips-generated", Resource = $"{run.Id:D}/{calculation.Id:D}/{calculation.ResultSha256}" });
+            await db.SaveChangesAsync(ct);
+            return Results.Content(document, "text/html; charset=utf-8");
+        });
+
         payrollRuns.MapPost("/{id:guid}/calculations/{calculationId:guid}/1003a-xml", async (Guid id, Guid calculationId,
             PayrollGib1003ARequest declaration, ClaimsPrincipal user, IPlatformPermissionAuthorizer authorizer,
             TenantDbContext db, CancellationToken ct) =>
@@ -1427,6 +1489,9 @@ public static partial class HumanResourcesEndpoints
 
             var attendanceCompletenessRequired = configuredPayrollInputSources.Contains("attendance.workedMinutes") ||
                 configuredPayrollInputSources.Contains("attendance.overtimeMinutes");
+            if (attendanceCompletenessRequired)
+                foreach (var employee in employees.Where(employee => attendance.Any(x => x.EmployeeId == employee.Id && x.ApprovalStatus != "Approved")))
+                    blockers.Add($"attendance-approval-pending:{employee.Id:D}");
             var workCalendarRequired = attendanceCompletenessRequired || configuredPayrollInputSources.Contains("period.scheduledMinutes") ||
                 configuredPayrollInputSources.Contains("period.scheduledDays");
             var scheduledMinutesByEmployee = employees.ToDictionary(x => x.Id, _ => 0L);
@@ -1554,7 +1619,7 @@ public static partial class HumanResourcesEndpoints
                 capturedAt = DateTimeOffset.UtcNow,
                 employees = employees.Select(employee => new
                 {
-                    employee.Id, employee.PersonnelCode, employee.FullName, employee.HireDate, employee.TerminationDate,
+                    employee.Id, employee.PersonnelCode, employee.FullName, employee.EmploymentCategory, employee.HireDate, employee.TerminationDate,
                     scheduledMinutes = scheduledMinutesByEmployee[employee.Id], scheduledDays = scheduledDaysByEmployee[employee.Id],
                     compensation = compensation.Where(x => x.EmployeeId == employee.Id).Select(x => new
                     {
@@ -1563,7 +1628,8 @@ public static partial class HumanResourcesEndpoints
                     }).ToArray(),
                     attendance = attendance.Where(x => x.EmployeeId == employee.Id).Select(x => new
                     {
-                        x.Id, x.WorkDate, x.WorkedMinutes, x.OvertimeMinutes
+                        x.Id, x.WorkDate, x.WorkedMinutes, x.OvertimeMinutes, status = x.ApprovalStatus,
+                        x.RecordedByUserId, x.ApprovedByUserId, x.ApprovedAt
                     }).ToArray(),
                     leave = leave.Where(x => x.EmployeeId == employee.Id).Select(x => new
                     {
@@ -1641,7 +1707,7 @@ public static partial class HumanResourcesEndpoints
         if (string.IsNullOrWhiteSpace(code) || code.Length > 40 || !Regex.IsMatch(code, "^[A-Za-z0-9._-]+$") ||
             string.IsNullOrWhiteSpace(name) || name.Length > 160 || request.HireDate == default ||
             request.TerminationDate is not null && request.TerminationDate < request.HireDate ||
-            (request.Department?.Length ?? 0) > 120 || (request.JobTitle?.Length ?? 0) > 120 ||
+            (request.Department?.Length ?? 0) > 120 || (request.JobTitle?.Length ?? 0) > 120 || (request.EmploymentCategory?.Length ?? 0) > 80 ||
             (request.WorkEmail is not null && (!new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(request.WorkEmail) || request.WorkEmail.Length > 254)) ||
             request.UserId == Guid.Empty)
             return new() { ["employee"] = ["Personel kodu, ad, işe giriş tarihi ve geçerli isteğe bağlı iletişim bilgilerini girin."] };
@@ -1693,6 +1759,26 @@ public static partial class HumanResourcesEndpoints
                     .Append(employee.NetPay.ToString(CultureInfo.InvariantCulture)).Append("\r\n");
             }
             AddText("bordro-ozeti.csv", csv.ToString());
+            var voucher = new StringBuilder("Date,EmployeeCode,EmployeeName,Description,AccountCode,Debit,Credit,Currency\r\n");
+            foreach (var employee in envelope.Employees)
+            {
+                foreach (var component in employee.Components.Where(x => x.Category is "earning" or "deduction"))
+                {
+                    static string Csv(string value) => "\"" + value.Replace("\"", "\"\"") + "\"";
+                    voucher.Append(run.PeriodEnd.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append(',')
+                        .Append(Csv(employee.PersonnelCode)).Append(',').Append(Csv(employee.FullName)).Append(',')
+                        .Append(Csv(component.Label)).Append(",,")
+                        .Append(component.Category == "earning" ? component.Amount.ToString("0.00", CultureInfo.InvariantCulture) : "0.00").Append(',')
+                        .Append(component.Category == "deduction" ? component.Amount.ToString("0.00", CultureInfo.InvariantCulture) : "0.00")
+                        .Append(',').Append(Csv(component.Unit)).Append("\r\n");
+                }
+                voucher.Append(run.PeriodEnd.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append(',')
+                    .Append('"').Append(employee.PersonnelCode.Replace("\"", "\"\"")).Append('"').Append(',')
+                    .Append('"').Append(employee.FullName.Replace("\"", "\"\"")).Append('"').Append(',')
+                    .Append("\"Net ücret ödeme borcu\",,").Append("0.00,")
+                    .Append(employee.NetPay.ToString("0.00", CultureInfo.InvariantCulture)).Append(",\"TRY\"\r\n");
+            }
+            AddText("muhasebe-fisi-taslagi.csv", voucher.ToString());
             AddText("hesaplama-sonucu.json", calculation.ResultJson);
             AddText("paket-bilgisi.json", JsonSerializer.Serialize(new
             {
@@ -1724,9 +1810,9 @@ public static partial class HumanResourcesEndpoints
                 runSnapshotSha256 = run.SnapshotSha256,
                 resultSha256 = calculation.ResultSha256,
                 generatedAtUtc = DateTimeOffset.UtcNow,
-                contents = new[] { "bordro-ozeti.csv", "hesaplama-sonucu.json", "paket-bilgisi.json", "OKU.txt" }
+                contents = new[] { "bordro-ozeti.csv", "muhasebe-fisi-taslagi.csv", "hesaplama-sonucu.json", "paket-bilgisi.json", "OKU.txt" }
             }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-            AddText("OKU.txt", "Bu dosyalar kesinleştirilmiş iç bordro hesaplama paketidir. Resmî GİB/SGK beyanı veya gönderime hazır XML değildir. Başlangıç biçimi olarak özel sektör 4/a için 1003A (MUHSGK_21) seçilmiştir; işverenin gerçek yetki ve profil bilgisi bu varsayımı doğrulamalıdır. Vergi numarası/vergi dairesi, SGK işyeri sicili, çalışan T.C. kimlik numarası, meslek ve belge kodları, prim günleri ile yasal matrah/kesinti değerleri eksiktir; paket-bilgisi.json alan listesini içerir. Bu değerler ve onaylı alan eşlemesi olmadan resmî XML üretilemez. CSV ve JSON kayıtlarını yetkili bordro uzmanının kontrolü ve manuel beyan girişi için kullanın. Tutarlar TRY olarak, kültürden bağımsız ondalık biçimde verilmiştir.");
+            AddText("OKU.txt", "Bu dosyalar kesinleştirilmiş iç bordro hesaplama paketidir. Resmî GİB/SGK beyanı veya gönderime hazır XML değildir. muhasebe-fisi-taslagi.csv, yalnızca formüldeki brüt kazanç, çalışan kesintisi ve net ödeme adayı kalemlerini dengeleme amaçlı tasnif eder; hiçbir hesap kodu tanımlı değildir ve yevmiye kaydı oluşturmaz. Muhasebeci her satıra uygun hesap kodunu girmeli, işveren SGK payı/diğer işveren maliyetlerini ve yasal tahakkukları ayrıca doğrulamalıdır. Başlangıç biçimi olarak özel sektör 4/a için 1003A (MUHSGK_21) seçilmiştir; işverenin gerçek yetki ve profil bilgisi bunu doğrulamalıdır. Vergi numarası/vergi dairesi, SGK işyeri sicili, çalışan T.C. kimlik numarası, meslek ve belge kodları, prim günleri ile yasal matrah/kesinti değerleri eksiktir; paket-bilgisi.json alan listesini içerir. XML için onaylı alan eşlemesi gerekir. Tutarları yetkili bordro uzmanı kontrol etmelidir.");
         }
         return output.ToArray();
     }
@@ -2015,9 +2101,10 @@ public static partial class HumanResourcesEndpoints
 }
 
 public sealed record EmployeeWriteRequest(string? PersonnelCode, string? FullName, string? Department, string? JobTitle,
-    string? WorkEmail, DateOnly HireDate, DateOnly? TerminationDate, Guid? UserId = null, string? RowVersion = null);
+    string? WorkEmail, DateOnly HireDate, DateOnly? TerminationDate, Guid? UserId = null, string? RowVersion = null,
+    string? EmploymentCategory = null);
 public sealed record EmployeeView(Guid Id, string PersonnelCode, string FullName, string? Department, string? JobTitle,
-    string? WorkEmail, DateOnly HireDate, DateOnly? TerminationDate, string Status, Guid? UserId, string RowVersion);
+    string? EmploymentCategory, string? WorkEmail, DateOnly HireDate, DateOnly? TerminationDate, string Status, Guid? UserId, string RowVersion);
 public sealed record LeaveCreateRequest(Guid EmployeeId, string? LeaveType, DateOnly StartDate, DateOnly EndDate, decimal RequestedDays, string? Note = null);
 public sealed record LeaveReviewRequest(bool Approve, string? Note, string? RowVersion);
 public sealed record LeaveCancelRequest(string? RowVersion);
@@ -2026,8 +2113,10 @@ public sealed record LeaveView(Guid Id, Guid EmployeeId, string Employee, string
     DateTimeOffset? ReviewedAt, string? ReviewNote, string RowVersion, bool CanCancel);
 public sealed record AttendanceWriteRequest(Guid EmployeeId, DateOnly WorkDate, int WorkedMinutes, int OvertimeMinutes,
     string? Note = null, string? RowVersion = null);
+public sealed record AttendanceApproveRequest(string? RowVersion);
 public sealed record AttendanceView(Guid Id, Guid EmployeeId, string Employee, DateOnly WorkDate, int WorkedMinutes,
-    int OvertimeMinutes, string? Note, Guid RecordedByUserId, DateTimeOffset CreatedAt, string RowVersion);
+    int OvertimeMinutes, string? Note, Guid RecordedByUserId, string ApprovalStatus, Guid? ApprovedByUserId, DateTimeOffset? ApprovedAt,
+    DateTimeOffset CreatedAt, string RowVersion);
 public sealed record PayrollRuleSetCreateRequest(string? TaxYear, DateOnly EffectiveFrom, DateOnly? EffectiveTo,
     string? OfficialSourceUrl, JsonElement? Rules);
 public sealed record PayrollRuleSetApproveRequest(string? RowVersion);

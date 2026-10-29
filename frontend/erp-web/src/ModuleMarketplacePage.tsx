@@ -2,7 +2,7 @@ import AdvancedDataGrid from './AdvancedDataGrid'
 import { isEnglishLocale, localizedText } from './locale'
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { authenticatedFetch } from './authApi';
-import { Boxes, Check, PackageOpen, Play, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
+import { ArrowUpRight, Boxes, Check, Code2, Copy, Download, PackageOpen, Play, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import './ModuleMarketplacePage.css'
 
 type ModuleManifest = {
@@ -31,6 +31,57 @@ type MarketplaceModule = {
 
 type ActivatedModule = { moduleCode: string; version: string; manifest: ModuleManifest | string; runtimeStatus: string }
 export type ModuleMenuSelection = { moduleCode: string; version: string; entry: ModuleManifest['menuEntries'][number] }
+
+type ModuleStarterTemplate = { code: string; name: string; description: string; manifest: Record<string, unknown>; cargo: string; source: string }
+const rustModuleStarter = (action: string, expression: string) => `use serde_json::{json, Value};
+use std::{alloc::{alloc, Layout}, ptr::copy_nonoverlapping, slice};
+
+#[no_mangle]
+pub extern "C" fn aierp_alloc(length: i32) -> i32 {
+    if length <= 0 { return 0; }
+    let Ok(layout) = Layout::from_size_align(length as usize, 8) else { return 0; };
+    unsafe { alloc(layout) as i32 }
+}
+
+#[no_mangle]
+pub extern "C" fn aierp_invoke(request_pointer: i32, request_length: i32) -> i64 {
+    if request_pointer < 0 || request_length <= 0 { return 0; }
+    let bytes = unsafe { slice::from_raw_parts(request_pointer as *const u8, request_length as usize) };
+    let request: Value = serde_json::from_slice(bytes).unwrap_or(Value::Null);
+    let action = request.get("action").and_then(Value::as_str).unwrap_or("");
+    let data = request.get("data").cloned().unwrap_or(Value::Null);
+    let result = match action {
+        "${action}" => { ${expression} },
+        _ => json!({ "error": "Unknown action" }),
+    };
+    let Ok(output) = serde_json::to_vec(&result) else { return 0; };
+    let Ok(layout) = Layout::from_size_align(output.len(), 8) else { return 0; };
+    let output_pointer = unsafe { alloc(layout) };
+    if output_pointer.is_null() { return 0; }
+    unsafe { copy_nonoverlapping(output.as_ptr(), output_pointer, output.len()); }
+    (((output_pointer as u32 as u64) << 32) | output.len() as u64) as i64
+}
+`
+const moduleStarterTemplates: ModuleStarterTemplate[] = [
+  {
+    code: 'greeting', name: 'Selamlama modülü', description: 'Bir ad alır ve kişiselleştirilmiş bir karşılama mesajı döndürür.',
+    manifest: { moduleCode: 'ornek.selamlama', displayName: 'Selamlama Modülü', version: '1.0.0', publisher: 'ornek', minimumPlatformVersion: '1.0.0', dependencies: [], permissions: [{ code: 'greeting.read', description: 'Selamlama ekranını kullanır.' }], menuEntries: [{ code: 'greeting.show', label: 'Selamlama', route: '/greeting', permissionCode: 'greeting.read', view: { inputMode: 'form', inputFields: [{ code: 'name', label: 'Adınız', type: 'text', required: true, maxLength: 80 }], resultMode: 'json', resultColumns: [] } }], migrations: [] },
+    cargo: '[package]\nname = "ornek_selamlama"\nversion = "1.0.0"\nedition = "2021"\n\n[lib]\ncrate-type = ["cdylib"]\n\n[dependencies]\nserde_json = { version = "1", default-features = false, features = ["alloc"] }',
+    source: rustModuleStarter('greeting.show', 'let name = data.get("name").and_then(Value::as_str).unwrap_or("dünya");\n            json!({ "message": format!("Merhaba, {name}!"), "module": "selamlama" })'),
+  },
+  {
+    code: 'price', name: 'Fiyat hesaplama modülü', description: 'Birim fiyat, adet ve indirim oranından net tutarı hesaplar.',
+    manifest: { moduleCode: 'ornek.fiyat-hesapla', displayName: 'Fiyat Hesaplama', version: '1.0.0', publisher: 'ornek', minimumPlatformVersion: '1.0.0', dependencies: [], permissions: [{ code: 'price.calculate', description: 'Fiyat hesaplama aracını kullanır.' }], menuEntries: [{ code: 'price.calculate', label: 'Fiyat hesapla', route: '/price-calculator', permissionCode: 'price.calculate', view: { inputMode: 'form', inputFields: [{ code: 'unitPrice', label: 'Birim fiyat', type: 'number', required: true }, { code: 'quantity', label: 'Adet', type: 'number', required: true }, { code: 'discountPercent', label: 'İndirim (%)', type: 'number' }], resultMode: 'json', resultColumns: [] } }], migrations: [] },
+    cargo: '[package]\nname = "ornek_fiyat_hesapla"\nversion = "1.0.0"\nedition = "2021"\n\n[lib]\ncrate-type = ["cdylib"]\n\n[dependencies]\nserde_json = { version = "1", default-features = false, features = ["alloc"] }',
+    source: rustModuleStarter('price.calculate', 'let unit = data.get("unitPrice").and_then(Value::as_f64).unwrap_or(0.0);\n            let quantity = data.get("quantity").and_then(Value::as_f64).unwrap_or(0.0);\n            let discount = data.get("discountPercent").and_then(Value::as_f64).unwrap_or(0.0).clamp(0.0, 100.0);\n            let subtotal = unit * quantity;\n            json!({ "subtotal": subtotal, "discount": subtotal * discount / 100.0, "total": subtotal * (1.0 - discount / 100.0) })'),
+  },
+  {
+    code: 'text-summary', name: 'Metin özeti modülü', description: 'Metindeki kelime ve karakter sayısını hesaplar; saf bir örnek eylem sunar.',
+    manifest: { moduleCode: 'ornek.metin-ozeti', displayName: 'Metin Özeti', version: '1.0.0', publisher: 'ornek', minimumPlatformVersion: '1.0.0', dependencies: [], permissions: [{ code: 'text.analyze', description: 'Metin özetleme aracını kullanır.' }], menuEntries: [{ code: 'text.analyze', label: 'Metin özeti', route: '/text-summary', permissionCode: 'text.analyze', view: { inputMode: 'form', inputFields: [{ code: 'text', label: 'Metin', type: 'text', required: true, maxLength: 1000 }], resultMode: 'json', resultColumns: [] } }], migrations: [] },
+    cargo: '[package]\nname = "ornek_metin_ozeti"\nversion = "1.0.0"\nedition = "2021"\n\n[lib]\ncrate-type = ["cdylib"]\n\n[dependencies]\nserde_json = { version = "1", default-features = false, features = ["alloc"] }',
+    source: rustModuleStarter('text.analyze', 'let text = data.get("text").and_then(Value::as_str).unwrap_or("");\n            json!({ "characters": text.chars().count(), "words": text.split_whitespace().count() })'),
+  },
+]
 
 async function request<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const response = await authenticatedFetch(path, token, {
@@ -80,7 +131,7 @@ function ModuleInvokePanel({ item, token }: { item: MarketplaceModule; token: st
   </section>
 }
 
-export default function ModuleMarketplacePage({ token, role }: { token: string; role: string }) {
+export default function ModuleMarketplacePage({ token, role, onDevelopStarter }: { token: string; role: string; onDevelopStarter?: (template: { code: string; moduleCode: string; name: string }) => void }) {
   const [items, setItems] = useState<MarketplaceModule[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState('')
@@ -121,6 +172,29 @@ export default function ModuleMarketplacePage({ token, role }: { token: string; 
     finally { setBusy('') }
   }
 
+  async function copyStarterFile(template: ModuleStarterTemplate, file: 'manifest' | 'cargo' | 'source') {
+    const content = file === 'manifest' ? JSON.stringify(template.manifest, null, 2) : file === 'cargo' ? template.cargo : template.source
+    const label = file === 'manifest' ? 'manifest.json' : file === 'cargo' ? 'Cargo.toml' : 'src/lib.rs'
+    try {
+      await navigator.clipboard.writeText(content)
+      setNotice(localizedText(`${label} panoya kopyalandı. Örneği kendi modül kodunuza göre düzenleyebilirsiniz.`, `${label} copied. You can adapt the example for your module.`))
+    } catch {
+      setError(localizedText('Panoya erişilemedi. Dosyayı indirme düğmelerini kullanın.', 'Clipboard access failed. Use the download buttons instead.'))
+    }
+  }
+
+  function downloadStarterFile(template: ModuleStarterTemplate, file: 'manifest' | 'cargo' | 'source') {
+    const content = file === 'manifest' ? JSON.stringify(template.manifest, null, 2) : file === 'cargo' ? template.cargo : template.source
+    const fileName = file === 'manifest' ? `${template.code}-manifest.json` : file === 'cargo' ? `Cargo-${template.code}.toml` : `${template.code}-lib.rs`
+    const blob = new Blob([content], { type: file === 'manifest' ? 'application/json' : 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
   const normalizedQuery = query.trim().toLocaleLowerCase('tr-TR')
   const filteredItems = items.filter(item => {
     const name = item.manifest?.displayName || item.moduleCode
@@ -148,6 +222,19 @@ export default function ModuleMarketplacePage({ token, role }: { token: string; 
     {error && <div className="alert marketplace-alert" role="alert"><span>{error}</span><button className="secondary small-button" type="button" onClick={() => void load()} disabled={loading}>{localizedText('Yeniden dene', 'Retry')}</button></div>}
     {notice && <div className="notice" role="status">{notice}</div>}
     <div className="boundary-note marketplace-runtime-note"><ShieldCheck size={17} aria-hidden="true"/><span>{localizedText('Güven sınırı: imza ve ABI doğrulaması uygulanır. Kod, dosya/ağ/veritabanı erişimi kapalı PluginHost’ta 64 MiB bellek ve 20 milyon Wasmtime yakıt sınırıyla çalışır. Eylemler manifestte tanımlıdır ve her çağrı tenant izin denetimine tabidir. Menü metadata’sı ERP gezinmesine henüz bağlanmadı.', 'Security boundary: signatures and ABI are validated. Code runs in the isolated PluginHost with file, network, and database access disabled, a 64 MiB memory limit, and 20 million units of Wasmtime fuel. Actions are defined in the manifest and each call is checked against tenant permissions. Menu metadata is not yet connected to ERP navigation.')}</span></div>
+    <section className="module-starter-gallery" aria-labelledby="module-starters-title">
+      <header><div><p className="eyebrow">{localizedText('ÖRNEK MODÜLLER', 'MODULE EXAMPLES')}</p><h2 id="module-starters-title">{localizedText('Kendi modülünüz için başlangıç şablonları', 'Starter templates for your own module')}</h2><p>{localizedText('Manifesti ve Rust kaynak kodunu inceleyin, indirin veya panoya kopyalayın. İndirdiğiniz dosyaları manifest.json, Cargo.toml ve src/lib.rs olarak Cargo projesine yerleştirip `cargo build --release --target wasm32-unknown-unknown` komutuyla derleyin; WASM çıktısını module.wasm olarak paketleyin. Örnekler kataloğa yüklenmez; yayın için imzalı paket gerekir.', 'Inspect, download, or copy the manifest and Rust source. Place the downloaded files in a Cargo project as manifest.json, Cargo.toml, and src/lib.rs, then build with `cargo build --release --target wasm32-unknown-unknown`; package the WASM output as module.wasm. Examples are not published to the catalog; publishing requires a signed package.')}</p></div><span className="module-starter-count">{localizedText(`${moduleStarterTemplates.length} örnek`, `${moduleStarterTemplates.length} examples`)}</span></header>
+      <div className="module-starter-grid">{moduleStarterTemplates.map((template, index) => <article className="module-starter-card" key={template.code}>
+        <div className="module-starter-card-heading"><span><Code2 size={17}/></span><small>{String(index + 1).padStart(2, '0')} · WASM</small></div>
+        <h3>{localizedText(template.name, ['Greeting module', 'Price calculator', 'Text summary'][index])}</h3><p>{localizedText(template.description, ['Accepts a name and returns a personalized greeting.', 'Calculates a net amount from unit price, quantity, and discount.', 'Counts words and characters in text; a simple pure function example.'][index])}</p>
+        {onDevelopStarter&&<button className="secondary small-button module-starter-develop" type="button" onClick={()=>onDevelopStarter({code:template.code,moduleCode:String(template.manifest.moduleCode),name:template.name})}><Code2 size={14}/>{localizedText('Studio’da geliştir', 'Develop in Studio')}<ArrowUpRight size={13}/></button>}
+        <details><summary>{localizedText('Manifest ve kodu incele', 'Inspect manifest and code')}</summary><div className="module-starter-files">
+          <div><b>manifest.json</b><pre>{JSON.stringify(template.manifest, null, 2)}</pre><div className="module-starter-actions"><button className="secondary small-button" type="button" onClick={() => void copyStarterFile(template, 'manifest')}><Copy size={13}/>{localizedText('Kopyala', 'Copy')}</button><button className="secondary small-button" type="button" onClick={() => downloadStarterFile(template, 'manifest')}><Download size={13}/>{localizedText('İndir', 'Download')}</button></div></div>
+          <div><b>Cargo.toml</b><pre>{template.cargo}</pre><div className="module-starter-actions"><button className="secondary small-button" type="button" onClick={() => void copyStarterFile(template, 'cargo')}><Copy size={13}/>{localizedText('Kopyala', 'Copy')}</button><button className="secondary small-button" type="button" onClick={() => downloadStarterFile(template, 'cargo')}><Download size={13}/>{localizedText('İndir', 'Download')}</button></div></div>
+          <div><b>src/lib.rs</b><pre>{template.source}</pre><div className="module-starter-actions"><button className="secondary small-button" type="button" onClick={() => void copyStarterFile(template, 'source')}><Copy size={13}/>{localizedText('Kopyala', 'Copy')}</button><button className="secondary small-button" type="button" onClick={() => downloadStarterFile(template, 'source')}><Download size={13}/>{localizedText('İndir', 'Download')}</button></div></div>
+        </div></details>
+      </article>)}</div>
+    </section>
     <section className="marketplace-kpis" aria-label={localizedText('Modül kataloğu özeti', 'Module catalog summary')}><article><span>{localizedText('Katalog modülü', 'Catalog modules')}</span><b>{items.length}</b><small>{localizedText('Yayımlanmış paket', 'Published packages')}</small></article><article><span>{localizedText('Tenant’ta etkin', 'Active in tenant')}</span><b>{activeCount}</b><small>{localizedText('Etkin modül', 'Active modules')}</small></article><article><span>{localizedText('Etkinleştirilebilir', 'Available to activate')}</span><b>{availableCount}</b><small>{localizedText('Runtime hazır', 'Runtime ready')}</small></article><article><span>{localizedText('Runtime engelli', 'Runtime blocked')}</span><b>{items.filter(item => item.runtimeStatus !== 'Ready').length}</b><small>{localizedText('Hazır olmayan paket', 'Packages not ready')}</small></article></section>
     {!loading && error && items.length === 0 ? <section className="panel marketplace-empty" aria-live="polite"><span className="marketplace-empty-icon"><PackageOpen size={24} aria-hidden="true"/></span><h2>{localizedText('Katalog yüklenemedi', 'Could not load catalog')}</h2><p>{localizedText('Modül listesini alamadık. Bağlantıyı kontrol edip yeniden deneyin.', 'We could not load the module list. Check the connection and try again.')}</p><button className="primary small-button" type="button" onClick={() => void load()}>{localizedText('Tekrar dene', 'Try again')}</button></section> : <>
       <section className="marketplace-toolbar" aria-label={localizedText('Modül kataloğu filtreleri', 'Module catalog filters')}>

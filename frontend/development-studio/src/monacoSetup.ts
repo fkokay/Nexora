@@ -1,4 +1,4 @@
-import * as monaco from 'monaco-editor'
+import * as monaco from '../node_modules/monaco-editor/esm/vs/editor/editor.api.js'
 import { loader } from '@monaco-editor/react'
 import EditorWorker from '../node_modules/monaco-editor/esm/vs/editor/editor.worker.js?worker'
 import JsonWorker from '../node_modules/monaco-editor/esm/vs/language/json/json.worker.js?worker'

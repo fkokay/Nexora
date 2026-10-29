@@ -313,7 +313,8 @@ studio.MapGet("/", async (Guid? projectId, ClaimsPrincipal user, AIStudioDbConte
             (x.ProjectId == null || isTenantAdmin || (x.Project!.IsActive && x.Project.AccessGrants.Any(a => a.UserId == userId))))
         .OrderByDescending(x => x.CreatedAt)
         .Take(100)
-        .Select(x => new RequestView(x.Id, x.Title, x.Description, x.Status, x.CreatedAt, x.ProjectId, x.Project == null ? null : x.Project.Name)).ToListAsync();
+        .Select(x => new RequestView(x.Id, x.Title, x.Description, x.Status, x.CreatedAt, x.ProjectId, x.Project == null ? null : x.Project.Name,
+            x.Status == "Submitted" && (isTenantAdmin || x.CreatedByUserId == userId))).ToListAsync();
     return Results.Ok(requests);
 });
 studio.MapPost("/", async (CreateRequest body, ClaimsPrincipal user, AIStudioDbContext db) =>
@@ -336,7 +337,37 @@ studio.MapPost("/", async (CreateRequest body, ClaimsPrincipal user, AIStudioDbC
     db.DevelopmentRequests.Add(request); db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.request.created", Resource = request.Id.ToString() });
     await db.SaveChangesAsync();
     return Results.Created($"/studio/requests/{request.Id}", new RequestView(request.Id, request.Title, request.Description,
-        request.Status, request.CreatedAt, request.ProjectId, project?.Name));
+        request.Status, request.CreatedAt, request.ProjectId, project?.Name, true));
+});
+studio.MapPut("/{requestId:guid}", async (Guid requestId, UpdateRequest body, ClaimsPrincipal user, AIStudioDbContext db) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var request = await db.DevelopmentRequests.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == requestId);
+    if (request is null) return Results.NotFound();
+    if (!user.IsInRole("TenantAdmin") && request.CreatedByUserId != userId) return Results.Forbid();
+    if (request.Status != "Submitted") return Results.Conflict(new { error = "Yalnızca henüz işleme alınmamış talepler düzenlenebilir." });
+
+    var title = body.Title?.Trim();
+    var description = body.Description?.Trim();
+    if (string.IsNullOrWhiteSpace(title) || title.Length > 180 || string.IsNullOrWhiteSpace(description) || description.Length > 8000)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = ["Title and description are required; title must be at most 180 and description at most 8000 characters."] });
+
+    DevelopmentProject? project = null;
+    if (body.ProjectId is { } projectId)
+    {
+        project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+            .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive);
+        if (project is null) return Results.NotFound(new { error = "Proje bulunamadı veya etkin değil." });
+        var canContribute = user.IsInRole("TenantAdmin") || project.AccessGrants.Any(x => x.UserId == userId && x.AccessLevel is "Contributor" or "Maintainer");
+        if (!canContribute) return Results.Forbid();
+    }
+
+    request.Title = title;
+    request.Description = description;
+    request.ProjectId = project?.Id;
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.request.updated", Resource = request.Id.ToString() });
+    await db.SaveChangesAsync();
+    return Results.Ok(new RequestView(request.Id, request.Title, request.Description, request.Status, request.CreatedAt, request.ProjectId, project?.Name, true));
 });
 var projects = app.MapGroup("/studio/projects").RequireAuthorization();
 app.MapGet("/studio/modules/active", async (ClaimsPrincipal user, PlatformDbContext platformDb, CancellationToken cancellationToken) =>
@@ -5526,7 +5557,8 @@ static StudioProductionApprovalView ToProductionApprovalView(StudioProductionPro
     approval.ReviewedAt, ProductionDeploymentStarted: false);
 
 internal sealed record CreateRequest(string? Title, string? Description, Guid? ProjectId = null);
-internal sealed record RequestView(Guid Id, string Title, string Description, string Status, DateTimeOffset CreatedAt, Guid? ProjectId, string? ProjectName);
+internal sealed record UpdateRequest(string? Title, string? Description, Guid? ProjectId = null);
+internal sealed record RequestView(Guid Id, string Title, string Description, string Status, DateTimeOffset CreatedAt, Guid? ProjectId, string? ProjectName, bool CanEdit);
 internal sealed record CreateProject(string? Name, string? RepositoryUrl, string? DefaultBranch);
 internal sealed record CreateModuleSourceMapping(Guid ProjectId, string? ModuleCode, string? Ref, IReadOnlyList<string>? PathAllowlist, bool MappingConfirmed);
 internal sealed record ModuleSourceMappingView(Guid Id, string ModuleCode, Guid ProjectId, string ProjectName, string RepositoryUrl,

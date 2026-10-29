@@ -33,6 +33,35 @@ public static class PurchaseInvoiceDraftEndpoints
             return Results.Ok(new StandaloneSupplierInvoiceDraftSupplierPage(items, page, pageSize, total));
         });
 
+        group.MapGet("/receipts", async (Guid supplierId, DateOnly invoiceDate, Guid? draftId, ClaimsPrincipal user,
+            TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var query = db.StandalonePurchaseReceiptLines.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.Receipt.TenantId == tenantId
+                    && x.Receipt.SupplierId == supplierId && x.Receipt.Status == StandaloneInventoryDocumentStatus.Posted
+                    && x.Receipt.ReceiptDate <= invoiceDate);
+            query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, user.FindFirstValue("role")!,
+                "erp.purchase-invoices.create", "erp.purchase-invoices", query, x => x.Receipt.Status, null,
+                x => x.Receipt.SupplierId, cancellationToken: ct) ?? query;
+            var items = await query
+                .Select(x => new
+                {
+                    Line = x,
+                    ReservedQuantity = db.PurchaseInvoiceDraftLines.Where(link => link.TenantId == tenantId
+                        && link.StandalonePurchaseReceiptLineId == x.Id
+                        && (draftId == null || link.PurchaseInvoiceDraftId != draftId))
+                        .Sum(link => (decimal?)(link.Quantity ?? 0m)) ?? 0m,
+                })
+                .Where(x => x.Line.Quantity > x.ReservedQuantity)
+                .OrderByDescending(x => x.Line.Receipt.ReceiptDate).ThenBy(x => x.Line.LineNumber)
+                .Select(x => new StandaloneSupplierInvoiceDraftReceiptOption(x.Line.Id, x.Line.ReceiptId, x.Line.Receipt.Code,
+                    x.Line.Receipt.ReceiptDate, x.Line.StockCode, x.Line.StockName, x.Line.Quantity - x.ReservedQuantity,
+                    x.Line.UnitCode, x.Line.UnitCostBase))
+                .Take(500).ToListAsync(ct);
+            return Results.Ok(items);
+        });
+
         group.MapGet("/", async (string? q, int page, int pageSize, ClaimsPrincipal user,
             TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
         {
@@ -136,6 +165,7 @@ public static class PurchaseInvoiceDraftEndpoints
                     TaxAmount = line.TaxAmount,
                     Total = line.Total,
                     ExpenseAccountId = line.ExpenseAccountId,
+                    StandalonePurchaseReceiptLineId = line.StandalonePurchaseReceiptLineId,
                     VatRate = line.VatRate,
                 });
             db.Entry(draft).Property(x => x.RowVersion).OriginalValue = expectedRowVersion;
@@ -150,6 +180,11 @@ public static class PurchaseInvoiceDraftEndpoints
             {
                 await transaction.RollbackAsync(ct);
                 return Results.Conflict(new { error = "Taslak kaydedilirken başka bir güncelleme yapıldı. Yenileyip tekrar deneyin." });
+            }
+            catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+            {
+                await transaction.RollbackAsync(ct);
+                return Results.Conflict(new { error = "Seçilen mal kabul satırı başka bir faturanın taslağına bağlanmış. Mal kabul seçimini yenileyin." });
             }
             return Results.Ok(ToDetail(draft));
         });
@@ -221,6 +256,7 @@ public static class PurchaseInvoiceDraftEndpoints
                     TaxAmount = line.TaxAmount,
                     Total = line.Total,
                     ExpenseAccountId = line.ExpenseAccountId,
+                    StandalonePurchaseReceiptLineId = line.StandalonePurchaseReceiptLineId,
                     VatRate = line.VatRate,
                 });
             db.PurchaseInvoiceDrafts.Add(draft);
@@ -283,14 +319,54 @@ public static class PurchaseInvoiceDraftEndpoints
             return Results.Conflict(new { error = "Muhasebeleştirme için fatura toplamı pozitif ve 1–100 arası satır bulunmalıdır." });
 
         var orderedLines = draft.Lines.OrderBy(x => x.LineNumber).ToArray();
-        if (orderedLines.Any(x => x.ExpenseAccountId is null || x.Subtotal < x.DiscountAmount
+        var linkedDraftLines = orderedLines.Where(x => x.StandalonePurchaseReceiptLineId.HasValue).ToArray();
+        if (orderedLines.Any(x => (x.StandalonePurchaseReceiptLineId is null) != (x.ExpenseAccountId is not null) || x.Subtotal < x.DiscountAmount
                 || x.Total != x.Subtotal - x.DiscountAmount + x.TaxAmount)
+            || linkedDraftLines.Select(x => x.StandalonePurchaseReceiptLineId).Distinct().Count() != linkedDraftLines.Length
+            || linkedDraftLines.Any(x => x.Quantity is null or <= 0m || string.IsNullOrWhiteSpace(x.UnitCode))
             || orderedLines.Sum(x => x.Subtotal) != draft.Subtotal
             || orderedLines.Sum(x => x.DiscountAmount) != draft.DiscountTotal
             || orderedLines.Sum(x => x.TaxAmount) != draft.TaxTotal
             || orderedLines.Sum(x => x.Total) != draft.GrandTotal
             || draft.Subtotal - draft.DiscountTotal + draft.TaxTotal != draft.GrandTotal)
-            return Results.Conflict(new { error = "Fatura başlık toplamları satırlarla uyuşmuyor veya satırlarda gider hesabı eksik." });
+            return Results.Conflict(new { error = "Fatura toplamları tutarsız. Stok mal kabuline bağlı satırda gider hesabı seçmeyin; diğer satırlarda gider hesabı zorunludur. Mal kabul satırı fatura miktarı pozitif olmalıdır." });
+
+        var linkedReceiptLines = new Dictionary<Guid, StandalonePurchaseReceiptLine>();
+        var linkedReceiptMovements = new Dictionary<Guid, InventoryTransaction>();
+        foreach (var linkedLine in linkedDraftLines)
+        {
+            var receiptLineId = linkedLine.StandalonePurchaseReceiptLineId!.Value;
+            IQueryable<StandalonePurchaseReceiptLine> receiptQuery = db.StandalonePurchaseReceiptLines;
+            if (db.Database.IsSqlServer())
+                receiptQuery = db.StandalonePurchaseReceiptLines.FromSqlInterpolated($"SELECT * FROM [dbo].[StandalonePurchaseReceiptLines] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {receiptLineId}");
+            var receiptLine = await receiptQuery.AsNoTracking().Include(x => x.Receipt)
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == receiptLineId, ct);
+            if (receiptLine is null || receiptLine.Receipt.Status != StandaloneInventoryDocumentStatus.Posted
+                || receiptLine.Receipt.SupplierId != draft.SupplierId || receiptLine.Receipt.ReceiptDate > draft.InvoiceDate)
+                return Results.Conflict(new { error = $"Fatura satırı {linkedLine.LineNumber}: aynı firmaya ait, işlenmiş ve fatura tarihinden önceki bir mal kabul satırı seçilmelidir." });
+            if (linkedLine.Quantity is not { } invoiceQuantity || invoiceQuantity <= 0m
+                || !string.Equals(linkedLine.UnitCode?.Trim(), receiptLine.UnitCode, StringComparison.OrdinalIgnoreCase))
+                return Results.Conflict(new { error = $"Fatura satırı {linkedLine.LineNumber}: pozitif miktar ve mal kabul ile aynı birim gereklidir." });
+            var alreadyInvoiced = await db.PurchaseInvoiceDraftLines.AsNoTracking().Where(x => x.TenantId == tenantId
+                    && x.StandalonePurchaseReceiptLineId == receiptLineId && x.PurchaseInvoiceDraftId != draft.Id
+                    && x.PurchaseInvoiceDraft.Status == PurchaseInvoiceDraftStatus.Posted)
+                .SumAsync(x => x.Quantity ?? 0m, ct);
+            if (alreadyInvoiced + invoiceQuantity > receiptLine.Quantity)
+                return Results.Conflict(new { error = $"Fatura satırı {linkedLine.LineNumber}: faturalandırılan miktar mal kabul miktarını aşamaz. Kalan miktar: {Math.Max(0m, receiptLine.Quantity - alreadyInvoiced)} {receiptLine.UnitCode}." });
+            var movement = await db.InventoryTransactions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId
+                && x.StandalonePurchaseReceiptLineId == receiptLineId && x.ReversalOfId == null, ct);
+            if (movement is null || movement.Direction != InventoryDirection.Receipt || movement.UnitCostBase is null
+                || movement.StockItemId != receiptLine.StockItemId || movement.Quantity != receiptLine.Quantity
+                || await db.InventoryTransactions.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == movement.Id, ct)
+                || await db.InventoryTransactions.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.WarehouseId == movement.WarehouseId
+                    && x.StockItemId == movement.StockItemId && x.Direction == InventoryDirection.Issue
+                    && (x.EntryDate > movement.EntryDate || x.EntryDate == movement.EntryDate && x.CreatedAt > movement.CreatedAt)
+                    && x.EntryDate > draft.InvoiceDate
+                    && !db.InventoryTransactions.AsNoTracking().Any(reversal => reversal.TenantId == tenantId && reversal.ReversalOfId == x.Id), ct))
+                return Results.Conflict(new { error = $"Fatura satırı {linkedLine.LineNumber}: mal kabul hareketi bulunamadı, ters çevrilmiş veya fatura tarihinden sonra tüketim var. İleri tarihli tüketim önce değerlendirilmelidir." });
+            linkedReceiptLines[receiptLineId] = receiptLine;
+            linkedReceiptMovements[receiptLineId] = movement;
+        }
 
         var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, draft.InvoiceDate, ct);
         if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedPeriod, "tedarikçi faturası") is { } closedConflict)
@@ -301,7 +377,7 @@ public static class PurchaseInvoiceDraftEndpoints
             && (x.Type == CounterpartyType.Supplier || x.Type == CounterpartyType.Both), ct);
         if (supplier is null) return Results.Conflict(new { error = "Faturanın etkin ve aynı firmaya ait tedarikçi hesabı bulunamadı." });
 
-        var expenseIds = orderedLines.Select(x => x.ExpenseAccountId!.Value).Distinct().ToArray();
+        var expenseIds = orderedLines.Where(x => x.ExpenseAccountId.HasValue).Select(x => x.ExpenseAccountId!.Value).Distinct().ToArray();
         var accounts = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive
                 && expenseIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, ct);
@@ -311,7 +387,8 @@ public static class PurchaseInvoiceDraftEndpoints
         var tenant = await db.Tenants.AsNoTracking().SingleOrDefaultAsync(x => x.Id == tenantId, ct);
         if (tenant is null || string.IsNullOrWhiteSpace(tenant.BaseCurrencyCode)) return Results.Conflict(new { error = "Firmanın ana para birimi tanımlı değil." });
         var mappings = await db.LedgerAccountMappings.AsNoTracking().Where(x => x.TenantId == tenantId
-                && (x.MappingKey == LedgerMappingKeys.PurchasePayable || x.MappingKey == LedgerMappingKeys.PurchaseTaxRecoverable))
+                && (x.MappingKey == LedgerMappingKeys.PurchasePayable || x.MappingKey == LedgerMappingKeys.PurchaseTaxRecoverable
+                    || x.MappingKey == LedgerMappingKeys.InventoryAsset || x.MappingKey == LedgerMappingKeys.SalesCost))
             .Join(db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive),
                 mapping => new { mapping.TenantId, Id = mapping.AccountId }, account => new { account.TenantId, account.Id },
                 (mapping, account) => new { mapping.MappingKey, Account = account })
@@ -319,12 +396,21 @@ public static class PurchaseInvoiceDraftEndpoints
         if (!mappings.TryGetValue(LedgerMappingKeys.PurchasePayable, out var payable)
             || payable.StatementSection != LedgerAccountStatementSection.Liability)
             return Results.Conflict(new { error = "Aynı firmaya ait etkin bir borç hesabı eşleştirmesi gereklidir." });
+        LedgerAccount? inventoryAccount = null;
+        if (linkedDraftLines.Length > 0 && (!mappings.TryGetValue(LedgerMappingKeys.InventoryAsset, out inventoryAccount)
+                || inventoryAccount.StatementSection != LedgerAccountStatementSection.Asset))
+            return Results.Conflict(new { error = "Mal kabul faturası satırları için aynı firmaya ait etkin stok varlığı hesap eşleştirmesi gereklidir." });
+        var cogsAccount = linkedDraftLines.Length > 0 && mappings.TryGetValue(LedgerMappingKeys.SalesCost, out var mappedCogs)
+            && mappedCogs.StatementSection == LedgerAccountStatementSection.Expense ? mappedCogs : null;
         LedgerAccount? vatAccount = null;
         if (draft.TaxTotal > 0 && (!mappings.TryGetValue(LedgerMappingKeys.PurchaseTaxRecoverable, out vatAccount)
                 || vatAccount.StatementSection != LedgerAccountStatementSection.Asset))
             return Results.Conflict(new { error = "KDV tutarı için aynı firmaya ait etkin indirilecek KDV hesabı eşleştirmesi gereklidir." });
-        if (expenseIds.Contains(payable.Id) || (vatAccount is not null && (expenseIds.Contains(vatAccount.Id) || vatAccount.Id == payable.Id)))
-            return Results.Conflict(new { error = "Gider, indirilecek KDV ve tedarikçi borç hesapları birbirinden farklı olmalıdır." });
+        if (expenseIds.Contains(payable.Id) || (vatAccount is not null && (expenseIds.Contains(vatAccount.Id) || vatAccount.Id == payable.Id))
+            || inventoryAccount is not null && (inventoryAccount.Id == payable.Id || vatAccount is not null && inventoryAccount.Id == vatAccount.Id
+                || cogsAccount is not null && inventoryAccount.Id == cogsAccount.Id)
+            || cogsAccount is not null && (cogsAccount.Id == payable.Id || vatAccount is not null && cogsAccount.Id == vatAccount.Id))
+            return Results.Conflict(new { error = "Gider, stok varlığı, indirilecek KDV ve tedarikçi borç hesapları birbirinden farklı olmalıdır." });
 
         var exchangeRate = draft.CurrencyCode == tenant.BaseCurrencyCode ? 1m
             : await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId
@@ -336,11 +422,60 @@ public static class PurchaseInvoiceDraftEndpoints
         var journalLines = new List<(Guid AccountId, string Description, decimal Debit, decimal Credit)>();
         try
         {
-            foreach (var groupLines in orderedLines.GroupBy(x => x.ExpenseAccountId!.Value).OrderBy(x => x.Key))
+            foreach (var groupLines in orderedLines.Where(x => x.ExpenseAccountId.HasValue).GroupBy(x => x.ExpenseAccountId!.Value).OrderBy(x => x.Key))
             {
                 var net = groupLines.Sum(x => x.Subtotal - x.DiscountAmount);
                 var debit = decimal.Round(net * exchangeRate, 2, MidpointRounding.AwayFromZero);
                 if (debit > 0) journalLines.Add((groupLines.Key, $"{draft.InvoiceNumber} · Gider", debit, 0m));
+            }
+            foreach (var linkedLine in linkedDraftLines)
+            {
+                var receiptLineId = linkedLine.StandalonePurchaseReceiptLineId!.Value;
+                var receiptLine = linkedReceiptLines[receiptLineId];
+                var movement = linkedReceiptMovements[receiptLineId];
+                var invoiceCostBase = decimal.Round((linkedLine.Subtotal - linkedLine.DiscountAmount) * exchangeRate, 2, MidpointRounding.AwayFromZero);
+                var invoicedQuantity = linkedLine.Quantity!.Value;
+                var receivedCostBase = decimal.Round(invoicedQuantity * movement.UnitCostBase!.Value, 2, MidpointRounding.AwayFromZero);
+                var differenceBase = invoiceCostBase - receivedCostBase;
+                var consumedDifferenceBase = 0m;
+                var remainingDifferenceBase = differenceBase;
+                IReadOnlyList<WarehouseCostDifferenceAllocation> remainingAllocations = [];
+                if (differenceBase != 0m)
+                {
+                    var allocation = await AllocateConsumedCostDifferenceAsync(db, tenantId, movement, draft.InvoiceDate, differenceBase, ct);
+                    if (allocation.Error is not null) return Results.Conflict(new { error = $"Fatura satırı {linkedLine.LineNumber}: {allocation.Error}" });
+                    consumedDifferenceBase = allocation.ConsumedAmountBase;
+                    remainingDifferenceBase = allocation.RemainingAmountBase;
+                    remainingAllocations = allocation.RemainingByWarehouse;
+                    if (consumedDifferenceBase != 0m && cogsAccount is null)
+                        return Results.Conflict(new { error = "Tüketilmiş mal kabul maliyet farkı için etkin Satılan Mal Maliyeti gider hesabı eşleştirmesi gereklidir." });
+                }
+                var inventoryDebit = invoiceCostBase - consumedDifferenceBase;
+                if (inventoryDebit > 0) journalLines.Add((inventoryAccount!.Id, $"{draft.InvoiceNumber} · Stok maliyeti · {receiptLine.StockCode}", inventoryDebit, 0m));
+                if (consumedDifferenceBase > 0)
+                    journalLines.Add((cogsAccount!.Id, $"{draft.InvoiceNumber} · Tüketilmiş stok maliyet farkı · {receiptLine.StockCode}", consumedDifferenceBase, 0m));
+                else if (consumedDifferenceBase < 0)
+                    journalLines.Add((cogsAccount!.Id, $"{draft.InvoiceNumber} · Tüketilmiş stok maliyet farkı · {receiptLine.StockCode}", 0m, Math.Abs(consumedDifferenceBase)));
+                if (differenceBase != 0m)
+                {
+                    var adjustment = new InventoryCostAdjustment
+                    {
+                        TenantId = tenantId, Code = $"IC-{Guid.NewGuid():N}".ToUpperInvariant(), EntryDate = draft.InvoiceDate,
+                        Kind = InventoryCostAdjustmentKind.LandedCost, StandalonePurchaseReceiptId = receiptLine.ReceiptId,
+                        PurchaseInvoiceDraftId = draft.Id, Description = $"{draft.InvoiceNumber} · mal kabul maliyet farkı",
+                        CreatedByUserId = userId,
+                    };
+                    foreach (var warehouseAllocation in remainingAllocations)
+                    {
+                        adjustment.Lines.Add(new InventoryCostAdjustmentLine
+                        {
+                            TenantId = tenantId, Adjustment = adjustment, WarehouseId = warehouseAllocation.WarehouseId, StockItemId = movement.StockItemId,
+                            StandalonePurchaseReceiptLineId = receiptLineId, QuantitySnapshot = warehouseAllocation.Quantity,
+                            UnitCostSnapshotBase = movement.UnitCostBase, AmountBase = warehouseAllocation.AmountBase,
+                        });
+                    }
+                    if (adjustment.Lines.Count > 0) db.InventoryCostAdjustments.Add(adjustment);
+                }
             }
             if (draft.TaxTotal > 0)
             {
@@ -349,7 +484,7 @@ public static class PurchaseInvoiceDraftEndpoints
             }
         }
         catch (OverflowException) { return Results.Conflict(new { error = "Fatura baz para birimine çevrildiğinde yevmiye tutar sınırını aşıyor." }); }
-        var payableAmount = journalLines.Sum(x => x.Debit);
+        var payableAmount = journalLines.Sum(x => x.Debit - x.Credit);
         if (payableAmount <= 0 || payableAmount > 9999999999999999.99m)
             return Results.Conflict(new { error = "Baz para birimindeki toplam yevmiye tutarı sınırlar dışında." });
 
@@ -366,7 +501,7 @@ public static class PurchaseInvoiceDraftEndpoints
         var lineNumber = 1;
         foreach (var line in journalLines)
             journal.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = journal.Id, AccountId = line.AccountId,
-                LineNumber = lineNumber++, Description = line.Description, Debit = line.Debit, Credit = 0m });
+                LineNumber = lineNumber++, Description = line.Description, Debit = line.Debit, Credit = line.Credit });
         journal.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = journal.Id, AccountId = payable.Id,
             LineNumber = lineNumber, Description = $"{draft.InvoiceNumber} · {supplier.Name}", Debit = 0m, Credit = payableAmount });
 
@@ -410,7 +545,7 @@ public static class PurchaseInvoiceDraftEndpoints
         x.Subtotal, x.DiscountTotal, x.TaxTotal, x.GrandTotal, x.Status.ToString(), x.CreatedAt, x.UpdatedAt,
         Convert.ToBase64String(x.RowVersion), x.Lines.OrderBy(l => l.LineNumber).Select(l => new StandaloneSupplierInvoiceDraftLineView(
             l.Id, l.LineNumber, l.Description, l.Quantity, l.UnitCode, l.UnitPrice, l.Subtotal, l.DiscountAmount, l.TaxAmount, l.Total,
-            l.ExpenseAccountId, l.VatRate)).ToArray());
+            l.ExpenseAccountId, l.VatRate, l.StandalonePurchaseReceiptLineId)).ToArray());
 
     private static async Task<Dictionary<string, string[]>?> ValidateExpenseAccountsAsync(TenantDbContext db, Guid tenantId,
         IReadOnlyList<StandaloneSupplierInvoiceDraftLineCreateRequest> lines, CancellationToken ct)
@@ -516,13 +651,122 @@ public static class PurchaseInvoiceDraftEndpoints
             && pair.First.UnitCode == Clean(pair.Second.UnitCode) && pair.First.UnitPrice == pair.Second.UnitPrice
             && pair.First.Subtotal == pair.Second.Subtotal && pair.First.DiscountAmount == pair.Second.DiscountAmount
             && pair.First.TaxAmount == pair.Second.TaxAmount && pair.First.Total == pair.Second.Total
-            && pair.First.ExpenseAccountId == pair.Second.ExpenseAccountId && pair.First.VatRate == pair.Second.VatRate);
+            && pair.First.ExpenseAccountId == pair.Second.ExpenseAccountId && pair.First.VatRate == pair.Second.VatRate
+            && pair.First.StandalonePurchaseReceiptLineId == pair.Second.StandalonePurchaseReceiptLineId);
     }
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static string NormalizeInvoiceNumber(string value) => value.Trim().ToUpperInvariant();
+    private static async Task<ConsumedCostDifferenceAllocation> AllocateConsumedCostDifferenceAsync(TenantDbContext db, Guid tenantId,
+        InventoryTransaction receiptMovement, DateOnly invoiceDate, decimal differenceBase, CancellationToken ct)
+    {
+        var futureIssueReversal = await db.InventoryTransactions.AsNoTracking().AnyAsync(reversal => reversal.TenantId == tenantId
+            && reversal.StockItemId == receiptMovement.StockItemId && reversal.EntryDate > invoiceDate && reversal.ReversalOfId.HasValue
+            && db.InventoryTransactions.AsNoTracking().Any(original => original.TenantId == tenantId && original.Id == reversal.ReversalOfId.Value
+                && original.StockItemId == receiptMovement.StockItemId && original.Direction == InventoryDirection.Issue && original.EntryDate <= invoiceDate), ct);
+        if (futureIssueReversal)
+            return ConsumedCostDifferenceAllocation.Failed("Fatura tarihinden sonraki bir ters hareket önceki stok tüketimini geri alıyor; bu tarihe güvenli maliyet dağıtımı yapılamadı.");
+
+        var movements = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId
+                && x.StockItemId == receiptMovement.StockItemId && x.EntryDate <= invoiceDate)
+            .OrderBy(x => x.EntryDate).ThenBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync(ct);
+        var balance = 0m;
+        var pool = 0m;
+        var consumed = 0m;
+        var receiptSeen = false;
+        var balancesByWarehouse = new Dictionary<Guid, decimal>();
+        var allocatedByIssue = new Dictionary<Guid, (decimal Quantity, decimal Amount)>();
+        var byId = movements.ToDictionary(x => x.Id);
+        void AdjustWarehouseBalance(Guid warehouseId, decimal delta)
+        {
+            balancesByWarehouse[warehouseId] = balancesByWarehouse.GetValueOrDefault(warehouseId) + delta;
+        }
+        foreach (var movement in movements)
+        {
+            if (!receiptSeen && movement.Id != receiptMovement.Id)
+            {
+                var delta = movement.Direction == InventoryDirection.Receipt ? movement.Quantity : -movement.Quantity;
+                balance += delta;
+                AdjustWarehouseBalance(movement.WarehouseId, delta);
+                if (balancesByWarehouse[movement.WarehouseId] < 0m)
+                    return ConsumedCostDifferenceAllocation.Failed("Mal kabul öncesi bir depoda negatif stok var; maliyet farkı güvenilir biçimde dağıtılamadı.");
+                continue;
+            }
+            if (movement.Id == receiptMovement.Id)
+            {
+                if (movement.Direction != InventoryDirection.Receipt || balance < 0m)
+                    return ConsumedCostDifferenceAllocation.Failed("Mal kabul öncesi stok bakiyesi negatif; maliyet farkı güvenilir biçimde dağıtılamadı.");
+                balance += movement.Quantity;
+                AdjustWarehouseBalance(movement.WarehouseId, movement.Quantity);
+                pool = differenceBase;
+                receiptSeen = true;
+                continue;
+            }
+
+            if (movement.ReversalOfId is { } reversalOfId)
+            {
+                if (movement.Direction != InventoryDirection.Receipt || !byId.TryGetValue(reversalOfId, out var original)
+                    || original.Direction != InventoryDirection.Issue || movement.Quantity > original.Quantity || movement.WarehouseId != original.WarehouseId)
+                    return ConsumedCostDifferenceAllocation.Failed("Mal kabulden sonraki ters hareketler mevcut ağırlıklı ortalama akışında güvenle dağıtılamıyor; hareketleri inceleyin.");
+                var restoredAmount = !allocatedByIssue.TryGetValue(original.Id, out var originalAllocation) || originalAllocation.Quantity == 0m ? 0m
+                    : originalAllocation.Amount * movement.Quantity / originalAllocation.Quantity;
+                balance += movement.Quantity;
+                AdjustWarehouseBalance(movement.WarehouseId, movement.Quantity);
+                pool += restoredAmount;
+                consumed -= restoredAmount;
+                continue;
+            }
+
+            if (movement.Direction == InventoryDirection.Receipt)
+            {
+                balance += movement.Quantity;
+                AdjustWarehouseBalance(movement.WarehouseId, movement.Quantity);
+                continue;
+            }
+            if (balance <= 0m || movement.Quantity > balance)
+                return ConsumedCostDifferenceAllocation.Failed("Mal kabulden sonraki stok hareketlerinde negatif bakiye var; maliyet farkı dağıtılmadı.");
+            var allocated = pool * movement.Quantity / balance;
+            pool -= allocated;
+            consumed += allocated;
+            allocatedByIssue[movement.Id] = (movement.Quantity, allocated);
+            if (balancesByWarehouse.GetValueOrDefault(movement.WarehouseId) < movement.Quantity)
+                return ConsumedCostDifferenceAllocation.Failed("Fatura tarihine kadar bir depoda negatif stok oluşuyor; maliyet farkı depo bazında güvenle dağıtılamadı.");
+            balance -= movement.Quantity;
+            AdjustWarehouseBalance(movement.WarehouseId, -movement.Quantity);
+        }
+
+        if (!receiptSeen || balance < 0m)
+            return ConsumedCostDifferenceAllocation.Failed("Mal kabul hareketi bulunamadı veya fatura tarihindeki stok bakiyesi geçersiz.");
+        if (balancesByWarehouse.Values.Any(quantity => quantity < 0m))
+            return ConsumedCostDifferenceAllocation.Failed("Fatura tarihinde bir veya daha fazla depoda negatif stok var; maliyet farkı depo bazında güvenle dağıtılamadı.");
+        var consumedRounded = decimal.Round(consumed, 2, MidpointRounding.AwayFromZero);
+        var remainingAmount = differenceBase - consumedRounded;
+        var positiveWarehouseBalances = balancesByWarehouse.Where(x => x.Value > 0m).OrderBy(x => x.Key).ToArray();
+        var remainingByWarehouse = new List<WarehouseCostDifferenceAllocation>(positiveWarehouseBalances.Length);
+        var allocatedAmount = 0m;
+        for (var index = 0; index < positiveWarehouseBalances.Length; index++)
+        {
+            var warehouseBalance = positiveWarehouseBalances[index];
+            var amount = index == positiveWarehouseBalances.Length - 1
+                ? remainingAmount - allocatedAmount
+                : decimal.Round(remainingAmount * warehouseBalance.Value / balance, 2, MidpointRounding.AwayFromZero);
+            allocatedAmount += amount;
+            remainingByWarehouse.Add(new WarehouseCostDifferenceAllocation(warehouseBalance.Key, warehouseBalance.Value, amount));
+        }
+        if (remainingAmount != 0m && remainingByWarehouse.Count == 0)
+            return ConsumedCostDifferenceAllocation.Failed("Elde kalan maliyet farkı depo stokuna dağıtılamadı; stok ve fatura tarihlerini inceleyin.");
+        return new ConsumedCostDifferenceAllocation(consumedRounded, remainingAmount, remainingByWarehouse, null);
+    }
+
     private static bool IsUniqueViolation(DbUpdateException ex) =>
         ex.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 };
+
+    private sealed record WarehouseCostDifferenceAllocation(Guid WarehouseId, decimal Quantity, decimal AmountBase);
+    private sealed record ConsumedCostDifferenceAllocation(decimal ConsumedAmountBase, decimal RemainingAmountBase,
+        IReadOnlyList<WarehouseCostDifferenceAllocation> RemainingByWarehouse, string? Error)
+    {
+        public static ConsumedCostDifferenceAllocation Failed(string error) => new(0m, 0m, [], error);
+    }
 }
 
 public sealed record StandaloneSupplierInvoiceDraftCreateRequest(Guid RequestId, Guid SupplierId, string InvoiceNumber,
@@ -533,12 +777,14 @@ public sealed record StandaloneSupplierInvoiceDraftUpdateRequest(string Expected
     decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, IReadOnlyList<StandaloneSupplierInvoiceDraftLineCreateRequest> Lines);
 public sealed record StandaloneSupplierInvoiceDraftLineCreateRequest(int LineNumber, string Description,
     decimal? Quantity, string? UnitCode, decimal? UnitPrice, decimal Subtotal, decimal DiscountAmount, decimal TaxAmount, decimal Total,
-    Guid? ExpenseAccountId = null, decimal? VatRate = null);
+    Guid? ExpenseAccountId = null, decimal? VatRate = null, Guid? StandalonePurchaseReceiptLineId = null);
 public sealed record StandaloneSupplierInvoiceDraftPage(IReadOnlyList<StandaloneSupplierInvoiceDraftSummary> Items,
     int Page, int PageSize, int TotalCount);
 public sealed record StandaloneSupplierInvoiceDraftSupplierPage(IReadOnlyList<StandaloneSupplierInvoiceDraftSupplierOption> Items,
     int Page, int PageSize, int TotalCount);
 public sealed record StandaloneSupplierInvoiceDraftSupplierOption(Guid Id, string Code, string Name, string CurrencyCode);
+public sealed record StandaloneSupplierInvoiceDraftReceiptOption(Guid LineId, Guid ReceiptId, string ReceiptCode,
+    DateOnly ReceiptDate, string StockCode, string StockName, decimal Quantity, string UnitCode, decimal UnitCostBase);
 public sealed record StandaloneSupplierInvoiceDraftSummary(Guid Id, Guid SupplierId, string SupplierName,
     string InvoiceNumber, DateOnly InvoiceDate, DateOnly? DueDate, string CurrencyCode, decimal GrandTotal,
     int LineCount, string Status, DateTimeOffset CreatedAt);
@@ -549,5 +795,5 @@ public sealed record StandaloneSupplierInvoiceDraftDetail(Guid Id, Guid Supplier
     IReadOnlyList<StandaloneSupplierInvoiceDraftLineView> Lines);
 public sealed record StandaloneSupplierInvoiceDraftLineView(Guid Id, int LineNumber, string Description,
     decimal? Quantity, string? UnitCode, decimal? UnitPrice, decimal Subtotal, decimal DiscountAmount, decimal TaxAmount, decimal Total,
-    Guid? ExpenseAccountId, decimal? VatRate);
+    Guid? ExpenseAccountId, decimal? VatRate, Guid? StandalonePurchaseReceiptLineId);
 public sealed record StandaloneSupplierInvoiceDraftPostingResult(Guid DraftId, string Status, Guid JournalEntryId, Guid LedgerEntryId);

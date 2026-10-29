@@ -150,6 +150,47 @@ public sealed class SqlServerStandaloneSupplierInvoiceDraftAcceptanceTests
             Assert.Equal(1, await verify.CustomerLedgerEntries.CountAsync(x => x.TenantId == tenantId && x.PurchaseInvoiceDraftId == created.Id));
             Assert.Equal(1, await verify.JournalEntries.CountAsync(x => x.TenantId == tenantId && x.SourceType == "StandaloneInvoiceDraft" && x.SourceId == created.Id));
             Assert.Equal(0, await verify.SupplierPayments.CountAsync(x => x.TenantId == tenantId));
+
+            var warehouse = new Warehouse { TenantId = tenantId, Code = "MAIN", Name = "Main warehouse" };
+            var stock = new StockItem { TenantId = tenantId, Code = "MAT-001", Name = "Material", UnitCode = "EA", TrackingMode = InventoryTrackingMode.None };
+            var receipt = new StandalonePurchaseReceipt { TenantId = tenantId, RequestId = Guid.NewGuid(), SupplierId = supplier.Id,
+                WarehouseId = warehouse.Id, Code = "MR-001", ReceiptDate = new DateOnly(2026, 10, 20), Status = StandaloneInventoryDocumentStatus.Posted };
+            var receiptLine = new StandalonePurchaseReceiptLine { TenantId = tenantId, Receipt = receipt, LineNumber = 1,
+                StockItemId = stock.Id, StockCode = stock.Code, StockName = stock.Name, UnitCode = "EA", Quantity = 10m, UnitCostBase = 10m };
+            receipt.Lines.Add(receiptLine);
+            var receiptMovement = new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = stock.Id,
+                StandalonePurchaseReceiptLineId = receiptLine.Id, EntryDate = receipt.ReceiptDate, Direction = InventoryDirection.Receipt,
+                Quantity = 10m, UnitCostBase = 10m, Description = "Receipt", CreatedAt = DateTimeOffset.UtcNow.AddDays(-2) };
+            var laterIssue = new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = stock.Id,
+                EntryDate = new DateOnly(2026, 10, 23), Direction = InventoryDirection.Issue, Quantity = 1m, UnitCostBase = 10m,
+                Description = "Backdated-imported active issue", CreatedAt = receiptMovement.CreatedAt.AddDays(-1) };
+            var inventoryAccount = new LedgerAccount { TenantId = tenantId, Code = "150", Name = "Inventory", StatementSection = LedgerAccountStatementSection.Asset };
+            var cogsAccount = new LedgerAccount { TenantId = tenantId, Code = "621", Name = "Cost of goods sold", StatementSection = LedgerAccountStatementSection.Expense };
+            verify.Warehouses.Add(warehouse); verify.StockItems.Add(stock); verify.StandalonePurchaseReceipts.Add(receipt);
+            verify.InventoryTransactions.AddRange(receiptMovement, laterIssue); verify.LedgerAccounts.AddRange(inventoryAccount, cogsAccount);
+            verify.LedgerAccountMappings.AddRange(new LedgerAccountMapping { TenantId = tenantId, MappingKey = LedgerMappingKeys.InventoryAsset, AccountId = inventoryAccount.Id },
+                new LedgerAccountMapping { TenantId = tenantId, MappingKey = LedgerMappingKeys.SalesCost, AccountId = cogsAccount.Id });
+            await verify.SaveChangesAsync();
+
+            var linkedInvoice = new StandaloneSupplierInvoiceDraftCreateRequest(Guid.NewGuid(), supplier.Id, "INV-R-001",
+                new DateOnly(2026, 10, 25), null, "TRY", null, 48m, 0m, 0m, 48m,
+                [new StandaloneSupplierInvoiceDraftLineCreateRequest(1, "Material", 4m, "EA", 12m, 48m, 0m, 0m, 48m,
+                    null, null, receiptLine.Id)]);
+            using var linkedCreateResponse = await client.PostAsJsonAsync("/api/purchasing/standalone-invoices/", linkedInvoice);
+            Assert.Equal(HttpStatusCode.Created, linkedCreateResponse.StatusCode);
+            var linkedDraft = await linkedCreateResponse.Content.ReadFromJsonAsync<StandaloneSupplierInvoiceDraftDetail>();
+            Assert.NotNull(linkedDraft);
+            using var linkedPost = await client.PostAsync($"/api/purchasing/standalone-invoices/{linkedDraft.Id}/post", null);
+            Assert.True(linkedPost.StatusCode == HttpStatusCode.OK,
+                $"Expected 200 after consumed-cost allocation but received {(int)linkedPost.StatusCode}: {await linkedPost.Content.ReadAsStringAsync()}");
+            Assert.Equal(1, await verify.InventoryCostAdjustments.CountAsync(x => x.TenantId == tenantId && x.PurchaseInvoiceDraftId == linkedDraft.Id));
+            var costAdjustment = await verify.InventoryCostAdjustmentLines.SingleAsync(x => x.TenantId == tenantId && x.Adjustment.PurchaseInvoiceDraftId == linkedDraft.Id);
+            Assert.Equal(0.80m, await verify.JournalEntries.Where(x => x.TenantId == tenantId && x.SourceId == linkedDraft.Id)
+                .SelectMany(x => x.Lines).Where(x => x.AccountId == cogsAccount.Id).SumAsync(x => x.Debit));
+            Assert.Equal(7.20m, costAdjustment.AmountBase);
+            var inventoryDebit = await verify.JournalEntries.Where(x => x.TenantId == tenantId && x.SourceId == linkedDraft.Id)
+                .SelectMany(x => x.Lines).Where(x => x.AccountId == inventoryAccount.Id).SumAsync(x => x.Debit);
+            Assert.Equal(47.20m, inventoryDebit);
         }
         finally
         {

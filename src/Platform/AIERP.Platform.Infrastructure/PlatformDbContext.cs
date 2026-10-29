@@ -115,6 +115,10 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<InventoryTransfer> InventoryTransfers => Set<InventoryTransfer>();
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
     public DbSet<InventoryTransactionTrace> InventoryTransactionTraces => Set<InventoryTransactionTrace>();
+    public DbSet<StandaloneSalesDelivery> StandaloneSalesDeliveries => Set<StandaloneSalesDelivery>();
+    public DbSet<StandaloneSalesDeliveryLine> StandaloneSalesDeliveryLines => Set<StandaloneSalesDeliveryLine>();
+    public DbSet<StandalonePurchaseReceipt> StandalonePurchaseReceipts => Set<StandalonePurchaseReceipt>();
+    public DbSet<StandalonePurchaseReceiptLine> StandalonePurchaseReceiptLines => Set<StandalonePurchaseReceiptLine>();
     public DbSet<InventoryCostAdjustment> InventoryCostAdjustments => Set<InventoryCostAdjustment>();
     public DbSet<InventoryCostAdjustmentLine> InventoryCostAdjustmentLines => Set<InventoryCostAdjustmentLine>();
     public DbSet<SalesQuote> SalesQuotes => Set<SalesQuote>();
@@ -895,6 +899,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.FullName).HasMaxLength(160);
             e.Property(x => x.Department).HasMaxLength(120);
             e.Property(x => x.JobTitle).HasMaxLength(120);
+            e.Property(x => x.EmploymentCategory).HasMaxLength(80);
             e.Property(x => x.WorkEmail).HasMaxLength(254);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16).IsUnicode(false);
             e.Property(x => x.RowVersion).IsRowVersion();
@@ -921,6 +926,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasIndex(x => new { x.TenantId, x.EmployeeId, x.WorkDate }).IsUnique();
             e.Property(x => x.Note).HasMaxLength(1000);
+            e.Property(x => x.ApprovalStatus).HasMaxLength(24).IsUnicode(false).IsRequired();
             e.Property(x => x.RowVersion).IsRowVersion();
             e.ToTable(t => t.HasCheckConstraint("CK_EmployeeAttendanceRecords_Minutes", "[WorkedMinutes] BETWEEN 0 AND 1440 AND [OvertimeMinutes] BETWEEN 0 AND 1440"));
             e.HasOne<EmployeeRecord>().WithMany().HasForeignKey(x => new { x.TenantId, x.EmployeeId })
@@ -1493,12 +1499,18 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.EntryDate, x.CreatedAt });
             e.HasIndex(x => new { x.TenantId, x.PurchaseReceiptId });
+            e.HasIndex(x => new { x.TenantId, x.StandalonePurchaseReceiptId });
+            e.HasIndex(x => new { x.TenantId, x.PurchaseInvoiceDraftId });
             e.HasIndex(x => new { x.TenantId, x.ReversalOfId }).IsUnique().HasFilter("[ReversalOfId] IS NOT NULL");
             e.Property(x => x.Code).HasMaxLength(48);
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(24);
             e.Property(x => x.Description).HasMaxLength(240);
             e.HasOne<PurchaseReceipt>().WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseReceiptId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<StandalonePurchaseReceipt>().WithMany().HasForeignKey(x => new { x.TenantId, x.StandalonePurchaseReceiptId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<PurchaseInvoiceDraft>().WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseInvoiceDraftId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<InventoryCostAdjustment>().WithMany().HasForeignKey(x => new { x.TenantId, x.ReversalOfId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
@@ -1509,6 +1521,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasIndex(x => new { x.TenantId, x.AdjustmentId, x.WarehouseId, x.StockItemId });
             e.HasIndex(x => new { x.TenantId, x.PurchaseReceiptLineId });
+            e.HasIndex(x => new { x.TenantId, x.StandalonePurchaseReceiptLineId });
             e.Property(x => x.QuantitySnapshot).HasPrecision(18, 4);
             e.Property(x => x.UnitCostSnapshotBase).HasPrecision(18, 8);
             e.Property(x => x.AmountBase).HasPrecision(18, 2);
@@ -1519,6 +1532,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<PurchaseReceiptLine>().WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseReceiptLineId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<StandalonePurchaseReceiptLine>().WithMany().HasForeignKey(x => new { x.TenantId, x.StandalonePurchaseReceiptLineId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.ToTable(t => t.HasCheckConstraint("CK_InventoryCostAdjustmentLines_AmountNonZero", "[AmountBase] <> 0"));
         });
@@ -2879,6 +2894,19 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<InventoryTransaction>().Ignore(x => x.StandaloneSalesDeliveryLineId);
+        modelBuilder.Entity<InventoryTransaction>().Ignore(x => x.StandaloneSalesDeliveryLine);
+        modelBuilder.Entity<InventoryTransaction>().Ignore(x => x.StandalonePurchaseReceiptLineId);
+        modelBuilder.Entity<InventoryTransaction>().Ignore(x => x.StandalonePurchaseReceiptLine);
+        modelBuilder.Ignore<StandaloneSalesDelivery>();
+        modelBuilder.Ignore<StandaloneSalesDeliveryLine>();
+        modelBuilder.Ignore<StandalonePurchaseReceipt>();
+        modelBuilder.Ignore<StandalonePurchaseReceiptLine>();
+        modelBuilder.Entity<InventoryCostAdjustment>().Ignore(x => x.StandalonePurchaseReceiptId);
+        modelBuilder.Entity<InventoryCostAdjustment>().Ignore(x => x.PurchaseInvoiceDraftId);
+        modelBuilder.Entity<InventoryCostAdjustmentLine>().Ignore(x => x.StandalonePurchaseReceiptLineId);
+        modelBuilder.Entity<PurchaseInvoiceDraftLine>().Ignore(x => x.StandalonePurchaseReceiptLineId);
+        modelBuilder.Entity<PurchaseInvoiceDraftLine>().Ignore(x => x.StandalonePurchaseReceiptLine);
         // Tenant operational records belong to each isolated tenant database.
         modelBuilder.Ignore<PurchaseDeliveryNote>();
         modelBuilder.Ignore<PurchaseDeliveryNoteLine>();

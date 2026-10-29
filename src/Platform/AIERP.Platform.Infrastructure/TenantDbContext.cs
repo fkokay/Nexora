@@ -43,6 +43,71 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.HasOne<ManufacturingWorkCenter>().WithMany().HasForeignKey(x => new { x.TenantId, x.WorkCenterId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
         });
+        modelBuilder.Entity<StandaloneSalesDelivery>(e =>
+        {
+            e.ToTable("StandaloneSalesDeliveries", t =>
+                t.HasCheckConstraint("CK_StandaloneSalesDeliveries_Status", "[Status] IN (0,1,2)"));
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.RequestId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.CustomerId, x.DeliveryDate, x.CreatedAt });
+            e.Property(x => x.Code).HasMaxLength(40).IsRequired(); e.Property(x => x.Status).HasConversion<int>();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => new { x.TenantId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<StandaloneSalesDeliveryLine>(e =>
+        {
+            e.ToTable("StandaloneSalesDeliveryLines", t => t.HasCheckConstraint("CK_StandaloneSalesDeliveryLines_QuantityPositive", "[Quantity] > 0"));
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.DeliveryId, x.LineNumber }).IsUnique();
+            e.Property(x => x.StockCode).HasMaxLength(64).IsRequired(); e.Property(x => x.StockName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.UnitCode).HasMaxLength(8).IsRequired(); e.Property(x => x.Quantity).HasPrecision(18, 4);
+            e.Property(x => x.EnteredQuantity).HasPrecision(18, 4); e.Property(x => x.EnteredUnitCode).HasMaxLength(8);
+            e.Property(x => x.TrackingCode).HasMaxLength(80);
+            e.HasOne(x => x.Delivery).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.DeliveryId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.StorageLocation).WithMany().HasForeignKey(x => new { x.TenantId, x.StorageLocationId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<StandalonePurchaseReceipt>(e =>
+        {
+            e.ToTable("StandalonePurchaseReceipts", t =>
+                t.HasCheckConstraint("CK_StandalonePurchaseReceipts_Status", "[Status] IN (0,1,2)"));
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.RequestId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.SupplierId, x.ReceiptDate, x.CreatedAt });
+            e.Property(x => x.Code).HasMaxLength(40).IsRequired(); e.Property(x => x.Status).HasConversion<int>();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Supplier).WithMany().HasForeignKey(x => new { x.TenantId, x.SupplierId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<StandalonePurchaseReceiptLine>(e =>
+        {
+            e.ToTable("StandalonePurchaseReceiptLines", t =>
+            {
+                t.HasCheckConstraint("CK_StandalonePurchaseReceiptLines_QuantityPositive", "[Quantity] > 0");
+                t.HasCheckConstraint("CK_StandalonePurchaseReceiptLines_UnitCostNonNegative", "[UnitCostBase] >= 0");
+            });
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.ReceiptId, x.LineNumber }).IsUnique();
+            e.Property(x => x.StockCode).HasMaxLength(64).IsRequired(); e.Property(x => x.StockName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.UnitCode).HasMaxLength(8).IsRequired(); e.Property(x => x.Quantity).HasPrecision(18, 4);
+            e.Property(x => x.UnitCostBase).HasPrecision(18, 8); e.Property(x => x.EnteredQuantity).HasPrecision(18, 4); e.Property(x => x.EnteredUnitCode).HasMaxLength(8);
+            e.Property(x => x.TrackingCode).HasMaxLength(80);
+            e.HasOne(x => x.Receipt).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.ReceiptId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.StorageLocation).WithMany().HasForeignKey(x => new { x.TenantId, x.StorageLocationId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<InventoryTransaction>(e =>
+        {
+            e.HasOne(x => x.StandaloneSalesDeliveryLine).WithMany(x => x.InventoryTransactions)
+                .HasForeignKey(x => new { x.TenantId, x.StandaloneSalesDeliveryLineId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.StandalonePurchaseReceiptLine).WithMany(x => x.InventoryTransactions)
+                .HasForeignKey(x => new { x.TenantId, x.StandalonePurchaseReceiptLineId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<ManufacturingWorkCenterShiftRotation>(e =>
         {
             e.ToTable("ManufacturingWorkCenterShiftRotations", t =>
@@ -288,6 +353,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.HasKey(x => x.Id);
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasIndex(x => new { x.TenantId, x.PurchaseInvoiceDraftId, x.LineNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.StandalonePurchaseReceiptLineId }).HasFilter("[StandalonePurchaseReceiptLineId] IS NOT NULL");
             e.Property(x => x.Description).HasMaxLength(240).IsRequired();
             e.Property(x => x.UnitCode).HasMaxLength(12);
             e.Property(x => x.Quantity).HasPrecision(18, 4);
@@ -302,6 +368,9 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.HasOne(x => x.PurchaseInvoiceDraft).WithMany(x => x.Lines)
                 .HasForeignKey(x => new { x.TenantId, x.PurchaseInvoiceDraftId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.StandalonePurchaseReceiptLine).WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.StandalonePurchaseReceiptLineId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
         });
         var studioEntities = new[]
         {

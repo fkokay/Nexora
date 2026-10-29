@@ -8831,6 +8831,18 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ApprovalStatus")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -8959,6 +8971,10 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<string>("Department")
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("EmploymentCategory")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("FullName")
                         .IsRequired()
@@ -9902,10 +9918,16 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasMaxLength(24)
                         .HasColumnType("nvarchar(24)");
 
+                    b.Property<Guid?>("PurchaseInvoiceDraftId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("PurchaseReceiptId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("ReversalOfId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("StandalonePurchaseReceiptId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("TenantId")
@@ -9916,11 +9938,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasIndex("TenantId", "Code")
                         .IsUnique();
 
+                    b.HasIndex("TenantId", "PurchaseInvoiceDraftId");
+
                     b.HasIndex("TenantId", "PurchaseReceiptId");
 
                     b.HasIndex("TenantId", "ReversalOfId")
                         .IsUnique()
                         .HasFilter("[ReversalOfId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "StandalonePurchaseReceiptId");
 
                     b.HasIndex("TenantId", "EntryDate", "CreatedAt");
 
@@ -9947,6 +9973,9 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("StandalonePurchaseReceiptLineId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("StockItemId")
                         .HasColumnType("uniqueidentifier");
 
@@ -9965,6 +9994,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("TenantId", "PurchaseReceiptLineId");
+
+                    b.HasIndex("TenantId", "StandalonePurchaseReceiptLineId");
 
                     b.HasIndex("TenantId", "StockItemId");
 
@@ -10028,6 +10059,12 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<Guid?>("SalesReturnLineId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("StandalonePurchaseReceiptLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("StandaloneSalesDeliveryLineId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("StockItemId")
                         .HasColumnType("uniqueidentifier");
 
@@ -10058,6 +10095,10 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasIndex("TenantId", "SalesDeliveryLineId");
 
                     b.HasIndex("TenantId", "SalesReturnLineId");
+
+                    b.HasIndex("TenantId", "StandalonePurchaseReceiptLineId");
+
+                    b.HasIndex("TenantId", "StandaloneSalesDeliveryLineId");
 
                     b.HasIndex("TenantId", "StockItemId");
 
@@ -12535,6 +12576,9 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("StandalonePurchaseReceiptLineId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("Subtotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -12567,6 +12611,9 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("TenantId", "ExpenseAccountId");
+
+                    b.HasIndex("TenantId", "StandalonePurchaseReceiptLineId")
+                        .HasFilter("[StandalonePurchaseReceiptLineId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "PurchaseInvoiceDraftId", "LineNumber")
                         .IsUnique();
@@ -15300,6 +15347,252 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                             t.HasCheckConstraint("CK_SalesReturnLines_QuantityPositive", "[Quantity] > 0");
 
                             t.HasCheckConstraint("CK_SalesReturnLines_VatRange", "[VatPercent] >= 0 AND [VatPercent] <= 100");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StandalonePurchaseReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateOnly>("ReceiptDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "WarehouseId");
+
+                    b.HasIndex("TenantId", "SupplierId", "ReceiptDate", "CreatedAt");
+
+                    b.ToTable("StandalonePurchaseReceipts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_StandalonePurchaseReceipts_Status", "[Status] IN (0,1,2)");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StandalonePurchaseReceiptLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("EnteredQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("EnteredUnitCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<DateOnly?>("ExpiryDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("ReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StockCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("StockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StockName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("StorageLocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TrackingCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("UnitCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<decimal>("UnitCostBase")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("decimal(18,8)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "StockItemId");
+
+                    b.HasIndex("TenantId", "StorageLocationId");
+
+                    b.HasIndex("TenantId", "ReceiptId", "LineNumber")
+                        .IsUnique();
+
+                    b.ToTable("StandalonePurchaseReceiptLines", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_StandalonePurchaseReceiptLines_QuantityPositive", "[Quantity] > 0");
+
+                            t.HasCheckConstraint("CK_StandalonePurchaseReceiptLines_UnitCostNonNegative", "[UnitCostBase] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StandaloneSalesDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("DeliveryDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "WarehouseId");
+
+                    b.HasIndex("TenantId", "CustomerId", "DeliveryDate", "CreatedAt");
+
+                    b.ToTable("StandaloneSalesDeliveries", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_StandaloneSalesDeliveries_Status", "[Status] IN (0,1,2)");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StandaloneSalesDeliveryLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DeliveryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("EnteredQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("EnteredUnitCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<DateOnly?>("ExpiryDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("StockCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("StockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StockName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("StorageLocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TrackingCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("UnitCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "StockItemId");
+
+                    b.HasIndex("TenantId", "StorageLocationId");
+
+                    b.HasIndex("TenantId", "DeliveryId", "LineNumber")
+                        .IsUnique();
+
+                    b.ToTable("StandaloneSalesDeliveryLines", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_StandaloneSalesDeliveryLines_QuantityPositive", "[Quantity] > 0");
                         });
                 });
 
@@ -18088,6 +18381,12 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AIERP.Platform.Domain.PurchaseInvoiceDraft", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PurchaseInvoiceDraftId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AIERP.Platform.Domain.PurchaseReceipt", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "PurchaseReceiptId")
@@ -18097,6 +18396,12 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasOne("AIERP.Platform.Domain.InventoryCostAdjustment", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ReversalOfId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.StandalonePurchaseReceipt", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StandalonePurchaseReceiptId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
@@ -18113,6 +18418,12 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasOne("AIERP.Platform.Domain.PurchaseReceiptLine", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "PurchaseReceiptLineId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.StandalonePurchaseReceiptLine", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StandalonePurchaseReceiptLineId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
@@ -18170,6 +18481,18 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("AIERP.Platform.Domain.StandalonePurchaseReceiptLine", "StandalonePurchaseReceiptLine")
+                        .WithMany("InventoryTransactions")
+                        .HasForeignKey("TenantId", "StandalonePurchaseReceiptLineId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.StandaloneSalesDeliveryLine", "StandaloneSalesDeliveryLine")
+                        .WithMany("InventoryTransactions")
+                        .HasForeignKey("TenantId", "StandaloneSalesDeliveryLineId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AIERP.Platform.Domain.StockItem", "StockItem")
                         .WithMany()
                         .HasForeignKey("TenantId", "StockItemId")
@@ -18205,6 +18528,10 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Navigation("SalesDeliveryLine");
 
                     b.Navigation("SalesReturnLine");
+
+                    b.Navigation("StandalonePurchaseReceiptLine");
+
+                    b.Navigation("StandaloneSalesDeliveryLine");
 
                     b.Navigation("StockItem");
 
@@ -18812,7 +19139,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("AIERP.Platform.Domain.StandalonePurchaseReceiptLine", "StandalonePurchaseReceiptLine")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StandalonePurchaseReceiptLineId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("PurchaseInvoiceDraft");
+
+                    b.Navigation("StandalonePurchaseReceiptLine");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseInvoiceLine", b =>
@@ -19845,6 +20180,114 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Navigation("SalesReturn");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.StandalonePurchaseReceipt", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.CustomerAccount", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SupplierId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WarehouseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Supplier");
+
+                    b.Navigation("Warehouse");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StandalonePurchaseReceiptLine", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.StandalonePurchaseReceipt", "Receipt")
+                        .WithMany("Lines")
+                        .HasForeignKey("TenantId", "ReceiptId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.StockItem", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StockItemId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.WarehouseLocation", "StorageLocation")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StorageLocationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Receipt");
+
+                    b.Navigation("StorageLocation");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StandaloneSalesDelivery", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.CustomerAccount", "Customer")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CustomerId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WarehouseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("Warehouse");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StandaloneSalesDeliveryLine", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.StandaloneSalesDelivery", "Delivery")
+                        .WithMany("Lines")
+                        .HasForeignKey("TenantId", "DeliveryId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.StockItem", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StockItemId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.WarehouseLocation", "StorageLocation")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StorageLocationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Delivery");
+
+                    b.Navigation("StorageLocation");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.StockItem", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", "Tenant")
@@ -20642,6 +21085,26 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.SalesReturnLine", b =>
+                {
+                    b.Navigation("InventoryTransactions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StandalonePurchaseReceipt", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StandalonePurchaseReceiptLine", b =>
+                {
+                    b.Navigation("InventoryTransactions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StandaloneSalesDelivery", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StandaloneSalesDeliveryLine", b =>
                 {
                     b.Navigation("InventoryTransactions");
                 });

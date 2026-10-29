@@ -293,6 +293,7 @@ internal static class PayrollParameterSetValidator
         "compensation.amount" => type == "decimal" && !string.IsNullOrWhiteSpace(unit),
         "compensation.periodAmount" => type == "decimal" && PayrollExpressionSchemaValidator.IsUnitValid(unit),
         "compensation.targetKind" => type == "choice" && string.IsNullOrWhiteSpace(unit),
+        "employee.employmentCategory" => type == "choice" && string.IsNullOrWhiteSpace(unit),
         "compensation.currencyCode" or "compensation.payBasisCode" => type == "text" && string.IsNullOrWhiteSpace(unit),
         "calculation.grossCandidate" => type == "decimal" && PayrollExpressionSchemaValidator.IsUnitValid(unit),
         "period.calendarDays" or "period.scheduledDays" => type == "integer" && PayrollExpressionSchemaValidator.UnitsMatch(unit, "day"),

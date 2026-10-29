@@ -8941,6 +8941,18 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ApprovalStatus")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -9069,6 +9081,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<string>("Department")
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("EmploymentCategory")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("FullName")
                         .IsRequired()
@@ -9909,6 +9925,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(24)
                         .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid?>("PurchaseInvoiceDraftId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("PurchaseReceiptId")
                         .HasColumnType("uniqueidentifier");

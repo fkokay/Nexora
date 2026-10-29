@@ -412,6 +412,7 @@ services:
       context: ../..
       dockerfile: deploy/docker/DevelopmentStudio.Dockerfile
       args:
+        VITE_PLATFORM_URL: ${PUBLIC_ERP_ORIGIN:-}
         OCI_IMAGE_REVISION: ${OCI_IMAGE_REVISION:-unknown}
         OCI_IMAGE_VERSION: ${OCI_IMAGE_VERSION:-unknown}
     ports:
@@ -437,7 +438,7 @@ services:
       context: ../..
       dockerfile: deploy/docker/ErpWeb.Dockerfile
       args:
-        VITE_STUDIO_URL: ${VITE_STUDIO_URL:-http://localhost:5174/}
+        VITE_STUDIO_URL: ${VITE_STUDIO_URL:-${PUBLIC_STUDIO_ORIGIN:-http://localhost:5174/}}
     ports:
       - "127.0.0.1:5173:80"
     networks:
