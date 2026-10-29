@@ -30,6 +30,20 @@
 .delivery-screen .customer-table td,.receipt-screen .customer-table td,.purchase-invoices-page .customer-table td,.purchase-orders-page .customer-table td{font-size:12px;white-space:nowrap}
 .delivery-screen .customer-table tbody tr,.receipt-screen .customer-table tbody tr,.purchase-invoices-page .customer-table tbody tr,.purchase-orders-page .customer-table tbody tr{cursor:pointer}
 .delivery-screen .customer-table tbody tr:hover td,.receipt-screen .customer-table tbody tr:hover td,.purchase-invoices-page .customer-table tbody tr:hover td,.purchase-orders-page .customer-table tbody tr:hover td{background:#f3f8ff}
+.delivery-screen .standalone-fulfillment-panel{margin:0 0 18px!important;padding:18px 20px;border:1px solid #dce5f1;border-radius:12px;background:linear-gradient(180deg,#fff,#fbfdff);box-shadow:0 5px 18px #172b4d0a}
+.delivery-screen .standalone-fulfillment-panel>.panel-heading{display:flex;align-items:flex-start;gap:16px;margin:0 0 16px;padding:0 0 14px;border-bottom:1px solid #e8eef6}
+.delivery-screen .standalone-fulfillment-panel>.panel-heading>div{display:grid;gap:5px;min-width:0}
+.delivery-screen .standalone-fulfillment-panel>.panel-heading b{display:block;color:#172b4d;font-size:15px;font-weight:700;line-height:1.35}
+.delivery-screen .standalone-fulfillment-panel>.panel-heading small{display:block;color:#64748b;font-size:11px;line-height:1.5}
+.delivery-screen .standalone-fulfillment-panel .collection-form{display:grid;gap:14px;margin:0;padding:16px;border:1px solid #e7edf5;border-radius:10px;background:#f8fafd}
+.delivery-screen .standalone-fulfillment-panel .form-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.delivery-screen .standalone-fulfillment-panel .form-two>label{display:grid;align-content:start;gap:7px;min-width:0;color:#42536a;font-size:11px;font-weight:650;line-height:1.4}
+.delivery-screen .standalone-fulfillment-panel .form-two input,.delivery-screen .standalone-fulfillment-panel .form-two select{width:100%;min-width:0;height:40px;padding:0 11px;border:1px solid #d4deeb;border-radius:8px;background:#fff;color:#1e2e44;font-size:12px;outline:none;box-shadow:0 1px 2px #243b5308}
+.delivery-screen .standalone-fulfillment-panel .form-two input:focus,.delivery-screen .standalone-fulfillment-panel .form-two select:focus{border-color:#4f91e7;box-shadow:0 0 0 3px #3685e51a}
+.delivery-screen .standalone-fulfillment-panel .collection-form>.modal-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0;padding-top:3px}
+.delivery-screen .standalone-fulfillment-panel .collection-form>.modal-foot .primary{min-width:142px}
+.delivery-screen .standalone-fulfillment-panel .alert{margin:0 0 14px}
+@media(max-width:760px){.delivery-screen .standalone-fulfillment-panel{padding:15px}.delivery-screen .standalone-fulfillment-panel .collection-form{padding:12px}.delivery-screen .standalone-fulfillment-panel .form-two{grid-template-columns:minmax(0,1fr);gap:11px}.delivery-screen .standalone-fulfillment-panel .collection-form>.modal-foot{align-items:stretch;flex-wrap:wrap}.delivery-screen .standalone-fulfillment-panel .collection-form>.modal-foot .primary{margin-left:auto}}
 .erp-selected-request{border-color:#84b5f4!important;background:#eaf2ff!important}
 .purchase-requests-page .requests-list{display:grid;gap:0;border:1px solid #d9e2f0;border-radius:8px;background:#fff;overflow:hidden}
 .purchase-requests-page .request-row{margin:0;border:0;border-bottom:1px solid #e5ebf3;border-radius:0;cursor:pointer}
