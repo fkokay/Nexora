@@ -1,5 +1,9 @@
 # Master Prompt Phase Status
 
+### 2026-10-29 frontend bundle and Studio usability remote rollout
+
+After remote SSH access returned, rebuilt and recreated only `erp-web` and `development-studio` through `scripts/Update-NexoraRemoteUi.ps1`; no API, AI Service, SQL, Vault, Worker, or persistent volume was restarted or changed. Remote production builds passed: ERP Web entry JS is 442.95 KB and Studio entry JS is 446.27 KB, with no Vite large-chunk warning. Both containers report `healthy`; public ERP and Studio `/health` endpoints return HTTP 200. This rollout contains no database migration. Authenticated browser interaction of the project and workspace-request panels remains unverified.
+
 ### 2026-10-29 frontend bundle and Studio usability follow-up
 
 ERP Web's entry bundle was reduced from 599.26 KB to 442.99 KB by lazy-loading the customer and finance page groups and moving Leaflet imports into the customer page; the production build completed without Vite's large-chunk warning. Development Studio's Monaco output was split into smaller chunks using the existing Rolldown code-splitting configuration; its production build also completed without the large-chunk warning. Refined the authorized-project and workspace-request panels in Studio for clearer hierarchy and responsive overflow. Both frontend builds passed and `git diff --check` passed. Commit `240af54` was pushed to `codex/phase-completion-clean`. Remote publication was attempted through the guarded `nexora-remote` UI update script but could not connect because SSH port 22 timed out; no remote service was changed. Generated Studio `dist/assets` outputs are untracked and were intentionally excluded from the commit. Deployment and browser verification remain open.
