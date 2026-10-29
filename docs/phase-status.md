@@ -1,5 +1,9 @@
 # Master Prompt Phase Status
 
+### 2026-10-29 access-control SQL acceptance attempt
+
+Opened a temporary SSH forward to the remote development SQL Server and ran `SqlServerAccessControlAcceptanceTests` against a uniquely named disposable database target. SQL Server rejected the configured `sa` credential before database creation (`Login failed for user 'sa'`); the acceptance test failed 1/1 and created no test database. The SSH forward was closed and the process-only connection variable was removed. This is an environment credential mismatch, not evidence about the route behavior; re-run after using the current authorized SQL acceptance credential. No active tenant database, persistent service, volume, Vault secret, or application configuration was changed.
+
 ### 2026-10-29 frontend bundle and Studio usability remote rollout
 
 After remote SSH access returned, rebuilt and recreated only `erp-web` and `development-studio` through `scripts/Update-NexoraRemoteUi.ps1`; no API, AI Service, SQL, Vault, Worker, or persistent volume was restarted or changed. Remote production builds passed: ERP Web entry JS is 442.95 KB and Studio entry JS is 446.27 KB, with no Vite large-chunk warning. Both containers report `healthy`; public ERP and Studio `/health` endpoints return HTTP 200. This rollout contains no database migration. Authenticated browser interaction of the project and workspace-request panels remains unverified.
