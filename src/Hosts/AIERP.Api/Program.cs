@@ -105,6 +105,7 @@ builder.Services.AddScoped<IAuditExecutionContext>(services =>
 });
 builder.Services.AddHostedService<AuditRetentionWorker>();
 builder.Services.AddHostedService<TcmbExchangeRateWorker>();
+builder.Services.AddHostedService<CreditFacilityInterestAccrualWorker>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
 {
     o.MapInboundClaims = false;

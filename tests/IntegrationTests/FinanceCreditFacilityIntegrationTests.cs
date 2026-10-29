@@ -16,6 +16,17 @@ namespace AIERP.Api.IntegrationTests;
 
 public sealed class FinanceCreditFacilityIntegrationTests
 {
+    [Theory]
+    [InlineData(2026, 1, 2025, 12)]
+    [InlineData(2026, 3, 2026, 2)]
+    [InlineData(2024, 3, 2024, 2)]
+    public void Automatic_interest_worker_targets_previous_closed_month(int year, int month, int expectedYear, int expectedMonth)
+    {
+        var period = CreditFacilityInterestAccrualWorker.PreviousClosedMonth(new DateOnly(year, month, 1));
+
+        Assert.Equal(new DateOnly(expectedYear, expectedMonth, 1), period);
+    }
+
     private static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid TenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid FacilityA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");

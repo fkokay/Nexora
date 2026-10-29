@@ -116,79 +116,7 @@ public static class FinanceCreditFacilityEndpoints
             ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryGetTenantId(user, out var tenantId) || !IsTenantAdmin(user)) return Results.Forbid();
-            if (year is < 2000 or > 2100 || month is < 1 or > 12)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["period"] = ["Yıl ve ay geçerli olmalıdır."] });
-            var monthStart = new DateOnly(year, month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddDays(-1);
-            if (monthEnd > IstanbulToday())
-                return Results.Conflict(new { error = "Aylık faiz tahakkuku yalnızca ay kapandıktan sonra muhasebeleştirilebilir." });
-
-            await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(ct) : null;
-            if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId, ct)) return Results.NotFound();
-            var facility = await LoadFacilityForUpdate(db, tenantId, id, ct);
-            if (facility is null) return Results.NotFound();
-            if (facility.AnnualInterestRatePercent is not { } annualRate)
-                return Results.Conflict(new { error = "Faiz oranı tanımlanmamış; tahakkuk muhasebeleştirilemedi." });
-
-            var sourceId = InterestAccrualSourceId(tenantId, facility.Id, year, month);
-            var existing = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId &&
-                    x.SourceType == "CreditFacilityInterestAccrual" && x.SourceId == sourceId)
-                .Select(x => new { x.Id, x.EntryDate, Amount = x.Lines.Where(l => l.Debit > 0).Sum(l => (decimal?)l.Debit) ?? 0m })
-                .SingleOrDefaultAsync(ct);
-            if (existing is not null)
-            {
-                if (transaction is not null) await transaction.CommitAsync(ct);
-                return Results.Ok(new { existing.Id, existing.EntryDate, accruedInterest = existing.Amount, replayed = true });
-            }
-
-            var from = facility.StartDate > monthStart ? facility.StartDate : monthStart;
-            var to = facility.MaturityDate is { } maturity && maturity < monthEnd ? maturity : monthEnd;
-            var calculated = from > to ? [] : await CalculateInterestAccrualAsync(db, tenantId, facility, from, to, ct);
-            if (calculated is null)
-                return Results.Conflict(new { error = "Kredi hareketleri negatif anapara oluşturuyor; önce kredi defterini mutabık hale getirin." });
-            var amount = calculated.SingleOrDefault(x => x.Month == $"{year:D4}-{month:D2}")?.Amount ?? 0m;
-            if (amount < 0m || amount > 9999999999999999.99m)
-                return Results.Conflict(new { error = "Aylık tahakkuk tutarı geçerli finansal sınırlar dışında." });
-            if (amount == 0m)
-            {
-                if (transaction is not null) await transaction.CommitAsync(ct);
-                return Results.Ok(new { facilityId = facility.Id, facility.Code, period = $"{year:D4}-{month:D2}",
-                    currencyCode = facility.CurrencyCode, accruedInterest = 0m, posted = false, reason = "Dönemde tahakkuk edecek faiz yok." });
-            }
-
-            var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, monthEnd, ct);
-            if (closedPeriod is { } closed) return ClosedPeriodConflict(closed.FromDate, closed.ToDate);
-            var mappingKeys = new[] { LedgerMappingKeys.CreditFacilityInterestExpense, LedgerMappingKeys.CreditFacilityAccruedInterest };
-            var mappings = await db.LedgerAccountMappings.AsNoTracking().Where(x => x.TenantId == tenantId && mappingKeys.Contains(x.MappingKey))
-                .Join(db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive),
-                    mapping => new { mapping.TenantId, Id = mapping.AccountId }, account => new { account.TenantId, account.Id },
-                    (mapping, account) => new { mapping.MappingKey, Account = account }).ToDictionaryAsync(x => x.MappingKey, x => x.Account, ct);
-            if (!mappings.TryGetValue(LedgerMappingKeys.CreditFacilityInterestExpense, out var expense) || expense.StatementSection != LedgerAccountStatementSection.Expense ||
-                !mappings.TryGetValue(LedgerMappingKeys.CreditFacilityAccruedInterest, out var accrued) || accrued.StatementSection != LedgerAccountStatementSection.Liability ||
-                expense.Id == accrued.Id)
-                return Results.Conflict(new { error = "Firma ayarlarında farklı ve etkin faiz gideri ile tahakkuk etmiş faiz borcu hesaplarını eşleyin." });
-
-            var journal = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = monthEnd,
-                Description = $"Kredi aylık faiz tahakkuku · {facility.Code} · {year:D4}-{month:D2}",
-                SourceType = "CreditFacilityInterestAccrual", SourceId = sourceId, CreatedByUserId = GetUserId(user) };
-            journal.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = journal.Id, AccountId = expense.Id,
-                LineNumber = 1, Description = journal.Description, Debit = amount, Credit = 0m });
-            journal.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = journal.Id, AccountId = accrued.Id,
-                LineNumber = 2, Description = journal.Description, Debit = 0m, Credit = amount });
-            db.JournalEntries.Add(journal);
-            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(user), Action = "finance.credit-facility.interest-accrual-posted",
-                Resource = $"{facility.Code};{year:D4}-{month:D2};{amount:0.00};{journal.Id}" });
-            try { await db.SaveChangesAsync(ct); }
-            catch (DbUpdateException ex) when (IsUniqueViolation(ex))
-            {
-                var replayJournalId = await FindJournalId(db, tenantId, "CreditFacilityInterestAccrual", sourceId, ct);
-                if (replayJournalId is null) throw;
-                if (transaction is not null) await transaction.CommitAsync(ct);
-                return Results.Ok(new { Id = replayJournalId.Value, EntryDate = monthEnd, accruedInterest = amount, replayed = true });
-            }
-            if (transaction is not null) await transaction.CommitAsync(ct);
-            return Results.Created($"/api/finance/credit-facilities/{id}/interest-accruals/{year}/{month}",
-                new { journal.Id, journal.EntryDate, accruedInterest = amount, currencyCode = facility.CurrencyCode, replayed = false });
+            return await PostInterestAccrualAsync(id, year, month, tenantId, GetUserId(user), db, ct);
         });
 
         group.MapPost("/", async (CreditFacilityCreateRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -556,6 +484,84 @@ public static class FinanceCreditFacilityEndpoints
             if (transaction is not null) await transaction.CommitAsync(ct);
             return Results.NoContent();
         });
+    }
+
+    internal static async Task<IResult> PostInterestAccrualAsync(Guid id, int year, int month, Guid tenantId,
+        Guid? userId, TenantDbContext db, CancellationToken ct)
+    {
+        if (year is < 2000 or > 2100 || month is < 1 or > 12)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["period"] = ["Yıl ve ay geçerli olmalıdır."] });
+        var monthStart = new DateOnly(year, month, 1);
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+        if (monthEnd > IstanbulToday())
+            return Results.Conflict(new { error = "Aylık faiz tahakkuku yalnızca ay kapandıktan sonra muhasebeleştirilebilir." });
+
+        await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId, ct)) return Results.NotFound();
+        var facility = await LoadFacilityForUpdate(db, tenantId, id, ct);
+        if (facility is null) return Results.NotFound();
+        if (facility.AnnualInterestRatePercent is not { } annualRate)
+            return Results.Conflict(new { error = "Faiz oranı tanımlanmamış; tahakkuk muhasebeleştirilemedi." });
+
+        var sourceId = InterestAccrualSourceId(tenantId, facility.Id, year, month);
+        var existing = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId &&
+                x.SourceType == "CreditFacilityInterestAccrual" && x.SourceId == sourceId)
+            .Select(x => new { x.Id, x.EntryDate, Amount = x.Lines.Where(l => l.Debit > 0).Sum(l => (decimal?)l.Debit) ?? 0m })
+            .SingleOrDefaultAsync(ct);
+        if (existing is not null)
+        {
+            if (transaction is not null) await transaction.CommitAsync(ct);
+            return Results.Ok(new { existing.Id, existing.EntryDate, accruedInterest = existing.Amount, replayed = true });
+        }
+
+        var from = facility.StartDate > monthStart ? facility.StartDate : monthStart;
+        var to = facility.MaturityDate is { } maturity && maturity < monthEnd ? maturity : monthEnd;
+        var calculated = from > to ? [] : await CalculateInterestAccrualAsync(db, tenantId, facility, from, to, ct);
+        if (calculated is null)
+            return Results.Conflict(new { error = "Kredi hareketleri negatif anapara oluşturuyor; önce kredi defterini mutabık hale getirin." });
+        var amount = calculated.SingleOrDefault(x => x.Month == $"{year:D4}-{month:D2}")?.Amount ?? 0m;
+        if (amount < 0m || amount > 9999999999999999.99m)
+            return Results.Conflict(new { error = "Aylık tahakkuk tutarı geçerli finansal sınırlar dışında." });
+        if (amount == 0m)
+        {
+            if (transaction is not null) await transaction.CommitAsync(ct);
+            return Results.Ok(new { facilityId = facility.Id, facility.Code, period = $"{year:D4}-{month:D2}",
+                currencyCode = facility.CurrencyCode, accruedInterest = 0m, posted = false, reason = "Dönemde tahakkuk edecek faiz yok." });
+        }
+
+        var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, monthEnd, ct);
+        if (closedPeriod is { } closed) return ClosedPeriodConflict(closed.FromDate, closed.ToDate);
+        var mappingKeys = new[] { LedgerMappingKeys.CreditFacilityInterestExpense, LedgerMappingKeys.CreditFacilityAccruedInterest };
+        var mappings = await db.LedgerAccountMappings.AsNoTracking().Where(x => x.TenantId == tenantId && mappingKeys.Contains(x.MappingKey))
+            .Join(db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive),
+                mapping => new { mapping.TenantId, Id = mapping.AccountId }, account => new { account.TenantId, account.Id },
+                (mapping, account) => new { mapping.MappingKey, Account = account }).ToDictionaryAsync(x => x.MappingKey, x => x.Account, ct);
+        if (!mappings.TryGetValue(LedgerMappingKeys.CreditFacilityInterestExpense, out var expense) || expense.StatementSection != LedgerAccountStatementSection.Expense ||
+            !mappings.TryGetValue(LedgerMappingKeys.CreditFacilityAccruedInterest, out var accrued) || accrued.StatementSection != LedgerAccountStatementSection.Liability ||
+            expense.Id == accrued.Id)
+            return Results.Conflict(new { error = "Firma ayarlarında farklı ve etkin faiz gideri ile tahakkuk etmiş faiz borcu hesaplarını eşleyin." });
+
+        var journal = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = monthEnd,
+            Description = $"Kredi aylık faiz tahakkuku · {facility.Code} · {year:D4}-{month:D2}",
+            SourceType = "CreditFacilityInterestAccrual", SourceId = sourceId, CreatedByUserId = userId };
+        journal.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = journal.Id, AccountId = expense.Id,
+            LineNumber = 1, Description = journal.Description, Debit = amount, Credit = 0m });
+        journal.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = journal.Id, AccountId = accrued.Id,
+            LineNumber = 2, Description = journal.Description, Debit = 0m, Credit = amount });
+        db.JournalEntries.Add(journal);
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "finance.credit-facility.interest-accrual-posted",
+            Resource = $"{facility.Code};{year:D4}-{month:D2};{amount:0.00};{journal.Id}" });
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            var replayJournalId = await FindJournalId(db, tenantId, "CreditFacilityInterestAccrual", sourceId, ct);
+            if (replayJournalId is null) throw;
+            if (transaction is not null) await transaction.CommitAsync(ct);
+            return Results.Ok(new { Id = replayJournalId.Value, EntryDate = monthEnd, accruedInterest = amount, replayed = true });
+        }
+        if (transaction is not null) await transaction.CommitAsync(ct);
+        return Results.Created($"/api/finance/credit-facilities/{id}/interest-accruals/{year}/{month}",
+            new { journal.Id, journal.EntryDate, accruedInterest = amount, currencyCode = facility.CurrencyCode, replayed = false });
     }
 
     private static bool TryGetTenantId(ClaimsPrincipal user, out Guid tenantId) => Guid.TryParse(user.FindFirstValue("tenant_id"), out tenantId);
