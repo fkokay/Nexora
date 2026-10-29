@@ -63,6 +63,9 @@ public sealed class TenantLicenseIntegrationTests
     [Fact]
     public async Task Signed_package_profiles_apply_their_seat_module_storage_and_feature_limits()
     {
+        Assert.Equal(10, LicenseTierCatalog.All["Small"].MaxStorageGb);
+        Assert.Equal(50, LicenseTierCatalog.All["Medium"].MaxStorageGb);
+        Assert.Equal(250, LicenseTierCatalog.All["Large"].MaxStorageGb);
         using var rsa = RSA.Create(2048);
         foreach (var tier in new[] { "Small", "Medium", "Large" })
         {
@@ -294,7 +297,7 @@ public sealed class TenantLicenseIntegrationTests
                 Tier = "Medium",
                 MaxUsers = 50,
                 MaxCustomModules = 15,
-                MaxStorageGb = 100,
+                MaxStorageGb = 50,
                 IssuedAt = DateTimeOffset.UtcNow.AddDays(-1),
                 ExpiresAt = DateTimeOffset.UtcNow.AddDays(30),
                 GrantSha256 = new string('A', 64)
@@ -384,7 +387,7 @@ public sealed class TenantLicenseIntegrationTests
                 Tier = "Medium",
                 MaxUsers = 50,
                 MaxCustomModules = 15,
-                MaxStorageGb = 100,
+                MaxStorageGb = 50,
                 IssuedAt = DateTimeOffset.UtcNow.AddDays(-1),
                 ExpiresAt = DateTimeOffset.UtcNow.AddDays(30),
                 GrantSha256 = new string('A', 64)

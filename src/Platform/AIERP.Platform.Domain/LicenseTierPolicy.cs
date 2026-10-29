@@ -9,8 +9,8 @@ public static class LicenseTierCatalog
         new Dictionary<string, LicenseTierPolicy>(StringComparer.OrdinalIgnoreCase)
         {
             ["Small"] = new("Small", 10, 3, 10, false, false, false),
-            ["Medium"] = new("Medium", 50, 15, 100, true, true, false),
-            ["Large"] = new("Large", int.MaxValue, int.MaxValue, int.MaxValue, true, true, true)
+            ["Medium"] = new("Medium", 50, 15, 50, true, true, false),
+            ["Large"] = new("Large", int.MaxValue, int.MaxValue, 250, true, true, true)
         };
 
     public static bool TryGet(string? code, out LicenseTierPolicy policy)
