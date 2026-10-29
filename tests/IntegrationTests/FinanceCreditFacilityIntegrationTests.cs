@@ -16,6 +16,41 @@ namespace AIERP.Api.IntegrationTests;
 
 public sealed class FinanceCreditFacilityIntegrationTests
 {
+    [Fact]
+    public async Task Credit_facility_securities_are_tenant_scoped_validated_and_expiry_alerts_ignore_released_records()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var request = new CreditFacilitySecurityCreateRequest(CreditSecurityType.Guarantee, "TEM-001", "Banka A", "Nexora Demo",
+            25000m, "TRY", 125m, today.AddDays(-5), today.AddDays(10), "Temsilî kayıt");
+        using var created = await client.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/securities", request);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+        using var list = await client.GetAsync("/api/finance/credit-facilities/securities?expiryWithinDays=30");
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        using var json = JsonDocument.Parse(await list.Content.ReadAsStringAsync());
+        Assert.Equal(1, json.RootElement.GetProperty("expiringCount").GetInt32());
+        var item = Assert.Single(json.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal("Expiring", item.GetProperty("alert").GetString());
+        Assert.Equal("TEM-001", item.GetProperty("code").GetString());
+        var securityId = item.GetProperty("id").GetGuid();
+
+        using var clientB = app.GetTestClient();
+        clientB.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var foreignList = await clientB.GetAsync("/api/finance/credit-facilities/securities");
+        using var foreignJson = JsonDocument.Parse(await foreignList.Content.ReadAsStringAsync());
+        Assert.Empty(foreignJson.RootElement.GetProperty("items").EnumerateArray());
+
+        using var released = await client.PutAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/securities/{securityId}/status",
+            new CreditFacilitySecurityStatusRequest("Released"));
+        Assert.Equal(HttpStatusCode.NoContent, released.StatusCode);
+        using var afterRelease = await client.GetAsync("/api/finance/credit-facilities/securities?expiryWithinDays=30");
+        using var afterJson = JsonDocument.Parse(await afterRelease.Content.ReadAsStringAsync());
+        Assert.Equal(0, afterJson.RootElement.GetProperty("expiringCount").GetInt32());
+    }
+
     [Theory]
     [InlineData(2026, 1, 2025, 12)]
     [InlineData(2026, 3, 2026, 2)]

@@ -48,6 +48,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<CreditFacility> CreditFacilities => Set<CreditFacility>();
     public DbSet<CreditFacilitySchedule> CreditFacilitySchedules => Set<CreditFacilitySchedule>();
     public DbSet<CreditFacilityMovement> CreditFacilityMovements => Set<CreditFacilityMovement>();
+    public DbSet<CreditFacilitySecurity> CreditFacilitySecurities => Set<CreditFacilitySecurity>();
     public DbSet<LedgerAccountMapping> LedgerAccountMappings => Set<LedgerAccountMapping>();
     public DbSet<TenantBudgetPlan> TenantBudgetPlans => Set<TenantBudgetPlan>();
     public DbSet<TenantBudgetLine> TenantBudgetLines => Set<TenantBudgetLine>();
@@ -2522,6 +2523,31 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
                 .HasForeignKey(x => new { x.TenantId, x.CreditFacilityScheduleId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ReversesMovement).WithMany(x => x.Reversals)
                 .HasForeignKey(x => new { x.TenantId, x.ReversesMovementId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<CreditFacilitySecurity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.CreditFacilityId, x.Status, x.ExpiryDate });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.Property(x => x.Type).HasConversion<int>();
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.Code).HasMaxLength(40).IsRequired();
+            e.Property(x => x.Issuer).HasMaxLength(160).IsRequired();
+            e.Property(x => x.Beneficiary).HasMaxLength(160).IsRequired();
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength();
+            e.Property(x => x.CommissionAmount).HasPrecision(18, 2);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_CreditFacilitySecurities_Type", "[Type] IN (1,2)");
+                t.HasCheckConstraint("CK_CreditFacilitySecurities_Status", "[Status] IN (1,2,3,4)");
+                t.HasCheckConstraint("CK_CreditFacilitySecurities_Amounts", "[Amount] > 0 AND [CommissionAmount] >= 0");
+                t.HasCheckConstraint("CK_CreditFacilitySecurities_Dates", "[ExpiryDate] >= [IssueDate]");
+            });
+            e.HasOne(x => x.CreditFacility).WithMany(x => x.Securities)
+                .HasForeignKey(x => new { x.TenantId, x.CreditFacilityId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<TenantCustomFormDefinition>(e =>
         {

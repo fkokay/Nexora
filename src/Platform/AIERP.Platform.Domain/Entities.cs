@@ -2537,6 +2537,8 @@ public sealed class FinancialAccount
 public enum CreditFacilityStatus { Active = 1, Closed = 2 }
 public enum CreditFacilityScheduleStatus { Planned = 1, Paid = 2, Cancelled = 3 }
 public enum CreditFacilityMovementType { Drawdown = 1, Repayment = 2, Reversal = 3 }
+public enum CreditSecurityType { Guarantee = 1, Collateral = 2 }
+public enum CreditSecurityStatus { Active = 1, Released = 2, Called = 3, Expired = 4 }
 
 public sealed class CreditFacility
 {
@@ -2556,6 +2558,27 @@ public sealed class CreditFacility
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<CreditFacilitySchedule> Schedule { get; set; } = new List<CreditFacilitySchedule>();
     public ICollection<CreditFacilityMovement> Movements { get; set; } = new List<CreditFacilityMovement>();
+    public ICollection<CreditFacilitySecurity> Securities { get; set; } = new List<CreditFacilitySecurity>();
+}
+
+public sealed class CreditFacilitySecurity
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid CreditFacilityId { get; set; }
+    public CreditFacility CreditFacility { get; set; } = null!;
+    public CreditSecurityType Type { get; set; }
+    public string Code { get; set; } = "";
+    public string Issuer { get; set; } = "";
+    public string Beneficiary { get; set; } = "";
+    public decimal Amount { get; set; }
+    public string CurrencyCode { get; set; } = "TRY";
+    public decimal CommissionAmount { get; set; }
+    public DateOnly IssueDate { get; set; }
+    public DateOnly ExpiryDate { get; set; }
+    public CreditSecurityStatus Status { get; set; } = CreditSecurityStatus.Active;
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class CreditFacilitySchedule

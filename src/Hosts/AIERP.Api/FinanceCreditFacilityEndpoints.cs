@@ -80,6 +80,78 @@ public static class FinanceCreditFacilityEndpoints
             });
         });
 
+        group.MapGet("/securities", async (int? expiryWithinDays, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetTenantId(user, out var tenantId)) return Results.Forbid();
+            var days = expiryWithinDays ?? 30;
+            if (days is < 0 or > 365) return Results.ValidationProblem(new Dictionary<string, string[]> { ["expiryWithinDays"] = ["Süre 0–365 gün arasında olmalıdır."] });
+            var today = IstanbulToday();
+            var rows = await db.CreditFacilitySecurities.AsNoTracking().Where(x => x.TenantId == tenantId)
+                .OrderBy(x => x.ExpiryDate).ThenBy(x => x.Code)
+                .Select(x => new CreditFacilitySecurityView(x.Id, x.CreditFacilityId, x.CreditFacility.Code, x.Type.ToString(), x.Code,
+                    x.Issuer, x.Beneficiary, x.Amount, x.CurrencyCode, x.CommissionAmount, x.IssueDate, x.ExpiryDate, x.Status.ToString(), x.Notes))
+                .ToListAsync(ct);
+            var soon = today.AddDays(days);
+            return Results.Ok(new
+            {
+                items = rows.Select(x => new { x.Id, x.CreditFacilityId, x.FacilityCode, x.Type, x.Code, x.Issuer, x.Beneficiary,
+                    x.Amount, x.CurrencyCode, x.CommissionAmount, x.IssueDate, x.ExpiryDate, x.Status, x.Notes,
+                    alert = x.Status == nameof(CreditSecurityStatus.Active) && x.ExpiryDate < today ? "Expired" :
+                        x.Status == nameof(CreditSecurityStatus.Active) && x.ExpiryDate <= soon ? "Expiring" : "None" }),
+                expiringCount = rows.Count(x => x.Status == nameof(CreditSecurityStatus.Active) && x.ExpiryDate >= today && x.ExpiryDate <= soon),
+                expiredCount = rows.Count(x => x.Status == nameof(CreditSecurityStatus.Active) && x.ExpiryDate < today)
+            });
+        });
+
+        group.MapPost("/{id:guid}/securities", async (Guid id, CreditFacilitySecurityCreateRequest request,
+            ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetTenantId(user, out var tenantId) || !IsTenantAdmin(user)) return Results.Forbid();
+            var code = request.Code?.Trim() ?? "";
+            var issuer = request.Issuer?.Trim() ?? "";
+            var beneficiary = request.Beneficiary?.Trim() ?? "";
+            var currency = request.CurrencyCode?.Trim().ToUpperInvariant() ?? "";
+            if (code.Length is < 1 or > 40 || issuer.Length is < 1 or > 160 || beneficiary.Length is < 1 or > 160 ||
+                request.Type is not (CreditSecurityType.Guarantee or CreditSecurityType.Collateral) ||
+                !ValidMoney(request.Amount) || !ValidNonNegativeMoney(request.CommissionAmount) || currency.Length != 3 ||
+                request.IssueDate < new DateOnly(2000, 1, 1) || request.ExpiryDate < request.IssueDate ||
+                request.ExpiryDate > new DateOnly(2100, 12, 31) || (request.Notes?.Length ?? 0) > 500)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["security"] = ["Teminat/garanti kodu, taraflar, tutar, para birimi ve tarihler geçerli olmalıdır."] });
+            var facility = await db.CreditFacilities.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (facility is null) return Results.NotFound();
+            if (currency != facility.CurrencyCode) return Results.Conflict(new { error = "Teminat/garanti para birimi bağlı krediyle aynı olmalıdır." });
+            if (await db.CreditFacilitySecurities.AnyAsync(x => x.TenantId == tenantId && x.Code == code, ct))
+                return Results.Conflict(new { error = "Bu firma içinde teminat/garanti kodu zaten kullanılıyor." });
+            var item = new CreditFacilitySecurity { TenantId = tenantId, CreditFacilityId = id, Type = request.Type, Code = code,
+                Issuer = issuer, Beneficiary = beneficiary, Amount = request.Amount, CurrencyCode = currency,
+                CommissionAmount = request.CommissionAmount, IssueDate = request.IssueDate, ExpiryDate = request.ExpiryDate,
+                Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim() };
+            db.CreditFacilitySecurities.Add(item);
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(user), Action = "finance.credit-facility.security-created",
+                Resource = $"{facility.Code};{item.Type};{item.Code};{item.Amount:0.00} {item.CurrencyCode};{item.ExpiryDate:yyyy-MM-dd}" });
+            await db.SaveChangesAsync(ct);
+            return Results.Created($"/api/finance/credit-facilities/{id}/securities/{item.Id}",
+                new CreditFacilitySecurityView(item.Id, item.CreditFacilityId, facility.Code, item.Type.ToString(), item.Code,
+                    item.Issuer, item.Beneficiary, item.Amount, item.CurrencyCode, item.CommissionAmount, item.IssueDate,
+                    item.ExpiryDate, item.Status.ToString(), item.Notes));
+        });
+
+        group.MapPut("/{id:guid}/securities/{securityId:guid}/status", async (Guid id, Guid securityId,
+            CreditFacilitySecurityStatusRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetTenantId(user, out var tenantId) || !IsTenantAdmin(user)) return Results.Forbid();
+            if (request.Status is not ("Released" or "Called"))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Durum Released veya Called olmalıdır."] });
+            var item = await db.CreditFacilitySecurities.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.CreditFacilityId == id && x.Id == securityId, ct);
+            if (item is null) return Results.NotFound();
+            if (item.Status != CreditSecurityStatus.Active) return Results.Conflict(new { error = "Yalnız etkin teminat/garanti kaydı kapatılabilir." });
+            item.Status = request.Status == "Released" ? CreditSecurityStatus.Released : CreditSecurityStatus.Called;
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(user), Action = "finance.credit-facility.security-status-changed",
+                Resource = $"{item.Code};{item.Status}" });
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+
         group.MapGet("/{id:guid}/interest-accrual-preview", async (Guid id, DateOnly from, DateOnly to,
             ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
@@ -705,6 +777,9 @@ public sealed record CreditFacilityDrawdownRequest(Guid RequestId, Guid Financia
 public sealed record CreditFacilityRepaymentRequest(Guid RequestId, Guid FinancialAccountId, Guid? CreditFacilityScheduleId, DateOnly TransactionDate,
     decimal PrincipalAmount, decimal InterestAmount, decimal FeeAmount, string? Notes);
 public sealed record CreditFacilityMovementReversalRequest(Guid RequestId, DateOnly TransactionDate, string? Notes);
+public sealed record CreditFacilitySecurityCreateRequest(CreditSecurityType Type, string Code, string Issuer, string Beneficiary,
+    decimal Amount, string CurrencyCode, decimal CommissionAmount, DateOnly IssueDate, DateOnly ExpiryDate, string? Notes);
+public sealed record CreditFacilitySecurityStatusRequest(string Status);
 public sealed record CreditFacilityAccrualMovement(DateOnly TransactionDate, CreditFacilityMovementType Type, decimal PrincipalAmount,
     CreditFacilityMovementType? ReversedType);
 public sealed record CreditFacilityMonthlyAccrual(string Month, decimal Amount, decimal ClosingPrincipal);
@@ -717,3 +792,6 @@ public sealed record CreditFacilityScheduleView(Guid Id, DateOnly DueDate, decim
 public sealed record CreditFacilityMovementView(Guid Id, string Type, DateOnly TransactionDate, decimal PrincipalAmount, decimal InterestAmount,
     decimal FeeAmount, string AccountCode, Guid FinancialAccountTransactionId, Guid? CreditFacilityScheduleId, string? Notes,
     Guid? ReversesMovementId, bool IsReversed, Guid? JournalEntryId);
+public sealed record CreditFacilitySecurityView(Guid Id, Guid CreditFacilityId, string FacilityCode, string Type, string Code,
+    string Issuer, string Beneficiary, decimal Amount, string CurrencyCode, decimal CommissionAmount, DateOnly IssueDate,
+    DateOnly ExpiryDate, string Status, string? Notes);

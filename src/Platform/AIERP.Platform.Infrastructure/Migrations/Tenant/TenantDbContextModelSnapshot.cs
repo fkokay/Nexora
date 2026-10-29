@@ -735,6 +735,87 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditFacilitySecurity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Beneficiary")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<decimal>("CommissionAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreditFacilityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nchar(3)")
+                        .IsFixedLength();
+
+                    b.Property<DateOnly>("ExpiryDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("IssueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Issuer")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "CreditFacilityId", "Status", "ExpiryDate");
+
+                    b.ToTable("CreditFacilitySecurities", t =>
+                        {
+                            t.HasCheckConstraint("CK_CreditFacilitySecurities_Amounts", "[Amount] > 0 AND [CommissionAmount] >= 0");
+
+                            t.HasCheckConstraint("CK_CreditFacilitySecurities_Dates", "[ExpiryDate] >= [IssueDate]");
+
+                            t.HasCheckConstraint("CK_CreditFacilitySecurities_Status", "[Status] IN (1,2,3,4)");
+
+                            t.HasCheckConstraint("CK_CreditFacilitySecurities_Type", "[Type] IN (1,2)");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.CrmOpportunity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -17824,6 +17905,18 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Navigation("CreditFacility");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditFacilitySecurity", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.CreditFacility", "CreditFacility")
+                        .WithMany("Securities")
+                        .HasForeignKey("TenantId", "CreditFacilityId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreditFacility");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.CrmOpportunity", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", null)
@@ -20854,6 +20947,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Navigation("Movements");
 
                     b.Navigation("Schedule");
+
+                    b.Navigation("Securities");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.CreditFacilityMovement", b =>

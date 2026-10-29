@@ -7,6 +7,26 @@
   min-width: 0;
 }
 
+.credit-facilities-page .status-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 22px;
+  padding: 3px 8px;
+  border: 1px solid #dcefe5;
+  border-radius: 999px;
+  background: #f0faf4;
+  color: #28734c;
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.credit-facilities-page .status-badge.warning { border-color: #f1dfbd; background: #fff8ea; color: #95651b; }
+.credit-facilities-page .status-badge.danger { border-color: #f2d4d2; background: #fff2f1; color: #a8433d; }
+.credit-facilities-page .credit-records-heading .credit-row-actions { flex-wrap: wrap; }
+.credit-facilities-page .credit-table td small { display: block; margin-top: 3px; color: var(--credit-muted); font-size: 9px; }
+.credit-facilities-page .credit-table .danger-action { color: #b54743; }
+
 /* Keep the two entry forms compact and aligned inside the available workbench width. */
 .credit-facilities-page .finance-two-column {
   display: grid;
