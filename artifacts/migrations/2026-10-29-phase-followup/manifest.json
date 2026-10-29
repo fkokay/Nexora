@@ -1,6 +1,7 @@
 {
   "generatedAtUtc": "2026-10-29T18:54:30Z",
-  "status": "prepared-not-applied",
+  "status": "applied-and-verified",
+  "appliedAtUtc": "2026-10-29T19:13:19Z",
   "targetScope": "remote-development-platform-and-active-tenant",
   "platformBaseline": "20261029100432_AddAttendanceApprovalV2",
   "tenantBaseline": "20261029100426_AddAttendanceApprovalV2",
@@ -14,5 +15,5 @@
     "Platform.Verify.sql",
     "Tenant.Verify.sql"
   ],
-  "deploymentNote": "Apply only after named database backups and preflight identity checks. API deployment is separate."
+  "deploymentNote": "Database migrations were applied after verified backups and preflight identity checks. API image deployment remains separate."
 }
