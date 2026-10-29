@@ -9,6 +9,7 @@ internal static class PayrollParameterSetValidator
         "decimal", "integer", "boolean", "text", "choice", "date", "json", "expression"
     };
     private static readonly string[] RequiredComponentMappingTypes = ["incomeTaxBase", "socialSecurityBase", "accountingAccount", "declarationField"];
+    private static readonly string[] AllowedComponentMappingTypes = [.. RequiredComponentMappingTypes, "employerLiabilityAccount"];
 
     public static bool HasSchemaVersion(JsonElement rules) =>
         rules.ValueKind == JsonValueKind.Object && rules.TryGetProperty("schemaVersion", out _);
@@ -452,15 +453,16 @@ internal static class PayrollParameterSetValidator
         if (mappings.ValueKind != JsonValueKind.Array || mappings.GetArrayLength() > 2048)
             return Fail("Eşlemeler JSON dizisi olmalı ve en fazla 2048 kayıt içermelidir.", out error);
 
-        var components = new List<(string Key, string Profile, DateOnly From, DateOnly? To)>();
+        var components = new List<(string Key, string Profile, string Category, DateOnly From, DateOnly? To)>();
         if (rules.TryGetProperty("components", out var componentArray) && componentArray.ValueKind == JsonValueKind.Array)
         {
             foreach (var component in componentArray.EnumerateArray())
             {
                 if (!TryString(component, "key", 80, out var key) || !TryString(component, "profile", 40, out var profile) ||
+                    !TryString(component, "category", 24, out var category) ||
                     !TryDate(component, "effectiveFrom", out var from) || !TryOptionalDate(component, "effectiveTo", out var to))
                     return Fail("Eşleme yapılan kalemin kimliği veya geçerlilik aralığı okunamadı.", out error);
-                components.Add((key!, profile!, from, to));
+                components.Add((key!, profile!, category!, from, to));
             }
         }
 
@@ -470,7 +472,7 @@ internal static class PayrollParameterSetValidator
         {
             if (mapping.ValueKind != JsonValueKind.Object ||
                 !TryString(mapping, "componentKey", 80, out var componentKey) || !Regex.IsMatch(componentKey!, "^[A-Za-z0-9][A-Za-z0-9._-]*$") ||
-                !TryString(mapping, "mappingType", 32, out var mappingType) || !RequiredComponentMappingTypes.Contains(mappingType!, StringComparer.Ordinal) ||
+                !TryString(mapping, "mappingType", 32, out var mappingType) || !AllowedComponentMappingTypes.Contains(mappingType!, StringComparer.Ordinal) ||
                 !TryString(mapping, "targetCode", 120, out var targetCode) || !Regex.IsMatch(targetCode!, "^[A-Za-z0-9][A-Za-z0-9._-]*$") ||
                 !TryString(mapping, "profile", 40, out var profile) || !TryDate(mapping, "effectiveFrom", out var effectiveFrom) ||
                 !TryOptionalDate(mapping, "effectiveTo", out var effectiveTo) || effectiveTo is not null && effectiveTo < effectiveFrom ||
@@ -488,6 +490,9 @@ internal static class PayrollParameterSetValidator
                 x.From <= effectiveFrom && (x.To is null || effectiveTo is not null && effectiveTo <= x.To));
             if (component == default)
                 return Fail($"'{componentKey}' eşlemesi aynı profil ve yürürlük aralığında tanımlı bir bordro kalemiyle eşleşmelidir.", out error);
+            if (mappingType == "employerLiabilityAccount" &&
+                (component.Category != "employerCost" || StringComparer.OrdinalIgnoreCase.Equals(targetCode, "EXCLUDED")))
+                return Fail("employerLiabilityAccount yalnız işveren maliyeti kalemlerinde kullanılabilir ve gerçek bir hesap kodu içermelidir.", out error);
 
             var identity = (componentKey!, profile!, mappingType!);
             if (!identities.TryGetValue(identity, out var existing)) identities[identity] = existing = [];
@@ -507,6 +512,13 @@ internal static class PayrollParameterSetValidator
                     x.Kind == mappingType && x.From <= component.From &&
                     (x.To is null || component.To is not null && x.To >= component.To)))
                     return Fail($"'{component.Key}' bordro kalemi için geçerli aralığın tamamını kapsayan '{mappingType}' eşlemesi yoktur. 'EXCLUDED' de açık bir firma kararı olarak kullanılabilir.", out error);
+            }
+            foreach (var component in components.Where(x => x.Category == "employerCost"))
+            {
+                if (!validatedMappings.Any(x => x.ComponentKey == component.Key && x.Profile == component.Profile &&
+                    x.Kind == "employerLiabilityAccount" && x.From <= component.From &&
+                    (x.To is null || component.To is not null && x.To >= component.To)))
+                    return Fail($"'{component.Key}' işveren maliyeti için geçerli aralığın tamamını kapsayan employerLiabilityAccount eşlemesi zorunludur.", out error);
             }
         }
         return true;

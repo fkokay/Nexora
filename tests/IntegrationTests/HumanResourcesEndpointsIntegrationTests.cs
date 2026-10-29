@@ -570,6 +570,12 @@ public sealed class HumanResourcesEndpointsIntegrationTests
                     BlockersJson = "[\"calculation-engine-not-enabled\",\"employer-declaration-profile-not-approved\",\"declaration-business-validation-not-configured\"]",
                     CreatedByUserId = Admin
                 });
+            var payrollExpenseId = Guid.NewGuid();
+            var payrollPayableId = Guid.NewGuid();
+            db.LedgerAccounts.AddRange(
+                new LedgerAccount { Id = payrollExpenseId, TenantId = TenantA, Code = "720.01", Name = "Ücret giderleri", StatementSection = LedgerAccountStatementSection.Expense },
+                new LedgerAccount { Id = payrollPayableId, TenantId = TenantA, Code = "335.01", Name = "Personele borçlar", StatementSection = LedgerAccountStatementSection.Liability });
+            db.LedgerAccountMappings.Add(new LedgerAccountMapping { TenantId = TenantA, MappingKey = LedgerMappingKeys.PayrollNetPayPayable, AccountId = payrollPayableId });
             await db.SaveChangesAsync();
         }
 
@@ -645,6 +651,16 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         Assert.Contains("Resmî bordro pusulası değildir.", payslips);
         Assert.DoesNotContain("Synthetic <employee>", payslips);
 
+        using var voucherResponse = await client.GetAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/voucher-draft");
+        Assert.Equal(HttpStatusCode.OK, voucherResponse.StatusCode);
+        Assert.StartsWith("text/csv", voucherResponse.Content.Headers.ContentType!.ToString(), StringComparison.OrdinalIgnoreCase);
+        var voucherDraft = await voucherResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Taslak dosya; resmi bordro değildir ve yevmiyeye kaydedilmez.", voucherDraft);
+        Assert.Contains("DRAFT,\"2026-01-31\",\"A-001\",\"Synthetic <employee>\",\"Base pay\",\"720.01\",1234.57,0.00,\"TRY\"", voucherDraft);
+        Assert.Contains("DRAFT,\"2026-01-31\",\"A-001\",\"Synthetic <employee>\",\"Net ücret ödeme borcu\",\"335.01\",0.00,1234.57,\"TRY\"", voucherDraft);
+        Assert.Equal(0, await finalDb.JournalEntries.CountAsync(x => x.TenantId == TenantA));
+
         using var packageResponse = await client.GetAsync(
             $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/manual-package");
         Assert.Equal(HttpStatusCode.OK, packageResponse.StatusCode);
@@ -664,6 +680,8 @@ public sealed class HumanResourcesEndpointsIntegrationTests
             x.Action == "hr.payroll-run.internal-payslips-generated");
         Assert.Contains(artifactAuditDb.AuditEvents, x => x.TenantId == TenantA && x.UserId == Admin &&
             x.Action == "hr.payroll-run.manual-package-generated");
+        Assert.Contains(artifactAuditDb.AuditEvents, x => x.TenantId == TenantA && x.UserId == Admin &&
+            x.Action == "hr.payroll-run.voucher-draft-generated");
     }
 
     private static async Task<string> ReadZipEntryAsync(ZipArchive archive, string entryName)
@@ -761,6 +779,7 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapHumanResourcesEndpoints();
+        app.MapPayrollVoucherDraftEndpoints();
         await app.StartAsync();
 
         await using var scope = app.Services.CreateAsyncScope();

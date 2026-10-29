@@ -614,6 +614,7 @@ public static class LedgerMappingKeys
     public const string FixedAssetDisposalProceeds = "fixed-assets.disposal-proceeds";
     public const string FixedAssetDisposalGain = "fixed-assets.disposal-gain";
     public const string FixedAssetDisposalLoss = "fixed-assets.disposal-loss";
+    public const string PayrollNetPayPayable = "payroll.net-pay-payable";
 }
 
 public enum CounterpartyType { Customer = 1, Supplier = 2, Both = 3 }

@@ -227,6 +227,7 @@ app.MapCustomMenuEndpoints();
 app.MapCrmEndpoints();
 app.MapManufacturingEndpoints();
 app.MapHumanResourcesEndpoints();
+app.MapPayrollVoucherDraftEndpoints();
 app.MapFixedAssetEndpoints();
 app.MapTenantOperationalSettingsEndpoints();
 app.MapTenantCompanyProfileEndpoints();
@@ -6483,6 +6484,7 @@ var ledgerMappingLabels = new Dictionary<string, string>(StringComparer.Ordinal)
     [LedgerMappingKeys.PurchaseCost] = "Alış faturası · maliyet hesabı",
     [LedgerMappingKeys.PurchaseTaxRecoverable] = "Alış faturası · indirilecek KDV hesabı",
     [LedgerMappingKeys.PurchaseReceiptAccrual] = "Mal kabul · faturası gelmemiş mal hesabı",
+    [LedgerMappingKeys.PayrollNetPayPayable] = "Bordro taslağı · net ücret ödeme borcu",
     [LedgerMappingKeys.SupplierCardClearing] = "Kart ödemesi · kart clearing hesabı",
     [LedgerMappingKeys.SupplierCheckClearing] = "Çek ödemesi · çek hesabı",
     [LedgerMappingKeys.InstrumentReceivablePortfolio] = "Alacak çek/senet · portföy hesabı",
