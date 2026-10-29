@@ -11999,6 +11999,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         },
                         new
                         {
+                            Code = "erp.organizational-definitions.read",
+                            Action = "read",
+                            Description = "read · Tenant workplace, branch and factory definitions",
+                            ResourceType = "erp.organizational-definitions"
+                        },
+                        new
+                        {
+                            Code = "erp.organizational-definitions.create",
+                            Action = "create",
+                            Description = "create · Tenant workplace, branch and factory definitions",
+                            ResourceType = "erp.organizational-definitions"
+                        },
+                        new
+                        {
+                            Code = "erp.organizational-definitions.update",
+                            Action = "update",
+                            Description = "update · Tenant workplace, branch and factory definitions",
+                            ResourceType = "erp.organizational-definitions"
+                        },
+                        new
+                        {
+                            Code = "erp.organizational-definitions.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant workplace, branch and factory definitions",
+                            ResourceType = "erp.organizational-definitions"
+                        },
+                        new
+                        {
+                            Code = "erp.organizational-definitions.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant workplace, branch and factory definitions",
+                            ResourceType = "erp.organizational-definitions"
+                        },
+                        new
+                        {
                             Code = "erp.tenant-company-profile.read",
                             Action = "read",
                             Description = "read · Tenant legal company profile",
