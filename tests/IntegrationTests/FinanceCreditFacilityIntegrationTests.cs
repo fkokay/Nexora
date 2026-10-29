@@ -37,11 +37,26 @@ public sealed class FinanceCreditFacilityIntegrationTests
         Assert.Equal("TEM-001", item.GetProperty("code").GetString());
         var securityId = item.GetProperty("id").GetGuid();
 
+        using var exposure = await client.GetAsync("/api/finance/credit-facilities/exposure-summary");
+        Assert.Equal(HttpStatusCode.OK, exposure.StatusCode);
+        using var exposureJson = JsonDocument.Parse(await exposure.Content.ReadAsStringAsync());
+        var exposureCurrency = Assert.Single(exposureJson.RootElement.GetProperty("currencies").EnumerateArray());
+        Assert.Equal("TRY", exposureCurrency.GetProperty("currencyCode").GetString());
+        Assert.Equal(25000m, exposureCurrency.GetProperty("activeGuarantees").GetDecimal());
+        Assert.Equal(0m, exposureCurrency.GetProperty("calledAmount").GetDecimal());
+        var exposureFacility = Assert.Single(exposureJson.RootElement.GetProperty("facilities").EnumerateArray());
+        Assert.Equal(25000m, exposureFacility.GetProperty("activeGuarantees").GetDecimal());
+
         using var clientB = app.GetTestClient();
         clientB.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
         using var foreignList = await clientB.GetAsync("/api/finance/credit-facilities/securities");
         using var foreignJson = JsonDocument.Parse(await foreignList.Content.ReadAsStringAsync());
         Assert.Empty(foreignJson.RootElement.GetProperty("items").EnumerateArray());
+        using var foreignExposure = await clientB.GetAsync("/api/finance/credit-facilities/exposure-summary");
+        using var foreignExposureJson = JsonDocument.Parse(await foreignExposure.Content.ReadAsStringAsync());
+        var foreignCurrency = Assert.Single(foreignExposureJson.RootElement.GetProperty("currencies").EnumerateArray());
+        Assert.Equal(0m, foreignCurrency.GetProperty("activeGuarantees").GetDecimal());
+        Assert.Equal(0m, foreignCurrency.GetProperty("activeCollateral").GetDecimal());
 
         using var released = await client.PutAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/securities/{securityId}/status",
             new CreditFacilitySecurityStatusRequest("Released"));
@@ -49,6 +64,24 @@ public sealed class FinanceCreditFacilityIntegrationTests
         using var afterRelease = await client.GetAsync("/api/finance/credit-facilities/securities?expiryWithinDays=30");
         using var afterJson = JsonDocument.Parse(await afterRelease.Content.ReadAsStringAsync());
         Assert.Equal(0, afterJson.RootElement.GetProperty("expiringCount").GetInt32());
+        using var afterReleaseExposure = await client.GetAsync("/api/finance/credit-facilities/exposure-summary");
+        using var afterReleaseExposureJson = JsonDocument.Parse(await afterReleaseExposure.Content.ReadAsStringAsync());
+        Assert.Equal(0m, Assert.Single(afterReleaseExposureJson.RootElement.GetProperty("currencies").EnumerateArray())
+            .GetProperty("activeGuarantees").GetDecimal());
+
+        using var calledCreated = await client.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/securities",
+            request with { Type = CreditSecurityType.Collateral, Code = "TEM-002" });
+        Assert.Equal(HttpStatusCode.Created, calledCreated.StatusCode);
+        using var calledJson = JsonDocument.Parse(await calledCreated.Content.ReadAsStringAsync());
+        var calledId = calledJson.RootElement.GetProperty("id").GetGuid();
+        using var called = await client.PutAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/securities/{calledId}/status",
+            new CreditFacilitySecurityStatusRequest("Called"));
+        Assert.Equal(HttpStatusCode.NoContent, called.StatusCode);
+        using var calledExposure = await client.GetAsync("/api/finance/credit-facilities/exposure-summary");
+        using var calledExposureJson = JsonDocument.Parse(await calledExposure.Content.ReadAsStringAsync());
+        var calledCurrency = Assert.Single(calledExposureJson.RootElement.GetProperty("currencies").EnumerateArray());
+        Assert.Equal(25000m, calledCurrency.GetProperty("calledAmount").GetDecimal());
+        Assert.Equal(0m, calledCurrency.GetProperty("activeCollateral").GetDecimal());
     }
 
     [Theory]

@@ -103,6 +103,48 @@ public static class FinanceCreditFacilityEndpoints
             });
         });
 
+        group.MapGet("/exposure-summary", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetTenantId(user, out var tenantId)) return Results.Forbid();
+            var facilities = await db.CreditFacilities.AsNoTracking().Where(x => x.TenantId == tenantId)
+                .OrderBy(x => x.CurrencyCode).ThenBy(x => x.Code)
+                .Select(x => new
+                {
+                    x.Id, x.Code, x.LenderName, x.FacilityType, x.CurrencyCode, x.ApprovedLimit, status = x.Status.ToString(),
+                    outstandingPrincipal = (x.Movements.Where(m => m.Type == CreditFacilityMovementType.Drawdown && !m.Reversals.Any())
+                        .Sum(m => (decimal?)m.PrincipalAmount) ?? 0m) -
+                        (x.Movements.Where(m => m.Type == CreditFacilityMovementType.Repayment && !m.Reversals.Any())
+                        .Sum(m => (decimal?)m.PrincipalAmount) ?? 0m)
+                }).ToListAsync(ct);
+            var securities = await db.CreditFacilitySecurities.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.Status != CreditSecurityStatus.Released)
+                .Select(x => new { x.CreditFacilityId, x.Type, x.Status, x.Amount, x.CurrencyCode }).ToListAsync(ct);
+            var byFacility = securities.GroupBy(x => x.CreditFacilityId).ToDictionary(x => x.Key, x => new
+            {
+                activeGuarantees = x.Where(s => s.Status == CreditSecurityStatus.Active && s.Type == CreditSecurityType.Guarantee).Sum(s => s.Amount),
+                activeCollateral = x.Where(s => s.Status == CreditSecurityStatus.Active && s.Type == CreditSecurityType.Collateral).Sum(s => s.Amount),
+                calledAmount = x.Where(s => s.Status == CreditSecurityStatus.Called).Sum(s => s.Amount)
+            });
+            var items = facilities.Select(f =>
+            {
+                var security = byFacility.GetValueOrDefault(f.Id);
+                return new { f.Id, f.Code, f.LenderName, f.FacilityType, f.CurrencyCode, f.ApprovedLimit, f.status,
+                    f.outstandingPrincipal, activeGuarantees = security?.activeGuarantees ?? 0m,
+                    activeCollateral = security?.activeCollateral ?? 0m, calledAmount = security?.calledAmount ?? 0m,
+                    limitUtilizationPercent = f.ApprovedLimit <= 0 ? 0m : decimal.Round((f.outstandingPrincipal / f.ApprovedLimit) * 100m, 2) };
+            }).ToList();
+            var currencies = items.GroupBy(x => x.CurrencyCode).OrderBy(x => x.Key).Select(x => new
+            {
+                currencyCode = x.Key,
+                facilityCount = x.Count(f => f.status == nameof(CreditFacilityStatus.Active)),
+                outstandingPrincipal = x.Where(f => f.status == nameof(CreditFacilityStatus.Active)).Sum(f => f.outstandingPrincipal),
+                approvedLimit = x.Where(f => f.status == nameof(CreditFacilityStatus.Active)).Sum(f => f.ApprovedLimit),
+                activeGuarantees = x.Sum(f => f.activeGuarantees), activeCollateral = x.Sum(f => f.activeCollateral),
+                calledAmount = x.Sum(f => f.calledAmount)
+            }).ToList();
+            return Results.Ok(new { currencies, facilities = items });
+        });
+
         group.MapPost("/{id:guid}/securities", async (Guid id, CreditFacilitySecurityCreateRequest request,
             ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {

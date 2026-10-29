@@ -364,6 +364,7 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
 .credit-facilities-page .collection-form textarea:hover { border-color: color-mix(in srgb, var(--credit-accent) 45%, var(--credit-border)); }
 .credit-facilities-page .collection-form .modal-foot { margin-top: 2px; }
 .credit-facilities-page .credit-records-panel { padding: 18px; }
+.credit-facilities-page .credit-exposure { display: grid; gap: 14px; }
 .credit-facilities-page .credit-records-heading {
   padding-bottom: 12px;
   border-bottom: 1px solid var(--credit-border);
