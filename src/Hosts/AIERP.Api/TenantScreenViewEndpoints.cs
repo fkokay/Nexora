@@ -277,7 +277,9 @@ internal static class TenantScreenViewEndpoints
         new("acquisitionDate", "Edinim tarihi", true), new("inServiceDate", "Kullanıma giriş", true),
         new("acquisitionCostBase", "Edinim maliyeti", true), new("residualValueBase", "Kalıntı değer", true),
         new("usefulLifeMonths", "Faydalı ömür (ay)", true), new("accumulatedDepreciationBase", "Birikmiş amortisman", true),
-        new("remainingBookValueBase", "Kalan defter değeri", true), new("status", "Durum", true),
+        new("remainingBookValueBase", "Kalan defter değeri", true),
+        new("vukTaxYear", "VUK yılı", true), new("vukDepreciationLowerLimitTry", "VUK alt sınırı (TL)", true),
+        new("vukCommuniqueNumber", "VUK tebliği", true), new("status", "Durum", true),
         new("actions", "İşlemler", true, Fixed: true)
     ];
     private static readonly ScreenViewField[] FixedAssetDepreciationFields =
@@ -1071,8 +1073,29 @@ internal static class TenantScreenViewEndpoints
     private static ScreenViewRecord ToView(TenantScreenView x) => new(x.Id, x.ScreenKey,
         TryGetCatalog(x.ScreenKey, out var catalog) ? catalog.Label : x.ScreenKey, x.Name, x.IsPublished, x.Revision, WithFixedFields(x.ScreenKey, ReadFields(x.LayoutJson)));
     private static ScreenViewRevisionView ToRevisionView(TenantScreenViewRevision x) => new(x.Id, x.Revision, x.Name, WithFixedFields(x.ScreenKey, x.LayoutJson is null ? [] : ReadFields(x.LayoutJson)), x.ChangeKind, x.ChangedByUserId, x.CreatedAt);
-    private static IReadOnlyList<ScreenViewFieldLayout> WithFixedFields(string screenKey, IReadOnlyList<ScreenViewFieldLayout> fields) =>
-        TryGetCatalog(screenKey, out var catalog) ? fields.Select(field => field with { Fixed = catalog.Fields.SingleOrDefault(x => x.Key == field.Key)?.Fixed ?? false }).ToArray() : fields;
+    private static IReadOnlyList<ScreenViewFieldLayout> WithFixedFields(string screenKey, IReadOnlyList<ScreenViewFieldLayout> fields)
+    {
+        if (!TryGetCatalog(screenKey, out var catalog)) return fields;
+
+        var ordered = fields.OrderBy(field => field.Position)
+            .Select(field => field with { Fixed = catalog.Fields.SingleOrDefault(x => x.Key == field.Key)?.Fixed ?? false })
+            .ToList();
+        var existingKeys = ordered.Select(field => field.Key).ToHashSet(StringComparer.Ordinal);
+        var missing = catalog.Fields.Where(field => !existingKeys.Contains(field.Key)).ToArray();
+        if (missing.Length == 0) return ordered;
+
+        // Older published layouts stay in their saved order and keep their labels/visibility.
+        // New built-in fields are appended before fixed action columns, using catalog defaults.
+        var insertionIndex = ordered.FindIndex(field => field.Fixed);
+        if (insertionIndex < 0) insertionIndex = ordered.Count;
+
+        var merged = new List<ScreenViewFieldLayout>(ordered.Count + missing.Length);
+        merged.AddRange(ordered.Take(insertionIndex));
+        merged.AddRange(missing.Select(field => new ScreenViewFieldLayout(
+            field.Key, field.Label, field.DefaultVisible, 0, field.Fixed)));
+        merged.AddRange(ordered.Skip(insertionIndex));
+        return merged.Select((field, position) => field with { Position = position }).ToArray();
+    }
     private static TenantScreenViewRevision RevisionOf(TenantScreenView x, Guid userId, string changeKind) => new()
     {
         TenantId = x.TenantId, ScreenViewId = x.Id, Revision = x.Revision, ScreenKey = x.ScreenKey, Name = x.Name,

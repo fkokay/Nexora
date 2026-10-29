@@ -1152,7 +1152,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "fixed-assets");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "assetCode", "name", "category", "acquisitionDate", "inServiceDate", "acquisitionCostBase", "residualValueBase", "usefulLifeMonths", "accumulatedDepreciationBase", "remainingBookValueBase", "status", "actions" },
+        Assert.Equal(new[] { "assetCode", "name", "category", "acquisitionDate", "inServiceDate", "acquisitionCostBase", "residualValueBase", "usefulLifeMonths", "accumulatedDepreciationBase", "remainingBookValueBase", "vukTaxYear", "vukDepreciationLowerLimitTry", "vukCommuniqueNumber", "status", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1182,6 +1182,28 @@ public sealed class CustomFormEndpointsIntegrationTests
         Assert.False(activeFields.Single(x => x.GetProperty("key").GetString() == "category").GetProperty("visible").GetBoolean());
         Assert.Equal("actions", activeFields[^1].GetProperty("key").GetString());
         Assert.True(activeFields[^1].GetProperty("visible").GetBoolean());
+
+        // Simulate a published layout saved before the VUK columns entered the catalog.
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var savedView = await db.TenantScreenViews.SingleAsync(x => x.TenantId == TenantA && x.ScreenKey == "fixed-assets" && x.IsPublished);
+            var legacyFields = new[]
+            {
+                new { key = "assetCode", label = "Eski kod etiketi", visible = true, position = 0, fixedField = false },
+                new { key = "actions", label = "İşlemler", visible = true, position = 1, fixedField = true }
+            };
+            savedView.LayoutJson = JsonSerializer.Serialize(legacyFields.Select(field => new { field.key, field.label, field.visible, field.position, @fixed = field.fixedField }));
+            await db.SaveChangesAsync();
+        }
+
+        var upgradedActive = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/fixed-assets/active");
+        var upgradedFields = upgradedActive.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal("Eski kod etiketi", upgradedFields[0].GetProperty("label").GetString());
+        Assert.True(upgradedFields.Single(x => x.GetProperty("key").GetString() == "vukTaxYear").GetProperty("visible").GetBoolean());
+        Assert.True(upgradedFields.Single(x => x.GetProperty("key").GetString() == "vukDepreciationLowerLimitTry").GetProperty("visible").GetBoolean());
+        Assert.True(upgradedFields.Single(x => x.GetProperty("key").GetString() == "vukCommuniqueNumber").GetProperty("visible").GetBoolean());
+        Assert.Equal("actions", upgradedFields[^1].GetProperty("key").GetString());
 
         SetIdentity(client, TenantA, UserA, "TenantAdmin");
         var history = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/fixed-assets/history");
