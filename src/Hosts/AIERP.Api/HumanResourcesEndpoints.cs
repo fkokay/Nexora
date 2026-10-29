@@ -1765,9 +1765,13 @@ public static partial class HumanResourcesEndpoints
                 foreach (var component in employee.Components.Where(x => x.Category is "earning" or "deduction"))
                 {
                     static string Csv(string value) => "\"" + value.Replace("\"", "\"\"") + "\"";
+                    var accountCode = component.MappingCodes.TryGetValue("accountingAccount", out var mappedAccount) &&
+                                      !string.Equals(mappedAccount, "EXCLUDED", StringComparison.OrdinalIgnoreCase)
+                        ? mappedAccount
+                        : "";
                     voucher.Append(run.PeriodEnd.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append(',')
                         .Append(Csv(employee.PersonnelCode)).Append(',').Append(Csv(employee.FullName)).Append(',')
-                        .Append(Csv(component.Label)).Append(",,")
+                        .Append(Csv(component.Label)).Append(',').Append(Csv(accountCode)).Append(',')
                         .Append(component.Category == "earning" ? component.Amount.ToString("0.00", CultureInfo.InvariantCulture) : "0.00").Append(',')
                         .Append(component.Category == "deduction" ? component.Amount.ToString("0.00", CultureInfo.InvariantCulture) : "0.00")
                         .Append(',').Append(Csv(component.Unit)).Append("\r\n");
@@ -1812,7 +1816,7 @@ public static partial class HumanResourcesEndpoints
                 generatedAtUtc = DateTimeOffset.UtcNow,
                 contents = new[] { "bordro-ozeti.csv", "muhasebe-fisi-taslagi.csv", "hesaplama-sonucu.json", "paket-bilgisi.json", "OKU.txt" }
             }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-            AddText("OKU.txt", "Bu dosyalar kesinleştirilmiş iç bordro hesaplama paketidir. Resmî GİB/SGK beyanı veya gönderime hazır XML değildir. muhasebe-fisi-taslagi.csv, yalnızca formüldeki brüt kazanç, çalışan kesintisi ve net ödeme adayı kalemlerini dengeleme amaçlı tasnif eder; hiçbir hesap kodu tanımlı değildir ve yevmiye kaydı oluşturmaz. Muhasebeci her satıra uygun hesap kodunu girmeli, işveren SGK payı/diğer işveren maliyetlerini ve yasal tahakkukları ayrıca doğrulamalıdır. Başlangıç biçimi olarak özel sektör 4/a için 1003A (MUHSGK_21) seçilmiştir; işverenin gerçek yetki ve profil bilgisi bunu doğrulamalıdır. Vergi numarası/vergi dairesi, SGK işyeri sicili, çalışan T.C. kimlik numarası, meslek ve belge kodları, prim günleri ile yasal matrah/kesinti değerleri eksiktir; paket-bilgisi.json alan listesini içerir. XML için onaylı alan eşlemesi gerekir. Tutarları yetkili bordro uzmanı kontrol etmelidir.");
+            AddText("OKU.txt", "Bu dosyalar kesinleştirilmiş iç bordro hesaplama paketidir. Resmî GİB/SGK beyanı veya gönderime hazır XML değildir. muhasebe-fisi-taslagi.csv, formüldeki brüt kazanç ve çalışan kesintilerini, kural setinde açıkça eşlenmiş hesap kodlarıyla taslak fiş satırlarına aktarır; EXCLUDED/atanmamış hesap kodları boş kalır. Net ücret borcu ile işveren SGK payı ve diğer işveren maliyetleri için gerekli karşı hesaplar tanımlı olmadığı için bu CSV yevmiye kaydı oluşturmaz; muhasebeci bu satırları ve işveren maliyetlerini tamamlayıp dengeyi doğrulamalıdır. Başlangıç biçimi olarak özel sektör 4/a için 1003A (MUHSGK_21) seçilmiştir; işverenin gerçek yetki ve profil bilgisi bunu doğrulamalıdır. Vergi numarası/vergi dairesi, SGK işyeri sicili, çalışan T.C. kimlik numarası, meslek ve belge kodları, prim günleri ile yasal matrah/kesinti değerleri eksiktir; paket-bilgisi.json alan listesini içerir. XML için onaylı alan eşlemesi gerekir. Tutarları yetkili bordro uzmanı kontrol etmelidir.");
         }
         return output.ToArray();
     }

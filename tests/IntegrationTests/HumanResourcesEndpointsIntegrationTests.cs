@@ -523,7 +523,7 @@ public sealed class HumanResourcesEndpointsIntegrationTests
           "mappings": [
             { "componentKey": "base-pay", "mappingType": "incomeTaxBase", "targetCode": "EXCLUDED", "baseTreatment": "exclude", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] },
             { "componentKey": "base-pay", "mappingType": "socialSecurityBase", "targetCode": "EXCLUDED", "baseTreatment": "exclude", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] },
-            { "componentKey": "base-pay", "mappingType": "accountingAccount", "targetCode": "EXCLUDED", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] },
+            { "componentKey": "base-pay", "mappingType": "accountingAccount", "targetCode": "720.01", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] },
             { "componentKey": "base-pay", "mappingType": "declarationField", "targetCode": "EXCLUDED", "profile": "TR-4A-PRIVATE", "effectiveFrom": "2026-01-01", "effectiveTo": null, "sources": [{ "kind": "official", "reference": "fixture", "url": "https://example.gov.tr/payroll" }, { "kind": "employerPolicy", "reference": "fixture", "url": null }] }
           ]
         }
@@ -654,9 +654,9 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         using var voucherReader = new StreamReader(voucherEntry.Open(), Encoding.UTF8);
         var voucher = await voucherReader.ReadToEndAsync();
         Assert.Contains("Date,EmployeeCode,EmployeeName,Description,AccountCode,Debit,Credit,Currency", voucher);
-        Assert.Contains("\"A-001\",\"Synthetic <employee>\",\"Base pay\",,1234.57,0.00,\"TRY\"", voucher);
+        Assert.Contains("\"A-001\",\"Synthetic <employee>\",\"Base pay\",\"720.01\",1234.57,0.00,\"TRY\"", voucher);
         Assert.Contains("\"Net ücret ödeme borcu\",,0.00,1234.57,\"TRY\"", voucher);
-        Assert.Contains("hesap kodu tanımlı değildir", await ReadZipEntryAsync(package, "OKU.txt"));
+        Assert.Contains("EXCLUDED/atanmamış hesap kodları boş kalır", await ReadZipEntryAsync(package, "OKU.txt"));
 
         await using var artifactAuditScope = app.Services.CreateAsyncScope();
         var artifactAuditDb = artifactAuditScope.ServiceProvider.GetRequiredService<TenantDbContext>();
