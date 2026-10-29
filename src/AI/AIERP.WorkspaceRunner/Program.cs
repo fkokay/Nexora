@@ -1075,7 +1075,10 @@ internal static class WorkspaceSecurity
         var segments = path.Split('/');
         if (segments.Any(segment => string.IsNullOrWhiteSpace(segment) || segment is "." or ".." || segment.StartsWith('.') ||
             segment.Contains("secret", StringComparison.OrdinalIgnoreCase) || segment.Contains("credential", StringComparison.OrdinalIgnoreCase))) return false;
-        return WritableSourceExtensions.Contains(Path.GetExtension(path));
+        var extension = Path.GetExtension(path);
+        return WritableSourceExtensions.Contains(extension) ||
+            (segments[0].Equals("modules", StringComparison.OrdinalIgnoreCase) &&
+             (extension.Equals(".json", StringComparison.OrdinalIgnoreCase) || extension.Equals(".toml", StringComparison.OrdinalIgnoreCase)));
     }
     private static bool IsCommitPath(string? path) => IsWritableSourcePath(path) && !path!.Contains(',');
     internal static async Task<WorkspaceFileApplyResult> ApplyFileContentAsync(string root, Guid workspaceId, Guid changeId, string? relativePath,

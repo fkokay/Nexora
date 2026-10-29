@@ -14,6 +14,9 @@ internal static class CodeSourcePolicy
         var segments = path.Split('/');
         if (segments.Any(segment => string.IsNullOrWhiteSpace(segment) || segment is "." or ".." || segment.StartsWith('.') ||
             segment.Contains("secret", StringComparison.OrdinalIgnoreCase) || segment.Contains("credential", StringComparison.OrdinalIgnoreCase))) return false;
-        return AllowedExtensions.Contains(Path.GetExtension(path));
+        var extension = Path.GetExtension(path);
+        return AllowedExtensions.Contains(extension) ||
+            (segments[0].Equals("modules", StringComparison.OrdinalIgnoreCase) &&
+             (extension.Equals(".json", StringComparison.OrdinalIgnoreCase) || extension.Equals(".toml", StringComparison.OrdinalIgnoreCase)));
     }
 }
