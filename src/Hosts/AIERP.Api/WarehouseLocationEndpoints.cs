@@ -125,9 +125,11 @@ public static class WarehouseLocationEndpoints
                 })
                 .Where(x => x.UnlocatedQuantity != 0m)
                 .Join(db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId), balance => balance.StockItemId, item => item.Id,
-                    (balance, item) => new WarehouseLocationReconciliationItemView(item.Id, item.Code, item.Name, item.UnitCode,
-                        balance.WarehouseQuantity, balance.LocatedQuantity, balance.UnlocatedQuantity))
-                .OrderBy(x => x.StockItemCode).ToListAsync();
+                    (balance, item) => new { Balance = balance, Item = item })
+                .OrderBy(x => x.Item.Code)
+                .Select(x => new WarehouseLocationReconciliationItemView(x.Item.Id, x.Item.Code, x.Item.Name, x.Item.UnitCode,
+                    x.Balance.WarehouseQuantity, x.Balance.LocatedQuantity, x.Balance.UnlocatedQuantity))
+                .ToListAsync();
             return Results.Ok(new { warehouse.Id, warehouse.Code, warehouse.Name, asOfDate = cutoff, items = balances });
         });
         return warehouses;
