@@ -29,9 +29,16 @@ public static class LicenseTierCatalog
     public static bool IsValidStoredLicense(TenantLicense? license)
     {
         if (license is null || license.LicenseId == Guid.Empty || !TryGet(license.Tier, out var policy)) return false;
+        // Previous releases issued Medium with 100 GB and Large with an unlimited
+        // storage marker. These persisted claims remain authentic; enforcement always
+        // uses the current catalog policy, so a data migration is not needed to tighten
+        // the company's effective quota.
+        var storageProfileMatches = license.MaxStorageGb == policy.MaxStorageGb
+            || policy.Code.Equals("Medium", StringComparison.OrdinalIgnoreCase) && license.MaxStorageGb == 100
+            || policy.Code.Equals("Large", StringComparison.OrdinalIgnoreCase) && license.MaxStorageGb == int.MaxValue;
         return license.MaxUsers == policy.MaxUsers
             && license.MaxCustomModules == policy.MaxCustomModules
-            && license.MaxStorageGb == policy.MaxStorageGb
+            && storageProfileMatches
             && license.GrantSha256 is { Length: 64 } digest
             && digest.All(Uri.IsHexDigit);
     }

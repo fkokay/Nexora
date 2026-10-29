@@ -88,6 +88,26 @@ public sealed class TenantLicenseIntegrationTests
         }
     }
 
+    [Fact]
+    public void Legacy_storage_claims_remain_valid_while_the_current_catalog_controls_enforced_quotas()
+    {
+        var medium = new TenantLicense
+        {
+            LicenseId = Guid.NewGuid(), Tier = "Medium", MaxUsers = 50,
+            MaxCustomModules = 15, MaxStorageGb = 100, GrantSha256 = new string('A', 64)
+        };
+        var large = new TenantLicense
+        {
+            LicenseId = Guid.NewGuid(), Tier = "Large", MaxUsers = int.MaxValue,
+            MaxCustomModules = int.MaxValue, MaxStorageGb = int.MaxValue, GrantSha256 = new string('B', 64)
+        };
+
+        Assert.True(LicenseTierCatalog.IsValidStoredLicense(medium));
+        Assert.True(LicenseTierCatalog.IsValidStoredLicense(large));
+        Assert.Equal(50, LicenseTierCatalog.All[medium.Tier].MaxStorageGb);
+        Assert.Equal(250, LicenseTierCatalog.All[large.Tier].MaxStorageGb);
+    }
+
     [SqlServerAcceptanceFact]
     public async Task License_storage_meter_reads_the_selected_tenant_database_and_tracks_allocated_data_pages()
     {
