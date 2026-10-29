@@ -1,5 +1,11 @@
 # Production release migrations
 
+## Remote development Tenant VUK snapshot — 2026-10-29
+
+The active development tenant `AIERPTenant_207af7e7d83f41c288d7cba5856f1109` was at 70 migrations through `20261029134657_AddCreditFacilitySecurities`. A `COPY_ONLY, CHECKSUM` backup at `/var/opt/mssql/backups/nexora-vuk-snapshot-pre-20261029.bak` passed `RESTORE VERIFYONLY WITH CHECKSUM` and is retained on the remote SQL volume. The exact incremental from that migration to `20261029201531_SnapshotFixedAssetVukLowerLimit` was applied to a restored copy; `DBCC CHECKDB WITH PHYSICAL_ONLY` found zero allocation or consistency errors, the four nullable columns and 71st migration row were verified, and the disposable rehearsal database was dropped. The same idempotent script was applied to this one development tenant. Post-apply verification confirmed 71 migrations, the new migration history row, and column lengths/types `int`, `decimal(18,2)`, `nvarchar(500)`, and `int`. No other tenant, Platform or AIStudio database was changed.
+
+Platform API and ERP Web were built from clean pushed commit `4f87e24b` and deployed using only the `nexora-remote` Docker context with `--no-deps`. Both containers are healthy; public ERP and Studio `/health` endpoints return HTTP 200. SQL Server, Vault, Tenant Provisioning Worker and other services were not recreated. This is development-only evidence; other firm databases and production are untouched and require separate target-specific review, backup, rehearsal, and approval.
+
 ## Remote development Platform reconciliation — 2026-10-29
 
 The single remote development `AIERPPlatform` database was at 143 migrations through `20261028120000_AddPlannedManufacturingEnergyCost`. A checksum-protected `COPY_ONLY` backup at `/var/opt/mssql/backups/nexora-platform-before-reconcile-r9-20261029.bak` passed `RESTORE VERIFYONLY WITH CHECKSUM`. The source-generated incremental for `20261028184628_ReconcilePlatformModelAfterR9` was applied to that Platform database only. Post-apply history is 144/144 and `DBCC CHECKDB WITH PHYSICAL_ONLY` reported no allocation or consistency errors. The two legacy energy columns referenced for removal were absent from `BillOfMaterialLines` before apply. Tenant and AIStudio databases were not changed by this migration.
