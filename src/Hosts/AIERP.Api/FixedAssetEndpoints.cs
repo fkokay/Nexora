@@ -18,6 +18,13 @@ public static class FixedAssetEndpoints
     {
         var group = app.MapGroup("/api/fixed-assets").WithTags("Sabit Kıymetler").RequireAuthorization();
 
+        group.MapGet("/tax-limits/{taxYear:int}", (int taxYear, ClaimsPrincipal user) =>
+        {
+            if (!TryIdentity(user, out _, out _)) return Results.Forbid();
+            var limit = VukDepreciationLimitCatalog.Get(taxYear);
+            return limit is null ? Results.NotFound() : Results.Ok(limit);
+        });
+
         group.MapGet("/", async (string? q, int? page, int? pageSize, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
@@ -471,6 +478,34 @@ public static class FixedAssetEndpoints
         catch (FormatException) { bytes = []; return false; }
     }
 }
+
+internal static class VukDepreciationLimitCatalog
+{
+    private const string SourceUrl = "https://cdn.gib.gov.tr/api/gibportal-file/file/getFileResources?objectKey=arsiv/yardim-kaynaklar/yararli-bilgiler/AmortismanAyirmadaAltSinir.pdf";
+    private const string Advisory = "Bilgilendirme amaçlı VUK alt sınırıdır. Değerin altında olmak otomatik gider yazma kararı değildir; iktisadi ve teknik bütünlük ile diğer mevzuat koşulları ayrıca değerlendirilmelidir.";
+    private static readonly IReadOnlyDictionary<int, VukDepreciationLimitView> Limits = new Dictionary<int, VukDepreciationLimitView>
+    {
+        [2012] = new(2012, 770m, 411, SourceUrl, Advisory),
+        [2013] = new(2013, 800m, 422, SourceUrl, Advisory),
+        [2014] = new(2014, 800m, 432, SourceUrl, Advisory),
+        [2015] = new(2015, 880m, 442, SourceUrl, Advisory),
+        [2016] = new(2016, 900m, 460, SourceUrl, Advisory),
+        [2017] = new(2017, 900m, 476, SourceUrl, Advisory),
+        [2018] = new(2018, 1_000m, 490, SourceUrl, Advisory),
+        [2019] = new(2019, 1_200m, 504, SourceUrl, Advisory),
+        [2020] = new(2020, 1_400m, 513, SourceUrl, Advisory),
+        [2021] = new(2021, 1_500m, 522, SourceUrl, Advisory),
+        [2022] = new(2022, 2_000m, 534, SourceUrl, Advisory),
+        [2023] = new(2023, 4_400m, 544, SourceUrl, Advisory),
+        [2024] = new(2024, 6_900m, 556, SourceUrl, Advisory),
+        [2025] = new(2025, 9_900m, 577, SourceUrl, Advisory),
+        [2026] = new(2026, 12_000m, 588, SourceUrl, Advisory)
+    };
+
+    public static VukDepreciationLimitView? Get(int taxYear) => Limits.GetValueOrDefault(taxYear);
+}
+
+internal sealed record VukDepreciationLimitView(int TaxYear, decimal LowerLimitTry, int CommuniqueNumber, string SourceUrl, string Advisory);
 
 public sealed record FixedAssetCreateRequest(string? AssetCode, string? Name, string? Category, DateOnly AcquisitionDate,
     DateOnly InServiceDate, decimal AcquisitionCostBase, decimal ResidualValueBase, int UsefulLifeMonths,

@@ -16,6 +16,29 @@ namespace AIERP.Api.IntegrationTests;
 public sealed class FixedAssetAcquisitionPostingIntegrationTests
 {
     [Fact]
+    public async Task Vuk_depreciation_limits_are_versioned_and_warn_against_automatic_write_off()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var app = await StartAsync(tenantId);
+        using var client = Client(app, tenantId);
+
+        using var currentResponse = await client.GetAsync("/api/fixed-assets/tax-limits/2026");
+        Assert.Equal(HttpStatusCode.OK, currentResponse.StatusCode);
+        using var current = JsonDocument.Parse(await currentResponse.Content.ReadAsStringAsync());
+        Assert.Equal(2026, current.RootElement.GetProperty("taxYear").GetInt32());
+        Assert.Equal(12000m, current.RootElement.GetProperty("lowerLimitTry").GetDecimal());
+        Assert.Equal(588, current.RootElement.GetProperty("communiqueNumber").GetInt32());
+        Assert.Contains("iktisadi ve teknik bütünlük", current.RootElement.GetProperty("advisory").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith("https://cdn.gib.gov.tr/", current.RootElement.GetProperty("sourceUrl").GetString(), StringComparison.Ordinal);
+
+        using var priorResponse = await client.GetAsync("/api/fixed-assets/tax-limits/2025");
+        Assert.Equal(HttpStatusCode.OK, priorResponse.StatusCode);
+        using var prior = JsonDocument.Parse(await priorResponse.Content.ReadAsStringAsync());
+        Assert.Equal(9900m, prior.RootElement.GetProperty("lowerLimitTry").GetDecimal());
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/fixed-assets/tax-limits/2027")).StatusCode);
+    }
+
+    [Fact]
     public async Task Acquisition_posting_requires_active_tenant_cost_mapping_and_offset_account()
     {
         var tenantId = Guid.NewGuid();
