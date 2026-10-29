@@ -15,6 +15,11 @@ public sealed class FixedAsset
     public decimal AcquisitionCostBase { get; set; }
     public decimal ResidualValueBase { get; set; }
     public int UsefulLifeMonths { get; set; }
+    /// <summary>Immutable advisory snapshot of the GİB VUK depreciation lower limit applicable at acquisition.</summary>
+    public int? VukTaxYear { get; set; }
+    public decimal? VukDepreciationLowerLimitTry { get; set; }
+    public int? VukCommuniqueNumber { get; set; }
+    public string? VukSourceUrl { get; set; }
     public Guid? SupplierAccountId { get; set; }
     /// <summary>Optional purchase invoice that is the accounting source for this acquisition.</summary>
     public Guid? PurchaseInvoiceId { get; set; }

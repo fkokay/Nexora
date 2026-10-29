@@ -40,7 +40,8 @@ public static class FixedAssetEndpoints
             var rows = await query.OrderBy(x => x.AssetCode).Skip((currentPage - 1) * size).Take(size)
                 .Select(x => new FixedAssetView(x.Id, x.AssetCode, x.Name, x.Category, x.AcquisitionDate, x.InServiceDate,
                     x.AcquisitionCostBase, x.ResidualValueBase, x.UsefulLifeMonths, x.AccumulatedDepreciationBase,
-                    x.Status.ToString(), x.SupplierAccountId, x.SourceReference, x.PurchaseInvoiceId, Convert.ToBase64String(x.RowVersion)))
+                    x.Status.ToString(), x.SupplierAccountId, x.SourceReference, x.PurchaseInvoiceId, Convert.ToBase64String(x.RowVersion),
+                    x.VukTaxYear, x.VukDepreciationLowerLimitTry, x.VukCommuniqueNumber, x.VukSourceUrl))
                 .ToListAsync(ct);
             return Results.Ok(new { items = rows, page = currentPage, pageSize = size, totalCount = total });
         });
@@ -87,6 +88,13 @@ public static class FixedAssetEndpoints
                 ResidualValueBase = decimal.Round(request.ResidualValueBase, 2, MidpointRounding.AwayFromZero),
                 UsefulLifeMonths = request.UsefulLifeMonths, SupplierAccountId = supplierAccountId, PurchaseInvoiceId = request.PurchaseInvoiceId,
                 SourceReference = Clean(request.SourceReference) };
+            if (VukDepreciationLimitCatalog.Get(request.AcquisitionDate.Year) is { } vukLimit)
+            {
+                asset.VukTaxYear = vukLimit.TaxYear;
+                asset.VukDepreciationLowerLimitTry = vukLimit.LowerLimitTry;
+                asset.VukCommuniqueNumber = vukLimit.CommuniqueNumber;
+                asset.VukSourceUrl = vukLimit.SourceUrl;
+            }
             db.FixedAssets.Add(asset);
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "fixed-asset.acquired", Resource = asset.AssetCode });
             await db.SaveChangesAsync(ct);
@@ -450,7 +458,8 @@ public static class FixedAssetEndpoints
 
     private static FixedAssetView ToView(FixedAsset x) => new(x.Id, x.AssetCode, x.Name, x.Category, x.AcquisitionDate, x.InServiceDate,
         x.AcquisitionCostBase, x.ResidualValueBase, x.UsefulLifeMonths, x.AccumulatedDepreciationBase, x.Status.ToString(),
-        x.SupplierAccountId, x.SourceReference, x.PurchaseInvoiceId, Convert.ToBase64String(x.RowVersion));
+        x.SupplierAccountId, x.SourceReference, x.PurchaseInvoiceId, Convert.ToBase64String(x.RowVersion),
+        x.VukTaxYear, x.VukDepreciationLowerLimitTry, x.VukCommuniqueNumber, x.VukSourceUrl);
     private static FixedAssetAcquisitionPostingView ToAcquisitionPostingView(JournalEntry entry) =>
         new(entry.SourceId, null, entry.Id, entry.EntryDate, entry.Lines.OrderBy(x => x.LineNumber)
             .Select(x => new FixedAssetAcquisitionJournalLineView(x.AccountId, null, null, x.Debit, x.Credit)).ToArray());
@@ -512,7 +521,8 @@ public sealed record FixedAssetCreateRequest(string? AssetCode, string? Name, st
     Guid? SupplierAccountId = null, string? SourceReference = null, Guid? PurchaseInvoiceId = null);
 public sealed record FixedAssetView(Guid Id, string AssetCode, string Name, string? Category, DateOnly AcquisitionDate,
     DateOnly InServiceDate, decimal AcquisitionCostBase, decimal ResidualValueBase, int UsefulLifeMonths,
-    decimal AccumulatedDepreciationBase, string Status, Guid? SupplierAccountId, string? SourceReference, Guid? PurchaseInvoiceId, string RowVersion);
+    decimal AccumulatedDepreciationBase, string Status, Guid? SupplierAccountId, string? SourceReference, Guid? PurchaseInvoiceId, string RowVersion,
+    int? VukTaxYear = null, decimal? VukDepreciationLowerLimitTry = null, int? VukCommuniqueNumber = null, string? VukSourceUrl = null);
 public sealed record FixedAssetPurchaseInvoiceOption(Guid Id, string Code, Guid SupplierId, DateOnly InvoiceDate, decimal GrandTotal, Guid? JournalEntryId);
 public sealed record FixedAssetAcquisitionPostingRequest(Guid OffsetAccountId);
 public sealed record FixedAssetAcquisitionPostingView(Guid AssetId, string? PurchaseInvoiceCode, Guid? JournalEntryId, DateOnly? EntryDate,

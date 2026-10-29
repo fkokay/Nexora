@@ -4,7 +4,7 @@ import { authenticatedFetch } from './authApi';
 import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import './fixed-assets.css'
 
-type Asset = {id:string;assetCode:string;name:string;category:string|null;acquisitionDate:string;inServiceDate:string;acquisitionCostBase:number;residualValueBase:number;usefulLifeMonths:number;accumulatedDepreciationBase:number;status:string;supplierAccountId:string|null;sourceReference:string|null;purchaseInvoiceId:string|null;rowVersion:string}
+type Asset = {id:string;assetCode:string;name:string;category:string|null;acquisitionDate:string;inServiceDate:string;acquisitionCostBase:number;residualValueBase:number;usefulLifeMonths:number;accumulatedDepreciationBase:number;status:string;supplierAccountId:string|null;sourceReference:string|null;purchaseInvoiceId:string|null;rowVersion:string;vukTaxYear:number|null;vukDepreciationLowerLimitTry:number|null;vukCommuniqueNumber:number|null;vukSourceUrl:string|null}
 type LedgerAccount = {id:string;code:string;name:string;isActive:boolean;statementSection:string}
 type PurchaseInvoice = {id:string;code:string;supplierId:string;invoiceDate:string;grandTotal:number;journalEntryId:string|null}
 type VukDepreciationLimit = {taxYear:number;lowerLimitTry:number;communiqueNumber:number;sourceUrl:string;advisory:string}
@@ -93,7 +93,9 @@ const defaultAssetFields = [
   {key:'inServiceDate',label:'Kullanıma giriş',visible:true,position:4}, {key:'acquisitionCostBase',label:'Edinim maliyeti',visible:true,position:5},
   {key:'residualValueBase',label:'Kalıntı değer',visible:true,position:6}, {key:'usefulLifeMonths',label:'Faydalı ömür (ay)',visible:true,position:7},
   {key:'accumulatedDepreciationBase',label:'Birikmiş amortisman',visible:true,position:8}, {key:'remainingBookValueBase',label:'Kalan defter değeri',visible:true,position:9},
-  {key:'status',label:'Durum',visible:true,position:10}, {key:'actions',label:'İşlemler',visible:true,position:11,fixed:true}
+  {key:'vukTaxYear',label:'VUK yılı',visible:true,position:10}, {key:'vukDepreciationLowerLimitTry',label:'VUK alt sınırı (TL)',visible:true,position:11},
+  {key:'vukCommuniqueNumber',label:'VUK tebliği',visible:true,position:12}, {key:'status',label:'Durum',visible:true,position:13},
+  {key:'actions',label:'İşlemler',visible:true,position:14,fixed:true}
 ]
 const defaultDepreciationFields = [
   {key:'periodStart',label:'Dönem',visible:true,position:0}, {key:'amountBase',label:'Tutar',visible:true,position:1},
@@ -119,8 +121,8 @@ function formatDepreciationField(row:Schedule['rows'][number],key:string,en:bool
 function formatAssignmentField(row:Assignment,key:string,en:boolean){
   switch(key){case'employee':return row.employee;case'assignedDate':return formatDate(row.assignedDate,en);case'returnedDate':return formatDate(row.returnedDate,en);case'location':return row.location||'—';default:return'—'}
 }
-const assetFieldEnglish:Record<string,string>={assetCode:'Asset code',name:'Asset',category:'Category',acquisitionDate:'Acquired',inServiceDate:'In service',acquisitionCostBase:'Acquisition cost',residualValueBase:'Residual value',usefulLifeMonths:'Useful life (months)',accumulatedDepreciationBase:'Accumulated depreciation',remainingBookValueBase:'Remaining book value',status:'Status',actions:'Actions'}
+const assetFieldEnglish:Record<string,string>={assetCode:'Asset code',name:'Asset',category:'Category',acquisitionDate:'Acquired',inServiceDate:'In service',acquisitionCostBase:'Acquisition cost',residualValueBase:'Residual value',usefulLifeMonths:'Useful life (months)',accumulatedDepreciationBase:'Accumulated depreciation',remainingBookValueBase:'Remaining book value',vukTaxYear:'VUK year',vukDepreciationLowerLimitTry:'VUK lower limit (TRY)',vukCommuniqueNumber:'VUK communiqué',status:'Status',actions:'Actions'}
 function formatAssetField(asset:Asset,key:string,en:boolean){
   const locale=en?'en-US':'tr-TR',money=(value:number)=>value.toLocaleString(locale,{minimumFractionDigits:2})
-  switch(key){case'assetCode':return asset.assetCode;case'name':return asset.name;case'category':return asset.category||'—';case'acquisitionDate':return formatDate(asset.acquisitionDate,en);case'inServiceDate':return formatDate(asset.inServiceDate,en);case'acquisitionCostBase':return money(asset.acquisitionCostBase);case'residualValueBase':return money(asset.residualValueBase);case'usefulLifeMonths':return asset.usefulLifeMonths;case'accumulatedDepreciationBase':return money(asset.accumulatedDepreciationBase);case'remainingBookValueBase':return money(asset.acquisitionCostBase-asset.accumulatedDepreciationBase);case'status':return asset.status==='Active'?(en?'Active':'Etkin'):asset.status==='Disposed'?(en?'Disposed':'Elden çıkarıldı'):asset.status;default:return'—'}
+  switch(key){case'assetCode':return asset.assetCode;case'name':return asset.name;case'category':return asset.category||'—';case'acquisitionDate':return formatDate(asset.acquisitionDate,en);case'inServiceDate':return formatDate(asset.inServiceDate,en);case'acquisitionCostBase':return money(asset.acquisitionCostBase);case'residualValueBase':return money(asset.residualValueBase);case'usefulLifeMonths':return asset.usefulLifeMonths;case'accumulatedDepreciationBase':return money(asset.accumulatedDepreciationBase);case'remainingBookValueBase':return money(asset.acquisitionCostBase-asset.accumulatedDepreciationBase);case'vukTaxYear':return asset.vukTaxYear??'—';case'vukDepreciationLowerLimitTry':return asset.vukDepreciationLowerLimitTry===null?'—':money(asset.vukDepreciationLowerLimitTry);case'vukCommuniqueNumber':return asset.vukCommuniqueNumber??'—';case'status':return asset.status==='Active'?(en?'Active':'Etkin'):asset.status==='Disposed'?(en?'Disposed':'Elden çıkarıldı'):asset.status;default:return'—'}
 }

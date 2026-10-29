@@ -1093,6 +1093,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.Category).HasMaxLength(80);
             e.Property(x => x.AcquisitionCostBase).HasPrecision(18, 2);
             e.Property(x => x.ResidualValueBase).HasPrecision(18, 2);
+            e.Property(x => x.VukDepreciationLowerLimitTry).HasPrecision(18, 2);
+            e.Property(x => x.VukSourceUrl).HasMaxLength(500);
             e.Property(x => x.AccumulatedDepreciationBase).HasPrecision(18, 2);
             e.Property(x => x.SourceReference).HasMaxLength(120);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16).IsUnicode(false);

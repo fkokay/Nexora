@@ -39,6 +39,40 @@ public sealed class FixedAssetAcquisitionPostingIntegrationTests
     }
 
     [Fact]
+    public async Task Asset_creation_persists_server_owned_vuk_snapshot_for_acquisition_year()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var app = await StartAsync(tenantId);
+        using var client = Client(app, tenantId);
+
+        using var response = await client.PostAsJsonAsync("/api/fixed-assets", new
+        {
+            assetCode = "VUK-2026-01", name = "Test equipment", category = "Equipment",
+            acquisitionDate = new DateOnly(2026, 1, 15), inServiceDate = new DateOnly(2026, 1, 15),
+            acquisitionCostBase = 25000m, residualValueBase = 0m, usefulLifeMonths = 60,
+            // These extra fields are intentionally untrusted and are not accepted by the create contract.
+            vukTaxYear = 1900, vukDepreciationLowerLimitTry = 1m, vukCommuniqueNumber = 1,
+            vukSourceUrl = "https://attacker.invalid/"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(2026, json.RootElement.GetProperty("vukTaxYear").GetInt32());
+        Assert.Equal(12000m, json.RootElement.GetProperty("vukDepreciationLowerLimitTry").GetDecimal());
+        Assert.Equal(588, json.RootElement.GetProperty("vukCommuniqueNumber").GetInt32());
+        Assert.StartsWith("https://cdn.gib.gov.tr/", json.RootElement.GetProperty("vukSourceUrl").GetString(), StringComparison.Ordinal);
+
+        var id = json.RootElement.GetProperty("id").GetGuid();
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        var asset = await db.FixedAssets.SingleAsync(x => x.TenantId == tenantId && x.Id == id);
+        Assert.Equal(2026, asset.VukTaxYear);
+        Assert.Equal(12000m, asset.VukDepreciationLowerLimitTry);
+        Assert.Equal(588, asset.VukCommuniqueNumber);
+        Assert.StartsWith("https://cdn.gib.gov.tr/", asset.VukSourceUrl, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Acquisition_posting_requires_active_tenant_cost_mapping_and_offset_account()
     {
         var tenantId = Guid.NewGuid();
