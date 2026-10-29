@@ -168,6 +168,7 @@ public static class FixedAssetEndpoints
             if (endMonth > DateOnly.FromDateTime(DateTime.UtcNow).AddYears(20))
                 return Results.BadRequest(new { error = "Bitiş tarihi 20 yıldan fazla ileride olamaz." });
             var firstMonth = new DateOnly(asset.InServiceDate.Year, asset.InServiceDate.Month, 1).AddMonths(1);
+            var finalMonth = firstMonth.AddMonths(asset.UsefulLifeMonths - 1);
             var lastMonth = new DateOnly(endMonth.Year, endMonth.Month, 1);
             var postings = await db.FixedAssetDepreciationPostings.AsNoTracking().Where(x => x.TenantId == tenantId && x.AssetId == id)
                 .ToDictionaryAsync(x => x.PeriodStart, ct);
@@ -182,7 +183,9 @@ public static class FixedAssetEndpoints
                     rows.Add(new(month, posted.AmountBase, true, posted.JournalEntryId));
                     continue;
                 }
-                var amount = decimal.Min(plannedPerMonth, remaining);
+                // Keep the rounded monthly amount stable, then absorb any cent remainder
+                // in the final useful-life period so the schedule reaches residual value.
+                var amount = month == finalMonth ? remaining : decimal.Min(plannedPerMonth, remaining);
                 if (amount > 0) rows.Add(new(month, amount, false, null));
                 remaining -= amount;
             }
@@ -202,6 +205,7 @@ public static class FixedAssetEndpoints
             if (asset is null) return Results.NotFound();
             var month = request.PeriodStart;
             var firstMonth = new DateOnly(asset.InServiceDate.Year, asset.InServiceDate.Month, 1).AddMonths(1);
+            var finalMonth = firstMonth.AddMonths(asset.UsefulLifeMonths - 1);
             if (month < firstMonth || month > new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["periodStart"] = ["Yalnız kullanım tarihini izleyen ve geçerli döneme kadar olan aylar kaydedilebilir."] });
             if (await db.FixedAssetDepreciationPostings.AnyAsync(x => x.TenantId == tenantId && x.AssetId == id && x.PeriodStart == month, ct))
@@ -215,7 +219,9 @@ public static class FixedAssetEndpoints
                 return Results.Conflict(new { error = "Amortisman dönemleri sırayla kaydedilmelidir." });
             var depreciable = asset.AcquisitionCostBase - asset.ResidualValueBase;
             var remaining = depreciable - asset.AccumulatedDepreciationBase;
-            var amount = decimal.Min(decimal.Max(0.01m, decimal.Round(depreciable / asset.UsefulLifeMonths, 2, MidpointRounding.AwayFromZero)), remaining);
+            var amount = month == finalMonth
+                ? remaining
+                : decimal.Min(decimal.Max(0.01m, decimal.Round(depreciable / asset.UsefulLifeMonths, 2, MidpointRounding.AwayFromZero)), remaining);
             if (amount <= 0) return Results.Conflict(new { error = "Kıymetin amortismana tabi tutarı tamamen ayrılmış." });
             var mappings = await db.LedgerAccountMappings.AsNoTracking().Where(x => x.TenantId == tenantId &&
                     (x.MappingKey == DepreciationExpenseAccount || x.MappingKey == AccumulatedDepreciationAccount))
@@ -289,6 +295,7 @@ public static class FixedAssetEndpoints
                 return Results.Conflict(new { error = "Elden çıkarma ayı veya sonrasına kaydedilmiş amortisman var. Önce tarih sıralamasını düzeltin." });
 
             var firstMonth = new DateOnly(asset.InServiceDate.Year, asset.InServiceDate.Month, 1).AddMonths(1);
+            var finalMonth = firstMonth.AddMonths(asset.UsefulLifeMonths - 1);
             var scheduleThrough = disposalMonth.AddMonths(-1);
             var depreciable = asset.AcquisitionCostBase - asset.ResidualValueBase;
             var plannedPerMonth = decimal.Max(0.01m, decimal.Round(depreciable / asset.UsefulLifeMonths, 2, MidpointRounding.AwayFromZero));
@@ -301,7 +308,7 @@ public static class FixedAssetEndpoints
             {
                 var amount = postings.TryGetValue(month, out var posting)
                     ? posting.AmountBase
-                    : decimal.Min(plannedPerMonth, scheduleRemaining);
+                    : month == finalMonth ? scheduleRemaining : decimal.Min(plannedPerMonth, scheduleRemaining);
                 amount = decimal.Min(amount, scheduleRemaining);
                 scheduleAccumulated += amount;
                 scheduleRemaining -= amount;

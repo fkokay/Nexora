@@ -29,7 +29,7 @@ public sealed class FixedAssetDepreciationIntegrationTests
             AcquisitionDate = new DateOnly(2025, 1, 1),
             InServiceDate = new DateOnly(2025, 1, 1),
             AcquisitionCostBase = 1000m,
-            ResidualValueBase = 100m,
+            ResidualValueBase = 0m,
             UsefulLifeMonths = 3
         };
         var databaseName = $"fixed-asset-depreciation-{Guid.NewGuid():N}";
@@ -78,7 +78,7 @@ public sealed class FixedAssetDepreciationIntegrationTests
         using var february = await client.PostAsJsonAsync($"/api/fixed-assets/{asset.Id}/depreciation-postings", new { periodStart = "2025-02-01" });
         Assert.Equal(HttpStatusCode.Created, february.StatusCode);
         using var februaryBody = JsonDocument.Parse(await february.Content.ReadAsStringAsync());
-        Assert.Equal(300m, februaryBody.RootElement.GetProperty("amountBase").GetDecimal());
+        Assert.Equal(333.33m, februaryBody.RootElement.GetProperty("amountBase").GetDecimal());
 
         using var duplicate = await client.PostAsJsonAsync($"/api/fixed-assets/{asset.Id}/depreciation-postings", new { periodStart = "2025-02-01" });
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
@@ -89,12 +89,22 @@ public sealed class FixedAssetDepreciationIntegrationTests
         var rows = schedule.RootElement.GetProperty("rows").EnumerateArray().ToArray();
         Assert.Equal(3, rows.Length);
         Assert.Equal("2025-02-01", rows[0].GetProperty("periodStart").GetString());
-        Assert.Equal(300m, rows[0].GetProperty("amountBase").GetDecimal());
+        Assert.Equal(333.33m, rows[0].GetProperty("amountBase").GetDecimal());
         Assert.True(rows[0].GetProperty("isPosted").GetBoolean());
         Assert.Equal("2025-03-01", rows[1].GetProperty("periodStart").GetString());
-        Assert.Equal(300m, rows[1].GetProperty("amountBase").GetDecimal());
+        Assert.Equal(333.33m, rows[1].GetProperty("amountBase").GetDecimal());
         Assert.False(rows[1].GetProperty("isPosted").GetBoolean());
-        Assert.Equal(900m, rows.Sum(row => row.GetProperty("amountBase").GetDecimal()));
+        Assert.Equal(1000m, rows.Sum(row => row.GetProperty("amountBase").GetDecimal()));
+        Assert.Equal(333.34m, rows[2].GetProperty("amountBase").GetDecimal());
+
+        using var march = await client.PostAsJsonAsync($"/api/fixed-assets/{asset.Id}/depreciation-postings", new { periodStart = "2025-03-01" });
+        Assert.Equal(HttpStatusCode.Created, march.StatusCode);
+        using var marchBody = JsonDocument.Parse(await march.Content.ReadAsStringAsync());
+        Assert.Equal(333.33m, marchBody.RootElement.GetProperty("amountBase").GetDecimal());
+        using var april = await client.PostAsJsonAsync($"/api/fixed-assets/{asset.Id}/depreciation-postings", new { periodStart = "2025-04-01" });
+        Assert.Equal(HttpStatusCode.Created, april.StatusCode);
+        using var aprilBody = JsonDocument.Parse(await april.Content.ReadAsStringAsync());
+        Assert.Equal(333.34m, aprilBody.RootElement.GetProperty("amountBase").GetDecimal());
 
         using var foreignClient = app.GetTestClient();
         foreignClient.DefaultRequestHeaders.Add("X-Test-Tenant", otherTenantId.ToString("D"));
@@ -102,19 +112,24 @@ public sealed class FixedAssetDepreciationIntegrationTests
 
         await using var verifyScope = app.Services.CreateAsyncScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<TenantDbContext>();
-        var posting = await verifyDb.FixedAssetDepreciationPostings.SingleAsync(x => x.TenantId == tenantId && x.AssetId == asset.Id);
+        var posting = await verifyDb.FixedAssetDepreciationPostings.SingleAsync(x => x.TenantId == tenantId && x.AssetId == asset.Id
+            && x.PeriodStart == new DateOnly(2025, 2, 1));
         Assert.Equal(new DateOnly(2025, 2, 1), posting.PeriodStart);
         Assert.Equal(new DateOnly(2025, 2, 28), posting.PeriodEnd);
-        Assert.Equal(300m, posting.AmountBase);
+        Assert.Equal(333.33m, posting.AmountBase);
         Assert.Equal(userId, posting.PostedByUserId);
         var journal = await verifyDb.JournalEntries.Include(x => x.Lines).SingleAsync(x => x.Id == posting.JournalEntryId);
         Assert.Equal("FixedAssetDepreciation", journal.SourceType);
-        Assert.Equal(300m, journal.Lines.Sum(x => x.Debit));
-        Assert.Equal(300m, journal.Lines.Sum(x => x.Credit));
+        Assert.Equal(333.33m, journal.Lines.Sum(x => x.Debit));
+        Assert.Equal(333.33m, journal.Lines.Sum(x => x.Credit));
         Assert.Equal(expenseId, journal.Lines.Single(x => x.Debit > 0).AccountId);
         Assert.Equal(accumulatedId, journal.Lines.Single(x => x.Credit > 0).AccountId);
-        Assert.Equal(300m, (await verifyDb.FixedAssets.SingleAsync(x => x.Id == asset.Id)).AccumulatedDepreciationBase);
+        Assert.Equal(1000m, (await verifyDb.FixedAssets.SingleAsync(x => x.Id == asset.Id)).AccumulatedDepreciationBase);
         Assert.True(await verifyDb.AuditEvents.AnyAsync(x => x.TenantId == tenantId && x.Action == "fixed-asset.depreciation-posted"));
-        Assert.Single(await verifyDb.JournalEntries.Where(x => x.TenantId == tenantId).ToListAsync());
+        var depreciationJournals = await verifyDb.JournalEntries.Include(x => x.Lines)
+            .Where(x => x.TenantId == tenantId && x.SourceType == "FixedAssetDepreciation").ToListAsync();
+        Assert.Equal(3, depreciationJournals.Count);
+        Assert.Equal(1000m, depreciationJournals.Sum(x => x.Lines.Sum(line => line.Debit)));
+        Assert.Equal(1000m, depreciationJournals.Sum(x => x.Lines.Sum(line => line.Credit)));
     }
 }
