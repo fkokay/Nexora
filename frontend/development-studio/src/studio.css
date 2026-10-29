@@ -969,3 +969,32 @@
 .modal-backdrop:has(#database-engineer-title)>.modal textarea:focus{border-color:#3688c9;outline:0;box-shadow:0 0 0 3px rgba(15,108,189,.12)}
 .modal-backdrop:has(#database-engineer-title)>.modal .modal-foot{gap:12px;margin-top:4px;padding-top:13px;border-top:1px solid #e2e9f0}
 @media(max-width:760px){.modal-backdrop:has(#database-engineer-title){align-items:stretch;padding:8px}.modal-backdrop:has(#database-engineer-title)>.modal{width:100%;max-width:none;max-height:100%;padding:14px;border-radius:11px}.modal-backdrop:has(#database-engineer-title)>.modal>.modal-head{min-height:58px;margin:-14px -14px 14px;padding:11px 14px}}
+
+/* Clearer project and isolated-workspace panels. */
+.studio-dashboard .studio-projects-panel{border-color:#d8e3ed;border-radius:14px;background:linear-gradient(145deg,#fff 0%,#fbfdff 100%);box-shadow:0 10px 28px rgba(20,48,78,.07)}
+.studio-dashboard .studio-projects-panel>.panel-heading{gap:18px;padding-bottom:15px;border-bottom:1px solid #e8eef4}
+.studio-dashboard .studio-projects-panel .panel-heading h3{color:#17324d;font-size:17px;letter-spacing:-.02em}
+.studio-dashboard .studio-projects-panel .panel-heading p{margin-top:4px;color:#71839a;font-size:11px}
+.studio-dashboard .studio-projects-panel .studio-project-table-wrap{overflow:auto;border:1px solid #e1e9f1;border-radius:10px;background:#fff}
+.studio-dashboard .studio-projects-panel .studio-project-table{width:100%;border-collapse:separate;border-spacing:0}
+.studio-dashboard .studio-projects-panel .studio-project-table th{padding:11px 12px;background:#f4f8fc;color:#657a91;font-size:9px;font-weight:750;letter-spacing:.07em;text-transform:uppercase}
+.studio-dashboard .studio-projects-panel .studio-project-table td{padding:12px;border-top:1px solid #edf1f5;color:#354b61;font-size:11px;vertical-align:middle}
+.studio-dashboard .studio-projects-panel .studio-project-table tbody tr:hover{background:#f7fbff}
+.studio-dashboard .studio-projects-panel .studio-project-name>span{width:36px;height:36px;border:1px solid #dbe9f7;border-radius:10px;background:#eef6ff;color:#1473bf}
+.studio-dashboard .studio-projects-panel .studio-project-name b{color:#203951;font-size:12px}
+.studio-dashboard .studio-projects-panel .studio-project-name small{max-width:240px;color:#77899d;font-size:10px}
+.studio-dashboard .studio-projects-panel .studio-project-commands{gap:6px;flex-wrap:wrap}
+.studio-dashboard .studio-projects-panel .studio-project-commands .secondary{border-color:#d7e3ef;background:#fff;color:#35516c}
+.studio-dashboard .studio-projects-panel>.studio-boundary,.studio-dashboard .studio-projects-panel>.boundary-note{border-color:#dce8f3;border-radius:10px;background:#f6faff;color:#58728b}
+.studio-workspace-requests{border-color:#d8e3ed!important;border-radius:14px!important;background:linear-gradient(150deg,#fff 0%,#fbfdff 100%)!important;box-shadow:0 10px 28px rgba(20,48,78,.07)!important}
+.studio-workspace-requests>.list-toolbar{gap:14px;padding-bottom:14px;border-bottom-color:#e8eef4}
+.studio-workspace-requests>.list-toolbar h3{color:#17324d;font-size:17px;letter-spacing:-.02em}
+.studio-workspace-requests>.list-toolbar p{margin-top:4px;color:#71839a;font-size:11px}
+.studio-workspace-requests>.requests-list>.workspace-request-row{min-height:90px;padding:15px 16px;border-color:#e1e9f1;border-radius:11px;background:#fff;box-shadow:0 3px 10px rgba(20,48,78,.035);transition:border-color .16s,box-shadow .16s,transform .16s}
+.studio-workspace-requests>.requests-list>.workspace-request-row:hover{transform:translateY(-1px);border-color:#b9d2e8;background:#fff;box-shadow:0 8px 20px rgba(20,48,78,.08)}
+.studio-workspace-requests .workspace-request-row>.request-symbol{width:38px;height:38px;border:1px solid #d8e9f8;border-radius:11px;background:#eff7ff;color:#1674bd}
+.studio-workspace-requests .workspace-request-heading>b{color:#203951;font-size:12px;line-height:1.5}
+.studio-workspace-requests .workspace-request-row .request-info>small{color:#73869a;font-size:10px;line-height:1.55}
+.studio-workspace-requests .workspace-request-row .small-button{min-height:33px;border-radius:7px}
+.studio-workspace-requests .workspace-request-actions>.primary{background:#0f6cbd;box-shadow:0 4px 10px rgba(15,108,189,.16)}
+@media(max-width:760px){.studio-dashboard .studio-projects-panel>.panel-heading{align-items:flex-start}.studio-dashboard .studio-projects-panel .studio-project-table{min-width:760px}.studio-workspace-requests>.list-toolbar{align-items:flex-start;flex-wrap:wrap}.studio-workspace-requests>.list-toolbar>.small-button{margin-left:auto}}

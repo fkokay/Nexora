@@ -8,6 +8,23 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: 'monaco-editor',
+                test: /node_modules[\\/]monaco-editor[\\/]/,
+                minSize: 10_000,
+                maxSize: 350_000,
+                priority: 10,
+              },
+            ],
+          },
+        },
+      },
+    },
     server: {
       host: '0.0.0.0',
       port: 5175,
