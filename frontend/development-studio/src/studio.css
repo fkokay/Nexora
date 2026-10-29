@@ -998,3 +998,36 @@
 .studio-workspace-requests .workspace-request-row .small-button{min-height:33px;border-radius:7px}
 .studio-workspace-requests .workspace-request-actions>.primary{background:#0f6cbd;box-shadow:0 4px 10px rgba(15,108,189,.16)}
 @media(max-width:760px){.studio-dashboard .studio-projects-panel>.panel-heading{align-items:flex-start}.studio-dashboard .studio-projects-panel .studio-project-table{min-width:760px}.studio-workspace-requests>.list-toolbar{align-items:flex-start;flex-wrap:wrap}.studio-workspace-requests>.list-toolbar>.small-button{margin-left:auto}}
+
+/* Workspace request queue: clearer hierarchy and a calmer, more actionable card. */
+.studio-workspace-requests>.list-toolbar{align-items:center;gap:18px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #e7edf4}
+.studio-workspace-requests>.list-toolbar>div{min-width:0}
+.studio-workspace-requests>.list-toolbar h3{display:flex;align-items:center;gap:9px;color:#17324d;font-size:18px;letter-spacing:-.035em}
+.studio-workspace-requests>.list-toolbar h3::before{content:"";width:3px;height:20px;border-radius:3px;background:linear-gradient(180deg,#37a1df,#126bb3)}
+.studio-workspace-requests>.list-toolbar p{display:inline-flex;align-items:center;gap:6px;margin:7px 0 0;padding:4px 9px;border:1px solid #e4edf5;border-radius:999px;background:#f5f9fd;color:#536d86;font-size:10px;font-weight:650}
+.studio-workspace-requests>.list-toolbar p::before{content:"";width:6px;height:6px;border-radius:50%;background:#31a97b;box-shadow:0 0 0 3px #e3f5ed}
+.studio-workspace-requests>.list-toolbar>.small-button{min-height:36px;display:inline-flex;align-items:center;gap:8px;padding:0 11px;border-color:#dbe6f0;border-radius:8px;background:#fff;color:#35536f;font-size:10px;font-weight:650;white-space:nowrap;transition:background .16s,border-color .16s,transform .16s}
+.studio-workspace-requests>.list-toolbar>.small-button:hover{transform:translateY(-1px);border-color:#b8d1e7;background:#f7fbff}
+.studio-workspace-requests>.requests-list{gap:11px}
+.studio-workspace-requests>.requests-list>.workspace-request-row{position:relative;min-height:94px;overflow:hidden;padding:16px;gap:14px;border-color:#e0e9f2;border-radius:12px;background:linear-gradient(110deg,#fff 0%,#fbfdff 100%);box-shadow:0 3px 12px rgba(23,50,77,.035)}
+.studio-workspace-requests>.requests-list>.workspace-request-row::before{position:absolute;inset:0 auto 0 0;width:3px;background:#c4d8e9;content:"";transition:background .16s}
+.studio-workspace-requests>.requests-list>.workspace-request-row:has(.workspace-request-status-ready)::before{background:#36ae82}
+.studio-workspace-requests>.requests-list>.workspace-request-row:has(.workspace-request-status-pendingapproval)::before{background:#e6ae48}
+.studio-workspace-requests>.requests-list>.workspace-request-row:has(.workspace-request-status-provisioning)::before{background:#438fd0}
+.studio-workspace-requests>.requests-list>.workspace-request-row:has(.workspace-request-status-provisioningfailed)::before,.studio-workspace-requests>.requests-list>.workspace-request-row:has(.workspace-request-status-rejected)::before{background:#d46a6a}
+.studio-workspace-requests .workspace-request-row>.request-symbol{width:40px;height:40px;flex:none;border-color:#dceaf6;border-radius:12px;background:linear-gradient(145deg,#f1f8fe,#e8f3fc);color:#1775b8;box-shadow:inset 0 1px #fff}
+.studio-workspace-requests .workspace-request-row .request-info{gap:6px;padding:1px 0}
+.studio-workspace-requests .workspace-request-heading{gap:12px}
+.studio-workspace-requests .workspace-request-heading>b{color:#1c3852;font-size:12px;font-weight:700;line-height:1.45;letter-spacing:-.01em}
+.studio-workspace-requests .workspace-request-status{padding:5px 9px;border-radius:999px;font-size:9px;letter-spacing:.01em}
+.studio-workspace-requests .workspace-request-row .request-info>small{color:#75889b;font-size:9px;line-height:1.55;overflow-wrap:anywhere}
+.studio-workspace-requests .workspace-request-row .request-info>small:last-child{max-width:100%;color:#8796a6}
+.studio-workspace-requests .workspace-request-row .small-button{min-height:34px;padding:0 11px;border-radius:8px;font-size:9px;font-weight:650}
+.studio-workspace-requests .workspace-request-row .secondary.small-button{border-color:#dce5ed;background:#fff;color:#4d647a}
+.studio-workspace-requests .workspace-request-row .secondary.small-button:hover{border-color:#b9d2e7;background:#f6faff;color:#176eae}
+.studio-workspace-requests .workspace-request-actions{gap:8px}
+.studio-workspace-requests .workspace-request-actions>.primary{min-height:36px;padding:0 13px;border-radius:8px;background:linear-gradient(110deg,#1477bd,#0865aa);box-shadow:0 4px 12px rgba(15,108,189,.18);font-size:10px}
+.studio-workspace-requests .workspace-request-actions>.primary:hover{background:linear-gradient(110deg,#0e6eae,#075d9e);box-shadow:0 6px 15px rgba(15,108,189,.23)}
+.studio-workspace-requests>.requests-list>.empty-small{min-height:100px;justify-content:center;border:1px dashed #d7e3ed;border-radius:11px;background:#f8fbfe;color:#687d91}
+@media(max-width:760px){.studio-workspace-requests>.list-toolbar{align-items:flex-start}.studio-workspace-requests>.list-toolbar h3{font-size:16px}.studio-workspace-requests>.list-toolbar>.small-button{margin-left:auto}.studio-workspace-requests>.requests-list>.workspace-request-row{padding:13px 12px 13px 14px}.studio-workspace-requests .workspace-request-row .request-info{flex:1 1 calc(100% - 56px)}.studio-workspace-requests .workspace-request-heading{align-items:flex-start}.studio-workspace-requests .workspace-request-status{margin-top:1px}}
+@media(max-width:560px){.studio-workspace-requests>.list-toolbar{gap:10px}.studio-workspace-requests>.list-toolbar>.small-button{min-height:32px;padding:0 8px;font-size:9px}.studio-workspace-requests .workspace-request-heading{align-items:flex-start;flex-direction:column;gap:7px}.studio-workspace-requests .workspace-request-heading>b{white-space:normal;overflow-wrap:anywhere}.studio-workspace-requests .workspace-request-actions{margin-left:0!important}.studio-workspace-requests .workspace-request-row>.small-button{margin-left:0!important}}
