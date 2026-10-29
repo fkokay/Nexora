@@ -26,5 +26,5 @@ Applied on 2026-10-29 after identifying the active `Nexora Demo` development ten
 - Active tenant database: `AIERPTenant_207af7e7d83f41c288d7cba5856f1109`; baseline `20261029100426_AddAttendanceApprovalV2`; target `20261029134657_AddCreditFacilitySecurities` verified.
 - COPY_ONLY, CHECKSUM backups were created under `/var/opt/mssql/backups/` as `AIERPPlatform-pre-20261029.bak` and `AIERPTenant_207af7e7d83f41c288d7cba5856f1109-pre-20261029.bak`; both passed `RESTORE VERIFYONLY WITH CHECKSUM`.
 - Platform and tenant verification scripts succeeded after application.
-- Platform API, ERP web, AI service, Development Studio, Workspace Runner, SQL Server, Vault, and Release Deployer containers were already running; ERP and Studio public health endpoints returned HTTP 200. Studio project listing returned HTTP 401 without an authenticated session, as expected.
-- API/container image deployment was not performed in this application step. The checked-out local worktree contains unrelated user edits, so no broad rebuild was made from it.
+- The matching Platform API image was built from clean pushed commit `c7e43bcc` through the `nexora-remote` Docker context and deployed using `up -d --no-deps platform-api`; no dependency or other service was recreated. The API container became healthy, and public ERP/Studio `/health` endpoints returned HTTP 200 with `platform-database-only` readiness.
+- The checked-out local worktree contains unrelated user edits; none were included in the API build or deployment.
