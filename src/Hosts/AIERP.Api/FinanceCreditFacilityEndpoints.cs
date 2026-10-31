@@ -103,6 +103,38 @@ public static class FinanceCreditFacilityEndpoints
             });
         });
 
+        group.MapGet("/securities/alerts", async (int? expiryWithinDays, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetTenantId(user, out var tenantId)) return Results.Forbid();
+            var days = expiryWithinDays ?? 30;
+            if (days is < 0 or > 365)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["expiryWithinDays"] = ["Süre 0–365 gün arasında olmalıdır."] });
+
+            var today = IstanbulToday();
+            var through = today.AddDays(days);
+            var active = db.CreditFacilitySecurities.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.Status == CreditSecurityStatus.Active);
+            var expiredCount = await active.CountAsync(x => x.ExpiryDate < today, ct);
+            var expiringCount = await active.CountAsync(x => x.ExpiryDate >= today && x.ExpiryDate <= through, ct);
+            var items = await active.Where(x => x.ExpiryDate <= through)
+                .OrderBy(x => x.ExpiryDate).ThenBy(x => x.Code).Take(10)
+                .Select(x => new
+                {
+                    x.Id,
+                    facilityCode = x.CreditFacility.Code,
+                    type = x.Type.ToString(),
+                    x.Code,
+                    x.Issuer,
+                    x.Beneficiary,
+                    x.Amount,
+                    x.CurrencyCode,
+                    x.ExpiryDate,
+                    alert = x.ExpiryDate < today ? "Expired" : "Expiring"
+                }).ToListAsync(ct);
+
+            return Results.Ok(new { asOf = today, expiryWithinDays = days, expiredCount, expiringCount, items });
+        });
+
         group.MapGet("/exposure-summary", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryGetTenantId(user, out var tenantId)) return Results.Forbid();
