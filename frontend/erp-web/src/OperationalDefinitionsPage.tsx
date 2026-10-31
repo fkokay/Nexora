@@ -1,9 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { ArrowRight, Plus, RefreshCw, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { authenticatedFetch } from './authApi'
+import './operational-definitions.css'
+import { OperationalDefinitionsHeader } from './operational-definitions/components/OperationalDefinitionsHeader'
+import { DefinitionForm } from './operational-definitions/components/DefinitionForm'
+import { DefinitionGrid } from './operational-definitions/components/DefinitionGrid'
+import { OperationalDefinitionLinks } from './operational-definitions/components/OperationalDefinitionLinks'
+import type { Definition, DefinitionKind } from './operational-definitions/types'
 
-type DefinitionKind = 'Workplace' | 'Branch' | 'Factory'
-type Definition = { id: string; code: string; name: string; kind: DefinitionKind; isActive: boolean; rowVersion: string }
 
 async function request<T>(token: string, path: string, init?: RequestInit): Promise<T> {
   const response = await authenticatedFetch(path, token, { ...init, headers: { Authorization: 'Bearer ' + token, ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } })
@@ -42,14 +46,13 @@ export default function OperationalDefinitionsPage({ token, locale, onNavigate }
   }
   const kindName = (value: DefinitionKind) => value === 'Workplace' ? tx('İş yeri', 'Workplace') : value === 'Branch' ? tx('Şube', 'Branch') : tx('Fabrika', 'Factory')
 
-  return <><div className="page-heading"><div><p className="eyebrow">{tx('FİRMA TANIMLARI', 'COMPANY DEFINITIONS')}</p><h1>{tx('İş yeri, şube ve fabrika', 'Workplaces, branches and factories')}</h1><p className="muted">{tx('Firma lokasyonlarını tanımlayın. Depolar, stok işlemleri ve raf/konum bağlantılarıyla birlikte ayrı depo kayıtları olarak yönetilir.', 'Define company locations. Warehouses remain separate records managed with inventory and storage locations.')}</p></div><button className="secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={15}/>{tx('Yenile', 'Refresh')}</button></div>
+  return <div className="operational-definitions-page"><OperationalDefinitionsHeader tx={tx} loading={loading} onRefresh={() => void load()} />
     {error && <div className="alert inline-alert" role="alert">{error}<button type="button" onClick={() => setError('')}><X size={15}/></button></div>}
     {notice && <div className="notice">{notice}<button type="button" onClick={() => setNotice('')}><X size={15}/></button></div>}
-    <section className="panel"><div className="panel-heading"><div><h2>{tx('Organizasyon tanımları', 'Organization definitions')}</h2><p>{tx('İş yeri, şube ve fabrikalar; personel iş yeri atamaları ve çalışma takvimlerinde kullanılabilir.', 'Workplaces, branches and factories can be used in employee assignments and work calendars.')}</p></div></div>
-      <form className="collection-form" onSubmit={save}><div className="form-two"><label>{tx('Tanım türü', 'Definition type')}<select value={kind} onChange={event => setKind(event.target.value as DefinitionKind)}><option value="Workplace">{tx('İş yeri', 'Workplace')}</option><option value="Branch">{tx('Şube', 'Branch')}</option><option value="Factory">{tx('Fabrika', 'Factory')}</option></select></label><label>{tx('Kod', 'Code')}<input value={code} onChange={event => setCode(event.target.value.toUpperCase())} maxLength={40} required/></label><label>{tx('Ad', 'Name')}<input value={name} onChange={event => setName(event.target.value)} maxLength={120} required/></label></div><div className="modal-foot"><span>{editing ? tx('Seçili tanımı düzenleyin.', 'Edit the selected definition.') : tx('Yeni tanım ekleyin.', 'Add a new definition.')}</span><div>{editing && <button type="button" className="secondary" onClick={clearForm}>{tx('Vazgeç', 'Cancel')}</button>}<button className="primary" disabled={busy}><Plus size={16}/>{busy ? tx('Kaydediliyor…', 'Saving…') : editing ? tx('Değişiklikleri kaydet', 'Save changes') : tx('Tanım ekle', 'Add definition')}</button></div></div></form>
-      <div className="ledger-list"><table className="customer-table"><thead><tr><th>{tx('Tür', 'Type')}</th><th>{tx('Kod', 'Code')}</th><th>{tx('Ad', 'Name')}</th><th>{tx('Durum', 'Status')}</th><th>{tx('İşlemler', 'Actions')}</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{kindName(row.kind)}</td><td><b>{row.code}</b></td><td>{row.name}</td><td>{row.isActive ? tx('Etkin', 'Active') : tx('Devre dışı', 'Inactive')}</td><td><button type="button" className="row-action" disabled={busy} onClick={() => { setEditing(row); setKind(row.kind); setCode(row.code); setName(row.name) }}>{tx('Düzenle', 'Edit')}</button><button type="button" className="row-action" disabled={busy} onClick={() => void toggle(row)}>{row.isActive ? tx('Devre dışı bırak', 'Deactivate') : tx('Etkinleştir', 'Activate')}</button></td></tr>)}{!loading && rows.length === 0 && <tr><td colSpan={5} className="table-empty">{tx('Henüz tanım yok.', 'No definitions yet.')}</td></tr>}</tbody></table></div>
+    <section className="panel op-definitions-panel"><div className="panel-heading"><div><h2>{tx('Organizasyon tanımları', 'Organization definitions')}</h2><p>{tx('İş yeri, şube ve fabrikalar; personel iş yeri atamaları ve çalışma takvimlerinde kullanılabilir.', 'Workplaces, branches and factories can be used in employee assignments and work calendars.')}</p></div></div>
+      <DefinitionForm tx={tx} kind={kind} code={code} name={name} editing={editing} busy={busy} onSubmit={save} onKindChange={setKind} onCodeChange={setCode} onNameChange={setName} onCancel={clearForm} />
+      <DefinitionGrid rows={rows} loading={loading} busy={busy} tx={tx} kindName={kindName} onEdit={row => { setEditing(row); setKind(row.kind); setCode(row.code); setName(row.name) }} onToggle={row => void toggle(row)} />
     </section>
-    <section className="panel"><div className="panel-heading"><div><h2>{tx('Depo tanımları', 'Warehouse definitions')}</h2><p>{tx('Stok bakiyesi, depo transferleri ve raf/konum yönetimi için depoları açın ve düzenleyin.', 'Create and edit warehouses for inventory, transfers, and storage locations.')}</p></div><button className="primary" onClick={() => onNavigate('inventory-warehouses')}>{tx('Depo tanımlarını aç', 'Open warehouse definitions')}<ArrowRight size={15}/></button></div></section>
-    <section className="panel"><div className="panel-heading"><div><h2>{tx('Adres tanımları', 'Address definitions')}</h2><p>{tx('Cari adreslerinde kullanılan il ve ilçe kayıtlarını yönetin.', 'Manage provinces and districts used in customer and supplier addresses.')}</p></div><button className="secondary" onClick={() => onNavigate('address-definitions')}>{tx('Adres tanımlarını aç', 'Open address definitions')}<ArrowRight size={15}/></button></div></section>
-  </>
+    <OperationalDefinitionLinks tx={tx} onNavigate={onNavigate} />
+  </div>
 }

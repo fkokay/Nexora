@@ -546,15 +546,14 @@ public static class ReportEndpoints
         var ordersQuery = db.ManufacturingOrders.AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.PlannedDate >= from && x.PlannedDate <= to);
         var totalCount = await ordersQuery.CountAsync(ct);
-        if (totalCount > 1000)
-            return Results.Problem("Dönem en fazla 1.000 üretim emri içerebilir. Tarih aralığını daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
 
         var baseCurrencyCode = await platformDb.Tenants.AsNoTracking().Where(x => x.Id == tenantId)
             .Select(x => x.BaseCurrencyCode).SingleOrDefaultAsync(ct);
         if (baseCurrencyCode is null) return Results.Forbid();
-        var allOrders = await ordersQuery.OrderBy(x => x.PlannedDate).ThenBy(x => x.Code)
+        var pageOrders = await ordersQuery.OrderBy(x => x.PlannedDate).ThenBy(x => x.Code)
+            .Skip((page - 1) * pageSize).Take(pageSize)
             .Include(x => x.Operations).Include(x => x.Lines).AsSplitQuery().ToListAsync(ct);
-        var orderIds = allOrders.Select(x => x.Id).ToArray();
+        var orderIds = pageOrders.Select(x => x.Id).ToArray();
         var materialCosts = new Dictionary<Guid, (int MovementCount, int UnknownCostCount, decimal? NetCostBase)>();
         var productStockItemByOrder = new Dictionary<Guid, Guid>();
         if (orderIds.Length > 0)
@@ -588,7 +587,7 @@ public static class ReportEndpoints
             }
         }
 
-        var details = allOrders.Select(order =>
+        var details = pageOrders.Select(order =>
         {
             var plannedLabor = decimal.Round(order.Operations.Sum(operation => (operation.SetupMinutes + operation.RunMinutes) / 60m * operation.LaborCostPerHourBase), 4, MidpointRounding.AwayFromZero);
             var plannedOverhead = decimal.Round(order.Operations.Sum(operation => (operation.SetupMinutes + operation.RunMinutes) / 60m * operation.OverheadCostPerHourBase), 4, MidpointRounding.AwayFromZero);
@@ -616,7 +615,7 @@ public static class ReportEndpoints
                 // but legacy/unlinked movements prevent proving that it is complete for an order.
                 null, null);
         }).ToArray();
-        var pageRows = details.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
+        var pageRows = details;
         var pageTotals = new ManufacturingCostVarianceTotals(pageRows.Length,
             pageRows.Sum(x => x.PlannedLaborBase), pageRows.All(x => x.ActualLaborBase is not null) ? pageRows.Sum(x => x.ActualLaborBase!.Value) : null,
             pageRows.Sum(x => x.PlannedOverheadBase), pageRows.All(x => x.ActualOverheadBase is not null) ? pageRows.Sum(x => x.ActualOverheadBase!.Value) : null,

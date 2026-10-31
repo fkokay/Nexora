@@ -4,6 +4,18 @@ const platformSessionKey = 'aierp.platformSession'
 
 let refreshInFlight: Promise<string | null> | null = null
 
+function tokenExpiresSoon(token: string, leewayMs = 60_000): boolean {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return false
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const claims = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '='))) as { exp?: unknown }
+    return typeof claims.exp === 'number' && claims.exp * 1000 <= Date.now() + leewayMs
+  } catch {
+    return false
+  }
+}
+
 async function addTraceIdentifierToError(response: Response): Promise<Response> {
   if (response.ok || !(response.status === 403 || response.status === 404 || response.status >= 500)) return response
 
@@ -106,12 +118,19 @@ export async function authenticatedFetch(url: string, token?: string, init?: Req
     })
   }
 
-  let response = await send(token)
-  if (response.status !== 401 || !token || url.startsWith('/api/auth/')) return addTraceIdentifierToError(response)
+  let accessToken = token
+  const storedToken = localStorage.getItem(accessTokenKey)
+  if (accessToken && storedToken && storedToken !== accessToken) accessToken = storedToken
+  if (accessToken && !url.startsWith('/api/auth/') && tokenExpiresSoon(accessToken)) {
+    accessToken = await refreshAccessToken() || accessToken
+  }
+
+  let response = await send(accessToken)
+  if (response.status !== 401 || !accessToken || url.startsWith('/api/auth/')) return addTraceIdentifierToError(response)
 
   const currentToken = localStorage.getItem(accessTokenKey)
-  const refreshedToken = currentToken && currentToken !== token ? currentToken : await refreshAccessToken()
+  const refreshedToken = currentToken && currentToken !== accessToken ? currentToken : await refreshAccessToken()
   if (refreshedToken) response = await send(refreshedToken)
-  if (response.status === 401) window.dispatchEvent(new CustomEvent('aierp:session-expired', { detail: token }))
+  if (response.status === 401) window.dispatchEvent(new CustomEvent('aierp:session-expired', { detail: accessToken }))
   return addTraceIdentifierToError(response)
 }

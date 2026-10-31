@@ -1,0 +1,1 @@
+function e(e){return new Worker(`/assets/css.worker-C6lDtRpF.js`,{name:e?.name})}export{e as t};

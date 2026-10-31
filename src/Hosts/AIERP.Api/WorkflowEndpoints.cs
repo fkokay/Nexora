@@ -159,7 +159,7 @@ internal static class WorkflowEndpoints
             var instance = await db.TenantWorkflowInstances.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (instance is null) return Results.NotFound();
             var transition = TenantWorkflowSchema.Decide(instance.Status, ReadSteps(instance.StepsJsonSnapshot), instance.CurrentStepIndex,
-                userId, instance.StartedByUserId, role, request.Decision!);
+                userId, instance.StartedByUserId, role, request.Decision!, allowRequesterDecision: role == "TenantAdmin" && instance.SubjectType == "PurchaseRequest" && request.Decision == "Approved");
             if (!transition.IsAllowed) return transition.Error switch
             {
                 "The requester cannot decide their own workflow." or "The user is not assigned to the current workflow step." => Results.Forbid(),

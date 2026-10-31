@@ -302,6 +302,7 @@ auth.MapPost("/login", async (LoginRequest request, PlatformDbContext db, IConfi
         tenants = user.Memberships.Where(m => m.Tenant.IsActive).Select(m => new TenantSummary(m.TenantId, m.Tenant.Name, m.Tenant.Slug, m.Role)) });
 }).RequireRateLimiting("login");
 
+auth.MapAccessibleTenantsEndpoint();
 auth.MapSelectTenantEndpoint();
 auth.MapRefreshEndpoint();
 auth.MapLogoutEndpoint();
@@ -957,7 +958,7 @@ app.MapPost("/api/ai-settings/nvidia-models", async (NvidiaModelsRequest request
         }
     }
 }).RequireAuthorization();
-app.MapGet("/api/audit-events", async (ClaimsPrincipal principal, PlatformDbContext db, int page = 1, int pageSize = 50, DateOnly? from = null, DateOnly? to = null, string? q = null) =>
+app.MapGet("/api/audit-events", async (ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 50, DateOnly? from = null, DateOnly? to = null, string? q = null) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -976,11 +977,13 @@ app.MapGet("/api/audit-events", async (ClaimsPrincipal principal, PlatformDbCont
         .Skip((page - 1) * pageSize).Take(pageSize)
         .Select(x => new
         {
-            x.Id, x.Action, x.Resource, x.UserId, x.OccurredAt,
-            DisplayName = db.Users.Where(user => user.Id == x.UserId).Select(user => user.DisplayName).FirstOrDefault()
+            x.Id, x.Action, x.Resource, x.UserId, x.OccurredAt
         }).ToListAsync();
+    var userIds = rows.Where(x => x.UserId.HasValue).Select(x => x.UserId!.Value).Distinct().ToArray();
+    var userNames = await platformDb.Users.AsNoTracking().Where(x => userIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => x.DisplayName);
     var items = rows.Select(x => new AuditEventView(x.Id, x.Action, AuditResourceSanitizer.Sanitize(x.Resource), x.UserId,
-        x.DisplayName, x.OccurredAt)).ToList();
+        x.UserId is { } userId ? userNames.GetValueOrDefault(userId) : null, x.OccurredAt)).ToList();
     return Results.Ok(new AuditEventPage(items, page, pageSize, total));
 }).RequireAuthorization();
 
@@ -1015,6 +1018,7 @@ auditRetention.MapPut("/", async (AuditRetentionPolicyWriteRequest request, Clai
 var customers = app.MapGroup("/api/customers").WithTags("Cari Yönetimi").RequireAuthorization();
 customers.RequireVisibleCustomerRows();
 customers.MapCustomerBalanceEndpoint();
+customers.MapCustomerBulkImportEndpoint();
 var customerLocationDefinitions = app.MapGroup("/api/location-definitions").WithTags("Tanımlamalar").RequireAuthorization();
 customerLocationDefinitions.MapGet("/", async (TenantDbContext db) =>
 {
@@ -1358,7 +1362,7 @@ customers.MapGet("/company-options", async (string? q, Guid? excludeId, ClaimsPr
         .Select(x => new CustomerCompanyOption(x.Id, x.Code, x.Name)).ToListAsync(ct);
     return Results.Ok(companies);
 });
-customers.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct, int page = 1, int pageSize = 25) =>
+customers.MapGet("/", async (string? q, string? type, string? status, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var userId = GetUserId(principal);
@@ -1373,6 +1377,9 @@ customers.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbConte
         var term = q.Trim();
         query = query.Where(x => x.Code.Contains(term) || x.Name.Contains(term) || (x.TaxNumber != null && x.TaxNumber.Contains(term)));
     }
+    if (Enum.TryParse<CounterpartyType>(type, ignoreCase: true, out var parsedType)) query = query.Where(x => x.Type == parsedType);
+    if (status is "Active") query = query.Where(x => x.IsActive);
+    else if (status is "Inactive") query = query.Where(x => !x.IsActive);
     var total = await query.CountAsync();
     var items = await query.OrderBy(x => x.Name).ThenBy(x => x.Code).Skip((page - 1) * pageSize).Take(pageSize)
         .Select(x => new CustomerView(x.Id, x.Code, x.Name, x.Type, x.TaxNumber, x.IsActive, x.CreatedAt, x.RowVersion,
@@ -1679,6 +1686,7 @@ customers.MapPost("/{id:guid}/ledger/{entryId:guid}/reverse", async (Guid id, Gu
 });
 
 var stockItems = app.MapGroup("/api/stock/items").RequireAuthorization();
+stockItems.MapStockBulkImportEndpoint();
 var stockCategories = app.MapGroup("/api/stock/categories").RequireAuthorization();
 stockCategories.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -2614,6 +2622,73 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new { transferRecord.Id, transferRecord.Code, transferRecord.Status });
 });
+warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, string? q, bool belowMinimumOnly, int page, int pageSize, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId)) return Results.NotFound();
+    page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
+    var query = db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive);
+    if (!string.IsNullOrWhiteSpace(q))
+    {
+        var term = q.Trim();
+        query = query.Where(x => x.Code.Contains(term) || x.Name.Contains(term) || (x.Barcode != null && x.Barcode.Contains(term)) || (x.Category != null && x.Category.Contains(term)));
+    }
+
+    List<StockItem> selectedItems;
+    int totalCount;
+    if (belowMinimumOnly)
+    {
+        var candidates = await query.OrderBy(x => x.Name).ThenBy(x => x.Code).ToListAsync();
+        var candidateIds = candidates.Select(x => x.Id).ToArray();
+        var quantities = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && candidateIds.Contains(x.StockItemId))
+            .GroupBy(x => x.StockItemId).Select(g => new { StockItemId = g.Key, Quantity = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) })
+            .ToDictionaryAsync(x => x.StockItemId, x => x.Quantity);
+        var lowItems = candidates.Where(x => quantities.GetValueOrDefault(x.Id) < x.MinimumStock).ToList();
+        totalCount = lowItems.Count;
+        selectedItems = lowItems.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+    }
+    else
+    {
+        totalCount = await query.CountAsync();
+        selectedItems = await query.OrderBy(x => x.Name).ThenBy(x => x.Code).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+    }
+
+    var stockIds = selectedItems.Select(x => x.Id).ToArray();
+    var totals = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && stockIds.Contains(x.StockItemId))
+        .GroupBy(x => x.StockItemId).Select(g => new { StockItemId = g.Key,
+            Quantity = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity),
+            Valuation = g.Sum(x => (decimal?)(x.UnitCostBase == null ? 0m : (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) * x.UnitCostBase.Value)) ?? 0m,
+            Unvalued = g.Sum(x => (decimal?)(x.UnitCostBase == null ? (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) : 0m)) ?? 0m })
+        .ToDictionaryAsync(x => x.StockItemId);
+    var valueAdjustments = await db.InventoryCostAdjustmentLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && stockIds.Contains(x.StockItemId))
+        .GroupBy(x => x.StockItemId).Select(g => new { StockItemId = g.Key, Amount = g.Sum(x => x.AmountBase) }).ToDictionaryAsync(x => x.StockItemId, x => x.Amount);
+    var reserved = await db.SalesOrderReservations.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.Status == SalesOrderReservationStatus.Active && stockIds.Contains(x.OrderLine.StockItemId))
+        .GroupBy(x => x.OrderLine.StockItemId).Select(g => new { StockItemId = g.Key, Quantity = g.Sum(x => x.Quantity - x.FulfilledQuantity) }).ToDictionaryAsync(x => x.StockItemId, x => x.Quantity);
+    var baseCurrency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.BaseCurrencyCode).SingleAsync();
+
+    var activeMinimums = await db.StockItems.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.IsActive)
+        .Select(x => new { x.Id, x.MinimumStock })
+        .ToListAsync();
+    var belowTotals = await db.InventoryTransactions.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId)
+        .GroupBy(x => x.StockItemId)
+        .Select(g => new { StockItemId = g.Key, Quantity = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) })
+        .ToDictionaryAsync(x => x.StockItemId, x => x.Quantity);
+    var belowMinimumCount = activeMinimums.Count(item => belowTotals.GetValueOrDefault(item.Id) < item.MinimumStock);
+
+    var result = selectedItems.Select(item =>
+    {
+        var total = totals.GetValueOrDefault(item.Id); var quantity = total?.Quantity ?? 0m; var reservedQuantity = reserved.GetValueOrDefault(item.Id);
+        var balance = new InventoryBalanceView(item.Id, item.Code, item.Name, item.UnitCode, item.MinimumStock, quantity, quantity < item.MinimumStock,
+            reservedQuantity, Math.Max(0m, quantity - reservedQuantity), (total?.Valuation ?? 0m) + valueAdjustments.GetValueOrDefault(item.Id), Math.Max(0m, total?.Unvalued ?? 0m), baseCurrency);
+        var stockItem = new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive,
+            item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays);
+        return new InventoryBalancePageItem(balance, stockItem);
+    }).ToList();
+    return Results.Ok(new InventoryBalancePage(result, page, pageSize, totalCount, belowMinimumCount));
+});
+
 warehouses.MapGet("/{warehouseId:guid}/balances", async (Guid warehouseId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
@@ -3581,10 +3656,10 @@ salesOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbCon
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
     var query = db.SalesOrders.AsNoTracking().Where(x => x.TenantId == tenantId);
     query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId.Value, principal.FindFirstValue("role")!, "erp.sales-orders.read", "erp.sales-orders", query, x => x.Status, x => x.CustomerId) ?? query;
-    if (!string.IsNullOrWhiteSpace(q)) { var term = q.Trim(); query = query.Where(x => x.Code.Contains(term) || x.Quote.Code.Contains(term) || x.Customer.Name.Contains(term)); }
+    if (!string.IsNullOrWhiteSpace(q)) { var term = q.Trim(); query = query.Where(x => x.Code.Contains(term) || (x.Quote != null && x.Quote.Code.Contains(term)) || x.Customer.Name.Contains(term)); }
     var total = await query.CountAsync();
     var rows = await query.OrderByDescending(x => x.OrderDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
-        .Select(x => new SalesOrderSummary(x.Id, x.Code, x.QuoteId, x.Quote.Code, x.CustomerId, x.Customer.Name,
+        .Select(x => new SalesOrderSummary(x.Id, x.Code, x.QuoteId, x.Quote == null ? "Bağımsız" : x.Quote.Code, x.CustomerId, x.Customer.Name,
             x.OrderDate, x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt, x.RequestedDeliveryDate)).ToListAsync();
     return Results.Ok(new SalesOrderPage(rows, page, pageSize, total));
 });
@@ -3611,16 +3686,23 @@ salesOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tena
     var customFields = await (from definition in db.SalesOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
         join value in db.SalesOrderCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
         from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
-    return Results.Ok(new SalesOrderView(order.Id, order.Code, order.QuoteId, order.Quote.Code, order.CustomerId, order.Customer.Name,
+    return Results.Ok(new SalesOrderView(order.Id, order.Code, order.QuoteId, order.Quote?.Code ?? "Bağımsız", order.CustomerId, order.Customer.Name,
         order.OrderDate, order.CurrencyCode, order.Status, order.Subtotal, order.DiscountTotal, order.TaxTotal, order.GrandTotal, order.CreatedAt, lines, customFields, order.RequestedDeliveryDate));
 });
 var salesDeliveries = app.MapGroup("/api/sales/deliveries").RequireAuthorization();
-salesDeliveries.MapGet("/", async (Guid? orderId, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
+salesDeliveries.MapGet("/", async (Guid? orderId, string? q, bool? unbilledOnly, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
     var query = db.SalesDeliveries.AsNoTracking().Where(x => x.TenantId == tenantId);
     if (orderId is { } requestedOrderId) query = query.Where(x => x.OrderId == requestedOrderId);
+    if (unbilledOnly == true) query = query.Where(x => x.Status == SalesDeliveryStatus.Posted
+        && !db.SalesInvoices.Any(invoice => invoice.TenantId == tenantId && invoice.DeliveryId == x.Id));
+    if (!string.IsNullOrWhiteSpace(q))
+    {
+        var term = q.Trim();
+        query = query.Where(x => x.Code.Contains(term) || x.Order.Code.Contains(term) || x.Order.Customer.Name.Contains(term));
+    }
     var total = await query.CountAsync();
     var rows = await query.OrderByDescending(x => x.DeliveryDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
         .Select(x => new SalesDeliverySummary(x.Id, x.Code, x.OrderId, x.Order.Code, x.WarehouseId, x.Warehouse.Name,
@@ -3895,7 +3977,7 @@ salesInvoiceCustomFields.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/h
 });
 
 var salesInvoices = app.MapGroup("/api/sales/invoices").RequireAuthorization();
-salesInvoices.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 25) =>
+salesInvoices.MapGet("/", async (string? q, Guid? customerId, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var userId = GetUserId(principal);
@@ -3903,6 +3985,7 @@ salesInvoices.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbC
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
     var query = db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId);
     query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId.Value, principal.FindFirstValue("role")!, "erp.sales-invoices.read", "erp.sales-invoices", query, x => x.Status, x => x.CustomerId) ?? query;
+    if (customerId.HasValue) query = query.Where(x => x.CustomerId == customerId.Value);
     if (!string.IsNullOrWhiteSpace(q)) { var term = q.Trim(); query = query.Where(x => x.Code.Contains(term) || x.Delivery.Code.Contains(term) || x.Order.Code.Contains(term) || x.Customer.Name.Contains(term)); }
     var total = await query.CountAsync();
     var rows = await query.OrderByDescending(x => x.InvoiceDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
@@ -4608,21 +4691,47 @@ purchaseRequests.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new PurchaseRequestCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, target));
 });
-purchaseRequests.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 25) =>
+purchaseRequests.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 25, string? search = null, string? status = null) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var userId = GetUserId(principal);
     if (userId is null) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
+    search = search?.Trim();
+    if (search?.Length > 120) return Results.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Arama en fazla 120 karakter olabilir."] });
+    PurchaseRequestStatus? statusFilter = null;
+    if (!string.IsNullOrWhiteSpace(status))
+    {
+        if (!Enum.TryParse<PurchaseRequestStatus>(status, true, out var parsedStatus) || !Enum.IsDefined(parsedStatus))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Satın alma talebi durumu geçersiz."] });
+        statusFilter = parsedStatus;
+    }
     var query = db.PurchaseRequests.AsNoTracking().Where(x => x.TenantId == tenantId);
     query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId.Value, principal.FindFirstValue("role")!, "erp.purchase-requests.read", "erp.purchase-requests", query, x => x.Status, null, null, x => x.RequestedByUserId) ?? query;
+    if (statusFilter is not null) query = query.Where(x => x.Status == statusFilter.Value);
+    if (!string.IsNullOrWhiteSpace(search))
+    {
+        var matchingRequesterIds = await platformDb.Users.AsNoTracking().Where(x => x.DisplayName.Contains(search))
+            .Select(x => x.Id).ToListAsync();
+        query = query.Where(x => x.Code.Contains(search) || x.Description.Contains(search) || matchingRequesterIds.Contains(x.RequestedByUserId));
+    }
     var total = await query.CountAsync();
-    var rows = await query.OrderByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
-        .Select(x => new PurchaseRequestSummary(x.Id, x.Code, x.RequestDate, x.NeededByDate, x.Description,
-            x.RequestedByUserId, x.RequestedBy.User.DisplayName, x.Status, x.ReviewedByUserId,
-            x.ReviewedBy == null ? null : x.ReviewedBy.User.DisplayName, x.ReviewNote, x.CreatedAt, x.ReviewedAt, x.Lines.Count,
-            x.PurchaseOrder == null ? null : x.PurchaseOrder.Id, x.PurchaseOrder == null ? null : x.PurchaseOrder.Code))
-        .ToListAsync();
+    var requestRows = await query.OrderByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
+        .Select(x => new
+        {
+            x.Id, x.Code, x.RequestDate, x.NeededByDate, x.Description, x.RequestedByUserId, x.Status,
+            x.ReviewedByUserId, x.ReviewNote, x.CreatedAt, x.ReviewedAt, LineCount = x.Lines.Count,
+            PurchaseOrderId = x.PurchaseOrder == null ? null : (Guid?)x.PurchaseOrder.Id,
+            PurchaseOrderCode = x.PurchaseOrder == null ? null : x.PurchaseOrder.Code
+        }).ToListAsync();
+    var requesterIds = requestRows.Select(x => x.RequestedByUserId)
+        .Concat(requestRows.Where(x => x.ReviewedByUserId.HasValue).Select(x => x.ReviewedByUserId!.Value)).Distinct().ToArray();
+    var requesterNames = await platformDb.Users.AsNoTracking().Where(x => requesterIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => x.DisplayName);
+    var rows = requestRows.Select(x => new PurchaseRequestSummary(x.Id, x.Code, x.RequestDate, x.NeededByDate, x.Description,
+        x.RequestedByUserId, requesterNames.GetValueOrDefault(x.RequestedByUserId) ?? "Bilinmeyen kullanıcı", x.Status,
+        x.ReviewedByUserId, x.ReviewedByUserId is Guid reviewerId ? requesterNames.GetValueOrDefault(reviewerId) : null,
+        x.ReviewNote, x.CreatedAt, x.ReviewedAt, x.LineCount, x.PurchaseOrderId, x.PurchaseOrderCode)).ToList();
     return Results.Ok(new PurchaseRequestPage(rows, page, pageSize, total));
 });
 purchaseRequests.MapPost("/", async (PurchaseRequestWriteRequest request, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
@@ -4683,13 +4792,15 @@ purchaseRequests.MapPost("/", async (PurchaseRequestWriteRequest request, Claims
         null, null, null, purchaseRequest.CreatedAt, null, purchaseRequest.Lines.Count, null, null);
     return Results.Created($"/api/purchasing/requests/{purchaseRequest.Id}", summary);
 });
-purchaseRequests.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+purchaseRequests.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var request = await db.PurchaseRequests.AsNoTracking().Include(x => x.PurchaseOrder).Include(x => x.RequestedBy).ThenInclude(x => x.User)
-        .Include(x => x.ReviewedBy).ThenInclude(x => x!.User).Include(x => x.Lines)
+    var request = await db.PurchaseRequests.AsNoTracking().Include(x => x.PurchaseOrder).Include(x => x.Lines)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
     if (request is null) return Results.NotFound();
+    var requesterIds = new[] { request.RequestedByUserId, request.ReviewedByUserId }.Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+    var requesterNames = await platformDb.Users.AsNoTracking().Where(x => requesterIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => x.DisplayName);
     var lines = request.Lines.OrderBy(x => x.LineNumber)
         .Select(x => new PurchaseRequestLineView(x.LineNumber, x.StockItemId, x.StockCode, x.StockName, x.UnitCode, x.Quantity)).ToList();
     var definitions = await db.PurchaseRequestCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Label).ToListAsync();
@@ -4697,11 +4808,34 @@ purchaseRequests.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal,
     var customFields = definitions.Select(x => new PurchaseRequestCustomFieldValueView(x.Id, x.Code, x.Label, x.DataType, x.MaxLength, x.Version,
         x.IsRequired, savedValues.GetValueOrDefault(x.Id) ?? "")).ToList();
     return Results.Ok(new PurchaseRequestView(request.Id, request.Code, request.RequestDate, request.NeededByDate,
-        request.Description, request.RequestedByUserId, request.RequestedBy.User.DisplayName, request.Status,
-        request.ReviewedByUserId, request.ReviewedBy?.User.DisplayName, request.ReviewNote, request.CreatedAt,
+        request.Description, request.RequestedByUserId, requesterNames.GetValueOrDefault(request.RequestedByUserId) ?? "Bilinmeyen kullanıcı", request.Status,
+        request.ReviewedByUserId, request.ReviewedByUserId is Guid reviewerId ? requesterNames.GetValueOrDefault(reviewerId) : null, request.ReviewNote, request.CreatedAt,
         request.ReviewedAt, lines, request.PurchaseOrder?.Id, request.PurchaseOrder?.Code, customFields));
 });
 var purchaseSupplierQuotes = app.MapGroup("/api/purchasing/supplier-quotes").RequireAuthorization();
+purchaseSupplierQuotes.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50, string? search = null, string? status = null) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100); search = search?.Trim();
+    if (search?.Length > 120) return Results.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Arama en fazla 120 karakter olabilir."] });
+    PurchaseSupplierQuoteStatus? statusFilter = null;
+    if (!string.IsNullOrWhiteSpace(status))
+    {
+        if (!Enum.TryParse<PurchaseSupplierQuoteStatus>(status, true, out var parsedStatus) || !Enum.IsDefined(parsedStatus))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Tedarikçi teklifi durumu geçersiz."] });
+        statusFilter = parsedStatus;
+    }
+    var query = db.PurchaseSupplierQuotes.AsNoTracking().Where(x => x.TenantId == tenantId);
+    if (statusFilter is not null) query = query.Where(x => x.Status == statusFilter.Value);
+    if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => x.Code.Contains(search) || x.PurchaseRequest.Code.Contains(search) || x.Supplier.Name.Contains(search));
+    var total = await query.CountAsync();
+    var items = await query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Code)
+        .Skip((page - 1) * pageSize).Take(pageSize)
+        .Select(x => new PurchaseSupplierQuoteSummary(x.Id, x.PurchaseRequestId, x.PurchaseRequest.Code, x.Code,
+            x.SupplierId, x.Supplier.Name, x.QuoteDate, x.ValidUntil, x.CurrencyCode, x.Status, x.GrandTotal,
+            x.Lines.Count, x.CreatedAt)).ToListAsync();
+    return Results.Ok(new { items, page, pageSize, totalCount = total });
+});
 purchaseSupplierQuotes.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
@@ -4910,7 +5044,8 @@ purchaseRequests.MapPost("/{id:guid}/decision", async (Guid id, PurchaseRequestD
     if (await db.TenantWorkflowInstances.AnyAsync(x => x.TenantId == tenantId && x.SubjectType == "PurchaseRequest"
         && x.SubjectId == request.Id && x.Status == "Pending"))
         return Results.Conflict(new { error = "Bu talep için iş akışı onayı bekleniyor. Kararı İş Akışları ekranından verin." });
-    if (request.RequestedByUserId == reviewerId) return Results.Conflict(new { error = "Talep sahibi kendi talebini onaylayamaz veya reddedemez." });
+    if (request.RequestedByUserId == reviewerId && !decision.Approved)
+        return Results.Conflict(new { error = "Admin kullanıcılar kendi taleplerini onaylayabilir; kendi taleplerini reddedemez." });
     request.Status = decision.Approved ? PurchaseRequestStatus.Approved : PurchaseRequestStatus.Rejected;
     request.ReviewedByUserId = reviewerId; request.ReviewedAt = DateTimeOffset.UtcNow;
     request.ReviewNote = string.IsNullOrWhiteSpace(decision.Note) ? null : decision.Note.Trim();
@@ -7301,22 +7436,27 @@ financeAccounts.MapPost("/", async (FinancialAccountWriteRequest request, Claims
         account.Name, account.Type, account.CurrencyCode, account.IsActive, request.OpeningBalance,
         request.OpeningBalance == 0 ? 0 : 1, account.CreatedAt));
 });
-financeAccounts.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+financeAccounts.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (page < 1 || pageSize is < 1 or > 200)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["page"] = ["Sayfa 1 veya üzeri; sayfa boyutu 1–200 arasında olmalıdır."] });
     var account = await db.FinancialAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
     if (account is null) return Results.NotFound();
-    var rows = await db.FinancialAccountTransactions.AsNoTracking().Include(x => x.CustomerCollection).Include(x => x.SupplierPayment).Include(x => x.Transfer)
-        .Where(x => x.TenantId == tenantId && x.FinancialAccountId == id).OrderByDescending(x => x.TransactionDate).ThenByDescending(x => x.CreatedAt).ToListAsync();
+    var query = db.FinancialAccountTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.FinancialAccountId == id);
+    var totalCount = await query.CountAsync();
+    var balance = await query.SumAsync(x => (decimal?)(x.Direction == FinancialDirection.Inflow ? x.Amount : -x.Amount)) ?? 0m;
+    var rows = await query.Include(x => x.CustomerCollection).Include(x => x.SupplierPayment).Include(x => x.Transfer)
+        .OrderByDescending(x => x.TransactionDate).ThenByDescending(x => x.CreatedAt)
+        .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
     var transactionIds = rows.Select(x => x.Id).ToArray();
     var creditMovementTransactionIds = await db.CreditFacilityMovements.AsNoTracking().Where(x => x.TenantId == tenantId && transactionIds.Contains(x.FinancialAccountTransactionId))
         .Select(x => x.FinancialAccountTransactionId).ToListAsync();
     var transactions = rows.Select(x => new FinancialAccountTransactionView(x.Id, x.TransactionDate, x.Direction, x.Amount,
         x.CurrencyCode, x.Description, x.Reference, x.ReversalOfId is not null ? "Ters kayıt" : x.CustomerCollectionId is not null ? "Tahsilat" : x.SupplierPaymentId is not null ? "Tedarikçi ödemesi" : x.TransferId is not null ? "Hesap transferi" : creditMovementTransactionIds.Contains(x.Id) ? "Kredi / finansman" : x.RequestId is not null ? "Manuel hareket" : x.Description == "Açılış bakiyesi" ? "Açılış bakiyesi" : null,
         x.CustomerCollection?.Code ?? x.SupplierPayment?.Code ?? x.Transfer?.Code, x.ReversalOfId, x.CreatedAt, x.TransferId, x.CashFlowCategory)).ToList();
-    var balance = rows.Sum(x => x.Direction == FinancialDirection.Inflow ? x.Amount : -x.Amount);
     return Results.Ok(new FinancialAccountDetail(account.Id, account.Code, account.Name, account.Type, account.CurrencyCode,
-        account.IsActive, balance, account.CreatedAt, transactions));
+        account.IsActive, balance, account.CreatedAt, transactions, page, pageSize, totalCount));
 });
 financeAccounts.MapPost("/{id:guid}/transactions/{transactionId:guid}/cash-flow-category", async (Guid id, Guid transactionId,
     CashFlowCategoryUpdateRequest request, ClaimsPrincipal principal, TenantDbContext db) =>

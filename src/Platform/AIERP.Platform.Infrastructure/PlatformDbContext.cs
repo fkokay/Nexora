@@ -1654,7 +1654,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasKey(x => x.Id);
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
-            e.HasIndex(x => new { x.TenantId, x.QuoteId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.QuoteId }).IsUnique().HasFilter("[QuoteId] IS NOT NULL");
             e.HasIndex(x => new { x.TenantId, x.OrderDate, x.CreatedAt });
             e.Property(x => x.Code).HasMaxLength(40);
             e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength();
@@ -1663,7 +1663,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.TaxTotal).HasPrecision(18, 2);
             e.Property(x => x.GrandTotal).HasPrecision(18, 2);
             e.HasOne(x => x.Tenant).WithMany(x => x.SalesOrders).HasForeignKey(x => x.TenantId);
-            e.HasOne(x => x.Quote).WithOne(x => x.Order).HasForeignKey<SalesOrder>(x => new { x.TenantId, x.QuoteId }).HasPrincipalKey<SalesQuote>(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Quote).WithOne(x => x.Order).HasForeignKey<SalesOrder>(x => new { x.TenantId, x.QuoteId }).HasPrincipalKey<SalesQuote>(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict).IsRequired(false);
             e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => new { x.TenantId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<SalesOrderCustomFieldDefinition>(e =>

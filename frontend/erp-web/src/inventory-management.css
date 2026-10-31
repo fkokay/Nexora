@@ -75,3 +75,14 @@
 .stock-category-create>.modal-foot>span{color:#8994a4;font-size:9px}
 @media(min-width:1500px){.warehouse-management{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:16px}.warehouse-panel{padding:19px 20px}}
 @media(max-width:720px){.warehouse-panel{padding:14px}.warehouse-panel-heading{align-items:flex-start;flex-direction:column;gap:10px}.warehouse-panel-tools{width:100%;justify-content:space-between}.warehouse-row{grid-template-columns:32px minmax(0,1fr);gap:8px}.warehouse-row>.quote-status,.warehouse-row-actions{grid-column:2;justify-self:start}.warehouse-empty{align-items:flex-start;flex-wrap:wrap}.warehouse-empty>div{flex-basis:calc(100% - 45px)}.warehouse-empty>.primary{margin-left:43px}.inventory-cost-panel{padding:15px}.inventory-cost-heading{align-items:flex-start}.inventory-cost-title{align-items:flex-start;gap:9px}.inventory-cost-mark{width:36px;height:36px;border-radius:10px}.inventory-cost-title h2{font-size:15px}.inventory-cost-title p:not(.eyebrow){font-size:10px}.inventory-cost-count{gap:5px;padding:7px 8px}.inventory-cost-grid{grid-template-columns:1fr}.inventory-cost-card{padding:12px}}
+.warehouse-field-create-form > .panel-heading > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.warehouse-field-create-form > .panel-heading b,
+.warehouse-field-create-form > .panel-heading small {
+  display: block;
+}
+.warehouse-field-create-form > .panel-heading b { line-height: 1.4; }
+.warehouse-field-create-form > .panel-heading small { line-height: 1.5; }

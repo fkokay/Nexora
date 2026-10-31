@@ -37,6 +37,8 @@ public static class PlatformPermissionCatalog
         new("erp.payroll-compensation", "/api/hr/payroll/compensation", "Confidential effective-dated employee gross/net compensation targets"),
         new("erp.fixed-assets", "/api/fixed-assets", "Tenant fixed-asset register, depreciation, and custody"),
         new("erp.tenant-settings", "/api/tenant-settings", "Company-specific operational policies and behavior"),
+        new("erp.organizational-definitions", "/api/definitions/workplaces", "Tenant workplace, branch and factory definitions"),
+        new("erp.customer-locations", "/api/location-definitions", "Customer address province and district definitions"),
         new("erp.tenant-company-profile", "/api/tenant-company-profile", "Tenant legal company profile"),
         new("erp.screen-views", "/api/screen-views", "Tenant built-in ERP screen layouts"),
         new("erp.inventory-transfers", "/api/warehouses/transfers", "Warehouse transfers"),

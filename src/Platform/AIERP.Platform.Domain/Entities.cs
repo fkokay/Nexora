@@ -2029,8 +2029,8 @@ public sealed class SalesPromotionApplication
 public sealed class SalesQuoteLine
 {
     public Guid TenantId { get; set; }
-    public Guid QuoteId { get; set; }
-    public SalesQuote Quote { get; set; } = null!;
+    public Guid? QuoteId { get; set; }
+    public SalesQuote? Quote { get; set; }
     public int LineNumber { get; set; }
     public Guid StockItemId { get; set; }
     public StockItem StockItem { get; set; } = null!;
@@ -2108,8 +2108,8 @@ public sealed class SalesOrder
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
-    public Guid QuoteId { get; set; }
-    public SalesQuote Quote { get; set; } = null!;
+    public Guid? QuoteId { get; set; }
+    public SalesQuote? Quote { get; set; }
     public Guid CustomerId { get; set; }
     public CustomerAccount Customer { get; set; } = null!;
     public string Code { get; set; } = "";

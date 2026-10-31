@@ -1,111 +1,171 @@
-import AdvancedDataGrid from './AdvancedDataGrid'
+import type { FormEvent } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { authenticatedFetch } from './authApi';
-import { FileText, Link2, Plus, RefreshCw } from 'lucide-react'
-import ScreenViewGroupHeader from './ScreenViewGroupHeader'
+import { authenticatedFetch } from './authApi'
+import { localDateString } from './dateUtils'
 import './purchase-delivery-notes.css'
+import { DeliveryNoteComposePanel } from './purchase-delivery-notes/components/DeliveryNoteComposePanel'
+import { DeliveryNoteDetailDialog } from './purchase-delivery-notes/components/DeliveryNoteDetailDialog'
+import { DeliveryNotesListPanel } from './purchase-delivery-notes/components/DeliveryNotesListPanel'
+import { DeliveryNotesOverview } from './purchase-delivery-notes/components/DeliveryNotesOverview'
+import { OrderDeliveryNotesPanel } from './purchase-delivery-notes/components/OrderDeliveryNotesPanel'
+import { OrderSelectionPanel } from './purchase-delivery-notes/components/OrderSelectionPanel'
+import { PurchaseDeliveryNotesHeader } from './purchase-delivery-notes/components/PurchaseDeliveryNotesHeader'
+import { deliveryNotePageSize, detailGridDefaults, purchaseNoteDefaultFields } from './purchase-delivery-notes/types'
+import type { Note, NotePage, OrderDetail, OrderSummary, ScreenField } from './purchase-delivery-notes/types'
 
-type OrderSummary = { id:string; code:string; supplierName:string; orderDate:string; status:string; lineCount:number }
-type OrderLine = { lineNumber:number; stockCode:string; stockName:string; unitCode:string; quantity:number }
-type ReceiptLine = { orderLineNumber:number; quantity:number }
-type Receipt = { id:string; code:string; receiptDate:string; status:string; lines:ReceiptLine[] }
-type OrderDetail = OrderSummary & { lines:OrderLine[]; receipts:Receipt[] }
-type NoteLine = { orderLineNumber:number; unitCode:string; quantity:number }
-type Note = { id:string; documentNumber:string; documentDate:string; purchaseOrderId:string; purchaseOrderCode:string; supplierName:string; purchaseReceiptId:string|null; purchaseReceiptCode:string|null; lineCount:number; lines?:NoteLine[] }
-type NotePage = { items:Note[]; page:number; pageSize:number; totalCount:number }
-type ScreenField = { key:string; label:string; visible:boolean; position:number; fixed?:boolean; section?:string|null }
-const deliveryNotePageSize=25
-const purchaseNoteDefaultFields:ScreenField[]=[
-  {key:'documentNumber',label:'Tedarikçi irsaliye no',visible:true,position:0},
-  {key:'documentDate',label:'Belge tarihi',visible:true,position:1},
-  {key:'purchaseOrderCode',label:'Satın alma siparişi',visible:true,position:2},
-  {key:'supplierName',label:'Tedarikçi',visible:true,position:3},
-  {key:'lineCount',label:'Satır',visible:true,position:4},
-  {key:'purchaseReceiptCode',label:'Mal kabul',visible:true,position:5},
-  {key:'actions',label:'İşlemler',visible:true,position:6,fixed:true}
-]
-const detailGridDefaults:Record<string,ScreenField[]>={
-  'purchase-delivery-order-lines':[
-    {key:'lineNumber',label:'Sipariş satırı',visible:true,position:0},
-    {key:'product',label:'Ürün',visible:true,position:1},
-    {key:'orderedQuantity',label:'Sipariş miktarı',visible:true,position:2},
-    {key:'deliveryQuantity',label:'İrsaliye miktarı · sipariş birimi',visible:true,position:3,fixed:true}
-  ],
-  'purchase-order-delivery-notes':[
-    {key:'documentNumber',label:'Tedarikçi belge no',visible:true,position:0},
-    {key:'documentDate',label:'Tarih',visible:true,position:1},
-    {key:'lineCount',label:'Satır',visible:true,position:2},
-    {key:'purchaseReceiptCode',label:'Mal kabul',visible:true,position:3},
-    {key:'actions',label:'Bağlantı işlemi',visible:true,position:4,fixed:true}
-  ],
-  'purchase-delivery-note-lines':[
-    {key:'orderLineNumber',label:'Sipariş satırı',visible:true,position:0},
-    {key:'quantity',label:'Miktar · temel birim',visible:true,position:1}
-  ]
-}
-
-async function request<T>(url:string, token:string, init?:RequestInit):Promise<T> {
-  const response=await authenticatedFetch(url, token, {...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...init?.headers}})
-  if(!response.ok){const body=await response.json().catch(()=>null) as {error?:string;title?:string}|null;throw new Error(body?.error||body?.title||`İstek başarısız (${response.status}).`)}
-  if(response.status===204)return undefined as T
+async function request<T>(url: string, token: string, init?: RequestInit): Promise<T> {
+  const response = await authenticatedFetch(url, token, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers } })
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: string; title?: string } | null
+    throw new Error(body?.error || body?.title || `İstek başarısız (${response.status}).`)
+  }
+  if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
 
-export default function PurchaseDeliveryNotesPage({token}:{token:string}) {
-  const [orders,setOrders]=useState<OrderSummary[]>([]),[orderId,setOrderId]=useState(''),[orderQuery,setOrderQuery]=useState(''),[orderPage,setOrderPage]=useState(1),[orderTotal,setOrderTotal]=useState(0),[detail,setDetail]=useState<OrderDetail|null>(null),[notes,setNotes]=useState<Note[]>([]),[selectedNote,setSelectedNote]=useState<Note|null>(null),[noteDetailLoading,setNoteDetailLoading]=useState(false)
-  const [deliveryNotes,setDeliveryNotes]=useState<Note[]>([]),[noteTotal,setNoteTotal]=useState(0),[notePage,setNotePage]=useState(1),[noteSearch,setNoteSearch]=useState(''),[noteSearchResults,setNoteSearchResults]=useState<Note[]|null>(null),[noteSearchPage,setNoteSearchPage]=useState(1),[noteListLoading,setNoteListLoading]=useState(false)
-  const [documentNumber,setDocumentNumber]=useState(''),[documentDate,setDocumentDate]=useState(new Date().toISOString().slice(0,10)),[receiptId,setReceiptId]=useState(''),[quantities,setQuantities]=useState<Record<number,string>>({})
-  const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[mutationOrderError,setMutationOrderError]=useState(''),[notice,setNotice]=useState('')
-  const [screenFields,setScreenFields]=useState<ScreenField[]>(purchaseNoteDefaultFields)
-  const [detailGridFields,setDetailGridFields]=useState<Record<string,ScreenField[]>>(detailGridDefaults)
-  const visibleScreenFields=screenFields.filter(field=>field.visible||field.fixed).sort((a,b)=>a.position-b.position)
-  const visibleDetailFields=(key:string)=> (detailGridFields[key]||detailGridDefaults[key]).filter(field=>field.visible||field.fixed).sort((a,b)=>a.position-b.position)
-  const orderLoadSequence=useRef(0)
-  const orderSelectionGeneration=useRef(0)
-  const noteDetailSequence=useRef(0)
-  const loadDeliveryNotes=useCallback(async(page:number)=>{setNoteListLoading(true);setError('');try{const requestedPage=Math.max(1,page);let currentPage=requestedPage;let result=await request<NotePage>(`/api/purchasing/delivery-notes/?page=${currentPage}&pageSize=${deliveryNotePageSize}`,token);const lastPage=Math.max(1,Math.ceil(result.totalCount/deliveryNotePageSize));if(currentPage>lastPage){currentPage=lastPage;result=await request<NotePage>(`/api/purchasing/delivery-notes/?page=${lastPage}&pageSize=${deliveryNotePageSize}`,token)}while(result.items.length===0&&result.totalCount>0&&currentPage>1){currentPage--;result=await request<NotePage>(`/api/purchasing/delivery-notes/?page=${currentPage}&pageSize=${deliveryNotePageSize}`,token)}if(currentPage!==requestedPage)setNotePage(currentPage);setDeliveryNotes(result.items);setNoteTotal(result.totalCount)}catch(e){setDeliveryNotes([]);setNoteTotal(0);setError((e as Error).message)}finally{setNoteListLoading(false)}},[token])
-  const loadOrders=useCallback(async(pageNumber=1,query=orderQuery)=>{setLoading(true);setError('');try{const page=await request<{items:OrderSummary[];page:number;totalCount:number}>(`/api/purchasing/orders/?q=${encodeURIComponent(query.trim())}&page=${pageNumber}&pageSize=25`,token);setOrders(page.items);setOrderPage(page.page);setOrderTotal(page.totalCount)}catch(e){setError((e as Error).message)}finally{setLoading(false)}},[orderQuery,token])
-  const loadOrder=useCallback(async(id:string,postMutation=false)=>{const sequence=++orderLoadSequence.current;setDetail(null);setNotes([]);setReceiptId('');setQuantities({});if(!id){setError('');setMutationOrderError('');setLoading(false);return}setLoading(true);setError('');if(postMutation)setMutationOrderError('');try{const [order,items]=await Promise.all([request<OrderDetail>(`/api/purchasing/orders/${id}`,token),request<Note[]>(`/api/purchasing/delivery-notes/orders/${id}`,token)]);if(sequence!==orderLoadSequence.current)return;setDetail(order);setNotes(items)}catch(e){if(sequence===orderLoadSequence.current){setDetail(null);setNotes([]);if(postMutation)setMutationOrderError((e as Error).message);else setError((e as Error).message)}}finally{if(sequence===orderLoadSequence.current)setLoading(false)}},[token])
-  useEffect(()=>{void loadOrders()},[loadOrders])
-  useEffect(()=>{void loadDeliveryNotes(notePage)},[loadDeliveryNotes,notePage])
-  useEffect(()=>{let active=true;void request<{fields:ScreenField[]}>('/api/screen-views/purchase-delivery-notes/active',token).then(view=>{if(active&&view.fields?.length)setScreenFields(view.fields)}).catch(()=>{});return()=>{active=false}},[token])
-  useEffect(()=>{let active=true;void Promise.all(Object.keys(detailGridDefaults).map(async key=>{try{const view=await request<{fields:ScreenField[]}>(`/api/screen-views/${key}/active`,token);if(active&&view.fields?.length)setDetailGridFields(current=>({...current,[key]:view.fields}))}catch{}}));return()=>{active=false}},[token])
-  async function searchDeliveryNotes(event:React.FormEvent){event.preventDefault();const term=noteSearch.trim().toLocaleLowerCase('tr-TR');setNoteSearchResults(null);setNoteSearchPage(1);if(!term){setNotePage(1);return}setNoteListLoading(true);setError('');try{const first=await request<NotePage>(`/api/purchasing/delivery-notes/?page=1&pageSize=100`,token);const matches=[...first.items].filter(note=>`${note.documentNumber} ${note.purchaseOrderCode} ${note.supplierName} ${note.purchaseReceiptCode||''}`.toLocaleLowerCase('tr-TR').includes(term));const pageCount=Math.ceil(first.totalCount/first.pageSize);for(let page=2;page<=pageCount;page++){const next=await request<NotePage>(`/api/purchasing/delivery-notes/?page=${page}&pageSize=100`,token);matches.push(...next.items.filter(note=>`${note.documentNumber} ${note.purchaseOrderCode} ${note.supplierName} ${note.purchaseReceiptCode||''}`.toLocaleLowerCase('tr-TR').includes(term)))}setNoteSearchResults(matches);setNoteSearchPage(1)}catch(e){setNoteSearchResults(null);setNoteSearchPage(1);setError((e as Error).message)}finally{setNoteListLoading(false)}}
-  function clearDeliveryNoteSearch(){setNoteSearch('');setNoteSearchResults(null);setNoteSearchPage(1);setNotePage(1)}
-  function closeDeliveryNoteDetail(){noteDetailSequence.current++;setSelectedNote(null);setNoteDetailLoading(false)}
-  function selectOrder(id:string){if(id!==orderId){orderSelectionGeneration.current++;closeDeliveryNoteDetail();setDocumentNumber('');setNotice('');setError('');setMutationOrderError('')}setOrderId(id);void loadOrder(id)}
-  async function openDeliveryNoteOrder(note:Note){selectOrder(note.purchaseOrderId)}
-  async function openDeliveryNote(note:Note){const sequence=++noteDetailSequence.current;setSelectedNote(note);setNoteDetailLoading(true);try{const result=await request<Note>(`/api/purchasing/delivery-notes/${note.id}`,token);if(sequence===noteDetailSequence.current)setSelectedNote(result)}catch(e){if(sequence===noteDetailSequence.current){setError((e as Error).message);setSelectedNote(null)}}finally{if(sequence===noteDetailSequence.current)setNoteDetailLoading(false)}}
-  async function refreshDeliveryNotes(){setNoteSearch('');setNoteSearchResults(null);setNoteSearchPage(1);if(notePage===1){await loadDeliveryNotes(1)}else{setNotePage(1)}}
-  async function reloadMutatedOrder(id:string,generation:number){if(generation===orderSelectionGeneration.current)await loadOrder(id,true)}
-  const noteEligibleOrders=orders.filter(order=>!['Cancelled','PendingApproval','Rejected'].includes(order.status))
-  async function createNote(event:React.FormEvent){event.preventDefault();if(!detail)return;const orderToReload=detail.id,generation=orderSelectionGeneration.current;const lines=detail.lines.flatMap(line=>{const quantity=Number(quantities[line.lineNumber]||0);return quantity>0?[{orderLineNumber:line.lineNumber,quantity,unitCode:line.unitCode}]:[]});if(!lines.length){setError('İrsaliyeye en az bir satır miktarı girin.');return}setBusy(true);setError('');setNotice('');try{await request(`/api/purchasing/delivery-notes/orders/${orderToReload}`,token,{method:'POST',body:JSON.stringify({documentNumber,documentDate,lines,purchaseReceiptId:receiptId||null})});if(generation===orderSelectionGeneration.current){setNotice(receiptId?'İrsaliye kaydedildi ve stok hareketi oluşturmadan mal kabul ile mutabık hale getirildi.':'İrsaliye kaydedildi; stok girişi mal kabul işleminde yapılır.');setDocumentNumber('');setQuantities({})}await refreshDeliveryNotes();await reloadMutatedOrder(orderToReload,generation)}catch(e){if(generation===orderSelectionGeneration.current)setError((e as Error).message)}finally{setBusy(false)}}
-  async function linkNote(note:Note){if(!detail||!receiptId)return;const orderToReload=detail.id,generation=orderSelectionGeneration.current;setBusy(true);setError('');setNotice('');try{await request(`/api/purchasing/delivery-notes/${note.id}/link-receipt`,token,{method:'POST',body:JSON.stringify({purchaseReceiptId:receiptId})});if(generation===orderSelectionGeneration.current)setNotice('İrsaliye mal kabule bağlandı; yeni stok hareketi oluşturulmadı.');await refreshDeliveryNotes();await reloadMutatedOrder(orderToReload,generation)}catch(e){if(generation===orderSelectionGeneration.current)setError((e as Error).message)}finally{setBusy(false)}}
-  async function unlinkNote(note:Note){if(!detail)return;const orderToReload=detail.id,generation=orderSelectionGeneration.current;setBusy(true);setError('');setNotice('');try{await request(`/api/purchasing/delivery-notes/${note.id}/unlink-receipt`,token,{method:'POST'});if(generation===orderSelectionGeneration.current)setNotice('Mal kabul bağlantısı kaldırıldı; irsaliye kaydı korundu.');await refreshDeliveryNotes();await reloadMutatedOrder(orderToReload,generation)}catch(e){if(generation===orderSelectionGeneration.current)setError((e as Error).message)}finally{setBusy(false)}}
-  return <div className={`purchase-delivery-notes-page ${detail?'has-selected-order':''}`}>
-    <div className="page-heading purchase-note-commandbar"><div><p className="eyebrow">SATIN ALMA · TEDARİKÇİ BELGELERİ</p><h1>Tedarikçi irsaliyeleri</h1><p className="muted">Tedarikçi belge numarası ve sipariş miktarlarını kaydedin; mal kabul öncesi veya sonrasında bağlantı kurun.</p></div><button className="secondary" onClick={()=>{void loadOrders();void refreshDeliveryNotes()}} disabled={loading||noteListLoading}><RefreshCw size={16}/> Yenile</button></div>
-    <div className="purchase-note-overview" aria-label="İrsaliye özeti">
-      <div><span>İrsaliye kaydı</span><b>{noteTotal}</b><small>{noteSearchResults===null?'Toplam firma kaydı':'Arama görünümü'}</small></div>
-      <div><span>Sipariş aralığı</span><b>{orderTotal}</b><small>{loading?'Siparişler yükleniyor':'Erişilebilir sipariş'}</small></div>
-      <div><span>Seçili sipariş</span><b>{detail?.code??'Seçilmedi'}</b><small>{detail?.supplierName??'İrsaliye girişi için sipariş seçin'}</small></div>
-      <div><span>Mal kabul mutabakatı</span><b>{detail?`${notes.filter(note=>note.purchaseReceiptId).length} / ${notes.length}`:'—'}</b><small>{detail?'Bağlı irsaliye':'Stok hareketi mal kabulde oluşur'}</small></div>
-    </div>
-    {(mutationOrderError||error)&&<div className="alert" role="alert">{mutationOrderError||error}</div>}{notice&&<div className="notice" role="status">{notice}</div>}
-    <section className="panel purchase-note-list-panel"><div className="panel-heading"><div><p className="eyebrow">BELGE LİSTESİ</p><b>Gelen irsaliyeler</b><small>{noteSearchResults===null?`${noteTotal} kayıt · sayfa ${notePage} / ${Math.max(1,Math.ceil(noteTotal/deliveryNotePageSize))}`:`${noteSearchResults.length} eşleşme · tüm erişilebilir sayfalar tarandı`}</small></div><button className="secondary" disabled={noteListLoading} onClick={()=>void refreshDeliveryNotes()}><RefreshCw size={15}/> Yenile</button></div>
-      <form className="form-inline" onSubmit={searchDeliveryNotes}><input aria-label="Gelen irsaliyelerde ara" value={noteSearch} onChange={e=>setNoteSearch(e.target.value)} placeholder="İrsaliye no, sipariş, tedarikçi veya mal kabul ara"/><button className="secondary" disabled={noteListLoading}>{noteListLoading?'Aranıyor…':'Ara'}</button>{noteSearchResults!==null&&<button type="button" className="secondary" onClick={clearDeliveryNoteSearch}>Temizle</button>}</form>
-      <div className="ledger-list"><AdvancedDataGrid hideSearch className="customer-table"><thead><ScreenViewGroupHeader fields={visibleScreenFields}/><tr>{visibleScreenFields.map(field=><th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{noteListLoading?<tr><td colSpan={visibleScreenFields.length} className="table-empty">İrsaliyeler yükleniyor…</td></tr>:(noteSearchResults===null?deliveryNotes:noteSearchResults.slice((noteSearchPage-1)*deliveryNotePageSize,noteSearchPage*deliveryNotePageSize)).map(note=><tr key={note.id}>{visibleScreenFields.map(field=><td key={field.key}>{field.key==='documentNumber'?note.documentNumber:field.key==='documentDate'?note.documentDate:field.key==='purchaseOrderCode'?note.purchaseOrderCode:field.key==='supplierName'?note.supplierName:field.key==='lineCount'?note.lineCount:field.key==='purchaseReceiptCode'?(note.purchaseReceiptCode?`Eşleşti · ${note.purchaseReceiptCode}`:'Mal kabul bağlantısı yok'):field.key==='actions'?<><button type="button" className="row-action" onClick={()=>void openDeliveryNote(note)}>Detay</button><button type="button" className="row-action" onClick={()=>void openDeliveryNoteOrder(note)}>Siparişi aç</button></>:null}</td>)}</tr>)}{!noteListLoading&&(noteSearchResults===null?deliveryNotes.length===0:noteSearchResults.length===0)&&<tr><td colSpan={visibleScreenFields.length} className="table-empty">{noteSearchResults!==null?'Aramanızla eşleşen irsaliye bulunamadı.':noteTotal===0?'Henüz gelen irsaliye yok.':'Bu sayfada kayıt yok; listeyi yenileyin.'}</td></tr>}</tbody></AdvancedDataGrid></div>
-      <div className="table-pagination"><span>Sayfa {noteSearchResults===null?notePage:noteSearchPage} / {Math.max(1,Math.ceil((noteSearchResults===null?noteTotal:noteSearchResults.length)/deliveryNotePageSize))}</span><div><button type="button" className="secondary" disabled={noteListLoading||(noteSearchResults===null?notePage:noteSearchPage)<=1} onClick={()=>noteSearchResults===null?setNotePage(x=>Math.max(1,x-1)):setNoteSearchPage(x=>Math.max(1,x-1))}>Önceki</button><button type="button" className="secondary" disabled={noteListLoading||(noteSearchResults===null?notePage*deliveryNotePageSize>=noteTotal:noteSearchPage*deliveryNotePageSize>=noteSearchResults.length)} onClick={()=>noteSearchResults===null?setNotePage(x=>x+1):setNoteSearchPage(x=>x+1)}>Sonraki</button></div></div>
-    </section>
-    <section className="panel purchase-note-order-panel"><div className="panel-heading"><div><p className="eyebrow">SİPARİŞ BAĞLAMI</p><b>Satın alma siparişi</b><small>İrsaliye siparişe bağlanır; mal kabul stok girişinin tek kaynağıdır.</small></div><button className="secondary" onClick={()=>void loadOrders(orderPage)} disabled={loading}><RefreshCw size={15}/> Yenile</button></div><div className="purchase-note-order-controls"><form className="form-inline" onSubmit={event=>{event.preventDefault();void loadOrders(1,orderQuery)}}><input aria-label="Satın alma siparişlerinde ara" value={orderQuery} onChange={event=>setOrderQuery(event.target.value)} placeholder="Sipariş no veya tedarikçi ara"/><button className="secondary" disabled={loading}>{loading?'Yükleniyor…':'Ara'}</button></form><label>Sipariş<select value={orderId} onChange={e=>selectOrder(e.target.value)}><option value="">İrsaliye kaydedilebilir sipariş seçin</option>{noteEligibleOrders.map(order=><option key={order.id} value={order.id}>{order.code} · {order.supplierName} · {order.status}</option>)}</select></label></div><div className="table-pagination"><span>{orderTotal===0?'0 sipariş':`${(orderPage-1)*25+1}–${Math.min(orderPage*25,orderTotal)} / ${orderTotal} sipariş`}</span><div><button type="button" className="secondary" disabled={loading||orderPage<=1} onClick={()=>void loadOrders(orderPage-1)}>Önceki</button><button type="button" className="secondary" disabled={loading||orderPage*25>=orderTotal} onClick={()=>void loadOrders(orderPage+1)}>Sonraki</button></div></div></section>
-    {detail&&<>
-      <section className="panel purchase-note-compose-panel"><div className="panel-heading"><div><p className="eyebrow">YENİ BELGE</p><b>İrsaliye kaydet</b><small>{detail.code} · {detail.supplierName} · miktarlar sipariş satırının temel biriminde girilir.</small></div><FileText size={18}/></div><form onSubmit={createNote}>
-        <div className="form-two"><label>Tedarikçi irsaliye numarası<input value={documentNumber} onChange={e=>setDocumentNumber(e.target.value)} maxLength={80} required/></label><label>Belge tarihi<input type="date" value={documentDate} onChange={e=>setDocumentDate(e.target.value)} required/></label></div>
-        <label>Mevcut mal kabul (isteğe bağlı)<select value={receiptId} onChange={e=>setReceiptId(e.target.value)}><option value="">Sonradan bağlayacağım</option>{detail.receipts.filter(x=>x.status==='Posted'&&!notes.some(note=>note.purchaseReceiptId===x.id)).map(receipt=><option key={receipt.id} value={receipt.id}>{receipt.code} · {receipt.receiptDate}</option>)}</select></label>
-        <div className="ledger-list"><AdvancedDataGrid className="customer-table"><thead><ScreenViewGroupHeader fields={visibleDetailFields('purchase-delivery-order-lines')}/><tr>{visibleDetailFields('purchase-delivery-order-lines').map(field=><th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{detail.lines.map(line=><tr key={line.lineNumber}>{visibleDetailFields('purchase-delivery-order-lines').map(field=><td key={field.key}>{field.key==='lineNumber'?line.lineNumber:field.key==='product'?`${line.stockCode} · ${line.stockName}`:field.key==='orderedQuantity'?`${line.quantity.toLocaleString('tr-TR')} ${line.unitCode}`:<input aria-label={`${line.stockCode} irsaliye miktarı`} type="number" min="0" max={line.quantity} step="0.0001" value={quantities[line.lineNumber]||''} onChange={e=>setQuantities(current=>({...current,[line.lineNumber]:e.target.value}))}/>}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
-        {receiptId&&<p className="muted">Mal kabul bağlantısında tüm irsaliye satırları ile mal kabul satırları ve temel birim miktarları bire bir eşleşmelidir.</p>}<div className="modal-foot"><span>Bu kayıt stok veya muhasebe hareketi oluşturmaz.</span><button className="primary" disabled={busy}><Plus size={16}/> İrsaliyeyi kaydet</button></div>
-      </form></section>
-      <section className="panel purchase-note-related-panel"><div className="panel-heading"><div><p className="eyebrow">SEÇİLİ SİPARİŞ</p><b>Bu siparişin irsaliyeleri</b><small>Mutabık olan belgeler bağlı mal kabul kodunu gösterir.</small></div></div><div className="ledger-list"><AdvancedDataGrid className="customer-table"><thead><ScreenViewGroupHeader fields={visibleDetailFields('purchase-order-delivery-notes')}/><tr>{visibleDetailFields('purchase-order-delivery-notes').map(field=><th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{notes.map(note=><tr key={note.id}>{visibleDetailFields('purchase-order-delivery-notes').map(field=><td key={field.key}>{field.key==='documentNumber'?note.documentNumber:field.key==='documentDate'?note.documentDate:field.key==='lineCount'?note.lineCount:field.key==='purchaseReceiptCode'?(note.purchaseReceiptCode||'Bekliyor'):note.purchaseReceiptId?<button className="row-action danger-action" disabled={busy} onClick={()=>void unlinkNote(note)}>Bağlantıyı kaldır</button>:<div className="form-inline"><select aria-label={`${note.documentNumber} mal kabul seçin`} value={receiptId} onChange={e=>setReceiptId(e.target.value)}><option value="">Mal kabul seçin</option>{detail.receipts.filter(x=>x.status==='Posted'&&!notes.some(n=>n.purchaseReceiptId===x.id)).map(receipt=><option key={receipt.id} value={receipt.id}>{receipt.code}</option>)}</select><button className="row-action" disabled={busy||!receiptId} onClick={()=>void linkNote(note)}><Link2 size={14}/> Bağla</button></div>}</td>)}</tr>)}{notes.length===0&&<tr><td colSpan={visibleDetailFields('purchase-order-delivery-notes').length} className="table-empty">Bu sipariş için irsaliye yok.</td></tr>}</tbody></AdvancedDataGrid></div></section>
+export default function PurchaseDeliveryNotesPage({ token }: { token: string }) {
+  const [orders, setOrders] = useState<OrderSummary[]>([]), [orderId, setOrderId] = useState(''), [orderQuery, setOrderQuery] = useState(''), [orderPage, setOrderPage] = useState(1), [orderTotal, setOrderTotal] = useState(0), [detail, setDetail] = useState<OrderDetail | null>(null), [notes, setNotes] = useState<Note[]>([]), [selectedNote, setSelectedNote] = useState<Note | null>(null), [noteDetailLoading, setNoteDetailLoading] = useState(false)
+  const [deliveryNotes, setDeliveryNotes] = useState<Note[]>([]), [noteTotal, setNoteTotal] = useState(0), [notePage, setNotePage] = useState(1), [noteSearch, setNoteSearch] = useState(''), [noteSearchResults, setNoteSearchResults] = useState<Note[] | null>(null), [noteSearchTotal, setNoteSearchTotal] = useState(0), [noteSearchPage, setNoteSearchPage] = useState(1), [noteListLoading, setNoteListLoading] = useState(false)
+  const [documentNumber, setDocumentNumber] = useState(''), [documentDate, setDocumentDate] = useState(localDateString()), [receiptId, setReceiptId] = useState(''), [quantities, setQuantities] = useState<Record<number, string>>({})
+  const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [mutationOrderError, setMutationOrderError] = useState(''), [notice, setNotice] = useState('')
+  const [screenFields, setScreenFields] = useState<ScreenField[]>(purchaseNoteDefaultFields)
+  const [detailGridFields, setDetailGridFields] = useState<Record<string, ScreenField[]>>(detailGridDefaults)
+  const visibleScreenFields = screenFields.filter(field => field.visible || field.fixed).sort((a, b) => a.position - b.position)
+  const visibleDetailFields = (key: string) => (detailGridFields[key] || detailGridDefaults[key]).filter(field => field.visible || field.fixed).sort((a, b) => a.position - b.position)
+  const orderLoadSequence = useRef(0)
+  const orderSelectionGeneration = useRef(0)
+  const noteDetailSequence = useRef(0)
+
+  const loadDeliveryNotes = useCallback(async (page: number) => {
+    setNoteListLoading(true); setError('')
+    try {
+      const requestedPage = Math.max(1, page)
+      let currentPage = requestedPage
+      let result = await request<NotePage>(`/api/purchasing/delivery-notes/?page=${currentPage}&pageSize=${deliveryNotePageSize}`, token)
+      const lastPage = Math.max(1, Math.ceil(result.totalCount / deliveryNotePageSize))
+      if (currentPage > lastPage) { currentPage = lastPage; result = await request<NotePage>(`/api/purchasing/delivery-notes/?page=${lastPage}&pageSize=${deliveryNotePageSize}`, token) }
+      while (result.items.length === 0 && result.totalCount > 0 && currentPage > 1) { currentPage--; result = await request<NotePage>(`/api/purchasing/delivery-notes/?page=${currentPage}&pageSize=${deliveryNotePageSize}`, token) }
+      if (currentPage !== requestedPage) setNotePage(currentPage)
+      setDeliveryNotes(result.items); setNoteTotal(result.totalCount)
+    } catch (e) { setDeliveryNotes([]); setNoteTotal(0); setError((e as Error).message) }
+    finally { setNoteListLoading(false) }
+  }, [token])
+
+  const loadOrders = useCallback(async (pageNumber = 1, query = orderQuery) => {
+    setLoading(true); setError('')
+    try {
+      const page = await request<{ items: OrderSummary[]; page: number; totalCount: number }>(`/api/purchasing/orders/?q=${encodeURIComponent(query.trim())}&page=${pageNumber}&pageSize=25`, token)
+      setOrders(page.items); setOrderPage(page.page); setOrderTotal(page.totalCount)
+    } catch (e) { setError((e as Error).message) }
+    finally { setLoading(false) }
+  }, [orderQuery, token])
+
+  const loadOrder = useCallback(async (id: string, postMutation = false) => {
+    const sequence = ++orderLoadSequence.current
+    setDetail(null); setNotes([]); setReceiptId(''); setQuantities({})
+    if (!id) { setError(''); setMutationOrderError(''); setLoading(false); return }
+    setLoading(true); setError('')
+    if (postMutation) setMutationOrderError('')
+    try {
+      const [order, items] = await Promise.all([request<OrderDetail>(`/api/purchasing/orders/${id}`, token), request<Note[]>(`/api/purchasing/delivery-notes/orders/${id}`, token)])
+      if (sequence !== orderLoadSequence.current) return
+      setDetail(order); setNotes(items)
+    } catch (e) {
+      if (sequence === orderLoadSequence.current) { setDetail(null); setNotes([]); if (postMutation) setMutationOrderError((e as Error).message); else setError((e as Error).message) }
+    } finally { if (sequence === orderLoadSequence.current) setLoading(false) }
+  }, [token])
+
+  useEffect(() => { void loadOrders() }, [loadOrders])
+  useEffect(() => { void loadDeliveryNotes(notePage) }, [loadDeliveryNotes, notePage])
+  useEffect(() => {
+    let active = true
+    void request<{ fields: ScreenField[] }>('/api/screen-views/purchase-delivery-notes/active', token).then(view => { if (active && view.fields?.length) setScreenFields(view.fields) }).catch(() => {})
+    return () => { active = false }
+  }, [token])
+  useEffect(() => {
+    let active = true
+    void Promise.all(Object.keys(detailGridDefaults).map(async key => {
+      try { const view = await request<{ fields: ScreenField[] }>(`/api/screen-views/${key}/active`, token); if (active && view.fields?.length) setDetailGridFields(current => ({ ...current, [key]: view.fields })) } catch {}
+    }))
+    return () => { active = false }
+  }, [token])
+
+  async function loadDeliveryNoteSearch(page: number, query = noteSearch) {
+    const term = query.trim()
+    if (!term) { clearDeliveryNoteSearch(); return }
+    setNoteListLoading(true); setError('')
+    try {
+      const result = await request<NotePage>(`/api/purchasing/delivery-notes/?q=${encodeURIComponent(term)}&page=${page}&pageSize=${deliveryNotePageSize}`, token)
+      setNoteSearchResults(result.items); setNoteSearchTotal(result.totalCount); setNoteSearchPage(result.page)
+    } catch (e) { setNoteSearchResults(null); setNoteSearchTotal(0); setError((e as Error).message) }
+    finally { setNoteListLoading(false) }
+  }
+
+  function searchDeliveryNotes(event: FormEvent) { event.preventDefault(); const term = noteSearch.trim(); if (!term) { clearDeliveryNoteSearch(); return } void loadDeliveryNoteSearch(1, term) }
+  function clearDeliveryNoteSearch() { setNoteSearch(''); setNoteSearchResults(null); setNoteSearchTotal(0); setNoteSearchPage(1); setNotePage(1) }
+  function closeDeliveryNoteDetail() { noteDetailSequence.current++; setSelectedNote(null); setNoteDetailLoading(false) }
+  function selectOrder(id: string) { if (id !== orderId) { orderSelectionGeneration.current++; closeDeliveryNoteDetail(); setDocumentNumber(''); setNotice(''); setError(''); setMutationOrderError('') } setOrderId(id); void loadOrder(id) }
+  async function openDeliveryNoteOrder(note: Note) { selectOrder(note.purchaseOrderId) }
+  async function openDeliveryNote(note: Note) {
+    const sequence = ++noteDetailSequence.current
+    setSelectedNote(note); setNoteDetailLoading(true)
+    try { const result = await request<Note>(`/api/purchasing/delivery-notes/${note.id}`, token); if (sequence === noteDetailSequence.current) setSelectedNote(result) }
+    catch (e) { if (sequence === noteDetailSequence.current) { setError((e as Error).message); setSelectedNote(null) } }
+    finally { if (sequence === noteDetailSequence.current) setNoteDetailLoading(false) }
+  }
+  async function refreshDeliveryNotes() { setNoteSearch(''); setNoteSearchResults(null); setNoteSearchPage(1); if (notePage === 1) await loadDeliveryNotes(1); else setNotePage(1) }
+  async function reloadMutatedOrder(id: string, generation: number) { if (generation === orderSelectionGeneration.current) await loadOrder(id, true) }
+  const noteEligibleOrders = orders.filter(order => !['Cancelled', 'PendingApproval', 'Rejected'].includes(order.status))
+
+  async function createNote(event: FormEvent) {
+    event.preventDefault()
+    if (!detail) return
+    const orderToReload = detail.id, generation = orderSelectionGeneration.current
+    const lines = detail.lines.flatMap(line => { const quantity = Number(quantities[line.lineNumber] || 0); return quantity > 0 ? [{ orderLineNumber: line.lineNumber, quantity, unitCode: line.unitCode }] : [] })
+    if (!lines.length) { setError('İrsaliyeye en az bir satır miktarı girin.'); return }
+    setBusy(true); setError(''); setNotice('')
+    try {
+      await request(`/api/purchasing/delivery-notes/orders/${orderToReload}`, token, { method: 'POST', body: JSON.stringify({ documentNumber, documentDate, lines, purchaseReceiptId: receiptId || null }) })
+      if (generation === orderSelectionGeneration.current) { setNotice(receiptId ? 'İrsaliye kaydedildi ve stok hareketi oluşturmadan mal kabul ile mutabık hale getirildi.' : 'İrsaliye kaydedildi; stok girişi mal kabul işleminde yapılır.'); setDocumentNumber(''); setQuantities({}) }
+      await refreshDeliveryNotes(); await reloadMutatedOrder(orderToReload, generation)
+    } catch (e) { if (generation === orderSelectionGeneration.current) setError((e as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  async function linkNote(note: Note) {
+    if (!detail || !receiptId) return
+    const orderToReload = detail.id, generation = orderSelectionGeneration.current
+    setBusy(true); setError(''); setNotice('')
+    try {
+      await request(`/api/purchasing/delivery-notes/${note.id}/link-receipt`, token, { method: 'POST', body: JSON.stringify({ purchaseReceiptId: receiptId }) })
+      if (generation === orderSelectionGeneration.current) setNotice('İrsaliye mal kabule bağlandı; yeni stok hareketi oluşturulmadı.')
+      await refreshDeliveryNotes(); await reloadMutatedOrder(orderToReload, generation)
+    } catch (e) { if (generation === orderSelectionGeneration.current) setError((e as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  async function unlinkNote(note: Note) {
+    if (!detail) return
+    const orderToReload = detail.id, generation = orderSelectionGeneration.current
+    setBusy(true); setError(''); setNotice('')
+    try {
+      await request(`/api/purchasing/delivery-notes/${note.id}/unlink-receipt`, token, { method: 'POST' })
+      if (generation === orderSelectionGeneration.current) setNotice('Mal kabul bağlantısı kaldırıldı; irsaliye kaydı korundu.')
+      await refreshDeliveryNotes(); await reloadMutatedOrder(orderToReload, generation)
+    } catch (e) { if (generation === orderSelectionGeneration.current) setError((e as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  return <div className={`purchase-delivery-notes-page ${detail ? 'has-selected-order' : ''}`}>
+    <PurchaseDeliveryNotesHeader disabled={loading || noteListLoading} onRefresh={() => { void loadOrders(); void refreshDeliveryNotes() }}/>
+    <DeliveryNotesOverview noteTotal={noteTotal} searching={noteSearchResults !== null} orderTotal={orderTotal} loading={loading} detail={detail} notes={notes}/>
+    {(mutationOrderError || error) && <div className="alert" role="alert">{mutationOrderError || error}</div>}{notice && <div className="notice" role="status">{notice}</div>}
+    <DeliveryNotesListPanel fields={visibleScreenFields} notes={deliveryNotes} searchResults={noteSearchResults} searchTotal={noteSearchTotal} searchPage={noteSearchPage} page={notePage} total={noteTotal} loading={noteListLoading} search={noteSearch} onSearchChange={setNoteSearch} onSearch={searchDeliveryNotes} onClearSearch={clearDeliveryNoteSearch} onRefresh={() => { void refreshDeliveryNotes() }} onPageChange={page => noteSearchResults === null ? setNotePage(page) : void loadDeliveryNoteSearch(page)} onOpenNote={note => { void openDeliveryNote(note) }} onOpenOrder={note => { void openDeliveryNoteOrder(note) }}/>
+    <OrderSelectionPanel orders={noteEligibleOrders} orderId={orderId} query={orderQuery} page={orderPage} total={orderTotal} loading={loading} onQueryChange={setOrderQuery} onSearch={event => { event.preventDefault(); void loadOrders(1, orderQuery) }} onSelect={selectOrder} onRefresh={() => { void loadOrders(orderPage) }} onPageChange={page => { void loadOrders(page) }}/>
+    {detail && <>
+      <DeliveryNoteComposePanel detail={detail} notes={notes} receiptId={receiptId} quantities={quantities} documentNumber={documentNumber} documentDate={documentDate} busy={busy} fields={visibleDetailFields('purchase-delivery-order-lines')} onSubmit={event => { void createNote(event) }} onDocumentNumberChange={setDocumentNumber} onDocumentDateChange={setDocumentDate} onReceiptChange={setReceiptId} onQuantityChange={(lineNumber, value) => setQuantities(current => ({ ...current, [lineNumber]: value }))}/>
+      <OrderDeliveryNotesPanel detail={detail} notes={notes} fields={visibleDetailFields('purchase-order-delivery-notes')} receiptId={receiptId} busy={busy} onReceiptChange={setReceiptId} onLink={note => { void linkNote(note) }} onUnlink={note => { void unlinkNote(note) }}/>
     </>}
-    {selectedNote&&<div className="modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)closeDeliveryNoteDetail()}}><section className="modal ledger-modal" role="dialog" aria-modal="true" aria-labelledby="purchase-note-detail-title"><div className="modal-head"><div><p className="eyebrow">TEDARİKÇİ İRSALİYESİ</p><h2 id="purchase-note-detail-title">{selectedNote.documentNumber}</h2></div><button className="icon-button" aria-label="Kapat" onClick={closeDeliveryNoteDetail}>×</button></div>{noteDetailLoading?<p className="table-empty">İrsaliye ayrıntısı yükleniyor…</p>:<><div className="balance-banner"><div><small>Sipariş · tedarikçi</small><b>{selectedNote.purchaseOrderCode} · {selectedNote.supplierName}</b><span>Belge tarihi {selectedNote.documentDate}</span></div><span className="ledger-currency">{selectedNote.purchaseReceiptCode?`Mal kabul eşleşti · ${selectedNote.purchaseReceiptCode}`:'Mal kabul bağlantısı yok'}</span></div><div className="ledger-list"><AdvancedDataGrid className="customer-table"><thead><ScreenViewGroupHeader fields={visibleDetailFields('purchase-delivery-note-lines')}/><tr>{visibleDetailFields('purchase-delivery-note-lines').map(field=><th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{(selectedNote.lines||[]).map(line=><tr key={line.orderLineNumber}>{visibleDetailFields('purchase-delivery-note-lines').map(field=><td key={field.key}>{field.key==='orderLineNumber'?line.orderLineNumber:`${line.quantity.toLocaleString('tr-TR',{maximumFractionDigits:4})} ${line.unitCode}`}</td>)}</tr>)}{!selectedNote.lines?.length&&<tr><td colSpan={visibleDetailFields('purchase-delivery-note-lines').length} className="table-empty">Satır ayrıntısı bulunamadı.</td></tr>}</tbody></AdvancedDataGrid></div><p className="muted">İrsaliye kaydı stok hareketi oluşturmaz. Stok girişi bağlı mal kabulde kaydedilir; irsaliye durumu ayrıca yönetilmez.</p><div className="modal-foot"><button className="secondary" onClick={closeDeliveryNoteDetail}>Kapat</button></div></>}</section></div>}
+    {selectedNote && <DeliveryNoteDetailDialog note={selectedNote} loading={noteDetailLoading} fields={visibleDetailFields('purchase-delivery-note-lines')} onClose={closeDeliveryNoteDetail}/>}
   </div>
 }

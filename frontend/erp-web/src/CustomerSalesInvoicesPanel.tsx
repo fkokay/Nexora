@@ -48,6 +48,8 @@ export default function CustomerSalesInvoicesPanel({ token, customer, onClose, o
   onOpenInvoice: (invoiceId: string) => void
 }) {
   const [items, setItems] = useState<InvoiceSummary[]>([])
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [screenFields, setScreenFields] = useState<InvoiceScreenField[]>(defaultInvoiceFields)
@@ -69,23 +71,18 @@ export default function CustomerSalesInvoicesPanel({ token, customer, onClose, o
     async function load() {
       setLoading(true); setError('')
       try {
-        const pageSize = 100
-        const first = await request<InvoicePage>(`/api/sales/invoices/?q=${encodeURIComponent(customer.name)}&page=1&pageSize=${pageSize}`, token)
-        const rows = [...first.items]
-        for (let page = 2; page <= Math.ceil(first.totalCount / pageSize); page++) {
-          const next = await request<InvoicePage>(`/api/sales/invoices/?q=${encodeURIComponent(customer.name)}&page=${page}&pageSize=${pageSize}`, token)
-          rows.push(...next.items)
-        }
-        if (!cancelled) setItems(rows.filter(invoice => invoice.customerId === customer.id))
+        const pageSize = 25
+        const result = await request<InvoicePage>(`/api/sales/invoices/?customerId=${encodeURIComponent(customer.id)}&page=${page}&pageSize=${pageSize}`, token)
+        if (!cancelled) { setItems(result.items); setTotalCount(result.totalCount) }
       } catch (e) {
-        if (!cancelled) setError((e as Error).message)
+        if (!cancelled) { setError((e as Error).message); setItems([]); setTotalCount(0) }
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
     void load()
     return () => { cancelled = true }
-  }, [customer.id, customer.name, token])
+  }, [customer.id, page, token])
 
   return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
     <section className="modal ledger-modal customer-sales-invoices-modal" role="dialog" aria-modal="true" aria-labelledby="customer-sales-invoices-title">
@@ -93,13 +90,14 @@ export default function CustomerSalesInvoicesPanel({ token, customer, onClose, o
         <div><p className="eyebrow">{customer.code} · SATIŞ</p><h2 id="customer-sales-invoices-title">{customer.name} · Faturalar ve iadeler</h2><p className="muted">Müşteriye ait satış faturaları. İade işlemi için faturayı açın.</p></div>
         <button className="icon-button" aria-label="Kapat" onClick={onClose}><X size={19}/></button>
       </div>
-      <div className="customer-summary"><div className="customer-summary-icon"><ShieldCheck size={18}/></div><div><b>{loading ? 'Faturalar yükleniyor…' : `${items.length} satış faturası`}</b><small>Aktif firma kapsamındaki kayıtlar</small></div></div>
+      <div className="customer-summary"><div className="customer-summary-icon"><ShieldCheck size={18}/></div><div><b>{loading ? 'Faturalar yükleniyor…' : `${totalCount} satış faturası`}</b><small>{loading ? 'Aktif firma kayıtları yükleniyor' : `${page}. sayfa · 25 kayıtlık sunucu sayfalaması`}</small></div></div>
       {error && <div className="alert inline-alert" role="alert">{error}<button onClick={() => setError('')}><X size={15}/></button></div>}
-      <div className="ledger-list customer-sales-invoices-list"><AdvancedDataGrid className="customer-table" gridId="customer-sales-invoices"><thead><tr>{screenFields.filter(field => field.visible).map(field => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>
+      <div className="ledger-list customer-sales-invoices-list"><AdvancedDataGrid externalPagination className="customer-table" gridId="customer-sales-invoices"><thead><tr>{screenFields.filter(field => field.visible).map(field => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>
         {loading ? <tr><td colSpan={screenFields.filter(field => field.visible).length} className="table-empty">Faturalar yükleniyor…</td></tr> : items.length === 0 ? <tr><td colSpan={screenFields.filter(field => field.visible).length} className="table-empty">Bu müşteri için görüntülenebilir satış faturası yok.</td></tr> : items.map(invoice => <tr key={invoice.id}>
           {screenFields.filter(field => field.visible).map(field => <td key={field.key}>{field.key === 'code' ? <span className="customer-code">{invoice.code}</span> : field.key === 'orderCode' ? invoice.orderCode : field.key === 'deliveryCode' ? invoice.deliveryCode : field.key === 'invoiceDate' ? invoice.invoiceDate.split('-').reverse().join('.') : field.key === 'lineCount' ? invoice.lineCount : field.key === 'grandTotal' ? `${invoice.grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${invoice.currencyCode}` : field.key === 'status' ? <span className={`quote-status ${invoice.status === 'Posted' ? 'accepted' : 'rejected'}`}>{invoice.status === 'Posted' ? 'Kesildi' : 'İptal'}</span> : field.key === 'actions' ? <button className="row-action" onClick={() => onOpenInvoice(invoice.id)}><RotateCcw size={14}/> Faturayı / iadeyi aç</button> : null}</td>)}
         </tr>)}
       </tbody></AdvancedDataGrid></div>
+      <div className="table-pagination"><span>Sayfa {page} / {Math.max(1, Math.ceil(totalCount / 25))}</span><div><button type="button" className="secondary" disabled={loading || page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Önceki</button><button type="button" className="secondary" disabled={loading || page * 25 >= totalCount} onClick={() => setPage(value => value + 1)}>Sonraki</button></div></div>
       <div className="modal-foot"><span><FileText size={15}/> İade miktarı ve kaynak fatura bağlantısı fatura detayında korunur.</span><button className="secondary" onClick={onClose}>Kapat</button></div>
     </section>
   </div>

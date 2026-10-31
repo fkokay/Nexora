@@ -1,25 +1,21 @@
-import AdvancedDataGrid from './AdvancedDataGrid'
 import { useCallback, useEffect, useState } from 'react'
 import { authenticatedFetch } from './authApi';
-import { ArrowLeftRight, Banknote, CheckCircle2, CircleDollarSign, FileClock, FileText, Plus, RefreshCw, ShieldCheck, XCircle } from 'lucide-react'
-import ScreenViewGroupHeader from './ScreenViewGroupHeader'
+import { ArrowLeftRight, CheckCircle2, FileText, Plus, RefreshCw, ShieldCheck, XCircle } from 'lucide-react'
+import { localDateString } from './dateUtils'
 import './payment-instruments.css'
+import { PaymentInstrumentMetrics } from './payment-instruments/components/PaymentInstrumentMetrics'
+import { PaymentInstrumentListToolbar } from './payment-instruments/components/PaymentInstrumentListToolbar'
+import { PaymentInstrumentGrid } from './payment-instruments/components/PaymentInstrumentGrid'
+import type { Draft, FinanceAccount, Item, KindFilter, PageResult, ScreenField, StatusFilter } from './payment-instruments/paymentInstrumentTypes'
+import { statusText } from './payment-instruments/paymentInstrumentTypes'
+import { PaymentInstrumentCreateForm } from './payment-instruments/components/PaymentInstrumentCreateForm'
 
-type Kind = 'Check' | 'PromissoryNote'
-type Direction = 'Receivable' | 'Payable'
-type Status = 'Portfolio' | 'Endorsed' | 'Collected' | 'Bounced' | 'Cancelled'
-type Item = { id:string; code:string; type:Kind; direction:Direction; status:Status; instrumentNumber:string; counterpartyName:string; bankName:string; currencyCode:string; amount:number; issueDate:string; dueDate:string; portfolioDate:string; endorsedTo:string|null; endorsedAt:string|null; collectedAt:string|null; financialAccountId:string|null; notes:string|null; rowVersion:string; createdAt:string }
-type FinanceAccount = { id:string; name:string; code:string; type:'Cash'|'Bank'; currencyCode:string; isActive:boolean }
-type PageResult = {items:Item[];page:number;pageSize:number;totalCount:number;summary:{openByCurrency:{currencyCode:string;amount:number}[];dueCount:number;bouncedCount:number}}
-type ScreenField = {key:string;label:string;visible:boolean;position:number;fixed?:boolean;section?:string|null}
-type Draft = { type:Kind; direction:Direction; instrumentNumber:string; counterpartyName:string; bankName:string; currencyCode:string; amount:string; issueDate:string; dueDate:string; portfolioDate:string; notes:string }
-const initial = ():Draft => ({ type:'Check', direction:'Receivable', instrumentNumber:'', counterpartyName:'', bankName:'', currencyCode:'TRY', amount:'', issueDate:new Date().toISOString().slice(0,10), dueDate:new Date().toISOString().slice(0,10), portfolioDate:new Date().toISOString().slice(0,10), notes:'' })
-const statusText:Record<Status,string>={Portfolio:'Portföyde',Endorsed:'Ciro edildi',Collected:'Tahsil/ödeme edildi',Bounced:'Karşılıksız',Cancelled:'İptal'}
+const initial = ():Draft => ({ type:'Check', direction:'Receivable', instrumentNumber:'', counterpartyName:'', bankName:'', currencyCode:'TRY', amount:'', issueDate:localDateString(), dueDate:localDateString(), portfolioDate:localDateString(), notes:'' })
 
 export default function PaymentInstrumentsPage({ token, role }:{token:string;role:string}) {
   const [items,setItems]=useState<Item[]>([]),[accounts,setAccounts]=useState<FinanceAccount[]>([])
   const [draft,setDraft]=useState<Draft>(initial),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true)
-  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[filter,setFilter]=useState<Status|'All'>('All'),[kindFilter,setKindFilter]=useState<Kind|'All'>('All')
+  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[filter,setFilter]=useState<StatusFilter>('All'),[kindFilter,setKindFilter]=useState<KindFilter>('All'),[searchDraft,setSearchDraft]=useState(''),[searchTerm,setSearchTerm]=useState('')
   const [page,setPage]=useState(1),[totalCount,setTotalCount]=useState(0),[summary,setSummary]=useState<PageResult['summary']>({openByCurrency:[],dueCount:0,bouncedCount:0})
   const [showCreate,setShowCreate]=useState(false),[collectAccount,setCollectAccount]=useState<Record<string,string>>({})
   const [screenFields,setScreenFields]=useState<ScreenField[]>([
@@ -34,7 +30,7 @@ export default function PaymentInstrumentsPage({ token, role }:{token:string;rol
   const load=useCallback(async()=>{
     setLoading(true);setError('')
     try {
-      const params=new URLSearchParams({page:String(page),pageSize:'50'});if(filter!=='All')params.set('status',filter);if(kindFilter!=='All')params.set('type',kindFilter)
+      const params=new URLSearchParams({page:String(page),pageSize:'25'});if(filter!=='All')params.set('status',filter);if(kindFilter!=='All')params.set('type',kindFilter);if(searchTerm)params.set('term',searchTerm)
       const [rows,accountRows]=await Promise.all([
         authenticatedFetch(`/api/finance/payment-instruments/?${params}`, token, {headers:{Authorization:`Bearer ${token}`}}),
         authenticatedFetch('/api/finance/accounts', token, {headers:{Authorization:`Bearer ${token}`}})
@@ -43,12 +39,14 @@ export default function PaymentInstrumentsPage({ token, role }:{token:string;rol
       if(!accountRows.ok)throw new Error(accountRows.status===403?'Erişim reddedildi (403). Oturumun firma üyeliği veya rolü finans hesaplarına erişemiyor.':'Finans hesapları alınamadı ('+accountRows.status+').')
       const result=await rows.json() as PageResult;setItems(result.items);setTotalCount(result.totalCount);setSummary(result.summary);setAccounts((await accountRows.json() as FinanceAccount[]).filter(x=>x.isActive))
     } catch(cause) { setError((cause as Error).message) } finally { setLoading(false) }
-  },[token,page,filter,kindFilter])
+  },[token,page,filter,kindFilter,searchTerm])
   useEffect(()=>{void load()},[load])
   useEffect(()=>{let cancelled=false;authenticatedFetch('/api/screen-views/payment-instruments/active', token, {headers:{Authorization:`Bearer ${token}`}}).then(async response=>{if(!response.ok)return;const view=await response.json() as {fields?:ScreenField[]};if(!cancelled&&view.fields?.length)setScreenFields(view.fields)}).catch(()=>{});return()=>{cancelled=true}},[token])
   const visible=items
   const visibleFields=screenFields.filter(field=>field.visible).sort((a,b)=>a.position-b.position)
   const portfolioSummary=summary.openByCurrency.map(x=>`${x.currencyCode} ${x.amount.toLocaleString('tr-TR',{minimumFractionDigits:2})}`).join(' · ')||'—'
+  function applySearch(event:React.FormEvent){event.preventDefault();const value=searchDraft.trim();if(value&&value.length<2){setError('Arama için en az 2 karakter girin.');return}setError('');setPage(1);setSearchTerm(value)}
+  function clearSearch(){setError('');setSearchDraft('');setPage(1);setSearchTerm('')}
   async function request<T>(path:string,method='GET',body?:unknown):Promise<T>{
     const response=await authenticatedFetch(path, token, {method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)})
     if(!response.ok){const payload=await response.json().catch(()=>null) as {error?:string;title?:string}|null;throw new Error(payload?.error||payload?.title||(response.status===403?'Erişim reddedildi (403). Bu çek/senet işlemi için firma yöneticisi (TenantAdmin) rolü gerekir.':`İstek başarısız (${response.status}).`))}
@@ -70,24 +68,18 @@ export default function PaymentInstrumentsPage({ token, role }:{token:string;rol
     if(kind==='cancel'&&!window.confirm(`${item.code} kaydı iptal edilsin mi? Bu işlem geri alınamaz.`))return
     const eventType=({endorse:'Ciro edildi',collect:'Tahsil/ödeme edildi',bounce:'Karşılıksız',cancel:'İptal'} as const)[kind]
     setBusy(true);setError('');setNotice('')
-    try{await request(`/api/finance/payment-instruments/${item.id}/${kind}`,'POST',{requestId:crypto.randomUUID(),rowVersion:item.rowVersion,eventDate:new Date().toISOString().slice(0,10),financialAccountId:accountId||null,endorsedTo:endorsedTo||null,note:note.trim()||null});setNotice(`${item.code}: ${eventType}.`);await load()}
+    try{await request(`/api/finance/payment-instruments/${item.id}/${kind}`,'POST',{requestId:crypto.randomUUID(),rowVersion:item.rowVersion,eventDate:localDateString(),financialAccountId:accountId||null,endorsedTo:endorsedTo||null,note:note.trim()||null});setNotice(`${item.code}: ${eventType}.`);await load()}
     catch(cause){setError((cause as Error).message)}finally{setBusy(false)}
   }
   return <div className="page-content payment-instruments-page">
     <div className="page-heading"><div><p className="eyebrow">FİNANS · PORTFÖY YÖNETİMİ</p><h1>Çek ve senet</h1><p className="muted">Alınan ve verilen çek/senetleri vadeleri ve durum geçmişiyle izleyin.</p></div><div className="payment-instrument-heading-actions"><button className="secondary" onClick={()=>void load()} disabled={loading||busy}><RefreshCw size={15}/> Yenile</button>{isAdmin&&<button className="primary" onClick={()=>setShowCreate(value=>!value)}><Plus size={16}/> Yeni kayıt</button>}</div></div>
     {error&&<div className="alert inline-alert" role="alert">{error}<button onClick={()=>setError('')} aria-label="Uyarıyı kapat">×</button></div>}{notice&&<div className="notice" role="status">{notice}<button onClick={()=>setNotice('')} aria-label="Bildirimi kapat">×</button></div>}
-    <div className="payment-instrument-metrics"><article><span><CircleDollarSign size={18}/></span><small>Açık portföy</small><b>{portfolioSummary}</b><em>seçili filtrelere göre, döviz ayrımıyla</em></article><article><span><FileClock size={18}/></span><small>Vadesi gelen</small><b>{summary.dueCount}</b><em>seçili filtrelere göre</em></article><article><span><XCircle size={18}/></span><small>Karşılıksız</small><b>{summary.bouncedCount}</b><em>seçili filtrelere göre</em></article></div>
-    {showCreate&&<section className="panel payment-instrument-create"><div className="panel-heading"><div><h3><Plus size={17}/> Portföye kayıt ekle</h3><p>Firma kapsamındaki çek veya senedi alınan/verilen yönüyle kaydedin.</p></div></div><form onSubmit={event=>void create(event)}>
-      <div className="payment-instrument-form-grid"><label>Tür<select value={draft.type} onChange={e=>setDraft({...draft,type:e.target.value as Kind})}><option value="Check">Çek</option><option value="PromissoryNote">Senet</option></select></label><label>Yön<select value={draft.direction} onChange={e=>setDraft({...draft,direction:e.target.value as Direction})}><option value="Receivable">Alacak · alınan</option><option value="Payable">Borç · verilen</option></select></label>
-      <label>Çek/senet numarası<input required maxLength={80} value={draft.instrumentNumber} onChange={e=>setDraft({...draft,instrumentNumber:e.target.value})}/></label><label>Cari unvanı<input required maxLength={160} value={draft.counterpartyName} onChange={e=>setDraft({...draft,counterpartyName:e.target.value})}/></label>
-      <label>Banka<input required maxLength={120} value={draft.bankName} onChange={e=>setDraft({...draft,bankName:e.target.value})}/></label><label>Tutar<input required type="number" min="0.01" step="0.01" value={draft.amount} onChange={e=>setDraft({...draft,amount:e.target.value})}/></label>
-      <label>Para birimi<input required minLength={3} maxLength={3} value={draft.currencyCode} onChange={e=>setDraft({...draft,currencyCode:e.target.value.toUpperCase()})}/></label><label>Düzenleme tarihi<input required type="date" value={draft.issueDate} onChange={e=>setDraft({...draft,issueDate:e.target.value})}/></label>
-      <label>Vade tarihi<input required type="date" value={draft.dueDate} onChange={e=>setDraft({...draft,dueDate:e.target.value})}/></label><label>Portföye giriş tarihi<input required type="date" value={draft.portfolioDate} onChange={e=>setDraft({...draft,portfolioDate:e.target.value})}/></label>
-      <label className="payment-instrument-wide">Açıklama<textarea maxLength={500} rows={2} value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})}/></label></div>
-      <div className="payment-instrument-form-actions"><span>Kaydetmek finans hesabı bakiyesini değiştirmez; tahsil/ödeme ayrıca işlenir.</span><button className="primary" disabled={busy}>{busy?'Kaydediliyor…':'Portföye ekle'}</button></div></form></section>}
-    <section className="panel payment-instrument-list"><div className="payment-instrument-list-heading"><div><h3><FileText size={17}/> Portföy kayıtları</h3><p>{totalCount} kayıt · sayfa {page} · firma veritabanı kapsamı</p></div><div className="payment-instrument-filters"><select aria-label="Duruma göre filtrele" value={filter} onChange={e=>{setPage(1);setFilter(e.target.value as Status|'All')}}><option value="All">Tüm durumlar</option>{Object.entries(statusText).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select><select aria-label="Türe göre filtrele" value={kindFilter} onChange={e=>{setPage(1);setKindFilter(e.target.value as Kind|'All')}}><option value="All">Çek ve senet</option><option value="Check">Çekler</option><option value="PromissoryNote">Senetler</option></select></div></div>
-      {loading?<div className="payment-instrument-empty">Kayıtlar yükleniyor…</div>:visible.length===0?<div className="payment-instrument-empty"><Banknote size={20}/><b>Gösterilecek kayıt yok</b><span>Filtreleri değiştirebilir veya yeni çek/senet ekleyebilirsiniz.</span></div>:<div className="payment-instrument-table-wrap"><AdvancedDataGrid  className="payment-instrument-table"><thead><ScreenViewGroupHeader fields={visibleFields}/><tr>{visibleFields.map(field=><th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visible.map(item=><tr key={item.id}>{visibleFields.map(field=><td key={field.key}>{renderInstrumentField(field.key,item,isAdmin,busy,accounts,collectAccount,setCollectAccount,action)}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>}
-      {totalCount>50&&<div className="payment-instrument-pagination"><button className="secondary" onClick={()=>setPage(value=>Math.max(1,value-1))} disabled={page<=1||loading}>Önceki</button><span>Sayfa {page} / {Math.ceil(totalCount/50)}</span><button className="secondary" onClick={()=>setPage(value=>value+1)} disabled={page>=Math.ceil(totalCount/50)||loading}>Sonraki</button></div>}
+    <PaymentInstrumentMetrics summary={summary} portfolioSummary={portfolioSummary}/>
+    {showCreate&&<PaymentInstrumentCreateForm draft={draft} busy={busy} onDraftChange={setDraft} onSubmit={event=>void create(event)}/>}
+    <section className="panel payment-instrument-list"><div className="payment-instrument-list-heading"><div><h3><FileText size={17}/> Portföy kayıtları</h3><p>{totalCount} kayıt · sayfa {page} · firma veritabanı kapsamı</p></div></div>
+      <PaymentInstrumentListToolbar searchDraft={searchDraft} searchTerm={searchTerm} filter={filter} kindFilter={kindFilter} onSearchDraftChange={setSearchDraft} onSearch={applySearch} onClearSearch={clearSearch} onFilterChange={value=>{setPage(1);setFilter(value)}} onKindFilterChange={value=>{setPage(1);setKindFilter(value)}}/>
+      <PaymentInstrumentGrid fields={visibleFields} items={visible} loading={loading} renderCell={(field,item)=>renderInstrumentField(field.key,item,isAdmin,busy,accounts,collectAccount,setCollectAccount,action)}/>
+      {totalCount>25&&<div className="payment-instrument-pagination"><button className="secondary" onClick={()=>setPage(value=>Math.max(1,value-1))} disabled={page<=1||loading}>Önceki</button><span>Sayfa {page} / {Math.ceil(totalCount/25)}</span><button className="secondary" onClick={()=>setPage(value=>value+1)} disabled={page>=Math.ceil(totalCount/25)||loading}>Sonraki</button></div>}
     </section>
     <div className="boundary-note payment-instrument-boundary"><ShieldCheck size={16}/><span>Çek/senet işlemleri durum ve denetim geçmişi oluşturur. Tahsilat/ödeme banka veya kasa hareketi yazar; cari fatura tahsilatına otomatik mahsup yapmaz.</span></div>
   </div>

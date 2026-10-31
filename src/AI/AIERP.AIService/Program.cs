@@ -369,6 +369,22 @@ studio.MapPut("/{requestId:guid}", async (Guid requestId, UpdateRequest body, Cl
     await db.SaveChangesAsync();
     return Results.Ok(new RequestView(request.Id, request.Title, request.Description, request.Status, request.CreatedAt, request.ProjectId, project?.Name, true));
 });
+studio.MapDelete("/{requestId:guid}", async (Guid requestId, ClaimsPrincipal user, AIStudioDbContext db) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var request = await db.DevelopmentRequests.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == requestId);
+    if (request is null) return Results.NotFound();
+    if (!user.IsInRole("TenantAdmin") && request.CreatedByUserId != userId) return Results.Forbid();
+    if (request.Status != "Submitted") return Results.Conflict(new { error = "Yalnızca henüz işleme alınmamış talepler silinebilir." });
+
+    var linkedWorkspaces = await db.DevelopmentWorkspaceRequests
+        .Where(x => x.TenantId == tenantId && x.DevelopmentRequestId == requestId).ToListAsync();
+    foreach (var workspace in linkedWorkspaces) workspace.DevelopmentRequestId = null;
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.request.deleted", Resource = request.Id.ToString() });
+    db.DevelopmentRequests.Remove(request);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
 var projects = app.MapGroup("/studio/projects").RequireAuthorization();
 app.MapGet("/studio/modules/active", async (ClaimsPrincipal user, PlatformDbContext platformDb, CancellationToken cancellationToken) =>
 {

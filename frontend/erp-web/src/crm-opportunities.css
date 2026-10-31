@@ -43,6 +43,8 @@
 /* Workbench layout: records stay visible while the selected opportunity is inspected. */
 .crm-opportunity-workbench { min-width: 0; }
 .crm-record-workspace { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, .8fr); align-items: start; gap: 12px; }
+.crm-record-workspace:not(.is-inspecting):not(.is-empty) { grid-template-columns: minmax(0, 1fr); }
+.crm-record-workspace:not(.is-inspecting):not(.is-empty) > .crm-record-detail { display: none; }
 .crm-record-list { min-width: 0; }
 .crm-record-list .crm-table-wrap { max-height: min(68vh, 690px); overflow: auto; }
 .crm-record-list .crm-table { min-width: 800px; }
@@ -68,6 +70,7 @@
 .crm-detail-placeholder b { color: var(--text, #202a3b); font-size: 13px; }
 .crm-new-action { flex: none; min-height: 38px; }
 .crm-modal-backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 18px; background: #18223566; }
+.crm-customer-picker-backdrop { z-index: 1300; }
 .crm-create-modal { width: min(760px, 100%); max-height: min(90vh, 800px); overflow: auto; }
 .crm-create-modal .crm-panel-heading { align-items: center; }
 .crm-create-modal .crm-panel-heading > button { flex: none; }
@@ -80,6 +83,44 @@
   .crm-create-modal { padding: 14px; }
   .crm-record-list .crm-table-wrap { max-height: 55vh; }
 }
+
+html[data-theme="dark"] .crm-page{color:var(--erp-text)}
+html[data-theme="dark"] .crm-hero,
+html[data-theme="dark"] .crm-panel,
+html[data-theme="dark"] .crm-record-detail{border-color:var(--erp-border);background:var(--erp-surface);color:var(--erp-text);box-shadow:none}
+html[data-theme="dark"] .crm-hero-icon{background:#263b55;color:#93bce8}
+html[data-theme="dark"] .crm-hero-total{border-color:var(--erp-border);background:#202638}
+html[data-theme="dark"] .crm-hero-total span{color:var(--erp-muted)}
+html[data-theme="dark"] .crm-hero-total b{color:var(--erp-text)}
+html[data-theme="dark"] .crm-panel-heading{border-color:var(--erp-border)}
+html[data-theme="dark"] .crm-panel-heading h2,
+html[data-theme="dark"] .crm-detail-placeholder b{color:var(--erp-text)}
+html[data-theme="dark"] .crm-panel-heading p,
+html[data-theme="dark"] .crm-form label,
+html[data-theme="dark"] .crm-filter-label,
+html[data-theme="dark"] .crm-detail-code,
+html[data-theme="dark"] .crm-detail-heading p,
+html[data-theme="dark"] .crm-detail-fields dt,
+html[data-theme="dark"] .crm-detail-placeholder{color:var(--erp-muted)}
+html[data-theme="dark"] .crm-form input,
+html[data-theme="dark"] .crm-form select,
+html[data-theme="dark"] .crm-form textarea,
+html[data-theme="dark"] .crm-toolbar select{border-color:#3a455d;background:#131927;color:var(--erp-text)}
+html[data-theme="dark"] .crm-search{border-color:var(--erp-border);background:#151d2c;color:var(--erp-muted)}
+html[data-theme="dark"] .crm-search input{background:transparent;color:var(--erp-text)}
+html[data-theme="dark"] .crm-table-wrap{border-color:var(--erp-border);background:var(--erp-surface)}
+html[data-theme="dark"] .crm-table th{background:#242b3b;color:#bec7d8}
+html[data-theme="dark"] .crm-table td{border-color:var(--erp-border);color:#c7cede}
+html[data-theme="dark"] .crm-table tbody tr[aria-selected="true"]{background:#252e45;box-shadow:inset 3px 0 #5ca8ee}
+html[data-theme="dark"] .crm-probability i{background:#30394d}
+html[data-theme="dark"] .crm-detail-heading h3,
+html[data-theme="dark"] .crm-detail-fields dd{color:var(--erp-text)}
+html[data-theme="dark"] .crm-detail-fields{border-color:var(--erp-border)}
+html[data-theme="dark"] .crm-detail-fields>div{border-color:var(--erp-border)}
+html[data-theme="dark"] .crm-detail-notes{background:#202638;color:var(--erp-text)}
+html[data-theme="dark"] .crm-detail-placeholder svg{color:#8fc8ff}
+html[data-theme="dark"] .crm-empty{border-color:var(--erp-border);color:var(--erp-muted)}
+html[data-theme="dark"] .crm-empty-explained{background:linear-gradient(145deg,#1b2636,#192230)}
 
 /* Dynamics 365 accent system. */
 .crm-page { --crm-accent: #0f6cbd; }
@@ -176,4 +217,21 @@
 .crm-search-control input { min-height: 37px; }
 @media (max-width: 650px) {
   .crm-toolbar { align-items: stretch; }
+}
+
+html[data-theme="dark"] #root .main-area .crm-hero-total {
+  border-color: #30394d;
+  background: #202638;
+  box-shadow: none;
+}
+html[data-theme="dark"] #root .main-area .crm-hero-total span { color: #a7b0c2 !important; }
+html[data-theme="dark"] #root .main-area .crm-hero-total b { color: #e6eaf3 !important; }
+
+/* Keep long opportunity names readable and use the grid's persisted column sizing. */
+.crm-record-list .crm-table td[data-column="name"],
+.crm-record-list .crm-table td[data-column="customerName"],
+.crm-record-list .crm-table td[data-column="code"] { overflow: hidden; }
+.crm-truncate { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1050px) {
+  .crm-record-list .advanced-grid-scroll > table.crm-table { min-width: 1146px; }
 }

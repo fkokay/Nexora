@@ -87,6 +87,7 @@ public static class PurchaseDeliveryNoteEndpoints
         });
 
         group.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 50,
+            string? q = null,
             CancellationToken ct = default) =>
         {
             if (!TryTenant(user, out var tenantId)) return Results.Forbid();
@@ -94,6 +95,15 @@ public static class PurchaseDeliveryNoteEndpoints
             var orders = await AccessibleOrdersAsync(user, tenantId, db, platformDb, ct);
             var orderIds = orders.Select(x => x.Id);
             var query = db.PurchaseDeliveryNotes.AsNoTracking().Where(x => x.TenantId == tenantId && orderIds.Contains(x.PurchaseOrderId));
+            var term = q?.Trim();
+            if (!string.IsNullOrEmpty(term))
+            {
+                var normalizedTerm = term.ToUpperInvariant();
+                query = query.Where(x => x.DocumentNumber.ToUpper().Contains(normalizedTerm)
+                    || x.PurchaseOrder.Code.ToUpper().Contains(normalizedTerm)
+                    || x.PurchaseOrder.Supplier.Name.ToUpper().Contains(normalizedTerm)
+                    || (x.PurchaseReceipt != null && x.PurchaseReceipt.Code.ToUpper().Contains(normalizedTerm)));
+            }
             var total = await query.CountAsync(ct);
             var notes = await query.OrderByDescending(x => x.DocumentDate).ThenByDescending(x => x.CreatedAt)
                 .Skip((page - 1) * pageSize).Take(pageSize).Select(x => new PurchaseDeliveryNoteView(

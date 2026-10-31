@@ -1,12 +1,19 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Activity, ArrowUpRight, Boxes, CalendarDays, ChevronRight, CircleHelp, ClipboardCheck, Code2, FileText, FolderKanban, GitBranch, ListTodo, LogOut, Package, Pencil, Plus, ShieldCheck, Sparkles, TrendingUp, X, Zap } from 'lucide-react'
+import { Activity, ArrowUpRight, Boxes, CalendarDays, Check, ChevronRight, CircleHelp, ClipboardCheck, Code2, FileText, FolderKanban, GitBranch, ListTodo, LogOut, Package, Pencil, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, TrendingUp, X, Zap } from 'lucide-react'
 import { api, migrateLegacyRefreshToken } from './api'
 import { StudioProjects } from './StudioProjects'
+import { moduleStarterFiles } from './moduleStarterFiles'
 import './studio-dashboard.css'
 
 type Tenant = { id: string; name: string; slug: string; role: string }
 type DevelopmentProject = { id: string; name: string; repositoryUrl: string; defaultBranch: string; accessLevel: string; createdAt: string; githubAuthorized: boolean; gitHubAuthorized?: boolean }
 type DevelopmentRequest = { id: string; title: string; description: string; status: string; createdAt: string; projectId: string | null; projectName: string | null; canEdit: boolean }
+type MarketplaceModule = { moduleCode: string; version: string; publisher: string; artifactSha256: string; publishedAt: string | null; manifest: { displayName?: string; dependencies: { moduleCode: string; minimumVersion: string }[]; permissions: { code: string; description: string }[] } | null; isActivated: boolean; activatedVersion: string | null; runtimeStatus: string }
+const studioModuleStarters = [
+  { id: 'greeting', name: 'Selamlama modülü', moduleCode: 'ornek.selamlama', description: 'Bir ad alır ve kişiselleştirilmiş bir karşılama mesajı döndürür.' },
+  { id: 'price', name: 'Fiyat hesaplama modülü', moduleCode: 'ornek.fiyat-hesapla', description: 'Birim fiyat, adet ve indirim oranından net tutarı hesaplar.' },
+  { id: 'text-summary', name: 'Metin özeti modülü', moduleCode: 'ornek.metin-ozeti', description: 'Metindeki kelime ve karakter sayısını hesaplar.' },
+] as const
 type LoginResponse = { accessToken: string; displayName: string; tenants: Tenant[] }
 type TenantSelectionResponse = { accessToken: string; tenant: Tenant }
 
@@ -36,6 +43,12 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const [requests, setRequests] = useState<DevelopmentRequest[]>([])
   const [projects, setProjects] = useState<DevelopmentProject[]>([])
+  const [marketplaceModules, setMarketplaceModules] = useState<MarketplaceModule[]>([])
+  const [marketplaceLoading, setMarketplaceLoading] = useState(false)
+  const [marketplaceError, setMarketplaceError] = useState('')
+  const [marketplaceNotice, setMarketplaceNotice] = useState('')
+  const [marketplaceQuery, setMarketplaceQuery] = useState('')
+  const [marketplaceBusy, setMarketplaceBusy] = useState('')
   const [analyticsRange, setAnalyticsRange] = useState(180)
   const [analyticsProject, setAnalyticsProject] = useState('all')
   const projectsRequestId = useRef(0)
@@ -61,13 +74,14 @@ export default function App() {
   })()
   const contextualScreen = (contextParams.get('contextLabel') || contextPage.replace(/^(inventory|sales|finance|manufacturing)-/, '').replaceAll('-', ' ')).trim().slice(0, 100)
   const contextualModuleCode = /^module:([a-z][a-z0-9]*(?:[.-][a-z0-9]+)*):/i.exec(contextPage)?.[1] || ''
-  const moduleStarterId = ['greeting', 'price', 'text-summary'].includes(contextParams.get('moduleStarter') || '') ? contextParams.get('moduleStarter') : ''
+  const [moduleStarterId, setModuleStarterId] = useState(() => ['greeting', 'price', 'text-summary'].includes(contextParams.get('moduleStarter') || '') ? contextParams.get('moduleStarter') || '' : '')
   const [moduleDisplayName, setModuleDisplayName] = useState(contextualScreen)
   const [moduleCode, setModuleCode] = useState(contextualModuleCode)
   const [activeSection, setActiveSection] = useState(window.location.hash.slice(1) || 'overview')
   const contextSection = window.location.hash.slice(1)
   const platformTools = [
     { id: 'modules', title: 'Modül pazaryeri', description: 'ERP modüllerini inceleyin ve çalışma alanınıza ekleyin.', icon: Package },
+    { id: 'source-workspaces', title: 'Kod çalışma alanları', description: 'Yetkili projelerde izole kod çalışma alanlarını açın ve değişiklikleri inceleyin.', icon: GitBranch },
     { id: 'custom-forms', title: 'Özel formlar', description: 'İş süreçlerinize uygun formlar ve alanlar tanımlayın.', icon: FileText },
     { id: 'workflows', title: 'İş akışları', description: 'Onay ve görev adımlarını görsel olarak düzenleyin.', icon: ClipboardCheck },
     { id: 'business-rules', title: 'İş kuralları', description: 'Süreçlerin koşullarını ve otomatik davranışlarını yönetin.', icon: Zap },
@@ -78,7 +92,7 @@ export default function App() {
     { id: 'settings', title: 'Yapay zekâ tanımlaması', description: 'Kurumun AI sağlayıcılarını ve çalışma ayarlarını yönetin.', icon: Sparkles },
   ]
   const availablePlatformTools = platformTools.filter(tool=>(tool.id!=='custom-menus'&&tool.id!=='settings')||tenant?.role==='TenantAdmin')
-  const platformToolHref = (toolId: string) => { const url = new URL('/', platformOrigin); url.searchParams.set('platformTool', toolId); return url.toString() }
+  const platformToolHref = (toolId: string) => { const url = new URL('/', platformOrigin); url.searchParams.set('platformTool', toolId); url.searchParams.set('embeddedStudio', '1'); return url.toString() }
 
   async function refreshProjects() {
     const requestId = ++projectsRequestId.current
@@ -86,6 +100,29 @@ export default function App() {
     const registeredProjects = apiProjects.map(project => ({ ...project, githubAuthorized: project.githubAuthorized ?? project.gitHubAuthorized ?? false }))
     if (requestId === projectsRequestId.current) setProjects(registeredProjects)
     return registeredProjects
+  }
+
+  async function refreshMarketplace() {
+    setMarketplaceLoading(true); setMarketplaceError('')
+    try { setMarketplaceModules(await api<MarketplaceModule[]>('/api/tenant/modules/marketplace', token)) }
+    catch (cause) { setMarketplaceError((cause as Error).message) }
+    finally { setMarketplaceLoading(false) }
+  }
+
+  async function toggleMarketplaceModule(item: MarketplaceModule, remove = false) {
+    if (remove && !window.confirm(`${item.manifest?.displayName || item.moduleCode} modülünü tenant kataloğunuzdan çıkarmak istiyor musunuz?`)) return
+    setMarketplaceBusy(item.moduleCode); setMarketplaceError(''); setMarketplaceNotice('')
+    try {
+      if (remove) {
+        await api<void>(`/api/tenant/modules/${encodeURIComponent(item.moduleCode)}`, token, { method: 'DELETE' })
+        setMarketplaceNotice(`${item.moduleCode} tenant kataloğundan çıkarıldı.`)
+      } else {
+        await api('/api/tenant/modules/activate', token, { method: 'POST', body: JSON.stringify({ moduleCode: item.moduleCode, version: item.version }) })
+        setMarketplaceNotice(`${item.moduleCode}@${item.version} tenant çalışma alanına eklendi.`)
+      }
+      await refreshMarketplace()
+    } catch (cause) { setMarketplaceError((cause as Error).message) }
+    finally { setMarketplaceBusy('') }
   }
 
   useEffect(() => {
@@ -102,6 +139,10 @@ export default function App() {
     }).catch(e => { if (current) setError((e as Error).message) })
     return () => { current = false }
   }, [token, tenant?.id])
+
+  useEffect(() => {
+    if (activeSection === 'marketplace' && token && tenant) void refreshMarketplace()
+  }, [activeSection, token, tenant?.id])
 
   useEffect(() => {
     if (!moduleStarterId || !token || !tenant || moduleStarterPrompted.current) return
@@ -212,6 +253,17 @@ export default function App() {
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
 
+  async function deleteRequest(request: DevelopmentRequest) {
+    if (!request.canEdit || request.status !== 'Submitted') return
+    if (!window.confirm(`“${request.title}” talebini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`)) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      await api<void>(`/studio/requests/${encodeURIComponent(request.id)}`, token, { method: 'DELETE' })
+      setRequests(items => items.filter(item => item.id !== request.id))
+      setNotice('Geliştirme talebi silindi.')
+    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
+
   function closeRequestDialog() {
     setShowRequest(false); setEditingRequestId(null); setRequestTitle(''); setRequestDescription(''); setRequestProjectId(''); setModuleRequestDraft(false)
   }
@@ -220,13 +272,17 @@ export default function App() {
     setEditingRequestId(null); setRequestTitle(''); setRequestDescription(''); setRequestProjectId(''); setModuleRequestDraft(false); setError(''); setShowRequest(true)
   }
 
-  function openModuleStarterRequest() {
+  function openModuleStarterRequest(starter?: typeof studioModuleStarters[number]) {
+    const starterId = starter?.id || moduleStarterId
+    const displayName = starter?.name || contextualScreen
+    const code = starter?.moduleCode || contextualModuleCode
+    setModuleStarterId(starterId)
     setEditingRequestId(null)
     setModuleRequestDraft(true)
-    setModuleDisplayName(contextualScreen)
-    setModuleCode(contextualModuleCode)
-    setRequestTitle(`${contextualScreen.replace(/\s+modülü?$/i, '') || 'Yeni'} modülünü geliştirme`)
-    setRequestDescription(`${contextualScreen} başlangıç şablonunu temel alarak kendi modülümü geliştirmek istiyorum. manifest.json, Cargo.toml ve src/lib.rs dosyalarını seçilen GitHub projesinde oluşturup düzenleyin.`)
+    setModuleDisplayName(displayName)
+    setModuleCode(code)
+    setRequestTitle(`${displayName.replace(/\s+modülü?$/i, '') || 'Yeni'} modülünü geliştirme`)
+    setRequestDescription(`${displayName} başlangıç şablonunu temel alarak kendi modülümü geliştirmek istiyorum. Modül kodu: ${code}. manifest.json, Cargo.toml ve src/lib.rs dosyalarını seçilen GitHub projesinde oluşturup düzenleyin.`)
     setRequestProjectId('')
     setError('')
     setShowRequest(true)
@@ -266,6 +322,7 @@ export default function App() {
   const analyticsMaxProject = Math.max(1, ...analyticsProjects.map(([, count]) => count))
   const analyticsRecentRequests = [...analyticsRequests].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 6)
   const statusLabel = (status: string) => ({ Submitted: 'Alındı', InProgress: 'Devam ediyor', Completed: 'Tamamlandı', Rejected: 'Reddedildi', Cancelled: 'İptal edildi' }[status] || status)
+  const filteredMarketplaceModules = marketplaceModules.filter(item => `${item.manifest?.displayName || ''} ${item.moduleCode} ${item.publisher}`.toLocaleLowerCase('tr-TR').includes(marketplaceQuery.toLocaleLowerCase('tr-TR')))
   const analyticsContent = <section className="studio-analytics-page" id="analytics" aria-label="Studio analitikleri">
     <header className="studio-analytics-heading"><div><span className="studio-analytics-kicker"><Activity size={14}/> RAPORLAMA · STUDIO</span><h1>Analitik</h1><p>Talep hacmini, iş akışını ve proje dağılımını tek ekrandan takip edin.</p></div><div className="studio-analytics-filters"><label><CalendarDays size={15}/><select aria-label="Rapor dönemi" value={analyticsRange} onChange={event => setAnalyticsRange(Number(event.target.value))}><option value={30}>Son 30 gün</option><option value={90}>Son 90 gün</option><option value={180}>Son 6 ay</option><option value={365}>Son 12 ay</option></select></label><label><FolderKanban size={15}/><select aria-label="Proje filtresi" value={analyticsProject} onChange={event => setAnalyticsProject(event.target.value)}><option value="all">Tüm projeler</option>{projects.map(project => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label></div></header>
     <div className="studio-analytics-kpis">
@@ -296,7 +353,7 @@ export default function App() {
         <a className={`studio-nav-link ${activeSection==='analytics'?'active':''}`} href="#analytics"><Activity size={17}/>Analitik</a>
       </nav>
       <p className="studio-nav-label studio-nav-label-spaced">PLATFORM UYARLAMA</p>
-      <nav className="studio-side-nav" aria-label="Platform uyarlama"><a className="studio-nav-link" href={platformToolHref('modules')}><Boxes size={17}/>Uyarlama araçları<ChevronRight size={14}/></a></nav>
+      <nav className="studio-side-nav" aria-label="Platform uyarlama"><a className={`studio-nav-link ${activeSection==='adaptation'||activeSection==='marketplace'||activeSection.startsWith('tool-')?'active':''}`} href="#adaptation"><Boxes size={17}/>Uyarlama araçları<ChevronRight size={14}/></a></nav>
       <p className="studio-nav-label studio-nav-label-spaced">HIZLI BAŞLANGIÇ</p>
       <button className="studio-nav-link studio-nav-action" onClick={openNewRequest}><Plus size={17}/>Yeni geliştirme talebi</button>
       <div className="studio-sidebar-note"><span className="studio-note-icon"><ShieldCheck size={17}/></span><b>Kontrollü geliştirme</b><p>Çalışma alanları proje yetkileri ve insan onayıyla yönetilir.</p><span><i/>Politikalar etkin</span></div>
@@ -305,15 +362,22 @@ export default function App() {
 
         <div className="studio-dashboard-content">
       <header className="studio-app-header studio-dashboard-topbar">
-        <div className="studio-topbar-crumb"><span>Studio</span><ChevronRight size={14}/><b>{activeSection==='adaptation'?'Platform uyarlama':activeSection==='requests'?'Geliştirme talepleri':activeSection==='analytics'?'Analitik':activeSection==='projects'?'Projeler':'Genel bakış'}</b></div>
+        <div className="studio-topbar-crumb"><span>Studio</span><ChevronRight size={14}/><b>{activeSection.startsWith('tool-')?platformTools.find(tool=>tool.id===activeSection.slice(5))?.title||'Uyarlama aracı':activeSection==='marketplace'?'Modül pazaryeri':activeSection==='adaptation'?'Platform uyarlama':activeSection==='requests'?'Geliştirme talepleri':activeSection==='analytics'?'Analitik':activeSection==='projects'?'Projeler':'Genel bakış'}</b></div>
         <div className="studio-topbar-actions"><span className="studio-topbar-status"><i/>Servis alanı hazır</span>{tenants.length>1&&selectionToken&&<select aria-label="Firma seç" value={tenant.id} disabled={busy} onChange={e=>{const selected=tenants.find(item=>item.id===e.target.value);if(selected)void selectTenant(selected)}}>{tenants.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>}<button className="secondary small-button studio-topbar-logout" onClick={logout}><LogOut size={15}/> Oturumu kapat</button></div>
       </header>
 
         <main className="studio-main studio-dashboard-main" id="overview">
-        {activeSection==='adaptation' ? <>
-          <section className="studio-adaptation-hero"><span className="studio-adaptation-hero-icon"><Boxes size={21}/></span><div><span className="studio-adaptation-kicker">PLATFORM · TENANT YAPILANDIRMASI</span><h1>Platform uyarlama</h1><p>ERP deneyimini iş süreçlerinize göre şekillendirin. Her araç mevcut Platform yetkilerinizle açılır.</p></div><span className="studio-adaptation-hero-tenant"><i/>{tenant.name}</span></section>
-          <section className="studio-adaptation-section" aria-label="Uyarlama araçları"><header className="studio-adaptation-section-heading"><div><span>ARAÇLAR</span><h2>Çalışma alanınızı yapılandırın</h2><p>Bir aracı seçtiğinizde Platform’daki ilgili ekran yeni sekmede açılır.</p></div><b>{availablePlatformTools.length} araç</b></header><div className="studio-adaptation-grid">{availablePlatformTools.map((tool,index)=>{const ToolIcon=tool.icon;return <a className="studio-adaptation-card" key={tool.id} href={platformToolHref(tool.id)} target="_blank" rel="noreferrer" aria-label={`${tool.title} ekranını aç`}><div className="studio-adaptation-card-top"><span className="studio-adaptation-icon"><ToolIcon size={19}/></span><span className="studio-adaptation-index">{String(index+1).padStart(2,'0')}</span></div><div className="studio-adaptation-card-copy"><h3>{tool.title}</h3><p>{tool.description}</p></div><span className="studio-adaptation-open">Aracı aç <ArrowUpRight size={15}/></span></a>})}</div></section>
-        </> : activeSection==='projects' ? <>
+        {activeSection==='marketplace' ? <>
+          <nav className="studio-product-tabs" aria-label="Studio uyarlama bölümleri"><a href="#adaptation">Uyarlama araçları</a><a className="active" href="#marketplace">Modül pazaryeri</a></nav>
+          <section className="studio-marketplace-heading"><div><span><Package size={14}/> MODÜL YÖNETİMİ · STUDIO</span><h1>Modül pazaryeri</h1><p>Yayımlanmış modülleri yönetin veya örnek şablonları temel alarak kendi modülünüzü geliştirin.</p></div><button className="secondary" type="button" onClick={()=>void refreshMarketplace()} disabled={marketplaceLoading}><RefreshCw size={15}/>{marketplaceLoading?'Yenileniyor…':'Kataloğu yenile'}</button></section>
+          <div className="studio-marketplace-boundary"><ShieldCheck size={16}/><span>Yayımlanmış paketler imza ve runtime doğrulamasıyla etkinleşir. Örnek şablonlar geliştirme başlangıcıdır; yayımlanmış modül olarak tenant’a eklenmez.</span></div>
+          {marketplaceError&&<div className="alert" role="alert">{marketplaceError}</div>}{marketplaceNotice&&<div className="notice" role="status">{marketplaceNotice}</div>}
+          <section className="studio-marketplace-starters"><header><div><span>ÖRNEKLER</span><h2>Kendi modülünüz için başlangıç şablonları</h2><p>Şablon seçtiğinizde modül adı ve teknik kodu geliştirme talebine aktarılır.</p></div><b>{studioModuleStarters.length} şablon</b></header><div className="studio-marketplace-starter-grid">{studioModuleStarters.map((starter,index)=>{const files=moduleStarterFiles(starter.id,starter.moduleCode,starter.name);return <article className="studio-marketplace-starter" key={starter.id}><div className="studio-marketplace-starter-top"><span><Code2 size={17}/></span><small>{String(index+1).padStart(2,'0')} · WASM</small></div><h3>{starter.name}</h3><p>{starter.description}</p><code>{starter.moduleCode}</code><details><summary>Şablon dosyalarını incele</summary><div>{files.map(file=><details key={file.path}><summary>{file.path}</summary><pre>{file.content}</pre></details>)}</div></details><button className="primary small-button" type="button" onClick={()=>openModuleStarterRequest(starter)}><Code2 size={14}/>Bu şablonla Studio’da geliştir</button></article>})}</div></section>
+          <section className="studio-marketplace-catalog"><header><div><span>YAYIMLANMIŞ PAKETLER</span><h2>Tenant modül kataloğu</h2><p>Etkinleştirme tenant yöneticisi yetkisi ve platform lisans sınırlarına tabidir.</p></div><label><Search size={15}/><input type="search" value={marketplaceQuery} onChange={event=>setMarketplaceQuery(event.target.value)} placeholder="Ad, kod veya yayıncı ara" aria-label="Modül kataloğunda ara"/></label></header>{marketplaceLoading&&marketplaceModules.length===0?<div className="studio-marketplace-empty">Yayımlanmış modüller yükleniyor…</div>:filteredMarketplaceModules.length===0?<div className="studio-marketplace-empty"><Package size={21}/><b>{marketplaceModules.length?'Eşleşen modül yok':'Henüz yayımlanmış modül yok'}</b><span>{marketplaceModules.length?'Arama terimini değiştirip yeniden deneyin.':'Platform yayın yöneticisi modül yayımladığında burada görünür.'}</span></div>:<div className="studio-marketplace-published-grid">{filteredMarketplaceModules.map(item=>{const name=item.manifest?.displayName||item.moduleCode;const canUpdate=item.isActivated&&item.activatedVersion!==item.version;return <article className="studio-marketplace-published" key={`${item.moduleCode}@${item.version}`}><div className="studio-marketplace-published-top"><span><Boxes size={18}/></span><b className={item.runtimeStatus==='Ready'?'ready':'blocked'}>{item.runtimeStatus==='Ready'?'Runtime hazır':'Runtime engelli'}</b></div><h3>{name}</h3><p><code>{item.moduleCode}</code> · v{item.version} · {item.publisher}</p><small>{item.isActivated?`Tenant’ta etkin · ${item.activatedVersion||'sürüm bilinmiyor'}`:'Tenant’ta etkin değil'}</small>{item.manifest&&<details><summary>İzin ve bağımlılıklar</summary><p>Bağımlılıklar: {item.manifest.dependencies.length?item.manifest.dependencies.map(dependency=>`${dependency.moduleCode} ≥ ${dependency.minimumVersion}`).join(', '):'Yok'}</p><p>İzinler: {item.manifest.permissions.length?item.manifest.permissions.map(permission=>permission.code).join(', '):'Yok'}</p></details>}<div className="studio-marketplace-actions">{tenant.role==='TenantAdmin'&&(!item.isActivated||canUpdate)&&<button className="primary small-button" type="button" disabled={!!marketplaceBusy||item.runtimeStatus!=='Ready'} onClick={()=>void toggleMarketplaceModule(item)}>{marketplaceBusy===item.moduleCode?'Doğrulanıyor…':<><Check size={14}/>{canUpdate?`v${item.version} sürümüne geç`:'Tenant’a ekle'}</>}</button>}{tenant.role==='TenantAdmin'&&item.isActivated&&<button className="secondary small-button" type="button" disabled={!!marketplaceBusy} onClick={()=>void toggleMarketplaceModule(item,true)}><Trash2 size={14}/>Tenant’tan çıkar</button>}</div></article>})}</div>}</section>
+        </> : activeSection==='adaptation' ? <>
+          <section className="studio-adaptation-hero"><span className="studio-adaptation-hero-icon"><Boxes size={21}/></span><div><span className="studio-adaptation-kicker">PLATFORM · TENANT YAPILANDIRMASI</span><h1>Platform uyarlama</h1><p>ERP deneyimini iş süreçlerinize göre şekillendirin. Tüm araçlar Studio içinde açılır.</p></div><span className="studio-adaptation-hero-tenant"><i/>{tenant.name}</span></section>
+          <section className="studio-adaptation-section" aria-label="Uyarlama araçları"><header className="studio-adaptation-section-heading"><div><span>ARAÇLAR</span><h2>Çalışma alanınızı yapılandırın</h2><p>Bir araç seçtiğinizde ekran Studio çalışma alanı içinde açılır.</p></div><b>{availablePlatformTools.length} araç</b></header><div className="studio-adaptation-grid">{availablePlatformTools.map((tool,index)=>{const ToolIcon=tool.icon;const internal=tool.id==='modules'||tool.id==='source-workspaces';const href=tool.id==='modules'?'#marketplace':tool.id==='source-workspaces'?'#projects':`#tool-${tool.id}`;return <a className="studio-adaptation-card" key={tool.id} href={internal?href:`#tool-${tool.id}`} aria-label={`${tool.title} ekranını aç`}><div className="studio-adaptation-card-top"><span className="studio-adaptation-icon"><ToolIcon size={19}/></span><span className="studio-adaptation-index">{String(index+1).padStart(2,'0')}</span></div><div className="studio-adaptation-card-copy"><h3>{tool.title}</h3><p>{tool.description}</p></div><span className="studio-adaptation-open">Studio’da aç <ArrowUpRight size={15}/></span></a>})}</div></section>
+        </> : activeSection.startsWith('tool-') ? (()=>{const tool=availablePlatformTools.find(item=>item.id===activeSection.slice(5));return tool?<><nav className="studio-product-tabs" aria-label="Studio uyarlama bölümleri"><a href="#adaptation">Uyarlama araçları</a><a href="#marketplace">Modül pazaryeri</a></nav><section className="studio-tool-heading"><div><span>PLATFORM UYARLAMA · STUDIO</span><h1>{tool.title}</h1><p>{tool.description}</p></div><a className="secondary small-button" href="#adaptation"><ArrowUpRight size={15}/>Uyarlama araçlarına dön</a></section><iframe className="studio-platform-tool-frame" title={`${tool.title} · Studio`} src={platformToolHref(tool.id)} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" onLoad={event=>event.currentTarget.contentWindow?.postMessage({type:'NEXORA_STUDIO_AUTH',token,tenant},platformOrigin)}/></>:<section className="studio-tool-unavailable"><b>Uyarlama aracı bulunamadı</b><a href="#adaptation">Uyarlama araçlarına dön</a></section>})() : activeSection==='projects' ? <>
           <nav className="studio-product-tabs" aria-label="Studio bölümleri"><a href="#overview">Genel bakış</a><a className="active" href="#projects">Projeler</a><a href="#requests">Geliştirme talepleri</a><a href="#analytics">Analitik</a></nav>
           {error&&<div className="alert">{error}</div>}{notice&&<div className="notice">{notice}</div>}
           <section className="studio-hero studio-overview-heading studio-projects-page-hero"><div className="studio-overview-copy"><span className="studio-hero-kicker"><FolderKanban size={14}/> PROJE YÖNETİMİ</span><h1>Projeler</h1><p>{tenant.name} çalışma alanındaki yetkilendirilmiş depoları ve proje erişimlerini yönetin.</p></div><div className="studio-hero-actions"><button className="primary" onClick={openNewRequest}><Plus size={16}/>Yeni geliştirme talebi</button></div></section>
@@ -323,7 +387,7 @@ export default function App() {
           <nav className="studio-product-tabs" aria-label="Studio bölümleri"><a href="#overview">Genel bakış</a><a href="#projects">Projeler</a><a className="active" href="#requests">Geliştirme talepleri</a><a href="#analytics">Analitik</a></nav>
           {error&&<div className="alert">{error}</div>}{notice&&<div className="notice">{notice}</div>}
           <section className="studio-hero studio-overview-heading"><div className="studio-overview-copy"><span className="studio-hero-kicker"><ListTodo size={14}/> TALEP YÖNETİMİ</span><h1>Geliştirme talepleri</h1><p>{tenant.name} çalışma alanındaki geliştirme ihtiyaçları ve durumları.</p></div><div className="studio-hero-actions"><button className="primary" onClick={openNewRequest}><Plus size={16}/>Yeni geliştirme talebi</button></div></section>
-          <section className="panel studio-request-panel studio-requests-page" id="requests"><div className="panel-heading"><div><span className="studio-section-eyebrow">TALEP AKIŞI</span><h3>Proje geliştirme talepleri</h3><p>{requests.length} tenant/proje kapsamlı kayıt</p></div><span className="studio-section-icon"><FileText size={18}/></span></div>{requests.length?<div className="requests-list">{requests.map(item=><article className="request-row expanded" key={item.id}><div className="request-symbol"><FileText size={17}/></div><div className="request-info"><b>{item.title}</b><p>{item.description}</p><small>{item.projectName?`${item.projectName} · `:''}{new Date(item.createdAt).toLocaleString('tr-TR',{dateStyle:'medium',timeStyle:'short'})}</small></div><div className="studio-request-row-actions">{item.canEdit&&<button className="secondary small-button" type="button" onClick={()=>openRequestForEdit(item)}><Pencil size={14}/>Düzenle</button>}<span className="request-status"><i/>{item.status==='Submitted'?'Alındı':item.status}</span></div></article>)}</div>:<div className="studio-empty-state"><span><ListTodo size={19}/></span><b>Henüz geliştirme talebi yok</b><small>Yeni bir ihtiyaç ekleyerek geliştirme akışını başlatın.</small><button className="secondary small-button" onClick={openNewRequest}><Plus size={14}/>Talep oluştur</button></div>}</section>
+          <section className="panel studio-request-panel studio-requests-page" id="requests"><div className="panel-heading"><div><span className="studio-section-eyebrow">TALEP AKIŞI</span><h3>Proje geliştirme talepleri</h3><p>{requests.length} tenant/proje kapsamlı kayıt</p></div><span className="studio-section-icon"><FileText size={18}/></span></div>{error&&<div className="alert studio-request-alert">{error}</div>}{notice&&<div className="studio-request-notice" role="status">{notice}</div>}{requests.length?<div className="requests-list">{requests.map(item=><article className="request-row expanded" key={item.id}><div className="request-symbol"><FileText size={17}/></div><div className="request-info"><b>{item.title}</b><p>{item.description}</p><small>{item.projectName?`${item.projectName} · `:''}{new Date(item.createdAt).toLocaleString('tr-TR',{dateStyle:'medium',timeStyle:'short'})}</small></div><div className="studio-request-row-actions">{item.canEdit&&<button className="secondary small-button" type="button" onClick={()=>openRequestForEdit(item)}><Pencil size={14}/>Düzenle</button>}{item.canEdit&&<button className="danger-quiet small-button" type="button" disabled={busy} aria-label={`${item.title} talebini sil`} title="Talebi sil" onClick={()=>void deleteRequest(item)}><Trash2 size={14}/><span>Sil</span></button>}<div className="studio-request-status-wrap"><span className="request-status" title={item.status==='Submitted'?'Talep kaydedildi ve kuyruğa alındı; henüz üzerinde çalışıldığı anlamına gelmez.':undefined}><i/>{item.status==='Submitted'?'Alındı':item.status}</span>{item.status==='Submitted'&&<small>Kaydedildi · işlem bekliyor</small>}</div></div></article>)}</div>:<div className="studio-empty-state"><span><ListTodo size={19}/></span><b>Henüz geliştirme talebi yok</b><small>Yeni bir ihtiyaç ekleyerek geliştirme akışını başlatın.</small><button className="secondary small-button" onClick={openNewRequest}><Plus size={14}/>Talep oluştur</button></div>}</section>
         </> : activeSection==='analytics' ? <>
           <nav className="studio-product-tabs" aria-label="Studio bölümleri"><a href="#overview">Genel bakış</a><a href="#projects">Projeler</a><a href="#requests">Geliştirme talepleri</a><a className="active" href="#analytics">Analitik</a></nav>
           {analyticsContent}

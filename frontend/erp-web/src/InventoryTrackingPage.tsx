@@ -1,83 +1,115 @@
-import AdvancedDataGrid from './AdvancedDataGrid'
+import type { FormEvent, MouseEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { authenticatedFetch } from './authApi';
-import { Barcode, RefreshCw, Search, ShieldCheck } from 'lucide-react'
-import ScreenViewGroupHeader from './ScreenViewGroupHeader'
-import SearchableRecordPicker from './SearchableRecordPicker'
+import { authenticatedFetch } from './authApi'
+import InventoryTrackingHeader from './inventory-tracking/components/InventoryTrackingHeader'
+import InventoryTrackingAlerts from './inventory-tracking/components/InventoryTrackingAlerts'
+import InventoryTrackingSummary from './inventory-tracking/components/InventoryTrackingSummary'
+import InventoryTrackingFilters from './inventory-tracking/components/InventoryTrackingFilters'
+import InventoryTrackingResults from './inventory-tracking/components/InventoryTrackingResults'
+import InventoryTrackingBalanceTable from './inventory-tracking/components/InventoryTrackingBalanceTable'
+import InventoryTrackingDetail from './inventory-tracking/components/InventoryTrackingDetail'
+import InventoryTrackingPagination from './inventory-tracking/components/InventoryTrackingPagination'
+import InventoryTrackingBoundaryNote from './inventory-tracking/components/InventoryTrackingBoundaryNote'
+import type { Balance, Page, ScreenField, Warehouse } from './inventory-tracking/types'
 import './inventory-tracking.css'
 
-type Warehouse = { id:string; code:string; name:string; isActive:boolean }
-type Balance = { stockItemId:string; stockItemCode:string; stockItemName:string; unitCode:string; trackingMode:'Lot'|'Serial'; warehouseId:string; warehouseCode:string; warehouseName:string; trackingCode:string; expiryDate:string|null; quantityOnHand:number; lastMovementDate:string }
-type Page = { items:Balance[]; page:number; pageSize:number; totalCount:number }
-type ScreenField = { key:'trackingCode'|'trackingMode'|'stockItem'|'warehouse'|'quantityOnHand'|'expiryDate'|'lastMovementDate'; label:string; visible:boolean; position:number; section?:string|null }
-
-async function request<T>(url:string, token:string):Promise<T>{
-  const response=await authenticatedFetch(url, token, {headers:{Authorization:`Bearer ${token}`}})
-  const body=await response.json()
-  if(!response.ok)throw new Error(body.error||`İstek başarısız (${response.status})`)
+async function request<T>(url: string, token: string): Promise<T> {
+  const response = await authenticatedFetch(url, token, { headers: { Authorization: `Bearer ${token}` } })
+  const body = await response.json()
+  if (!response.ok) throw new Error(body.error || `İstek başarısız (${response.status})`)
   return body as T
 }
 
-export default function InventoryTrackingPage({token}:{token:string}){
-  const [warehouses,setWarehouses]=useState<Warehouse[]>([]),[warehouseId,setWarehouseId]=useState('')
-  const [selectedBalance,setSelectedBalance]=useState<Balance|null>(null)
-  const [query,setQuery]=useState(''),[search,setSearch]=useState(''),[trackingMode,setTrackingMode]=useState('')
-  const [result,setResult]=useState<Page|null>(null),[page,setPage]=useState(1),[loading,setLoading]=useState(true),[error,setError]=useState(''),[warehouseError,setWarehouseError]=useState(''),[warehousesLoading,setWarehousesLoading]=useState(true)
-  const [screenFields,setScreenFields]=useState<ScreenField[]>([
-    {key:'trackingCode',label:'Lot / seri',visible:true,position:0}, {key:'trackingMode',label:'İz türü',visible:true,position:1},
-    {key:'stockItem',label:'Stok',visible:true,position:2}, {key:'warehouse',label:'Depo',visible:true,position:3},
-    {key:'quantityOnHand',label:'Mevcut miktar',visible:true,position:4}, {key:'expiryDate',label:'Son kullanma',visible:true,position:5},
-    {key:'lastMovementDate',label:'Son hareket',visible:true,position:6}
+export default function InventoryTrackingPage({ token }: { token: string }) {
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]), [warehouseId, setWarehouseId] = useState('')
+  const [selectedBalance, setSelectedBalance] = useState<Balance | null>(null)
+  const [query, setQuery] = useState(''), [search, setSearch] = useState(''), [trackingMode, setTrackingMode] = useState('')
+  const [result, setResult] = useState<Page | null>(null), [page, setPage] = useState(1), [loading, setLoading] = useState(true), [error, setError] = useState(''), [warehouseError, setWarehouseError] = useState(''), [warehousesLoading, setWarehousesLoading] = useState(true)
+  const [screenFields, setScreenFields] = useState<ScreenField[]>([
+    { key: 'trackingCode', label: 'Lot / seri', visible: true, position: 0 }, { key: 'trackingMode', label: 'İz türü', visible: true, position: 1 },
+    { key: 'stockItem', label: 'Stok', visible: true, position: 2 }, { key: 'warehouse', label: 'Depo', visible: true, position: 3 },
+    { key: 'quantityOnHand', label: 'Mevcut miktar', visible: true, position: 4 }, { key: 'expiryDate', label: 'Son kullanma', visible: true, position: 5 },
+    { key: 'lastMovementDate', label: 'Son hareket', visible: true, position: 6 }
   ])
-  const latestRequest=useRef(0)
-  const pageSize=50
-  async function load(nextPage=page){
-    const requestId=++latestRequest.current
-    setLoading(true);setError('')
-    const params=new URLSearchParams({page:String(nextPage),pageSize:String(pageSize)})
-    if(search.trim())params.set('q',search.trim())
-    if(warehouseId)params.set('warehouseId',warehouseId)
-    if(trackingMode)params.set('trackingMode',trackingMode)
-    try{const data=await request<Page>(`/api/inventory-tracking/balances?${params}`,token);if(requestId===latestRequest.current){setResult(data);setPage(nextPage)}}catch(e){if(requestId===latestRequest.current)setError((e as Error).message)}finally{if(requestId===latestRequest.current)setLoading(false)}
+  const latestRequest = useRef(0)
+  const pageSize = 50
+
+  async function load(nextPage = page) {
+    const requestId = ++latestRequest.current
+    setLoading(true); setError('')
+    const params = new URLSearchParams({ page: String(nextPage), pageSize: String(pageSize) })
+    if (search.trim()) params.set('q', search.trim())
+    if (warehouseId) params.set('warehouseId', warehouseId)
+    if (trackingMode) params.set('trackingMode', trackingMode)
+    try {
+      const data = await request<Page>(`/api/inventory-tracking/balances?${params}`, token)
+      if (requestId === latestRequest.current) { setResult(data); setPage(nextPage) }
+    } catch (e) {
+      if (requestId === latestRequest.current) setError((e as Error).message)
+    } finally {
+      if (requestId === latestRequest.current) setLoading(false)
+    }
   }
-  useEffect(()=>{let cancelled=false;setWarehousesLoading(true);setWarehouseError('');request<Warehouse[]>('/api/warehouses/',token).then(rows=>{if(!cancelled)setWarehouses(rows)}).catch(e=>{if(!cancelled)setWarehouseError((e as Error).message)}).finally(()=>{if(!cancelled)setWarehousesLoading(false)});return()=>{cancelled=true}},[token])
-  useEffect(()=>{let cancelled=false;request<{fields?:ScreenField[]}>('/api/screen-views/inventory-trace-balances/active',token).then(view=>{if(!cancelled&&view.fields?.length)setScreenFields(view.fields as ScreenField[])}).catch(()=>{});return()=>{cancelled=true}},[token])
-  useEffect(()=>{void load(1)},[token,search,warehouseId,trackingMode])
-  useEffect(()=>{if(!result?.items.length){setSelectedBalance(null);return}const current=result.items.find(row=>row.stockItemId===selectedBalance?.stockItemId&&row.warehouseId===selectedBalance?.warehouseId&&row.trackingCode===selectedBalance?.trackingCode);const next=current??result.items[0];if(next!==selectedBalance)setSelectedBalance(next)},[result,selectedBalance])
-  const maxPage=Math.max(1,Math.ceil((result?.totalCount??0)/pageSize))
-  function submit(event:React.FormEvent){event.preventDefault();setSearch(query);if(search===query)void load(1)}
-  function clearFilters(){setQuery('');setSearch('');setWarehouseId('');setTrackingMode('')}
-  const hasFilters=Boolean(search||warehouseId||trackingMode)
-  const visibleFields=screenFields.filter(field=>field.visible).sort((a,b)=>a.position-b.position)
-  function renderField(row:Balance,field:ScreenField){
-    switch(field.key){
-      case 'trackingCode': return <button type="button" className="inventory-record-pick" aria-pressed={selectedBalance?.stockItemId===row.stockItemId&&selectedBalance?.warehouseId===row.warehouseId&&selectedBalance?.trackingCode===row.trackingCode} onClick={event=>{event.stopPropagation();setSelectedBalance(row)}}>{row.trackingCode}</button>
-      case 'trackingMode': return <span className={`inventory-tracking-mode ${row.trackingMode==='Lot'?'is-lot':'is-serial'}`}>{row.trackingMode==='Lot'?'Lot':'Seri'}</span>
+
+  useEffect(() => {
+    let cancelled = false
+    setWarehousesLoading(true); setWarehouseError('')
+    request<Warehouse[]>('/api/warehouses/', token).then(rows => { if (!cancelled) setWarehouses(rows) }).catch(e => { if (!cancelled) setWarehouseError((e as Error).message) }).finally(() => { if (!cancelled) setWarehousesLoading(false) })
+    return () => { cancelled = true }
+  }, [token])
+
+  useEffect(() => {
+    let cancelled = false
+    request<{ fields?: ScreenField[] }>('/api/screen-views/inventory-trace-balances/active', token).then(view => { if (!cancelled && view.fields?.length) setScreenFields(view.fields as ScreenField[]) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [token])
+
+  useEffect(() => { void load(1) }, [token, search, warehouseId, trackingMode])
+
+  useEffect(() => {
+    if (!result?.items.length) { setSelectedBalance(null); return }
+    const current = result.items.find(row => row.stockItemId === selectedBalance?.stockItemId && row.warehouseId === selectedBalance?.warehouseId && row.trackingCode === selectedBalance?.trackingCode)
+    const next = current ?? result.items[0]
+    if (next !== selectedBalance) setSelectedBalance(next)
+  }, [result, selectedBalance])
+
+  const maxPage = Math.max(1, Math.ceil((result?.totalCount ?? 0) / pageSize))
+  function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setSearch(query); if (search === query) void load(1) }
+  function clearFilters() { setQuery(''); setSearch(''); setWarehouseId(''); setTrackingMode('') }
+  const hasFilters = Boolean(search || warehouseId || trackingMode)
+  const visibleFields = screenFields.filter(field => field.visible).sort((a, b) => a.position - b.position)
+
+  function renderField(row: Balance, field: ScreenField) {
+    switch (field.key) {
+      case 'trackingCode': return <button type="button" className="inventory-record-pick" aria-pressed={selectedBalance?.stockItemId === row.stockItemId && selectedBalance?.warehouseId === row.warehouseId && selectedBalance?.trackingCode === row.trackingCode} onClick={event => { event.stopPropagation(); setSelectedBalance(row) }}>{row.trackingCode}</button>
+      case 'trackingMode': return <span className={`inventory-tracking-mode ${row.trackingMode === 'Lot' ? 'is-lot' : 'is-serial'}`}>{row.trackingMode === 'Lot' ? 'Lot' : 'Seri'}</span>
       case 'stockItem': return <><b>{row.stockItemCode}</b><small className="cell-subtitle">{row.stockItemName}</small></>
       case 'warehouse': return <>{row.warehouseCode}<small className="cell-subtitle">{row.warehouseName}</small></>
-      case 'quantityOnHand': return <b>{row.quantityOnHand.toLocaleString('tr-TR',{maximumFractionDigits:4})} {row.unitCode}</b>
-      case 'expiryDate': return row.expiryDate?new Date(`${row.expiryDate}T00:00:00`).toLocaleDateString('tr-TR'):'—'
+      case 'quantityOnHand': return <b>{row.quantityOnHand.toLocaleString('tr-TR', { maximumFractionDigits: 4 })} {row.unitCode}</b>
+      case 'expiryDate': return row.expiryDate ? new Date(`${row.expiryDate}T00:00:00`).toLocaleDateString('tr-TR') : '—'
       case 'lastMovementDate': return new Date(`${row.lastMovementDate}T00:00:00`).toLocaleDateString('tr-TR')
     }
   }
+
+  function selectTableRow(event: MouseEvent<HTMLDivElement>) {
+    const row = (event.target as HTMLElement).closest('tbody tr')
+    if (!row) return
+    const index = Array.from(row.parentElement?.children ?? []).indexOf(row)
+    const item = result?.items[index]
+    if (item) setSelectedBalance(item)
+  }
+
   return <div className="inventory-tracking-page">
-    <div className="page-heading customer-heading"><div><p className="eyebrow">ERP CORE · STOK İZLENEBİLİRLİĞİ</p><h1>Lot / seri izleme</h1><p className="muted">Depolardaki izlenen lot ve seri numaralarının güncel bakiyesini ve son hareket tarihini bulun.</p></div><button className="secondary" type="button" disabled={loading} onClick={()=>void load()} aria-label="Lot ve seri bakiyelerini yenile"><RefreshCw size={15} aria-hidden="true"/> Yenile</button></div>
-    {warehouseError&&<div className="alert inline-alert" role="alert">Depo listesi yüklenemedi: {warehouseError}</div>}
-    {error&&<div className="alert inline-alert inventory-tracking-error" role="alert"><span>Lot / seri bakiyeleri yüklenemedi: {error}</span><button className="secondary" type="button" onClick={()=>void load()} disabled={loading}>Yeniden dene</button></div>}
-    <section className="inventory-workbench-summary" aria-label="Stok izlenebilirliği özeti"><article><span>İzlenen bakiyeler</span><b>{result?.totalCount??0}</b><small>Sıfırdan farklı lot ve seri kayıtları</small></article><article><span>Görüntülenen satır</span><b>{result?.items.length??0}</b><small>{pageSize} kayıt / sayfa</small></article><article><span>Sayfa</span><b>{page} / {maxPage}</b><small>{hasFilters?'Filtre uygulanıyor':'Tüm depolar ve iz türleri'}</small></article><span className="tenant-scope"><ShieldCheck size={14} aria-hidden="true"/>Firma kapsamlı</span></section>
-    <form className="customer-toolbar inventory-tracking-toolbar" onSubmit={submit} role="search" aria-label="Lot ve seri bakiyelerini filtrele">
-      <label className="customer-search" htmlFor="inventory-tracking-search"><Search size={16} aria-hidden="true"/><input id="inventory-tracking-search" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Lot/seri kodu, stok veya depo ara" autoComplete="off"/></label>
-      <label htmlFor="inventory-tracking-mode">İz türü<select id="inventory-tracking-mode" value={trackingMode} onChange={event=>setTrackingMode(event.target.value)}><option value="">Tümü</option><option value="Lot">Lot</option><option value="Serial">Seri</option></select></label>
-      <label>Depo<SearchableRecordPicker id="inventory-tracking-warehouse" describedBy={warehouseError?'inventory-tracking-warehouse-error':undefined} options={warehouses.map(row=>({id:row.id,label:`${row.code} · ${row.name}`}))} selectedId={warehouseId} onSelect={setWarehouseId} title="Depo seçin" placeholder="Tüm depolar" clearable clearLabel="Tüm depolar" searchPlaceholder="Depo kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen depo bulunamadı." disabled={warehousesLoading}/>{warehouseError&&<span id="inventory-tracking-warehouse-error" className="inventory-tracking-field-error">Depo seçenekleri kullanılamıyor.</span>}</label>
-      <div className="inventory-tracking-filter-actions"><button className="secondary" type="submit" disabled={loading}><Search size={14} aria-hidden="true"/> Ara</button>{hasFilters&&<button className="inventory-tracking-clear" type="button" onClick={clearFilters}>Filtreleri temizle</button>}</div>
-    </form>
-    <div className="inventory-tracking-results" aria-live="polite" aria-atomic="true"><span>{loading?'Bakiyeler yükleniyor…':error?'Sonuçlar yüklenemedi.':`${result?.totalCount??0} kayıt bulundu`}</span>{hasFilters&&!loading&&!error&&<span>Uygulanan filtreler: {[search&&`Arama: ${search}`,trackingMode&&`İz türü: ${trackingMode==='Lot'?'Lot':'Seri'}`,warehouseId&&`Depo: ${warehouses.find(row=>row.id===warehouseId)?.code??'Seçili depo'}`].filter(Boolean).join(' · ')}</span>}</div>
-    <div className="inventory-workbench-body"><section className="inventory-list-pane" aria-label="Lot ve seri bakiye listesi"><div className="inventory-list-title"><div><b>İzlenen stoklar</b><small>{result?.totalCount??0} kayıt · ayrıntı için satır seçin</small></div></div><div className="customer-table-wrap inventory-tracking-table-wrap" role="region" aria-label="Lot ve seri bakiyeleri tablosu" tabIndex={0} onClick={event=>{const row=(event.target as HTMLElement).closest('tbody tr');if(!row)return;const index=Array.from(row.parentElement?.children??[]).indexOf(row);const item=result?.items[index];if(item)setSelectedBalance(item)}}>
-      <AdvancedDataGrid hideSearch className="customer-table quote-table inventory-tracking-table"><caption className="inventory-tracking-sr-only">Lot ve seri bazında stok bakiyesi, depo, son kullanma ve son hareket bilgileri</caption><thead><ScreenViewGroupHeader fields={visibleFields}/><tr>{visibleFields.map(field=><th key={field.key} scope="col">{field.label}</th>)}</tr></thead><tbody>
-        {loading?<tr><td colSpan={Math.max(1,visibleFields.length)} className="table-empty" role="status">İz kayıtları yükleniyor…</td></tr>:error?<tr><td colSpan={Math.max(1,visibleFields.length)} className="table-empty">Sonuçlar gösterilemiyor. Yeniden denemek için üstteki düğmeyi kullanın.</td></tr>:result?.items.length===0?<tr><td colSpan={Math.max(1,visibleFields.length)} className="table-empty">{hasFilters?'Bu filtrelerle aktif lot veya seri bakiyesi bulunamadı.':'Aktif lot veya seri bakiyesi bulunamadı.'}</td></tr>:result?.items.map(row=><tr key={`${row.stockItemId}:${row.warehouseId}:${row.trackingCode}:${row.expiryDate??''}`}>{visibleFields.map(field=><td key={field.key} className={field.key==='quantityOnHand'?'inventory-tracking-quantity':undefined}>{renderField(row,field)}</td>)}</tr>)}
-      </tbody></AdvancedDataGrid>
-    </div></section><aside className="inventory-record-detail" aria-label="Seçili iz kaydı ayrıntısı"><div className="inventory-list-title"><div><b>Seçili iz kaydı</b><small>Lot / seri bakiye bilgileri</small></div><Barcode size={16} aria-hidden="true"/></div>{selectedBalance?<><div className="inventory-record-identity"><span className={'inventory-tracking-mode '+(selectedBalance.trackingMode==='Lot'?'is-lot':'is-serial')}>{selectedBalance.trackingMode==='Lot'?'Lot':'Seri'}</span><h2>{selectedBalance.trackingCode}</h2><p>{selectedBalance.stockItemCode} · {selectedBalance.stockItemName}</p></div><dl><div><dt>Mevcut miktar</dt><dd>{selectedBalance.quantityOnHand.toLocaleString('tr-TR',{maximumFractionDigits:4})} {selectedBalance.unitCode}</dd></div><div><dt>Depo</dt><dd>{selectedBalance.warehouseCode} · {selectedBalance.warehouseName}</dd></div><div><dt>Son kullanma</dt><dd>{selectedBalance.expiryDate?new Date(selectedBalance.expiryDate+'T00:00:00').toLocaleDateString('tr-TR'):'Belirtilmemiş'}</dd></div><div><dt>Son hareket</dt><dd>{new Date(selectedBalance.lastMovementDate+'T00:00:00').toLocaleDateString('tr-TR')}</dd></div></dl><p className="inventory-detail-note"><ShieldCheck size={14} aria-hidden="true"/>Bu ekran salt okunurdur. Stok hareketleri ilgili stok ve ambar ekranından yönetilir.</p></>:<div className="inventory-detail-empty">Bir lot veya seri seçin; ayrıntıları burada görün.</div>}</aside></div>
-    <div className="table-pagination inventory-tracking-pagination"><span>{result?.totalCount??0} kayıt · Sayfa {page} / {maxPage}</span><div><button className="secondary" type="button" disabled={loading||page<=1} onClick={()=>void load(page-1)}>Önceki</button><button className="secondary" type="button" disabled={loading||page>=maxPage} onClick={()=>void load(page+1)}>Sonraki</button></div></div>
-    <div className="boundary-note inventory-tracking-boundary"><ShieldCheck size={16} aria-hidden="true"/><span>Bakiye yalnız iz kodu bulunan stok hareketlerinden hesaplanır. Geçmişte konum veya iz kodu kaydedilmemiş hareketler geriye dönük atanmaz.</span></div>
+    <InventoryTrackingHeader loading={loading} onRefresh={() => void load()}/>
+    <InventoryTrackingAlerts warehouseError={warehouseError} error={error} loading={loading} onRetry={() => void load()}/>
+    <InventoryTrackingSummary totalCount={result?.totalCount ?? 0} itemCount={result?.items.length ?? 0} page={page} maxPage={maxPage} hasFilters={hasFilters} pageSize={pageSize}/>
+    <InventoryTrackingFilters query={query} onQueryChange={setQuery} trackingMode={trackingMode} onTrackingModeChange={setTrackingMode} warehouseId={warehouseId} onWarehouseSelect={setWarehouseId} warehouses={warehouses} warehousesLoading={warehousesLoading} warehouseError={warehouseError} hasFilters={hasFilters} loading={loading} onSubmit={submit} onClear={clearFilters}/>
+    <InventoryTrackingResults loading={loading} error={error} totalCount={result?.totalCount ?? 0} hasFilters={hasFilters} search={search} trackingMode={trackingMode} warehouseId={warehouseId} warehouses={warehouses}/>
+    <div className="inventory-workbench-body">
+      <InventoryTrackingBalanceTable fields={visibleFields} rows={result?.items ?? []} totalCount={result?.totalCount ?? 0} loading={loading} error={error} hasFilters={hasFilters} onClick={selectTableRow} renderField={renderField}/>
+      <InventoryTrackingDetail balance={selectedBalance}/>
+    </div>
+    <InventoryTrackingPagination totalCount={result?.totalCount ?? 0} page={page} maxPage={maxPage} loading={loading} onPageChange={nextPage => void load(nextPage)}/>
+    <InventoryTrackingBoundaryNote/>
   </div>
 }

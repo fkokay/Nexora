@@ -364,6 +364,16 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
 .credit-facilities-page .collection-form textarea:hover { border-color: color-mix(in srgb, var(--credit-accent) 45%, var(--credit-border)); }
 .credit-facilities-page .collection-form .modal-foot { margin-top: 2px; }
 .credit-facilities-page .credit-records-panel { padding: 18px; }
+.credit-facilities-page .credit-page-action-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.credit-facilities-page .credit-setup-grid { display: block; min-width: 0; }
+.credit-facilities-page .credit-create-dialog { position: fixed; inset: 0; width: min(720px,calc(100vw - 32px)); max-width: none; max-height: min(86vh,760px); margin: auto; padding: 0; overflow: auto; border: 1px solid var(--credit-border); border-radius: 14px; background: var(--credit-surface); color: var(--credit-text); box-shadow: 0 24px 80px #10233b40; }
+.credit-facilities-page .credit-create-dialog::backdrop { background: #0e1a2b80; backdrop-filter: blur(2px); }
+.credit-facilities-page .credit-create-dialog > .panel { margin: 0; border: 0; box-shadow: none; }
+.credit-facilities-page .credit-facility-details { margin-top: 12px; border: 1px solid var(--credit-border); border-radius: 10px; background: var(--credit-surface); }
+.credit-facilities-page .credit-facility-details > summary { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; color: var(--credit-text); cursor: pointer; font-size: 11px; font-weight: 750; list-style-position: inside; }
+.credit-facilities-page .credit-facility-details > summary span { color: var(--credit-muted); font-size: 10px; font-weight: 600; }
+.credit-facilities-page .credit-facility-details[open] { padding: 0 12px 12px; }
+.credit-facilities-page .credit-facility-details[open] > summary { margin: 0 -12px 12px; border-bottom: 1px solid var(--credit-border); }
 .credit-facilities-page .credit-exposure { display: grid; gap: 14px; }
 .credit-facilities-page .credit-records-heading {
   padding-bottom: 12px;

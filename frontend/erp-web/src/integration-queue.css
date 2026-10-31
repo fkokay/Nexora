@@ -23,3 +23,30 @@ html[data-theme="dark"] .integration-reconciliation{background:#172633;border-co
 .integration-operations-workbench{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(245px,.75fr);align-items:start;gap:11px}.integration-operations-workbench .integration-queue-table-wrap{min-width:0}.integration-operations-workbench .integration-operation-inspector{position:sticky;top:72px;grid-template-columns:1fr;align-items:start;gap:11px;margin:0;padding:12px}.integration-operations-workbench .integration-operation-inspector dl{grid-template-columns:repeat(2,minmax(0,1fr))}.integration-operations-workbench .integration-operation-inspector>p{grid-column:auto}.integration-operations-workbench .integration-operation-inspector>.queue-cancel{justify-self:start}
 @media(max-width:1150px){.integration-operations-workbench{grid-template-columns:minmax(0,1fr)}.integration-operations-workbench .integration-operation-inspector{position:static;grid-template-columns:minmax(200px,.8fr) minmax(0,1.3fr) auto}.integration-operations-workbench .integration-operation-inspector dl{grid-template-columns:repeat(3,minmax(0,1fr))}.integration-operations-workbench .integration-operation-inspector>p{grid-column:1/-1}.integration-operations-workbench .integration-operation-inspector>.queue-cancel{grid-column:3;grid-row:1;justify-self:end}}
 @media(max-width:620px){.integration-operations-workbench .integration-operation-inspector{grid-template-columns:1fr}.integration-operations-workbench .integration-operation-inspector dl{grid-template-columns:repeat(2,minmax(0,1fr))}.integration-operations-workbench .integration-operation-inspector>.queue-cancel{grid-column:auto;grid-row:auto;justify-self:stretch}}
+
+/* Give history the panel width; keep the selected-operation inspector below its table. */
+.integration-operations-workbench { display: block; width: 100%; min-width: 0; }
+.integration-operations-workbench > .integration-queue-table-wrap { width: 100%; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; }
+.integration-operations-workbench .integration-queue-table-wrap > .advanced-grid { width: 100%; min-width: 0; }
+.integration-operations-workbench .advanced-grid-toolbar { justify-content: flex-start; }
+.integration-operations-workbench .advanced-grid-toolbar > * { min-width: 0; }
+.integration-operations-workbench .advanced-grid-count { white-space: normal; }
+.integration-operations-workbench .integration-queue-table { width: max-content; min-width: 100%; }
+.integration-operations-workbench .integration-operation-inspector { position: static; grid-template-columns: minmax(190px,.8fr) minmax(0,1.6fr) auto; align-items: start; margin-top: 12px; }
+.integration-operations-workbench .integration-operation-inspector dl { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.integration-operations-workbench .integration-operation-inspector>p { grid-column: 1 / -1; }
+.integration-operations-workbench .integration-operation-inspector>.queue-cancel { grid-column: auto; grid-row: auto; justify-self: end; }
+.integration-queue-panel>.integration-queue-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 9px 12px; min-width: 0; }
+.integration-queue-panel>.integration-queue-pagination>span { min-width: 0; overflow-wrap: anywhere; }
+.integration-queue-panel>.integration-queue-pagination>div { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 800px) {
+  .integration-operations-workbench .integration-operation-inspector { grid-template-columns: minmax(0,1fr); }
+  .integration-operations-workbench .integration-operation-inspector dl { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .integration-operations-workbench .integration-operation-inspector>.queue-cancel { justify-self: start; }
+}
+@media (max-width: 560px) {
+  .integration-queue-panel>.integration-queue-pagination { align-items: stretch; }
+  .integration-queue-panel>.integration-queue-pagination>div { width: 100%; }
+  .integration-queue-panel>.integration-queue-pagination>div>button { flex: 1; }
+  .integration-operations-workbench .integration-operation-inspector dl { grid-template-columns: minmax(0,1fr); }
+}

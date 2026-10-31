@@ -9524,6 +9524,20 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<int>("UsefulLifeMonths")
                         .HasColumnType("int");
 
+                    b.Property<int?>("VukCommuniqueNumber")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("VukDepreciationLowerLimitTry")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("VukSourceUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("VukTaxYear")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "AssetCode")
@@ -12031,6 +12045,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             Action = "execute",
                             Description = "execute · Tenant workplace, branch and factory definitions",
                             ResourceType = "erp.organizational-definitions"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-locations.read",
+                            Action = "read",
+                            Description = "read · Customer address province and district definitions",
+                            ResourceType = "erp.customer-locations"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-locations.create",
+                            Action = "create",
+                            Description = "create · Customer address province and district definitions",
+                            ResourceType = "erp.customer-locations"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-locations.update",
+                            Action = "update",
+                            Description = "update · Customer address province and district definitions",
+                            ResourceType = "erp.customer-locations"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-locations.delete",
+                            Action = "delete",
+                            Description = "delete · Customer address province and district definitions",
+                            ResourceType = "erp.customer-locations"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-locations.execute",
+                            Action = "execute",
+                            Description = "execute · Customer address province and district definitions",
+                            ResourceType = "erp.customer-locations"
                         },
                         new
                         {
@@ -16219,7 +16268,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<DateOnly>("OrderDate")
                         .HasColumnType("date");
 
-                    b.Property<Guid>("QuoteId")
+                    b.Property<Guid?>("QuoteId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateOnly?>("RequestedDeliveryDate")
@@ -16247,7 +16296,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("TenantId", "CustomerId");
 
                     b.HasIndex("TenantId", "QuoteId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[QuoteId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "OrderDate", "CreatedAt");
 
@@ -21894,8 +21944,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .WithOne("Order")
                         .HasForeignKey("AIERP.Platform.Domain.SalesOrder", "TenantId", "QuoteId")
                         .HasPrincipalKey("AIERP.Platform.Domain.SalesQuote", "TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Customer");
 

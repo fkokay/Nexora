@@ -1,0 +1,1 @@
+function e(e,t){let n=e;typeof n.vscodeWindowId!=`number`&&Object.defineProperty(n,"vscodeWindowId",{get:()=>t})}var t=window;export{t as n,e as t};

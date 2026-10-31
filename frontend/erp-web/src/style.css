@@ -16,6 +16,8 @@
 
 /* Standalone authenticated AI Development Studio surface. */
 .standalone-studio .sidebar{display:none}.standalone-studio .main-area{margin-left:0}.standalone-studio .topbar{display:none}.standalone-studio .studio-standalone-bar{display:flex;align-items:center;justify-content:space-between;padding:14px clamp(18px,4vw,56px);background:#fff;border-bottom:1px solid #e9ebf1}.studio-standalone-bar>div{display:flex;align-items:center;gap:12px}.studio-standalone-bar b{display:flex;align-items:center;gap:8px;font:700 14px Manrope,sans-serif}.studio-standalone-bar small{color:#8790a0;font-size:11px}.standalone-studio .content{padding:24px clamp(18px,4vw,56px) 56px}
+html.embedded-studio-tool,html.embedded-studio-tool body{min-width:320px;min-height:100%;background:#f3f6fa}html.embedded-studio-tool .sidebar,html.embedded-studio-tool .topbar,html.embedded-studio-tool .studio-standalone-bar{display:none!important}html.embedded-studio-tool .main-area{min-height:100vh;margin-left:0}html.embedded-studio-tool .content{max-width:none;margin:0;padding:18px clamp(14px,2.5vw,32px) 32px}
+html.embedded-studio-tool .embedded-studio-wait{min-height:100vh;display:grid;place-content:center;justify-items:center;gap:14px;background:#f3f6fa;color:#52677c;font:600 14px Manrope,sans-serif}html.embedded-studio-tool .embedded-studio-wait .brand-mark{display:grid;place-items:center;width:52px;height:52px;border-radius:16px;background:#e9f3fc;color:#1475c9}
 
 .check-row{display:flex!important;align-items:center;gap:9px;margin:10px 0}.check-row input{width:auto!important;accent-color:#7665d8}
 
@@ -51,6 +53,8 @@
 /* Finance workspace controls and responsive form layout */
 .finance-page{display:grid;gap:14px;min-width:0}
 .finance-page>.page-heading{margin-bottom:2px}
+.finance-page>.finance-account-create{width:min(100%,820px)}
+.finance-page .heading-actions>label{display:grid;align-content:start;gap:6px;color:#65728a;font-size:11px;font-weight:600;line-height:1.35}
 .finance-page>.panel,.finance-page section.panel{min-width:0;margin:0!important;padding:19px;border-color:#e7e9f0;border-radius:12px;box-shadow:0 3px 12px #252b3d05}
 .finance-page .panel-heading{gap:16px;align-items:center;margin-bottom:15px}
 .finance-page .panel-heading>div{min-width:0}
@@ -265,7 +269,8 @@
 .locale-switch{display:flex;align-items:center;gap:2px;padding:2px;border:1px solid #e7e9f0;border-radius:8px;background:#f8f9fc}.locale-switch button{min-width:30px;height:25px;padding:0 6px;border:0;border-radius:6px;background:transparent;color:#7d8494;font-size:10px;font-weight:700}.locale-switch button:hover{background:#eeecff;color:#5d4bcf}.locale-switch button[aria-pressed="true"]{background:#fff;color:#5d4bcf;box-shadow:0 1px 4px #1b22320f}
 
 /* Optional dark theme for the ERP shell. Keep semantic status colors intact. */
-html[data-theme="dark"]{color-scheme:dark;--erp-bg:#111522;--erp-surface:#191e2d;--erp-surface-raised:#202638;--erp-border:#30394d;--erp-text:#e6eaf3;--erp-muted:#a7b0c2;--erp-subtle:#768197;--erp-accent:#a99bff;--erp-accent-soft:#2b2850}
+:root{--erp-surface-soft:#f3f6fa;--erp-text-muted:#718098;--erp-ink:#263247}
+html[data-theme="dark"]{color-scheme:dark;--erp-bg:#111522;--erp-surface:#191e2d;--erp-surface-raised:#202638;--erp-surface-soft:#202638;--erp-border:#30394d;--erp-text:#e6eaf3;--erp-text-muted:#a7b0c2;--erp-muted:#a7b0c2;--erp-subtle:#768197;--erp-ink:#e6eaf3;--erp-accent:#a99bff;--erp-accent-soft:#2b2850}
 html[data-theme="dark"] body,html[data-theme="dark"] .app-shell,html[data-theme="dark"] .main-area,html[data-theme="dark"] .content{background:var(--erp-bg);color:var(--erp-text)}
 html[data-theme="dark"] .sidebar,html[data-theme="dark"] .topbar,html[data-theme="dark"] .sidebar-bottom,html[data-theme="dark"] .profile{background:#171c29;border-color:var(--erp-border);color:var(--erp-text)}
 html[data-theme="dark"] .side-brand,html[data-theme="dark"] .tenant-switch,html[data-theme="dark"] .top-avatar{color:var(--erp-text)}
@@ -280,6 +285,10 @@ html[data-theme="dark"] .platform-adaptation-nav{background:transparent;border-l
 html[data-theme="dark"] .finance-subnav-item,html[data-theme="dark"] .platform-adaptation-nav .finance-subnav-item{color:#abb4c6}
 html[data-theme="dark"] .finance-subnav .nav-subitem{color:#abb4c6}html[data-theme="dark"] .finance-subnav .nav-subitem:hover,html[data-theme="dark"] .finance-subnav .nav-subitem.active{background:#2a2943;color:#c4baff}
 html[data-theme="dark"] .panel,html[data-theme="dark"] section.panel,html[data-theme="dark"] .customer-summary,html[data-theme="dark"] .customer-table-wrap,html[data-theme="dark"] .ledger-list,html[data-theme="dark"] .address-row,html[data-theme="dark"] .request-row,html[data-theme="dark"] .module-invoke,html[data-theme="dark"] .module-menu-panel,html[data-theme="dark"] .marketplace-card,html[data-theme="dark"] .marketplace-empty,html[data-theme="dark"] .marketplace-runtime-note,html[data-theme="dark"] .finance-page>.list-toolbar,html[data-theme="dark"] .finance-page>.ledger-list,html[data-theme="dark"] .general-ledger-panel .ledger-list{background:var(--erp-surface);border-color:var(--erp-border);color:var(--erp-text);box-shadow:0 4px 16px #05081236}
+html[data-theme="dark"] .date-pill{border-color:var(--erp-border);background:#202638;color:var(--erp-muted)}
+html[data-theme="dark"] .boundary-note{border-color:var(--erp-border);background:#1d2636;color:var(--erp-text)}
+html[data-theme="dark"] .boundary-note span{color:var(--erp-muted)}
+html[data-theme="dark"] .boundary-note b{color:var(--erp-text)}
 html[data-theme="dark"] .page-heading h1,html[data-theme="dark"] .page-heading h2,html[data-theme="dark"] .panel h2,html[data-theme="dark"] .panel h3,html[data-theme="dark"] .panel b,html[data-theme="dark"] .customer-name,html[data-theme="dark"] .customer-code,html[data-theme="dark"] .marketplace-card h2,html[data-theme="dark"] .marketplace-empty h2,html[data-theme="dark"] .marketplace-dependencies b,html[data-theme="dark"] .module-invoke>div b,html[data-theme="dark"] .module-menu-panel h2,html[data-theme="dark"] .module-menu-panel>div:first-child b,html[data-theme="dark"] .purchase-requests-page .panel-heading b,html[data-theme="dark"] .purchase-orders-page .panel-heading b,html[data-theme="dark"] .purchase-requests-page>.page-heading h2,html[data-theme="dark"] .purchase-orders-page>.page-heading h2{color:var(--erp-text)}
 html[data-theme="dark"] .panel p,html[data-theme="dark"] .panel label,html[data-theme="dark"] .panel span,html[data-theme="dark"] .panel small,html[data-theme="dark"] .page-heading p,html[data-theme="dark"] .finance-page>.list-toolbar p,html[data-theme="dark"] .marketplace-description,html[data-theme="dark"] .marketplace-dependencies,html[data-theme="dark"] .marketplace-empty p,html[data-theme="dark"] .marketplace-safety{color:var(--erp-muted)}
 html[data-theme="dark"] .customer-table th,html[data-theme="dark"] .module-ui-table th,html[data-theme="dark"] .general-ledger-panel .ledger-list .customer-table th,html[data-theme="dark"] .finance-page>.ledger-list .customer-table th{background:#242b3b;color:#bec7d8;border-color:var(--erp-border)}
@@ -296,6 +305,40 @@ html[data-theme="dark"] .icon-button{color:#c0c9db}
 html[data-theme="dark"] .secondary,html[data-theme="dark"] .locale-switch button{background:#242b3c;border-color:#3a455a;color:#d0d7e5}
 html[data-theme="dark"] .secondary:hover,html[data-theme="dark"] .locale-switch button:hover{background:#30364d;color:#fff}
 html[data-theme="dark"] .locale-switch button[aria-pressed="true"]{background:#46406e;color:#fff;box-shadow:none}
+html[data-theme="dark"] .inventory-stock-search{border-color:var(--erp-border);background:#131927;color:#a7b0c2}
+html[data-theme="dark"] .inventory-stock-search input{background:transparent;color:var(--erp-text)}
+html[data-theme="dark"] .inventory-cost-panel{border-color:var(--erp-border);background:linear-gradient(145deg,#191e2d 0%,#1b2232 62%,#202a3b 100%);box-shadow:0 7px 24px #05081224}
+html[data-theme="dark"] .inventory-cost-heading{border-color:var(--erp-border)}
+html[data-theme="dark"] .inventory-cost-title h2{color:var(--erp-text)}
+html[data-theme="dark"] .inventory-cost-title p:not(.eyebrow){color:var(--erp-muted)}
+html[data-theme="dark"] .inventory-cost-mark{border-color:#34445e;background:linear-gradient(145deg,#26354a,#242e44);color:#8ebcff}
+html[data-theme="dark"] .inventory-cost-count{border-color:var(--erp-border);background:#202638;color:var(--erp-muted)}
+html[data-theme="dark"] .inventory-cost-count b{color:#a8ceff}
+html[data-theme="dark"] .inventory-cost-card{border-color:var(--erp-border);background:#1b2231}
+html[data-theme="dark"] .inventory-cost-card:hover{border-color:#526b91;box-shadow:0 7px 18px #05081245}
+html[data-theme="dark"] .inventory-cost-code{color:#91a9ca}
+html[data-theme="dark"] .inventory-cost-card h3{color:var(--erp-text)}
+html[data-theme="dark"] .inventory-cost-manage{border-color:#3a506f;background:#222f43;color:#b6d4ff}
+html[data-theme="dark"] .inventory-cost-manage:hover:not(:disabled){border-color:#59769e;background:#2a3a53}
+html[data-theme="dark"] .inventory-cost-metrics>div{border-color:#30394d;background:#202638}
+html[data-theme="dark"] .inventory-cost-metrics span,html[data-theme="dark"] .inventory-cost-metrics b small{color:#a7b0c2}
+html[data-theme="dark"] .inventory-cost-metrics b{color:#e6eaf3}
+html[data-theme="dark"] .inventory-cost-card-foot{border-color:#30394d;color:#a7b0c2}
+html[data-theme="dark"] .inventory-cost-card-foot svg{color:#9aafcb}
+html[data-theme="dark"] .inventory-cost-empty{border-color:#3a455a;background:#202638}
+html[data-theme="dark"] .inventory-cost-empty>span{background:#29364a;color:#a9c7ef}
+html[data-theme="dark"] .inventory-cost-empty b{color:#e0e6f1}
+html[data-theme="dark"] .inventory-cost-empty p{color:#a7b0c2}
+html[data-theme="dark"] .warehouse-panel{background:var(--erp-surface);border-color:var(--erp-border);color:var(--erp-text)}
+html[data-theme="dark"] .warehouse-panel-heading{border-color:var(--erp-border)}
+html[data-theme="dark"] .warehouse-panel-heading h2,html[data-theme="dark"] .warehouse-row-info>b,html[data-theme="dark"] .warehouse-count b,html[data-theme="dark"] .warehouse-empty>div>b{color:var(--erp-text)}
+html[data-theme="dark"] .warehouse-panel-heading p:not(.eyebrow),html[data-theme="dark"] .warehouse-row-info>small,html[data-theme="dark"] .warehouse-count,html[data-theme="dark"] .warehouse-empty>div>p{color:var(--erp-muted)}
+html[data-theme="dark"] .warehouse-count,html[data-theme="dark"] .warehouse-row,html[data-theme="dark"] .warehouse-empty{border-color:var(--erp-border);background:var(--erp-surface-soft)}
+html[data-theme="dark"] .warehouse-row-icon,html[data-theme="dark"] .warehouse-empty-icon{background:#2b2850;color:#b6a9ff}
+html[data-theme="dark"] .warehouse-row-icon.transfer,html[data-theme="dark"] .warehouse-empty-icon.transfer{background:#23344c;color:#91bdff}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .nav-item.active{background:#1e4566;color:#f1f7fc;box-shadow:inset 3px 0 #58a9e6}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .nav-item.active svg{color:#8bc8f4}
+html[data-theme="dark"] .app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav .finance-subnav-item.active{background:#294d6a;color:#f1f7fc;box-shadow:inset 2px 0 #58a9e6}
 html[data-theme="dark"] .empty-small,html[data-theme="dark"] .table-empty,html[data-theme="dark"] .marketplace-meta span,html[data-theme="dark"] .marketplace-status,html[data-theme="dark"] .module-ui-form-fields input,html[data-theme="dark"] .module-ui-table-wrap{background:#1d2434;border-color:var(--erp-border);color:var(--erp-muted)}
 html[data-theme="dark"] .balance-banner{background:linear-gradient(110deg,#272442,#211f33);border-color:#454064}
 html[data-theme="dark"] .ledger-currency,html[data-theme="dark"] .tenant-scope{background:#282543;border-color:#423d68;color:#c2b8ff}
@@ -337,6 +380,33 @@ html[data-theme="dark"] .table-pagination{color:var(--erp-muted)}
 html[data-theme="dark"] .request-field-modal .collection-form,html[data-theme="dark"] .purchase-requests-page .collection-form,html[data-theme="dark"] .purchase-orders-page .collection-form{background:#202638;border-color:var(--erp-border)}
 html[data-theme="dark"] .request-field-modal .request-field-settings>.panel-heading,html[data-theme="dark"] .purchase-requests-page .panel-heading,html[data-theme="dark"] .purchase-orders-page .panel-heading{border-color:var(--erp-border)}
 html[data-theme="dark"] .customer-table tbody tr:hover,html[data-theme="dark"] .general-ledger-panel .ledger-list .customer-table tbody tr:hover td{background:#252c3d}
+
+/* Keep high-volume journal rows compact and let the description column use most of the width. */
+.general-ledger-panel .journal-entries-list .customer-table{table-layout:fixed;min-width:760px}
+.general-ledger-panel .journal-entries-list .customer-table th:nth-child(1),.general-ledger-panel .journal-entries-list .customer-table td:nth-child(1){width:18%}
+.general-ledger-panel .journal-entries-list .customer-table th:nth-child(2),.general-ledger-panel .journal-entries-list .customer-table td:nth-child(2){width:10%}
+.general-ledger-panel .journal-entries-list .customer-table th:nth-child(3),.general-ledger-panel .journal-entries-list .customer-table td:nth-child(3){width:15%}
+.general-ledger-panel .journal-entries-list .customer-table th:nth-child(4),.general-ledger-panel .journal-entries-list .customer-table td:nth-child(4){width:33%}
+.general-ledger-panel .journal-entries-list .customer-table th:nth-child(5),.general-ledger-panel .journal-entries-list .customer-table td:nth-child(5),.general-ledger-panel .journal-entries-list .customer-table th:nth-child(6),.general-ledger-panel .journal-entries-list .customer-table td:nth-child(6){width:12%}
+.general-ledger-panel .journal-entries-list .customer-table tbody td{height:39px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.general-ledger-panel .journal-entries-list .customer-table td:nth-child(1) .row-action{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.general-ledger-panel .journal-entries-list .customer-table td:nth-child(5),.general-ledger-panel .journal-entries-list .customer-table td:nth-child(6){text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:700px){.general-ledger-panel .journal-entries-list{max-height:360px}.general-ledger-panel .journal-entries-list .customer-table{min-width:760px}}
+
+.account-transactions-modal{width:min(1120px,calc(100vw - 32px))}
+.account-transactions-modal .ledger-list{max-height:min(420px,calc(100vh - 250px));overflow:auto}
+.account-transactions-modal .ledger-list .customer-table{width:100%;min-width:1000px;table-layout:fixed}
+.account-transactions-modal .ledger-list .customer-table th:nth-child(1),.account-transactions-modal .ledger-list .customer-table td:nth-child(1){width:10%}
+.account-transactions-modal .ledger-list .customer-table th:nth-child(2),.account-transactions-modal .ledger-list .customer-table td:nth-child(2){width:13%}
+.account-transactions-modal .ledger-list .customer-table th:nth-child(3),.account-transactions-modal .ledger-list .customer-table td:nth-child(3){width:19%}
+.account-transactions-modal .ledger-list .customer-table th:nth-child(4),.account-transactions-modal .ledger-list .customer-table td:nth-child(4){width:15%}
+.account-transactions-modal .ledger-list .customer-table th:nth-child(5),.account-transactions-modal .ledger-list .customer-table td:nth-child(5){width:16%}
+.account-transactions-modal .ledger-list .customer-table th:nth-child(6),.account-transactions-modal .ledger-list .customer-table td:nth-child(6),.account-transactions-modal .ledger-list .customer-table th:nth-child(7),.account-transactions-modal .ledger-list .customer-table td:nth-child(7){width:8%}
+.account-transactions-modal .ledger-list .customer-table th:nth-child(8),.account-transactions-modal .ledger-list .customer-table td:nth-child(8){width:11%}
+.account-transactions-modal .ledger-list .customer-table tbody td{height:40px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.account-transactions-modal .ledger-list .customer-table select{box-sizing:border-box;width:100%;min-width:0}
+.account-transactions-modal .ledger-list .customer-table td:nth-child(6),.account-transactions-modal .ledger-list .customer-table td:nth-child(7){text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:700px){.account-transactions-modal{width:calc(100vw - 24px);padding:14px}.account-transactions-modal .ledger-list{max-height:360px}}
 
 /* Customer invoice history uses a focused list rather than the full data-grid console. */
 .customer-sales-invoices-modal{display:flex;flex-direction:column;gap:14px;width:min(980px,calc(100vw - 32px));height:min(720px,calc(100vh - 32px));max-height:calc(100vh - 32px);overflow:hidden;padding:22px}
@@ -498,6 +568,13 @@ html[data-theme="dark"] :is(.workflow-page,.business-rules-page,.integration-que
 .customer-edit-section input:focus,.customer-edit-section select:focus,.customer-edit-section textarea:focus{border-color:#7eb4eb;box-shadow:0 0 0 3px #2581d515}
 .customer-edit-section .form-two{gap:12px}
 .customer-create-modal{display:flex;flex-direction:column;width:min(620px,calc(100vw - 32px));height:min(900px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);overflow:hidden;padding:24px}
+.master-data-create-backdrop{position:fixed;inset:108px 0 0;z-index:30;overflow:auto;padding:24px clamp(16px,3vw,42px);background:#F3F4F6}
+.master-data-create-surface{display:flex;flex-direction:column;width:min(1240px,100%);min-height:calc(100vh - 160px);height:auto;max-height:none;overflow:visible;margin:0 auto;padding:24px;border:1px solid #DCE4ED;border-radius:5px;background:#FFFFFF;box-shadow:none}
+.master-data-create-surface.customer-create-modal{width:min(1240px,100%);height:auto;max-height:none}
+.master-data-create-surface .customer-create-form{flex:none}
+.master-data-create-surface .customer-create-fields{overflow:visible}
+.master-data-create-surface.inventory-item-form-modal form{display:grid;align-content:start;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px}
+.master-data-create-surface.inventory-item-form-modal form>.modal-head,.master-data-create-surface.inventory-item-form-modal form>label,.master-data-create-surface.inventory-item-form-modal form>section,.master-data-create-surface.inventory-item-form-modal form>.modal-foot{grid-column:1/-1}
 .customer-create-modal>.modal-head{flex:none;margin-bottom:8px}
 .customer-create-modal>.modal-sub{flex:none;margin:0 0 12px}
 .customer-create-form{display:flex;flex:1;flex-direction:column;min-height:0;gap:12px}
@@ -601,3 +678,52 @@ html[data-theme="dark"] .customer-popup-trigger,html[data-theme="dark"] .custome
 .customer-field-create-form .check-row input{width:15px;height:15px;accent-color:#1475c9}
 .customer-field-create-form>.modal-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding-top:10px;border-top:1px solid #edf0f5}
 @media(max-width:600px){.customer-fields-modal{gap:12px;padding:16px}.customer-field-values-list .request-row{align-items:stretch;flex-direction:column}.customer-field-actions{justify-content:flex-start}.customer-field-create-form .form-two{grid-template-columns:1fr}.customer-field-values-footer,.customer-field-create-form>.modal-foot{align-items:flex-start;flex-direction:column}.customer-field-values-footer>div{width:100%;justify-content:flex-end}}
+
+/* Clearer hierarchy and spacing for expandable sidebar modules. */
+.app-shell:not(.standalone-studio) .nav-item.has-submenu{min-height:41px;padding-right:11px;transition:background-color .16s ease,color .16s ease,box-shadow .16s ease}
+.app-shell:not(.standalone-studio) .nav-item.has-submenu.active{background:#173953;box-shadow:inset 3px 0 #58a9e6}
+.app-shell:not(.standalone-studio) .nav-item.has-submenu.active .submenu-indicator{transform:rotate(0deg)}
+.app-shell:not(.standalone-studio) .nav-item.has-submenu:not(.active) .submenu-indicator{transform:rotate(0deg)}
+.app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav{position:relative;display:grid;gap:3px;margin:3px 0 10px 16px;padding:6px 0 6px 12px;border-left:1px solid #3b5c76;animation:sidebar-submenu-in .16s ease-out both}
+.app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav .finance-subnav-item{position:relative;display:flex;align-items:center;min-height:34px;height:auto;padding:0 10px;border-radius:6px;color:#b4c9d9;font-size:10.5px;font-weight:500;line-height:1.3;transition:background-color .14s ease,color .14s ease,transform .14s ease}
+.app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav .finance-subnav-item:hover{background:#193f5d;color:#f4f9fd;transform:translateX(2px)}
+.app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav .finance-subnav-item.active{background:#254e6d;color:#fff;font-weight:650;box-shadow:inset 2px 0 #78c2f4}
+.app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav .finance-subnav-item.active::before{content:"";width:5px;height:5px;margin-right:8px;border-radius:50%;background:#91d0fa;flex:none}
+.app-shell:not(.standalone-studio) .nav-item.has-submenu:focus-visible,.app-shell:not(.standalone-studio) .finance-subnav-item:focus-visible{outline:2px solid #82c9f6;outline-offset:2px}
+@keyframes sidebar-submenu-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav{animation:none}.app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav .finance-subnav-item,.app-shell:not(.standalone-studio) .nav-item.has-submenu{transition:none}}
+
+/* Keep the ERP navigation in the same navy visual language as Nexora Studio. */
+.app-shell:not(.standalone-studio)>.sidebar{background:#102a43;border-right:1px solid #203a55;color:#eaf2f8;scrollbar-color:#36536b transparent}
+.app-shell:not(.standalone-studio)>.sidebar::-webkit-scrollbar-thumb{background:#36536b}
+.app-shell:not(.standalone-studio) .side-brand{color:#f4f8fc}
+.app-shell:not(.standalone-studio) .side-brand strong{color:#72b7ed}
+.app-shell:not(.standalone-studio) .tenant-switch{border-color:#35516b;background:#183650}
+.app-shell:not(.standalone-studio) .tenant-switch b{color:#edf5fb}
+.app-shell:not(.standalone-studio) .tenant-switch small{color:#a8bfd2}
+.app-shell:not(.standalone-studio) .tenant-switch>svg{color:#a8bfd2}
+.app-shell:not(.standalone-studio) .tenant-avatar{background:#e9f3fc;color:#1267a6}
+.app-shell:not(.standalone-studio) .side-label{color:#91abc0}
+.app-shell:not(.standalone-studio) .nav-item{border-radius:7px;color:#c0d0dd}
+.app-shell:not(.standalone-studio) .nav-item svg{color:#9cb4c8}
+.app-shell:not(.standalone-studio) .nav-item:hover{background:#193b58;color:#fff}
+.app-shell:not(.standalone-studio) .nav-item:hover svg{color:#b8dcf5}
+.app-shell:not(.standalone-studio) .nav-item.active{background:#1e4566;color:#fff;font-weight:600;box-shadow:inset 3px 0 #58a9e6}
+.app-shell:not(.standalone-studio) .nav-item.active svg{color:#8bc8f4}
+.app-shell:not(.standalone-studio) .nav-item .submenu-indicator{color:#9cb4c8}
+.app-shell:not(.standalone-studio) .nav-item.has-submenu:hover .submenu-indicator,.app-shell:not(.standalone-studio) .nav-item.has-submenu.active .submenu-indicator{color:#b8dcf5}
+.app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav{border-left-color:#35516b}
+.app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav .finance-subnav-item{border-radius:6px;color:#a9bfd1}
+.app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav .finance-subnav-item:hover{background:#193b58;color:#f3f8fc}
+.app-shell:not(.standalone-studio)>.sidebar nav.finance-subnav .finance-subnav-item.active{background:#294d6a;color:#fff;box-shadow:inset 2px 0 #58a9e6}
+.app-shell:not(.standalone-studio) .nav-count{background:#294965;color:#d5e5f1}
+.app-shell:not(.standalone-studio) .new-badge{background:#244764;color:#9ed1f4}
+.app-shell:not(.standalone-studio) .muted-item{color:#91abc0}
+.app-shell:not(.standalone-studio) .profile{border-top-color:#35516b}
+.app-shell:not(.standalone-studio) .profile b{color:#e5eff7}
+.app-shell:not(.standalone-studio) .profile small{color:#a9bfd1}
+.app-shell:not(.standalone-studio) .profile .icon-button{color:#d5e5f1}
+.app-shell:not(.standalone-studio) .profile .icon-button:hover{background:#244764}
+.app-shell:not(.standalone-studio) .sidebar .mobile-close{color:#d5e5f1}
+.app-shell:not(.standalone-studio) .sidebar .mobile-close:hover{background:#244764}
+.inventory-stock-search{height:36px;display:flex;align-items:center;gap:8px;border:1px solid #e8eaf0;border-radius:8px;background:#fff;padding:0 10px;color:#979daa;width:min(300px,100%)}.inventory-stock-search input{border:0;outline:0;flex:1;min-width:0;font-size:10px;color:#293144}.inventory-stock-search input::placeholder{color:#a8adba}@media(max-width:900px){.inventory-stock-search{width:100%}}

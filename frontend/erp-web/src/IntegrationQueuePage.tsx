@@ -1,23 +1,11 @@
-import AdvancedDataGrid from './AdvancedDataGrid'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Ban, RefreshCw, ShieldCheck } from 'lucide-react'
+import AdvancedDataGrid from './AdvancedDataGrid'
+import { RefreshCw, ShieldCheck } from 'lucide-react'
+import IntegrationOperationsList, { type IntegrationOperation, type IntegrationOperationPage } from './integration-queue/components/IntegrationOperationsList'
 import { localizedText } from './locale'
 import './integration-queue.css'
 
-type IntegrationOperation = {
-  operationId: string
-  integrationCode: string
-  status: 'AwaitingApproval' | 'Queued' | 'Running' | 'Succeeded' | 'Failed' | 'Indeterminate' | 'Cancelled'
-  createdAt: string
-  updatedAt: string
-  startedAt: string | null
-  completedAt: string | null
-  attempts: number
-  errorCode: string | null
-}
-
-type IntegrationOperationPage = { items: IntegrationOperation[]; page: number; pageSize: number; totalCount: number }
 type EDocumentSubmission = { operationId: string; documentType: string; documentId: string; documentNumber: string; issueDate: string; currencyCode: string; status: string; createdAt: string; requestedByUserId: string }
 type EDocumentSubmissionDetail = { documentType: string; documentId: string; documentNumber: string; issueDate: string; currencyCode: string; document: Record<string, unknown> }
 type EDocumentSourceDocument = { id: string; number: string; issueDate: string; currencyCode: string; counterpartyName: string; total: number; status: string }
@@ -235,7 +223,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
         <button type="button" className="secondary" disabled={!documentId || previewing} onClick={() => void previewSourceDocument()}>{previewing ? tr('Önizleme yükleniyor…', 'Loading preview…') : tr('Belge içeriğini önizle', 'Preview document')}</button>
         <button className="primary" disabled={submitting || !documentId}>{submitting ? tr('Taslak hazırlanıyor…', 'Preparing draft…') : tr('Onay için taslak oluştur', 'Create draft for approval')}</button>
       </form>
-      <p className="muted">{tr('Ürün kararı gerekli: Aynı ERP belgesi yeni bir operasyon anahtarıyla tekrar taslaklanabilir. Belge düzeyinde yinelenen gönderimlerin engellenip engellenmeyeceği belirlenmeli.', 'Product decision required: the same ERP document can be drafted again with a new operation key. Decide whether duplicate submissions should be blocked at document level.')}</p>
+      <p className="muted">{tr('Aynı belge için yeniden taslak oluşturmadan önce onay bekleyen gönderimleri ve işlem geçmişini kontrol edin.', 'Check pending submissions and operation history before creating another draft for the same document.')}</p>
       {sourcePreview && <div className="integration-edoc-review" role="region" aria-label={tr('E-belge taslak önizlemesi', 'E-document draft preview')}>
         <div><h3>{tr('Sağlayıcıya hazırlanacak belge', 'Document prepared for the provider')}</h3><p className="muted">{documentTypeLabel(sourcePreview.documentType)} · {sourcePreview.documentNumber} · {new Date(sourcePreview.issueDate).toLocaleDateString(locale())} · {sourcePreview.currencyCode}</p></div>
         <pre>{JSON.stringify(sourcePreview.document, null, 2)}</pre>
@@ -258,33 +246,16 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
       </div>}
     </section>
     <section className="panel integration-queue-panel">
-      <div className="integration-queue-toolbar">
-        <div><h2>{tr('İşlem geçmişi', 'Operation history')}</h2><p className="muted">{tr('Kuyruk içeriği ve hassas istek verileri bu listede gösterilmez.', 'Queue contents and sensitive request data are not shown in this list.')}</p></div>
-        <label>{tr('Durum', 'Status')}
-          <select value={status} onChange={event => { setPage(1); setStatus(event.target.value) }}>
-            {statuses.map(value => <option key={value || 'all'} value={value}>{value ? statusLabel(value as IntegrationOperation['status']) : tr('Tüm durumlar', 'All statuses')}</option>)}
-          </select>
-        </label>
-      </div>
-      <div className="integration-operations-workbench">
-      <div className="integration-queue-table-wrap" role="region" aria-label={tr('Entegrasyon işlem geçmişi tablosu', 'Integration operation history table')} tabIndex={0} aria-busy={loading}>
-        <AdvancedDataGrid  className="integration-queue-table">
-          <caption className="integration-visually-hidden">{tr('Entegrasyon işlemlerinin durum ve deneme geçmişi', 'Status and attempt history for integration operations')}</caption>
-          <thead><tr><th scope="col">{tr('Entegrasyon', 'Integration')}</th><th scope="col">{tr('Durum', 'Status')}</th><th scope="col">{tr('Oluşturulma', 'Created')}</th><th scope="col">{tr('Deneme', 'Attempt')}</th><th scope="col">{tr('Hata kodu', 'Error code')}</th><th scope="col">{tr('İşlemler', 'Actions')}</th></tr></thead>
-          <tbody>{loading ? <tr><td colSpan={6} className="queue-empty" role="status">{tr('Kuyruk yükleniyor…', 'Loading queue…')}</td></tr> : !data ? <tr><td colSpan={6} className="queue-empty">{tr('Kuyruk görüntülenemiyor. Yenile düğmesini kullanın.', 'Cannot display the queue. Use Refresh to try again.')}</td></tr> : data.items.length ? data.items.map(item => <tr key={item.operationId}>
-            <td><b>{item.integrationCode}</b><small className="queue-id">{item.operationId}</small></td>
-            <td><span className={`queue-status status-${item.status.toLowerCase()}`}><i/>{statusLabel(item.status)}</span></td>
-            <td>{new Date(item.createdAt).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' })}</td>
-            <td><span>{item.attempts}</span>{['Failed', 'Indeterminate'].includes(item.status) && <small className="queue-retry-note">{tr('Otomatik tekrar yok', 'No automatic retry')}</small>}</td>
-            <td>{item.errorCode || '—'}</td>
-            <td><div className="queue-row-actions"><button type="button" className="secondary small-button" aria-pressed={selectedOperation?.operationId===item.operationId} onClick={()=>setSelectedOperationId(item.operationId)}>{tr('Ayrıntı', 'Details')}</button>{['Queued', 'AwaitingApproval'].includes(item.status) && <button className="secondary small-button queue-cancel" disabled={busyId === item.operationId} onClick={() => void cancel(item)}><Ban size={14}/>{busyId === item.operationId ? tr('İptal ediliyor…', 'Cancelling…') : tr('İptal et', 'Cancel')}</button>}</div></td>
-          </tr>) : <tr><td colSpan={6} className="queue-empty">{tr('Bu filtrede işlem bulunmuyor.', 'No operations match this filter.')}</td></tr>}</tbody>
-        </AdvancedDataGrid>
-      </div>
-      {selectedOperation&&<aside className="integration-operation-inspector" aria-label={tr('Seçili kuyruk işlemi', 'Selected queue operation')}><div className="integration-inspector-heading"><div><p className="eyebrow">{tr('SEÇİLİ İŞLEM', 'SELECTED OPERATION')}</p><h3>{selectedOperation.integrationCode}</h3><small className="queue-id">{selectedOperation.operationId}</small></div><span className={`queue-status status-${selectedOperation.status.toLowerCase()}`}><i/>{statusLabel(selectedOperation.status)}</span></div><dl><div><dt>{tr('Oluşturulma', 'Created')}</dt><dd>{new Date(selectedOperation.createdAt).toLocaleString(locale())}</dd></div><div><dt>{tr('Son güncelleme', 'Last updated')}</dt><dd>{new Date(selectedOperation.updatedAt).toLocaleString(locale())}</dd></div><div><dt>{tr('Başladı', 'Started')}</dt><dd>{selectedOperation.startedAt?new Date(selectedOperation.startedAt).toLocaleString(locale()):'—'}</dd></div><div><dt>{tr('Tamamlandı', 'Completed')}</dt><dd>{selectedOperation.completedAt?new Date(selectedOperation.completedAt).toLocaleString(locale()):'—'}</dd></div><div><dt>{tr('Deneme sayısı', 'Attempts')}</dt><dd>{selectedOperation.attempts}</dd></div><div><dt>{tr('Hata kodu', 'Error code')}</dt><dd>{selectedOperation.errorCode||'—'}</dd></div></dl><p>{tr('İstek gövdesi ve hassas belge verileri kuyruk ayrıntısında gösterilmez.', 'Request bodies and sensitive document data are not shown in queue details.')}</p>{['Queued','AwaitingApproval'].includes(selectedOperation.status)&&<button className="secondary queue-cancel" disabled={busyId===selectedOperation.operationId} onClick={()=>void cancel(selectedOperation)}><Ban size={14}/> {tr('İptal et', 'Cancel')}</button>}</aside>}
-      </div>
-      {selectedOperation?.integrationCode==='tr.e-document.submit'&&selectedOperation.status==='Indeterminate'&&<section className="integration-reconciliation" aria-label={tr('Dış sağlayıcıyla mutabakat', 'Reconcile with external provider')}><h3>{tr('Dış sağlayıcıyla mutabakat', 'Reconcile with external provider')}</h3><p>{tr('Önce sağlayıcı portalında bu aynı belgeyi bulun. Taslağı oluşturan kişiden farklı bir firma yöneticisi doğruladığı sonucu kaydetmelidir.', 'First locate this document in the provider portal. A company administrator different from the draft creator must record the verified outcome.')}</p><label>{tr('Doğrulanan sonuç', 'Verified outcome')}<select value={reconciliationOutcome} onChange={event => setReconciliationOutcome(event.target.value as typeof reconciliationOutcome)}><option value="confirmed_submitted">{tr('Sağlayıcıda gönderildi', 'Submitted at provider')}</option><option value="confirmed_not_submitted">{tr('Sağlayıcıda gönderilmedi', 'Not submitted at provider')}</option></select></label>{reconciliationOutcome==='confirmed_submitted'&&<label>{tr('Sağlayıcı belge referansı', 'Provider document reference')}<input maxLength={200} value={reconciliationReference} onChange={event => setReconciliationReference(event.target.value)} /></label>}<label>{tr('Kontrol kanıtı özeti', 'Evidence summary of the check')}<textarea minLength={10} maxLength={1000} rows={3} value={reconciliationEvidence} onChange={event => setReconciliationEvidence(event.target.value)} placeholder={tr('Örn. sağlayıcı portalında belge numarasıyla arandı ve durum doğrulandı.', 'E.g. searched by document number in the provider portal and verified the status.')} /></label><small>{tr('Özete secret, PIN, kişisel veri veya sağlayıcı yanıt gövdesi eklemeyin. Kayıt şifreli saklanır; işlem yeniden gönderilmez.', 'Do not include secrets, PINs, personal data, or provider response bodies. The record is stored encrypted; the operation is not resubmitted.')}</small><button className="primary" disabled={busyId===selectedOperation.operationId} onClick={()=>void reconcileIndeterminate(selectedOperation)}>{busyId===selectedOperation.operationId?tr('Kaydediliyor…','Saving…'):tr('Doğrulanmış sonucu kaydet','Record verified outcome')}</button></section>}
-      <footer className="integration-queue-pagination"><span>{data ? `${data.totalCount} ${tr('işlem · Sayfa', 'operations · Page')} ${page}/${totalPages}` : '—'}</span><div><button className="secondary small-button" disabled={page <= 1 || loading} onClick={() => setPage(value => value - 1)}>{tr('Önceki', 'Previous')}</button><button className="secondary small-button" disabled={page >= totalPages || loading} onClick={() => setPage(value => value + 1)}>{tr('Sonraki', 'Next')}</button></div></footer>
+      <IntegrationOperationsList
+        status={status} statuses={statuses} data={data} loading={loading} page={page} totalPages={totalPages}
+        selectedOperation={selectedOperation} busyId={busyId}
+        reconciliationOutcome={reconciliationOutcome} reconciliationReference={reconciliationReference} reconciliationEvidence={reconciliationEvidence}
+        onStatusChange={value => { setPage(1); setStatus(value) }} onSelectOperation={setSelectedOperationId}
+        onCancel={operation => void cancel(operation)}
+        onReconciliationOutcomeChange={setReconciliationOutcome} onReconciliationReferenceChange={setReconciliationReference} onReconciliationEvidenceChange={setReconciliationEvidence}
+        onReconcile={operation => void reconcileIndeterminate(operation)} onPageChange={delta => setPage(value => value + delta)}
+        tr={tr} locale={locale} statusLabel={statusLabel}
+      />
     </section>
     <div className="boundary-note integration-queue-boundary"><ShieldCheck size={16}/><span>{tr('Geçici ve yeniden denenebilir hatalarda worker, deneme sınırına kadar aynı sağlayıcı idempotency anahtarıyla tekrar deneyebilir. Sınır aşıldıktan sonra son durumdaki başarısız veya belirsiz işlemler otomatik tekrarlanmaz; dış sistem sonucunu operatör incelemelidir.', 'For transient and retryable failures, the worker may retry with the same provider idempotency key up to the attempt limit. After the limit, terminal failed or indeterminate operations are not retried automatically; an operator must review the external system outcome.')}</span></div>
   </div>

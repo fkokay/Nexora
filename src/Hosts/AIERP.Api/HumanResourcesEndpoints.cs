@@ -28,7 +28,9 @@ public static partial class HumanResourcesEndpoints
 
         workplaceDefinitions.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
-            if (!TryIdentity(user, out var tenantId, out _) || !IsTenantAdmin(user)) return Results.Forbid();
+            // Tenant members need to read workplace definitions for related forms and
+            // selectors; keep writes restricted to TenantAdmin below.
+            if (!Guid.TryParse(user.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
             var rows = await db.WorkplaceDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId)
                 .OrderBy(x => x.Kind).ThenBy(x => x.Code)
                 .Select(x => new WorkplaceDefinitionView(x.Id, x.Code, x.Name, x.Kind, x.IsActive, x.RowVersion)).ToListAsync(ct);
@@ -108,7 +110,7 @@ public static partial class HumanResourcesEndpoints
             var admin = IsTenantAdmin(user);
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             return Results.Ok(await db.EmployeeRecords.AsNoTracking().Where(x => x.TenantId == tenantId &&
-                    (admin || x.UserId == userId)).OrderBy(x => x.PersonnelCode).Take(500)
+                    (admin || x.UserId == userId)).OrderBy(x => x.PersonnelCode).Take(1000)
                 .Select(x => new EmployeeView(x.Id, x.PersonnelCode, x.FullName, x.Department, x.JobTitle, x.EmploymentCategory, x.WorkEmail,
                     x.HireDate, x.TerminationDate, x.TerminationDate == null || x.TerminationDate >= today ? "Active" : "Terminated",
                     x.UserId, Convert.ToBase64String(x.RowVersion))).ToListAsync(ct));
@@ -467,7 +469,7 @@ public static partial class HumanResourcesEndpoints
             var role = user.FindFirstValue("role") ?? "";
             if (!await HasCompensationPermissionAsync(authorizer, tenantId, userId, role, "view", ct)) return Results.Forbid();
             var rows = await db.EmployeeRecords.AsNoTracking().Where(x => x.TenantId == tenantId)
-                .OrderBy(x => x.PersonnelCode).Take(500)
+                .OrderBy(x => x.PersonnelCode).Take(1000)
                 .Select(x => new PayrollCompensationEmployeeOption(x.Id, x.PersonnelCode, x.FullName))
                 .ToListAsync(ct);
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId,
@@ -2070,10 +2072,13 @@ public static partial class HumanResourcesEndpoints
     private static bool TryIdentity(ClaimsPrincipal user, out Guid tenantId, out Guid userId)
     {
         var hasTenant = Guid.TryParse(user.FindFirstValue("tenant_id"), out tenantId);
-        var hasUser = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub"), out userId);
+        var hasUser = Guid.TryParse(user.FindFirstValue("sub"), out userId);
+        if (!hasUser) hasUser = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
         return hasTenant && hasUser;
     }
-    private static bool IsTenantAdmin(ClaimsPrincipal user) => string.Equals(user.FindFirstValue("role"), "TenantAdmin", StringComparison.OrdinalIgnoreCase);
+    private static bool IsTenantAdmin(ClaimsPrincipal user) => user.Claims.Any(claim =>
+        (claim.Type == "role" || claim.Type == ClaimTypes.Role) &&
+        string.Equals(claim.Value, "TenantAdmin", StringComparison.OrdinalIgnoreCase));
     private static Dictionary<string, string[]>? ValidateWorkplaceDefinition(string? code, string? name, string? kind)
     {
         var errors = new Dictionary<string, string[]>();
