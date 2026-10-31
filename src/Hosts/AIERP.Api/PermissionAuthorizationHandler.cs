@@ -23,6 +23,19 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
             || !Guid.TryParse(context.User.FindFirstValue("sub"), out var userId)) return;
         var role = context.User.FindFirstValue("role");
         if (string.IsNullOrWhiteSpace(role)) return;
+        if (http.Request.Path.StartsWithSegments("/api/tenant-license"))
+        {
+            // Company license routes are intentionally restricted to the current tenant admin.
+            // They are not part of the configurable permission catalog because license changes
+            // must not be granted through ordinary per-user or per-role permission rules.
+            if (string.Equals(role, "TenantAdmin", StringComparison.Ordinal)
+                && await authorizer.IsAllowedAsync(tenantId, userId, role,
+                    new ResolvedPlatformPermission(
+                        new PlatformPermissionDefinition("erp.tenant-license.manage", "erp.tenant-license", "manage", "Company license and quota management"),
+                        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)), http.RequestAborted))
+                context.Succeed(requirement);
+            return;
+        }
         var routeValues = http.Request.RouteValues.ToDictionary(x => x.Key, x => x.Value?.ToString(), StringComparer.OrdinalIgnoreCase);
         var routePattern = (http.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? string.Empty;
         if (!PlatformPermissionCatalog.TryResolve(http.Request.Path.Value ?? string.Empty, http.Request.Method,
@@ -57,12 +70,17 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
         if (!string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) || path is null) return false;
         var route = path.TrimEnd('/');
         return (resourceType, route) is
+            ("erp.customers", "/api/customers") or
+            ("erp.sales-deliveries", "/api/sales/standalone-deliveries") or
+            ("erp.purchase-receipts", "/api/purchasing/standalone-receipts") or
             ("erp.sales-quotes", "/api/sales/quotes") or
             ("erp.sales-orders", "/api/sales/orders") or
             ("erp.sales-invoices", "/api/sales/invoices") or
             ("erp.purchase-requests", "/api/purchasing/requests") or
             ("erp.purchase-orders", "/api/purchasing/orders") or
-            ("erp.purchase-invoices", "/api/purchasing/invoices");
+            ("erp.purchase-invoices", "/api/purchasing/invoices") or
+            ("erp.purchase-invoices", "/api/purchasing/standalone-invoices") or
+            ("erp.purchase-invoices", "/api/purchasing/standalone-invoices/suppliers");
     }
 
     private static async Task<Dictionary<string, string>?> ResolveResourceAttributesAsync(TenantDbContext db, Guid tenantId, string resourceType, Guid id,
@@ -98,14 +116,46 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
                 .Select(x => new { x.Status, x.CustomerId }).SingleOrDefaultAsync(cancellationToken);
             return value is null ? null : ResourceAttributes(value.Status.ToString(), customerId: value.CustomerId);
         }
+        if (resourceType == "erp.sales-deliveries")
+        {
+            var value = await db.StandaloneSalesDeliveries.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Status, x.CustomerId }).SingleOrDefaultAsync(cancellationToken);
+            return value is null ? null : ResourceAttributes(value.Status.ToString(), customerId: value.CustomerId);
+        }
+        if (resourceType == "erp.purchase-receipts")
+        {
+            var value = await db.StandalonePurchaseReceipts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Status, x.SupplierId }).SingleOrDefaultAsync(cancellationToken);
+            return value is null ? null : ResourceAttributes(value.Status.ToString(), supplierId: value.SupplierId);
+        }
         if (resourceType == "erp.purchase-invoices")
         {
             var value = await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
                 .Select(x => new { x.Status, x.SupplierId }).SingleOrDefaultAsync(cancellationToken);
-            return value is null ? null : ResourceAttributes(value.Status.ToString(), supplierId: value.SupplierId);
+            if (value is not null) return ResourceAttributes(value.Status.ToString(), supplierId: value.SupplierId);
+            var draft = await db.PurchaseInvoiceDrafts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Status, x.SupplierId }).SingleOrDefaultAsync(cancellationToken);
+            return draft is null ? null : ResourceAttributes(draft.Status.ToString(), supplierId: draft.SupplierId);
+        }
+        if (resourceType == "erp.customers")
+        {
+            // Customer detail and balance routes share the same {id} route value.
+            // Resolve the tenant-owned account before evaluating record-level rules;
+            // never trust a caller-supplied customerId attribute for these APIs.
+            var value = await db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                .Select(x => new { x.Type, x.IsActive }).SingleOrDefaultAsync(cancellationToken);
+            return value is null ? null : CustomerResourceAttributes(id, value.Type.ToString(), value.IsActive);
         }
         return null;
     }
+
+    private static Dictionary<string, string> CustomerResourceAttributes(Guid customerId, string customerType, bool isActive) =>
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["resource.customerId"] = customerId.ToString("D"),
+            ["resource.customerType"] = customerType,
+            ["resource.customerActive"] = isActive.ToString().ToLowerInvariant()
+        };
 
     private static Dictionary<string, string> ResourceAttributes(string status, Guid? customerId = null,
         Guid? supplierId = null, Guid? ownerUserId = null)

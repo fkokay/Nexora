@@ -1,0 +1,31 @@
+{
+  "contexts": [
+    {
+      "context": "PlatformDbContext",
+      "database": "AIERPPlatform",
+      "targetApplied": 120,
+      "releaseMigrations": 120,
+      "pending": 0,
+      "latest": "20261021114203_AddTenantScreenViews"
+    },
+    {
+      "context": "TenantDbContext",
+      "database": "AIERPTenant_<tenant-guid>",
+      "targetApplied": 35,
+      "releaseMigrations": 35,
+      "pending": 0,
+      "latest": "20261021114219_AddTenantScreenViews"
+    },
+    {
+      "context": "AIStudioDbContext",
+      "database": "AIERPStudio",
+      "targetApplied": 10,
+      "releaseMigrations": 10,
+      "pending": 0,
+      "latest": "20261017134712_AddStudioKnowledgeRefreshConsentAIStudio"
+    }
+  ],
+  "compatibility": "NOT_PROVEN: migration history ordering and package integrity only; execute on an isolated restore of target data to prove schema/data compatibility.",
+  "status": "passed-static-history-preflight",
+  "checkedAtUtc": "2026-10-21T12:33:21.8599194Z"
+}

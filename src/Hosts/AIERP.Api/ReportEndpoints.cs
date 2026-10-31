@@ -28,6 +28,8 @@ public static class ReportEndpoints
         new("code", "Fatura kodu", "text"), new("customerCode", "Müşteri kodu", "text"), new("customerName", "Müşteri adı", "text"),
         new("invoiceDate", "Fatura tarihi", "date"), new("currencyCode", "Para birimi", "text"), new("status", "Durum", "text", ["Posted", "Voided"]),
         new("subtotal", "Ara toplam", "decimal"), new("taxTotal", "Vergi toplamı", "decimal"), new("grandTotal", "Genel toplam", "decimal"),
+        new("paidAmount", "Tahsil edilen", "decimal"), new("returnedAmount", "İade toplamı", "decimal"),
+        new("outstandingAmount", "Açık alacak", "decimal"),
         new("createdAt", "Oluşturulma", "date")
     ];
     private static readonly IReadOnlyList<ReportAggregateOption> SalesInvoiceAggregates =
@@ -56,7 +58,9 @@ public static class ReportEndpoints
         new("dueDate", "Vade tarihi", "date"), new("currencyCode", "Para birimi", "text"),
         new("status", "Durum", "text", ["Posted", "Voided"]), new("subtotal", "Ara toplam", "decimal"),
         new("discountTotal", "İskonto toplamı", "decimal"), new("taxTotal", "Vergi toplamı", "decimal"),
-        new("grandTotal", "Genel toplam", "decimal"), new("lineCount", "Satır sayısı", "number"),
+        new("grandTotal", "Genel toplam", "decimal"), new("paidAmount", "Ödenen", "decimal"),
+        new("returnedAmount", "İade toplamı", "decimal"), new("outstandingAmount", "Açık bakiye", "decimal"),
+        new("lineCount", "Satır sayısı", "number"),
         new("createdAt", "Oluşturulma", "date")
     ];
     private static readonly IReadOnlyList<ReportColumn> ManufacturingOrderColumns =
@@ -87,6 +91,15 @@ public static class ReportEndpoints
         new("totalCostBase", "Toplam maliyet (ana para birimi)", "decimal"), new("traceCount", "İz kayıt sayısı", "number"),
         new("reversalOfId", "Ters kayıt kimliği", "text"), new("description", "Açıklama", "text"), new("createdAt", "Oluşturulma", "date")
     ];
+    private static readonly IReadOnlyList<ReportColumn> InventoryTransferColumns =
+    [
+        new("code", "Transfer kodu", "text"), new("transferDate", "Transfer tarihi", "date"),
+        new("status", "Durum", "text", ["Posted", "Voided"]),
+        new("fromWarehouseCode", "Kaynak depo kodu", "text"), new("fromWarehouseName", "Kaynak depo", "text"),
+        new("toWarehouseCode", "Hedef depo kodu", "text"), new("toWarehouseName", "Hedef depo", "text"),
+        new("lineCount", "Aktarılan stok kalemi", "number"), new("totalQuantity", "Aktarılan miktar", "decimal"),
+        new("createdAt", "Oluşturulma", "date")
+    ];
     private static readonly IReadOnlyList<ReportColumn> PurchaseReceiptColumns =
     [
         new("code", "Mal kabul kodu", "text"), new("orderCode", "Satın alma siparişi", "text"),
@@ -103,6 +116,26 @@ public static class ReportEndpoints
         new("status", "Durum", "text", ["Open", "Fulfilled", "Cancelled"]),
         new("subtotal", "Ara toplam", "decimal"), new("taxTotal", "Vergi toplamı", "decimal"), new("grandTotal", "Genel toplam", "decimal"),
         new("createdAt", "Oluşturulma", "date")
+    ];
+    private static readonly IReadOnlyList<ReportColumn> SalesOrderFulfillmentColumns =
+    [
+        new("orderCode", "Sipariş kodu", "text"), new("customerCode", "Müşteri kodu", "text"), new("customerName", "Müşteri adı", "text"),
+        new("orderDate", "Sipariş tarihi", "date"), new("requestedDeliveryDate", "İstenen teslim tarihi", "date"),
+        new("status", "Sipariş durumu", "text", ["Open", "Fulfilled", "Cancelled"]), new("lineNumber", "Satır", "number"),
+        new("stockCode", "Stok kodu", "text"), new("stockName", "Stok adı", "text"), new("unitCode", "Birim", "text"),
+        new("orderedQuantity", "Sipariş miktarı", "decimal"), new("reservedQuantity", "Açık rezerve miktar", "decimal"),
+        new("fulfilledQuantity", "Sevk edilen miktar", "decimal"), new("remainingQuantity", "Kalan talep", "decimal"),
+        new("backorderQuantity", "Rezerve edilmemiş kalan miktar", "decimal")
+    ];
+    private static readonly IReadOnlyList<ReportColumn> PurchaseOrderFulfillmentColumns =
+    [
+        new("orderCode", "Satın alma siparişi", "text"), new("supplierCode", "Tedarikçi kodu", "text"),
+        new("supplierName", "Tedarikçi adı", "text"), new("orderDate", "Sipariş tarihi", "date"),
+        new("expectedReceiptDate", "Beklenen mal kabul tarihi", "date"),
+        new("status", "Sipariş durumu", "text", ["Open", "PartiallyReceived"]), new("lineNumber", "Satır", "number"),
+        new("stockCode", "Stok kodu", "text"), new("stockName", "Stok adı", "text"), new("unitCode", "Birim", "text"),
+        new("orderedQuantity", "Sipariş miktarı", "decimal"), new("receivedQuantity", "Kabul edilen miktar", "decimal"),
+        new("outstandingQuantity", "Bekleyen miktar", "decimal")
     ];
     private static readonly IReadOnlyList<ReportAggregateOption> SalesOrderAggregates =
     [
@@ -174,6 +207,7 @@ public static class ReportEndpoints
         new("code", "Stok kodu", "text"), new("name", "Stok adı", "text"), new("barcode", "Barkod", "text"),
         new("unitCode", "Birim", "text"), new("category", "Kategori", "text"), new("minimumStock", "Minimum stok", "decimal"),
         new("onHand", "Eldeki miktar", "decimal"), new("reserved", "Rezerve miktar", "decimal"), new("available", "Kullanılabilir miktar", "decimal"),
+        new("minimumStockGap", "Minimum stok açığı", "decimal"), new("belowMinimum", "Minimumun altında", "boolean"),
         new("trackingMode", "Takip türü", "text", ["None", "Lot", "Serial"]), new("isActive", "Durum", "boolean"),
         new("createdAt", "Oluşturulma", "date")
     ];
@@ -182,7 +216,14 @@ public static class ReportEndpoints
         new("count", "Stok kartı sayısı"), new("sumMinimumStock", "Minimum stok toplamı"), new("averageMinimumStock", "Ortalama minimum stok"),
         new("sumOnHand", "Eldeki miktar toplamı"), new("averageOnHand", "Ortalama eldeki miktar"),
         new("sumReserved", "Rezerve miktar toplamı"), new("averageReserved", "Ortalama rezerve miktar"),
-        new("sumAvailable", "Kullanılabilir miktar toplamı"), new("averageAvailable", "Ortalama kullanılabilir miktar")
+        new("sumAvailable", "Kullanılabilir miktar toplamı"), new("averageAvailable", "Ortalama kullanılabilir miktar"),
+        new("sumMinimumStockGap", "Minimum stok açığı toplamı"), new("averageMinimumStockGap", "Ortalama minimum stok açığı")
+    ];
+    private static readonly IReadOnlyList<ReportColumn> WarehouseStockColumns =
+    [
+        new("stockCode", "Stok kodu", "text"), new("stockName", "Stok adı", "text"), new("unitCode", "Birim", "text"),
+        new("warehouseCode", "Depo kodu", "text"), new("warehouseName", "Depo adı", "text"),
+        new("onHand", "Eldeki miktar", "decimal"), new("reserved", "Rezerve miktar", "decimal"), new("available", "Kullanılabilir miktar", "decimal")
     ];
     private static readonly IReadOnlyList<ReportColumn> WorkflowInstanceColumns =
     [
@@ -201,6 +242,15 @@ public static class ReportEndpoints
         new("status", "Durum", "text", ["Imported", "Reconciled"]), new("lineCount", "Satır sayısı", "number"),
         new("matchedLineCount", "Eşleşen satır sayısı", "number"), new("unmatchedLineCount", "Eşleşmemiş satır sayısı", "number"),
         new("createdAt", "Oluşturulma", "date")
+    ];
+    private static readonly IReadOnlyList<ReportColumn> BankStatementLineColumns =
+    [
+        new("statementCode", "Ekstre kodu", "text"), new("lineNumber", "Ekstre satırı", "number"),
+        new("externalId", "Harici satır kimliği", "text"), new("transactionDate", "Hareket tarihi", "date"),
+        new("direction", "Yön", "text", ["Inflow", "Outflow"]), new("currencyCode", "Para birimi", "text"),
+        new("amount", "Tutar", "decimal"), new("description", "Açıklama", "text"), new("reference", "Referans", "text"),
+        new("isMatched", "Eşleşti", "boolean"), new("transactionId", "Kasa-banka hareket kimliği", "text"),
+        new("bookEntryCreated", "Muhasebe kaydı oluşturuldu", "boolean"), new("matchedAt", "Eşleşme zamanı", "date")
     ];
     private static readonly IReadOnlyList<ReportColumn> FinancialAccountTransactionColumns =
     [
@@ -271,13 +321,27 @@ public static class ReportEndpoints
         new("direction", "Yön", "text", ["Debit", "Credit"]),
         new("amount", "Tutar", "decimal"), new("currencyCode", "Para birimi", "text"),
         new("description", "Açıklama", "text"), new("sourceType", "Belge türü", "text", ["SalesInvoice", "CustomerCollection", "SalesReturn", "PurchaseInvoice", "SupplierPayment", "SupplierReturn", "Manual"]),
-        new("sourceCode", "Belge kodu", "text"), new("reversalOfId", "Ters kayıt bağlantısı", "text"),
+        new("sourceCode", "Belge kodu", "text"), new("collectionPaymentMethod", "Tahsilat yöntemi", "text"),
+        new("collectionAccountCode", "Tahsilat kasa/banka hesabı", "text"), new("collectionReference", "Tahsilat referansı", "text"),
+        new("reversalOfId", "Ters kayıt bağlantısı", "text"),
         new("createdAt", "Oluşturulma", "date")
+    ];
+    private static readonly IReadOnlyList<ReportColumn> SupplierLedgerColumns =
+    [
+        new("entryDate", "Hareket tarihi", "date"), new("supplierCode", "Tedarikçi kodu", "text"),
+        new("supplierName", "Tedarikçi adı", "text"), new("direction", "Yön", "text", ["Debit", "Credit"]),
+        new("amount", "Tutar", "decimal"), new("currencyCode", "Para birimi", "text"),
+        new("description", "Açıklama", "text"), new("sourceType", "Belge türü", "text", ["SalesInvoice", "CustomerCollection", "SalesReturn", "PurchaseInvoice", "SupplierPayment", "SupplierReturn", "Manual"]),
+        new("sourceCode", "Belge kodu", "text"), new("createdAt", "Oluşturulma", "date")
     ];
 
     public static void MapReportEndpoints(this WebApplication app)
     {
         var reports = app.MapGroup("/api/reports").WithTags("Tenant Report Builder").RequireAuthorization();
+
+        reports.MapGet("/manufacturing-cost-variance", async (DateOnly? from, DateOnly? to, int? page, int? pageSize,
+            ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
+            await GetManufacturingCostVarianceAsync(from, to, page ?? 1, pageSize ?? 100, user, db, platformDb, ct));
 
         reports.MapGet("/catalog", (ClaimsPrincipal user) =>
         {
@@ -293,6 +357,8 @@ public static class ReportEndpoints
                 new("manufacturingWorkCenters", "Üretim iş merkezleri", ManufacturingWorkCenterColumns, []),
                 new("inventoryTransactions", "Stok hareketleri", InventoryTransactionColumns, []),
                 new("salesOrders", "Satış siparişleri", SalesOrderColumns, SalesOrderAggregates),
+                new("salesOrderFulfillment", "Satış siparişi karşılama durumu", SalesOrderFulfillmentColumns, []),
+                new("purchaseOrderFulfillment", "Satın alma siparişi karşılama durumu", PurchaseOrderFulfillmentColumns, []),
                 new("salesQuotes", "Satış teklifleri", SalesQuoteColumns, []),
                 new("purchaseSupplierQuotes", "Tedarikçi teklifleri", PurchaseSupplierQuoteColumns, []),
                 new("supplierPayments", "Tedarikçi ödemeleri", SupplierPaymentColumns, []),
@@ -302,13 +368,17 @@ public static class ReportEndpoints
                 new("purchaseRequests", "Satın alma talepleri", PurchaseRequestColumns, PurchaseRequestAggregates),
                 new("stockItems", "Stok kartları", StockItemColumns, StockItemAggregates)
             };
+            sources.Add(new("warehouseStock", "Depo bazında stok bakiyesi", WarehouseStockColumns, []));
             sources.Add(new("bankStatements", "Banka ekstreleri", BankStatementColumns, []));
+            sources.Add(new("bankStatementLines", "Banka ekstresi satırları", BankStatementLineColumns, []));
             sources.Add(new("financialAccountTransactions", "Kasa-banka hareketleri", FinancialAccountTransactionColumns, []));
             sources.Add(new("financialAccountTransfers", "Kasa-banka hesap transferleri", FinancialAccountTransferColumns, []));
             sources.Add(new("journalEntryLines", "Muhasebe fiş satırları", JournalEntryLineColumns, []));
             sources.Add(new("fxRevaluationLines", "Döviz değerleme satırları", FxRevaluationLineColumns, []));
             sources.Add(new("crmOpportunities", "CRM fırsatları", CrmOpportunityColumns, []));
             sources.Add(new("customerLedgerEntries", "Cari hareketleri", CustomerLedgerColumns, []));
+            sources.Add(new("supplierLedgerEntries", "Tedarikçi hesap hareketleri", SupplierLedgerColumns, []));
+            sources.Add(new("inventoryTransfers", "Depolar arası transferler", InventoryTransferColumns, []));
             if (role == "TenantAdmin") sources.Add(new("workflowInstances", "İş akışı geçmişi", WorkflowInstanceColumns, WorkflowInstanceAggregates));
             return Results.Ok(sources);
         });
@@ -321,6 +391,66 @@ public static class ReportEndpoints
             var saved = await db.TenantSavedReports.AsNoTracking().Where(x => x.TenantId == tenantId && x.Kind == normalizedKind)
                 .OrderBy(x => x.Name).Take(200).ToListAsync(ct);
             return Results.Ok(saved.Select(ToView));
+        });
+
+        reports.MapGet("/{reportId:guid}/history", async (Guid reportId, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+            var report = await db.TenantSavedReports.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == reportId, ct);
+            if (report is null) return Results.NotFound();
+            var revisions = await db.TenantSavedReportRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.SavedReportId == reportId)
+                .OrderByDescending(x => x.Revision).Take(100).ToListAsync(ct);
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = SavedAuditAction(report.Kind, "history-viewed"), Resource = report.Name });
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(revisions.Select(x => new SavedReportRevisionView(x.Id, x.Revision, x.Name, x.Kind, x.Source,
+                JsonSerializer.Deserialize<ReportRunRequest>(x.DefinitionJson, JsonOptions)!, x.CreatedByUserId, x.CreatedAt)));
+        });
+
+        reports.MapPost("/{reportId:guid}/history/{revision:int}/restore", async (Guid reportId, int revision, RestoreSavedReportRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            var report = await db.TenantSavedReports.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == reportId, ct);
+            if (report is null) return Results.NotFound();
+            if (request.ExpectedRevision != report.DefinitionRevision) return Results.Conflict(new { error = "Tanım başka bir kullanıcı tarafından güncellendi. Yenileyip tekrar deneyin." });
+            var old = await db.TenantSavedReportRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SavedReportId == reportId && x.Revision == revision, ct);
+            if (old is null) return Results.NotFound();
+            var now = DateTimeOffset.UtcNow;
+            report.Kind = old.Kind; report.Source = old.Source; report.DefinitionJson = old.DefinitionJson;
+            report.DefinitionRevision++; report.UpdatedByUserId = userId; report.UpdatedAt = now;
+            db.TenantSavedReportRevisions.Add(RevisionOf(report, userId, now));
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = SavedAuditAction(report.Kind, "restored"), Resource = $"{report.Name};revision={revision};newRevision={report.DefinitionRevision}" });
+            try { await db.SaveChangesAsync(ct); }
+            catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Tanım başka bir kullanıcı tarafından güncellendi. Yenileyip tekrar deneyin." }); }
+            return Results.Ok(ToView(report));
+        });
+
+        reports.MapPost("/{reportId:guid}/duplicate", async (Guid reportId, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            var source = await db.TenantSavedReports.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == reportId, ct);
+            if (source is null) return Results.NotFound();
+
+            const string copySuffix = " (copy)";
+            var baseName = $"{source.Name[..Math.Min(source.Name.Length, 120 - copySuffix.Length)]}{copySuffix}";
+            var name = baseName;
+            for (var suffix = 2; await db.TenantSavedReports.AnyAsync(x => x.TenantId == tenantId && x.Name == name, ct); suffix++)
+            {
+                var suffixText = $" (copy {suffix})";
+                name = $"{source.Name[..Math.Min(source.Name.Length, 120 - suffixText.Length)]}{suffixText}";
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var duplicate = new TenantSavedReport
+            {
+                TenantId = tenantId, Name = name, Kind = source.Kind, Source = source.Source, DefinitionJson = source.DefinitionJson,
+                CreatedByUserId = userId, UpdatedByUserId = userId, CreatedAt = now, UpdatedAt = now
+            };
+            db.TenantSavedReports.Add(duplicate);
+            db.TenantSavedReportRevisions.Add(RevisionOf(duplicate, userId, now));
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = SavedAuditAction(source.Kind, "duplicated"), Resource = duplicate.Name });
+            await db.SaveChangesAsync(ct);
+            return Results.Created($"/api/reports/{duplicate.Id}", ToView(duplicate));
         });
 
         reports.MapPost("/run", async (ReportRunRequest request, ClaimsPrincipal user, TenantDbContext db, HttpContext context, CancellationToken ct) =>
@@ -351,6 +481,7 @@ public static class ReportEndpoints
                 CreatedByUserId = userId, UpdatedByUserId = userId, CreatedAt = now, UpdatedAt = now
             };
             db.TenantSavedReports.Add(report);
+            db.TenantSavedReportRevisions.Add(RevisionOf(report, userId, now));
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = SavedAuditAction(kind, "created"), Resource = report.Name });
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/reports/{report.Id}", ToView(report));
@@ -361,6 +492,8 @@ public static class ReportEndpoints
             if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
             var report = await db.TenantSavedReports.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == reportId, ct);
             if (report is null) return Results.NotFound();
+            if (request.ExpectedRevision is null || request.ExpectedRevision != report.DefinitionRevision)
+                return Results.Conflict(new { error = "Tanım sürümü uyuşmuyor. Yenileyip tekrar deneyin." });
             if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 120)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Rapor adı 1-120 karakter olmalıdır."] });
             if (!Validate(request.Definition, out var definition, out var errors)) return Results.ValidationProblem(errors!);
@@ -372,9 +505,11 @@ public static class ReportEndpoints
             if (await db.TenantSavedReports.AnyAsync(x => x.TenantId == tenantId && x.Id != reportId && x.Name == name, ct))
                 return Results.Conflict(new { error = "Bu adla kayıtlı bir rapor zaten var." });
             report.Name = name; report.Kind = kind; report.Source = definition!.Source; report.DefinitionJson = JsonSerializer.Serialize(definition, JsonOptions);
-            report.UpdatedByUserId = userId; report.UpdatedAt = DateTimeOffset.UtcNow;
+            report.DefinitionRevision++; report.UpdatedByUserId = userId; report.UpdatedAt = DateTimeOffset.UtcNow;
+            db.TenantSavedReportRevisions.Add(RevisionOf(report, userId, report.UpdatedAt));
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = SavedAuditAction(kind, "updated"), Resource = report.Name });
-            await db.SaveChangesAsync(ct);
+            try { await db.SaveChangesAsync(ct); }
+            catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Tanım başka bir kullanıcı tarafından güncellendi. Yenileyip tekrar deneyin." }); }
             return Results.Ok(ToView(report));
         });
 
@@ -400,6 +535,102 @@ public static class ReportEndpoints
         });
     }
 
+    private static async Task<IResult> GetManufacturingCostVarianceAsync(DateOnly? from, DateOnly? to, int page, int pageSize,
+        ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role is not ("TenantAdmin" or "TenantUser"))
+            return Results.Forbid();
+        if (from is null || to is null || from > to || to.Value.DayNumber - from.Value.DayNumber > 365 || page < 1 || pageSize is < 1 or > 200)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["period"] = ["Başlangıç ve bitiş tarihi zorunludur; dönem en fazla 366 gün, sayfa 1 veya üzeri ve sayfa boyutu 1–200 olmalıdır."] });
+
+        var ordersQuery = db.ManufacturingOrders.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.PlannedDate >= from && x.PlannedDate <= to);
+        var totalCount = await ordersQuery.CountAsync(ct);
+
+        var baseCurrencyCode = await platformDb.Tenants.AsNoTracking().Where(x => x.Id == tenantId)
+            .Select(x => x.BaseCurrencyCode).SingleOrDefaultAsync(ct);
+        if (baseCurrencyCode is null) return Results.Forbid();
+        var pageOrders = await ordersQuery.OrderBy(x => x.PlannedDate).ThenBy(x => x.Code)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Include(x => x.Operations).Include(x => x.Lines).AsSplitQuery().ToListAsync(ct);
+        var orderIds = pageOrders.Select(x => x.Id).ToArray();
+        var materialCosts = new Dictionary<Guid, (int MovementCount, int UnknownCostCount, decimal? NetCostBase)>();
+        var productStockItemByOrder = new Dictionary<Guid, Guid>();
+        if (orderIds.Length > 0)
+        {
+            productStockItemByOrder = await db.ManufacturingOrders.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && orderIds.Contains(x.Id))
+                .Join(db.BillOfMaterials.AsNoTracking(), order => new { order.TenantId, Id = order.BillOfMaterialId },
+                    bom => new { bom.TenantId, Id = bom.Id }, (order, bom) => new { order.Id, bom.ProductStockItemId })
+                .ToDictionaryAsync(x => x.Id, x => x.ProductStockItemId, ct);
+            var movementCostRows = await db.InventoryTransactions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.ManufacturingOrderId.HasValue && orderIds.Contains(x.ManufacturingOrderId.Value))
+                .GroupBy(x => new { ManufacturingOrderId = x.ManufacturingOrderId!.Value, x.StockItemId })
+                .Select(group => new
+                {
+                    group.Key.ManufacturingOrderId,
+                    group.Key.StockItemId,
+                    MovementCount = group.Count(),
+                    UnknownCostCount = group.Count(x => x.UnitCostBase == null),
+                    NetCostBase = group.Sum(x => (decimal?)(x.Direction == InventoryDirection.Issue ? 1m : -1m) * x.Quantity * (x.UnitCostBase ?? 0m))
+                }).ToListAsync(ct);
+            foreach (var row in movementCostRows)
+            {
+                // The finished-goods receipt carries the full output valuation. It is not a
+                // component cost and must not be subtracted from material consumption.
+                if (productStockItemByOrder.GetValueOrDefault(row.ManufacturingOrderId) == row.StockItemId) continue;
+                var current = materialCosts.GetValueOrDefault(row.ManufacturingOrderId);
+                materialCosts[row.ManufacturingOrderId] = (
+                    current.MovementCount + row.MovementCount,
+                    current.UnknownCostCount + row.UnknownCostCount,
+                    current.NetCostBase is null ? row.NetCostBase : row.NetCostBase is null ? current.NetCostBase : current.NetCostBase + row.NetCostBase);
+            }
+        }
+
+        var details = pageOrders.Select(order =>
+        {
+            var plannedLabor = decimal.Round(order.Operations.Sum(operation => (operation.SetupMinutes + operation.RunMinutes) / 60m * operation.LaborCostPerHourBase), 4, MidpointRounding.AwayFromZero);
+            var plannedOverhead = decimal.Round(order.Operations.Sum(operation => (operation.SetupMinutes + operation.RunMinutes) / 60m * operation.OverheadCostPerHourBase), 4, MidpointRounding.AwayFromZero);
+            var actualComplete = order.Status == ManufacturingOrderStatus.Completed &&
+                order.Operations.All(operation => operation.ActualSetupMinutes is not null && operation.ActualRunMinutes is not null && operation.ActualCostBase is not null);
+            decimal? actualLabor = actualComplete ? decimal.Round(order.Operations.Sum(operation =>
+                ((operation.ActualSetupMinutes ?? 0m) + (operation.ActualRunMinutes ?? 0m)) / 60m * operation.LaborCostPerHourBase), 4, MidpointRounding.AwayFromZero) : null;
+            decimal? actualOverhead = actualComplete ? decimal.Round(order.Operations.Sum(operation =>
+                ((operation.ActualSetupMinutes ?? 0m) + (operation.ActualRunMinutes ?? 0m)) / 60m * operation.OverheadCostPerHourBase), 4, MidpointRounding.AwayFromZero) : null;
+            var actualEnergy = actualComplete ? decimal.Round(order.Operations.Sum(operation => operation.ActualEnergyCostBase ?? 0m), 4, MidpointRounding.AwayFromZero) : (decimal?)null;
+            var plannedEnergy = decimal.Round(order.Operations.Sum(operation => operation.PlannedEnergyCostBase), 4, MidpointRounding.AwayFromZero);
+            // Use the nullable tenant-scoped source FK only. Historical rows and free-text
+            // descriptions are intentionally not backfilled or treated as accounting identity.
+            decimal? actualMaterial = materialCosts.TryGetValue(order.Id, out var material) && material.MovementCount > 0 && material.UnknownCostCount == 0
+                ? decimal.Round(material.NetCostBase ?? 0m, 4, MidpointRounding.AwayFromZero)
+                : null;
+            var plannedMaterial = decimal.Round(order.Lines.Sum(line => line.PlannedCostBase), 4, MidpointRounding.AwayFromZero);
+            var plannedConversion = plannedLabor + plannedOverhead + plannedEnergy;
+            decimal? actualConversion = actualComplete ? actualLabor + actualOverhead + actualEnergy : null;
+            return new ManufacturingCostVarianceOrder(order.Code, order.PlannedDate, order.Status.ToString(), order.PlannedQuantity,
+                order.Operations.Count, baseCurrencyCode, plannedLabor, actualLabor, plannedOverhead, actualOverhead,
+                plannedEnergy, actualEnergy, plannedMaterial, actualMaterial, plannedConversion, actualConversion,
+                actualConversion is not null ? actualConversion - plannedConversion : null,
+                // Keep the total unknown: source-linked material can be reported as a component,
+                // but legacy/unlinked movements prevent proving that it is complete for an order.
+                null, null);
+        }).ToArray();
+        var pageRows = details;
+        var pageTotals = new ManufacturingCostVarianceTotals(pageRows.Length,
+            pageRows.Sum(x => x.PlannedLaborBase), pageRows.All(x => x.ActualLaborBase is not null) ? pageRows.Sum(x => x.ActualLaborBase!.Value) : null,
+            pageRows.Sum(x => x.PlannedOverheadBase), pageRows.All(x => x.ActualOverheadBase is not null) ? pageRows.Sum(x => x.ActualOverheadBase!.Value) : null,
+            pageRows.Sum(x => x.PlannedEnergyBase ?? 0m), pageRows.Sum(x => x.PlannedMaterialBase ?? 0m),
+            pageRows.All(x => x.ActualEnergyBase is not null) ? pageRows.Sum(x => x.ActualEnergyBase!.Value) : null,
+            pageRows.All(x => x.ActualConversionBase is not null) ? pageRows.Sum(x => x.ActualConversionBase!.Value) : null,
+            pageRows.All(x => x.ActualMaterialBase is not null) ? pageRows.Sum(x => x.ActualMaterialBase!.Value) : null);
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed",
+            Resource = $"manufacturingCostVariance:{from:yyyy-MM-dd}:{to:yyyy-MM-dd}:page:{page}" });
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new ManufacturingCostVarianceReport(from.Value, to.Value, "plannedDate", baseCurrencyCode,
+            page, pageSize, totalCount, pageRows, pageTotals,
+            "Planlanan enerji ve fire dahil malzeme maliyetleri emir anındaki anlık görüntülerden raporlanır. Fiili malzeme yalnızca doğrudan üretim emrine bağlı bileşen hareketlerinden hesaplanır; mamul giriş hareketi bileşen maliyetinden çıkarılır. Eski bağlantısız stok hareketlerinin hangi emre ait olduğu kanıtlanamadığından toplam fiili maliyet ve toplam maliyet farkı ayrıca doğrulanana kadar gösterilmez."));
+    }
+
     private static async Task<IResult> RunAsync(ReportRunRequest request, ClaimsPrincipal user, TenantDbContext db, HttpContext context, CancellationToken ct)
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
@@ -407,6 +638,7 @@ public static class ReportEndpoints
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
         if (normalized!.Source == "salesInvoices") return await RunSalesInvoicesAsync(normalized, user, db, ct);
         if (normalized!.Source == "bankStatements") return await RunBankStatementsAsync(normalized, user, db, ct);
+        if (normalized!.Source == "bankStatementLines") return await RunBankStatementLinesAsync(normalized, user, db, ct);
         if (normalized!.Source == "financialAccountTransactions") return await RunFinancialAccountTransactionsAsync(normalized, user, db, ct);
         if (normalized!.Source == "financialAccountTransfers") return await RunFinancialAccountTransfersAsync(normalized, user, db, ct);
         if (normalized!.Source == "journalEntryLines") return await RunJournalEntryLinesAsync(normalized, user, db, ct);
@@ -421,14 +653,20 @@ public static class ReportEndpoints
         if (normalized.Source == "manufacturingOrders") return await RunManufacturingOrdersAsync(normalized, user, db, ct);
         if (normalized.Source == "manufacturingWorkCenters") return await RunManufacturingWorkCentersAsync(normalized, user, db, ct);
         if (normalized.Source == "inventoryTransactions") return await RunInventoryTransactionsAsync(normalized, user, db, ct);
+        if (normalized.Source == "inventoryTransfers") return await RunInventoryTransfersAsync(normalized, user, db, ct);
         if (normalized.Source == "salesOrders") return await RunSalesOrdersAsync(normalized, user, db, ct);
+        if (normalized.Source == "salesOrderFulfillment") return await RunSalesOrderFulfillmentAsync(normalized, user, db, ct);
+        if (normalized.Source == "purchaseOrderFulfillment") return await RunPurchaseOrderFulfillmentAsync(normalized, user, db, ct);
         if (normalized.Source == "salesDeliveries") return await RunSalesDeliveriesAsync(normalized, user, db, ct);
         if (normalized.Source == "salesReturns") return await RunSalesReturnsAsync(normalized, user, db, ct);
         if (normalized.Source == "supplierReturns") return await RunSupplierReturnsAsync(normalized, user, db, ct);
         if (normalized.Source == "stockItems") return await RunStockItemsAsync(normalized, user, db, ct);
+        if (normalized.Source == "warehouseStock") return await RunWarehouseStockAsync(normalized, user, db, ct);
         if (normalized.Source == "workflowInstances") return await RunWorkflowInstancesAsync(normalized, user, db, ct);
         if (normalized.Source == "crmOpportunities") return await RunCrmOpportunitiesAsync(normalized, user, db, ct);
         if (normalized.Source == "customerLedgerEntries") return await RunCustomerLedgerEntriesAsync(normalized, user, db,
+            context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
+        if (normalized.Source == "supplierLedgerEntries") return await RunSupplierLedgerEntriesAsync(normalized, user, db,
             context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         IQueryable<CustomerAccount> query = db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId);
         foreach (var filter in normalized!.Filters)
@@ -462,6 +700,7 @@ public static class ReportEndpoints
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
         if (normalized!.Source == "salesInvoices") return await ExportSalesInvoicesAsync(normalized, user, db, ct);
         if (normalized!.Source == "bankStatements") return await ExportBankStatementsAsync(normalized, user, db, ct);
+        if (normalized!.Source == "bankStatementLines") return await ExportBankStatementLinesAsync(normalized, user, db, ct);
         if (normalized!.Source == "financialAccountTransactions") return await ExportFinancialAccountTransactionsAsync(normalized, user, db, ct);
         if (normalized!.Source == "financialAccountTransfers") return await ExportFinancialAccountTransfersAsync(normalized, user, db, ct);
         if (normalized!.Source == "journalEntryLines") return await ExportJournalEntryLinesAsync(normalized, user, db, ct);
@@ -476,14 +715,20 @@ public static class ReportEndpoints
         if (normalized.Source == "manufacturingOrders") return await ExportManufacturingOrdersAsync(normalized, user, db, ct);
         if (normalized.Source == "manufacturingWorkCenters") return await ExportManufacturingWorkCentersAsync(normalized, user, db, ct);
         if (normalized.Source == "inventoryTransactions") return await ExportInventoryTransactionsAsync(normalized, user, db, ct);
+        if (normalized.Source == "inventoryTransfers") return await ExportInventoryTransfersAsync(normalized, user, db, ct);
         if (normalized.Source == "salesOrders") return await ExportSalesOrdersAsync(normalized, user, db, ct);
+        if (normalized.Source == "salesOrderFulfillment") return await ExportSalesOrderFulfillmentAsync(normalized, user, db, ct);
+        if (normalized.Source == "purchaseOrderFulfillment") return await ExportPurchaseOrderFulfillmentAsync(normalized, user, db, ct);
         if (normalized.Source == "salesDeliveries") return await ExportSalesDeliveriesAsync(normalized, user, db, ct);
         if (normalized.Source == "salesReturns") return await ExportSalesReturnsAsync(normalized, user, db, ct);
         if (normalized.Source == "supplierReturns") return await ExportSupplierReturnsAsync(normalized, user, db, ct);
         if (normalized.Source == "stockItems") return await ExportStockItemsAsync(normalized, user, db, ct);
+        if (normalized.Source == "warehouseStock") return await ExportWarehouseStockAsync(normalized, user, db, ct);
         if (normalized.Source == "workflowInstances") return await ExportWorkflowInstancesAsync(normalized, user, db, ct);
         if (normalized.Source == "crmOpportunities") return await ExportCrmOpportunitiesAsync(normalized, user, db, ct);
         if (normalized.Source == "customerLedgerEntries") return await ExportCustomerLedgerEntriesAsync(normalized, user, db,
+            context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
+        if (normalized.Source == "supplierLedgerEntries") return await ExportSupplierLedgerEntriesAsync(normalized, user, db,
             context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         IQueryable<CustomerAccount> query = db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId);
         foreach (var filter in normalized!.Filters)
@@ -557,7 +802,14 @@ public static class ReportEndpoints
     private static IQueryable<CustomerLedgerEntry> CustomerLedgerEntryQuery(TenantDbContext db, Guid tenantId) =>
         db.CustomerLedgerEntries.AsNoTracking().Where(x => x.TenantId == tenantId
             && (x.Customer.Type == CounterpartyType.Customer || x.Customer.Type == CounterpartyType.Both))
-            .Include(x => x.Customer).Include(x => x.SalesInvoice).Include(x => x.CustomerCollection)
+            .Include(x => x.Customer).Include(x => x.SalesInvoice).Include(x => x.CustomerCollection).ThenInclude(x => x!.FinancialAccount)
+            .Include(x => x.SalesReturn).Include(x => x.PurchaseInvoice).Include(x => x.SupplierPayment)
+            .Include(x => x.SupplierReturn).Include(x => x.ReversalOf);
+
+    private static IQueryable<CustomerLedgerEntry> SupplierLedgerEntryQuery(TenantDbContext db, Guid tenantId) =>
+        db.CustomerLedgerEntries.AsNoTracking().Where(x => x.TenantId == tenantId
+            && (x.Customer.Type == CounterpartyType.Supplier || x.Customer.Type == CounterpartyType.Both))
+            .Include(x => x.Customer).Include(x => x.SalesInvoice).Include(x => x.CustomerCollection).ThenInclude(x => x!.FinancialAccount)
             .Include(x => x.SalesReturn).Include(x => x.PurchaseInvoice).Include(x => x.SupplierPayment)
             .Include(x => x.SupplierReturn).Include(x => x.ReversalOf);
 
@@ -602,6 +854,47 @@ public static class ReportEndpoints
         return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
     }
 
+    private static async Task<IResult> RunSupplierLedgerEntriesAsync(NormalizedReport report, ClaimsPrincipal user,
+        TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+        IQueryable<CustomerLedgerEntry> query = SupplierLedgerEntryQuery(db, tenantId);
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.supplier-payments.read", "erp.supplier-payments", query, x => x.Direction, x => x.CustomerId) ?? query;
+        foreach (var filter in report.Filters)
+            if (!TryApplyCustomerLedgerEntryFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        var rows = await ApplyCustomerLedgerEntrySort(query, report.SortBy, report.Descending)
+            .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize).ToListAsync(ct);
+        var resultRows = rows.Select(row => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(
+            code => code, code => ReadCustomerLedgerEntryValue(row, code), StringComparer.Ordinal)).ToArray();
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed", Resource = "supplierLedgerEntries" });
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new ReportResult(report.Source, report.Columns.Select(SupplierLedgerColumnByCode).ToArray(), resultRows,
+            report.Page, report.PageSize, totalCount));
+    }
+
+    private static async Task<IResult> ExportSupplierLedgerEntriesAsync(NormalizedReport report, ClaimsPrincipal user,
+        TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+        IQueryable<CustomerLedgerEntry> query = SupplierLedgerEntryQuery(db, tenantId);
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.supplier-payments.read", "erp.supplier-payments", query, x => x.Direction, x => x.CustomerId) ?? query;
+        foreach (var filter in report.Filters)
+            if (!TryApplyCustomerLedgerEntryFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        if (totalCount > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
+        var rows = await ApplyCustomerLedgerEntrySort(query, report.SortBy, report.Descending).Take(10_000).ToListAsync(ct);
+        var csv = new StringBuilder().Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(SupplierLedgerColumnByCode(code).Label))));
+        foreach (var row in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadCustomerLedgerEntryValue(row, code)))));
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.exported", Resource = $"supplierLedgerEntries:{rows.Count}" });
+        await db.SaveChangesAsync(ct);
+        return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
+    }
+
     private static bool TryApplyCustomerLedgerEntryFilter(ref IQueryable<CustomerLedgerEntry> query, ReportFilter filter, out string? error)
     {
         error = null;
@@ -609,6 +902,9 @@ public static class ReportEndpoints
         if (filter.Operator == "isNull")
         {
             if (filter.Field == "reversalOfId") { query = query.Where(x => x.ReversalOfId == null); return true; }
+            if (filter.Field == "collectionPaymentMethod") { query = query.Where(x => x.CustomerCollection == null || x.CustomerCollection.TenantId != x.TenantId); return true; }
+            if (filter.Field == "collectionAccountCode") { query = query.Where(x => x.CustomerCollection == null || x.CustomerCollection.TenantId != x.TenantId || x.CustomerCollection.FinancialAccount == null); return true; }
+            if (filter.Field == "collectionReference") { query = query.Where(x => x.CustomerCollection == null || x.CustomerCollection.TenantId != x.TenantId || x.CustomerCollection.Reference == null); return true; }
             if (filter.Field == "sourceCode")
             {
                 query = query.Where(x => x.SalesInvoiceId == null && x.CustomerCollectionId == null && x.SalesReturnId == null
@@ -619,8 +915,8 @@ public static class ReportEndpoints
         }
         switch (filter.Field)
         {
-            case "customerCode": query = filter.Operator == "contains" ? query.Where(x => x.Customer.Code.Contains(value)) : query.Where(x => x.Customer.Code == value); return true;
-            case "customerName": query = filter.Operator == "contains" ? query.Where(x => x.Customer.Name.Contains(value)) : query.Where(x => x.Customer.Name == value); return true;
+            case "customerCode": case "supplierCode": query = filter.Operator == "contains" ? query.Where(x => x.Customer.Code.Contains(value)) : query.Where(x => x.Customer.Code == value); return true;
+            case "customerName": case "supplierName": query = filter.Operator == "contains" ? query.Where(x => x.Customer.Name.Contains(value)) : query.Where(x => x.Customer.Name == value); return true;
             case "counterpartyType":
                 if (!Enum.TryParse<CounterpartyType>(value, true, out var counterpartyType)) { error = "Cari türü geçersiz."; return false; }
                 query = query.Where(x => x.Customer.Type == counterpartyType); return true;
@@ -654,6 +950,21 @@ public static class ReportEndpoints
                     ? query.Where(x => (x.SalesInvoice != null && x.SalesInvoice.Code.Contains(value)) || (x.CustomerCollection != null && x.CustomerCollection.Code.Contains(value)) || (x.SalesReturn != null && x.SalesReturn.Code.Contains(value)) || (x.PurchaseInvoice != null && x.PurchaseInvoice.Code.Contains(value)) || (x.SupplierPayment != null && x.SupplierPayment.Code.Contains(value)) || (x.SupplierReturn != null && x.SupplierReturn.Code.Contains(value)))
                     : query.Where(x => (x.SalesInvoice != null && x.SalesInvoice.Code == value) || (x.CustomerCollection != null && x.CustomerCollection.Code == value) || (x.SalesReturn != null && x.SalesReturn.Code == value) || (x.PurchaseInvoice != null && x.PurchaseInvoice.Code == value) || (x.SupplierPayment != null && x.SupplierPayment.Code == value) || (x.SupplierReturn != null && x.SupplierReturn.Code == value));
                 return true;
+            case "collectionPaymentMethod":
+                query = filter.Operator == "contains"
+                    ? query.Where(x => x.CustomerCollection != null && x.CustomerCollection.TenantId == x.TenantId && x.CustomerCollection.PaymentMethod.Contains(value))
+                    : query.Where(x => x.CustomerCollection != null && x.CustomerCollection.TenantId == x.TenantId && x.CustomerCollection.PaymentMethod == value);
+                return true;
+            case "collectionAccountCode":
+                query = filter.Operator == "contains"
+                    ? query.Where(x => x.CustomerCollection != null && x.CustomerCollection.TenantId == x.TenantId && x.CustomerCollection.FinancialAccount != null && x.CustomerCollection.FinancialAccount.TenantId == x.TenantId && x.CustomerCollection.FinancialAccount.Code.Contains(value))
+                    : query.Where(x => x.CustomerCollection != null && x.CustomerCollection.TenantId == x.TenantId && x.CustomerCollection.FinancialAccount != null && x.CustomerCollection.FinancialAccount.TenantId == x.TenantId && x.CustomerCollection.FinancialAccount.Code == value);
+                return true;
+            case "collectionReference":
+                query = filter.Operator == "contains"
+                    ? query.Where(x => x.CustomerCollection != null && x.CustomerCollection.TenantId == x.TenantId && x.CustomerCollection.Reference != null && x.CustomerCollection.Reference.Contains(value))
+                    : query.Where(x => x.CustomerCollection != null && x.CustomerCollection.TenantId == x.TenantId && x.CustomerCollection.Reference == value);
+                return true;
             case "reversalOfId":
                 if (!Guid.TryParse(value, out var reversalId)) { error = "Ters kayıt bağlantısı GUID olmalıdır."; return false; }
                 query = query.Where(x => x.ReversalOfId == reversalId); return true;
@@ -668,6 +979,8 @@ public static class ReportEndpoints
             ("entryDate", false) => query.OrderBy(x => x.EntryDate), ("entryDate", true) => query.OrderByDescending(x => x.EntryDate),
             ("customerCode", false) => query.OrderBy(x => x.Customer.Code), ("customerCode", true) => query.OrderByDescending(x => x.Customer.Code),
             ("customerName", false) => query.OrderBy(x => x.Customer.Name), ("customerName", true) => query.OrderByDescending(x => x.Customer.Name),
+            ("supplierCode", false) => query.OrderBy(x => x.Customer.Code), ("supplierCode", true) => query.OrderByDescending(x => x.Customer.Code),
+            ("supplierName", false) => query.OrderBy(x => x.Customer.Name), ("supplierName", true) => query.OrderByDescending(x => x.Customer.Name),
             ("direction", false) => query.OrderBy(x => x.Direction), ("direction", true) => query.OrderByDescending(x => x.Direction),
             ("amount", false) => query.OrderBy(x => x.Amount), ("amount", true) => query.OrderByDescending(x => x.Amount),
             ("currencyCode", false) => query.OrderBy(x => x.CurrencyCode), ("currencyCode", true) => query.OrderByDescending(x => x.CurrencyCode),
@@ -676,6 +989,12 @@ public static class ReportEndpoints
             ("sourceType", true) => query.OrderByDescending(x => x.SalesInvoiceId != null ? 0 : x.CustomerCollectionId != null ? 1 : x.SalesReturnId != null ? 2 : x.PurchaseInvoiceId != null ? 3 : x.SupplierPaymentId != null ? 4 : x.SupplierReturnId != null ? 5 : 6),
             ("sourceCode", false) => query.OrderBy(x => x.SalesInvoice != null ? x.SalesInvoice.Code : x.CustomerCollection != null ? x.CustomerCollection.Code : x.SalesReturn != null ? x.SalesReturn.Code : x.PurchaseInvoice != null ? x.PurchaseInvoice.Code : x.SupplierPayment != null ? x.SupplierPayment.Code : x.SupplierReturn != null ? x.SupplierReturn.Code : null),
             ("sourceCode", true) => query.OrderByDescending(x => x.SalesInvoice != null ? x.SalesInvoice.Code : x.CustomerCollection != null ? x.CustomerCollection.Code : x.SalesReturn != null ? x.SalesReturn.Code : x.PurchaseInvoice != null ? x.PurchaseInvoice.Code : x.SupplierPayment != null ? x.SupplierPayment.Code : x.SupplierReturn != null ? x.SupplierReturn.Code : null),
+            ("collectionPaymentMethod", false) => query.OrderBy(x => x.CustomerCollection == null ? null : x.CustomerCollection.PaymentMethod),
+            ("collectionPaymentMethod", true) => query.OrderByDescending(x => x.CustomerCollection == null ? null : x.CustomerCollection.PaymentMethod),
+            ("collectionAccountCode", false) => query.OrderBy(x => x.CustomerCollection == null || x.CustomerCollection.FinancialAccount == null ? null : x.CustomerCollection.FinancialAccount.Code),
+            ("collectionAccountCode", true) => query.OrderByDescending(x => x.CustomerCollection == null || x.CustomerCollection.FinancialAccount == null ? null : x.CustomerCollection.FinancialAccount.Code),
+            ("collectionReference", false) => query.OrderBy(x => x.CustomerCollection == null ? null : x.CustomerCollection.Reference),
+            ("collectionReference", true) => query.OrderByDescending(x => x.CustomerCollection == null ? null : x.CustomerCollection.Reference),
             ("reversalOfId", false) => query.OrderBy(x => x.ReversalOfId), ("reversalOfId", true) => query.OrderByDescending(x => x.ReversalOfId),
             ("createdAt", false) => query.OrderBy(x => x.CreatedAt), ("createdAt", true) => query.OrderByDescending(x => x.CreatedAt),
             _ => query.OrderBy(x => x.Id)
@@ -686,15 +1005,20 @@ public static class ReportEndpoints
     private static object? ReadCustomerLedgerEntryValue(CustomerLedgerEntry row, string code) => code switch
     {
         "entryDate" => row.EntryDate, "customerCode" => row.Customer.Code, "customerName" => row.Customer.Name,
+        "supplierCode" => row.Customer.Code, "supplierName" => row.Customer.Name,
         "counterpartyType" => row.Customer.Type.ToString(),
         "direction" => row.Direction.ToString(), "amount" => row.Amount, "currencyCode" => row.CurrencyCode,
         "description" => row.Description,
         "sourceType" => row.SalesInvoiceId is not null ? "SalesInvoice" : row.CustomerCollectionId is not null ? "CustomerCollection" : row.SalesReturnId is not null ? "SalesReturn" : row.PurchaseInvoiceId is not null ? "PurchaseInvoice" : row.SupplierPaymentId is not null ? "SupplierPayment" : row.SupplierReturnId is not null ? "SupplierReturn" : "Manual",
         "sourceCode" => row.SalesInvoice?.Code ?? row.CustomerCollection?.Code ?? row.SalesReturn?.Code ?? row.PurchaseInvoice?.Code ?? row.SupplierPayment?.Code ?? row.SupplierReturn?.Code,
+        "collectionPaymentMethod" => row.CustomerCollection?.TenantId == row.TenantId ? row.CustomerCollection.PaymentMethod : null,
+        "collectionAccountCode" => row.CustomerCollection?.TenantId == row.TenantId && row.CustomerCollection.FinancialAccount?.TenantId == row.TenantId ? row.CustomerCollection.FinancialAccount.Code : null,
+        "collectionReference" => row.CustomerCollection?.TenantId == row.TenantId ? row.CustomerCollection.Reference : null,
         "reversalOfId" => row.ReversalOfId, "createdAt" => row.CreatedAt, _ => null
     };
 
     private static ReportColumn CustomerLedgerColumnByCode(string code) => CustomerLedgerColumns.First(x => x.Code == code);
+    private static ReportColumn SupplierLedgerColumnByCode(string code) => SupplierLedgerColumns.First(x => x.Code == code);
 
     private static bool TryApplyCrmOpportunityFilter(ref IQueryable<CrmOpportunity> query, ReportFilter filter, out string? error)
     {
@@ -985,6 +1309,120 @@ public static class ReportEndpoints
         return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
     }
 
+    private static async Task<IResult> RunWarehouseStockAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<WarehouseStockReportRow> query = WarehouseStockRows(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyWarehouseStockFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        var rows = await ApplyWarehouseStockSort(query, report.SortBy, report.Descending)
+            .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize).ToListAsync(ct);
+        var resultRows = rows.Select(row => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(
+            code => code, code => ReadWarehouseStockValue(row, code), StringComparer.Ordinal)).ToArray();
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed", Resource = "warehouseStock" });
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new ReportResult(report.Source, report.Columns.Select(WarehouseStockColumnByCode).ToArray(), resultRows,
+            report.Page, report.PageSize, totalCount));
+    }
+
+    private static async Task<IResult> ExportWarehouseStockAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<WarehouseStockReportRow> query = WarehouseStockRows(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyWarehouseStockFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        if (totalCount > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
+        var rows = await ApplyWarehouseStockSort(query, report.SortBy, report.Descending).Take(10_000).ToListAsync(ct);
+        var csv = new StringBuilder().Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(WarehouseStockColumnByCode(code).Label))));
+        foreach (var row in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadWarehouseStockValue(row, code)))));
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.exported", Resource = $"warehouseStock:{rows.Count}" });
+        await db.SaveChangesAsync(ct);
+        return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
+    }
+
+    private static IQueryable<WarehouseStockReportRow> WarehouseStockRows(TenantDbContext db, Guid tenantId)
+    {
+        var keys = db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId)
+            .Select(x => new { x.StockItemId, x.WarehouseId })
+            .Union(db.SalesOrderReservations.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SalesOrderReservationStatus.Active)
+                .Select(x => new { StockItemId = x.OrderLine.StockItemId, x.WarehouseId }));
+        return from key in keys.Distinct()
+               join item in db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId) on key.StockItemId equals item.Id
+               join warehouse in db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId) on key.WarehouseId equals warehouse.Id
+               let onHand = db.InventoryTransactions.Where(x => x.TenantId == tenantId && x.StockItemId == item.Id && x.WarehouseId == warehouse.Id)
+                   .Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity)
+               let reserved = db.SalesOrderReservations.Where(x => x.TenantId == tenantId && x.WarehouseId == warehouse.Id
+                   && x.OrderLine.StockItemId == item.Id && x.Status == SalesOrderReservationStatus.Active)
+                   .Sum(x => x.Quantity - x.FulfilledQuantity)
+               select new WarehouseStockReportRow
+               {
+                   Id = item.Id, WarehouseId = warehouse.Id, StockCode = item.Code, StockName = item.Name, UnitCode = item.UnitCode,
+                   WarehouseCode = warehouse.Code, WarehouseName = warehouse.Name, OnHand = onHand, Reserved = reserved, Available = onHand - reserved
+               };
+    }
+
+    private static bool TryApplyWarehouseStockFilter(ref IQueryable<WarehouseStockReportRow> query, ReportFilter filter, out string? error)
+    {
+        error = null;
+        var value = filter.Value?.Trim() ?? "";
+        if (filter.Field is "stockCode" or "stockName" or "unitCode" or "warehouseCode" or "warehouseName")
+        {
+            query = filter.Field switch
+            {
+                "stockCode" when filter.Operator == "contains" => query.Where(x => x.StockCode.Contains(value)),
+                "stockCode" => query.Where(x => x.StockCode == value),
+                "stockName" when filter.Operator == "contains" => query.Where(x => x.StockName.Contains(value)),
+                "stockName" => query.Where(x => x.StockName == value),
+                "unitCode" when filter.Operator == "contains" => query.Where(x => x.UnitCode.Contains(value)),
+                "unitCode" => query.Where(x => x.UnitCode == value),
+                "warehouseCode" when filter.Operator == "contains" => query.Where(x => x.WarehouseCode.Contains(value)),
+                "warehouseCode" => query.Where(x => x.WarehouseCode == value),
+                "warehouseName" when filter.Operator == "contains" => query.Where(x => x.WarehouseName.Contains(value)),
+                _ => query.Where(x => x.WarehouseName == value)
+            };
+            return true;
+        }
+        if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)) { error = "Miktar filtresi geçersiz."; return false; }
+        query = filter.Field switch
+        {
+            "onHand" => query.Where(x => filter.Operator == "gt" ? x.OnHand > amount : filter.Operator == "gte" ? x.OnHand >= amount : filter.Operator == "lt" ? x.OnHand < amount : filter.Operator == "lte" ? x.OnHand <= amount : x.OnHand == amount),
+            "reserved" => query.Where(x => filter.Operator == "gt" ? x.Reserved > amount : filter.Operator == "gte" ? x.Reserved >= amount : filter.Operator == "lt" ? x.Reserved < amount : filter.Operator == "lte" ? x.Reserved <= amount : x.Reserved == amount),
+            "available" => query.Where(x => filter.Operator == "gt" ? x.Available > amount : filter.Operator == "gte" ? x.Available >= amount : filter.Operator == "lt" ? x.Available < amount : filter.Operator == "lte" ? x.Available <= amount : x.Available == amount),
+            _ => query
+        };
+        return true;
+    }
+
+    private static IQueryable<WarehouseStockReportRow> ApplyWarehouseStockSort(IQueryable<WarehouseStockReportRow> query, string field, bool descending) => (field, descending) switch
+    {
+        ("stockCode", false) => query.OrderBy(x => x.StockCode).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("stockCode", true) => query.OrderByDescending(x => x.StockCode).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("stockName", false) => query.OrderBy(x => x.StockName).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("stockName", true) => query.OrderByDescending(x => x.StockName).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("unitCode", false) => query.OrderBy(x => x.UnitCode).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("unitCode", true) => query.OrderByDescending(x => x.UnitCode).ThenBy(x => x.WarehouseCode).ThenBy(x => x.Id),
+        ("warehouseName", false) => query.OrderBy(x => x.WarehouseName).ThenBy(x => x.StockCode).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("warehouseName", true) => query.OrderByDescending(x => x.WarehouseName).ThenBy(x => x.StockCode).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("warehouseCode", false) => query.OrderBy(x => x.WarehouseCode).ThenBy(x => x.StockCode).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("warehouseCode", true) => query.OrderByDescending(x => x.WarehouseCode).ThenBy(x => x.StockCode).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("onHand", false) => query.OrderBy(x => x.OnHand).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id), ("onHand", true) => query.OrderByDescending(x => x.OnHand).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("reserved", false) => query.OrderBy(x => x.Reserved).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id), ("reserved", true) => query.OrderByDescending(x => x.Reserved).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id),
+        ("available", false) => query.OrderBy(x => x.Available).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id), _ => query.OrderByDescending(x => x.Available).ThenBy(x => x.WarehouseId).ThenBy(x => x.Id)
+    };
+
+    private static object? ReadWarehouseStockValue(WarehouseStockReportRow row, string code) => code switch
+    {
+        "stockCode" => row.StockCode, "stockName" => row.StockName, "unitCode" => row.UnitCode,
+        "warehouseCode" => row.WarehouseCode, "warehouseName" => row.WarehouseName,
+        "onHand" => row.OnHand, "reserved" => row.Reserved, "available" => row.Available, _ => null
+    };
+
+    private static ReportColumn WarehouseStockColumnByCode(string code) => WarehouseStockColumns.First(x => x.Code == code);
+
     private static string CsvValue(object? value) => Csv(value switch
     {
         null => "",
@@ -996,7 +1434,8 @@ public static class ReportEndpoints
 
     private static string Csv(string value, bool protectFormula = false)
     {
-        if (protectFormula && value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t' or '\r') value = "'" + value;
+        var firstNonWhitespace = value.AsSpan().TrimStart();
+        if (protectFormula && firstNonWhitespace.Length > 0 && firstNonWhitespace[0] is '=' or '+' or '-' or '@') value = "'" + value;
         return "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
     }
 
@@ -1113,6 +1552,7 @@ public static class ReportEndpoints
         var rows = await ApplyPurchaseInvoiceSort(query, report.SortBy, report.Descending)
             .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize)
             .Include(x => x.PurchaseOrder).Include(x => x.PurchaseReceipt).Include(x => x.Supplier).Include(x => x.Lines)
+            .Include(x => x.Payments).Include(x => x.Returns)
             .AsSplitQuery().ToListAsync(ct);
         var resultRows = rows.Select(invoice => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(
             code => code, code => ReadPurchaseInvoiceValue(invoice, code), StringComparer.Ordinal)).ToArray();
@@ -1133,6 +1573,7 @@ public static class ReportEndpoints
         if (count > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
         var rows = await ApplyPurchaseInvoiceSort(query, report.SortBy, report.Descending).Take(10_000)
             .Include(x => x.PurchaseOrder).Include(x => x.PurchaseReceipt).Include(x => x.Supplier).Include(x => x.Lines)
+            .Include(x => x.Payments).Include(x => x.Returns)
             .AsSplitQuery().ToListAsync(ct);
         var csv = new StringBuilder().Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(PurchaseInvoiceColumnByCode(code).Label))));
         foreach (var invoice in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadPurchaseInvoiceValue(invoice, code)))));
@@ -1354,6 +1795,113 @@ public static class ReportEndpoints
         return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
     }
 
+    private static async Task<IResult> RunInventoryTransfersAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<InventoryTransfer> query = db.InventoryTransfers.AsNoTracking().Where(x => x.TenantId == tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyInventoryTransferFilter(ref query, filter, tenantId, db, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var count = await query.CountAsync(ct);
+        var pageQuery = ApplyInventoryTransferSort(query, report.SortBy, report.Descending)
+            .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize);
+        var transfers = await pageQuery.ToListAsync(ct);
+        var rows = await BuildInventoryTransferRowsAsync(transfers, tenantId, db, ct);
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed", Resource = "inventoryTransfers" });
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new ReportResult(report.Source, report.Columns.Select(InventoryTransferColumnByCode).ToArray(), rows,
+            report.Page, report.PageSize, count));
+    }
+
+    private static async Task<IResult> ExportInventoryTransfersAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<InventoryTransfer> query = db.InventoryTransfers.AsNoTracking().Where(x => x.TenantId == tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyInventoryTransferFilter(ref query, filter, tenantId, db, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var count = await query.CountAsync(ct);
+        if (count > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 depo transferi destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
+        var transfers = await ApplyInventoryTransferSort(query, report.SortBy, report.Descending).Take(10_000).ToListAsync(ct);
+        var rows = await BuildInventoryTransferRowsAsync(transfers, tenantId, db, ct);
+        var csv = new StringBuilder().Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(InventoryTransferColumnByCode(code).Label))));
+        foreach (var row in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(row[code]))));
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.exported", Resource = $"inventoryTransfers:{rows.Count}" });
+        await db.SaveChangesAsync(ct);
+        return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
+    }
+
+    private static async Task<IReadOnlyList<IReadOnlyDictionary<string, object?>>> BuildInventoryTransferRowsAsync(
+        IReadOnlyList<InventoryTransfer> transfers, Guid tenantId, TenantDbContext db, CancellationToken ct)
+    {
+        var ids = transfers.Select(x => x.Id).ToArray();
+        var warehouseIds = transfers.SelectMany(x => new[] { x.FromWarehouseId, x.ToWarehouseId }).Distinct().ToArray();
+        var warehouses = await db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId && warehouseIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+        var totals = await db.InventoryTransactions.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.InventoryTransferId != null && ids.Contains(x.InventoryTransferId.Value) && x.Direction == InventoryDirection.Issue)
+            .GroupBy(x => x.InventoryTransferId!.Value)
+            .Select(group => new { TransferId = group.Key, LineCount = group.Count(), TotalQuantity = group.Sum(x => x.Quantity) })
+            .ToDictionaryAsync(x => x.TransferId, ct);
+        return transfers.Select(transfer =>
+        {
+            warehouses.TryGetValue(transfer.FromWarehouseId, out var from);
+            warehouses.TryGetValue(transfer.ToWarehouseId, out var to);
+            totals.TryGetValue(transfer.Id, out var total);
+            return (IReadOnlyDictionary<string, object?>)new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["code"] = transfer.Code, ["transferDate"] = transfer.TransferDate, ["status"] = transfer.Status.ToString(),
+                ["fromWarehouseCode"] = from?.Code, ["fromWarehouseName"] = from?.Name,
+                ["toWarehouseCode"] = to?.Code, ["toWarehouseName"] = to?.Name,
+                ["lineCount"] = total?.LineCount ?? 0, ["totalQuantity"] = total?.TotalQuantity ?? 0m, ["createdAt"] = transfer.CreatedAt
+            };
+        }).ToArray();
+    }
+
+    private static IQueryable<InventoryTransfer> ApplyInventoryTransferSort(IQueryable<InventoryTransfer> query, string sortBy, bool descending)
+    {
+        return (sortBy, descending) switch
+        {
+            ("transferDate", true) => query.OrderByDescending(x => x.TransferDate).ThenByDescending(x => x.Code),
+            ("transferDate", false) => query.OrderBy(x => x.TransferDate).ThenBy(x => x.Code),
+            ("status", true) => query.OrderByDescending(x => x.Status).ThenBy(x => x.Code),
+            ("status", false) => query.OrderBy(x => x.Status).ThenBy(x => x.Code),
+            ("createdAt", true) => query.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Code),
+            ("createdAt", false) => query.OrderBy(x => x.CreatedAt).ThenBy(x => x.Code),
+            (_, true) => query.OrderByDescending(x => x.Code),
+            _ => query.OrderBy(x => x.Code)
+        };
+    }
+
+    private static bool TryApplyInventoryTransferFilter(ref IQueryable<InventoryTransfer> query, ReportFilter filter, Guid tenantId, TenantDbContext db, out string? error)
+    {
+        error = null;
+        var value = filter.Value?.Trim() ?? "";
+        switch (filter.Field)
+        {
+            case "code": query = filter.Operator == "contains" ? query.Where(x => x.Code.Contains(value)) : query.Where(x => x.Code == value); return true;
+            case "status":
+                if (!Enum.TryParse<InventoryTransferStatus>(value, true, out var status)) { error = "Transfer durumu geçersiz."; return false; }
+                query = query.Where(x => x.Status == status); return true;
+            case "fromWarehouseCode": case "fromWarehouseName": case "toWarehouseCode": case "toWarehouseName":
+                var from = filter.Field.StartsWith("from", StringComparison.Ordinal);
+                var code = filter.Field.EndsWith("Code", StringComparison.Ordinal);
+                query = query.Where(x => db.Warehouses.Any(w => w.TenantId == tenantId && w.Id == (from ? x.FromWarehouseId : x.ToWarehouseId)
+                    && (code ? filter.Operator == "contains" ? w.Code.Contains(value) : w.Code == value
+                        : filter.Operator == "contains" ? w.Name.Contains(value) : w.Name == value)));
+                return true;
+            case "transferDate":
+                if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)) { error = "Transfer tarihi YYYY-MM-DD biçiminde olmalıdır."; return false; }
+                query = filter.Operator switch { "gt" => query.Where(x => x.TransferDate > date), "gte" => query.Where(x => x.TransferDate >= date), "lt" => query.Where(x => x.TransferDate < date), "lte" => query.Where(x => x.TransferDate <= date), _ => query.Where(x => x.TransferDate == date) };
+                return true;
+            case "createdAt":
+                if (!DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var createdAt)) { error = "Oluşturulma tarihi ISO biçiminde olmalıdır."; return false; }
+                query = filter.Operator switch { "gt" => query.Where(x => x.CreatedAt > createdAt), "gte" => query.Where(x => x.CreatedAt >= createdAt), "lt" => query.Where(x => x.CreatedAt < createdAt), "lte" => query.Where(x => x.CreatedAt <= createdAt), _ => query.Where(x => x.CreatedAt == createdAt) };
+                return true;
+            default: error = "Depo transferi filtre alanı geçersiz."; return false;
+        }
+    }
+
     private static async Task<IResult> RunSalesOrdersAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
@@ -1400,6 +1948,277 @@ public static class ReportEndpoints
         return Results.Ok(new ReportResult(report.Source, report.Columns.Select(SalesQuoteColumnByCode).ToArray(), resultRows,
             report.Page, report.PageSize, totalCount));
     }
+
+    private static IQueryable<SalesOrderFulfillmentReportRow> SalesOrderFulfillmentQuery(TenantDbContext db, Guid tenantId) =>
+        from line in db.SalesOrderLines.AsNoTracking()
+        join order in db.SalesOrders.AsNoTracking() on new { line.TenantId, Id = line.OrderId } equals new { order.TenantId, Id = order.Id }
+        join customer in db.CustomerAccounts.AsNoTracking() on new { order.TenantId, order.CustomerId } equals new { customer.TenantId, CustomerId = customer.Id }
+        where line.TenantId == tenantId && order.TenantId == tenantId
+        let fulfilled = db.SalesOrderReservations.Where(x => x.TenantId == tenantId && x.OrderId == line.OrderId && x.OrderLineNumber == line.LineNumber).Sum(x => (decimal?)x.FulfilledQuantity) ?? 0m
+        let reservedOpen = db.SalesOrderReservations.Where(x => x.TenantId == tenantId && x.OrderId == line.OrderId && x.OrderLineNumber == line.LineNumber && x.Status == SalesOrderReservationStatus.Active).Sum(x => (decimal?)(x.Quantity - x.FulfilledQuantity)) ?? 0m
+        let reserved = order.Status == SalesOrderStatus.Cancelled ? 0m : reservedOpen
+        let remaining = order.Status == SalesOrderStatus.Cancelled ? 0m : line.Quantity - fulfilled
+        select new SalesOrderFulfillmentReportRow(order.Code, customer.Code, customer.Name, order.OrderDate, order.RequestedDeliveryDate,
+            order.Status, line.LineNumber, line.StockCode, line.StockName, line.UnitCode, line.Quantity, reserved, fulfilled, remaining,
+            remaining > reserved ? remaining - reserved : 0m);
+
+    private static async Task<IResult> RunSalesOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<SalesOrderFulfillmentReportRow> query = SalesOrderFulfillmentQuery(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplySalesOrderFulfillmentFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var count = await query.CountAsync(ct);
+        var rows = await ApplySalesOrderFulfillmentSort(query, report.SortBy, report.Descending)
+            .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize).ToListAsync(ct);
+        var result = rows.Select(row => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(code => code,
+            code => ReadSalesOrderFulfillmentValue(row, code), StringComparer.Ordinal)).ToArray();
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed", Resource = "salesOrderFulfillment" });
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new ReportResult(report.Source, report.Columns.Select(SalesOrderFulfillmentColumnByCode).ToArray(), result,
+            report.Page, report.PageSize, count));
+    }
+
+    private static async Task<IResult> ExportSalesOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<SalesOrderFulfillmentReportRow> query = SalesOrderFulfillmentQuery(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplySalesOrderFulfillmentFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var count = await query.CountAsync(ct);
+        if (count > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
+        var rows = await ApplySalesOrderFulfillmentSort(query, report.SortBy, report.Descending).Take(10_000).ToListAsync(ct);
+        var csv = new StringBuilder().Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(SalesOrderFulfillmentColumnByCode(code).Label))));
+        foreach (var row in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadSalesOrderFulfillmentValue(row, code)))));
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.exported", Resource = $"salesOrderFulfillment:{rows.Count}" });
+        await db.SaveChangesAsync(ct);
+        return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
+    }
+
+    private static bool TryApplySalesOrderFulfillmentFilter(ref IQueryable<SalesOrderFulfillmentReportRow> query, ReportFilter filter, out string? error)
+    {
+        error = null;
+        if (filter.Field is "orderCode" or "customerCode" or "customerName" or "status" or "stockCode" or "stockName" or "unitCode")
+        {
+            var value = filter.Value!;
+            query = (filter.Field, filter.Operator) switch
+            {
+                ("orderCode", "contains") => query.Where(x => x.OrderCode.Contains(value)), ("orderCode", _) => query.Where(x => x.OrderCode == value),
+                ("customerCode", "contains") => query.Where(x => x.CustomerCode.Contains(value)), ("customerCode", _) => query.Where(x => x.CustomerCode == value),
+                ("customerName", "contains") => query.Where(x => x.CustomerName.Contains(value)), ("customerName", _) => query.Where(x => x.CustomerName == value),
+                ("status", _) when Enum.TryParse<SalesOrderStatus>(value, true, out var status) => query.Where(x => x.Status == status),
+                ("stockCode", "contains") => query.Where(x => x.StockCode.Contains(value)), ("stockCode", _) => query.Where(x => x.StockCode == value),
+                ("stockName", "contains") => query.Where(x => x.StockName.Contains(value)), ("stockName", _) => query.Where(x => x.StockName == value),
+                ("unitCode", "contains") => query.Where(x => x.UnitCode.Contains(value)), ("unitCode", _) => query.Where(x => x.UnitCode == value),
+                _ => query
+            };
+            if (filter.Field == "status" && !Enum.TryParse<SalesOrderStatus>(value, true, out _)) { error = "Satış siparişi durumu geçersiz."; return false; }
+            return true;
+        }
+        if (filter.Field is "orderDate" or "requestedDeliveryDate")
+        {
+            if (filter.Field == "requestedDeliveryDate" && filter.Operator == "isNull") { query = query.Where(x => x.RequestedDeliveryDate == null); return true; }
+            if (!DateOnly.TryParse(filter.Value, CultureInfo.InvariantCulture, out var date)) { error = "Tarih YYYY-MM-DD biçiminde olmalıdır."; return false; }
+            if (filter.Field == "orderDate") query = ApplyDateFilter(query, filter.Operator, date, x => x.OrderDate);
+            else query = filter.Operator switch
+            {
+                "equals" => query.Where(x => x.RequestedDeliveryDate == date),
+                "gt" => query.Where(x => x.RequestedDeliveryDate > date), "gte" => query.Where(x => x.RequestedDeliveryDate >= date),
+                "lt" => query.Where(x => x.RequestedDeliveryDate < date), "lte" => query.Where(x => x.RequestedDeliveryDate <= date), _ => query
+            };
+            return true;
+        }
+        var numeric = filter.Field switch
+        {
+            "lineNumber" => (Expression<Func<SalesOrderFulfillmentReportRow, decimal>>)(x => x.LineNumber),
+            "orderedQuantity" => x => x.OrderedQuantity, "reservedQuantity" => x => x.ReservedQuantity,
+            "fulfilledQuantity" => x => x.FulfilledQuantity, "remainingQuantity" => x => x.RemainingQuantity,
+            "backorderQuantity" => x => x.BackorderQuantity, _ => null
+        };
+        if (numeric is null || !decimal.TryParse(filter.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)) { error = "Sayısal filtre değeri geçersiz."; return false; }
+        var p = numeric.Parameters[0]; var body = numeric.Body;
+        var constant = Expression.Constant(amount);
+        var comparison = filter.Operator switch
+        {
+            "equals" => Expression.Equal(body, constant), "gt" => Expression.GreaterThan(body, constant), "gte" => Expression.GreaterThanOrEqual(body, constant),
+            "lt" => Expression.LessThan(body, constant), "lte" => Expression.LessThanOrEqual(body, constant), _ => null
+        };
+        if (comparison is null) { error = "Sayısal filtre operatörü geçersiz."; return false; }
+        query = query.Where(Expression.Lambda<Func<SalesOrderFulfillmentReportRow, bool>>(comparison, p));
+        return true;
+    }
+
+    private static IQueryable<SalesOrderFulfillmentReportRow> ApplyDateFilter(IQueryable<SalesOrderFulfillmentReportRow> query, string op, DateOnly date, Expression<Func<SalesOrderFulfillmentReportRow, DateOnly>> selector)
+    {
+        var p = selector.Parameters[0]; var value = selector.Body; var constant = Expression.Constant(date);
+        var cmp = op switch { "equals" => Expression.Equal(value, constant), "gt" => Expression.GreaterThan(value, constant), "gte" => Expression.GreaterThanOrEqual(value, constant), "lt" => Expression.LessThan(value, constant), "lte" => Expression.LessThanOrEqual(value, constant), _ => Expression.Equal(value, constant) };
+        return query.Where(Expression.Lambda<Func<SalesOrderFulfillmentReportRow, bool>>(cmp, p));
+    }
+
+    private static IOrderedQueryable<SalesOrderFulfillmentReportRow> ApplySalesOrderFulfillmentSort(IQueryable<SalesOrderFulfillmentReportRow> query, string field, bool desc) => (field, desc) switch
+    {
+        ("orderCode", false) => query.OrderBy(x => x.OrderCode).ThenBy(x => x.LineNumber), ("orderCode", true) => query.OrderByDescending(x => x.OrderCode).ThenBy(x => x.LineNumber),
+        ("customerCode", false) => query.OrderBy(x => x.CustomerCode).ThenBy(x => x.OrderCode), ("customerCode", true) => query.OrderByDescending(x => x.CustomerCode).ThenBy(x => x.OrderCode),
+        ("customerName", false) => query.OrderBy(x => x.CustomerName).ThenBy(x => x.OrderCode), ("customerName", true) => query.OrderByDescending(x => x.CustomerName).ThenBy(x => x.OrderCode),
+        ("orderDate", false) => query.OrderBy(x => x.OrderDate).ThenBy(x => x.OrderCode), ("orderDate", true) => query.OrderByDescending(x => x.OrderDate).ThenBy(x => x.OrderCode),
+        ("requestedDeliveryDate", false) => query.OrderBy(x => x.RequestedDeliveryDate).ThenBy(x => x.OrderCode), ("requestedDeliveryDate", true) => query.OrderByDescending(x => x.RequestedDeliveryDate).ThenBy(x => x.OrderCode),
+        ("status", false) => query.OrderBy(x => x.Status).ThenBy(x => x.OrderCode), ("status", true) => query.OrderByDescending(x => x.Status).ThenBy(x => x.OrderCode),
+        ("lineNumber", false) => query.OrderBy(x => x.LineNumber).ThenBy(x => x.OrderCode), ("lineNumber", true) => query.OrderByDescending(x => x.LineNumber).ThenBy(x => x.OrderCode),
+        ("stockCode", false) => query.OrderBy(x => x.StockCode).ThenBy(x => x.OrderCode), ("stockCode", true) => query.OrderByDescending(x => x.StockCode).ThenBy(x => x.OrderCode),
+        ("stockName", false) => query.OrderBy(x => x.StockName).ThenBy(x => x.OrderCode), ("stockName", true) => query.OrderByDescending(x => x.StockName).ThenBy(x => x.OrderCode),
+        ("unitCode", false) => query.OrderBy(x => x.UnitCode).ThenBy(x => x.OrderCode), ("unitCode", true) => query.OrderByDescending(x => x.UnitCode).ThenBy(x => x.OrderCode),
+        ("orderedQuantity", false) => query.OrderBy(x => x.OrderedQuantity).ThenBy(x => x.OrderCode), ("orderedQuantity", true) => query.OrderByDescending(x => x.OrderedQuantity).ThenBy(x => x.OrderCode),
+        ("reservedQuantity", false) => query.OrderBy(x => x.ReservedQuantity).ThenBy(x => x.OrderCode), ("reservedQuantity", true) => query.OrderByDescending(x => x.ReservedQuantity).ThenBy(x => x.OrderCode),
+        ("fulfilledQuantity", false) => query.OrderBy(x => x.FulfilledQuantity).ThenBy(x => x.OrderCode), ("fulfilledQuantity", true) => query.OrderByDescending(x => x.FulfilledQuantity).ThenBy(x => x.OrderCode),
+        ("remainingQuantity", false) => query.OrderBy(x => x.RemainingQuantity).ThenBy(x => x.OrderCode), ("remainingQuantity", true) => query.OrderByDescending(x => x.RemainingQuantity).ThenBy(x => x.OrderCode),
+        ("backorderQuantity", false) => query.OrderBy(x => x.BackorderQuantity).ThenBy(x => x.OrderCode), ("backorderQuantity", true) => query.OrderByDescending(x => x.BackorderQuantity).ThenBy(x => x.OrderCode),
+        _ => query.OrderBy(x => x.OrderCode).ThenBy(x => x.LineNumber)
+    };
+
+    private static object? ReadSalesOrderFulfillmentValue(SalesOrderFulfillmentReportRow x, string code) => code switch
+    {
+        "orderCode" => x.OrderCode, "customerCode" => x.CustomerCode, "customerName" => x.CustomerName, "orderDate" => x.OrderDate,
+        "requestedDeliveryDate" => x.RequestedDeliveryDate, "status" => x.Status.ToString(), "lineNumber" => x.LineNumber,
+        "stockCode" => x.StockCode, "stockName" => x.StockName, "unitCode" => x.UnitCode, "orderedQuantity" => x.OrderedQuantity,
+        "reservedQuantity" => x.ReservedQuantity, "fulfilledQuantity" => x.FulfilledQuantity, "remainingQuantity" => x.RemainingQuantity,
+        "backorderQuantity" => x.BackorderQuantity, _ => null
+    };
+    private static ReportColumn SalesOrderFulfillmentColumnByCode(string code) => SalesOrderFulfillmentColumns.First(x => x.Code == code);
+
+    private static IQueryable<PurchaseOrderFulfillmentReportRow> PurchaseOrderFulfillmentQuery(TenantDbContext db, Guid tenantId) =>
+        from line in db.PurchaseOrderLines.AsNoTracking()
+        join order in db.PurchaseOrders.AsNoTracking() on new { line.TenantId, Id = line.PurchaseOrderId } equals new { order.TenantId, Id = order.Id }
+        join supplier in db.CustomerAccounts.AsNoTracking() on new { order.TenantId, order.SupplierId } equals new { supplier.TenantId, SupplierId = supplier.Id }
+        where line.TenantId == tenantId && order.TenantId == tenantId &&
+            (order.Status == PurchaseOrderStatus.Open || order.Status == PurchaseOrderStatus.PartiallyReceived)
+        let received = db.PurchaseReceiptLines.Where(x => x.TenantId == tenantId && x.PurchaseOrderId == line.PurchaseOrderId &&
+            x.OrderLineNumber == line.LineNumber && db.PurchaseReceipts.Any(r => r.TenantId == tenantId && r.Id == x.ReceiptId && r.Status == PurchaseReceiptStatus.Posted))
+            .Sum(x => (decimal?)x.Quantity) ?? 0m
+        select new PurchaseOrderFulfillmentReportRow
+        {
+            OrderCode = order.Code,
+            SupplierCode = supplier.Code,
+            SupplierName = supplier.Name,
+            OrderDate = order.OrderDate,
+            ExpectedReceiptDate = order.ExpectedReceiptDate,
+            Status = order.Status,
+            LineNumber = line.LineNumber,
+            StockCode = line.StockCode,
+            StockName = line.StockName,
+            UnitCode = line.UnitCode,
+            OrderedQuantity = line.Quantity,
+            ReceivedQuantity = received,
+            OutstandingQuantity = line.Quantity > received ? line.Quantity - received : 0m
+        };
+
+    private static async Task<IResult> RunPurchaseOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<PurchaseOrderFulfillmentReportRow> query = PurchaseOrderFulfillmentQuery(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyPurchaseOrderFulfillmentFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var count = await query.CountAsync(ct);
+        var rows = await ApplyPurchaseOrderFulfillmentSort(query, report.SortBy, report.Descending)
+            .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize).ToListAsync(ct);
+        var result = rows.Select(row => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(code => code,
+            code => ReadPurchaseOrderFulfillmentValue(row, code), StringComparer.Ordinal)).ToArray();
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed", Resource = "purchaseOrderFulfillment" });
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new ReportResult(report.Source, report.Columns.Select(PurchaseOrderFulfillmentColumnByCode).ToArray(), result,
+            report.Page, report.PageSize, count));
+    }
+
+    private static async Task<IResult> ExportPurchaseOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<PurchaseOrderFulfillmentReportRow> query = PurchaseOrderFulfillmentQuery(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyPurchaseOrderFulfillmentFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var count = await query.CountAsync(ct);
+        if (count > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
+        var rows = await ApplyPurchaseOrderFulfillmentSort(query, report.SortBy, report.Descending).Take(10_000).ToListAsync(ct);
+        var csv = new StringBuilder().Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(PurchaseOrderFulfillmentColumnByCode(code).Label))));
+        foreach (var row in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadPurchaseOrderFulfillmentValue(row, code)))));
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.exported", Resource = $"purchaseOrderFulfillment:{rows.Count}" });
+        await db.SaveChangesAsync(ct);
+        return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
+    }
+
+    private static bool TryApplyPurchaseOrderFulfillmentFilter(ref IQueryable<PurchaseOrderFulfillmentReportRow> query, ReportFilter filter, out string? error)
+    {
+        error = null;
+        if (filter.Field is "orderCode" or "supplierCode" or "supplierName" or "status" or "stockCode" or "stockName" or "unitCode")
+        {
+            var value = filter.Value!;
+            query = (filter.Field, filter.Operator) switch
+            {
+                ("orderCode", "contains") => query.Where(x => x.OrderCode.Contains(value)), ("orderCode", _) => query.Where(x => x.OrderCode == value),
+                ("supplierCode", "contains") => query.Where(x => x.SupplierCode.Contains(value)), ("supplierCode", _) => query.Where(x => x.SupplierCode == value),
+                ("supplierName", "contains") => query.Where(x => x.SupplierName.Contains(value)), ("supplierName", _) => query.Where(x => x.SupplierName == value),
+                ("status", _) when Enum.TryParse<PurchaseOrderStatus>(value, true, out var status) => query.Where(x => x.Status == status),
+                ("stockCode", "contains") => query.Where(x => x.StockCode.Contains(value)), ("stockCode", _) => query.Where(x => x.StockCode == value),
+                ("stockName", "contains") => query.Where(x => x.StockName.Contains(value)), ("stockName", _) => query.Where(x => x.StockName == value),
+                ("unitCode", "contains") => query.Where(x => x.UnitCode.Contains(value)), ("unitCode", _) => query.Where(x => x.UnitCode == value),
+                _ => query
+            };
+            if (filter.Field == "status" && !Enum.TryParse<PurchaseOrderStatus>(value, true, out _)) { error = "Satın alma siparişi durumu geçersiz."; return false; }
+            return true;
+        }
+        if (filter.Field is "orderDate" or "expectedReceiptDate")
+        {
+            if (filter.Field == "expectedReceiptDate" && filter.Operator == "isNull") { query = query.Where(x => x.ExpectedReceiptDate == null); return true; }
+            if (!DateOnly.TryParse(filter.Value, CultureInfo.InvariantCulture, out var date)) { error = "Tarih YYYY-MM-DD biçiminde olmalıdır."; return false; }
+            query = (filter.Field, filter.Operator) switch
+            {
+                ("orderDate", "gt") => query.Where(x => x.OrderDate > date), ("orderDate", "gte") => query.Where(x => x.OrderDate >= date),
+                ("orderDate", "lt") => query.Where(x => x.OrderDate < date), ("orderDate", "lte") => query.Where(x => x.OrderDate <= date),
+                ("orderDate", _) => query.Where(x => x.OrderDate == date),
+                ("expectedReceiptDate", "gt") => query.Where(x => x.ExpectedReceiptDate > date), ("expectedReceiptDate", "gte") => query.Where(x => x.ExpectedReceiptDate >= date),
+                ("expectedReceiptDate", "lt") => query.Where(x => x.ExpectedReceiptDate < date), ("expectedReceiptDate", "lte") => query.Where(x => x.ExpectedReceiptDate <= date),
+                _ => query.Where(x => x.ExpectedReceiptDate == date)
+            };
+            return true;
+        }
+        if (filter.Field is "lineNumber" or "orderedQuantity" or "receivedQuantity" or "outstandingQuantity")
+        {
+            if (!decimal.TryParse(filter.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var number)) { error = "Sayısal filtre geçersiz."; return false; }
+            Expression<Func<PurchaseOrderFulfillmentReportRow, decimal>> selector = filter.Field switch
+            {
+                "lineNumber" => x => x.LineNumber, "orderedQuantity" => x => x.OrderedQuantity,
+                "receivedQuantity" => x => x.ReceivedQuantity, _ => x => x.OutstandingQuantity
+            };
+            var p = selector.Parameters[0];
+            var comparison = Expression.MakeBinary(filter.Operator switch { "gt" => ExpressionType.GreaterThan, "gte" => ExpressionType.GreaterThanOrEqual, "lt" => ExpressionType.LessThan, "lte" => ExpressionType.LessThanOrEqual, _ => ExpressionType.Equal }, selector.Body, Expression.Constant(number));
+            query = query.Where(Expression.Lambda<Func<PurchaseOrderFulfillmentReportRow, bool>>(comparison, p));
+            return true;
+        }
+        error = "Satın alma karşılama raporu filtre alanı geçersiz.";
+        return false;
+    }
+
+    private static IOrderedQueryable<PurchaseOrderFulfillmentReportRow> ApplyPurchaseOrderFulfillmentSort(IQueryable<PurchaseOrderFulfillmentReportRow> query, string field, bool desc) => (field, desc) switch
+    {
+        ("orderCode", false) => query.OrderBy(x => x.OrderCode).ThenBy(x => x.LineNumber), ("orderCode", true) => query.OrderByDescending(x => x.OrderCode).ThenBy(x => x.LineNumber),
+        ("supplierCode", false) => query.OrderBy(x => x.SupplierCode).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber), ("supplierCode", true) => query.OrderByDescending(x => x.SupplierCode).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber),
+        ("expectedReceiptDate", false) => query.OrderBy(x => x.ExpectedReceiptDate).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber), ("expectedReceiptDate", true) => query.OrderByDescending(x => x.ExpectedReceiptDate).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber),
+        ("stockCode", false) => query.OrderBy(x => x.StockCode).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber), ("stockCode", true) => query.OrderByDescending(x => x.StockCode).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber),
+        ("receivedQuantity", false) => query.OrderBy(x => x.ReceivedQuantity).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber), ("receivedQuantity", true) => query.OrderByDescending(x => x.ReceivedQuantity).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber),
+        ("outstandingQuantity", false) => query.OrderBy(x => x.OutstandingQuantity).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber), ("outstandingQuantity", true) => query.OrderByDescending(x => x.OutstandingQuantity).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber),
+        _ => desc ? query.OrderByDescending(x => x.OrderDate).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber) : query.OrderBy(x => x.OrderDate).ThenBy(x => x.OrderCode).ThenBy(x => x.LineNumber)
+    };
+
+    private static object? ReadPurchaseOrderFulfillmentValue(PurchaseOrderFulfillmentReportRow x, string code) => code switch
+    {
+        "orderCode" => x.OrderCode, "supplierCode" => x.SupplierCode, "supplierName" => x.SupplierName, "orderDate" => x.OrderDate,
+        "expectedReceiptDate" => x.ExpectedReceiptDate, "status" => x.Status.ToString(), "lineNumber" => x.LineNumber, "stockCode" => x.StockCode,
+        "stockName" => x.StockName, "unitCode" => x.UnitCode, "orderedQuantity" => x.OrderedQuantity, "receivedQuantity" => x.ReceivedQuantity,
+        "outstandingQuantity" => x.OutstandingQuantity, _ => null
+    };
+    private static ReportColumn PurchaseOrderFulfillmentColumnByCode(string code) => PurchaseOrderFulfillmentColumns.First(x => x.Code == code);
 
     private static async Task<IResult> ExportSalesQuotesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
     {
@@ -1874,6 +2693,176 @@ public static class ReportEndpoints
         "startDate" => row.StartDate, "endDate" => row.EndDate, "openingBalance" => row.OpeningBalance, "closingBalance" => row.ClosingBalance,
         "status" => row.Status.ToString(), "lineCount" => row.LineCount, "matchedLineCount" => row.MatchedLineCount,
         "unmatchedLineCount" => row.UnmatchedLineCount, "createdAt" => row.CreatedAt, _ => null
+    };
+
+    private static IQueryable<BankStatementLine> BankStatementLineQuery(TenantDbContext db, Guid tenantId) =>
+        db.BankStatementLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.Statement.TenantId == tenantId);
+
+    private static async Task<IResult> RunBankStatementLinesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<BankStatementLine> query = BankStatementLineQuery(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyBankStatementLineFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        var rows = await ApplyBankStatementLineSort(query, report.SortBy, report.Descending)
+            .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize)
+            .Select(x => new BankStatementLineReportRow(x.Id, x.Statement.Code, x.LineNumber, x.ExternalId, x.TransactionDate,
+                x.Direction, x.CurrencyCode, x.Amount, x.Description, x.Reference, x.FinancialAccountTransactionId != null,
+                x.FinancialAccountTransactionId, x.IsBookEntryCreated, x.MatchedAt))
+            .ToListAsync(ct);
+        var resultRows = rows.Select(row => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(
+            code => code, code => ReadBankStatementLineValue(row, code), StringComparer.Ordinal)).ToArray();
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed", Resource = "bankStatementLines" });
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new ReportResult(report.Source, report.Columns.Select(BankStatementLineColumnByCode).ToArray(), resultRows,
+            report.Page, report.PageSize, totalCount));
+    }
+
+    private static async Task<IResult> ExportBankStatementLinesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    {
+        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        IQueryable<BankStatementLine> query = BankStatementLineQuery(db, tenantId);
+        foreach (var filter in report.Filters)
+            if (!TryApplyBankStatementLineFilter(ref query, filter, out var error))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
+        var totalCount = await query.CountAsync(ct);
+        if (totalCount > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
+        var rows = await ApplyBankStatementLineSort(query, report.SortBy, report.Descending).Take(10_000)
+            .Select(x => new BankStatementLineReportRow(x.Id, x.Statement.Code, x.LineNumber, x.ExternalId, x.TransactionDate,
+                x.Direction, x.CurrencyCode, x.Amount, x.Description, x.Reference, x.FinancialAccountTransactionId != null,
+                x.FinancialAccountTransactionId, x.IsBookEntryCreated, x.MatchedAt))
+            .ToListAsync(ct);
+        var csv = new StringBuilder().Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(BankStatementLineColumnByCode(code).Label))));
+        foreach (var row in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadBankStatementLineValue(row, code)))));
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.exported", Resource = $"bankStatementLines:{rows.Count}" });
+        await db.SaveChangesAsync(ct);
+        return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
+    }
+
+    private static bool TryApplyBankStatementLineFilter(ref IQueryable<BankStatementLine> query, ReportFilter filter, out string? error)
+    {
+        error = null;
+        var value = filter.Value ?? "";
+        if (filter.Field is "statementCode" or "currencyCode" or "description" or "externalId" or "reference")
+        {
+            if (filter.Field is "externalId" or "reference" && filter.Operator == "isNull")
+            {
+                query = filter.Field == "externalId" ? query.Where(x => x.ExternalId == null) : query.Where(x => x.Reference == null);
+                return true;
+            }
+            query = (filter.Field, filter.Operator) switch
+            {
+                ("statementCode", "contains") => query.Where(x => x.Statement.Code.Contains(value)),
+                ("statementCode", _) => query.Where(x => x.Statement.Code == value),
+                ("currencyCode", "contains") => query.Where(x => x.CurrencyCode.Contains(value)),
+                ("currencyCode", _) => query.Where(x => x.CurrencyCode == value),
+                ("description", "contains") => query.Where(x => x.Description.Contains(value)),
+                ("description", _) => query.Where(x => x.Description == value),
+                ("externalId", "contains") => query.Where(x => x.ExternalId != null && x.ExternalId.Contains(value)),
+                ("externalId", _) => query.Where(x => x.ExternalId == value),
+                ("reference", "contains") => query.Where(x => x.Reference != null && x.Reference.Contains(value)),
+                _ => query.Where(x => x.Reference == value)
+            };
+            return true;
+        }
+        if (filter.Field == "direction")
+        {
+            if (!Enum.TryParse<FinancialDirection>(value, true, out var direction)) { error = "Banka ekstresi satırı yönü geçersiz."; return false; }
+            query = query.Where(x => x.Direction == direction);
+            return true;
+        }
+        if (filter.Field is "isMatched" or "bookEntryCreated")
+        {
+            if (!bool.TryParse(value, out var flag)) { error = "Eşleşme filtresi true veya false olmalıdır."; return false; }
+            query = filter.Field == "isMatched" ? query.Where(x => (x.FinancialAccountTransactionId != null) == flag) : query.Where(x => x.IsBookEntryCreated == flag);
+            return true;
+        }
+        if (filter.Field == "transactionId")
+        {
+            if (filter.Operator == "isNull") query = query.Where(x => x.FinancialAccountTransactionId == null);
+            else if (Guid.TryParse(value, out var transactionId)) query = query.Where(x => x.FinancialAccountTransactionId == transactionId);
+            else { error = "Hareket kimliği geçerli bir GUID olmalıdır."; return false; }
+            return true;
+        }
+        if (filter.Field == "transactionDate")
+        {
+            if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)) { error = "Hareket tarihi YYYY-MM-DD biçiminde olmalıdır."; return false; }
+            query = filter.Operator switch
+            {
+                "gt" => query.Where(x => x.TransactionDate > date), "gte" => query.Where(x => x.TransactionDate >= date),
+                "lt" => query.Where(x => x.TransactionDate < date), "lte" => query.Where(x => x.TransactionDate <= date),
+                _ => query.Where(x => x.TransactionDate == date)
+            };
+            return true;
+        }
+        if (filter.Field == "matchedAt")
+        {
+            if (filter.Operator == "isNull") { query = query.Where(x => x.MatchedAt == null); return true; }
+            if (!DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var matchedAt)) { error = "Eşleşme zamanı ISO tarih olmalıdır."; return false; }
+            query = filter.Operator switch
+            {
+                "gt" => query.Where(x => x.MatchedAt > matchedAt), "gte" => query.Where(x => x.MatchedAt >= matchedAt),
+                "lt" => query.Where(x => x.MatchedAt < matchedAt), "lte" => query.Where(x => x.MatchedAt <= matchedAt),
+                _ => query.Where(x => x.MatchedAt == matchedAt)
+            };
+            return true;
+        }
+        if (filter.Field is "amount" or "lineNumber")
+        {
+            if (filter.Field == "amount")
+            {
+                if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)) { error = "Tutar filtresi sayısal olmalıdır."; return false; }
+                query = (filter.Operator, amount) switch
+                {
+                    ("gt", _) => query.Where(x => x.Amount > amount), ("gte", _) => query.Where(x => x.Amount >= amount),
+                    ("lt", _) => query.Where(x => x.Amount < amount), ("lte", _) => query.Where(x => x.Amount <= amount), _ => query.Where(x => x.Amount == amount)
+                };
+            }
+            else
+            {
+                if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var lineNumber)) { error = "Ekstre satırı tam sayı olmalıdır."; return false; }
+                query = (filter.Operator, lineNumber) switch
+                {
+                    ("gt", _) => query.Where(x => x.LineNumber > lineNumber), ("gte", _) => query.Where(x => x.LineNumber >= lineNumber),
+                    ("lt", _) => query.Where(x => x.LineNumber < lineNumber), ("lte", _) => query.Where(x => x.LineNumber <= lineNumber), _ => query.Where(x => x.LineNumber == lineNumber)
+                };
+            }
+            return true;
+        }
+        error = "Banka ekstresi satırı filtre alanı geçersiz.";
+        return false;
+    }
+
+    private static IQueryable<BankStatementLine> ApplyBankStatementLineSort(IQueryable<BankStatementLine> query, string field, bool descending)
+    {
+        IOrderedQueryable<BankStatementLine> ordered = (field, descending) switch
+        {
+            ("statementCode", false) => query.OrderBy(x => x.Statement.Code), ("statementCode", true) => query.OrderByDescending(x => x.Statement.Code),
+            ("lineNumber", false) => query.OrderBy(x => x.LineNumber), ("lineNumber", true) => query.OrderByDescending(x => x.LineNumber),
+            ("externalId", false) => query.OrderBy(x => x.ExternalId), ("externalId", true) => query.OrderByDescending(x => x.ExternalId),
+            ("transactionDate", false) => query.OrderBy(x => x.TransactionDate), ("transactionDate", true) => query.OrderByDescending(x => x.TransactionDate),
+            ("direction", false) => query.OrderBy(x => x.Direction), ("direction", true) => query.OrderByDescending(x => x.Direction),
+            ("currencyCode", false) => query.OrderBy(x => x.CurrencyCode), ("currencyCode", true) => query.OrderByDescending(x => x.CurrencyCode),
+            ("amount", false) => query.OrderBy(x => x.Amount), ("amount", true) => query.OrderByDescending(x => x.Amount),
+            ("description", false) => query.OrderBy(x => x.Description), ("description", true) => query.OrderByDescending(x => x.Description),
+            ("reference", false) => query.OrderBy(x => x.Reference), ("reference", true) => query.OrderByDescending(x => x.Reference),
+            ("isMatched", false) => query.OrderBy(x => x.FinancialAccountTransactionId != null), ("isMatched", true) => query.OrderByDescending(x => x.FinancialAccountTransactionId != null),
+            ("transactionId", false) => query.OrderBy(x => x.FinancialAccountTransactionId), ("transactionId", true) => query.OrderByDescending(x => x.FinancialAccountTransactionId),
+            ("bookEntryCreated", false) => query.OrderBy(x => x.IsBookEntryCreated), ("bookEntryCreated", true) => query.OrderByDescending(x => x.IsBookEntryCreated),
+            ("matchedAt", false) => query.OrderBy(x => x.MatchedAt), ("matchedAt", true) => query.OrderByDescending(x => x.MatchedAt),
+            _ => query.OrderBy(x => x.Statement.Code)
+        };
+        return ordered.ThenBy(x => x.StatementId).ThenBy(x => x.LineNumber).ThenBy(x => x.Id);
+    }
+
+    private static object? ReadBankStatementLineValue(BankStatementLineReportRow row, string code) => code switch
+    {
+        "statementCode" => row.StatementCode, "lineNumber" => row.LineNumber, "externalId" => row.ExternalId,
+        "transactionDate" => row.TransactionDate, "direction" => row.Direction.ToString(), "currencyCode" => row.CurrencyCode,
+        "amount" => row.Amount, "description" => row.Description, "reference" => row.Reference, "isMatched" => row.IsMatched,
+        "transactionId" => row.TransactionId, "bookEntryCreated" => row.BookEntryCreated, "matchedAt" => row.MatchedAt, _ => null
     };
 
     private static IQueryable<FinancialAccountTransaction> FinancialAccountTransactionQuery(TenantDbContext db, Guid tenantId) =>
@@ -2611,7 +3600,7 @@ public static class ReportEndpoints
         if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
         IQueryable<SalesInvoice> query = db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Customer);
         foreach (var filter in report.Filters)
-            if (!TryApplyInvoiceFilter(ref query, filter, out var error))
+            if (!TryApplyInvoiceFilter(ref query, db, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
         var totalCount = await query.CountAsync(ct);
         if (report.GroupByFields.Count > 0)
@@ -2624,10 +3613,13 @@ public static class ReportEndpoints
             return Results.Ok(new ReportResult(report.Source, [], [], report.Page, report.PageSize, totalCount,
                 report.GroupByFields.Count == 1 ? report.GroupByFields[0] : groupBy, report.Aggregate, grouped.Rows, grouped.TotalGroups, report.GroupByFields));
         }
-        var rows = await ApplyInvoiceSort(query, report.SortBy, report.Descending)
+        var rows = await ApplyInvoiceSort(query, db, report.SortBy, report.Descending)
             .Skip((report.Page - 1) * report.PageSize).Take(report.PageSize).ToListAsync(ct);
+        var invoiceIds = rows.Select(x => x.Id).ToArray();
+        var paidByInvoice = await GetPostedCollectionTotalsAsync(db, tenantId, invoiceIds, ct);
+        var returnedByInvoice = await GetPostedSalesReturnTotalsAsync(db, tenantId, invoiceIds, ct);
         var resultRows = rows.Select(invoice => (IReadOnlyDictionary<string, object?>)report.Columns.ToDictionary(
-            code => code, code => ReadInvoiceValue(invoice, code), StringComparer.Ordinal)).ToArray();
+            code => code, code => ReadInvoiceValue(invoice, code, paidByInvoice.GetValueOrDefault(invoice.Id), returnedByInvoice.GetValueOrDefault(invoice.Id)), StringComparer.Ordinal)).ToArray();
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.executed", Resource = "salesInvoices" });
         await db.SaveChangesAsync(ct);
         return Results.Ok(new ReportResult(report.Source, report.Columns.Select(InvoiceColumnByCode).ToArray(), resultRows,
@@ -2639,7 +3631,7 @@ public static class ReportEndpoints
         if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
         IQueryable<SalesInvoice> query = db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Customer);
         foreach (var filter in report.Filters)
-            if (!TryApplyInvoiceFilter(ref query, filter, out var error))
+            if (!TryApplyInvoiceFilter(ref query, db, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
 
         var csv = new StringBuilder();
@@ -2662,9 +3654,13 @@ public static class ReportEndpoints
         {
             var totalCount = await query.CountAsync(ct);
             if (totalCount > 10_000) return Results.Problem("CSV dışa aktarma en fazla 10.000 satır destekler. Filtreleri daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
-            var rows = await ApplyInvoiceSort(query, report.SortBy, report.Descending).Take(10_000).ToListAsync(ct);
+            var rows = await ApplyInvoiceSort(query, db, report.SortBy, report.Descending).Take(10_000).ToListAsync(ct);
+            var invoiceIds = rows.Select(x => x.Id).ToArray();
+            var paidByInvoice = await GetPostedCollectionTotalsAsync(db, tenantId, invoiceIds, ct);
+            var returnedByInvoice = await GetPostedSalesReturnTotalsAsync(db, tenantId, invoiceIds, ct);
             csv.Append('\uFEFF').AppendLine(string.Join(',', report.Columns.Select(code => Csv(InvoiceColumnByCode(code).Label))));
-            foreach (var invoice in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadInvoiceValue(invoice, code)))));
+            foreach (var invoice in rows) csv.AppendLine(string.Join(',', report.Columns.Select(code => CsvValue(ReadInvoiceValue(invoice, code,
+                paidByInvoice.GetValueOrDefault(invoice.Id), returnedByInvoice.GetValueOrDefault(invoice.Id))))));
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.report.exported", Resource = $"salesInvoices:{rows.Count}" });
         }
         await db.SaveChangesAsync(ct);
@@ -2686,6 +3682,8 @@ public static class ReportEndpoints
             "onHand" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.OnHand),
             "reserved" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.Reserved),
             "available" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.Available),
+            "minimumStockGap" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.MinimumStockGap),
+            "belowMinimum" => (Expression<Func<StockItemReportRow, bool>>)(x => x.BelowMinimum),
             "trackingMode" => (Expression<Func<StockItemReportRow, InventoryTrackingMode>>)(x => x.TrackingMode),
             "isActive" => (Expression<Func<StockItemReportRow, bool>>)(x => x.IsActive),
             "createdAt" => (Expression<Func<StockItemReportRow, DateTimeOffset>>)(x => x.CreatedAt),
@@ -2697,6 +3695,7 @@ public static class ReportEndpoints
             "sumOnHand" or "averageOnHand" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.OnHand),
             "sumReserved" or "averageReserved" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.Reserved),
             "sumAvailable" or "averageAvailable" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.Available),
+            "sumMinimumStockGap" or "averageMinimumStockGap" => (Expression<Func<StockItemReportRow, decimal>>)(x => x.MinimumStockGap),
             _ => null
         };
         return await AggregateMultipleGroupsAsync(query, selectors, aggregate, aggregateSelector, descending, skip, take, ct);
@@ -2714,6 +3713,8 @@ public static class ReportEndpoints
         "onHand" => await AggregateStockItemGroups(query.GroupBy(x => x.OnHand), aggregate, descending, skip, take, ct),
         "reserved" => await AggregateStockItemGroups(query.GroupBy(x => x.Reserved), aggregate, descending, skip, take, ct),
         "available" => await AggregateStockItemGroups(query.GroupBy(x => x.Available), aggregate, descending, skip, take, ct),
+        "minimumStockGap" => await AggregateStockItemGroups(query.GroupBy(x => x.MinimumStockGap), aggregate, descending, skip, take, ct),
+        "belowMinimum" => await AggregateStockItemGroups(query.GroupBy(x => x.BelowMinimum), aggregate, descending, skip, take, ct),
         "trackingMode" => await AggregateStockItemGroups(query.GroupBy(x => x.TrackingMode), aggregate, descending, skip, take, ct),
         "isActive" => await AggregateStockItemGroups(query.GroupBy(x => x.IsActive), aggregate, descending, skip, take, ct),
         "createdAt" => await AggregateStockItemGroups(query.GroupBy(x => x.CreatedAt), aggregate, descending, skip, take, ct),
@@ -2736,9 +3737,25 @@ public static class ReportEndpoints
             "averageReserved" => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Average(x => (decimal?)x.Reserved))).ToListAsync(ct),
             "sumAvailable" => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Sum(x => x.Available))).ToListAsync(ct),
             "averageAvailable" => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Average(x => (decimal?)x.Available))).ToListAsync(ct),
+            "sumMinimumStockGap" => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Sum(x => x.MinimumStockGap))).ToListAsync(ct),
+            "averageMinimumStockGap" => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Average(x => (decimal?)x.MinimumStockGap))).ToListAsync(ct),
             _ => await page.Select(g => new ReportAggregateRow(g.Key, g.Count(), g.Count())).ToListAsync(ct)
         };
         return new AggregatePage(rows.Select(row => row with { GroupValue = row.GroupValue is InventoryTrackingMode mode ? mode.ToString() : row.GroupValue }).ToArray(), total);
+    }
+
+    private sealed class WarehouseStockReportRow
+    {
+        public Guid Id { get; init; }
+        public Guid WarehouseId { get; init; }
+        public string StockCode { get; init; } = "";
+        public string StockName { get; init; } = "";
+        public string UnitCode { get; init; } = "";
+        public string WarehouseCode { get; init; } = "";
+        public string WarehouseName { get; init; } = "";
+        public decimal OnHand { get; init; }
+        public decimal Reserved { get; init; }
+        public decimal Available { get; init; }
     }
 
     private sealed class StockItemReportRow
@@ -2756,6 +3773,8 @@ public static class ReportEndpoints
         public decimal OnHand { get; init; }
         public decimal Reserved { get; init; }
         public decimal Available { get; init; }
+        public decimal MinimumStockGap { get; init; }
+        public bool BelowMinimum { get; init; }
     }
 
     private static IQueryable<StockItemReportRow> StockItemReportRows(TenantDbContext db, Guid tenantId)
@@ -2768,6 +3787,7 @@ public static class ReportEndpoints
                    .Where(reservation => reservation.TenantId == tenantId && reservation.Status == SalesOrderReservationStatus.Active
                        && reservation.OrderLine.StockItemId == item.Id)
                    .Sum(reservation => reservation.Quantity - reservation.FulfilledQuantity)
+               let available = onHand - reserved
                select new StockItemReportRow
                {
                 Id = item.Id,
@@ -2782,7 +3802,9 @@ public static class ReportEndpoints
                 CreatedAt = item.CreatedAt,
                 OnHand = onHand,
                 Reserved = reserved,
-                Available = onHand - reserved
+                Available = available,
+                MinimumStockGap = item.MinimumStock > available ? item.MinimumStock - available : 0m,
+                BelowMinimum = item.MinimumStock > available
                };
     }
 
@@ -2811,6 +3833,7 @@ public static class ReportEndpoints
             case "onHand":
             case "reserved":
             case "available":
+            case "minimumStockGap":
             case "minimumStock":
                 if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount) || !ApplyDecimalOperator(filter.Operator, out var op)) { error = "Stok miktarı veya operatörü geçersiz."; return false; }
                 query = (filter.Field, op) switch
@@ -2818,6 +3841,7 @@ public static class ReportEndpoints
                     ("onHand", "gt") => query.Where(x => x.OnHand > amount), ("onHand", "gte") => query.Where(x => x.OnHand >= amount), ("onHand", "lt") => query.Where(x => x.OnHand < amount), ("onHand", "lte") => query.Where(x => x.OnHand <= amount), ("onHand", _) => query.Where(x => x.OnHand == amount),
                     ("reserved", "gt") => query.Where(x => x.Reserved > amount), ("reserved", "gte") => query.Where(x => x.Reserved >= amount), ("reserved", "lt") => query.Where(x => x.Reserved < amount), ("reserved", "lte") => query.Where(x => x.Reserved <= amount), ("reserved", _) => query.Where(x => x.Reserved == amount),
                     ("available", "gt") => query.Where(x => x.Available > amount), ("available", "gte") => query.Where(x => x.Available >= amount), ("available", "lt") => query.Where(x => x.Available < amount), ("available", "lte") => query.Where(x => x.Available <= amount), ("available", _) => query.Where(x => x.Available == amount),
+                    ("minimumStockGap", "gt") => query.Where(x => x.MinimumStockGap > amount), ("minimumStockGap", "gte") => query.Where(x => x.MinimumStockGap >= amount), ("minimumStockGap", "lt") => query.Where(x => x.MinimumStockGap < amount), ("minimumStockGap", "lte") => query.Where(x => x.MinimumStockGap <= amount), ("minimumStockGap", _) => query.Where(x => x.MinimumStockGap == amount),
                     (_, "gt") => query.Where(x => x.MinimumStock > amount), (_, "gte") => query.Where(x => x.MinimumStock >= amount), (_, "lt") => query.Where(x => x.MinimumStock < amount), (_, "lte") => query.Where(x => x.MinimumStock <= amount), _ => query.Where(x => x.MinimumStock == amount)
                 }; return true;
             case "trackingMode":
@@ -2826,6 +3850,9 @@ public static class ReportEndpoints
             case "isActive":
                 if (!bool.TryParse(value, out var active)) { error = "Durum true/false olmalıdır."; return false; }
                 query = query.Where(x => x.IsActive == active); return true;
+            case "belowMinimum":
+                if (!bool.TryParse(value, out var belowMinimum)) { error = "Minimum stok eşiği true/false olmalıdır."; return false; }
+                query = query.Where(x => x.BelowMinimum == belowMinimum); return true;
             case "createdAt":
                 if (!DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var createdAt)) { error = "Oluşturulma filtresi ISO tarih olmalıdır."; return false; }
                 query = filter.Operator switch { "gt" => query.Where(x => x.CreatedAt > createdAt), "gte" => query.Where(x => x.CreatedAt >= createdAt), "lt" => query.Where(x => x.CreatedAt < createdAt), _ => query.Where(x => x.CreatedAt <= createdAt) }; return true;
@@ -2843,6 +3870,8 @@ public static class ReportEndpoints
         ("onHand", false) => query.OrderBy(x => x.OnHand).ThenBy(x => x.Id), ("onHand", true) => query.OrderByDescending(x => x.OnHand).ThenBy(x => x.Id),
         ("reserved", false) => query.OrderBy(x => x.Reserved).ThenBy(x => x.Id), ("reserved", true) => query.OrderByDescending(x => x.Reserved).ThenBy(x => x.Id),
         ("available", false) => query.OrderBy(x => x.Available).ThenBy(x => x.Id), ("available", true) => query.OrderByDescending(x => x.Available).ThenBy(x => x.Id),
+        ("minimumStockGap", false) => query.OrderBy(x => x.MinimumStockGap).ThenBy(x => x.Id), ("minimumStockGap", true) => query.OrderByDescending(x => x.MinimumStockGap).ThenBy(x => x.Id),
+        ("belowMinimum", false) => query.OrderBy(x => x.BelowMinimum).ThenBy(x => x.Id), ("belowMinimum", true) => query.OrderByDescending(x => x.BelowMinimum).ThenBy(x => x.Id),
         ("trackingMode", false) => query.OrderBy(x => x.TrackingMode).ThenBy(x => x.Id), ("trackingMode", true) => query.OrderByDescending(x => x.TrackingMode).ThenBy(x => x.Id),
         ("isActive", false) => query.OrderBy(x => x.IsActive).ThenBy(x => x.Id), ("isActive", true) => query.OrderByDescending(x => x.IsActive).ThenBy(x => x.Id),
         ("createdAt", false) => query.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id), ("createdAt", true) => query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id),
@@ -2852,7 +3881,8 @@ public static class ReportEndpoints
     private static object? ReadStockItemValue(StockItemReportRow item, string code) => code switch
     {
         "code" => item.Code, "name" => item.Name, "barcode" => item.Barcode, "unitCode" => item.UnitCode,
-        "category" => item.Category, "minimumStock" => item.MinimumStock, "onHand" => item.OnHand, "reserved" => item.Reserved, "available" => item.Available, "trackingMode" => item.TrackingMode.ToString(),
+        "category" => item.Category, "minimumStock" => item.MinimumStock, "onHand" => item.OnHand, "reserved" => item.Reserved, "available" => item.Available,
+        "minimumStockGap" => item.MinimumStockGap, "belowMinimum" => item.BelowMinimum, "trackingMode" => item.TrackingMode.ToString(),
         "isActive" => item.IsActive, "createdAt" => item.CreatedAt, _ => null
     };
 
@@ -2957,10 +3987,24 @@ public static class ReportEndpoints
             case "createdAt":
                 if (!DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var createdAt)) { error = "Oluşturulma filtresi ISO tarih olmalıdır."; return false; }
                 query = filter.Operator switch { "gt" => query.Where(x => x.CreatedAt > createdAt), "gte" => query.Where(x => x.CreatedAt >= createdAt), "lt" => query.Where(x => x.CreatedAt < createdAt), "lte" => query.Where(x => x.CreatedAt <= createdAt), _ => query.Where(x => x.CreatedAt == createdAt) }; return true;
-            case "subtotal": case "discountTotal": case "taxTotal": case "grandTotal":
+            case "outstandingAmount":
+                if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var outstandingAmount)) { error = "Açık bakiye filtresi sayısal olmalıdır."; return false; }
+                query = ApplyPurchaseInvoiceOutstandingFilter(query, filter.Operator, outstandingAmount);
+                return true;
+            case "paidAmount": case "returnedAmount": case "subtotal": case "discountTotal": case "taxTotal": case "grandTotal":
                 if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)) { error = "Tutar filtresi sayısal olmalıdır."; return false; }
                 query = (filter.Field, filter.Operator) switch
                 {
+                    ("paidAmount", "gt") => query.Where(x => (x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m) > amount),
+                    ("paidAmount", "gte") => query.Where(x => (x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m) >= amount),
+                    ("paidAmount", "lt") => query.Where(x => (x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m) < amount),
+                    ("paidAmount", "lte") => query.Where(x => (x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m) <= amount),
+                    ("paidAmount", _) => query.Where(x => (x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m) == amount),
+                    ("returnedAmount", "gt") => query.Where(x => (x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) > amount),
+                    ("returnedAmount", "gte") => query.Where(x => (x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) >= amount),
+                    ("returnedAmount", "lt") => query.Where(x => (x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) < amount),
+                    ("returnedAmount", "lte") => query.Where(x => (x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) <= amount),
+                    ("returnedAmount", _) => query.Where(x => (x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) == amount),
                     ("subtotal", "gt") => query.Where(x => x.Subtotal > amount), ("subtotal", "gte") => query.Where(x => x.Subtotal >= amount), ("subtotal", "lt") => query.Where(x => x.Subtotal < amount), ("subtotal", "lte") => query.Where(x => x.Subtotal <= amount), ("subtotal", _) => query.Where(x => x.Subtotal == amount),
                     ("discountTotal", "gt") => query.Where(x => x.DiscountTotal > amount), ("discountTotal", "gte") => query.Where(x => x.DiscountTotal >= amount), ("discountTotal", "lt") => query.Where(x => x.DiscountTotal < amount), ("discountTotal", "lte") => query.Where(x => x.DiscountTotal <= amount), ("discountTotal", _) => query.Where(x => x.DiscountTotal == amount),
                     ("taxTotal", "gt") => query.Where(x => x.TaxTotal > amount), ("taxTotal", "gte") => query.Where(x => x.TaxTotal >= amount), ("taxTotal", "lt") => query.Where(x => x.TaxTotal < amount), ("taxTotal", "lte") => query.Where(x => x.TaxTotal <= amount), ("taxTotal", _) => query.Where(x => x.TaxTotal == amount),
@@ -3432,7 +4476,44 @@ public static class ReportEndpoints
         (_, false) => query.OrderBy(x => x.ReceiptDate).ThenBy(x => x.Id), _ => query.OrderByDescending(x => x.ReceiptDate).ThenBy(x => x.Id)
     };
 
-    private static IQueryable<PurchaseInvoice> ApplyPurchaseInvoiceSort(IQueryable<PurchaseInvoice> query, string field, bool descending) => (field, descending) switch
+    private static IQueryable<PurchaseInvoice> ApplyPurchaseInvoiceOutstandingFilter(IQueryable<PurchaseInvoice> query, string operation, decimal amount)
+    {
+        var balances = from invoice in query
+            let paid = invoice.Payments.Where(x => x.TenantId == invoice.TenantId && x.Status == SupplierPaymentStatus.Posted).Sum(x => (decimal?)x.Amount) ?? 0m
+            let returned = invoice.Returns.Where(x => x.TenantId == invoice.TenantId && x.Status == SupplierReturnStatus.Posted).Sum(x => (decimal?)x.GrandTotal) ?? 0m
+            let raw = invoice.GrandTotal - paid - returned
+            select new { Invoice = invoice, Outstanding = raw > 0m ? raw : 0m };
+        var filtered = operation switch
+        {
+            "gt" => balances.Where(x => x.Outstanding > amount), "gte" => balances.Where(x => x.Outstanding >= amount),
+            "lt" => balances.Where(x => x.Outstanding < amount), "lte" => balances.Where(x => x.Outstanding <= amount),
+            _ => balances.Where(x => x.Outstanding == amount)
+        };
+        return filtered.Select(x => x.Invoice);
+    }
+
+    private static IQueryable<PurchaseInvoice> ApplyPurchaseInvoiceSort(IQueryable<PurchaseInvoice> query, string field, bool descending)
+    {
+        if (field == "paidAmount")
+            return descending
+                ? query.OrderByDescending(x => x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m).ThenBy(x => x.Id)
+                : query.OrderBy(x => x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m).ThenBy(x => x.Id);
+        if (field == "returnedAmount")
+            return descending
+                ? query.OrderByDescending(x => x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m).ThenBy(x => x.Id)
+                : query.OrderBy(x => x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m).ThenBy(x => x.Id);
+        if (field == "outstandingAmount")
+        {
+            var balances = from invoice in query
+                let paid = invoice.Payments.Where(x => x.TenantId == invoice.TenantId && x.Status == SupplierPaymentStatus.Posted).Sum(x => (decimal?)x.Amount) ?? 0m
+                let returned = invoice.Returns.Where(x => x.TenantId == invoice.TenantId && x.Status == SupplierReturnStatus.Posted).Sum(x => (decimal?)x.GrandTotal) ?? 0m
+                let raw = invoice.GrandTotal - paid - returned
+                select new { Invoice = invoice, Outstanding = raw > 0m ? raw : 0m };
+            return (descending
+                ? balances.OrderByDescending(x => x.Outstanding).ThenBy(x => x.Invoice.Id)
+                : balances.OrderBy(x => x.Outstanding).ThenBy(x => x.Invoice.Id)).Select(x => x.Invoice);
+        }
+        return (field, descending) switch
     {
         ("code", false) => query.OrderBy(x => x.Code).ThenBy(x => x.Id), ("code", true) => query.OrderByDescending(x => x.Code).ThenBy(x => x.Id),
         ("orderCode", false) => query.OrderBy(x => x.PurchaseOrder.Code).ThenBy(x => x.Id), ("orderCode", true) => query.OrderByDescending(x => x.PurchaseOrder.Code).ThenBy(x => x.Id),
@@ -3450,7 +4531,8 @@ public static class ReportEndpoints
         ("lineCount", false) => query.OrderBy(x => x.Lines.Count).ThenBy(x => x.Id), ("lineCount", true) => query.OrderByDescending(x => x.Lines.Count).ThenBy(x => x.Id),
         ("createdAt", false) => query.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id), ("createdAt", true) => query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id),
         (_, false) => query.OrderBy(x => x.Code).ThenBy(x => x.Id), _ => query.OrderByDescending(x => x.Code).ThenBy(x => x.Id)
-    };
+        };
+    }
 
     private static object? ReadPurchaseInvoiceValue(PurchaseInvoice x, string code) => code switch
     {
@@ -3458,7 +4540,13 @@ public static class ReportEndpoints
         "supplierCode" => x.Supplier.Code, "supplierName" => x.Supplier.Name, "invoiceDate" => x.InvoiceDate,
         "dueDate" => x.DueDate, "currencyCode" => x.CurrencyCode, "status" => x.Status.ToString(),
         "subtotal" => x.Subtotal, "discountTotal" => x.DiscountTotal, "taxTotal" => x.TaxTotal,
-        "grandTotal" => x.GrandTotal, "lineCount" => x.Lines.Count, "createdAt" => x.CreatedAt, _ => null
+        "grandTotal" => x.GrandTotal,
+        "paidAmount" => x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => p.Amount),
+        "returnedAmount" => x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => r.GrandTotal),
+        "outstandingAmount" => Math.Max(0m, x.GrandTotal -
+            x.Payments.Where(p => p.TenantId == x.TenantId && p.Status == SupplierPaymentStatus.Posted).Sum(p => p.Amount) -
+            x.Returns.Where(r => r.TenantId == x.TenantId && r.Status == SupplierReturnStatus.Posted).Sum(r => r.GrandTotal)),
+        "lineCount" => x.Lines.Count, "createdAt" => x.CreatedAt, _ => null
     };
 
     private static object? ReadPurchaseReceiptValue(PurchaseReceipt x, string code) => code switch
@@ -3690,7 +4778,7 @@ public static class ReportEndpoints
         "lineCount" => x.Lines.Count, "totalQuantity" => x.Lines.Sum(line => line.Quantity), "createdAt" => x.CreatedAt, _ => null
     };
 
-    private static bool TryApplyInvoiceFilter(ref IQueryable<SalesInvoice> query, ReportFilter filter, out string? error)
+    private static bool TryApplyInvoiceFilter(ref IQueryable<SalesInvoice> query, TenantDbContext db, ReportFilter filter, out string? error)
     {
         error = null;
         var value = filter.Value?.Trim() ?? "";
@@ -3713,8 +4801,37 @@ public static class ReportEndpoints
             case "createdAt":
                 if (!DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var createdAt)) { error = "Oluşturulma filtresi ISO tarih olmalıdır."; return false; }
                 query = filter.Operator switch { "gt" => query.Where(x => x.CreatedAt > createdAt), "gte" => query.Where(x => x.CreatedAt >= createdAt), "lt" => query.Where(x => x.CreatedAt < createdAt), _ => query.Where(x => x.CreatedAt <= createdAt) }; return true;
-            case "subtotal": case "taxTotal": case "grandTotal":
+            case "paidAmount": case "returnedAmount": case "outstandingAmount": case "subtotal": case "taxTotal": case "grandTotal":
                 if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)) { error = "Tutar filtresi geçersiz."; return false; }
+                if (filter.Field == "outstandingAmount")
+                {
+                    query = ApplySalesInvoiceOutstandingFilter(query, db, filter.Operator, amount);
+                    return true;
+                }
+                if (filter.Field == "paidAmount")
+                {
+                    query = filter.Operator switch
+                    {
+                        "gt" => query.Where(x => (db.CustomerCollectionAllocations.Where(a => a.TenantId == x.TenantId && a.SalesInvoiceId == x.Id && a.CustomerCollection.TenantId == x.TenantId && a.CustomerCollection.Status == CustomerCollectionStatus.Posted).Sum(a => (decimal?)a.Amount) ?? 0m) > amount),
+                        "gte" => query.Where(x => (db.CustomerCollectionAllocations.Where(a => a.TenantId == x.TenantId && a.SalesInvoiceId == x.Id && a.CustomerCollection.TenantId == x.TenantId && a.CustomerCollection.Status == CustomerCollectionStatus.Posted).Sum(a => (decimal?)a.Amount) ?? 0m) >= amount),
+                        "lt" => query.Where(x => (db.CustomerCollectionAllocations.Where(a => a.TenantId == x.TenantId && a.SalesInvoiceId == x.Id && a.CustomerCollection.TenantId == x.TenantId && a.CustomerCollection.Status == CustomerCollectionStatus.Posted).Sum(a => (decimal?)a.Amount) ?? 0m) < amount),
+                        "lte" => query.Where(x => (db.CustomerCollectionAllocations.Where(a => a.TenantId == x.TenantId && a.SalesInvoiceId == x.Id && a.CustomerCollection.TenantId == x.TenantId && a.CustomerCollection.Status == CustomerCollectionStatus.Posted).Sum(a => (decimal?)a.Amount) ?? 0m) <= amount),
+                        _ => query.Where(x => (db.CustomerCollectionAllocations.Where(a => a.TenantId == x.TenantId && a.SalesInvoiceId == x.Id && a.CustomerCollection.TenantId == x.TenantId && a.CustomerCollection.Status == CustomerCollectionStatus.Posted).Sum(a => (decimal?)a.Amount) ?? 0m) == amount)
+                    };
+                    return true;
+                }
+                if (filter.Field == "returnedAmount")
+                {
+                    query = filter.Operator switch
+                    {
+                        "gt" => query.Where(x => (db.SalesReturns.Where(r => r.TenantId == x.TenantId && r.SalesInvoiceId == x.Id && r.Status == SalesReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) > amount),
+                        "gte" => query.Where(x => (db.SalesReturns.Where(r => r.TenantId == x.TenantId && r.SalesInvoiceId == x.Id && r.Status == SalesReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) >= amount),
+                        "lt" => query.Where(x => (db.SalesReturns.Where(r => r.TenantId == x.TenantId && r.SalesInvoiceId == x.Id && r.Status == SalesReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) < amount),
+                        "lte" => query.Where(x => (db.SalesReturns.Where(r => r.TenantId == x.TenantId && r.SalesInvoiceId == x.Id && r.Status == SalesReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) <= amount),
+                        _ => query.Where(x => (db.SalesReturns.Where(r => r.TenantId == x.TenantId && r.SalesInvoiceId == x.Id && r.Status == SalesReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m) == amount)
+                    };
+                    return true;
+                }
                 query = (filter.Field, filter.Operator) switch
                 {
                     ("subtotal", "gt") => query.Where(x => x.Subtotal > amount), ("subtotal", "gte") => query.Where(x => x.Subtotal >= amount),
@@ -3728,7 +4845,65 @@ public static class ReportEndpoints
         }
     }
 
-    private static IQueryable<SalesInvoice> ApplyInvoiceSort(IQueryable<SalesInvoice> query, string field, bool descending) => (field, descending) switch
+    private static IQueryable<SalesInvoice> ApplySalesInvoiceOutstandingFilter(IQueryable<SalesInvoice> query, TenantDbContext db, string operation, decimal amount)
+    {
+        var balances = from invoice in query
+            let paid = db.CustomerCollectionAllocations.Where(a => a.TenantId == invoice.TenantId && a.SalesInvoiceId == invoice.Id && a.CustomerCollection.TenantId == invoice.TenantId && a.CustomerCollection.Status == CustomerCollectionStatus.Posted).Sum(a => (decimal?)a.Amount) ?? 0m
+            let returned = db.SalesReturns.Where(r => r.TenantId == invoice.TenantId && r.SalesInvoiceId == invoice.Id && r.Status == SalesReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m
+            let raw = invoice.GrandTotal - paid - returned
+            select new { Invoice = invoice, Outstanding = raw > 0m ? raw : 0m };
+        var filtered = operation switch
+        {
+            "gt" => balances.Where(x => x.Outstanding > amount), "gte" => balances.Where(x => x.Outstanding >= amount),
+            "lt" => balances.Where(x => x.Outstanding < amount), "lte" => balances.Where(x => x.Outstanding <= amount),
+            _ => balances.Where(x => x.Outstanding == amount)
+        };
+        return filtered.Select(x => x.Invoice);
+    }
+
+    private static async Task<Dictionary<Guid, decimal>> GetPostedCollectionTotalsAsync(TenantDbContext db, Guid tenantId, Guid[] invoiceIds, CancellationToken ct)
+    {
+        if (invoiceIds.Length == 0) return [];
+        return await db.CustomerCollectionAllocations.AsNoTracking()
+            .Where(a => a.TenantId == tenantId && invoiceIds.Contains(a.SalesInvoiceId) &&
+                a.CustomerCollection.TenantId == tenantId && a.CustomerCollection.Status == CustomerCollectionStatus.Posted)
+            .GroupBy(a => a.SalesInvoiceId)
+            .Select(group => new { InvoiceId = group.Key, Amount = group.Sum(a => a.Amount) })
+            .ToDictionaryAsync(x => x.InvoiceId, x => x.Amount, ct);
+    }
+
+    private static async Task<Dictionary<Guid, decimal>> GetPostedSalesReturnTotalsAsync(TenantDbContext db, Guid tenantId, Guid[] invoiceIds, CancellationToken ct)
+    {
+        if (invoiceIds.Length == 0) return [];
+        return await db.SalesReturns.AsNoTracking()
+            .Where(r => r.TenantId == tenantId && invoiceIds.Contains(r.SalesInvoiceId) && r.Status == SalesReturnStatus.Posted)
+            .GroupBy(r => r.SalesInvoiceId)
+            .Select(group => new { InvoiceId = group.Key, Amount = group.Sum(r => r.GrandTotal) })
+            .ToDictionaryAsync(x => x.InvoiceId, x => x.Amount, ct);
+    }
+
+    private static IQueryable<SalesInvoice> ApplyInvoiceSort(IQueryable<SalesInvoice> query, TenantDbContext db, string field, bool descending)
+    {
+        if (field == "paidAmount")
+            return descending
+                ? query.OrderByDescending(invoice => db.CustomerCollectionAllocations.Where(a => a.TenantId == invoice.TenantId && a.SalesInvoiceId == invoice.Id && a.CustomerCollection.TenantId == invoice.TenantId && a.CustomerCollection.Status == CustomerCollectionStatus.Posted).Sum(a => (decimal?)a.Amount) ?? 0m).ThenBy(invoice => invoice.Id)
+                : query.OrderBy(invoice => db.CustomerCollectionAllocations.Where(a => a.TenantId == invoice.TenantId && a.SalesInvoiceId == invoice.Id && a.CustomerCollection.TenantId == invoice.TenantId && a.CustomerCollection.Status == CustomerCollectionStatus.Posted).Sum(a => (decimal?)a.Amount) ?? 0m).ThenBy(invoice => invoice.Id);
+        if (field == "returnedAmount")
+            return descending
+                ? query.OrderByDescending(invoice => db.SalesReturns.Where(r => r.TenantId == invoice.TenantId && r.SalesInvoiceId == invoice.Id && r.Status == SalesReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m).ThenBy(invoice => invoice.Id)
+                : query.OrderBy(invoice => db.SalesReturns.Where(r => r.TenantId == invoice.TenantId && r.SalesInvoiceId == invoice.Id && r.Status == SalesReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m).ThenBy(invoice => invoice.Id);
+        if (field == "outstandingAmount")
+        {
+            var balances = from invoice in query
+                let paid = db.CustomerCollectionAllocations.Where(a => a.TenantId == invoice.TenantId && a.SalesInvoiceId == invoice.Id && a.CustomerCollection.TenantId == invoice.TenantId && a.CustomerCollection.Status == CustomerCollectionStatus.Posted).Sum(a => (decimal?)a.Amount) ?? 0m
+                let returned = db.SalesReturns.Where(r => r.TenantId == invoice.TenantId && r.SalesInvoiceId == invoice.Id && r.Status == SalesReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m
+                let raw = invoice.GrandTotal - paid - returned
+                select new { Invoice = invoice, Outstanding = raw > 0m ? raw : 0m };
+            return (descending
+                ? balances.OrderByDescending(x => x.Outstanding).ThenBy(x => x.Invoice.Id)
+                : balances.OrderBy(x => x.Outstanding).ThenBy(x => x.Invoice.Id)).Select(x => x.Invoice);
+        }
+        return (field, descending) switch
     {
         ("code", false) => query.OrderBy(x => x.Code).ThenBy(x => x.Id), ("code", true) => query.OrderByDescending(x => x.Code).ThenBy(x => x.Id),
         ("customerCode", false) => query.OrderBy(x => x.Customer.Code).ThenBy(x => x.Id), ("customerCode", true) => query.OrderByDescending(x => x.Customer.Code).ThenBy(x => x.Id),
@@ -3741,13 +4916,16 @@ public static class ReportEndpoints
         ("grandTotal", false) => query.OrderBy(x => x.GrandTotal).ThenBy(x => x.Id), ("grandTotal", true) => query.OrderByDescending(x => x.GrandTotal).ThenBy(x => x.Id),
         ("createdAt", false) => query.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id), ("createdAt", true) => query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id),
         (_, false) => query.OrderBy(x => x.Code).ThenBy(x => x.Id), _ => query.OrderByDescending(x => x.Code).ThenBy(x => x.Id)
-    };
+        };
+    }
 
-    private static object? ReadInvoiceValue(SalesInvoice x, string code) => code switch
+    private static object? ReadInvoiceValue(SalesInvoice x, string code, decimal paidAmount, decimal returnedAmount) => code switch
     {
         "code" => x.Code, "customerCode" => x.Customer.Code, "customerName" => x.Customer.Name, "invoiceDate" => x.InvoiceDate,
         "currencyCode" => x.CurrencyCode, "status" => x.Status.ToString(), "subtotal" => x.Subtotal, "taxTotal" => x.TaxTotal,
-        "grandTotal" => x.GrandTotal, "createdAt" => x.CreatedAt, _ => null
+        "grandTotal" => x.GrandTotal, "paidAmount" => paidAmount, "returnedAmount" => returnedAmount,
+        "outstandingAmount" => Math.Max(0m, x.GrandTotal - paidAmount - returnedAmount),
+        "createdAt" => x.CreatedAt, _ => null
     };
 
     private static async Task<AggregatePage> AggregateInvoicesAsync(IQueryable<SalesInvoice> query, IReadOnlyList<string> groupBy, string aggregate,
@@ -3956,12 +5134,20 @@ public static class ReportEndpoints
                     break;
                 }
                 var type = columns.First(x => x.Code == filter.Field).DataType;
+                if (request.Source == "inventoryTransfers" && filter.Field is not ("code" or "status" or "transferDate" or "createdAt" or "fromWarehouseCode" or "fromWarehouseName" or "toWarehouseCode" or "toWarehouseName"))
+                {
+                    errors["filters"] = ["Depo transferlerinde yalnız kod, durum, tarih ve kaynak/hedef depo alanları filtrelenebilir."];
+                    break;
+                }
                 var allowed = type switch
                 {
                     "text" when request.Source == "inventoryTransactions" && filter.Field is "direction" or "transactionId" or "reversalOfId" => filter.Operator == "equals",
                     "text" when request.Source == "financialAccountTransactions" && filter.Field is "accountType" or "direction" or "sourceType" => filter.Operator == "equals",
                     "text" when request.Source == "financialAccountTransactions" && filter.Field == "reversalOfId" => filter.Operator is "equals" or "isNull",
                     "text" when request.Source == "financialAccountTransactions" && filter.Field is "reference" or "sourceCode" => filter.Operator is "contains" or "equals" or "isNull",
+                    "text" when request.Source == "bankStatementLines" && filter.Field is "externalId" or "reference" => filter.Operator is "contains" or "equals" or "isNull",
+                    "text" when request.Source == "bankStatementLines" && filter.Field == "transactionId" => filter.Operator is "equals" or "isNull",
+                    "text" when request.Source == "bankStatementLines" && filter.Field == "direction" => filter.Operator == "equals",
                     "text" when request.Source == "financialAccountTransfers" && filter.Field == "reference" => filter.Operator is "contains" or "equals" or "isNull",
                     "text" when request.Source == "financialAccountTransfers" && filter.Field == "status" => filter.Operator == "equals",
                     "text" when request.Source == "salesDeliveries" && filter.Field == "invoiceCode" => filter.Operator is "contains" or "equals" or "isNull",
@@ -3977,18 +5163,23 @@ public static class ReportEndpoints
                     "text" when request.Source == "customerLedgerEntries" && filter.Field is "direction" or "sourceType" or "counterpartyType" => filter.Operator == "equals",
                     "text" when request.Source == "customerLedgerEntries" && filter.Field == "reversalOfId" => filter.Operator is "equals" or "isNull",
                     "text" when request.Source == "customerLedgerEntries" && filter.Field == "sourceCode" => filter.Operator is "contains" or "equals" or "isNull",
+                    "text" when request.Source == "customerLedgerEntries" && filter.Field is "collectionPaymentMethod" or "collectionAccountCode" or "collectionReference" => filter.Operator is "contains" or "equals" or "isNull",
                     "text" when filter.Field is "type" or "status" or "trackingMode" or "requesterUserId" => filter.Operator == "equals",
+                    "text" when request.Source == "purchaseOrderFulfillment" && filter.Field == "status" => filter.Operator == "equals",
                     "text" when request.Source == "workflowInstances" && filter.Field is "subjectType" or "status" or "startedByUserId" => filter.Operator == "equals",
                     "text" when request.Source == "stockItems" && (filter.Field is "barcode" or "category") => filter.Operator is "contains" or "equals" or "isNull",
                     "text" => filter.Operator is "contains" or "equals",
-                    "boolean" => filter.Field is "isActive" or "isBalanced" && filter.Operator == "equals",
+                    "boolean" => (filter.Field is "isActive" or "isBalanced" or "belowMinimum" or "isMatched" or "bookEntryCreated") && filter.Operator == "equals",
                     "decimal" when request.Source == "customers" && filter.Field == "riskLimit" => filter.Operator is "equals" or "gt" or "gte" or "lt" or "lte" or "isNull",
                     "decimal" when request.Source == "crmOpportunities" && filter.Field == "estimatedValue" => filter.Operator is "equals" or "gt" or "gte" or "lt" or "lte" or "isNull",
                     "number" when request.Source == "crmOpportunities" && filter.Field == "probabilityPercent" => filter.Operator is "equals" or "gt" or "gte" or "lt" or "lte",
                     "decimal" or "number" => filter.Operator is "equals" or "gt" or "gte" or "lt" or "lte",
+                    "date" when request.Source == "salesOrderFulfillment" && filter.Field == "requestedDeliveryDate" => filter.Operator is "gt" or "gte" or "lt" or "lte" or "isNull",
+                    "date" when request.Source == "purchaseOrderFulfillment" && filter.Field == "expectedReceiptDate" => filter.Operator is "gt" or "gte" or "lt" or "lte" or "isNull",
                     "date" when request.Source == "purchaseRequests" && (filter.Field is "neededByDate" or "reviewedAt") => filter.Operator is "gt" or "gte" or "lt" or "lte" or "isNull",
                     "date" when request.Source == "purchaseSupplierQuotes" && filter.Field == "validUntil" => filter.Operator is "gt" or "gte" or "lt" or "lte" or "isNull",
                     "date" when request.Source == "workflowInstances" && filter.Field == "completedAt" => filter.Operator is "gt" or "gte" or "lt" or "lte" or "isNull",
+                    "date" when request.Source == "bankStatementLines" && filter.Field == "matchedAt" => filter.Operator is "gt" or "gte" or "lt" or "lte" or "equals" or "isNull",
                     "date" when request.Source == "crmOpportunities" && filter.Field is "expectedCloseDate" or "nextActivityAt" => filter.Operator is "gt" or "gte" or "lt" or "lte" or "isNull",
                     "date" when request.Source == "crmOpportunities" && filter.Field is "createdAt" or "updatedAt" => filter.Operator is "gt" or "gte" or "lt" or "lte",
                     "date" => filter.Operator is "gt" or "gte" or "lt" or "lte",
@@ -3999,6 +5190,12 @@ public static class ReportEndpoints
         }
         var sortBy = request?.SortBy ?? "code";
         if (!columns.Any(x => x.Code == sortBy)) errors["sortBy"] = ["Sıralama sütunu geçersiz."];
+        if (request?.Source == "inventoryTransfers" && sortBy is not ("code" or "transferDate" or "status" or "createdAt"))
+            errors["sortBy"] = ["Depo transferleri kod, transfer tarihi, durum veya oluşturulma tarihine göre sıralanabilir."];
+        if (request?.Source == "warehouseStock" && sortBy is not ("stockCode" or "stockName" or "unitCode" or "warehouseCode" or "warehouseName" or "onHand" or "reserved" or "available"))
+            errors["sortBy"] = ["Depo stok bakiyesi stok, depo veya miktar alanlarına göre sıralanabilir."];
+        if (request?.Source == "purchaseOrderFulfillment" && sortBy is not ("orderCode" or "supplierCode" or "expectedReceiptDate" or "stockCode" or "receivedQuantity" or "outstandingQuantity" or "orderDate"))
+            errors["sortBy"] = ["Satın alma karşılama raporu sipariş, tedarikçi, beklenen tarih, stok veya miktara göre sıralanabilir."];
         var requestedGroupFields = request?.GroupByFields is { Count: > 0 }
             ? request.GroupByFields.ToArray()
             : string.IsNullOrWhiteSpace(request?.GroupBy) ? [] : [request!.GroupBy!];
@@ -4011,8 +5208,16 @@ public static class ReportEndpoints
             errors["groupByFields"] = ["Satın alma talepleri kod, durum, talep sahibi kullanıcı kodu veya talep tarihine göre tek alanla gruplanabilir."];
         if (request?.Source == "purchaseReceipts" && groupFields.Length > 0)
             errors["groupByFields"] = ["Mal kabul raporunda ayrıntı satırları gruplanamaz."];
+        if (request?.Source == "inventoryTransfers" && groupFields.Length > 0)
+            errors["groupByFields"] = ["Depo transferleri stok ve depo izlenebilirliği için transfer başına ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
+        if (request?.Source == "salesOrderFulfillment" && groupFields.Length > 0)
+            errors["groupByFields"] = ["Sipariş karşılama miktarları izlenebilirlik için sipariş satırı başına ayrıntı olarak raporlanır; gruplama desteklenmez."];
+        if (request?.Source == "purchaseOrderFulfillment" && groupFields.Length > 0)
+            errors["groupByFields"] = ["Satın alma karşılama miktarları izlenebilirlik için sipariş satırı başına ayrıntı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "bankStatements" && groupFields.Length > 0)
             errors["groupByFields"] = ["Banka ekstreleri uzlaştırma izlenebilirliği için statement başına bir ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
+        if (request?.Source == "bankStatementLines" && groupFields.Length > 0)
+            errors["groupByFields"] = ["Banka ekstresi satırları uzlaştırma izlenebilirliği için satır başına raporlanır; gruplama desteklenmez."];
         if (request?.Source == "financialAccountTransactions" && groupFields.Length > 0)
             errors["groupByFields"] = ["Kasa-banka hareketleri, para birimleri farklı olabileceğinden ve izlenebilirlik için hareket başına bir ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "financialAccountTransfers" && groupFields.Length > 0)
@@ -4023,8 +5228,8 @@ public static class ReportEndpoints
             errors["groupByFields"] = ["Döviz değerleme satırları kur ve hesap izlenebilirliği için belge satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "crmOpportunities" && groupFields.Length > 0)
             errors["groupByFields"] = ["CRM fırsatları para birimleri farklı olabileceğinden ve izlenebilirlik için fırsat başına bir ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
-        if (request?.Source == "customerLedgerEntries" && groupFields.Length > 0)
-            errors["groupByFields"] = ["Müşteri cari hareketleri para birimi ve ters kayıt izlenebilirliği için hareket başına ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
+        if (request?.Source is "customerLedgerEntries" or "supplierLedgerEntries" && groupFields.Length > 0)
+            errors["groupByFields"] = ["Cari hareketleri para birimi ve ters kayıt izlenebilirliği için hareket başına ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "manufacturingWorkCenters" && groupFields.Length > 0)
             errors["groupByFields"] = ["Üretim iş merkezleri kapasite ve maliyet denetimi için merkez başına bir ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "purchaseInvoices" && groupFields.Length > 0)
@@ -4045,6 +5250,8 @@ public static class ReportEndpoints
             errors["groupByFields"] = ["Üretim emirleri yalnızca durum alanına göre gruplanabilir."];
         if (request?.Source == "inventoryTransactions" && groupFields.Length > 0)
             errors["groupByFields"] = ["Stok hareketleri izlenebilirliği korumak için ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
+        if (request?.Source == "warehouseStock" && groupFields.Length > 0)
+            errors["groupByFields"] = ["Depo stok bakiyeleri depo ve stok kartı başına bir ayrıntı satırı olarak raporlanır; gruplama desteklenmez."];
         if (request?.Source == "workflowInstances" && groupFields.Any(field => field is not ("workflowCode" or "subjectType" or "status")))
             errors["groupByFields"] = ["İş akışı geçmişi kod, kayıt türü ve durum alanlarına göre gruplanabilir."];
         var aggregate = request?.Aggregate;
@@ -4260,12 +5467,13 @@ public static class ReportEndpoints
         "sumOnHand" => "Eldeki miktar toplamı", "averageOnHand" => "Ortalama eldeki miktar",
         "sumReserved" => "Rezerve miktar toplamı", "averageReserved" => "Ortalama rezerve miktar",
         "sumAvailable" => "Kullanılabilir miktar toplamı", "averageAvailable" => "Ortalama kullanılabilir miktar",
+        "sumMinimumStockGap" => "Minimum stok açığı toplamı", "averageMinimumStockGap" => "Ortalama minimum stok açığı",
         _ => "Stok kartı sayısı"
     };
 
     private static IReadOnlyList<ReportColumn> ColumnsForSource(string source) => source switch
     {
-        "customers" => CustomerColumns, "salesInvoices" => SalesInvoiceColumns, "purchaseOrders" => PurchaseOrderColumns, "purchaseInvoices" => PurchaseInvoiceColumns, "purchaseReceipts" => PurchaseReceiptColumns, "manufacturingOrders" => ManufacturingOrderColumns, "manufacturingWorkCenters" => ManufacturingWorkCenterColumns, "inventoryTransactions" => InventoryTransactionColumns, "salesOrders" => SalesOrderColumns, "salesQuotes" => SalesQuoteColumns, "purchaseSupplierQuotes" => PurchaseSupplierQuoteColumns, "supplierPayments" => SupplierPaymentColumns, "salesDeliveries" => SalesDeliveryColumns, "salesReturns" => SalesReturnColumns, "supplierReturns" => SupplierReturnColumns, "purchaseRequests" => PurchaseRequestColumns, "stockItems" => StockItemColumns, "workflowInstances" => WorkflowInstanceColumns, "bankStatements" => BankStatementColumns, "financialAccountTransactions" => FinancialAccountTransactionColumns, "financialAccountTransfers" => FinancialAccountTransferColumns, "journalEntryLines" => JournalEntryLineColumns, "fxRevaluationLines" => FxRevaluationLineColumns, "crmOpportunities" => CrmOpportunityColumns, "customerLedgerEntries" => CustomerLedgerColumns, _ => []
+        "customers" => CustomerColumns, "salesInvoices" => SalesInvoiceColumns, "purchaseOrders" => PurchaseOrderColumns, "purchaseInvoices" => PurchaseInvoiceColumns, "purchaseReceipts" => PurchaseReceiptColumns, "manufacturingOrders" => ManufacturingOrderColumns, "manufacturingWorkCenters" => ManufacturingWorkCenterColumns, "inventoryTransactions" => InventoryTransactionColumns, "inventoryTransfers" => InventoryTransferColumns, "salesOrders" => SalesOrderColumns, "salesOrderFulfillment" => SalesOrderFulfillmentColumns, "purchaseOrderFulfillment" => PurchaseOrderFulfillmentColumns, "salesQuotes" => SalesQuoteColumns, "purchaseSupplierQuotes" => PurchaseSupplierQuoteColumns, "supplierPayments" => SupplierPaymentColumns, "salesDeliveries" => SalesDeliveryColumns, "salesReturns" => SalesReturnColumns, "supplierReturns" => SupplierReturnColumns, "purchaseRequests" => PurchaseRequestColumns, "stockItems" => StockItemColumns, "warehouseStock" => WarehouseStockColumns, "workflowInstances" => WorkflowInstanceColumns, "bankStatements" => BankStatementColumns, "bankStatementLines" => BankStatementLineColumns, "financialAccountTransactions" => FinancialAccountTransactionColumns, "financialAccountTransfers" => FinancialAccountTransferColumns, "journalEntryLines" => JournalEntryLineColumns, "fxRevaluationLines" => FxRevaluationLineColumns, "crmOpportunities" => CrmOpportunityColumns, "customerLedgerEntries" => CustomerLedgerColumns, "supplierLedgerEntries" => SupplierLedgerColumns, _ => []
     };
 
     private static IReadOnlyList<ReportAggregateOption> AggregatesForSource(string source) => source switch
@@ -4279,6 +5487,7 @@ public static class ReportEndpoints
     private static ReportColumn ManufacturingOrderColumnByCode(string code) => ManufacturingOrderColumns.First(x => x.Code == code);
     private static ReportColumn ManufacturingWorkCenterColumnByCode(string code) => ManufacturingWorkCenterColumns.First(x => x.Code == code);
     private static ReportColumn InventoryTransactionColumnByCode(string code) => InventoryTransactionColumns.First(x => x.Code == code);
+    private static ReportColumn InventoryTransferColumnByCode(string code) => InventoryTransferColumns.First(x => x.Code == code);
     private static ReportColumn SalesOrderColumnByCode(string code) => SalesOrderColumns.First(x => x.Code == code);
     private static ReportColumn SalesQuoteColumnByCode(string code) => SalesQuoteColumns.First(x => x.Code == code);
     private static ReportColumn PurchaseSupplierQuoteColumnByCode(string code) => PurchaseSupplierQuoteColumns.First(x => x.Code == code);
@@ -4288,6 +5497,7 @@ public static class ReportEndpoints
     private static ReportColumn StockItemColumnByCode(string code) => StockItemColumns.First(x => x.Code == code);
     private static ReportColumn WorkflowInstanceColumnByCode(string code) => WorkflowInstanceColumns.First(x => x.Code == code);
     private static ReportColumn BankStatementColumnByCode(string code) => BankStatementColumns.First(x => x.Code == code);
+    private static ReportColumn BankStatementLineColumnByCode(string code) => BankStatementLineColumns.First(x => x.Code == code);
     private static ReportColumn FinancialAccountTransactionColumnByCode(string code) => FinancialAccountTransactionColumns.First(x => x.Code == code);
 
     private static bool TryApplyCustomerFilter(ref IQueryable<CustomerAccount> query, ReportFilter filter, out string? error)
@@ -4354,7 +5564,12 @@ public static class ReportEndpoints
 
     private static ReportColumn ColumnByCode(string code) => CustomerColumns.First(x => x.Code == code);
     private static ReportView ToView(TenantSavedReport report) => new(report.Id, report.Name, report.Source,
-        JsonSerializer.Deserialize<ReportRunRequest>(report.DefinitionJson, JsonOptions) ?? new ReportRunRequest("customers", ["code", "name"], [], "code", false, 1, 50), report.Kind, report.CreatedAt, report.UpdatedAt);
+        JsonSerializer.Deserialize<ReportRunRequest>(report.DefinitionJson, JsonOptions) ?? new ReportRunRequest("customers", ["code", "name"], [], "code", false, 1, 50), report.Kind, report.CreatedAt, report.UpdatedAt, report.DefinitionRevision);
+    private static TenantSavedReportRevision RevisionOf(TenantSavedReport report, Guid userId, DateTimeOffset createdAt) => new()
+    {
+        TenantId = report.TenantId, SavedReportId = report.Id, Revision = report.DefinitionRevision, Name = report.Name,
+        Kind = report.Kind, Source = report.Source, DefinitionJson = report.DefinitionJson, CreatedByUserId = userId, CreatedAt = createdAt
+    };
     private static bool TrySavedKind(string? requested, string? fallback, out string normalized)
     {
         var value = string.IsNullOrWhiteSpace(requested) ? fallback : requested.Trim();
@@ -4373,9 +5588,42 @@ public static class ReportEndpoints
 }
 
 public sealed record ReportColumn(string Code, string Label, string DataType, IReadOnlyList<string>? Options = null);
+public sealed record ManufacturingCostVarianceReport(DateOnly From, DateOnly To, string PeriodBasis, string BaseCurrencyCode,
+    int Page, int PageSize, int TotalCount, IReadOnlyList<ManufacturingCostVarianceOrder> Orders,
+    ManufacturingCostVarianceTotals PageTotals, string Limitations);
+public sealed record ManufacturingCostVarianceOrder(string OrderCode, DateOnly PlannedDate, string Status, decimal PlannedQuantity,
+    int OperationCount, string CurrencyCode, decimal PlannedLaborBase, decimal? ActualLaborBase,
+    decimal PlannedOverheadBase, decimal? ActualOverheadBase, decimal? PlannedEnergyBase, decimal? ActualEnergyBase,
+    decimal? PlannedMaterialBase, decimal? ActualMaterialBase, decimal PlannedConversionBase,
+    decimal? ActualConversionBase, decimal? ConversionVarianceBase, decimal? ActualTotalCostBase, decimal? TotalVarianceBase);
+public sealed record ManufacturingCostVarianceTotals(int OrderCount, decimal PlannedLaborBase, decimal? ActualLaborBase,
+    decimal PlannedOverheadBase, decimal? ActualOverheadBase, decimal PlannedEnergyBase, decimal PlannedMaterialBase, decimal? ActualEnergyBase,
+    decimal? ActualConversionBase, decimal? ActualMaterialBase);
+public sealed record SalesOrderFulfillmentReportRow(string OrderCode, string CustomerCode, string CustomerName, DateOnly OrderDate,
+    DateOnly? RequestedDeliveryDate, SalesOrderStatus Status, int LineNumber, string StockCode, string StockName, string UnitCode,
+    decimal OrderedQuantity, decimal ReservedQuantity, decimal FulfilledQuantity, decimal RemainingQuantity, decimal BackorderQuantity);
+public sealed class PurchaseOrderFulfillmentReportRow
+{
+    public required string OrderCode { get; init; }
+    public required string SupplierCode { get; init; }
+    public required string SupplierName { get; init; }
+    public DateOnly OrderDate { get; init; }
+    public DateOnly? ExpectedReceiptDate { get; init; }
+    public PurchaseOrderStatus Status { get; init; }
+    public int LineNumber { get; init; }
+    public required string StockCode { get; init; }
+    public required string StockName { get; init; }
+    public required string UnitCode { get; init; }
+    public decimal OrderedQuantity { get; init; }
+    public decimal ReceivedQuantity { get; init; }
+    public decimal OutstandingQuantity { get; init; }
+}
 public sealed record BankStatementReportRow(Guid Id, string Code, string AccountCode, string AccountName, string CurrencyCode,
     DateOnly StartDate, DateOnly EndDate, decimal OpeningBalance, decimal ClosingBalance, BankStatementStatus Status,
     int LineCount, int MatchedLineCount, int UnmatchedLineCount, DateTimeOffset CreatedAt);
+public sealed record BankStatementLineReportRow(Guid Id, string StatementCode, int LineNumber, string? ExternalId, DateOnly TransactionDate,
+    FinancialDirection Direction, string CurrencyCode, decimal Amount, string Description, string? Reference, bool IsMatched,
+    Guid? TransactionId, bool BookEntryCreated, DateTimeOffset? MatchedAt);
 public sealed record FinancialAccountTransactionReportRow(Guid Id, string AccountCode, string AccountName, FinancialAccountType AccountType,
     DateOnly TransactionDate, FinancialDirection Direction, string CurrencyCode, decimal Amount, string Description, string? Reference,
     string SourceType, string? SourceCode, Guid? ReversalOfId, DateTimeOffset CreatedAt);
@@ -4402,9 +5650,11 @@ public sealed record ReportSource(string Code, string Label, IReadOnlyList<Repor
 public sealed record ReportFilter(string Field, string Operator, string? Value);
 public sealed record ReportRunRequest(string Source, IReadOnlyList<string>? Columns, IReadOnlyList<ReportFilter>? Filters, string? SortBy, bool Descending, int Page = 1, int PageSize = 50, string? GroupBy = null, string? Aggregate = null, IReadOnlyList<string>? GroupByFields = null);
 public sealed record ReportPageRequest(int Page = 1, int PageSize = 50);
-public sealed record ReportSaveRequest(string? Name, ReportRunRequest? Definition, string? Kind = null);
+public sealed record ReportSaveRequest(string? Name, ReportRunRequest? Definition, string? Kind = null, int? ExpectedRevision = null);
+public sealed record RestoreSavedReportRequest(int ExpectedRevision);
 public sealed record NormalizedReport(string Source, IReadOnlyList<string> Columns, IReadOnlyList<ReportFilter> Filters, string SortBy, bool Descending, int Page, int PageSize, string? GroupBy = null, string? Aggregate = null, IReadOnlyList<string> GroupByFields = null!);
 public sealed record ReportAggregateRow(object? GroupValue, int RowCount, decimal? Value, IReadOnlyList<object?>? GroupValues = null);
 public sealed record AggregatePage(IReadOnlyList<ReportAggregateRow> Rows, int TotalGroups);
 public sealed record ReportResult(string Source, IReadOnlyList<ReportColumn> Columns, IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows, int Page, int PageSize, int TotalCount, string? GroupBy = null, string? Aggregate = null, IReadOnlyList<ReportAggregateRow>? Groups = null, int TotalGroups = 0, IReadOnlyList<string>? GroupByFields = null);
-public sealed record ReportView(Guid Id, string Name, string Source, ReportRunRequest Definition, string Kind, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+public sealed record ReportView(Guid Id, string Name, string Source, ReportRunRequest Definition, string Kind, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, int DefinitionRevision);
+public sealed record SavedReportRevisionView(Guid Id, int Revision, string Name, string Kind, string Source, ReportRunRequest Definition, Guid CreatedByUserId, DateTimeOffset CreatedAt);

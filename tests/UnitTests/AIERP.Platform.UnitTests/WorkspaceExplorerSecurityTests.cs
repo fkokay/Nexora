@@ -64,7 +64,7 @@ public sealed class WorkspaceExplorerSecurityTests
             Assert.Equal("class Sample { }\n", deletedDiff.Diff.BaseContent);
             Assert.Equal("", deletedDiff.Diff.CurrentContent);
             var largePath = Path.Combine(workspace, "Large.txt");
-            File.WriteAllText(largePath, new string('x', 128 * 1024 + 1));
+            File.WriteAllText(largePath, new string('x', WorkspaceFileLimits.MaxManualWorkspaceFileBytes + 1));
             Assert.Equal("too_large", (await WorkspaceSecurity.GetWorkspaceGitDiffAsync(root, workspaceId, "Large.txt", CancellationToken.None)).Error);
             File.Delete(largePath);
             var binaryPath = Path.Combine(workspace, "Binary.dat");
@@ -128,6 +128,45 @@ public sealed class WorkspaceExplorerSecurityTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
+    [Fact]
+    public void Workspace_path_resolution_rejects_linked_storage_root_and_checkout()
+    {
+        var basePath = Path.Combine(Path.GetTempPath(), $"aierp-workspace-root-links-{Guid.NewGuid():N}");
+        var realRoot = Path.Combine(basePath, "real-root");
+        var linkedRoot = Path.Combine(basePath, "linked-root");
+        var checkoutRoot = Path.Combine(basePath, "checkout-root");
+        var outsideCheckout = Path.Combine(basePath, "outside-checkout");
+        var gitLinkRoot = Path.Combine(basePath, "git-link-root");
+        var outsideGit = Path.Combine(basePath, "outside-git");
+        var workspaceId = Guid.NewGuid();
+        Directory.CreateDirectory(Path.Combine(realRoot, workspaceId.ToString("N"), ".git"));
+        Directory.CreateDirectory(checkoutRoot);
+        Directory.CreateDirectory(Path.Combine(outsideCheckout, ".git"));
+        Directory.CreateDirectory(Path.Combine(gitLinkRoot, workspaceId.ToString("N")));
+        Directory.CreateDirectory(outsideGit);
+        try
+        {
+            try
+            {
+                Directory.CreateSymbolicLink(linkedRoot, realRoot);
+                Directory.CreateSymbolicLink(Path.Combine(checkoutRoot, workspaceId.ToString("N")), outsideCheckout);
+                Directory.CreateSymbolicLink(Path.Combine(gitLinkRoot, workspaceId.ToString("N"), ".git"), outsideGit);
+            }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+            {
+                return; // Windows installations without symlink privileges cannot exercise these filesystem cases.
+            }
+
+            Assert.False(WorkspaceSecurity.TryResolveDirectory(linkedRoot, workspaceId, null, out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveDirectory(checkoutRoot, workspaceId, null, out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveDirectory(gitLinkRoot, workspaceId, null, out _, out _));
+        }
+        finally
+        {
+            try { Directory.Delete(basePath, recursive: true); } catch (IOException) { }
+        }
+    }
+
     [Theory]
     [InlineData("feature/workspace-browser/readme.txt", true)]
     [InlineData("../outside.txt", false)]
@@ -149,6 +188,74 @@ public sealed class WorkspaceExplorerSecurityTests
             if (valid) Assert.Equal(Path.Combine(folder, "readme.txt"), filePath);
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Theory]
+    [InlineData(".env")]
+    [InlineData(".env.production")]
+    [InlineData("config/secrets.json")]
+    [InlineData("config/credential-store.json")]
+    public void Workspace_file_resolution_rejects_conventional_secret_files(string path)
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-workspaces-{Guid.NewGuid():N}");
+        var workspaceId = Guid.NewGuid();
+        var workspace = Path.Combine(root, workspaceId.ToString("N"));
+        Directory.CreateDirectory(Path.Combine(workspace, ".git"));
+        var file = Path.Combine(workspace, path.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        File.WriteAllText(file, "sensitive value");
+        try
+        {
+            Assert.False(WorkspaceSecurity.TryResolveFile(root, workspaceId, path, out _, out _));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void Workspace_path_resolution_rejects_windows_trailing_dot_and_space_aliases()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-workspaces-{Guid.NewGuid():N}");
+        var workspaceId = Guid.NewGuid();
+        var workspace = Path.Combine(root, workspaceId.ToString("N"));
+        Directory.CreateDirectory(Path.Combine(workspace, ".git"));
+        File.WriteAllText(Path.Combine(root, "outside.txt"), "outside");
+        try
+        {
+            Assert.False(WorkspaceSecurity.TryResolveDirectory(root, workspaceId, ".git ", out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveDirectory(root, workspaceId, ".. ", out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveFile(root, workspaceId, ".git /config", out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveFile(root, workspaceId, ".. /outside.txt", out _, out _));
+            Assert.False(WorkspaceSecurity.TryResolveNewFile(root, workspaceId, "src/new.cs.", out _, out _));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void Workspace_runner_storage_resolution_rejects_reparse_points_under_configured_roots()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-runner-storage-{Guid.NewGuid():N}");
+        var outside = Path.Combine(Path.GetTempPath(), $"aierp-runner-outside-{Guid.NewGuid():N}");
+        var jobId = Guid.NewGuid();
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(outside);
+        try
+        {
+            try { Directory.CreateSymbolicLink(Path.Combine(root, jobId.ToString("N")), outside); }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+            { return; } // Some Windows filesystems do not grant symlink creation to the test process.
+
+            Assert.False(WorkspaceSecurity.TryResolveStorageChild(root, jobId.ToString("N"), out _));
+            Assert.False(WorkspaceSecurity.TryResolveStorageChild(root, "../outside", out _));
+            var newId = Guid.NewGuid();
+            Assert.True(WorkspaceSecurity.TryResolveStorageChild(root, newId.ToString("N"), out var newPath));
+            Assert.Equal(Path.Combine(root, newId.ToString("N")), newPath);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+            try { Directory.Delete(outside, recursive: true); } catch (IOException) { }
+        }
     }
 
     [Fact]

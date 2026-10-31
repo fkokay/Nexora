@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-23",
+  "package": "2026-10-23-r2",
+  "status": "generated-not-applied-not-rehearsed",
+  "checkedAtUtc": "2026-10-23T10:27:21.7476218Z",
+  "evidence": {
+    "databaseRestore": "not performed",
+    "migration": "not applied",
+    "production": "not queried or changed",
+    "codeBuild": "Release configuration built by full solution test run",
+    "tests": "551 unit and 206 integration passed; 7 SQL Server acceptance tests skipped due unavailable dedicated test database configuration",
+    "packageIntegrity": "passed: artifacts/migrations/2026-10-23-r2/SHA256SUMS.txt and static release readiness preflight",
+    "staticHistoryPreflight": {
+      "tenant": "44 of 47; 3 pending",
+      "scope": "last documented r3 history only; no live database queried",
+      "status": "passed-static-history-preflight",
+      "platform": "124 of 133; 9 pending",
+      "aiStudio": "10 of 11; 1 pending"
+    }
+  },
+  "databaseQueried": false,
+  "databaseChanged": false,
+  "dockerOrVolumesTouched": false,
+  "releaseGate": "NO-GO: real target history and backup review plus rehearsal on an isolated verified restore are still required before applying r2."
+}

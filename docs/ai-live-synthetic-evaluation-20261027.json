@@ -1,0 +1,19 @@
+{
+  "observedAtUtc": "2026-10-27T00:43:37.1426878Z",
+  "evaluationSet": "erp-assistant-synthetic-inventory",
+  "version": "1.0.0",
+  "provider": "OpenAI",
+  "model": "gpt-6-luna",
+  "requests": 1,
+  "maxOutputTokens": 120,
+  "tenantDataUsed": false,
+  "passed": false,
+  "outcome": "provider_rejected_request",
+  "httpStatus": 429,
+  "retryAttempted": false,
+  "answerTextRecorded": false,
+  "responseBodyRecorded": false,
+  "failureClass": "rate_limit_or_quota_unknown",
+  "classificationSource": "http_status_only",
+  "note": "One synthetic inventory request only; HTTP 429 was returned. Response body was omitted, so rate limiting and account quota cannot be distinguished. No retry, tenant data, or answer text was used or retained."
+}

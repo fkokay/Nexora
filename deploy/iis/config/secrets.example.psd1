@@ -11,6 +11,15 @@
     }
     PlatformApi = @{
         'ConnectionStrings__Platform' = 'Server=sql.example.internal;Database=AIERPPlatform;User Id=aierp_runtime;Password=CHANGE-ME;Encrypt=True;TrustServerCertificate=False;'
+        # Endpoint/TLS templates only; tenant-specific SQL credentials are resolved from Vault.
+        'ConnectionStrings__Tenant' = 'Server=sql.example.internal;Database=AIERPPlatform;Encrypt=True;TrustServerCertificate=False;'
+        'ConnectionStrings__AIStudio' = 'Server=sql.example.internal;Database=AIERPStudio;Encrypt=True;TrustServerCertificate=False;'
+        'Database__SeparationEnabled' = 'true'
+        'Vault__Address' = 'https://vault.example.internal'
+        'Vault__Mount' = 'secret'
+        'Vault__TenantSqlCredentialReader__RoleIdFile' = 'C:\ProgramData\Nexora\secrets\vault_tenant_sql_reader_role_id'
+        'Vault__TenantSqlCredentialReader__SecretIdFile' = 'C:\ProgramData\Nexora\secrets\vault_tenant_sql_reader_secret_id'
+        'Vault__AllowHttpForLocalDevelopment' = 'false'
         'PluginHost__SigningKey' = 'CHANGE-ME-USE-A-DIFFERENT-RANDOM-SECRET-AT-LEAST-32-BYTES'
         'IntegrationQueue__EncryptionKey' = 'CHANGE-ME-BASE64-OF-EXACTLY-32-RANDOM-BYTES'
         'PluginHost__BaseUrl' = 'https://plugin-host.internal'
@@ -18,10 +27,16 @@
         'AIService__BaseUrl' = 'http://127.0.0.1:5081'
         'ModulePackages__RootPath' = 'D:\Nexora\data\module-packages'
         'Database__ApplyMigrationsOnStartup' = 'false'
-        'Database__SeparationEnabled' = 'false'
     }
     AIService = @{
         'ConnectionStrings__Platform' = 'Server=sql.example.internal;Database=AIERPPlatform;User Id=aierp_runtime;Password=CHANGE-ME;Encrypt=True;TrustServerCertificate=False;'
+        # Endpoint/TLS template only; tenant-specific Studio SQL credentials are resolved from Vault.
+        'ConnectionStrings__AIStudio' = 'Server=sql.example.internal;Database=AIERPStudio;Encrypt=True;TrustServerCertificate=False;'
+        'Vault__Address' = 'https://vault.example.internal'
+        'Vault__Mount' = 'secret'
+        'Vault__TenantSqlCredentialReader__RoleIdFile' = 'C:\ProgramData\Nexora\secrets\vault_tenant_sql_reader_role_id'
+        'Vault__TenantSqlCredentialReader__SecretIdFile' = 'C:\ProgramData\Nexora\secrets\vault_tenant_sql_reader_secret_id'
+        'Vault__AllowHttpForLocalDevelopment' = 'false'
         'PlatformApi__BaseUrl' = 'http://127.0.0.1:5080'
         'WorkspaceRunner__BaseUrl' = 'https://workspace-runner.internal'
         'ReleaseDeployer__BaseUrl' = 'https://release-deployer.internal'
@@ -31,6 +46,6 @@
         'GitHub__WebhookSecret' = 'CHANGE-ME-OPTIONAL-AT-LEAST-32-BYTES'
         'GitHub__StudioRedirectUrl' = 'https://studio.example.com/?app=studio'
         'GitHub__SetupCallbackUrl' = 'https://studio.example.com/studio/github/setup-callback'
-        'Database__SeparationEnabled' = 'false'
+        'Database__SeparationEnabled' = 'true'
     }
 }

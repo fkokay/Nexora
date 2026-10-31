@@ -30,3 +30,22 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## Local UI development with the remote Docker services
+
+The ERP Web Vite server proxies `/api` and `/health` to the API host and `/studio` to the Studio host. For the shared development deployment, create `frontend/erp-web/.env.local` with:
+
+```dotenv
+NEXORA_API_PROXY_TARGET=https://nexoraerp.ozgurteknolojiyazilim.com
+NEXORA_STUDIO_PROXY_TARGET=https://nexorastudio.ozgurteknolojiyazilim.com
+VITE_STUDIO_URL=https://nexorastudio.ozgurteknolojiyazilim.com/?app=studio
+```
+
+Start the dev server from this directory so npm finds this package's `package.json`:
+
+```powershell
+Set-Location D:\CProjeler\Nexora\frontend\erp-web
+npm.cmd run dev
+```
+
+Vite loads `.env.local` only when it starts. After changing proxy targets, stop the running server with `Ctrl+C` and run the commands again. A proxy `ECONNREFUSED` means the configured target host/port is not accepting connections; if the local API is not running, point `NEXORA_API_PROXY_TARGET` at the reachable remote API instead of the default `http://localhost:5080`.

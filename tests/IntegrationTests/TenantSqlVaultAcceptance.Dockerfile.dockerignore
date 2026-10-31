@@ -1,0 +1,10 @@
+**
+!tests/
+!tests/IntegrationTests/
+!tests/IntegrationTests/bin/
+!tests/IntegrationTests/bin/Release/
+!tests/IntegrationTests/bin/Release/net10.0/
+!tests/IntegrationTests/bin/Release/net10.0/**
+!deploy/
+!deploy/sql/
+!deploy/sql/Install-TenantProvisioningBoundary.sql

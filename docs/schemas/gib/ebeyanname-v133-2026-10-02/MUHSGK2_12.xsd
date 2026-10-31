@@ -1,0 +1,1233 @@
+<?xml version="1.0" encoding="ISO-8859-9"?>
+<!-- edited with XML Spy v4.4 U (http://www.xmlspy.com) by fatma (cs) -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:include schemaLocation="EBYN.xsd"/>
+	<xs:complexType name="beyanname_type">
+		<xs:sequence>
+			<xs:element name="genel" type="genel_type"/>
+			<xs:element name="ozel" type="ozel_type"/>
+		</xs:sequence>
+		<xs:attribute name="kodVer" type="xs:string" use="required"/>
+		<xs:attribute name="paraBirimi" type="xs:string" use="optional"/>
+	</xs:complexType>
+	<xs:element name="beyanname" type="beyanname_type"/>
+	<xs:complexType name="ozel_type">
+		<xs:sequence>
+			<xs:element name="subeNo" type="subeNo_type">
+				<xs:annotation>
+					<xs:documentation>Şube No</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="beyanimVarYok" type="beyanimVarYok_type">
+				<xs:annotation>
+					<xs:documentation>bundan sonraki ay/aylarda beyanım var/yok</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="matrahBildirimleri" type="matrahBildirimleri_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Matrah ve Vergi Bildirimi tablosunda satırlardaki bilgiler bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="toplamGayrisafiTutar" type="toplamTutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Matrah ve Vergi Bildirimi tablosunda Toplam Ödemelerin Gayrisafi Tutarı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="toplamKesintiTutari" type="toplamTutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Matrah ve Vergi Bildirimi tablosunda Toplam Gelir Vergisi Kesinti Tutarı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="terkinTutari5225" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Ücret Ödemeleri Üzerinden Yapılan Tevkifatın 5225 Say. Kanun Gereği Terkin Edilen Tutarı  bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="terkinTutari5746" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Ücret Ödemeleri Üzerinden Yapılan Tevkifatın 5746 Say. Kanun Gereği Terkin Edilen Tutarı  bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="terkinTutari4691" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Ücret Ödemeleri Üzerinden Yapılan Tevkifatın 4691 Say. Kanun Gereği Terkin Edilen Tutarı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="terkinSonrasiTutar" type="toplamTutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Terkin Sonrası Kalan Gelir Vergisi Tutarı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="mahsuplar" type="mahsup_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Mahsup Edilen Vergiler bilgileri bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="damgaVergileri" type="damgaVergisi_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Damga vergisine ilişkin bilgiler bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="calisanIsciler" type="calisanBilgileri_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Çalıştırılan İşçi Sayısı bilgileri bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="matrah" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Tahakkuka Esas İcmal Cetveli bilgilerinde Matrah bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="tahakkukEden" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Tahakkuka Esas İcmal Cetveli bilgilerinde Tahakkuk Eden bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="mahsup" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Tahakkuka Esas İcmal Cetveli bilgilerinde Mahsup bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="tecilEdilecekTutar" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Tecil Edilecek Tutar bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="odenecek" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Tahakkuka Esas İcmal Cetveli bilgilerinde Ödenecek Vergi bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="iadeEdilecek" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Tahakkuka Esas İcmal Cetveli bilgilerinde İade Edilecek Vergi bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="odenecekDamgaVergisi" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Tahakkuka Esas İcmal Cetveli bilgilerinde Ödenecek Damga Vergisi bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="sgkBildirgeleri" type="sgkBildirgeleri_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Sgk bildirgeleri.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="ekler" type="ekler_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Eklere ilişkin bilgiler bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="matrahBildirimleri_type">
+		<xs:sequence>
+			<xs:element name="matrahBildirimi" type="matrahBildirimi_type" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation>
+						Matrah ve Vergi Bildirimi tablosunda her bir satırdaki bilgiler bu etiket altında toplanmıştır.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="matrahBildirimi_type">
+		<xs:sequence>
+			<xs:element name="turKodu" type="turKodu_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Matrah ve Vergi Bildirimi tablosunda her bir satırdaki Ödemelerin Tur Kodunu içerir.
+						Ref: OAB_TK
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="gayrisafiTutar" type="tutar_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Matrah ve Vergi Bildirimi tablosunda her bir satırdaki Ödemelerin Gayri Safi Tutarı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="kesintiTutari" type="tutar_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Matrah ve Vergi Bildirimi tablosunda her bir satırdaki Gelir Vergisi Kesinti Tutarı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="mahsup_type">
+		<xs:sequence>
+			<xs:element name="gvkMd33MahsupTutar" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Mahsup Edilen Vergiler bilgilerinde GVK'nın 33. Maddesi Kapsamında Mahsup Edilecek Kesinti Tutarı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="mahsupToplami" type="toplamTutar_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Mahsup Edilen Vergiler bilgilerinde Mahsup Edilecek Gelir Vergisi bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="damgaVergisi_type">
+		<xs:sequence>
+			<xs:element name="tevkifatDamgaVergisi" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Tevkifata İlişkin Damga Vergisi bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="calisanBilgileri_type">
+		<xs:sequence>
+			<xs:element name="calisanBilgileri" type="isciler_type" maxOccurs="2">
+				<xs:annotation>
+					<xs:documentation>
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="isciler_type">
+		<xs:sequence>
+			<xs:element name="calisanBilgisi" type="turKodu_type">
+				<xs:annotation>
+					<xs:documentation>
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="toplamCalisan" type="adet_type">
+				<xs:annotation>
+					<xs:documentation>
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="gelirVergisiMuaf" type="adet_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="sgkMuaf" type="adet_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="gelirVergisiMatrahi" type="tutar_type">
+				<xs:annotation>
+					<xs:documentation>
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="auIstisnaGV" type="tutar_type" >
+				<xs:annotation>
+					<xs:documentation>
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="gelirVergisiKesintisi" type="tutar_type" >
+				<xs:annotation>
+					<xs:documentation>
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="auIstisnaDV" type="tutar_type" >
+				<xs:annotation>
+					<xs:documentation>
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="damgaVergisiKesintisi" type="tutar_type">
+				<xs:annotation>
+					<xs:documentation>
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="gvk4691KapsamindakiBildirim_type">
+		<xs:sequence>
+			<xs:element name="isyeriBilgileri4691" type="isyeriBilgileri4691_type"/>
+			<xs:element name="calisanBilgileri4691" type="calisanBilgileri4691_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="isyeriBilgileri4691_type">
+		<xs:sequence>
+			<xs:element name="isyeriBilgisi" type="isyeriBilgisi4691_type" maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="calisanBilgileri4691_type">
+		<xs:sequence>
+			<xs:element name="calisanBilgisi" type="calisanBilgisi4691_type" maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="isyeriBilgisi4691_type">
+		<xs:sequence>
+			<xs:element name="isyeriIlIlce" type="ililce_type"/>
+			<xs:element name="vdKodu" type="vdKodu_type"/>
+			<xs:element name="toplamIsci" type="adet_type"/>
+			<xs:element name="isyeriYeniSubeKod" type="isyeriSubeKod_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Bildirim Kapsamında Bulunan İşyerlerinin Çalışanlarına İlişkin Bilgiler tablosunda her bir satırdaki Yeni Ünite Kodu bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="isyeriEskiSubeKod" type="isyeriSubeKod_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Bildirim Kapsamında Bulunan İşyerlerinin Çalışanlarına İlişkin Bilgiler tablosunda her bir satırdaki Eski Ünite Kodu bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="isyeriSiraNo" type="isyeriSiraNo_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Bildirim Kapsamında Bulunan İşyerlerinin Çalışanlarına İlişkin Bilgiler tablosunda her bir satırdaki İşyeri Sıra Numarası bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="isyeriIlKod" type="turKodu_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Bildirim Kapsamında Bulunan İşyerlerinin Çalışanlarına İlişkin Bilgiler tablosunda her bir satırdaki İl Kodu bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="isyeriAraciSiraNo" type="isyeriAraciSiraNo_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Bildirim Kapsamında Bulunan İşyerlerinin Çalışanlarına İlişkin Bilgiler tablosunda her bir satırdaki Alt İşveren Numarası bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="isyeriAdres" type="adres_type2" />
+            <xs:element name="isyeriProjeKodu" type="projeKodu_type" />
+			<xs:element name="isYeriBolge" type="turKodu_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="calisanBilgisi4691_type">
+		<xs:sequence>
+			<xs:element name="isciTuru" type="turKodu_type"/>
+			<xs:element name="calisanBilgileriBolgeVeProjeKodu" type="turKodu_type"/>
+			<xs:element name="calisanAdSoyad" type="adSoyad_type"/>
+			<xs:element name="calisanTCKN" type="tcKimlikNo_type"/>
+			<xs:element name="isBaslamaTarihi" type="tarih_type"/>
+			<xs:element name="ucretToplam" type="tutar_type"/>
+			<xs:element name="argeUcretMatrahi" type="tutar_type"/>
+			<xs:element name="argeTesvikKapsamiAzamiUcret" type="tutar_type"/>
+			<xs:element name="argeTesvikKapsamiMatrahVergisi" type="tutar_type"/>
+			<xs:element name="argeCalismayaIliskinUcretVergisi" type="tutar_type"/>
+			<xs:element name="argeMahsupAsgariUcretVergisi" type="tutar_type"/>
+			<xs:element name="argeMahsupSonrasiAsgariUcretVergisi" type="tutar_type"/>
+			<xs:element name="terkinEdilecekTutar" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="yeraltiVeYerustuMadenIsletmeleriBildirimi_type">
+		<xs:sequence>
+			<xs:element name="yeraltiYerustuIsletmeBilgileri" type="yeraltiYerustuIsletmeBilgileri_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="yeraltiYerustuIsletmeBilgileri_type">
+		<xs:sequence>
+			<xs:element name="yeraltiYerustuIsletmeBilgisi" type="yeraltiYerustuIsletmeBilgisi_type" maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="yeraltiYerustuIsletmeBilgisi_type">
+		<xs:sequence>
+			<xs:element name="calismaYeri" type="turKodu_type"/>
+			<xs:element name="ilIlce" type="ililce_type"/>
+			<xs:element name="madenCinsi" type="nonEmptyString_type"/>
+			<xs:element name="calisanIsciSayisi" type="adet_type"/>
+			<xs:element name="sskNo" type="sos_guv_mes_tsk_type"/>
+			<xs:element name="ruhsatSicilBilgisi" type="ruhsat_sicil_bilgisi_type"/>
+			<xs:element name="ruhsatBaslamaTarihi" type="tarih_type"/>
+			<xs:element name="ruhsatBitisTarihi" type="tarih_type"/>
+			<xs:element name="adres" type="adres_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="k4490GemiCalisanBildirimi_type">
+		<xs:sequence>
+			<xs:element name="k4490GemiCalisanBilgileri" type="k4490GemiCalisanBilgileri_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="k4490GemiCalisanBilgileri_type">
+		<xs:sequence>
+			<xs:element name="k4490GemiCalisanBilgisi" type="k4490GemiCalisanBilgisi_type" maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="k4490GemiCalisanBilgisi_type">
+		<xs:sequence>
+			<xs:element name="tugsGemiSicilNo" type="tugs_gemi_sicil_no_type"/>
+			<xs:element name="calisanAdiSoyadi" type="unvan_type"/>
+			<xs:element name="calisanTcNo" type="tcKimlikNo_type"/>
+			<xs:element name="iseBaslamaTar" type="tarih_type"/>
+			<xs:element name="brutUcret" type="tutar_type"/>
+			<xs:element name="kesilmeyenGV" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="gvk17KapsamindakiUcretBildirimi_type">
+		<xs:sequence>
+			<xs:element name="gvk17KapsamindakiUcretBilgileri" type="gvk17KapsamindakiUcretBilgileri_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="gvk17KapsamindakiUcretBilgileri_type">
+		<xs:sequence>
+			<xs:element name="gvk17KapsamindakiUcretBilgisi" type="gvk17KapsamindakiUcretBilgisi_type" maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="gvk17KapsamindakiUcretBilgisi_type">
+		<xs:sequence>
+			<xs:element name="adSoyad" type="unvan_type"/>
+			<xs:element name="tcKimlikNo" type="tcKimlikNo_type"/>
+			<xs:element name="senetVerilisTarihi" type="tarih_type"/>
+			<xs:element name="yillikBurutUcret" type="tutar_type"/>
+			<xs:element name="senetRayicBedel" type="tutar_type"/>
+			<xs:element name="saglananMenfaat" type="tutar_type"/>
+			<xs:element name="istisnaTutar" type="tutar_type"/>
+			<xs:element name="istisnaGelirVergisi" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="kulturYatirimlariVeGirisimleri_type">
+		<xs:sequence>
+			<xs:element name="mukellefBilgileri" type="mukellefBilgileri_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="toplamIsciSayisi" type="adet_type" minOccurs="0"/>
+            <xs:element name="terkinEdilecekToplamKT" type="tutar_type" minOccurs="0"/>
+			<xs:element name="kulturYatirimlari" type="kulturYatirimlari_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="kulturGirisimleri" type="kulturGirisimleri_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topBrutUcretKY" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topHgvKY" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topTerkinAzamiKY" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topMahsupKY" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topMahsupKalanKY" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topTerkinEdilecekKY" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topBrutUcretKG" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topHgvKG" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topTerkinAzamiKG" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topMahsupKG" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topMahsupKalanKG" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="topTerkinEdilecekKG" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation/>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="mukellefBilgisi_type">
+		<xs:sequence>
+			<xs:element name="belgeTuru" type="belgeTuru_type"/>
+			<xs:element name="belgeTarihi" type="tarih_type"/>
+			<xs:element name="belgeSayisi">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:maxLength value="9"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="isyeriAdresi" type="adres_type"/>
+			<xs:element name="isyeriSicilNo">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:maxLength value="30"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="isyeriIlIlce"/>
+			<xs:element name="isyeriTelNo">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:length value="10"/>
+						<xs:pattern value="\d+"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="isciSayisi" type="adet_type"/>
+            <xs:element name="terkinEdilecekKT" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="kulturYatirimlari_type">
+		<xs:sequence>
+			<xs:element name="kulturYatirimi" type="kulturYatirimiGirisimi_type" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="kulturGirisimleri_type">
+		<xs:sequence>
+			<xs:element name="kulturGirisimi" type="kulturYatirimiGirisimi_type" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="kulturYatirimiGirisimi_type">
+		<xs:sequence>
+			<xs:element name="adSoyad" type="unvan_type"/>
+			<xs:element name="tcKimlikNo" type="tcKimlikNo_type"/>
+			<xs:element name="sigortaNo">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:maxLength value="20"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="burutUcret" type="tutar_type"/>
+			<xs:element name="matrah" type="tutar_type"/>
+			<xs:element name="hgv" type="tutar_type"/>
+			<xs:element name="terkinAzami" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tevkifatTutarlariBildirimi_type">
+		<xs:sequence>
+			<xs:element name="tevkifatFaaliyetKonusu" type="adres_type"/>
+			<xs:element name="tevIsyerleri" type="tevIsyerleri_type"/>
+			<xs:element name="tevTutarlar" type="tevTutarlar_type"/>
+			<xs:element name="topUcretTutari" type="tutar_type"/>
+			<xs:element name="topTutarMatrah" type="tutar_type"/>
+			<xs:element name="topTutarHGV" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tevIsyerleri_type">
+		<xs:sequence>
+			<xs:element name="tevIsyeri" type="tevIsyeri_type" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tevTutarlar_type">
+		<xs:sequence>
+			<xs:element name="tevTutar" type="tevTutar_type" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tevIsyeri_type">
+		<xs:sequence>
+			<xs:element name="serbestBolge" type="turKodu_type"/>
+            <xs:element name="ruhsatNo" type="ruhsatNo_type"/>
+			<xs:element name="vd" type="vdKodu_type"/>
+			<xs:element name="sskSicilNo" type="sos_guv_mes_tsk_type"/>
+			<xs:element name="adres" type="adres_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tevTutar_type">
+		<xs:sequence>
+			<xs:element name="serbestBolgeVeRuhsatNo" type="turKodu_type"/>
+			<xs:element name="vergilendirmeDonemi" type="turKodu_type"/>
+			<xs:element name="isciSayisi" type="adet_type"/>
+			<xs:element name="ucretTutari" type="tutar_type"/>
+			<xs:element name="matrah" type="tutar_type"/>
+			<xs:element name="hgv" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tevkifatTutarlariBildirimiIade_type">
+		<xs:sequence>
+			<xs:element name="tevkifatFaaliyetKonusuIade" type="adres_type"/>
+			<xs:element name="tevIsyerleriIade" type="tevIsyerleriIade_type"/>
+			<xs:element name="tevTutarlarIade" type="tevTutarlarIade_type"/>
+			<xs:element name="topUcretTutariIade" type="tutar_type"/>
+			<xs:element name="topTutarMatrahIade" type="tutar_type"/>
+			<xs:element name="topTutarGVTIade" type="tutar_type"/>
+			<xs:element name="topTutarRedIade" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tevIsyerleriIade_type">
+		<xs:sequence>
+			<xs:element name="tevIsyeriIade" type="tevIsyeriIade_type" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tevTutarlarIade_type">
+		<xs:sequence>
+			<xs:element name="tevTutarIade" type="tevTutarIade_type" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tevIsyeriIade_type">
+		<xs:sequence>
+			<xs:element name="serbestBolge" type="turKodu_type"/>
+			<xs:element name="vd" type="vdKodu_type"/>
+			<xs:element name="sskSicilNo" type="sos_guv_mes_tsk_type"/>
+			<xs:element name="adres" type="adres_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tevTutarIade_type">
+		<xs:sequence>
+			<xs:element name="vergilendirmeDonemi" type="turKodu_type"/>
+			<xs:element name="isciSayisi" type="adet_type"/>
+			<xs:element name="ucretTutari" type="tutar_type"/>
+			<xs:element name="matrah" type="tutar_type"/>
+			<xs:element name="gvt" type="tutar_type"/>
+			<xs:element name="redIade" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ekler_type">
+		<xs:sequence>
+			<xs:element name="argeGelirVergisiStopajiTesvik" type="argeGelirVergisiStopajiTesvik_type" minOccurs="0"/>
+			<xs:element name="kulturYatirimlariVeGirisimleri" type="kulturYatirimlariVeGirisimleri_type" minOccurs="0"/>
+			<xs:element name="tevkifatTutarlariBildirimi" type="tevkifatTutarlariBildirimi_type" minOccurs="0"/>
+			<xs:element name="tevkifatTutarlariBildirimiIade" type="tevkifatTutarlariBildirimiIade_type" minOccurs="0"/>
+			<xs:element name="yeraltiVeYerustuMadenIsletmeleriBildirimi" type="yeraltiVeYerustuMadenIsletmeleriBildirimi_type" minOccurs="0"/>
+			<xs:element name="gvk4691KapsamindakiBildirim" type="gvk4691KapsamindakiBildirim_type" minOccurs="0"/>
+			<xs:element name="yurtDisiIsletmeIndirimBildirimi" type="yurtDisiIsletmeIndirimBildirimi_type" minOccurs="0"/>
+			<xs:element name="gvkGecici72KapsamindakiBildirim" type="gvkGecici72KapsamindakiBildirim_type" minOccurs="0"/>
+			<xs:element name="gvk6550KapsamindakiBildirim" type="gvk6550KapsamindakiBildirim_type" minOccurs="0"/>
+			<xs:element name="engelliBildirim" type="engelliBildirim_type" minOccurs="0"/>
+			<xs:element name="gvk17KapsamindakiUcretBildirimi" type="gvk17KapsamindakiUcretBildirimi_type" minOccurs="0"/>
+			<xs:element name="k4490GemiCalisanBildirimi" type="k4490GemiCalisanBildirimi_type" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="argeGelirVergisiStopajiTesvik_type">
+		<xs:sequence>
+			<xs:element name="bildirimKapIsyeriBilgileri" type="bildirimKapIsyeriBilgileri_type"/>
+			<xs:element name="argeTerkinEdilecekTutarlar" type="argeTerkinEdilecekTutarlar_type"/>
+			<xs:element name="topTerkinEdilecek" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="bildirimKapIsyeriBilgileri_type">
+		<xs:sequence>
+			<xs:element name="bildirimKapIsyeriBilgisi" type="bildirimKapIsyeriBilgisi_type" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="argeTerkinEdilecekTutarlar_type">
+		<xs:sequence>
+			<xs:element name="argeTerkinEdilecekTutar" type="argeTerkinEdilecekTutar_type" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="bildirimKapIsyeriBilgisi_type">
+		<xs:sequence>
+			<xs:element name="ilIlce" type="ililce_type"/>
+			<xs:element name="vdKodu" type="vdKodu_type"/>
+			<xs:element name="personelSayisi" type="adet_type"/>
+			<xs:element name="sicilNo">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:maxLength value="30"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="adres" type="adres_type"/>
+		</xs:sequence>
+	</xs:complexType>
+  <xs:complexType name="argeTerkinEdilecekTutar_type">
+    <xs:sequence>
+      <xs:element name="isciTuru" type="tip_type"/>
+      <xs:element name="argeAdSoyad" type="adSoyad_type"/>
+      <xs:element name="calisanTCKN" type="tcKimlikNo_type"/>
+      <xs:element name="isBaslamaTarihi" type="tarih_type"/>
+      <xs:element name="burutUcretToplam" type="tutar_type"/>
+      <xs:element name="argeUcretMatrahi" type="tutar_type"/>
+      <xs:element name="argeTesvikKapsamiAzamiUcret" type="tutar_type"/>
+      <xs:element name="argeTesvikKapsamiMatrahVergisi" type="tutar_type"/>
+      <xs:element name="argeCalismayaIliskinUcretVergisi" type="tutar_type"/>
+      <xs:element name="argeMahsupAsgariUcretVergisi" type="tutar_type"/>
+      <xs:element name="argeMahsupSonrasiAsgariUcretVergisi" type="tutar_type"/>
+      <xs:element name="terkinOrani" type="tutar_type"/>
+      <xs:element name="terkinEdilecekTutar" type="tutar_type"/>
+    </xs:sequence>
+  </xs:complexType>
+	<xs:simpleType name="beyanimVarYok_type">
+		<xs:restriction base="xs:short">
+			<xs:enumeration value="2"/>
+			<xs:enumeration value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="belgeTuru_type">
+		<xs:restriction base="xs:integer">
+			<xs:enumeration value="1"/>
+			<xs:enumeration value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="mukellefBilgileri_type">
+		<xs:sequence>
+			<xs:element name="mukellefBilgisi" type="mukellefBilgisi_type" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="sgkBildirgeleri_type">
+		<xs:sequence>
+			<xs:element name="sgkOncekiniKapsar" type="turKodu_type" minOccurs="0"/>
+			<xs:element name="sgkCalisanBilgileri" type="sgkCalisanBilgileri_type" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="sgkCalisanBilgileri_type">
+		<xs:sequence>
+			<xs:element name="sgkCalisanBilgisi" type="sgkCalisanBilgisi_type" maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="sgkCalisanBilgisi_type">
+		<xs:sequence>
+			<xs:element name="belgeMahiyet" type="mahiyetTurKodu_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Belge Mahiyeti bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="belgeTuru" type="turKodu_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Belge Türü bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="kanun" type="kanunTurKodu_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Düzenlemeye Esas Kanun No bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="isyeriYeniSubeKod" type="isyeriSubeKod_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Yeni Ünite Kodu bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="isyeriEskiSubeKod" type="isyeriSubeKod_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Eski Ünite Kodu bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="isyeriSiraNo" type="isyeriSiraNo_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki İşyeri Sıra Numarası bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="isyeriIlKod" type="turKodu_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki İl Kodu bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="isyeriAraciSiraNo" type="isyeriAraciSiraNo_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Alt İşveren Numarası bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="sigortaliSicil" type="sigortaliSicil_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Sosyal Güvenlik Sicil Numarası bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="tckno" type="tcKimlikNo_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki TC Kimlik Numarası bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="ad" type="adSoyad_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Adı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="soyad" type="adSoyad_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Soyadı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="gun" type="primOdemeGun_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Prim Ödeme Günü bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+            <xs:element name="uzakCalismaGun" type="primOdemeGun_type" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>
+                        Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Prim Ödeme Günü bilgisini içerir.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+			<xs:element name="hakEdilenUcret" type="tutar_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Hak Edilen Ücret bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="primIkramiye" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Prim, İkramiye ve Bu Nitelikteki İstihkak bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="iseGirisGun" type="girisCikisGun_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki İşe Giriş Gün bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="iseGirisAy" type="sgkAy_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki İşe Giriş Ay bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="istenCikisGun" type="girisCikisGun_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki İşten Çıkış Gün bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="istenCikisAy" type="sgkAy_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki İşten Çıkış Ay bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="istenCikisNedeni" type="turKodu_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki İşten Çıkış Nedeni bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="eksikGunSayisi" type="eksikGunSayisi_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Eksik Gün Sayısı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="eksikGunNedeni" type="turKodu_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Eksik Gün Nedeni bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="meslekKod" type="meslekKod_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Meslek Kodu bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="rapCalisti" type="turKodu_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki İstirahat Sürelerinde Çalışmamıştır bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="tahakkukNeden" type="turKodu_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Tahakkuk Nedeni bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="hizmetAy" type="ay_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Hizmet Dönem Ay bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="hizmetYil" type="yil_type">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Hizmet Dönem Yıl bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="gvMuafMi" type="turKodu_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Gelir Vergisinden Muaf Mı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="ilgiliDonemGvMatrah" type="tutar_type" >
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki İlgili Döneme Ait Gelir Vergisi Matrahı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="gvEngellilikOran" type="tutar_type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Gelir Vergisi Engellilik Oranı bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="hgv" type="tutar_type" >
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Gelir Vergisi Kesintisi bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="aUIstisnaGV" type="tutar_type" >
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Gelir Vergisi Kesintisi bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="gvKesinti" type="tutar_type" >
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Gelir Vergisi Kesintisi bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="aUIstisnaDV" type="tutar_type" >
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Gelir Vergisi Kesintisi bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="damgaVKesinti" type="tutar_type" >
+				<xs:annotation>
+					<xs:documentation>
+						Bu etiket, Sigortalı Çalışan Bilgileri tablosunda her bir satırdaki Gelir Vergisi Kesintisi bilgisini içerir.
+					</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="yurtDisiIsletmeIndirimBildirimi_type">
+		<xs:sequence>
+			<xs:element name="indirimKapsamindaHasilatBilgileri" type="indirimKapsamindaHasilatBilgileri_type"/>
+			<xs:element name="hizmetErbabiUcretiIndirimHesabiBildirimleri" type="hizmetErbabiUcretiIndirimHesabiBildirimleri_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="indirimKapsamindaHasilatBilgileri_type">
+		<xs:sequence>
+			<xs:element name="hasilatBilgisi" type="hasilatBilgisi_type" maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="hizmetErbabiUcretiIndirimHesabiBildirimleri_type">
+		<xs:sequence>
+			<xs:element name="ucretIndirimBildirimi" type="ucretIndirimBildirimi_type" maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="hasilatBilgisi_type">
+		<xs:sequence>
+			<xs:element name="faaliyetKonu" type="turKodu_type"/>
+			<xs:element name="toplamIsci" type="adet_type"/>
+			<xs:element name="yurtIciHasilat" type="tutar_type"/>
+			<xs:element name="yurtDisiHasilat" type="tutar_type"/>
+			<xs:element name="toplamHasilat" type="tutar_type"/>
+			<xs:element name="yurtDisiHasilatPay" type="yüzde_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ucretIndirimBildirimi_type">
+		<xs:sequence>
+			<xs:element name="faaliyetKonu" type="turKodu_type"/>
+			<xs:element name="yil" type="yil_type"/>
+			<xs:element name="ay" type="ay_type"/>
+			<xs:element name="tckn" type="tcKimlikNo_type"/>
+			<xs:element name="adSoyad" type="unvan_type"/>
+			<xs:element name="brutUcret" type="tutar_type"/>
+			<xs:element name="gvMatrah" type="tutar_type"/>
+			<xs:element name="hesaplananGv" type="tutar_type"/>
+			<xs:element name="indirilebilecekAzami" type="tutar_type"/>
+			<xs:element name="indirimeKonu" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="gvkGecici72KapsamindakiBildirim_type">
+		<xs:sequence>
+			<xs:element name="sporcuBildirimleri" type="sporcuBildirimleri_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="sporcuBildirimleri_type">
+		<xs:sequence>
+			<xs:element name="sporcuBildirimi" type="sporcuBildirimi_type" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="sporcuBildirimi_type">
+		<xs:sequence>
+			<xs:element name="kimlikNo" type="tcvkno_type"/>
+			<xs:element name="adSoyad" type="string100_type"/>
+			<xs:element name="sporDal" type="turKodu_type"/>
+			<xs:element name="amatorPro" type="turKodu_type"/>
+			<xs:element name="gvMatrah" type="tutar_type"/>
+			<xs:element name="tevkifatOran" type="oran_type"/>
+			<xs:element name="hesaplananGv" type="tutar_type"/>
+            <xs:element name="asgariIstVergi" type="tutar_type" minOccurs="0"/>
+			<xs:element name="iadeEdilecekGv" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="gvk6550KapsamindakiBildirim_type">
+		<xs:sequence>
+			<xs:element name="isyeriBilgileri6550" type="isyeriBilgileri6550_type"/>
+			<xs:element name="calisanBilgileri6550" type="calisanBilgileri6550_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="isyeriBilgileri6550_type">
+		<xs:sequence>
+			<xs:element name="isyeriBilgisi" type="isyeriBilgisi6550_type" maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="calisanBilgileri6550_type">
+		<xs:sequence>
+			<xs:element name="calisanBilgisi" type="calisanBilgisi6550_type" maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="isyeriBilgisi6550_type">
+		<xs:sequence>
+			<xs:element name="merkez" type="unvan_type2"/>
+			<xs:element name="projeKodu" type="nonEmptyString_type"/>
+			<xs:element name="projeBaslangicTarihi" type="tarih_type"/>
+			<xs:element name="projeBitisTarihi" type="tarih_type"/>
+			<xs:element name="sskNo" type="sos_guv_mes_tsk_type"/>
+			<xs:element name="adres" type="adres_type" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="calisanBilgisi6550_type">
+		<xs:sequence>
+			<xs:element name="isciTuru" type="turKodu_type"/>
+			<xs:element name="projeKodu" type="nonEmptyString_type"/>
+			<xs:element name="tckn" type="tcKimlikNo_type"/>
+			<xs:element name="iseBaslamaTarihi" type="tarih_type"/>
+			<xs:element name="toplamBrutUcret" type="tutar_type"/>
+			<xs:element name="istisnaUcret" type="tutar_type"/>
+			<xs:element name="vergiyeTabiUcret" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="engelliBildirim_type">
+		<xs:sequence>
+			<xs:element name="engelliIndirimBilgileri" type="engelliIndirimBilgileri_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="engelliIndirimBilgileri_type">
+		<xs:sequence>
+			<xs:element name="engelliIndirimBilgisi" type="engelliIndirimBilgisi_type" maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="engelliIndirimBilgisi_type">
+		<xs:sequence>
+			<xs:element name="tckn" type="tcKimlikNo_type"/>
+			<xs:element name="adSoyad" type="unvan_type"/>
+			<xs:element name="kayipOrani" type="pay_type"/>
+			<xs:element name="indirimTutari" type="tutar_type"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="isyeriSubeKod_type">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="01"/>
+			<xs:maxInclusive value="09"/>
+			<xs:totalDigits value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="isyeriSiraNo_type">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="0000001"/>
+			<xs:maxInclusive value="9999999"/>
+			<xs:totalDigits value="7"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="isyeriAraciSiraNo_type">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="3"/>
+            <xs:maxLength value="3"/>
+            <xs:pattern value="\d+"/>
+        </xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="sigortaliSicil_type">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="1"/>
+			<xs:maxInclusive value="9999999999999"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="adSoyad_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="100"/>
+			<xs:whiteSpace value="preserve"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="primOdemeGun_type">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="0"/>
+			<xs:maxInclusive value="90"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="girisCikisGun_type">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="01"/>
+			<xs:maxInclusive value="31"/>
+			<xs:totalDigits value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="sgkAy_type">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="01"/>
+			<xs:maxInclusive value="12"/>
+			<xs:totalDigits value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="eksikGunSayisi_type">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="0"/>
+			<xs:maxInclusive value="31"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="meslekKod_type">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="0"/>
+			<xs:maxLength value="9"/>
+			<xs:whiteSpace value="preserve"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="sgkYil_type">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="2017"/>
+			<xs:maxInclusive value="2050"/>
+			<xs:totalDigits value="4"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="subeNo_type">
+		<xs:restriction base="xs:string">
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="tesvikcb_type">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="0"/>
+			<xs:maxInclusive value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+    <xs:simpleType name="mahiyetTurKodu_type">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="A"/>
+            <xs:enumeration value="E"/>
+            <xs:enumeration value="I"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="kanunTurKodu_type">
+        <xs:restriction base="xs:integer">
+            <xs:minInclusive value="00000"/>
+            <xs:maxInclusive value="99999"/>
+            <xs:totalDigits value="5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="ruhsatNo_type">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="0"/>
+            <xs:maxLength value="10"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="projeKodu_type">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="0"/>
+            <xs:maxLength value="15"/>
+        </xs:restriction>
+    </xs:simpleType>
+</xs:schema>

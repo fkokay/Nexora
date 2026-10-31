@@ -1,0 +1,2235 @@
+<?xml version="1.0" encoding="iso-8859-9"?>
+<!--
+	Ref:	BKBIIB_TKI	tesvikKapsamindakiIller/data/kod
+	Ref:	OAB_OTK	odemeturkodlari/odemekurkodu/turkodu
+	Ref:	TETIB_IT	isyeriTurleri/isyeriTuru/kod
+	Ref: TSVK_TEB_TIP tesvikTebligTipleri/tebligTip/kod
+	Ref: BKBIIB_TKI_2 tesvikKapsamindakiIllerTeblig2/data/kod
+	Ref: BKBIIB_TKI_4 tesvikKapsamindakiIllerTeblig4/data/kod
+	Ref: AYLAR gvk70MahsupAylar/ay/kod
+	Ref: EK_TEB_TIP ekTesvikTebligTipleri/tebligTip/kod
+	Ref: TYKV kaldirilanVergiler/vergi/vergiKodu
+
+-->
+<kodlar>
+	<tesvikKapsamindakiIller>
+		<data>
+			<ad>ADIYAMAN</ad>
+			<kod>00200</kod>
+		</data>
+		<data>
+			<ad>AFYON</ad>
+			<kod>00300</kod>
+		</data>
+		<data>
+			<ad>AĞRI</ad>
+			<kod>00400</kod>
+		</data>
+		<data>
+			<ad>AKSARAY</ad>
+			<kod>06800</kod>
+		</data>
+		<data>
+			<ad>AMASYA</ad>
+			<kod>00500</kod>
+		</data>
+		<data>
+			<ad>ARDAHAN</ad>
+			<kod>07500</kod>
+		</data>
+
+		<data>
+			<ad>ARTVİN</ad>
+			<kod>00800</kod>
+		</data>
+		<data>
+			<ad>BARTIN</ad>
+			<kod>07400</kod>
+		</data>
+		<data>
+			<ad>BATMAN</ad>
+			<kod>07200</kod>
+		</data>
+		<data>
+			<ad>BAYBURT</ad>
+			<kod>06900</kod>
+		</data>
+		<data>
+			<ad>BİNGÖL</ad>
+			<kod>01200</kod>
+		</data>
+		<data>
+			<ad>BİTLİS</ad>
+			<kod>01300</kod>
+		</data>
+		<data>
+			<ad>ÇANAKKALE-BOZCAADA</ad>
+			<kod>01704</kod>
+		</data>
+		<data>
+			<ad>ÇANAKKALE-GÖKÇEADA</ad>
+			<kod>01709</kod>
+		</data>
+		<data>
+			<ad>ÇANKIRI</ad>
+			<kod>01800</kod>
+		</data>
+		<data>
+			<ad>ÇORUM</ad>
+			<kod>01900</kod>
+		</data>
+		<data>
+			<ad>DİYARBAKIR</ad>
+			<kod>02100</kod>
+		</data>
+		<data>
+			<ad>DÜZCE</ad>
+			<kod>08100</kod>
+		</data>
+		<data>
+			<ad>ELAZIĞ</ad>
+			<kod>02300</kod>
+		</data>
+		<data>
+			<ad>ERZİNCAN</ad>
+			<kod>02400</kod>
+		</data>
+		<data>
+			<ad>ERZURUM</ad>
+			<kod>02500</kod>
+		</data>
+		<data>
+			<ad>GİRESUN</ad>
+			<kod>02800</kod>
+		</data>
+		<data>
+			<ad>GÜMÜŞHANE</ad>
+			<kod>02900</kod>
+		</data>
+		<data>
+			<ad>HAKKARİ</ad>
+			<kod>03000</kod>
+		</data>
+		<data>
+			<ad>IĞDIR</ad>
+			<kod>07600</kod>
+		</data>
+		<data>
+			<ad>KAHRAMANMARAŞ</ad>
+			<kod>04600</kod>
+		</data>
+		<data>
+			<ad>KARAMAN</ad>
+			<kod>07000</kod>
+		</data>
+		<data>
+			<ad>KARS</ad>
+			<kod>03600</kod>
+		</data>
+		<data>
+			<ad>KASTAMONU</ad>
+			<kod>03700</kod>
+		</data>
+		<data>
+			<ad>KIRŞEHİR</ad>
+			<kod>04000</kod>
+		</data>
+		<data>
+			<ad>KİLİS</ad>
+			<kod>07900</kod>
+		</data>
+		<data>
+			<ad>KÜTAHYA</ad>
+			<kod>04300</kod>
+		</data>
+		<data>
+			<ad>MALATYA</ad>
+			<kod>04400</kod>
+		</data>
+		<data>
+			<ad>MARDİN</ad>
+			<kod>04700</kod>
+		</data>
+		<data>
+			<ad>MUŞ</ad>
+			<kod>04900</kod>
+		</data>
+		<data>
+			<ad>NEVŞEHİR</ad>
+			<kod>05000</kod>
+		</data>
+		<data>
+			<ad>NİĞDE</ad>
+			<kod>05100</kod>
+		</data>
+		<data>
+			<ad>ORDU</ad>
+			<kod>05200</kod>
+		</data>
+		<data>
+			<ad>OSMANİYE</ad>
+			<kod>08000</kod>
+		</data>
+		<data>
+			<ad>RİZE</ad>
+			<kod>05300</kod>
+		</data>
+		<data>
+			<ad>SİİRT</ad>
+			<kod>05600</kod>
+		</data>
+		<data>
+			<ad>SİNOP</ad>
+			<kod>05700</kod>
+		</data>
+		<data>
+			<ad>ŞIRNAK</ad>
+			<kod>07300</kod>
+		</data>
+		<data>
+			<ad>SİVAS</ad>
+			<kod>05800</kod>
+		</data>
+		<data>
+			<ad>ŞANLIURFA</ad>
+			<kod>06300</kod>
+		</data>
+		<data>
+			<ad>TOKAT</ad>
+			<kod>06000</kod>
+		</data>
+		<data>
+			<ad>TRABZON</ad>
+			<kod>06100</kod>
+		</data>
+		<data>
+			<ad>TUNCELİ</ad>
+			<kod>06200</kod>
+		</data>
+		<data>
+			<ad>UŞAK</ad>
+			<kod>06400</kod>
+		</data>
+		<data>
+			<ad>VAN</ad>
+			<kod>06500</kod>
+		</data>
+		<data>
+			<ad>YOZGAT</ad>
+			<kod>06600</kod>
+		</data>
+	</tesvikKapsamindakiIller>
+	<tesvikKapsamindakiIllerTeblig2>
+		<data>
+			<ad>ARTVİN</ad>
+			<kod>00800</kod>
+		</data>
+		<data>
+			<ad>ÇORUM</ad>
+			<kod>01900</kod>
+		</data>
+		<data>
+			<ad>ELAZIĞ</ad>
+			<kod>02300</kod>
+		</data>
+		<data>
+			<ad>KAHRAMANMARAŞ</ad>
+			<kod>04600</kod>
+		</data>
+		<data>
+			<ad>KARAMAN</ad>
+			<kod>07000</kod>
+		</data>
+		<data>
+			<ad>KASTAMONU</ad>
+			<kod>03700</kod>
+		</data>
+		<data>
+			<ad>KİLİS</ad>
+			<kod>07900</kod>
+		</data>
+		<data>
+			<ad>KÜTAHYA</ad>
+			<kod>04300</kod>
+		</data>
+		<data>
+			<ad>NEVŞEHİR</ad>
+			<kod>05000</kod>
+		</data>
+		<data>
+			<ad>NİĞDE</ad>
+			<kod>05100</kod>
+		</data>
+		<data>
+			<ad>RİZE</ad>
+			<kod>05300</kod>
+		</data>
+		<data>
+			<ad>TRABZON</ad>
+			<kod>06100</kod>
+		</data>
+		<data>
+			<ad>TUNCELİ</ad>
+			<kod>06200</kod>
+		</data>
+	</tesvikKapsamindakiIllerTeblig2>
+	<tesvikKapsamindakiIllerTeblig4>
+		<data>
+			<ad>ARTVİN</ad>
+			<kod>00800</kod>
+		</data>
+		<data>
+			<ad>ÇANAKKALE-BOZCAADA</ad>
+			<kod>01704</kod>
+		</data>
+		<data>
+			<ad>ÇANAKKALE-GÖKÇEADA</ad>
+			<kod>01709</kod>
+		</data>
+
+		<data>
+			<ad>ÇORUM</ad>
+			<kod>01900</kod>
+		</data>
+		<data>
+			<ad>ELAZIĞ</ad>
+			<kod>02300</kod>
+		</data>
+		<data>
+			<ad>KAHRAMANMARAŞ</ad>
+			<kod>04600</kod>
+		</data>
+		<data>
+			<ad>KARAMAN</ad>
+			<kod>07000</kod>
+		</data>
+		<data>
+			<ad>KASTAMONU</ad>
+			<kod>03700</kod>
+		</data>
+		<data>
+			<ad>KİLİS</ad>
+			<kod>07900</kod>
+		</data>
+		<data>
+			<ad>KÜTAHYA</ad>
+			<kod>04300</kod>
+		</data>
+		<data>
+			<ad>NEVŞEHİR</ad>
+			<kod>05000</kod>
+		</data>
+		<data>
+			<ad>NİĞDE</ad>
+			<kod>05100</kod>
+		</data>
+		<data>
+			<ad>RİZE</ad>
+			<kod>05300</kod>
+		</data>
+		<data>
+			<ad>TRABZON</ad>
+			<kod>06100</kod>
+		</data>
+		<data>
+			<ad>TUNCELİ</ad>
+			<kod>06200</kod>
+		</data>
+	</tesvikKapsamindakiIllerTeblig4>
+	<odemeturkodlari>
+		<odemeturkodu>
+			<turkodu>011</turkodu>
+			<grup>Ücret</grup>
+			<aciklama>Asgari Ücretli (GVK Md. 94/1)</aciklama>
+		</odemeturkodu>
+		<odemeturkodu>
+			<turkodu>012</turkodu>
+			<grup>Ücret</grup>
+			<aciklama>Diğer Ücretler ile Ücret Sayılan Ödemeler (GVK Md. 94/1)</aciklama>
+		</odemeturkodu>
+		<odemeturkodu>
+			<turkodu>013</turkodu>
+			<grup>Ücret</grup>
+			<aciklama>Kıdem Tazminatı</aciklama>
+		</odemeturkodu>
+		<odemeturkodu>
+			<turkodu>014</turkodu>
+			<grup>Ücret</grup>
+			<aciklama>Huzur Hakkı</aciklama>
+		</odemeturkodu>
+		<odemeturkodu>
+			<turkodu>015</turkodu>
+			<grup>Ücret</grup>
+			<aciklama>İhbar Tazminatı</aciklama>
+		</odemeturkodu>
+		<odemeturkodu>
+			<turkodu>016</turkodu>
+			<grup>Ücret</grup>
+			<aciklama>Yeraltı Maden İşçileri</aciklama>
+		</odemeturkodu>
+		<odemeturkodu>
+			<turkodu>017</turkodu>
+			<grup>Ücret</grup>
+			<aciklama>6550 Sayılı Kanunlar Kapsamı</aciklama>
+		</odemeturkodu>
+		<odemeturkodu>
+			<turkodu>018</turkodu>
+			<grup>Ücret</grup>
+			<aciklama>Döner Sermaye/Performans/Ek Ders Odemesi/Ek ödeme/Kayyum-Bilirkişi ödemesi/Diğer</aciklama>
+		</odemeturkodu>
+		<odemeturkodu>
+			<turkodu>019</turkodu>
+			<grup>Ücret</grup>
+			<aciklama>Dar Mükellef Kurumların İrtibat Buroları/Apartman Kapıcıları</aciklama>
+		</odemeturkodu>
+		<odemeturkodu>
+			<turkodu>519</turkodu>
+			<grup>Ücret</grup>
+			<aciklama>Gemi çalışanları</aciklama>
+		</odemeturkodu>
+		<odemeturkodu>
+			<turkodu>020</turkodu>
+			<grup>Ücret</grup>
+			<aciklama>Muhtarlar/Elçiliklerde Çalışan Personel/GVK23/11 Kapsamında Çalışanlar/Diğer</aciklama>
+		</odemeturkodu>
+		<odemeturkodu>
+			<turkodu>302</turkodu>
+			<grup>Damga Vergisi Kanununa göre yapılan ödemelerle ilgili kağıtlar</grup>
+			<aciklama>Maaş, ücret, gündelik, huzur hakkı, aidat, ihtisas zammı, ikramiye, yemek ve mesken bedeli, harcırah, tazminat ve benzeri her ne adla olursa olsun hizmet karşılığı alınan paralar (avans olarak ödenenler dahil) için verilen makbuzlar ile bu paraların nakden ödenmeyerek kişiler adına açılmış veya açılacak cari hesaplara nakledildiği veya emir ve havalelerine tediye olunduğu takdirde nakli veya tediyeyi temin eden kağıtlar</aciklama>
+		</odemeturkodu>
+	</odemeturkodlari>	
+	<isyeriTurleri>
+		<isyeriTuru>
+			<kod>1</kod>
+			<ad>Org. San. ve End. Böl.</ad>
+		</isyeriTuru>
+		<isyeriTuru>
+			<kod>2</kod>
+			<ad>Diğer</ad>
+		</isyeriTuru>
+	</isyeriTurleri>
+	<tesvikTebligTipleri>
+		<tebligTip>
+			<kod>0</kod>
+			<aciklama>Yok</aciklama>
+		</tebligTip>
+		<tebligTip>
+			<kod>1</kod>
+			<aciklama>I Seri No'lu Tebliğ Kapsamında Teşvik</aciklama>
+		</tebligTip>
+		<tebligTip>
+			<kod>4</kod>
+			<aciklama>IV Seri No'lu Tebliğ Kapsamında Teşvik</aciklama>
+		</tebligTip>
+	</tesvikTebligTipleri>
+	<tesvikTebligTarihleri>
+		<tesvikTarihi>
+			<kod>0</kod>
+			<aciklama>Yok</aciklama>
+		</tesvikTarihi>
+		<tesvikTarihi>
+			<kod>1</kod>
+			<aciklama>06.06.2008'den Önce</aciklama>
+		</tesvikTarihi>
+		<tesvikTarihi>
+			<kod>2</kod>
+			<aciklama>06.06.2008'den Sonra</aciklama>
+		</tesvikTarihi>
+		<tesvikTarihi>
+			<kod>3</kod>
+			<aciklama>06.06.2008'den Önce ve Sonra</aciklama>
+		</tesvikTarihi>
+	</tesvikTebligTarihleri>
+	<gvk70MahsupAylar>
+		<ay>
+			<kod>1</kod>
+			<ad>Ocak</ad>
+		</ay>
+		<ay>
+			<kod>2</kod>
+			<ad>Şubat</ad>
+		</ay>
+		<ay>
+			<kod>3</kod>
+			<ad>Mart</ad>
+		</ay>
+		<ay>
+			<kod>4</kod>
+			<ad>Nisan</ad>
+		</ay>
+		<ay>
+			<kod>5</kod>
+			<ad>Mayıs</ad>
+		</ay>
+		<ay>
+			<kod>6</kod>
+			<ad>Haziran</ad>
+		</ay>
+		<ay>
+			<kod>7</kod>
+			<ad>Temmuz</ad>
+		</ay>
+	</gvk70MahsupAylar>
+	<ekTesvikTebligTipleri>
+		<tebligTip>
+			<kod>1</kod>
+			<aciklama>I Seri No'lu Tebliğ</aciklama>
+		</tebligTip>
+		<tebligTip>
+			<kod>4</kod>
+			<aciklama>IV Seri No'lu Tebliğ</aciklama>
+		</tebligTip>
+	</ekTesvikTebligTipleri>
+	<isverenTipleri>
+		<isverenTip>
+			<kod>1</kod>
+			<aciklama>Alt Yüklenici</aciklama>
+		</isverenTip>
+		<isverenTip>
+			<kod>2</kod>
+			<aciklama>Asıl İşveren</aciklama>
+		</isverenTip>
+	</isverenTipleri>
+	<argeIsciTurleri>
+		<data>
+			<kod>1</kod>
+			<aciklama>Doktoralı Olanlar ile Desteklenecek Program Alanlarından Birinde Yüksek Lisanslı Olanlar (*****)</aciklama>
+		</data>
+		<data>
+			<kod>3</kod>
+			<aciklama>Yüksek Lisanslı Olanlar ile Desteklenecek Program Alanlarından Birinde Lisanslı Olanlar (******)</aciklama>
+		</data>
+		<data>
+			<kod>2</kod>
+			<aciklama>Diğerleri</aciklama>
+		</data>
+	</argeIsciTurleri>
+	<isciTurleri>
+		<data>
+			<kod>1</kod>
+			<aciklama>AR-GE, Tasarım Personeli</aciklama>
+		</data>
+		<data>
+			<kod>2</kod>
+			<aciklama>Destek Personeli</aciklama>
+		</data>
+	</isciTurleri>
+	<isciTurleri2>
+		<data>
+			<kod>1</kod>
+			<aciklama>AR-GE Personeli</aciklama>
+		</data>
+		<data>
+			<kod>2</kod>
+			<aciklama>Destek Personeli</aciklama>
+		</data>
+	</isciTurleri2>
+	<terkinOranlari>	
+		<data>
+			<kod>95</kod>
+			<aciklama>95</aciklama>
+		</data>
+		<data>
+			<kod>90</kod>
+			<aciklama>90</aciklama>
+		</data>
+		<data>
+			<kod>80</kod>
+			<aciklama>80</aciklama>
+		</data>
+	</terkinOranlari>
+	<kulturYatirimAsamasi>
+		<data>
+			<kod>1</kod>
+			<aciklama>Kültür Yatırımı Belgeli</aciklama>
+		</data>
+		<data>
+			<kod>2</kod>
+			<aciklama>Kültür Girişimi Belgeli</aciklama>
+		</data>
+	</kulturYatirimAsamasi>
+	<serbestBolgeler>
+		<serbestBolge>
+				<kod>10001</kod>
+				<aciklama>ADANA-YUMURTALIK SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10002</kod>
+				<aciklama>ANTALYA SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10003</kod>
+				<aciklama>AVRUPA SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10004</kod>
+				<aciklama>BURSA SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10005</kod>
+				<aciklama>DENİZLİ SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>		
+		<serbestBolge>
+				<kod>10007</kod>
+				<aciklama>EGE SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10008</kod>
+				<aciklama>GAZİANTEP SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10009</kod>
+				<aciklama>İSTANBUL İHTİSAS SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10010</kod>
+				<aciklama>İSTANBUL ENDÜSTRİ ve TİCARET SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10011</kod>
+				<aciklama>İSTANBUL TRAKYA SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10012</kod>
+				<aciklama>İZMİR SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10013</kod>
+				<aciklama>KAYSERİ SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10014</kod>
+				<aciklama>KOCAELİ SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>		
+		<serbestBolge>
+				<kod>10016</kod>
+				<aciklama>MERSİN SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10017</kod>
+				<aciklama>RİZE SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10018</kod>
+				<aciklama>SAMSUN SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10019</kod>
+				<aciklama>TRABZON SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10020</kod>
+				<aciklama>TÜBİTAK MAM TEKNOLOJİ SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+		<serbestBolge>
+				<kod>10021</kod>
+				<aciklama>BATI ANADOLU SERBEST BÖLGE MÜDÜRLÜĞÜ</aciklama>
+		</serbestBolge>
+	</serbestBolgeler>
+	<beyanimVarYok>
+		<data>
+			<kod>1</kod>
+			<aciklama>Var</aciklama>
+		</data>
+		<data>
+			<kod>2</kod>
+			<aciklama>Yok</aciklama>
+		</data>
+	</beyanimVarYok>
+	<kulturTesvikineKonuBelgeTuru>
+		<tebligTip>
+			<kod>1</kod>
+			<aciklama>Kültür Yatırımı Belgesi</aciklama>
+		</tebligTip>
+		<tebligTip>
+			<kod>2</kod>
+			<aciklama>Kültür Girişimi Belgesi</aciklama>
+		</tebligTip>
+	</kulturTesvikineKonuBelgeTuru>
+	<ilIlceBolge6>
+		<data>
+			<ad>AĞRI</ad>
+			<kod>00400</kod>
+		</data>
+		<data>
+			<ad>ADIYAMAN</ad>
+			<kod>00200</kod>
+		</data>		
+		<data>
+			<ad>AFYONKARAHİSAR</ad>
+			<kod>00300</kod>
+		</data>
+		<data>
+			<ad>AKSARAY</ad>
+			<kod>06800</kod>
+		</data>
+		<data>
+			<ad>AMASYA</ad>
+			<kod>00500</kod>
+		</data>
+		<data>
+			<ad>ANKARA</ad>
+			<kod>00600</kod>
+		</data>
+		<data>
+			<ad>ANTALYA</ad>
+			<kod>00700</kod>
+		</data>
+		<data>
+			<ad>ARDAHAN</ad>
+			<kod>07500</kod>
+		</data>
+		<data>
+			<ad>ARTVİN</ad>
+			<kod>00800</kod>
+		</data>
+		<data>
+			<ad>BARTIN</ad>
+			<kod>07400</kod>
+		</data>
+		<data>
+			<ad>BATMAN</ad>
+			<kod>07200</kod>
+		</data>
+		<data>
+			<ad>BAYBURT</ad>
+			<kod>06900</kod>
+		</data>
+		<data>
+			<ad>BİNGÖL</ad>
+			<kod>01200</kod>
+		</data>
+		<data>
+			<ad>BİTLİS</ad>
+			<kod>01300</kod>
+		</data>
+		<data>
+			<ad>ÇANAKKALE-BOZCAADA</ad>
+			<kod>01704</kod>
+		</data>
+		<data>
+			<ad>ÇANAKKALE-GÖKÇEADA</ad>
+			<kod>01709</kod>
+		</data>
+		<data>
+			<ad>ÇANKIRI</ad>
+			<kod>01800</kod>
+		</data>
+		<data>
+			<ad>ÇORUM</ad>
+			<kod>01900</kod>
+		</data>
+		<data>
+			<ad>DİYARBAKIR</ad>
+			<kod>02100</kod>
+		</data>
+		<data>
+			<ad>DÜZCE</ad>
+			<kod>08100</kod>
+		</data>
+		<data>
+			<ad>ELAZIĞ</ad>
+			<kod>02300</kod>
+		</data>
+		<data>
+			<ad>ERZİNCAN</ad>
+			<kod>02400</kod>
+		</data>
+		<data>
+			<ad>ERZURUM</ad>
+			<kod>02500</kod>
+		</data>
+		<data>
+			<ad>GİRESUN</ad>
+			<kod>02800</kod>
+		</data>
+		<data>
+			<ad>GÜMÜŞHANE</ad>
+			<kod>02900</kod>
+		</data>
+		<data>
+			<ad>HAKKARİ</ad>
+			<kod>03000</kod>
+		</data>
+		<data>
+			<ad>HATAY</ad>
+			<kod>03100</kod>
+		</data>
+		<data>
+			<ad>IĞDIR</ad>
+			<kod>07600</kod>
+		</data>
+		<data>
+			<ad>KAHRAMANMARAŞ</ad>
+			<kod>04600</kod>
+		</data>
+		<data>
+			<ad>KARAMAN</ad>
+			<kod>07000</kod>
+		</data>
+		<data>
+			<ad>KARS</ad>
+			<kod>03600</kod>
+		</data>
+		<data>
+			<ad>KASTAMONU</ad>
+			<kod>03700</kod>
+		</data>
+		<data>
+			<ad>KIRIKKALE</ad>
+			<kod>07100</kod>
+		</data>
+		<data>
+			<ad>KIRŞEHİR</ad>
+			<kod>04000</kod>
+		</data>
+		<data>
+			<ad>KİLİS</ad>
+			<kod>07900</kod>
+		</data>
+		<data>
+			<ad>KÜTAHYA</ad>
+			<kod>04300</kod>
+		</data>
+		<data>
+			<ad>MALATYA</ad>
+			<kod>04400</kod>
+		</data>
+		<data>
+			<ad>MANİSA-YUNUSEMRE</ad>
+			<kod>04517</kod>
+		</data>
+		<data>
+			<ad>MARDİN</ad>
+			<kod>04700</kod>
+		</data>>
+		<data>
+			<ad>MUŞ</ad>
+			<kod>04900</kod>
+		</data>
+		<data>
+			<ad>NEVŞEHİR</ad>
+			<kod>05000</kod>
+		</data>
+		<data>
+			<ad>NİĞDE</ad>
+			<kod>05100</kod>
+		</data>
+		<data>
+			<ad>ORDU</ad>
+			<kod>05200</kod>
+		</data>
+		<data>
+			<ad>OSMANİYE</ad>
+			<kod>08000</kod>
+		</data>
+		<data>
+			<ad>RİZE</ad>
+			<kod>05300</kod>
+		</data>
+		<data>
+			<ad>SİİRT</ad>
+			<kod>05600</kod>
+		</data>
+		<data>
+			<ad>SİNOP</ad>
+			<kod>05700</kod>
+		</data>
+		<data>
+			<ad>SİVAS</ad>
+			<kod>05800</kod>
+		</data>
+		<data>
+			<ad>ŞANLIURFA</ad>
+			<kod>06300</kod>
+		</data>
+		<data>
+			<ad>ŞIRNAK</ad>
+			<kod>07300</kod>
+		</data>
+		<data>
+			<ad>TOKAT</ad>
+			<kod>06000</kod>
+		</data>
+		<data>
+			<ad>TUNCELİ</ad>
+			<kod>06200</kod>
+		</data>
+		<data>
+			<ad>VAN</ad>
+			<kod>06500</kod>
+		</data>
+		<data>
+			<ad>YOZGAT</ad>
+			<kod>06600</kod>
+		</data>
+	</ilIlceBolge6>
+	<madenCalismaYerleri>
+		<data>
+			<ad>Yeraltı</ad>
+			<kod>101</kod>
+		</data>
+	</madenCalismaYerleri>
+	<teknolojiBolgeleri>		
+		<data>
+	        <kod>191</kod>
+			<ad>Adıyaman Üniversitesi TGB</ad>
+			<il>Adıyaman</il>
+		</data>			
+		<data>
+			<kod>151</kod>
+			<ad>Afyon Uşak Zafer Teknoloji Geliştirme Bölgesi</ad>
+			<il>Afyon</il>
+		</data>
+		<data>
+			<kod>192</kod>
+			<ad>Aksaray Üniversitesi TGB</ad>
+			<il>Aksaray</il>
+		</data>	
+		<data>
+			<kod>153</kod>
+			<ad>Ankara Teknopark Teknoloji Geliştirme Bölgesi</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>103</kod>
+			<ad>Ankara TGB</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>121</kod>
+			<ad>Ankara Üniversitesi TGB</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>178</kod>
+			<ad>ASBÜ Sosyal İnovasyon ve Girişimcilik TGB</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>187</kod>
+			<ad>ASO (Ankara Sanayi Odası) TEKNOPARK</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>194</kod>
+			<ad>Ankara Bilim Üniversitesi TGB</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>195</kod>
+			<ad>Ankara Yıldırım Beyazıt Üniversitesi TGB</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>205</kod>
+			<ad>TeknoHAB Teknoloji Geliştirme Bölgesi</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>206</kod>
+			<ad>TOBB Ekonomi ve Teknoloji Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>185</kod>
+			<ad>Antalya OSB Teknoloji Geliştirme Bölgesi</ad>
+			<il>Antalya</il>
+		</data>
+		<data>
+	        <kod>155</kod>
+			<ad>Adnan Menderes Üniversitesi TGB</ad>
+			<il>Aydın</il>
+		</data>
+		<data>
+			<kod>161</kod>
+			<ad>Balıkesir Üniversitesi TGB</ad>
+			<il>Balıkesir</il>
+		</data>		
+		<data>
+			<kod>196</kod>
+			<ad>Bandırma Onyedi Eylül Üniversitesi TGB</ad>
+			<il>Balıkesir</il>
+		</data>		
+		<data>
+			<kod>113</kod>
+			<ad>Batı Akdeniz Teknokenti TGB</ad>
+			<il>Antalya</il>
+		</data>
+
+		<data>
+			<kod>174</kod>
+			<ad>Batman Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+			<il>Batman</il>
+		</data>
+
+		<data>
+			<kod>130</kod>
+			<ad>Boğaziçi Üniversitesi TGB</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>131</kod>
+			<ad>Bolu TGB</ad>
+			<il>Bolu</il>
+		</data>
+		<data>
+			<kod>145</kod>
+			<ad>Bozok Teknoloji Geliştirme Bölgesi</ad>
+			<il>Yozgat</il>
+		</data>
+		<data>
+			<kod>175</kod>
+			<ad>Bursa Teknik Üniversitesi TGB</ad>
+			<il>Bursa</il>
+		</data>
+		<data>
+			<kod>149</kod>
+			<ad>Celal Bayar Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+			<il>Manisa</il>
+		</data>
+		<data>
+			<kod>124</kod>
+			<ad>Cumhuriyet TGB.</ad>
+			<il>Sivas</il>
+		</data>
+		<data>
+			<kod>140</kod>
+			<ad>Çanakkale TGB</ad>
+			<il>Çanakkale</il>
+		</data>
+		<data>
+			<kod>179</kod>
+			<ad>Çankırı Teknoloji Geliştirme Bölgesi</ad>
+			<il>Çankırı</il>
+		</data>
+		<data>
+			<kod>148</kod>
+			<ad>Çorum Teknoloji Geliştirme Bölgesi</ad>
+			<il>Çorum</il>
+		</data>
+		<data>
+			<kod>116</kod>
+			<ad>Çukurova TGB</ad>
+			<il>Adana</il>
+		</data>
+		<data>
+			<kod>198</kod>
+			<ad>Denizli OSB TGB</ad>
+			<il>Denizli</il>
+		</data>
+		<data>
+			<kod>128</kod>
+			<ad>Dicle Üniversitesi TGB</ad>
+			<il>Diyarbakır</il>
+		</data>
+		<data>
+			<kod>135</kod>
+			<ad>Dokuz Eylül Teknoloji Geliştirme Bölgesi</ad>
+			<il>İzmir</il>
+		</data>
+		<data>
+			<kod>189</kod>
+			<ad>Dudullu OSB Boğaziçi Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>133</kod>
+			<ad>Düzce Teknopark TGB</ad>
+			<il>Düzce</il>
+		</data>
+		<data>
+			<kod>143</kod>
+			<ad>Ege Teknopark Teknoloji Geliştirme Bölgesi</ad>
+			<il>İzmir</il>
+		</data>
+		<data>
+			<kod>114</kod>
+			<ad>Erciyes Üniversitesi TGB</ad>
+			<il>Kayseri</il>
+		</data>
+		<data>
+			<kod>117</kod>
+			<ad>Erzurum Ata Teknokent TGB</ad>
+			<il>Erzurum</il>
+		</data>
+		<data>
+			<kod>110</kod>
+			<ad>Eskişehir TGB</ad>
+			<il>Eskişehir</il>
+		</data>
+		<data>
+			<kod>125</kod>
+			<ad>Fırat TGB</ad>
+			<il>Elazığ</il>
+		</data>
+		<data>
+			<kod>204</kod>
+			<ad>TEKNOGÜ Teknoloji Geliştirme Bölgesi</ad>
+			<il>Eskişehir</il>
+		</data>
+		<data>
+			<kod>122</kod>
+			<ad>Gaziantep Üniversitesi TGB</ad>
+			<il>Gaziantep</il>
+		</data>
+		<data>
+			<kod>127</kod>
+			<ad>Gazi Teknopark TGB</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>157</kod>
+			<ad>Gebze Teknik Üniversitesi Teknoloji Geliştirme  Bölgesi</ad>
+			<il>Kocaeli</il>
+		</data>
+		<data>
+			<kod>183</kod>
+			<ad>Giresun TGB</ad>
+			<il>Giresun</il>
+		</data>
+		<data>
+			<kod>104</kod>
+			<ad>GOSB Teknopark TGB</ad>
+			<il>Kocaeli</il>
+		</data>
+		<data>
+			<kod>119</kod>
+			<ad>Göller Bölgesi TGB</ad>
+			<il>Isparta</il>
+		</data>
+		<data>
+			<kod>107</kod>
+			<ad>Hacettepe Üniversitesi TGB</ad>
+			<il>Ankara</il>
+		</data>
+        <data>
+            <kod>177</kod>
+            <ad>Gaziantep OSB TGB</ad>
+            <il>Gaziantep</il>
+        </data>
+		<data>
+			<kod>144</kod>
+			<ad>Harran Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+			<il>Şanlıurfa</il>
+		</data>
+		<data>
+			<kod>186</kod>
+			<ad>Hatay TGB</ad>
+			<il>Hatay</il>
+		</data>
+		<data>
+			<kod>181</kod>
+			<ad>Iğdır Üniversitesi Serhat TGB (Serhat Teknopark)</ad>
+			<il>Iğdır</il>
+		</data>
+		<data>
+			<kod>172</kod>
+			<ad>İskenderun Teknik Üniversitesi TGB</ad>
+			<il>Hatay</il>
+		</data>
+		
+		<data>
+			<kod>176</kod>
+			<ad>Biruni Üniversitesi TGB</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>214</kod>
+			<ad>İstanbul Finans ve Teknoloji Üssü TGB</ad>
+			<il>İstanbul</il>
+		</data>		
+		<data>
+			<kod>167</kod>
+			<ad>İstanbul Medeniyet Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>173</kod>
+			<ad>İstanbul Sebahattin Zaim İZÜ TGB</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>106</kod>
+			<ad>İstanbul Teknik Üniversitesi Arı Teknokent TGB</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>139</kod>
+			<ad>İstanbul Teknoloji Geliştirme Bölgesi</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>111</kod>
+			<ad>İstanbul Üniversitesi ve İstanbul Üniversitesi-Cerrahpaşa Teknoloji Geliştirme Bölgesi</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>184</kod>
+			<ad>İTÜ Teknopark Teknoloji Geliştirme Bölgesi</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+	        <kod>215</kod>
+			<ad>Alanya TGB</ad>
+			<il>Antalya</il>
+		</data>
+		<data>
+	        <kod>193</kod>
+			<ad>Altınbaş Üniversitesi TGB</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+	        <kod>216</kod>
+			<ad>Amasya TGB</ad>
+			<il>Amasya</il>
+		</data>	
+		<data>
+			<kod>197</kod>
+			<ad>Boğaziçi Üniversitesi Kandilli TGB</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>199</kod>
+			<ad>Esenler Akıllı Şehir Odaklı İhtisas TGB</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>209</kod>
+			<ad>POLSAN Teknoloji Geliştirme Bölgesi</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+	        <kod>210</kod>
+			<ad>Bartın Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+			<il>Bartın</il>
+		</data>
+		<data>
+	        <kod>211</kod>
+			<ad>Bingöl Teknoloji Geliştirme Bölgesi</ad>
+			<il>Bingöl</il>
+		</data>	
+			<data>
+	        <kod>212</kod>
+			<ad>ODTÜ Uzay Teknolojileri Teknoloji Geliştirme Bölgesi	</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+	        <kod>213</kod>
+			<ad>Sinop Teknoloji Geliştirme Bölgesi	</ad>
+			<il>Sinop</il>
+		</data>	
+		<data>
+			<kod>146</kod>
+			<ad>İzmir Bilim ve Teknoloji Parkı</ad>
+			<il>İzmir</il>
+		</data>
+		<data>
+			<kod>105</kod>
+			<ad>İzmir TGB</ad>
+			<il>İzmir</il>
+		</data>
+		<data>
+			<kod>188</kod>
+			<ad>Bilişim Vadisi TGB İzmir Teknoloji Üssü</ad>
+			<il>İzmir</il>
+		</data>
+		<data>
+			<kod>200</kod>
+			<ad>Kuzey izmir TGB</ad>
+			<il>İzmir</il>
+		</data>
+		<data>
+			<kod>182</kod>
+			<ad>Kadir Has Üniversitesi Silivri Teknoloji Geliştirme Bölgesi</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>134</kod>
+			<ad>Kahramanmaraş TGB</ad>
+			<il>K.Maraş</il>
+		</data>
+		<data>
+			<kod>162</kod>
+			<ad>Kapadokya Teknoloji Geliştirme Bölgesi</ad>
+			<il>Nevşehir</il>
+		</data>
+		<data>
+			<kod>166</kod>
+			<ad>Karabük Üniversitesi (KBÜ) Teknoloji Geliştirme Bölgesi</ad>
+			<il>Karabük</il>
+		</data>
+		<data>
+			<kod>168</kod>
+			<ad>Karaman Teknoloji Geliştirme Bölgesi</ad>
+			<il>Karaman</il>
+		</data>
+		<data>
+			<kod>164</kod>
+			<ad>Kastamonu Üniversitesi  Teknoloji Geliştirme Bölgesi</ad>
+			<il>Kastamonu</il>
+		</data>
+		<data>
+			<kod>190</kod>
+			<ad>Abdullah Gül Üniversitesi TGB</ad>
+			<il>Kayseri</il>
+		</data>	
+        <data>
+            <kod>180</kod>
+            <ad>Kırklareli Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+            <il>Kırklareli</il>
+        </data>
+
+		<data>
+			<kod>147</kod>
+			<ad>Kırıkkale Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+			<il>Kırıkkale</il>
+		</data>
+		<data>
+			<kod>154</kod>
+			<ad>Bilişim Vadisi Teknoloji Geliştirme Bölgesi</ad>
+			<il>Kocaeli</il>
+		</data>
+		<data>
+			<kod>109</kod>
+			<ad>Kocaeli Üniversitesi TGB</ad>
+			<il>Kocaeli</il>
+		</data>
+		<data>
+			<kod>150</kod>
+			<ad>Konya Teknoloji Geliştirme Bölgesi</ad>
+			<il>Konya</il>
+		</data>
+		<data>
+			<kod>137</kod>
+			<ad>Kütahya Dumlupınar Tasarım Teknoloji Geliştirme Bölgesi</ad>
+			<il>Kütahya</il>
+		</data>
+		<data>
+			<kod>132</kod>
+			<ad>Malatya TGB</ad>
+			<il>Malatya</il>
+		</data>
+		<data>
+			<kod>142</kod>
+			<ad>Marmara Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>170</kod>
+			<ad>Mehmet Akif Ersoy Üniversitesi MAKÜ BAKA TGB</ad>
+			<il>Burdur</il>
+		</data>
+		<data>
+			<kod>118</kod>
+			<ad>Mersin TGB</ad>
+			<il>Mersin</il>
+		</data>
+			
+		<data>
+			<kod>201</kod>
+			<ad>Mersin Tarım ve Gıda İhtisas TGB</ad>
+			<il>Mersin</il>
+		</data>		
+		
+		<data>
+			<kod>136</kod>
+			<ad>Namık Kemal ÜniversitesiTeknoloji Geliştirme Bölgesi</ad>
+			<il>Tekirdağ</il>
+		</data>
+		<data>
+			<kod>160</kod>
+			<ad>Niğde Ömer Halisdemir Üniversitesi TGB</ad>
+			<il>Niğde</il>
+		</data>
+		<data>
+			<kod>101</kod>
+			<ad>ODTÜ Teknokent TGB</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>171</kod>
+			<ad>Osmaniye TGB</ad>
+			<il>Osmaniye</il>
+		</data>
+		<data>
+			<kod>156</kod>
+			<ad>Ostim Ekopark Teknoloji Geliştirme Bölgesi</ad>
+			<il>Ankara</il>
+		</data>
+		<data>
+			<kod>123</kod>
+			<ad>Pamukkale Üniversitesi TGB</ad>
+			<il>Denizli</il>
+		</data>
+		<data>
+			<kod>169</kod>
+			<ad>Recep Tayyip Erdoğan Üniversitesi ve Türk Alman Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>159</kod>
+			<ad>Sağlık Bilimleri Üniversitesi Teknoloji Geliştirme Bölgesi Sağlık Teknokent</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>208</kod>
+			<ad>Recep Tayyip Erdoğan Üniversitesi ve Türk Alman Üniversitesi Teknoloji Geliştirme Bölgesi</ad>
+			<il>Rize</il>
+		</data>
+		
+		<data>
+			<kod>129</kod>
+			<ad>Sakarya Üniversitesi TGB</ad>
+			<il>Sakarya</il>
+		</data>
+		<data>
+			<kod>202</kod>
+			<ad>Sakarya Uygulamalı Bilimler Üniversitesi TGB</ad>
+			<il>Sakarya</il>
+		</data>
+		<data>
+			<kod>141</kod>
+			<ad>Samsun Teknoloji Geliştirme Bölgesi</ad>
+			<il>Samsun</il>
+		</data>
+		<data>
+			<kod>203</kod>
+			<ad>Sivas Bilim ve Teknoloji Üniversitesi Teknopark TGB</ad>
+			<il>Sivas</il>
+		</data>
+		<data>
+			<kod>112</kod>
+			<ad>Selçuk Üniversitesi TGB</ad>
+			<il>Konya</il>
+		</data>
+		<data>
+			<kod>163</kod>
+			<ad>Muğla Sıtkı Koçman Üniversitesi TGB</ad>
+			<il>Muğla</il>
+		</data>
+		<data>
+			<kod>138</kod>
+			<ad>Tokat Teknoloji Geliştirme Bölgesi</ad>
+			<il>Tokat</il>
+		</data>
+		<data>
+			<kod>115</kod>
+			<ad>Trabzon TGB</ad>
+			<il>Trabzon</il>
+		</data>
+		<data>
+			<kod>126</kod>
+			<ad>Trakya Üniversitesi Edirne TGB</ad>
+			<il>Edirne</il>
+		</data>
+		<data>
+			<kod>102</kod>
+			<ad>TÜBİTAK - Marmara Araştırma Merkezi Teknopark TGB</ad>
+			<il>Kocaeli</il>
+		</data>
+		<data>
+			<kod>120</kod>
+			<ad>Ulutek TGB</ad>
+			<il>Bursa</il>
+		</data>
+		<data>
+			<kod>108</kod>
+			<ad>Yıldız Teknik Üniversitesi TGB</ad>
+			<il>İstanbul</il>
+		</data>
+		<data>
+			<kod>207</kod>
+			<ad>Yalova TGB</ad>
+			<il>Yalova</il>
+		</data>
+		<data>
+			<kod>152</kod>
+			<ad>Yüzüncü Yıl Üniversitesi Teknokent</ad>
+			<il>Van</il>
+		</data>
+		<data>
+			<kod>158</kod>
+			<ad>Zonguldak Teknopark</ad>
+			<il>Zonguldak</il>
+		</data>
+	</teknolojiBolgeleri>
+	<aitOlduguDonemTip>
+		<data>
+			<kod>0</kod>
+			<aciklama>Aylık</aciklama>
+		</data>
+		<data>
+			<kod>1</kod>
+			<aciklama>1. Ay</aciklama>
+		</data>
+		<data>
+			<kod>2</kod>
+			<aciklama>2. Ay</aciklama>
+		</data>
+		<data>
+			<kod>3</kod>
+			<aciklama>3. Ay</aciklama>
+		</data>
+	</aitOlduguDonemTip>
+	<mahiyeti>
+		<data> <kod>A</kod> <aciklama>Asıl</aciklama> </data>
+		<data> <kod>E</kod> <aciklama>Ek</aciklama> </data>
+		<data> <kod>I</kod> <aciklama>İptal</aciklama> </data>
+	</mahiyeti>
+	<belgeTuru>
+		<data> <kod>01</kod> <aciklama>TÜM SİG.KOLLARI/YABNC UYR</aciklama> </data>
+		<data> <kod>02</kod> <aciklama>SOS.GÜV.DES PRİM BİLDİRGE</aciklama> </data>
+		<data> <kod>03</kod> <aciklama>2098 S.KANUN IŞSIZ.DAHİL</aciklama> </data>
+		<data> <kod>04</kod> <aciklama>YERALTI SÜREKLİ</aciklama> </data>
+		<data> <kod>05</kod> <aciklama>YERALTI GRUPLU</aciklama> </data>
+		<data> <kod>06</kod> <aciklama>YERÜSTÜ GRUPLU</aciklama> </data>
+		<data> <kod>07</kod> <aciklama>ÇIRAK/STAJYER ÖĞRENCİ</aciklama> </data>
+		<data> <kod>08</kod> <aciklama>EL HALICILIĞI,DOKUMACILIK</aciklama> </data>
+		<data> <kod>09</kod> <aciklama>TOPLULUK</aciklama> </data>
+		<data> <kod>10</kod> <aciklama>ANŞ.TABİ OLMAYAN YABANCI</aciklama> </data>
+		<data> <kod>11</kod> <aciklama>Y.Ö.K KISMİ İSTİH.ÖĞRENCİ</aciklama> </data>
+		<data> <kod>12</kod> <aciklama>GEÇİCİ 20.MADDE (SANDIK)</aciklama></data>
+		<data> <kod>13</kod> <aciklama>AY.SİG.PRİM İŞSİZ.HARİÇ</aciklama> </data>
+		<data> <kod>14</kod> <aciklama>LIBYA</aciklama> </data>
+		<data> <kod>15</kod> <aciklama>ANLAŞMALI ÜLKE YAB.UYRUK</aciklama> </data>
+		<data> <kod>16</kod> <aciklama>1798 S.KANUN IŞSIZ.HARIÇ</aciklama> </data>
+		<data> <kod>17</kod> <aciklama>2098.GÖV.MALÜL.AYLIĞI AL.</aciklama> </data>
+		<data> <kod>18</kod> <aciklama>GOREV-MALULLUK AYL. AL.</aciklama> </data>
+		<data> <kod>19</kod> <aciklama>CEZA İNFAZ/TUTUKEVİ ÇALIŞ</aciklama> </data>
+		<data> <kod>20</kod> <aciklama>ALMANYA FEDERAL CUM.ÇALIŞ</aciklama> </data>
+		<data> <kod>21</kod> <aciklama>SGS İMZALANMAMIŞ ÜLKELER</aciklama> </data>
+		<data> <kod>22</kod> <aciklama>MES.LİSESİ ZORUNLU STAJ</aciklama> </data>
+		<data> <kod>23</kod> <aciklama>HARP ML3713/2330/670 KVSK</aciklama> </data>
+		<data> <kod>24</kod> <aciklama>HARP ML3713/2330/670KV+UV</aciklama> </data>
+		<data> <kod>25</kod> <aciklama>4447 İŞS.ALMY.KURSİYER</aciklama> </data>
+		<data> <kod>28</kod> <aciklama>4046 21.MD.İŞ KAYBI TAZM.</aciklama> </data>
+		<data> <kod>29</kod> <aciklama>60 GUN FİİLİ SÜR.ZAM.TABİ</aciklama> </data>
+		<data> <kod>30</kod> <aciklama>İŞ.SİG.HARİÇ 60 GÜN FİİLİ</aciklama> </data>
+		<data> <kod>31</kod> <aciklama>HARP ML3713/2330/670 60FH</aciklama> </data>
+		<data> <kod>32</kod> <aciklama>TSKT 90 GÜN FİİLİ HİZ.SÜR</aciklama> </data>
+		<data> <kod>33</kod> <aciklama>İŞSİZ.SİG.HAR.90 GÜN F.H.</aciklama> </data>
+		<data> <kod>34</kod> <aciklama>HARP ML3713/2330/670 90FH</aciklama> </data>
+		<data> <kod>35</kod> <aciklama>T.S.K.T ÇALIŞIP 180 GÜN F</aciklama> </data>
+		<data> <kod>36</kod> <aciklama>İŞ.SİG.HAR.180 GUN F.H.S.</aciklama> </data>
+		<data> <kod>37</kod> <aciklama>HARP ML3713/2330/670 180F</aciklama> </data>
+		<data> <kod>39</kod> <aciklama>BİR.KRAL.İKA.ED.İSVİCRE U</aciklama> </data>
+		<data> <kod>41</kod> <aciklama>KAMU İDR.İŞ AKDİ ASKIDA</aciklama> </data>
+		<data> <kod>42</kod> <aciklama>ÇIRAK/ÖĞR.BAKM.YÜKM.DEĞİL</aciklama> </data>
+		<data> <kod>43</kod> <aciklama>STAJYER BAKM.YÜKM.DEĞİL</aciklama> </data>
+		<data> <kod>44</kod> <aciklama>İŞKUR KURS.BAK.YÜKM.DEĞİL</aciklama> </data>
+		<data> <kod>46</kod> <aciklama>İŞKUR KURSİYERLERİ</aciklama> </data>
+		<data> <kod>47</kod> <aciklama>YARIM ÇALIŞMA ÖDENEĞİ</aciklama> </data>
+		<data> <kod>48</kod> <aciklama>EMEKLİ YERALTINDA ÇALIŞAN</aciklama> </data>
+		<data> <kod>49</kod> <aciklama>TAMAMLAYICI BAKMAKLA YÜK.</aciklama> </data>
+		<data> <kod>50</kod> <aciklama>TAMAMLAYICI BAKM YÜK.OLM.</aciklama> </data>	
+		<data> <kod>51</kod> <aciklama>GÜVENLİK KORUCULARI EK-15</aciklama> </data>	
+		<data> <kod>52</kod> <aciklama>ML.AYL.BAĞLANMAMIŞ 670KHK</aciklama> </data>	
+		<data> <kod>53</kod> <aciklama>ML.AYL.BAĞLANMAMIŞ 60FHZ</aciklama> </data>	
+		<data> <kod>54</kod> <aciklama>ML.AYL.BAĞLANMAMIŞ 90FHZ</aciklama> </data>	
+		<data> <kod>55</kod> <aciklama>ML.AYL.BAĞLANMAMIŞ 180FHZ</aciklama> </data>
+		<data> <kod>56</kod> <aciklama>GEÇİCİ 20 İŞS.HARİÇ</aciklama> </data>	
+		<data> <kod>57</kod> <aciklama>GEÇİCİ 20 İŞS.HAR EMEKLİ</aciklama> </data>				
+		<data> <kod>90</kod> <aciklama>İTİBARİ HİZMET S.TABİ ÇAL</aciklama> </data>
+		<data> <kod>91</kod> <aciklama>60 GÜN FHS Z.TABİ İHS TAB</aciklama> </data>
+		<data> <kod>92</kod> <aciklama>90 GÜN FHS Z.TABİ İHS TAB</aciklama> </data>
+	</belgeTuru>
+	<kanunTuru>
+		<data> <kod>00687</kod> <aciklama>00687-Sayılı KHK</aciklama> </data>
+		<data> <kod>01687</kod> <aciklama>01687-Sayılı Kanun</aciklama> </data>
+		<data> <kod>02828</kod> <aciklama>02828-Sosyal Hizmetler Kanunu</aciklama> </data>
+		<data> <kod>03294</kod> <aciklama>03294-Sosyal Yardım Alanların İstihdamı</aciklama> </data>
+		<data> <kod>05510</kod> <aciklama>05510-Say.Kan.MYO%5</aciklama> </data>
+		<data> <kod>05746</kod> <aciklama>05746-Sayılı Arge Kanunu</aciklama> </data>
+		<data> <kod>06111</kod> <aciklama>06111-Sayılı Kanun</aciklama> </data>
+		<data> <kod>06486</kod> <aciklama>06486-Yurtdışına Götürülenler</aciklama> </data>
+		<data> <kod>06645</kod> <aciklama>06645-İşbaşı Eğitim</aciklama> </data>
+		<data> <kod>07252</kod> <aciklama>07252-Sayılı Kanun KÇÖ/NÜD yararlananlar</aciklama> </data>
+		<data> <kod>07316</kod> <aciklama>07316- Faaliyetine Ara Verilen Sektörler</aciklama> </data>
+		<data> <kod>14857</kod> <aciklama>14857-%100 Engelli Teşviği</aciklama> </data>
+		<data> <kod>15746</kod> <aciklama>15746-Sayılı Arge Kanunu</aciklama> </data>
+		<data> <kod>15921</kod> <aciklama>15921-İşsizlik Ödeneği Alanlar</aciklama> </data>
+		<data> <kod>16322</kod> <aciklama>16322-Sayılı Kanun</aciklama> </data>
+		<data> <kod>17103</kod> <aciklama>17103-Yeni Nesil İmalat/Bilişim</aciklama> </data>
+		<data> <kod>17256</kod> <aciklama>17256-İstihdama Dönüş Desteği</aciklama> </data>
+		<data> <kod>25225</kod> <aciklama>25225-Kültür Yatırımları Teşvik</aciklama> </data>
+		<data> <kod>25510</kod> <aciklama>25510-EK M-2</aciklama> </data>
+		<data> <kod>26322</kod> <aciklama>26322-Sayılı Kanun</aciklama> </data>
+		<data> <kod>27103</kod> <aciklama>27103-Yeni Nesil Diğer</aciklama> </data>
+		<data> <kod>27256</kod> <aciklama>27256-İlave İstihdam Desteği</aciklama> </data>
+		<data> <kod>36322</kod> <aciklama>36322-Proje Bazlı Yatırım Teşvik Belgesi</aciklama> </data>
+		<data> <kod>37103</kod> <aciklama>37103-Bir Senden Bir Benden</aciklama> </data>
+		<data> <kod>46486</kod> <aciklama>46486-İlave 6 Puanlık İndirim</aciklama> </data>
+		<data> <kod>55225</kod> <aciklama>55225-Kültür Yatırımları Teşvik</aciklama> </data>
+		<data> <kod>56486</kod> <aciklama>56486-İlave 6 Puanlık İndirim</aciklama> </data>
+		<data> <kod>66486</kod> <aciklama>66486-İlave 6 Puanlık İndirim</aciklama> </data>
+		<data> <kod>15510</kod> <aciklama>15510-SGDP-5510 Sayılı Kanun Geçici 95. Madde</aciklama> </data>
+		<data> <kod>25746</kod> <aciklama>25746-Arge Teşviki OHAL illeri</aciklama> </data>
+		<data> <kod>35746</kod> <aciklama>35746-Arge Teşviki OHAL illeri</aciklama> </data>
+		<data> <kod>49903</kod> <aciklama>49903-YTB Geçici 5.Md İşveren His.</aciklama> </data>
+		<data> <kod>59903</kod> <aciklama>59903-YTB Geçici 5.Md.İşv.Sig.His.</aciklama> </data>
+		<data> <kod>00000</kod> <aciklama>Kanun türü yoktur</aciklama> </data>
+	</kanunTuru>
+	<ilKodu>
+		<data> <kod>001</kod> <aciklama>ADANA</aciklama> </data>
+		<data> <kod>002</kod> <aciklama>ADIYAMAN</aciklama> </data>
+		<data> <kod>003</kod> <aciklama>AFYONKARAHİSAR</aciklama> </data>
+		<data> <kod>004</kod> <aciklama>AĞRI</aciklama> </data>
+		<data> <kod>005</kod> <aciklama>AMASYA</aciklama> </data>
+		<data> <kod>006</kod> <aciklama>ANKARA</aciklama> </data>
+		<data> <kod>007</kod> <aciklama>ANTALYA</aciklama> </data>
+		<data> <kod>008</kod> <aciklama>ARTVİN</aciklama> </data>
+		<data> <kod>009</kod> <aciklama>AYDIN</aciklama> </data>
+		<data> <kod>010</kod> <aciklama>BALIKESİR</aciklama> </data>
+		<data> <kod>011</kod> <aciklama>BİLECİK</aciklama> </data>
+		<data> <kod>012</kod> <aciklama>BİNGÖL</aciklama> </data>
+		<data> <kod>013</kod> <aciklama>BİTLİS</aciklama> </data>
+		<data> <kod>014</kod> <aciklama>BOLU</aciklama> </data>
+		<data> <kod>015</kod> <aciklama>BURDUR</aciklama> </data>
+		<data> <kod>016</kod> <aciklama>BURSA</aciklama> </data>
+		<data> <kod>017</kod> <aciklama>ÇANAKKALE</aciklama> </data>
+		<data> <kod>018</kod> <aciklama>ÇANKIRI</aciklama> </data>
+		<data> <kod>019</kod> <aciklama>ÇORUM</aciklama> </data>
+		<data> <kod>020</kod> <aciklama>DENİZLİ</aciklama> </data>
+		<data> <kod>021</kod> <aciklama>DİYARBAKIR</aciklama> </data>
+		<data> <kod>022</kod> <aciklama>EDİRNE</aciklama> </data>
+		<data> <kod>023</kod> <aciklama>ELAZIĞ</aciklama> </data>
+		<data> <kod>024</kod> <aciklama>ERZİNCAN</aciklama> </data>
+		<data> <kod>025</kod> <aciklama>ERZURUM</aciklama> </data>
+		<data> <kod>026</kod> <aciklama>ESKİŞEHİR</aciklama> </data>
+		<data> <kod>027</kod> <aciklama>GAZİANTEP</aciklama> </data>
+		<data> <kod>028</kod> <aciklama>GİRESUN</aciklama> </data>
+		<data> <kod>029</kod> <aciklama>GÜMÜŞHANE</aciklama> </data>
+		<data> <kod>030</kod> <aciklama>HAKKARİ</aciklama> </data>
+		<data> <kod>031</kod> <aciklama>HATAY</aciklama> </data>
+		<data> <kod>032</kod> <aciklama>ISPARTA</aciklama> </data>
+		<data> <kod>033</kod> <aciklama>MERSİN</aciklama> </data>
+		<data> <kod>034</kod> <aciklama>İSTANBUL</aciklama> </data>
+		<data> <kod>035</kod> <aciklama>İZMİR</aciklama> </data>
+		<data> <kod>036</kod> <aciklama>KARS</aciklama> </data>
+		<data> <kod>037</kod> <aciklama>KASTAMONU</aciklama> </data>
+		<data> <kod>038</kod> <aciklama>KAYSERİ</aciklama> </data>
+		<data> <kod>039</kod> <aciklama>KIRKLARELİ</aciklama> </data>
+		<data> <kod>040</kod> <aciklama>KIRŞEHİR</aciklama> </data>
+		<data> <kod>041</kod> <aciklama>KOCAELİ</aciklama> </data>
+		<data> <kod>042</kod> <aciklama>KONYA</aciklama> </data>
+		<data> <kod>043</kod> <aciklama>KÜTAHYA</aciklama> </data>
+		<data> <kod>044</kod> <aciklama>MALATYA</aciklama> </data>
+		<data> <kod>045</kod> <aciklama>MANİSA</aciklama> </data>
+		<data> <kod>046</kod> <aciklama>KAHRAMANMARAŞ</aciklama> </data>
+		<data> <kod>047</kod> <aciklama>MARDİN</aciklama> </data>
+		<data> <kod>048</kod> <aciklama>MUĞLA</aciklama> </data>
+		<data> <kod>049</kod> <aciklama>MUŞ</aciklama> </data>
+		<data> <kod>050</kod> <aciklama>NEVŞEHİR</aciklama> </data>
+		<data> <kod>051</kod> <aciklama>NİĞDE</aciklama> </data>
+		<data> <kod>052</kod> <aciklama>ORDU</aciklama> </data>
+		<data> <kod>053</kod> <aciklama>RİZE</aciklama> </data>
+		<data> <kod>054</kod> <aciklama>SAKARYA</aciklama> </data>
+		<data> <kod>055</kod> <aciklama>SAMSUN</aciklama> </data>
+		<data> <kod>056</kod> <aciklama>SİİRT</aciklama> </data>
+		<data> <kod>057</kod> <aciklama>SİNOP</aciklama> </data>
+		<data> <kod>058</kod> <aciklama>SİVAS</aciklama> </data>
+		<data> <kod>059</kod> <aciklama>TEKİRDAĞ</aciklama> </data>
+		<data> <kod>060</kod> <aciklama>TOKAT</aciklama> </data>
+		<data> <kod>061</kod> <aciklama>TRABZON</aciklama> </data>
+		<data> <kod>062</kod> <aciklama>TUNCELİ</aciklama> </data>
+		<data> <kod>063</kod> <aciklama>ŞANLIURFA</aciklama> </data>
+		<data> <kod>064</kod> <aciklama>UŞAK</aciklama> </data>
+		<data> <kod>065</kod> <aciklama>VAN</aciklama> </data>
+		<data> <kod>066</kod> <aciklama>YOZGAT</aciklama> </data>
+		<data> <kod>067</kod> <aciklama>ZONGULDAK</aciklama> </data>
+		<data> <kod>068</kod> <aciklama>AKSARAY</aciklama> </data>
+		<data> <kod>069</kod> <aciklama>BAYBURT</aciklama> </data>
+		<data> <kod>070</kod> <aciklama>KARAMAN</aciklama> </data>
+		<data> <kod>071</kod> <aciklama>KIRIKKALE</aciklama> </data>
+		<data> <kod>072</kod> <aciklama>BATMAN</aciklama> </data>
+		<data> <kod>073</kod> <aciklama>ŞIRNAK</aciklama> </data>
+		<data> <kod>074</kod> <aciklama>BARTIN</aciklama> </data>
+		<data> <kod>075</kod> <aciklama>ARDAHAN</aciklama> </data>
+		<data> <kod>076</kod> <aciklama>IĞDIR</aciklama> </data>
+		<data> <kod>077</kod> <aciklama>YALOVA</aciklama> </data>
+		<data> <kod>078</kod> <aciklama>KARABÜK</aciklama> </data>
+		<data> <kod>079</kod> <aciklama>KİLİS</aciklama> </data>
+		<data> <kod>080</kod> <aciklama>OSMANİYE</aciklama> </data>
+		<data> <kod>081</kod> <aciklama>DÜZCE</aciklama> </data>
+	</ilKodu>
+	<tahakkukNedeni>
+		<data> <kod>A</kod> <aciklama>Yasal süresinde verilme</aciklama> </data>
+		<data> <kod>B</kod> <aciklama>Yasal süresi dışında verilme</aciklama> </data>
+		<data> <kod>C</kod> <aciklama>4447 sayılı İşsizlik Sigortası Kanununun Ek 5 inci maddesi</aciklama> </data>
+		<data> <kod>D</kod> <aciklama>Belge türü ve/veya Kanun türü değişikliği</aciklama> </data>
+		<data> <kod>E</kod> <aciklama>Mücbir sebep</aciklama> </data>
+		<data> <kod>F</kod> <aciklama>Toplu iş sözleşmesi akdedilen işyerlerinde toplu iş sözleşmesi nedeniyle geriye yönelik ödenmesine karar verilen ücret farkları</aciklama> </data>
+		<data> <kod>G</kod> <aciklama>Toplu iş sözleşmesi akdedilen işyerlerinde Yüksek Hakem Kurulu kararı nedeniyle geriye yönelik ödenmesine karar verilen ücret farkları</aciklama> </data>
+		<data> <kod>H</kod> <aciklama>Toplu iş sözleşmesi akdedilen işyerlerinde iş sözleşmesinin mahkemelerce Toplu iş Sözleşmesi Kanununa aykırı bulunması ve toplu iş sözleşmesi hükümlerinin  uygulanmasına karar verilmesi nedeniyle geriye yönelik ödenmesi gereken ücret farkları</aciklama> </data>
+		<data> <kod>I</kod> <aciklama>Kamu kurum ve kuruluşlarında çalışan ve toplu iş sözleşmesi dışında kalan sigortalı personel ile özel sektöre ait işyerlerinde sendikalara üye olmamaları sebebiyle toplu iş sözleşmesi kapsamı dışında kalan sigortalılara geriye dönük ödenmesine karar verilen ücret farkları</aciklama> </data>
+		<data> <kod>J</kod> <aciklama>Aylık veya ücretleri Maliye Bakanlığının vizesine tabi olması sebebiyle ödenmesine sonradan karar verilen sigortalı personel için vizenin gecikmesine bağlı olarak aylık veya ücretler</aciklama> </data>
+		<data> <kod>K</kod> <aciklama>Bir aydan fazla istirahat alan sigortalılara Kurumca ödenen geçici iş göremezlik ödeneğinin yanı sıra işverenlerince toplu iş sözleşmesine dayanılarak istirahatli bulunulan süre için ücret ödenmesi</aciklama> </data>
+		<data> <kod>L</kod> <aciklama>4857 sayılı İş Kanununun 21 inci maddesine istinaden iş mahkemelerince veya özel hakem tarafından verilen kararlar uyarınca işe iade</aciklama> </data>
+		<data> <kod>M</kod> <aciklama>İdare mahkemesi kararlarına göre göreve iade edilen personele ücret ödenmesi</aciklama> </data>
+		<data> <kod>N</kod> <aciklama>Kamu kurumlarında çalışan sigortalılar için mahkeme kararları veya idarece verilen kararlar gereğince geriye yönelik ücret ve ücret niteliğinde ödeme yapılması</aciklama> </data>
+		<data> <kod>O</kod> <aciklama>657 sayılı Devlet Memurları Kanununun 4 üncü maddesinin (B) bendi kapsamında bulunanlardan Kanunun 4 üncü maddesinin birinci fıkrasının (a) bendi kapsamına girenler gibi sigortalı olması öngörülenlere enflasyon farkı veya başka ad altında geriye yönelik olarak yapılan ödeme</aciklama> </data>
+		<data> <kod>P</kod> <aciklama>Toplu iş sözleşmelerine tabi işyeri işverenlerince veya kamu idarelerince ya da yargı mercilerince verilen kararlara istinaden, hizmet akdinin mevcut olmadığı veya askıda olduğu bir tarihte ödenen ücret dışındaki ödemeler</aciklama> </data>
+		<data> <kod>R</kod> <aciklama>Sosyal Güvenlik Kurumu denetim ve kontrol ile görevlendirilmiş memurlarınca, fiilen yapılan denetimler sonucunda veya işyeri kayıtlarından yapılan tespitler</aciklama> </data>
+		<data> <kod>S</kod> <aciklama>Kamu idarelerinin denetim elemanlarınca yapılan soruşturma, denetim ve inceleme</aciklama> </data>
+		<data> <kod>T</kod> <aciklama>Kamu kurum ve kuruluşları ile bankalar tarafından düzenlenen belge veya alınan bilgiler</aciklama> </data>
+		<data> <kod>U</kod> <aciklama>Re'sen düzenleme (Kurum Kullanıcısı için)</aciklama> </data>
+	</tahakkukNedeni>
+	<eksikGunNedeni>
+		<data> <kod>1</kod> <aciklama>İSTİRAHAT</aciklama> </data>
+		<data> <kod>3</kod> <aciklama>DİSİPLİN CEZASI</aciklama> </data>
+		<data> <kod>4</kod> <aciklama>GÖZALTINA ALINMA</aciklama> </data>
+		<data> <kod>5</kod> <aciklama>TUTUKLULUK</aciklama> </data>
+		<data> <kod>6</kod> <aciklama>KISMİ İSTİHDAM</aciklama> </data>
+		<data> <kod>7</kod> <aciklama>PUNTAJ KAYITLARI</aciklama> </data>
+		<data> <kod>8</kod> <aciklama>GREV</aciklama> </data>
+		<data> <kod>9</kod> <aciklama>LOKAVT</aciklama> </data>
+		<data> <kod>10</kod> <aciklama>GENEL HAYATI ETKİLEYEN OLAYLAR</aciklama> </data>
+		<data> <kod>11</kod> <aciklama>DOĞAL AFET</aciklama> </data>
+		<data> <kod>12</kod> <aciklama>BİRDEN FAZLA</aciklama> </data>
+		<data> <kod>13</kod> <aciklama>DİĞER NEDENLER</aciklama> </data>
+		<data> <kod>15</kod> <aciklama>DEVAMSIZLIK</aciklama> </data>
+		<data> <kod>16</kod> <aciklama>FESİH TARİHİNDE ÇALIŞMAMIŞ</aciklama> </data>
+		<data> <kod>17</kod> <aciklama>EV HİZMETLERİNDE 30 GÜNDEN AZ ÇALIŞMA</aciklama> </data>
+		<data> <kod>18</kod> <aciklama>KISA ÇALIŞMA ÖDENEĞİ</aciklama> </data>
+		<data> <kod>19</kod> <aciklama>ÜCRETSİZ DOĞUM İZNİ</aciklama> </data>
+		<data> <kod>20</kod> <aciklama>ÜCRETSİZ YOL İZNİ</aciklama> </data>
+		<data> <kod>21</kod> <aciklama>DİĞER ÜCRETSİZ İZİN</aciklama> </data>
+		<data> <kod>22</kod> <aciklama>5434 SK EK 76,GM 192</aciklama> </data>
+		<data> <kod>23</kod> <aciklama>YARIM ÇALIŞMA ÖDENEĞİ</aciklama> </data>
+		<data> <kod>24</kod> <aciklama>YARIM ÇALIŞMA ÖDENEĞİ VE DİĞER NEDENLER</aciklama> </data>
+		<data> <kod>25</kod> <aciklama>DİĞER BELGE/KANUN TÜRLERİNDEN GÜN TAMAMLAMA</aciklama> </data>
+		<data> <kod>26</kod> <aciklama>KISMİ İSTİHDAMA İZİN VERİLEN YABANCI UYRUKLU</aciklama> </data>
+		<data> <kod>27</kod> <aciklama>KISA ÇALIŞMA ÖDENEĞİ VE DİĞER NEDENLER</aciklama> </data>
+		<data> <kod>28</kod> <aciklama>PANDEMİ ÜCRETSİZ İZİN(4857 GEÇ. 10. MD)</aciklama> </data>
+		<data> <kod>29</kod> <aciklama>PANDEMİ ÜCRETSİZ İZİN(4857 GEÇ. 10. MD) VE DİĞER</aciklama> </data>
+	</eksikGunNedeni>
+	<istenCikisNedeni>
+		<data> <kod>1</kod> <aciklama>DENEME SÜRELİ İŞ SÖZL.İŞVERENCE FESHİ</aciklama> </data>
+		<data> <kod>2</kod> <aciklama>DENEME SÜRELİ İŞ SÖZL.İŞÇİ TARAFINDAN FESHİ</aciklama> </data>
+		<data> <kod>3</kod> <aciklama>BELİRSİZ SÜRELİ İŞ SÖZL. İŞÇİ TARAFINDAN FESHİ</aciklama> </data>
+		<data> <kod>4</kod> <aciklama>BELİRSİZ SÜRELİ İŞ SÖZL. İŞVEREN TARAFINDAN FESHİ</aciklama> </data>
+		<data> <kod>5</kod> <aciklama>BELİRLİ SÜRELİ İŞ SÖZL.NİN SONA ERMESİ</aciklama> </data>
+		<data> <kod>8</kod> <aciklama>EMEKLİLİK (YAŞLILIK) VEYA TOPTAN ÖDEME NEDENİYLE</aciklama> </data>
+		<data> <kod>9</kod> <aciklama>MALÜLEN EMEKLİLİK NEDENİYLE</aciklama> </data>
+		<data> <kod>10</kod> <aciklama>ÖLÜM</aciklama> </data>
+		<data> <kod>11</kod> <aciklama>İŞKAZASI SONUCU ÖLÜM</aciklama> </data>
+		<data> <kod>12</kod> <aciklama>ASKERLİK</aciklama> </data>
+		<data> <kod>13</kod> <aciklama>KADIN İŞÇİNİN EVLENMESİ</aciklama> </data>
+		<data> <kod>14</kod> <aciklama>EMEKLİLİK İÇİN YAŞ DIŞINDA DİĞER ŞART.TAMAMLANMASI</aciklama> </data>
+		<data> <kod>15</kod> <aciklama>TOPLU İŞÇİ ÇIKARMA</aciklama> </data>
+		<data> <kod>16</kod> <aciklama>NAKİL</aciklama> </data>
+		<data> <kod>17</kod> <aciklama>İŞYERİNİN KAPANMASI</aciklama> </data>
+		<data> <kod>18</kod> <aciklama>İŞİN SONA ERMESİ</aciklama> </data>
+		<data> <kod>19</kod> <aciklama>MEVSİM BİTİMİ</aciklama> </data>
+		<data> <kod>20</kod> <aciklama>KAMPANYA BİTİMİ</aciklama> </data>
+		<data> <kod>21</kod> <aciklama>STATÜ DEĞİŞİKLİĞİ</aciklama> </data>
+		<data> <kod>22</kod> <aciklama>DİĞER NEDENLER</aciklama> </data>
+		<data> <kod>23</kod> <aciklama>İŞÇİ TARAFINDAN ZORUNLU NEDENLE FESİH</aciklama> </data>
+		<data> <kod>24</kod> <aciklama>İŞÇİ TARAFINDAN SAĞLIK NEDENİYLE FESİH</aciklama> </data>
+		<data> <kod>25</kod> <aciklama>İŞÇİ T.İŞV.NİN AHL.VE İYİ NY.KRL.AYK.DAV.NDN.FESİH</aciklama> </data>
+		<data> <kod>26</kod> <aciklama>DİSİPLİN KURULU KARARI İLE FESİH</aciklama> </data>
+		<data> <kod>27</kod> <aciklama>İŞV.TARAF.ZOR.NEDENLERLE VE TUTUKLULUK NED.FESİH</aciklama> </data>
+		<data> <kod>28</kod> <aciklama>İŞVEREN TARAFINDAN SAĞLIK NEDENİ İLE FESİH</aciklama> </data>
+		<data> <kod>29</kod> <aciklama>İŞV T.İŞÇ.NİN AHL.VE İYİ NY.KRL.AYK.DAV.NDN.FESİH</aciklama> </data>
+		<data> <kod>30</kod> <aciklama>VİZE SÜRE BİTİMİ/İŞ AKD.ASKIYA ALINMASI HALİNDE</aciklama> </data>
+		<data> <kod>31</kod> <aciklama>BRÇ.KN,SEN.KN,GREV LKV.KN,KPS.KENDİ İS.KSR.DIŞINDA</aciklama> </data>
+		<data> <kod>32</kod> <aciklama>4046 SY.KN.NUN 21.M.SİNE GÖRE ÖZELLEŞTİRME N.FESİH</aciklama> </data>
+		<data> <kod>33</kod> <aciklama>GAZETECİ TARAFINDAN SÖZLEŞMENİN FESHİ</aciklama> </data>
+		<data> <kod>34</kod> <aciklama>İŞY.DEVRİ,İŞİN VEYA İŞY.NİN NTL.DEĞİŞMESİ ND.FESİH</aciklama> </data>
+		<data> <kod>35</kod> <aciklama>DEVLET MEMURLUĞUNA GEÇİŞ YAPMA</aciklama> </data>
+		<data> <kod>36</kod> <aciklama>OHAL/KHK</aciklama> </data>
+		<data> <kod>37</kod> <aciklama>KHK İLE KAMU GÖREVİNDEN ÇIKARMA</aciklama> </data>
+		<data> <kod>38</kod> <aciklama>DOĞUM NEDENİYLE İŞTEN AYRILMA</aciklama> </data>
+		<data> <kod>39</kod> <aciklama>696 KHK İLE KAMU İŞÇİLİĞİNE GEÇİŞ</aciklama> </data>
+		<data> <kod>40</kod> <aciklama>696 KHK İLE KAMU İŞÇİLİĞİNE GEÇİLMEMESİ</aciklama> </data>
+		<data> <kod>42</kod> <aciklama>4857/25-II-A İŞ SÖZLEŞMESİ YAPILDIĞI SIRADA BU SÖZLEŞMENİN ESASLI NOKTALARINDAN BİRİ İÇİN GEREKLİ VASIFLAR VEYA ŞARTLAR KENDİSİNDE BULUNMADIĞI HALDE BUNLARIN KENDİSİNDE BULUNDUĞUNU İLERİ SÜREREK, YAHUT GERÇEĞE UYGUN OLMAYAN BİLGİLER VEYA SÖZLER SÖYLEYEREK İŞÇİNİN İŞVERENİ YANILTMASI</aciklama> </data>
+		<data> <kod>43</kod> <aciklama>4857/25-II-B İŞÇİNİN, İŞVEREN YAHUT BUNLARIN AİLE ÜYELERİNDEN BİRİNİN ŞEREF VE NAMUSUNA DOKUNACAK SÖZLER SARFETMESİ VEYA DAVRANIŞLARDA BULUNMASI, YAHUT İŞVEREN HAKKINDA ŞEREF VE HAYSİYET KIRICI ASILSIZ İHBAR VE İSNADLARDA BULUNMASI</aciklama> </data>
+		<data> <kod>44</kod> <aciklama>4857/25-II-C İŞÇİNİN İŞVERENİN BAŞKA BİR İŞÇİSİNE CİNSEL TACİZDE BULUNMASI</aciklama> </data>
+		<data> <kod>45</kod> <aciklama>4857/25-II-D İŞÇİNİN İŞVERENE YAHUT ONUN AİLESİ ÜYELERİNDEN BİRİNE YAHUT İŞVERENİN BAŞKA İŞÇİSİNE SATAŞMASI, İŞYERİNE SARHOŞ YAHUT UYUŞTURUCU MADDE ALMIŞ OLARAK GELMESİ YA DA İŞYERİNDE BU MADDELERİ KULLANMASI</aciklama> </data>
+		<data> <kod>46</kod> <aciklama>4857/25-II-E İŞÇİNİN, İŞVERENİN GÜVENİNİ KÖTÜYE KULLANMAK, HIRSIZLIK YAPMAK, İŞVERENİN MESLEK SIRLARINI ORTAYA ATMAK GİBİ DOĞRULUK VE BAĞLILIĞA UYMAYAN DAVRANIŞLARDA BULUNMASI</aciklama> </data>
+		<data> <kod>47</kod> <aciklama>4857/25-II-F İŞÇİNİN, İŞYERİNDE, YEDİ GÜNDEN FAZLA HAPİSLE CEZALANDIRILAN VE CEZASI ERTELENMEYEN BİR SUÇ İŞLEMESİ</aciklama> </data>
+		<data> <kod>48</kod> <aciklama>4857/25-II-G İŞÇİNİN İŞVERENDEN İZİN ALMAKSIZIN VEYA HAKLI BİR SEBEBE DAYANMAKSIZIN ARDI ARDINA İKİ İŞGÜNÜ VEYA BİR AY İÇİNDE İKİ DEFA HERHANGİ BİR TATİL GÜNÜNDEN SONRAKİ İŞ GÜNÜ, YAHUT BİR AYDA ÜÇ İŞGÜNÜ İŞİNE DEVAM ETMEMESİ</aciklama> </data>
+		<data> <kod>49</kod> <aciklama>4857/25-II-H İŞÇİNİN YAPMAKLA ÖDEVLİ BULUNDUĞU GÖREVLERİ KENDİSİNE HATIRLATILDIĞI HALDE YAPMAMAKTA ISRAR ETMESİ</aciklama> </data>
+		<data> <kod>50</kod> <aciklama>4857/25-II-I İŞÇİNİN KENDİ İSTEĞİ VEYA SAVSAMASI YÜZÜNDEN İŞİN GÜVENLİĞİNİ TEHLİKEYE DÜŞÜRMESİ, İŞYERİNİN MALI OLAN VEYA MALI OLMAYIP DA ELİ ALTINDA BULUNAN MAKİNELERİ, TESİSATI VEYA BAŞKA EŞYA VE MADDELERİ OTUZ GÜNLÜK ÜCRETİNİN TUTARIYLA ÖDEYEMEYECEK DERECEDE HASARA VE KAYBA UĞRATMASI</aciklama> </data>
+	</istenCikisNedeni>
+	<istirahatliCalisildiMi>
+		<data> <kod>0</kod> <aciklama> </aciklama> </data>
+		<data> <kod>2</kod> <aciklama>Evet</aciklama> </data>
+	</istirahatliCalisildiMi>
+	<gvIstisnaMi>
+		<data> <kod>1</kod> <aciklama>Evet</aciklama> </data>
+		<data> <kod>2</kod> <aciklama>Hayır</aciklama> </data>
+	</gvIstisnaMi>
+	<uniteKodu>
+		<data> <kod>01</kod> <aciklama>01</aciklama> </data>
+		<data> <kod>02</kod> <aciklama>02</aciklama> </data>
+		<data> <kod>03</kod> <aciklama>03</aciklama> </data>
+		<data> <kod>04</kod> <aciklama>04</aciklama> </data>
+		<data> <kod>05</kod> <aciklama>05</aciklama> </data>
+		<data> <kod>06</kod> <aciklama>06</aciklama> </data>
+		<data> <kod>07</kod> <aciklama>07</aciklama> </data>
+		<data> <kod>08</kod> <aciklama>08</aciklama> </data>
+		<data> <kod>09</kod> <aciklama>09</aciklama> </data>
+	</uniteKodu>
+	<faaliyetKonulari>
+		<data>
+			<kod>1</kod>
+			<aciklama>Mimarlık</aciklama>
+		</data>
+		<data>
+			<kod>2</kod>
+			<aciklama>Mühendislik</aciklama>
+		</data>
+		<data>
+			<kod>3</kod>
+			<aciklama>Tasarım</aciklama>
+		</data>
+		<data>
+			<kod>4</kod>
+			<aciklama>Yazılım</aciklama>
+		</data>
+		<data>
+			<kod>5</kod>
+			<aciklama>Tıbbi Raporlama</aciklama>
+		</data>
+		<data>
+			<kod>6</kod>
+			<aciklama>Muhasebe Kaydı Tutma</aciklama>
+		</data>
+		<data>
+			<kod>7</kod>
+			<aciklama>Çağrı Merkezi</aciklama>
+		</data>
+		<data>
+			<kod>8</kod>
+			<aciklama>Ürün Testi ve Sertifikasyon</aciklama>
+		</data>
+		<data>
+			<kod>9</kod>
+			<aciklama>Veri Saklama, Veri İşleme, Veri Analizi</aciklama>
+		</data>
+		<data>
+			<kod>10</kod>
+			<aciklama>Mesleki Eğitim</aciklama>
+		</data>
+		<data>
+			<kod>11</kod>
+			<aciklama>Eğitim</aciklama>
+		</data>
+		<data>
+			<kod>12</kod>
+			<aciklama>Sağlık</aciklama>
+		</data>
+	</faaliyetKonulari>
+	<sporDallari>
+		<data>
+			<kod>1</kod>
+			<aciklama>FUTBOL</aciklama>
+		</data>
+		<data>
+			<kod>2</kod>
+			<aciklama>BASKETBOL</aciklama>
+		</data>
+		<data>
+			<kod>3</kod>
+			<aciklama>VOLEYBOL</aciklama>
+		</data>
+		<data>
+			<kod>4</kod>
+			<aciklama>YÜZME</aciklama>
+		</data>
+		<data>
+			<kod>5</kod>
+			<aciklama>HALTER</aciklama>
+		</data>
+		<data>
+			<kod>6</kod>
+			<aciklama>BİSİKLET</aciklama>
+		</data>
+		<data>
+			<kod>7</kod>
+			<aciklama>ATLETİZM</aciklama>
+		</data>
+		<data>
+			<kod>8</kod>
+			<aciklama>ATICILIK VE AVCILIK</aciklama>
+		</data>
+		<data>
+			<kod>9</kod>
+			<aciklama>BADMİNTON</aciklama>
+		</data>
+		<data>
+			<kod>10</kod>
+			<aciklama>BEDENSEL ENGELLİLER SPOR</aciklama>
+		</data>
+		<data>
+			<kod>11</kod>
+			<aciklama>BİLARDO</aciklama>
+		</data>
+		<data>
+			<kod>12</kod>
+			<aciklama>BİNİCİLİK</aciklama>
+		</data>
+		<data>
+			<kod>13</kod>
+			<aciklama>BOCCE, BOWLİNG VE DART</aciklama>
+		</data>
+		<data>
+			<kod>14</kod>
+			<aciklama>BOKS</aciklama>
+		</data>
+		<data>
+			<kod>15</kod>
+			<aciklama>BRİÇ</aciklama>
+		</data>
+		<data>
+			<kod>16</kod>
+			<aciklama>BUZ HOKEYİ</aciklama>
+		</data>
+		<data>
+			<kod>17</kod>
+			<aciklama>BUZ PATENİ</aciklama>
+		</data>
+		<data>
+			<kod>18</kod>
+			<aciklama>CİMNASTİK</aciklama>
+		</data>
+		<data>
+			<kod>19</kod>
+			<aciklama>CURLİNG</aciklama>
+		</data>
+		<data>
+			<kod>20</kod>
+			<aciklama>DANS SPORLARI</aciklama>
+		</data>
+		<data>
+			<kod>21</kod>
+			<aciklama>DAĞCILIK</aciklama>
+		</data>
+		<data>
+			<kod>22</kod>
+			<aciklama>ESKRİM</aciklama>
+		</data>
+		<data>
+			<kod>23</kod>
+			<aciklama>GELENEKSEL SPOR DALLARI</aciklama>
+		</data>
+		<data>
+			<kod>24</kod>
+			<aciklama>GELİŞMEKTE OLAN SPOR BRANŞLARI</aciklama>
+		</data>
+		<data>
+			<kod>25</kod>
+			<aciklama>GOLF</aciklama>
+		</data>
+		<data>
+			<kod>26</kod>
+			<aciklama>GÖRME ENGELLİLER SPOR</aciklama>
+		</data>
+		<data>
+			<kod>27</kod>
+			<aciklama>GÜREŞ</aciklama>
+		</data>
+		<data>
+			<kod>28</kod>
+			<aciklama>HALK OYUNLARI</aciklama>
+		</data>
+		<data>
+			<kod>29</kod>
+			<aciklama>HAVA SPORLARI</aciklama>
+		</data>
+		<data>
+			<kod>30</kod>
+			<aciklama>HENTBOL</aciklama>
+		</data>
+		<data>
+			<kod>31</kod>
+			<aciklama>HERKES İÇİN SPOR</aciklama>
+		</data>
+		<data>
+			<kod>32</kod>
+			<aciklama>HOKEY</aciklama>
+		</data>
+		<data>
+			<kod>33</kod>
+			<aciklama>JUDO</aciklama>
+		</data>
+		<data>
+			<kod>34</kod>
+			<aciklama>KANO</aciklama>
+		</data>
+		<data>
+			<kod>35</kod>
+			<aciklama>KARATE</aciklama>
+		</data>
+		<data>
+			<kod>36</kod>
+			<aciklama>KAYAK</aciklama>
+		</data>
+		<data>
+			<kod>37</kod>
+			<aciklama>KİCK BOKS</aciklama>
+		</data>
+		<data>
+			<kod>38</kod>
+			<aciklama>KÜREK</aciklama>
+		</data>
+		<data>
+			<kod>39</kod>
+			<aciklama>KIZAK</aciklama>
+		</data>
+		<data>
+			<kod>40</kod>
+			<aciklama>MASA TENİSİ</aciklama>
+		</data>
+		<data>
+			<kod>41</kod>
+			<aciklama>MODERN PENTATLON</aciklama>
+		</data>
+		<data>
+			<kod>42</kod>
+			<aciklama>MOTOSİKLET</aciklama>
+		</data>
+		<data>
+			<kod>43</kod>
+			<aciklama>MUAY THAİ</aciklama>
+		</data>
+		<data>
+			<kod>44</kod>
+			<aciklama>OKÇULUK</aciklama>
+		</data>
+		<data>
+			<kod>45</kod>
+			<aciklama>ORYANTİRİNG</aciklama>
+		</data>
+		<data>
+			<kod>46</kod>
+			<aciklama>OTOMOBİL SPORLARI</aciklama>
+		</data>
+		<data>
+			<kod>47</kod>
+			<aciklama>RAGBİ</aciklama>
+		</data>
+		<data>
+			<kod>48</kod>
+			<aciklama>SATRANÇ</aciklama>
+		</data>
+		<data>
+			<kod>49</kod>
+			<aciklama>SUALTI SPORLARI</aciklama>
+		</data>
+		<data>
+			<kod>50</kod>
+			<aciklama>SUTOPU</aciklama>
+		</data>
+		<data>
+			<kod>51</kod>
+			<aciklama>TAEKWONDO</aciklama>
+		</data>
+		<data>
+			<kod>52</kod>
+			<aciklama>TENİS</aciklama>
+		</data>
+		<data>
+			<kod>53</kod>
+			<aciklama>TRİATLON</aciklama>
+		</data>
+		<data>
+			<kod>54</kod>
+			<aciklama>VÜCUT GELİŞTİRME VE FİTNESS</aciklama>
+		</data>
+		<data>
+			<kod>55</kod>
+			<aciklama>WUSHU</aciklama>
+		</data>
+		<data>
+			<kod>56</kod>
+			<aciklama>YELKEN</aciklama>
+		</data>
+		<data>
+			<kod>57</kod>
+			<aciklama>ÖZEL SPORCULAR SPOR</aciklama>
+		</data>
+		<data>
+			<kod>58</kod>
+			<aciklama>İZCİLİK</aciklama>
+		</data>
+		<data>
+			<kod>59</kod>
+			<aciklama>İŞİTME ENGELLİLER SPOR</aciklama>
+		</data>
+		<data>
+			<kod>60</kod>
+			<aciklama>DİĞER SPOR DALLARI</aciklama>
+		</data>
+	</sporDallari>
+	<amatorProfesyonel>
+		<data>
+			<kod>1</kod>
+			<aciklama>Amatör</aciklama>
+		</data>
+		<data>
+			<kod>2</kod>
+			<aciklama>Profesyonel</aciklama>
+		</data>
+	</amatorProfesyonel>
+	<tevkifatOranlari>
+		<tevkifatOrani>
+			<oran>5</oran>
+		</tevkifatOrani>
+		<tevkifatOrani>
+			<oran>10</oran>
+		</tevkifatOrani>
+		<tevkifatOrani>
+			<oran>15</oran>
+		</tevkifatOrani>
+		<tevkifatOrani>
+			<oran>20</oran>
+		</tevkifatOrani>
+	</tevkifatOranlari>
+	<ucretKodlari>
+		<ucretKod>
+			<kod>001</kod>
+			<aciklama>Toprak altı işletmesi halinde bulanan madenlerde çalışan işçilere yapılan ödemeler (GVK 23/3)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>002</kod>
+			<aciklama>Orta Hizmetciliği, bahçıvanlık, Kapıcılık gibi özel hitmetlerde çalışanlara yapılan ödemeler (GVK 23/6)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>003</kod>
+			<aciklama>Yemek ücreti (işyerinde verilenler hariç) (GVK 23/8 )</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>004</kod>
+			<aciklama>Konut tahsisi ile ilgili ödemeler (GVK 23/9)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>005</kod>
+			<aciklama>İşverenler tarafından işçilere ulaşım dolayısıyla yapılan ödemeler (Servis hizmeti sağlamak suretiyle yapılan menfaatler hariç) (GVK 23/10)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>006</kod>
+			<aciklama>Sandıklar tarafından ödenen emekli, maluliyet, dul ve yetim aylıkları (GVK 23/11)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>007</kod>
+			<aciklama>İrtibat büroları tarafından çalışanlara yapılan  ödemeler (GVK 23/14-a)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>008</kod>
+			<aciklama>Bölgesel yönetim merkezleri tarafından çalışanlara yapılan ödemeler (GVK 23/14-b)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>009</kod>
+			<aciklama>Amatör sporcular yapılan ödemeler (GVK 23/15)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>010</kod>
+			<aciklama>Kadın hizmet erbabına kreş ve gündüz bakımevi hizmeti verilmek suretiyle sağlanan menfaat tutarları (GVK 23/16)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>011</kod>
+			<aciklama>Pilot ve kabin memurlarına yapılan ödemeler (GVK 23/17)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>012</kod>
+			<aciklama>Harcırah ödemeleri (GVK 24/2)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>013</kod>
+			<aciklama>Ölüm, engellik, hastalık ve işsizlik sebepleriyle verilen tazminatlar (GVK 25/1)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>014</kod>
+			<aciklama>Sandıklar tarafından ödenen ikramiye veya toptan yapılan ödemeler (GVK 25/3)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>015</kod>
+			<aciklama>Çocuk yardımı ödemeleri (GVK 25/4)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>016</kod>
+			<aciklama>Evlenme ve doğum münasebetiyle yapılan ödemeler (GVK 25/5)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>017</kod>
+			<aciklama>Kıdem tazminatı (GVK 25/7-a)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>018</kod>
+			<aciklama>İkale sözleşmesi kapsamında ödenen tazminatlar, işkaybı, iş sonu tazminatı vb. (GVK 25/7-b)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>019</kod>
+			<aciklama>Huzur Hakkı ödemesi (GVK 61)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>020</kod>
+			<aciklama>İhbar tazminatı (GVK 61)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>021</kod>
+			<aciklama>Döner sermaye/performans/ek ders ödemesi/Kayyum/bilirkişi ödemesi</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>022</kod>
+			<aciklama>Uluslararası Türk Gemi Siciline kayıtlı gemilerde çalışan personele yapılan ödemeler (4490 sayılı Kanun /12)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>023</kod>
+			<aciklama>Diğer Kanunlarda yer alan kısmi veya tamamı istisna kapsamındaki ödemeler </aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>024</kod>
+			<aciklama>Serbest bölgelerde uygulanan stopaj tevşiki (*) (3218 Sayılı Kanun)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>025</kod>
+			<aciklama>Teknoloji geliştirme bölgelerinde çalışanlara yapılan ücret ödemeleri (*) (4691 Sayılı Kanun)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>026</kod>
+			<aciklama>Ar-Ge kapsamında uygulanan stopaj teşviki (*) (5746 Sayılı Kanun)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>027</kod>
+			<aciklama>Araştırma Altyapıları  merkezlerinde çalışanlara yapılan ücret ödemeleri (*) (6550 Sayılı Kanun)</aciklama>
+		</ucretKod>
+		<ucretKod>
+			<kod>028</kod>
+			<aciklama>Yatırım teşvik belgeleri kapsamında uygulanan stopaj teşviki (*) (GVK geçici 80 madde)</aciklama>
+		</ucretKod>
+	</ucretKodlari>
+	<calisanBilgiTur>
+		<data>
+			<kod>000</kod>
+			<aciklama>1. Ay - Asgari Ücretli</aciklama>
+		</data>
+		<data>
+			<kod>001</kod>
+			<aciklama>1. Ay - Diğer Ücretli</aciklama>
+		</data>
+		<data>
+			<kod>002</kod>
+			<aciklama>2. Ay - Asgari Ücretli</aciklama>
+		</data>
+		<data>
+			<kod>003</kod>
+			<aciklama>2. Ay - Diğer Ücretli</aciklama>
+		</data>
+		<data>
+			<kod>004</kod>
+			<aciklama>3. Ay - Asgari Ücretli</aciklama>
+		</data>
+		<data>
+			<kod>005</kod>
+			<aciklama>3. Ay - Diğer Ücretli</aciklama>
+		</data>
+	</calisanBilgiTur>
+	<dummyLookupData>
+	</dummyLookupData>
+</kodlar>
+
+ 

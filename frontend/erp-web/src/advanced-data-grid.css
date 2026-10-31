@@ -1,0 +1,179 @@
+.advanced-grid { --grid-border: var(--erp-border, #dce3ec); --grid-ink: var(--erp-text, #233149); --grid-muted: var(--erp-text-muted, #718098); display: grid; gap: 0; width: 100%; min-width: 0; color: var(--grid-ink); font-size: 12px; }
+.advanced-grid-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; padding: 9px 10px; border: 1px solid var(--grid-border); border-bottom: 0; border-radius: 9px 9px 0 0; background: var(--erp-surface, #fff); }
+.advanced-grid-search { display: flex; align-items: center; gap: 7px; flex: 1 1 230px; min-width: 170px; max-width: 420px; height: 34px; padding: 0 9px; border: 1px solid var(--grid-border); border-radius: 7px; background: var(--erp-surface-soft, #f8f9fb); color: var(--grid-muted); }
+.advanced-grid-search input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; color: var(--grid-ink); font: inherit; }
+.advanced-grid-search kbd { padding: 1px 4px; border: 1px solid var(--grid-border); border-radius: 4px; font-size: 9px; }
+.advanced-grid-menu { position: relative; flex: none; }
+.advanced-grid-menu > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 10px; border: 1px solid var(--grid-border); border-radius: 7px; background: var(--erp-surface, #fff); color: var(--grid-ink); cursor: pointer; list-style: none; }
+.advanced-grid-menu > summary::-webkit-details-marker { display: none; }
+.advanced-grid-menu > summary::after { content: ""; width: 6px; height: 6px; flex: none; margin: -3px 1px 0 2px; border-right: 1.5px solid var(--grid-muted); border-bottom: 1.5px solid var(--grid-muted); transform: rotate(45deg); transition: transform .16s ease; }
+.advanced-grid-menu[open] > summary::after { margin-top: 3px; transform: rotate(225deg); }
+.advanced-grid-menu[open] > summary { border-color: #8aa7c6; box-shadow: 0 0 0 2px #2a77bd14; }
+.advanced-grid-menu > summary b { display: grid; min-width: 17px; height: 17px; place-items: center; border-radius: 9px; background: #e6f1fc; color: #1765a6; font-size: 10px; }
+.advanced-grid-popover { position: absolute; z-index: 90; top: calc(100% + 6px); right: 0; display: grid; gap: 8px; width: min(370px, calc(100vw - 32px)); max-height: min(65vh, 520px); padding: 12px; overflow: auto; border: 1px solid var(--grid-border); border-radius: 9px; background: var(--erp-surface, #fff); box-shadow: 0 14px 34px #18294524; }
+.advanced-grid-filter { display: grid; grid-template-columns: minmax(70px, .7fr) minmax(110px, 1fr) minmax(100px, 1fr); align-items: center; gap: 6px; color: var(--grid-muted); font-size: 10px; }
+.advanced-grid-filter > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.advanced-grid-filter input,.advanced-grid-filter select,.advanced-grid-density select,.advanced-grid-column-setting select,.advanced-grid-logic select { box-sizing: border-box; width: 100%; min-width: 0; height: 30px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; font-size: 11px; }
+.advanced-grid-filter-actions { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding-top: 7px; border-top: 1px solid var(--grid-border); }
+.advanced-grid-filter-actions label { display: flex; align-items: center; gap: 6px; color: var(--grid-muted); font-size: 10px; }
+.advanced-grid-filter-actions button { min-height: 28px; padding: 0 8px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; font-size: 10px; cursor: pointer; }
+.advanced-grid-logic,.advanced-grid-density { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--grid-muted); font-size: 10px; }
+.advanced-grid-logic select,.advanced-grid-density select { width: auto; min-width: 120px; }
+.advanced-grid-columns { width: min(300px, calc(100vw - 32px)); }
+.advanced-grid-column-setting { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--grid-ink); font-size: 11px; }
+.advanced-grid-column-setting label { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.advanced-grid-column-setting label input { accent-color: #1475c9; }
+.advanced-grid-column-setting select { width: 112px; }
+.advanced-grid-count { margin-left: auto; color: var(--grid-muted); font-size: 10px; white-space: nowrap; }
+.advanced-grid-count b { margin-left: 7px; color: #1765a6; }
+.advanced-grid-action { min-height: 32px; padding: 0 8px; border: 1px solid var(--grid-border); border-radius: 7px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; cursor: pointer; }
+.advanced-grid-action:hover,.advanced-grid-menu > summary:hover { background: var(--erp-surface-soft, #f6f8fb); }
+.advanced-grid-scroll { width: 100%; min-width: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--grid-border); background: var(--erp-surface, #fff); }
+.advanced-grid-toolbar + .advanced-grid-scroll { border-radius: 0; }
+.advanced-grid-scroll > table.advanced-grid-table { width: max-content; min-width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.advanced-grid-table th,.advanced-grid-table td { box-sizing: border-box; position: relative; padding: 9px 11px; border-bottom: 1px solid var(--grid-border); text-align: left; vertical-align: middle; line-height: 1.4; }
+.advanced-grid-table th { overflow: visible; background: var(--erp-surface-soft, #f3f6fa); color: var(--grid-muted); font-size: 11px; font-weight: 700; }
+.advanced-grid-table td { overflow: hidden; color: var(--grid-ink); text-overflow: ellipsis; white-space: nowrap; }
+.advanced-grid-table tbody tr:last-child > td { border-bottom: 0; }
+.advanced-grid-table tbody tr:hover > td { background: var(--erp-surface-soft, #f8fafc); }
+.advanced-grid-table th.advanced-grid-header-cell { overflow: hidden; padding-right: 14px; }
+.advanced-grid-table th[draggable="true"] { cursor: grab; }
+.advanced-grid-table th[draggable="true"]:active { cursor: grabbing; }
+.advanced-grid-heading { display: flex; align-items: center; gap: 5px; width: 100%; min-width: 0; overflow: hidden; }
+.advanced-grid-header-cell .advanced-grid-heading > span:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.advanced-grid-heading small { flex: 0 0 auto; min-width: 12px; color: #1765a6; font-size: 9px; font-weight: 700; text-align: center; }
+.advanced-grid-resize { position: absolute; z-index: 8; top: 0; right: 0; width: 8px; height: 100%; touch-action: none; cursor: col-resize; }
+.advanced-grid-resize:hover,.advanced-grid-resize:active { background: #287ac640; }
+.advanced-grid-master { display: inline-flex; align-items: center; justify-content: center; width: 18px; vertical-align: middle; }
+.advanced-grid-master input,.advanced-grid-row-select input { margin: 0; accent-color: #1475c9; cursor: pointer; }
+.advanced-grid-row-select { display: inline-flex; align-items: center; gap: 7px; margin-right: 9px; vertical-align: middle; white-space: nowrap; color: var(--grid-muted); }
+.advanced-grid-row-select > span { display: inline-block; min-width: 2ch; color: var(--grid-muted); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
+.advanced-grid-row-selected { background: #eaf4ff !important; }
+.advanced-grid-empty { padding: 28px 12px !important; color: var(--grid-muted); text-align: center !important; }
+.advanced-grid-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; min-width: 0; padding: 8px 10px; border: 1px solid var(--grid-border); border-top: 0; border-radius: 0 0 9px 9px; background: var(--erp-surface, #fff); color: var(--grid-muted); font-size: 10px; }
+.advanced-grid[data-server-hide-footer="true"] .advanced-grid-footer { display: none; }
+.advanced-grid-footer > label { display: flex; align-items: center; gap: 7px; }
+.advanced-grid-footer select { height: 29px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; }
+.advanced-grid-pagination { display: flex; gap: 5px; }
+.advanced-grid-pagination button { min-height: 29px; padding: 0 9px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; cursor: pointer; }
+.advanced-grid-pagination button:disabled { opacity: .45; cursor: default; }
+.advanced-grid-menu summary:focus-visible,.advanced-grid button:focus-visible,.advanced-grid input:focus-visible,.advanced-grid select:focus-visible { outline: 2px solid #277cc6; outline-offset: 2px; }
+.advanced-grid.is-fullscreen { position: fixed; z-index: 1200; inset: 18px; grid-template-rows: auto minmax(0,1fr) auto; padding: 12px; overflow: hidden; border: 1px solid var(--grid-border); border-radius: 12px; background: var(--erp-surface, #fff); box-shadow: 0 20px 80px #101d3370; }
+.advanced-grid.is-fullscreen .advanced-grid-scroll { height: 100%; }
+.advanced-grid-fallback { min-width: 0; overflow: auto; }
+.advanced-grid-file-input { display: none !important; }
+.advanced-grid-action.active { border-color: #1475c9; background: #eaf4ff; color: #075da8; }
+.advanced-grid-import,.advanced-grid-pivot { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--grid-border); background: var(--erp-surface, #fff); color: var(--grid-ink); }
+.advanced-grid-import { border-top: 0; }
+.advanced-grid-import > header,.advanced-grid-pivot > header { display: flex; align-items: center; gap: 10px; }
+.advanced-grid-import > header > span,.advanced-grid-pivot > header > small { color: var(--grid-muted); font-size: 11px; }
+.advanced-grid-import > header > button { margin-left: auto; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); padding: 5px 9px; cursor: pointer; }
+.advanced-grid-import-preview,.advanced-grid-pivot-table { min-width: 0; max-height: 280px; overflow: auto; border: 1px solid var(--grid-border); border-radius: 7px; }
+.advanced-grid-import-preview table,.advanced-grid-pivot-table table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+.advanced-grid-import-preview th,.advanced-grid-import-preview td,.advanced-grid-pivot-table th,.advanced-grid-pivot-table td { padding: 7px 9px; border-bottom: 1px solid var(--grid-border); text-align: left; }
+.advanced-grid-import-preview th,.advanced-grid-pivot-table th { position: sticky; top: 0; background: var(--erp-surface-soft, #f3f6fa); }
+.advanced-grid-import-note,.advanced-grid-import-error { margin: 0; color: var(--grid-muted); font-size: 11px; }
+.advanced-grid-import-error { color: #b42318; }
+.advanced-grid-pivot { border-top: 0; }
+.advanced-grid-pivot-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.advanced-grid-pivot-controls label { display: grid; gap: 4px; color: var(--grid-muted); font-size: 10px; }
+.advanced-grid-pivot-controls select { min-width: 130px; height: 31px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); }
+.advanced-grid-loading { padding: 7px 10px; color: var(--grid-muted); font-size: 11px; }
+.advanced-grid-editable { cursor: text; }
+.advanced-grid-editable:hover { box-shadow: inset 0 0 0 1px #2478c655; }
+.advanced-grid-cell-editor { box-sizing: border-box; width: min(100%, 240px); min-width: 0; max-width: 100%; height: 29px; padding: 3px 6px; border: 1px solid #1475c9; border-radius: 5px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; }
+.advanced-grid-batch { display: flex; align-items: end; flex-wrap: wrap; gap: 9px; padding: 11px; border: 1px solid var(--grid-border); border-top: 0; background: var(--erp-surface-soft, #f7f9fc); color: var(--grid-ink); }
+.advanced-grid-batch > b { flex: 1 1 100%; }
+.advanced-grid-batch label { display: grid; gap: 4px; color: var(--grid-muted); font-size: 10px; }
+.advanced-grid-batch input,.advanced-grid-batch select { min-width: 140px; height: 31px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); }
+.advanced-grid-scroll.is-virtualized { contain: content; }
+.advanced-grid.compact .advanced-grid-table th,.advanced-grid.compact .advanced-grid-table td { padding-block: 5px; }
+.advanced-grid.normal .advanced-grid-table th,.advanced-grid.normal .advanced-grid-table td { padding-block: 9px; }
+.advanced-grid.comfortable .advanced-grid-table th,.advanced-grid.comfortable .advanced-grid-table td { padding-block: 13px; }
+html[data-theme="dark"] .advanced-grid-row-selected { background: #203a54 !important; }
+@media print { .advanced-grid-toolbar,.advanced-grid-footer { display: none !important; }.advanced-grid-scroll { overflow: visible !important; border: 0 !important; }.advanced-grid-scroll table { width: 100% !important; }.advanced-grid-menu { display: none !important; } }
+@media(max-width:700px) { .advanced-grid-toolbar { gap: 5px; padding: 7px; }.advanced-grid-count { flex: 1 1 100%; margin-left: 0; }.advanced-grid-search { flex-basis: 100%; max-width: none; }.advanced-grid-footer { align-items: flex-start; }.advanced-grid-filter { grid-template-columns: minmax(60px,.7fr) minmax(95px,1fr); }.advanced-grid-filter input { grid-column: 2; }.advanced-grid-filter input + input { grid-column: 2; } }
+
+/* The grid owns its frame; table wrappers should only provide scrolling/layout. */
+:is(.customer-table-wrap,.ledger-list,.table-scroll,.module-ui-table-wrap,.report-table-wrap,.screen-view-table-wrap,.crm-table-wrap,.contracts-table-wrap,.payment-instrument-table-wrap,.sales-distribution-table-wrap,.pie-table-wrap,.hr-table-wrap,.manufacturing-table-wrap,.op-project-register-wrap):has(> .advanced-grid) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Shared ERP list-table pattern: quiet filters, dense rows, and clear selection. */
+.app-shell:not(.standalone-studio) .advanced-grid { gap: 0; font-size: 12px; }
+.app-shell:not(.standalone-studio) .advanced-grid-toolbar {
+  gap: 8px;
+  padding: 8px;
+  border-color: #D7DEE7;
+  border-radius: 4px 4px 0 0;
+  background: #FFFFFF;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-search {
+  min-height: 36px;
+  border-color: #C7D0DC;
+  border-radius: 4px;
+  background: #FFFFFF;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-search:focus-within { border-color: #0A192F; outline: 1px solid #0A192F; }
+.app-shell:not(.standalone-studio) .advanced-grid-menu > summary,
+.app-shell:not(.standalone-studio) .advanced-grid-action,
+.app-shell:not(.standalone-studio) .advanced-grid-filter input,
+.app-shell:not(.standalone-studio) .advanced-grid-filter select,
+.app-shell:not(.standalone-studio) .advanced-grid-density select,
+.app-shell:not(.standalone-studio) .advanced-grid-column-setting select,
+.app-shell:not(.standalone-studio) .advanced-grid-logic select,
+.app-shell:not(.standalone-studio) .advanced-grid-filter-actions button,
+.app-shell:not(.standalone-studio) .advanced-grid-footer select {
+  border-color: #D7DEE7;
+  border-radius: 4px;
+  box-shadow: none;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-menu[open] > summary { border-color: #0A192F; box-shadow: none; }
+.app-shell:not(.standalone-studio) .advanced-grid-scroll {
+  border-color: #D7DEE7;
+  border-radius: 0 0 4px 4px;
+  background: #FFFFFF;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-table th,
+.app-shell:not(.standalone-studio) .advanced-grid-table td {
+  padding: 10px 12px;
+  border-bottom-color: #E2E7ED;
+  line-height: 1.35;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-table th {
+  background: #F3F4F6;
+  color: #526174;
+  font-size: 11px;
+  font-weight: 650;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-table td { color: #172B45; font-size: 12px; }
+.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr:hover > td { background: #FFF9E5; }
+.app-shell:not(.standalone-studio) .advanced-grid-row-selected,
+.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: #FFF4CC !important; }
+.app-shell:not(.standalone-studio) .advanced-grid-footer {
+  padding: 8px 12px;
+  border-color: #D7DEE7;
+  border-radius: 0 0 4px 4px;
+  background: #FFFFFF;
+  color: #526174;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-footer button { border-radius: 4px; box-shadow: none; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-toolbar,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-scroll,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-footer { border-color: var(--erp-border); background: var(--erp-surface); color: var(--erp-text); }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-search,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-menu > summary,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-action,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-filter input,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-filter select,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-density select,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-column-setting select,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic select { border-color: var(--erp-border); background: var(--erp-surface); color: var(--erp-text); }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table th { background: #202A39; color: #C2CBD7; border-bottom-color: var(--erp-border); }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table td { color: var(--erp-text); border-bottom-color: var(--erp-border); }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table tbody tr:hover > td { background: #243247; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-row-selected,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: #3A3421 !important; }

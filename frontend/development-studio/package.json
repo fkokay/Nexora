@@ -9,8 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@vitejs/plugin-react": "latest",
     "lucide-react": "^0.468.0",
+    "monaco-editor": "^0.57.0",
     "react": "latest",
     "react-dom": "latest",
     "typescript": "latest",
@@ -20,5 +22,8 @@
     "@types/node": "^22.19.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0"
+  },
+  "overrides": {
+    "dompurify": "^3.4.17"
   }
 }

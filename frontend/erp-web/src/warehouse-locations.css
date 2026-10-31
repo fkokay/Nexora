@@ -1,0 +1,110 @@
+.warehouse-locations-page .warehouse-location-layout{display:grid;grid-template-columns:minmax(290px,.9fr) minmax(0,1.35fr);gap:16px;align-items:start}
+.warehouse-locations-page .warehouse-location-row{gap:10px;padding:8px 10px;border-radius:9px}
+.warehouse-locations-page .warehouse-location-row.selected{background:#f5f3ff;border-color:#ded8ff}
+.warehouse-locations-page .warehouse-location-select{display:flex;align-items:center;gap:10px;flex:1;min-width:0;padding:4px;border:0;background:transparent;text-align:left;color:inherit;cursor:pointer}
+.warehouse-locations-page .warehouse-location-select>span:last-child{display:grid;gap:4px;min-width:0}
+.warehouse-locations-page .warehouse-location-select b{font-size:11px;color:var(--erp-text,#273047)}
+.warehouse-locations-page .warehouse-location-select small{font-size:9px;color:var(--erp-muted,#8790a2)}
+.warehouse-locations-page .warehouse-location-icon{display:grid;place-items:center;width:32px;height:32px;flex:0 0 auto;border-radius:9px;background:#efedff;color:#6b5ce7}
+.warehouse-locations-page .warehouse-location-detail{min-height:220px}
+.warehouse-locations-page .warehouse-location-detail,.warehouse-locations-page .warehouse-location-list-panel{min-width:0}
+.warehouse-locations-page .warehouse-location-detail .customer-table{min-width:520px}
+.warehouse-locations-page .warehouse-location-table-wrap{max-width:100%;overscroll-behavior-x:contain;scrollbar-gutter:stable}
+.warehouse-locations-page .warehouse-location-table-wrap:focus-visible{outline:2px solid #7969dc;outline-offset:2px}
+.warehouse-locations-page .warehouse-location-search{display:flex;align-items:center;gap:8px;min-width:0;height:38px;margin:0 0 12px;padding:0 10px;border:1px solid var(--erp-border,#e2e6ef);border-radius:8px;background:var(--erp-surface,#fff);color:var(--erp-muted,#8790a2)}
+.warehouse-locations-page .warehouse-location-search:focus-within{border-color:#9789ec;box-shadow:0 0 0 3px #8171df19}
+.warehouse-locations-page .warehouse-location-search input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;color:var(--erp-text,#273047);font-size:11px}
+.warehouse-locations-page .warehouse-location-search input::placeholder{color:var(--erp-muted,#a0a5b0)}
+.warehouse-locations-page .warehouse-location-search button{width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:var(--erp-muted,#697386);font-size:18px;line-height:1}
+.warehouse-locations-page .warehouse-location-search button:hover{background:#f1efff;color:#5d4bcf}
+.warehouse-locations-page :is(button,select,input):focus-visible{outline:2px solid #7969dc;outline-offset:2px}
+.warehouse-locations-page .warehouse-location-select[aria-pressed="true"] b{color:#5e50c7}
+.warehouse-locations-page .warehouse-location-row{min-width:0}
+.warehouse-locations-page .warehouse-location-select b,.warehouse-locations-page .warehouse-location-select small{overflow-wrap:anywhere}
+.warehouse-locations-page .empty-small{line-height:1.55}
+.warehouse-locations-page .warehouse-location-layout .panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid var(--erp-border,#e7eaf1)}
+.warehouse-locations-page .warehouse-location-layout .panel-heading>div{display:grid;gap:4px;min-width:0}
+.warehouse-locations-page .warehouse-location-layout .panel-heading b,.warehouse-locations-page .warehouse-location-layout .panel-heading small{display:block;line-height:1.45}
+.warehouse-locations-page .warehouse-location-layout .panel-heading b{color:var(--erp-text,#25324a);font-size:12px}
+.warehouse-locations-page .warehouse-location-layout .panel-heading small{color:var(--erp-text-muted,#647087);font-size:10px}
+.warehouse-locations-page .warehouse-location-layout .empty-small{padding:18px 10px;color:var(--erp-text-muted,#647087);font-size:12px;line-height:1.55}
+.warehouse-locations-page .warehouse-location-form{margin-top:16px}
+.warehouse-locations-page .warehouse-location-form .panel-heading b{display:flex;align-items:center;gap:7px}
+.warehouse-location-edit-modal{display:grid;gap:14px}
+.warehouse-location-edit-modal>label{display:grid;gap:6px;padding:0 16px;color:var(--erp-muted,#697386);font-size:10px;font-weight:600}
+.warehouse-location-edit-modal input,.warehouse-location-edit-modal select{box-sizing:border-box;width:100%;height:38px;padding:0 10px;border:1px solid var(--erp-border,#e2e6ef);border-radius:8px;background:var(--erp-surface,#fff);color:var(--erp-text,#273047);font:inherit}
+.warehouse-location-edit-modal .form-two{padding:0 16px}
+.warehouse-location-edit-modal>label.warehouse-location-active{display:flex;align-items:center;gap:8px}
+.warehouse-location-edit-modal>label.warehouse-location-active input{width:16px;height:16px;margin:0}
+.warehouse-locations-page .form-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0 16px 12px}
+.warehouse-locations-page .form-three label{display:grid;gap:6px;color:var(--erp-muted,#697386);font-size:10px;font-weight:600}
+.warehouse-locations-page .form-three input,.warehouse-locations-page .form-three select{box-sizing:border-box;width:100%;min-width:0;height:38px;padding:0 10px;border:1px solid var(--erp-border,#e2e6ef);border-radius:8px;background:var(--erp-surface,#fff);color:var(--erp-text,#273047);font:inherit}
+.warehouse-locations-page .modal-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--erp-border,#e7eaf1);color:var(--erp-muted,#8790a2);font-size:10px}
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-row.selected{background:#211d3a;border-color:#4b408d}
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-select[aria-pressed="true"] b{color:#c4baff}
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-search button:hover{background:#302d4d;color:#d0c8ff}
+html[data-theme="dark"] .warehouse-locations-page :is(button,select,input):focus-visible,html[data-theme="dark"] .warehouse-locations-page .warehouse-location-table-wrap:focus-visible{outline-color:#b4a8ff}
+@media(max-width:900px){.warehouse-locations-page .warehouse-location-layout{grid-template-columns:1fr}.warehouse-locations-page .form-three{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){.warehouse-locations-page .page-heading{align-items:flex-start;gap:12px}.warehouse-locations-page .page-heading .heading-actions{flex:0 0 auto}.warehouse-locations-page .customer-summary{flex-wrap:wrap}.warehouse-locations-page .customer-summary .tenant-scope{margin-left:45px}.warehouse-locations-page .warehouse-location-layout{gap:12px}.warehouse-locations-page .warehouse-location-list-panel,.warehouse-locations-page .warehouse-location-detail{padding:14px}}
+@media(max-width:580px){.warehouse-locations-page .form-three{grid-template-columns:1fr}.warehouse-locations-page .modal-foot{align-items:stretch;flex-direction:column}.warehouse-locations-page .modal-foot .primary{justify-content:center}.warehouse-locations-page .page-heading{flex-direction:column}.warehouse-locations-page .page-heading .heading-actions,.warehouse-locations-page .page-heading .secondary{width:100%}.warehouse-locations-page .customer-summary .tenant-scope{margin-left:0}.warehouse-locations-page .warehouse-location-row{align-items:flex-start}.warehouse-locations-page .warehouse-location-select{align-items:flex-start}.warehouse-locations-page .warehouse-location-row .row-action{flex:0 0 auto}.warehouse-locations-page .warehouse-location-edit-modal{max-height:calc(100vh - 24px);overflow-y:auto;padding:18px 14px}}
+
+/* Warehouse location workbench refresh. */
+.warehouse-locations-page{display:grid;gap:14px;color:var(--erp-text,#25324a)}
+.warehouse-locations-page .page-heading{margin-bottom:0;padding-bottom:12px;border-bottom:1px solid var(--erp-border,#e2e6ed)}
+.warehouse-locations-page .page-heading h1{font-size:24px;letter-spacing:-.025em}
+.warehouse-locations-page .customer-summary{min-height:62px;padding:11px 14px;background:var(--erp-surface,#fff);border-color:var(--erp-border,#dfe4ed);border-radius:9px;box-shadow:none}
+.warehouse-locations-page .warehouse-location-layout{grid-template-columns:minmax(280px,.8fr) minmax(0,1.4fr);gap:12px}
+.warehouse-locations-page .warehouse-location-list-panel,.warehouse-locations-page .warehouse-location-detail{padding:16px;background:var(--erp-surface,#fff);border-color:var(--erp-border,#dfe4ed);border-radius:9px;box-shadow:none}
+.warehouse-locations-page .panel-heading{padding-bottom:10px;border-bottom:1px solid var(--erp-border,#e6e9ef)}
+.warehouse-locations-page .warehouse-location-search{height:36px;border-radius:6px}
+.warehouse-locations-page .warehouse-location-row{padding:7px 8px;border-color:var(--erp-border,#e6e9ef);border-radius:7px}
+.warehouse-locations-page .warehouse-location-row.selected{background:var(--erp-surface-soft,#f1f0ff);border-color:#d9d2ff}
+.warehouse-locations-page .warehouse-location-icon{width:30px;height:30px;border-radius:7px}
+.warehouse-locations-page .warehouse-location-detail .customer-table{min-width:560px}
+.warehouse-locations-page .warehouse-location-table-wrap{border:1px solid var(--erp-border,#e2e6ee);border-radius:7px}
+.warehouse-locations-page .warehouse-location-table-wrap .customer-table th{position:sticky;top:0;z-index:1;background:var(--erp-surface-soft,#f3f5f8);color:var(--erp-text-muted,#5d6980);font-size:10px}
+.warehouse-locations-page .warehouse-location-table-wrap .customer-table td{font-size:11px}
+.warehouse-locations-page .warehouse-location-form{margin-top:12px;border:1px solid var(--erp-border,#e2e6ee);border-radius:8px;background:var(--erp-surface-soft,#f7f8fb)}
+.warehouse-locations-page .form-three{gap:10px;padding:12px}
+.warehouse-locations-page .form-three label{gap:5px;color:var(--erp-text-muted,#5d6980);font-size:10px}
+.warehouse-locations-page .form-three input,.warehouse-locations-page .form-three select{height:36px;border-radius:6px;font-size:11px}
+html[data-theme="dark"] .warehouse-locations-page .customer-summary,
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-list-panel,
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-detail{background:var(--erp-surface,#171a22);border-color:var(--erp-border,#303542)}
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-row.selected{background:#25213d;border-color:#4b408d}
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-table-wrap{border-color:var(--erp-border,#303542)}
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-table-wrap .customer-table th{background:var(--erp-surface-soft,#20242e);color:var(--erp-text-muted,#a7afbf)}
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-form{background:var(--erp-surface-soft,#20242e);border-color:var(--erp-border,#303542)}
+html[data-theme="dark"] .warehouse-locations-page .panel-heading{border-color:var(--erp-border,#303542)}
+@media(max-width:900px){.warehouse-locations-page .warehouse-location-layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:580px){.warehouse-locations-page .warehouse-location-list-panel,.warehouse-locations-page .warehouse-location-detail{padding:12px}.warehouse-locations-page .form-three{grid-template-columns:minmax(0,1fr)}}
+.warehouse-location-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:10px;align-items:stretch}
+.warehouse-location-reconciliation{min-width:0;padding:16px;background:var(--erp-surface,#fff);border:1px solid var(--erp-border,#dfe4ed);border-radius:9px;box-shadow:none}
+.warehouse-location-reconciliation .panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-bottom:10px;border-bottom:1px solid var(--erp-border,#e6e9ef)}
+.warehouse-location-reconciliation .panel-heading>div{display:grid;gap:4px;min-width:0}
+.warehouse-location-reconciliation .panel-heading b{font-size:12px;color:var(--erp-text,#25324a)}
+.warehouse-location-reconciliation .panel-heading small,.warehouse-location-reconciliation-note{font-size:10px;color:var(--erp-text-muted,#647087);line-height:1.5}
+.warehouse-location-reconciliation-note{margin:10px 0}
+.warehouse-location-reconciliation>.empty-small{margin:12px 0 0;padding:12px 14px;border:1px solid var(--erp-border,#e7eaf1);border-radius:8px;background:var(--erp-surface-soft,#f7f8fb);color:var(--erp-text-muted,#647087);font-size:12px;line-height:1.5}
+.warehouse-location-reconciliation .customer-table{min-width:700px}
+.warehouse-unlocated-quantity{color:#a6531b;font-weight:700}
+.warehouse-location-kpis article{display:grid;grid-template-columns:1fr auto;align-content:center;gap:3px 8px;min-width:0;min-height:60px;padding:10px 12px;background:var(--erp-surface,#fff);border:1px solid var(--erp-border,#dfe4ed);border-radius:8px}
+.warehouse-location-kpis article>span{color:var(--erp-text-muted,#647087);font-size:10px;font-weight:650}
+.warehouse-location-kpis article>b{grid-column:2;grid-row:1/3;max-width:180px;overflow:hidden;color:var(--erp-text,#25324a);font-size:16px;text-overflow:ellipsis;white-space:nowrap}
+.warehouse-location-kpis article>small{color:var(--erp-text-muted,#8791a2);font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.warehouse-location-kpis>.tenant-scope{align-self:center;justify-self:end;white-space:nowrap}
+.warehouse-record-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px;padding:10px;background:var(--erp-surface-soft,#f7f8fb);border:1px solid var(--erp-border,#e3e7ef);border-radius:7px}
+.warehouse-record-summary>div{display:grid;gap:3px;min-width:0}
+.warehouse-record-summary small{color:var(--erp-text-muted,#8791a2);font-size:9px}
+.warehouse-record-summary b{color:var(--erp-text,#344158);font-size:10px;overflow-wrap:anywhere}
+.warehouse-record-summary>button{grid-column:1/-1;justify-self:start;min-height:30px}
+.warehouse-location-state{justify-self:start;padding:4px 7px;border-radius:4px;background:#fff0ef;color:#a74849;font-size:9px;font-weight:700}
+.warehouse-location-state.is-active{background:#eaf7ef;color:#16805d}
+html[data-theme="dark"] .warehouse-location-kpis article{background:var(--erp-surface,#171a22);border-color:var(--erp-border,#303542)}
+html[data-theme="dark"] .warehouse-location-reconciliation{background:var(--erp-surface,#171a22);border-color:var(--erp-border,#303542)}
+html[data-theme="dark"] .warehouse-location-reconciliation .panel-heading b{color:var(--erp-text,#e3e6ed)}
+html[data-theme="dark"] .warehouse-unlocated-quantity{color:#f1aa6f}
+html[data-theme="dark"] .warehouse-record-summary{background:var(--erp-surface-soft,#20242e);border-color:var(--erp-border,#303542)}
+html[data-theme="dark"] .warehouse-location-kpis article>span,html[data-theme="dark"] .warehouse-location-kpis article>small,html[data-theme="dark"] .warehouse-record-summary small{color:var(--erp-text-muted,#a7afbf)}
+@media(max-width:760px){.warehouse-location-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.warehouse-location-kpis>.tenant-scope{grid-column:1/-1;justify-self:start}}
+@media(max-width:580px){.warehouse-location-reconciliation{padding:12px}.warehouse-location-reconciliation .panel-heading{flex-direction:column}}

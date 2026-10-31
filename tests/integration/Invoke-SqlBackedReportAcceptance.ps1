@@ -69,6 +69,16 @@ try {
     Assert-Check 'tenant-supplier-payment-report-catalog' ($null -ne $supplierPaymentSource) 'Authenticated tenant catalog exposes supplierPayments.'
     $customerLedgerSource = $catalog | Where-Object code -eq 'customerLedgerEntries' | Select-Object -First 1
     Assert-Check 'tenant-customer-ledger-report-catalog' ($null -ne $customerLedgerSource) 'Authenticated tenant catalog exposes customerLedgerEntries.'
+    $bankStatementLineSource = $catalog | Where-Object code -eq 'bankStatementLines' | Select-Object -First 1
+    Assert-Check 'tenant-bank-statement-line-report-catalog' ($null -ne $bankStatementLineSource) 'Authenticated tenant catalog exposes bankStatementLines.'
+    if ($bankStatementLineSource) {
+        $bankLineColumnCodes = @($bankStatementLineSource.columns | ForEach-Object code)
+        Assert-Check 'tenant-bank-statement-line-report-columns' (
+            $bankLineColumnCodes -contains 'statementCode' -and $bankLineColumnCodes -contains 'transactionDate' -and
+            $bankLineColumnCodes -contains 'amount' -and $bankLineColumnCodes -contains 'isMatched' -and
+            $bankLineColumnCodes -contains 'matchedAt'
+        ) 'Authenticated tenant catalog exposes the bank-line identity, amount, match status and reconciliation timestamp fields.'
+    }
 
     $namedSources = @('stockItems', 'financialAccountTransactions', 'salesQuotes', 'crmOpportunities', 'supplierPayments', 'customerLedgerEntries')
     foreach ($source in $catalog | Where-Object { $_.code -notin $namedSources }) {
@@ -104,6 +114,32 @@ try {
     $detail = $detailResponse.Content | ConvertFrom-Json
     $detailValid = $detail.source -eq 'stockItems' -and $detail.columns.Count -eq 4 -and $detail.rows.Count -le 20 -and $detail.totalCount -ge $detail.rows.Count
     Assert-Check 'sql-stock-balance-detail' $detailValid "Tenant SQL query returned $($detail.rows.Count) bounded rows and $($detail.totalCount) total rows; row data is not retained."
+
+    $bankStatementLineRequest = @{
+        source = 'bankStatementLines'; columns = @('statementCode','lineNumber','transactionDate','direction','currencyCode','amount','isMatched','transactionId','matchedAt')
+        filters = @(@{ field = 'isMatched'; operator = 'equals'; value = 'false' })
+        sortBy = 'transactionDate'; descending = $false; page = 1; pageSize = 20
+    } | ConvertTo-Json -Depth 6 -Compress
+    $bankStatementLineResponse = Send-ApiRequest '/api/reports/run' 'POST' $selection.accessToken $bankStatementLineRequest
+    $bankStatementLineRequest = $null
+    if ($bankStatementLineResponse.Status -ne 200) { throw "SQL-backed bank statement line report returned HTTP $($bankStatementLineResponse.Status). Response content is omitted to protect tenant data." }
+    $bankStatementLines = $bankStatementLineResponse.Content | ConvertFrom-Json
+    $bankStatementLineRowsValid = @($bankStatementLines.rows | Where-Object { $_.isMatched -ne $false }).Count -eq 0
+    $bankStatementLineValid = $bankStatementLines.source -eq 'bankStatementLines' -and $bankStatementLines.columns.Count -eq 9 -and
+        $bankStatementLines.rows.Count -le 20 -and $bankStatementLines.totalCount -ge $bankStatementLines.rows.Count -and $bankStatementLineRowsValid
+    Assert-Check 'sql-bank-statement-line-filtered-detail' $bankStatementLineValid "Tenant SQL query returned $($bankStatementLines.rows.Count) bounded unmatched line row(s) and $($bankStatementLines.totalCount) total matching rows; row data is not retained."
+    $bankStatementLines = $null
+
+    $bankStatementLineExportRequest = @{
+        source = 'bankStatementLines'; columns = @('statementCode','lineNumber','transactionDate','direction','currencyCode','amount','isMatched')
+        filters = @(@{ field = 'isMatched'; operator = 'equals'; value = 'false' })
+        sortBy = 'transactionDate'; descending = $false; page = 1; pageSize = 20
+    } | ConvertTo-Json -Depth 6 -Compress
+    $bankStatementLineExportResponse = Send-ApiRequest '/api/reports/export' 'POST' $selection.accessToken $bankStatementLineExportRequest
+    $bankStatementLineExportRequest = $null
+    if ($bankStatementLineExportResponse.Status -ne 200) { throw "SQL-backed bank statement line CSV returned HTTP $($bankStatementLineExportResponse.Status). Response content is omitted to protect tenant data." }
+    $bankStatementLineCsvHeader = ($bankStatementLineExportResponse.Content -split '\r?\n', 2)[0]
+    Assert-Check 'sql-bank-statement-line-csv' ($bankStatementLineCsvHeader -match 'Ekstre kodu' -and $bankStatementLineCsvHeader -match 'Hareket tarihi' -and $bankStatementLineCsvHeader -match 'Tutar') 'SQL-backed bank statement line export returned the expected localized CSV columns; row contents are not retained.'
 
     $groupRequest = @{
         source = 'stockItems'; columns = @('trackingMode'); filters = @()

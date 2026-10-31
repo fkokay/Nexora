@@ -1,0 +1,45 @@
+{
+  "completedAtUtc": "2026-10-18T23:40:49.2970808Z",
+  "mode": "offline-package-validation",
+  "linuxArchive": "aierp-linux-local-20261019-security-refresh.tar.gz",
+  "iisBundleVersion": "local-20261018-refresh",
+  "checks": [
+    {
+      "name": "IIS PowerShell syntax",
+      "passed": true,
+      "detail": "6 deployment scripts/data files parsed without errors."
+    },
+    {
+      "name": "Linux Bash syntax",
+      "passed": true,
+      "detail": "6 deployment scripts pass bash -n."
+    },
+    {
+      "name": "Linux installer preflight wiring",
+      "passed": true,
+      "detail": "The bundle builder packages preflight.sh and install.sh invokes it before host configuration changes."
+    },
+    {
+      "name": "IIS installer safety contract",
+      "passed": true,
+      "detail": "Elevation, protected external secrets, immutable release path and startup migrations disabled verified statically."
+    },
+    {
+      "name": "IIS bundle manifest/components/config",
+      "passed": true,
+      "detail": "Version local-20261018-refresh; four required components and routing/ANCM configuration verified."
+    },
+    {
+      "name": "Linux archive checksum/version/components",
+      "passed": true,
+      "detail": "Version local-20261019-security-refresh; outer SHA-256 matches; four components present; 166 release file checksums verified with exact manifest coverage."
+    },
+    {
+      "name": "Linux config semantics",
+      "passed": true,
+      "detail": "Environment examples, loopback service URLs, separate signing-key intent, dual-site nginx routes and systemd hardening verified."
+    }
+  ],
+  "result": "passed",
+  "limitation": "Validates local package contents and configuration semantics only; does not establish live IIS/Linux host behavior, TLS/DNS, service startup, SQL connectivity, or production deployment compatibility."
+}

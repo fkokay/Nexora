@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using AIERP.IntegrationSDK;
 
@@ -14,16 +16,50 @@ public sealed partial class FileIntegrationSecretResolver(IConfiguration configu
         if (tenantId == Guid.Empty || !SecretNamePattern().IsMatch(secretName ?? string.Empty))
             throw new FileNotFoundException("Integration credential reference is invalid.");
         var root = Path.GetFullPath(configuration["IntegrationSecrets:RootPath"] ?? "/run/integration-secrets");
-        var path = Path.GetFullPath(Path.Combine(root, tenantId.ToString("D"), secretName!));
-        if (!path.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        var tenantDirectory = Path.GetFullPath(Path.Combine(root, tenantId.ToString("D")));
+        var path = Path.GetFullPath(Path.Combine(tenantDirectory, secretName!));
+        var rootPrefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (!tenantDirectory.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) ||
+            !path.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) ||
+            IsReparsePoint(tenantDirectory) || IsReparsePoint(path))
             throw new FileNotFoundException("Integration credential reference is invalid.");
-        var info = new FileInfo(path);
-        if (!info.Exists || info.Length is <= 0 or > MaximumSecretBytes)
-            throw new FileNotFoundException("Integration credential is unavailable.");
-        var secret = await File.ReadAllTextAsync(path, cancellationToken);
-        if (secret.Length == 0 || secret.Contains('\r') || secret.Contains('\n'))
+        try
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                bufferSize: 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            if (stream.Length is <= 0 or > MaximumSecretBytes)
+                throw new FileNotFoundException("Integration credential is unavailable.");
+            using var buffer = new MemoryStream((int)stream.Length);
+            var chunk = new byte[4096];
+            while (true)
+            {
+                var read = await stream.ReadAsync(chunk, cancellationToken);
+                if (read == 0) break;
+                if (buffer.Length + read > MaximumSecretBytes)
+                    throw new FileNotFoundException("Integration credential is unavailable.");
+                buffer.Write(chunk, 0, read);
+            }
+            var bytes = buffer.ToArray();
+            try
+            {
+                var secret = new UTF8Encoding(false, true).GetString(bytes);
+                if (secret.Length == 0 || secret.Contains('\r') || secret.Contains('\n'))
+                    throw new FileNotFoundException("Integration credential is invalid.");
+                return secret.AsMemory();
+            }
+            finally { CryptographicOperations.ZeroMemory(bytes); }
+        }
+        catch (DecoderFallbackException)
+        {
             throw new FileNotFoundException("Integration credential is invalid.");
-        return secret.AsMemory();
+        }
+    }
+
+    private static bool IsReparsePoint(string path)
+    {
+        try { return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0; }
+        catch (FileNotFoundException) { return false; }
+        catch (DirectoryNotFoundException) { return false; }
     }
 
     [GeneratedRegex("^[a-z][a-z0-9-]{0,63}$", RegexOptions.CultureInvariant)]

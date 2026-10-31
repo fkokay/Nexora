@@ -1,0 +1,65 @@
+services:
+  tenant-sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${TENANT_ACCEPTANCE_SQL_PASSWORD:?Set a temporary SQL password}
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    volumes:
+      - tenant-acceptance-sql:/var/opt/mssql
+    networks:
+      - isolated
+
+  tenant-vault:
+    image: hashicorp/vault:1.18.3
+    command: ["server", "-dev", "-dev-listen-address=0.0.0.0:8200", "-dev-root-token-id=${TENANT_ACCEPTANCE_VAULT_ROOT_TOKEN:?Set a temporary Vault token}"]
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - isolated
+
+  tenant-isolation-test:
+    build:
+      context: ../..
+      dockerfile: tests/IntegrationTests/TenantSqlVaultAcceptance.Dockerfile
+    network_mode: service:tenant-vault
+    depends_on:
+      tenant-sql:
+        condition: service_healthy
+      tenant-vault:
+        condition: service_healthy
+    environment:
+      AIERP_TENANT_ISOLATION_ACCEPTANCE_DISPOSABLE_INSTANCE: YES_CREATE_AND_DROP_ISOLATED_TENANT_DATABASES
+      AIERP_TENANT_ISOLATION_ACCEPTANCE_SQL_CONNECTION_STRING: Server=tenant-sql,1433;Initial Catalog=master;User ID=sa;Password=${TENANT_ACCEPTANCE_SQL_PASSWORD:?Set a temporary SQL password};Encrypt=True;TrustServerCertificate=True;Connection Timeout=30
+      AIERP_TENANT_ISOLATION_ACCEPTANCE_VAULT_ADDRESS: http://127.0.0.1:8200
+      AIERP_TENANT_ISOLATION_ACCEPTANCE_VAULT_ROOT_TOKEN: ${TENANT_ACCEPTANCE_VAULT_ROOT_TOKEN:?Set a temporary Vault token}
+      AIERP_TENANT_ISOLATION_ACCEPTANCE_VAULT_MOUNT: secret
+      AIERP_TENANT_ISOLATION_ACCEPTANCE_VAULT_ALLOW_HTTP_LOCAL: "true"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 2g
+    cpus: 2.0
+
+networks:
+  isolated:
+    internal: true
+
+volumes:
+  tenant-acceptance-sql: {}

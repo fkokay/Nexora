@@ -2,7 +2,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-public sealed record GitHubPullRequestWebhookEvent(string Repository, int Number, string State, string Action, DateTimeOffset UpdatedAt, string? HeadSha = null);
+public sealed record GitHubPullRequestWebhookEvent(string Repository, int Number, string State, string Action,
+    DateTimeOffset UpdatedAt, string? HeadSha = null, long? InstallationId = null);
 
 public static class GitHubWebhookSecurity
 {
@@ -33,6 +34,9 @@ public static class GitHubWebhookSecurity
             if (!root.TryGetProperty("action", out var actionElement) || actionElement.ValueKind != JsonValueKind.String ||
                 string.IsNullOrWhiteSpace(actionElement.GetString())) return false;
             if (!SupportedActions.Contains(actionElement.GetString()!)) return true;
+            if (!root.TryGetProperty("installation", out var installationElement) ||
+                !installationElement.TryGetProperty("id", out var installationIdElement) ||
+                !installationIdElement.TryGetInt64(out var installationId) || installationId <= 0) return false;
             if (!root.TryGetProperty("repository", out var repositoryElement) ||
                 !repositoryElement.TryGetProperty("full_name", out var nameElement) || nameElement.ValueKind != JsonValueKind.String) return false;
             var repository = nameElement.GetString();
@@ -49,7 +53,7 @@ public static class GitHubWebhookSecurity
             if (headSha is null || headSha.Length is < 40 or > 64 || headSha.Any(character => !Uri.IsHexDigit(character))) return false;
             var state = isMerged ? "merged" : isDraft ? "draft" : stateElement.GetString();
             if (state is not ("open" or "closed" or "merged" or "draft")) return false;
-            parsed = new GitHubPullRequestWebhookEvent(repository, number, state, actionElement.GetString()!, updatedAt, headSha);
+            parsed = new GitHubPullRequestWebhookEvent(repository, number, state, actionElement.GetString()!, updatedAt, headSha, installationId);
             return true;
         }
         catch (JsonException) { return false; }

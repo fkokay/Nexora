@@ -18,6 +18,18 @@ public sealed class PlatformUserRole
     public DateTimeOffset AssignedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+public sealed class PlatformRefreshSession
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserId { get; set; }
+    public Guid TenantId { get; set; }
+    public string TokenHash { get; set; } = "";
+    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class PlatformModulePublisherKey
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -87,6 +99,263 @@ public sealed class Tenant
     public ICollection<PurchaseInvoice> PurchaseInvoices { get; set; } = new List<PurchaseInvoice>();
     public ICollection<SupplierPayment> SupplierPayments { get; set; } = new List<SupplierPayment>();
     public ICollection<FinancialAccount> FinancialAccounts { get; set; } = new List<FinancialAccount>();
+}
+
+/// <summary>Legal identity details for one tenant, kept in the platform catalog rather than operational tenant databases.</summary>
+public sealed class TenantCompanyProfile
+{
+    public Guid TenantId { get; set; }
+    public string LegalName { get; set; } = "";
+    public string? TaxOffice { get; set; }
+    public string? TaxNumber { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Company-specific ERP behavior stored with that company's tenant database.</summary>
+public sealed class TenantOperationalSettings
+{
+    public Guid TenantId { get; set; }
+    public bool AllowNegativeStock { get; set; }
+    public Guid? UpdatedByUserId { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] RowVersion { get; set; } = [];
+}
+
+public enum EmployeeEmploymentStatus { Active = 1, OnLeave = 2, Terminated = 3 }
+public enum EmployeeLeaveStatus { Requested = 1, Approved = 2, Rejected = 3, Cancelled = 4 }
+
+/// <summary>Minimal tenant-scoped personnel record. National ID, bank and health data are intentionally excluded.</summary>
+public sealed class EmployeeRecord
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string PersonnelCode { get; set; } = "";
+    public string FullName { get; set; } = "";
+    public Guid? UserId { get; set; }
+    public string? Department { get; set; }
+    public string? JobTitle { get; set; }
+    /// <summary>Employer-defined category used to group employees for payroll policy selection.</summary>
+    public string? EmploymentCategory { get; set; }
+    public string? WorkEmail { get; set; }
+    public DateOnly HireDate { get; set; }
+    public DateOnly? TerminationDate { get; set; }
+    public EmployeeEmploymentStatus Status { get; set; } = EmployeeEmploymentStatus.Active;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] RowVersion { get; set; } = [];
+}
+
+public sealed class EmployeeLeaveRequest
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public string LeaveType { get; set; } = "Annual";
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public decimal RequestedDays { get; set; }
+    public string? Note { get; set; }
+    public EmployeeLeaveStatus Status { get; set; } = EmployeeLeaveStatus.Requested;
+    public Guid RequestedByUserId { get; set; }
+    public Guid? ReviewedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ReviewedAt { get; set; }
+    public string? ReviewNote { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+public sealed class EmployeeAttendanceRecord
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public DateOnly WorkDate { get; set; }
+    public int WorkedMinutes { get; set; }
+    public int OvertimeMinutes { get; set; }
+    public string? Note { get; set; }
+    public Guid RecordedByUserId { get; set; }
+    public string ApprovalStatus { get; set; } = "PendingApproval";
+    public Guid? ApprovedByUserId { get; set; }
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Second-approved, effective-dated employee workplace assignment used for historical payroll runs.</summary>
+public sealed class PayrollEmployeeWorkplaceAssignment
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public string WorkplaceCode { get; set; } = "";
+    public DateOnly EffectiveFrom { get; set; }
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>A tenant-owned workplace, branch, or factory used as an operational and payroll reference.</summary>
+public sealed class WorkplaceDefinition
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Kind { get; set; } = "Workplace";
+    public bool IsActive { get; set; } = true;
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Approved effective-dated weekly and date-exception schedule for a workplace.</summary>
+public sealed class PayrollWorkplaceCalendar
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string WorkplaceCode { get; set; } = "";
+    public DateOnly EffectiveFrom { get; set; }
+    public int Version { get; set; } = 1;
+    public string WeeklyMinutesJson { get; set; } = "{}";
+    public string DateOverridesJson { get; set; } = "[]";
+    public string PolicyReference { get; set; } = "";
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Approved effective-dated employee schedule replacing the workplace calendar during its active range.</summary>
+public sealed class PayrollEmployeeWorkCalendarOverride
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public DateOnly EffectiveFrom { get; set; }
+    public int Version { get; set; } = 1;
+    public string WeeklyMinutesJson { get; set; } = "{}";
+    public string DateOverridesJson { get; set; } = "[]";
+    public string PolicyReference { get; set; } = "";
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Versioned statutory input envelope; calculation inputs are reviewable and effective-dated.</summary>
+public sealed class PayrollRuleSet
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string JurisdictionCode { get; set; } = "TR";
+    public string TaxYear { get; set; } = "2026";
+    public DateOnly EffectiveFrom { get; set; }
+    public DateOnly? EffectiveTo { get; set; }
+    public int Version { get; set; } = 1;
+    public string RulesJson { get; set; } = "{}";
+    public string OfficialSourceUrl { get; set; } = "";
+    public string Status { get; set; } = "Draft";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Confidential, immutable gross/net compensation target change; only Approved rows are effective.</summary>
+public sealed class PayrollCompensationRecord
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public string TargetKind { get; set; } = "Gross";
+    public decimal Amount { get; set; }
+    public string CurrencyCode { get; set; } = "";
+    public string PayBasisCode { get; set; } = "";
+    public DateOnly EffectiveFrom { get; set; }
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Second-approved prior-employer tax-base declaration, kept generic until an employer's authorized code list is configured.</summary>
+public sealed class PayrollPriorEmployerTaxBaseDeclaration
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public int TaxYear { get; set; }
+    public string DeclarationKind { get; set; } = "NoPriorEmployer";
+    public string BaseEntriesJson { get; set; } = "[]";
+    public string EvidenceReference { get; set; } = "";
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Immutable, tenant-scoped input snapshot for an internal payroll draft run.</summary>
+public sealed class PayrollRunSnapshot
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string PeriodKind { get; set; } = "CalendarMonth";
+    public DateOnly PeriodStart { get; set; }
+    public DateOnly PeriodEnd { get; set; }
+    public string ProfileCode { get; set; } = "TR-4A-PRIVATE";
+    public string Status { get; set; } = "Blocked";
+    public int EmployeeCount { get; set; }
+    public string SnapshotJson { get; set; } = "{}";
+    public string SnapshotSha256 { get; set; } = "";
+    public string BlockersJson { get; set; } = "[]";
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>Immutable formula-derived payroll result tied to an exact approved input snapshot.</summary>
+public sealed class PayrollRunCalculation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid RunId { get; set; }
+    public int Version { get; set; } = 1;
+    public string RunSnapshotSha256 { get; set; } = "";
+    public string ResultJson { get; set; } = "{}";
+    public string ResultSha256 { get; set; } = "";
+    public string Status { get; set; } = "PendingApproval";
+    public Guid CreatedByUserId { get; set; }
+    public Guid? ApprovedByUserId { get; set; }
+    public Guid? RejectedByUserId { get; set; }
+    public Guid? FinalizedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public DateTimeOffset? FinalizedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 }
 
 public sealed class TenantAIProviderSettings
@@ -192,8 +461,83 @@ public sealed class LedgerAccount
     public Guid TenantId { get; set; }
     public string Code { get; set; } = "";
     public string Name { get; set; } = "";
+    public LedgerAccountStatementSection StatementSection { get; set; } = LedgerAccountStatementSection.Unclassified;
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public enum TenantBudgetPlanStatus { Draft = 1, Approved = 2 }
+
+public sealed class TenantBudgetPlan
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Name { get; set; } = "";
+    public int FiscalYear { get; set; }
+    public string CurrencyCode { get; set; } = "TRY";
+    public TenantBudgetPlanStatus Status { get; set; } = TenantBudgetPlanStatus.Draft;
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? ApprovedByUserId { get; set; }
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public int Revision { get; set; } = 1;
+    public ICollection<TenantBudgetLine> Lines { get; set; } = new List<TenantBudgetLine>();
+}
+
+public sealed class TenantBudgetLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid BudgetPlanId { get; set; }
+    public TenantBudgetPlan BudgetPlan { get; set; } = null!;
+    public Guid AccountId { get; set; }
+    public LedgerAccount Account { get; set; } = null!;
+    public DateOnly PeriodStart { get; set; }
+    public decimal PlannedAmount { get; set; }
+    public string? Notes { get; set; }
+}
+
+public enum DirectCashBudgetPlanStatus { Draft = 1, Approved = 2 }
+public enum DirectCashBudgetDirection { Inflow = 1, Outflow = 2 }
+
+/// <summary>Planning-only cash scenario. It does not represent a journal or cash transaction.</summary>
+public sealed class DirectCashBudgetPlan
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Name { get; set; } = "";
+    public int FiscalYear { get; set; }
+    public string CurrencyCode { get; set; } = "TRY";
+    public DirectCashBudgetPlanStatus Status { get; set; } = DirectCashBudgetPlanStatus.Draft;
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? ApprovedByUserId { get; set; }
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public int Revision { get; set; } = 1;
+    public ICollection<DirectCashBudgetLine> Lines { get; set; } = new List<DirectCashBudgetLine>();
+}
+
+public sealed class DirectCashBudgetLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid PlanId { get; set; }
+    public DirectCashBudgetPlan Plan { get; set; } = null!;
+    public DateOnly PeriodStart { get; set; }
+    public DirectCashBudgetDirection Direction { get; set; }
+    public string Category { get; set; } = "Other";
+    public string Description { get; set; } = "";
+    public decimal Amount { get; set; }
+}
+
+public enum LedgerAccountStatementSection
+{
+    Unclassified = 0,
+    Asset = 1,
+    Liability = 2,
+    Equity = 3,
+    Revenue = 4,
+    Expense = 5
 }
 
 public sealed class LedgerAccountMapping
@@ -234,6 +578,10 @@ public sealed class JournalEntryLine
 public static class LedgerMappingKeys
 {
     public const string FinancialAccountPrefix = "financial-account.";
+    public const string CreditFacilityPrincipal = "credit-facility.principal";
+    public const string CreditFacilityInterestExpense = "credit-facility.interest-expense";
+    public const string CreditFacilityAccruedInterest = "credit-facility.accrued-interest";
+    public const string CreditFacilityFeeExpense = "credit-facility.fee-expense";
     public const string SalesReceivable = "sales.receivable";
     public const string SalesRevenue = "sales.revenue";
     public const string SalesCost = "sales.cost";
@@ -246,6 +594,11 @@ public static class LedgerMappingKeys
     public const string PurchaseReceiptAccrual = "purchase.receipt-accrual";
     public const string SupplierCardClearing = "payment.card-clearing";
     public const string SupplierCheckClearing = "payment.check-clearing";
+    public const string InstrumentReceivablePortfolio = "instrument.receivable-portfolio";
+    public const string InstrumentPayablePortfolio = "instrument.payable-portfolio";
+    public const string InstrumentReceivableOffset = "instrument.receivable-offset";
+    public const string InstrumentPayableOffset = "instrument.payable-offset";
+    public const string InstrumentEndorsementOffset = "instrument.endorsement-offset";
     public const string FxReceivable = "fx.receivable";
     public const string FxPayable = "fx.payable";
     public const string FxGain = "fx.gain";
@@ -255,6 +608,13 @@ public static class LedgerMappingKeys
     public const string InventoryRevaluationOffset = "inventory.revaluation-offset";
     public const string InventoryLandedCostOffset = "inventory.landed-cost-offset";
     public const string InventoryReversalOffset = "inventory.reversal-offset";
+    public const string FixedAssetDepreciationExpense = "fixed-assets.depreciation-expense";
+    public const string FixedAssetAccumulatedDepreciation = "fixed-assets.accumulated-depreciation";
+    public const string FixedAssetCost = "fixed-assets.cost";
+    public const string FixedAssetDisposalProceeds = "fixed-assets.disposal-proceeds";
+    public const string FixedAssetDisposalGain = "fixed-assets.disposal-gain";
+    public const string FixedAssetDisposalLoss = "fixed-assets.disposal-loss";
+    public const string PayrollNetPayPayable = "payroll.net-pay-payable";
 }
 
 public enum CounterpartyType { Customer = 1, Supplier = 2, Both = 3 }
@@ -281,8 +641,13 @@ public sealed class CustomerAccount
     public string Name { get; set; } = "";
     public CounterpartyType Type { get; set; }
     public string? TaxNumber { get; set; }
+    public string? IdentityNumber { get; set; }
+    public string? TaxOffice { get; set; }
     public Guid? GroupId { get; set; }
     public CustomerGroup? Group { get; set; }
+    public Guid? ParentCompanyId { get; set; }
+    public CustomerAccount? ParentCompany { get; set; }
+    public ICollection<CustomerAccount> Subsidiaries { get; set; } = new List<CustomerAccount>();
     public string CurrencyCode { get; set; } = "TRY";
     public decimal? RiskLimit { get; set; }
     public int PaymentTermDays { get; set; }
@@ -381,7 +746,26 @@ public sealed class CustomerAddress
     public string? District { get; set; }
     public string? PostalCode { get; set; }
     public string CountryCode { get; set; } = "TR";
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
     public bool IsDefault { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public sealed class CustomerLocationProvince
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+    public ICollection<CustomerLocationDistrict> Districts { get; set; } = new List<CustomerLocationDistrict>();
+}
+
+public sealed class CustomerLocationDistrict
+{
+    public int Id { get; set; }
+    public int ProvinceId { get; set; }
+    public CustomerLocationProvince Province { get; set; } = null!;
+    public string Name { get; set; } = "";
     public bool IsActive { get; set; } = true;
 }
 
@@ -410,6 +794,8 @@ public sealed class CustomerLedgerEntry
     public SalesReturn? SalesReturn { get; set; }
     public Guid? PurchaseInvoiceId { get; set; }
     public PurchaseInvoice? PurchaseInvoice { get; set; }
+    public Guid? PurchaseInvoiceDraftId { get; set; }
+    public PurchaseInvoiceDraft? PurchaseInvoiceDraft { get; set; }
     public Guid? SupplierPaymentId { get; set; }
     public SupplierPayment? SupplierPayment { get; set; }
     public Guid? SupplierReturnId { get; set; }
@@ -434,6 +820,15 @@ public sealed class StockItem
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public byte[] RowVersion { get; set; } = [];
     public ICollection<StockItemUnitConversion> UnitConversions { get; set; } = new List<StockItemUnitConversion>();
+}
+
+public sealed class StockItemCategory
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Name { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public enum InventoryTrackingMode { None = 0, Lot = 1, Serial = 2 }
@@ -463,10 +858,81 @@ public sealed class ManufacturingWorkCenter
     public string Code { get; set; } = "";
     public string Name { get; set; } = "";
     public int CapacityMinutesPerDay { get; set; } = 480;
+    /// <summary>Tenant-configurable shift window, in local minutes after midnight. Legacy schedules use 08:00–16:00.</summary>
+    public int ShiftStartMinuteOfDay { get; set; } = 480;
+    public int ShiftEndMinuteOfDay { get; set; } = 960;
+    /// <summary>Bit 0 is Sunday through bit 6 for Saturday. The default keeps all weekdays open for legacy schedules.</summary>
+    public int WorkingDaysMask { get; set; } = 127;
     public decimal LaborCostPerHourBase { get; set; }
     public decimal OverheadCostPerHourBase { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Date-specific capacity for a tenant work center; zero closes the center on that date.</summary>
+public sealed class ManufacturingWorkCenterCapacityOverride
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid WorkCenterId { get; set; }
+    public DateOnly WorkDate { get; set; }
+    public int CapacityMinutes { get; set; }
+    public string? Note { get; set; }
+}
+
+/// <summary>
+/// Annual work-center capacity rule. Month/day is interpreted in the tenant's
+/// calendar; February 29 applies only in leap years and is skipped otherwise.
+/// A zero capacity closes the work center for that day.
+/// </summary>
+public sealed class ManufacturingWorkCenterAnnualCapacityRule
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid WorkCenterId { get; set; }
+    public int Month { get; set; }
+    public int Day { get; set; }
+    public int CapacityMinutes { get; set; }
+    public string? Note { get; set; }
+}
+
+/// <summary>
+/// Tenant-scoped effective-dated repeating shift calendar. The first pattern day
+/// applies on EffectiveFromDate; rotation advances by calendar days and repeats.
+/// </summary>
+public sealed class ManufacturingWorkCenterShiftRotation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid WorkCenterId { get; set; }
+    public DateOnly EffectiveFromDate { get; set; }
+    public DateOnly? EffectiveToDate { get; set; }
+    public string? Note { get; set; }
+    public ICollection<ManufacturingWorkCenterShiftRotationDay> Days { get; set; } = new List<ManufacturingWorkCenterShiftRotationDay>();
+}
+
+/// <summary>One indexed calendar day in a repeating shift rotation.</summary>
+public sealed class ManufacturingWorkCenterShiftRotationDay
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ShiftRotationId { get; set; }
+    public int DayIndex { get; set; }
+    public int CapacityMinutes { get; set; }
+    public int ShiftStartMinuteOfDay { get; set; }
+    public int ShiftEndMinuteOfDay { get; set; }
+}
+
+/// <summary>Tenant-configurable sequence-dependent setup or prohibited transition for a work center.</summary>
+public sealed class ManufacturingSetupTransitionRule
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid WorkCenterId { get; set; }
+    public string FromSetupFamilyCode { get; set; } = "";
+    public string ToSetupFamilyCode { get; set; } = "";
+    public decimal SetupMinutes { get; set; }
+    public bool IsTransitionAllowed { get; set; } = true;
 }
 
 public sealed class BillOfMaterialOperation
@@ -478,6 +944,24 @@ public sealed class BillOfMaterialOperation
     public Guid WorkCenterId { get; set; }
     public decimal SetupMinutes { get; set; }
     public decimal RunMinutesPerOutputUnit { get; set; }
+    /// <summary>Standard electricity use (kWh) per BOM output unit.</summary>
+    public decimal PlannedEnergyKwhPerOutput { get; set; }
+    /// <summary>Standard electricity price in the tenant base currency per kWh.</summary>
+    public decimal PlannedEnergyCostPerKwhBase { get; set; }
+    /// <summary>Minimum whole calendar days to wait after the preceding routed operation ends.</summary>
+    public int MinimumWaitDaysAfterPrevious { get; set; }
+    /// <summary>Optional routing family used to match setup transitions; blank preserves legacy behavior.</summary>
+    public string SetupFamilyCode { get; set; } = "";
+    public ICollection<BillOfMaterialOperationWorkCenterOption> EligibleWorkCenters { get; set; } = new List<BillOfMaterialOperationWorkCenterOption>();
+}
+
+/// <summary>A tenant work center allowed for a recipe operation; exactly one option is preferred.</summary>
+public sealed class BillOfMaterialOperationWorkCenterOption
+{
+    public Guid TenantId { get; set; }
+    public Guid BillOfMaterialOperationId { get; set; }
+    public Guid WorkCenterId { get; set; }
+    public bool IsPreferred { get; set; }
 }
 
 public sealed class BillOfMaterialLine
@@ -488,6 +972,8 @@ public sealed class BillOfMaterialLine
     public Guid ComponentStockItemId { get; set; }
     public decimal Quantity { get; set; }
     public decimal ScrapPercent { get; set; }
+    /// <summary>Planned component unit cost in the tenant base currency.</summary>
+    public decimal StandardUnitCostBase { get; set; }
 }
 
 public sealed class ManufacturingOrder
@@ -533,17 +1019,44 @@ public sealed class ManufacturingOrderOperation
     public string WorkCenterNameSnapshot { get; set; } = "";
     public decimal SetupMinutes { get; set; }
     public decimal RunMinutes { get; set; }
+    /// <summary>Snapshot of the recipe's minimum wait between this operation and its predecessor.</summary>
+    public int MinimumWaitDaysAfterPrevious { get; set; }
+    /// <summary>Immutable order-time snapshot of the recipe operation's transition family.</summary>
+    public string SetupFamilyCodeSnapshot { get; set; } = "";
+    /// <summary>Transition setup minutes selected by the scheduler from its routing snapshot.</summary>
+    public decimal SequenceSetupMinutes { get; set; }
+    /// <summary>JSON snapshot of transition rules for this operation's eligible work centers.</summary>
+    public string SetupTransitionRulesSnapshotJson { get; set; } = "[]";
+    public ICollection<ManufacturingOrderOperationWorkCenterOption> EligibleWorkCenters { get; set; } = new List<ManufacturingOrderOperationWorkCenterOption>();
     public decimal LaborCostPerHourBase { get; set; }
     public decimal OverheadCostPerHourBase { get; set; }
+    /// <summary>Order-time snapshot of the planned electricity use for this operation.</summary>
+    public decimal PlannedEnergyQuantityKwh { get; set; }
+    public decimal PlannedEnergyCostPerKwhBase { get; set; }
+    public decimal PlannedEnergyCostBase { get; set; }
     public decimal PlannedCostBase { get; set; }
     public ManufacturingOperationStatus Status { get; set; } = ManufacturingOperationStatus.Planned;
     public decimal? ActualSetupMinutes { get; set; }
     public decimal? ActualRunMinutes { get; set; }
+    public decimal? ActualEnergyQuantityKwh { get; set; }
+    public decimal? ActualEnergyCostPerKwhBase { get; set; }
+    public decimal? ActualEnergyCostBase { get; set; }
     public decimal? ActualCostBase { get; set; }
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public DateOnly? ScheduledStartDate { get; set; }
     public DateOnly? ScheduledEndDate { get; set; }
+    public int? ScheduledStartMinuteOfDay { get; set; }
+    public int? ScheduledEndMinuteOfDay { get; set; }
+}
+
+/// <summary>Order-time snapshot of the machine eligibility matrix for a routed operation.</summary>
+public sealed class ManufacturingOrderOperationWorkCenterOption
+{
+    public Guid TenantId { get; set; }
+    public Guid ManufacturingOrderOperationId { get; set; }
+    public Guid WorkCenterId { get; set; }
+    public bool IsPreferred { get; set; }
 }
 
 public sealed class ManufacturingCapacityAllocation
@@ -554,6 +1067,8 @@ public sealed class ManufacturingCapacityAllocation
     public Guid WorkCenterId { get; set; }
     public DateOnly ScheduledDate { get; set; }
     public decimal AllocatedMinutes { get; set; }
+    public int StartMinuteOfDay { get; set; }
+    public int EndMinuteOfDay { get; set; }
 }
 
 public sealed class ManufacturingOrderLine
@@ -565,6 +1080,10 @@ public sealed class ManufacturingOrderLine
     public string ComponentCodeSnapshot { get; set; } = "";
     public string ComponentNameSnapshot { get; set; } = "";
     public decimal RequiredQuantity { get; set; }
+    /// <summary>Immutable order-time copy of the BOM component standard cost.</summary>
+    public decimal StandardUnitCostBaseSnapshot { get; set; }
+    /// <summary>Planned component cost including the recipe scrap quantity.</summary>
+    public decimal PlannedCostBase { get; set; }
 }
 
 public sealed class StockItemUnitConversion
@@ -639,6 +1158,20 @@ public sealed class Warehouse
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+    public byte[] RowVersion { get; set; } = [];
+}
+
+public sealed class WarehouseLocation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid WarehouseId { get; set; }
+    public Warehouse Warehouse { get; set; } = null!;
+    public Guid? ParentLocationId { get; set; }
+    public WarehouseLocation? ParentLocation { get; set; }
     public string Code { get; set; } = "";
     public string Name { get; set; } = "";
     public bool IsActive { get; set; } = true;
@@ -722,6 +1255,8 @@ public sealed class InventoryTransaction
     public Guid TenantId { get; set; }
     public Guid WarehouseId { get; set; }
     public Warehouse Warehouse { get; set; } = null!;
+    public Guid? StorageLocationId { get; set; }
+    public WarehouseLocation? StorageLocation { get; set; }
     public Guid StockItemId { get; set; }
     public StockItem StockItem { get; set; } = null!;
     public DateOnly EntryDate { get; set; }
@@ -742,8 +1277,14 @@ public sealed class InventoryTransaction
     public SalesReturnLine? SalesReturnLine { get; set; }
     public Guid? PurchaseReceiptLineId { get; set; }
     public PurchaseReceiptLine? PurchaseReceiptLine { get; set; }
+    public Guid? StandaloneSalesDeliveryLineId { get; set; }
+    public StandaloneSalesDeliveryLine? StandaloneSalesDeliveryLine { get; set; }
+    public Guid? StandalonePurchaseReceiptLineId { get; set; }
+    public StandalonePurchaseReceiptLine? StandalonePurchaseReceiptLine { get; set; }
     public Guid? SupplierReturnLineId { get; set; }
     public SupplierReturnLine? SupplierReturnLine { get; set; }
+    /// <summary>Stable tenant-scoped source for material issues posted while completing a manufacturing order.</summary>
+    public Guid? ManufacturingOrderId { get; set; }
     public Guid? InventoryTransferId { get; set; }
     public InventoryTransfer? InventoryTransfer { get; set; }
     public ICollection<InventoryTransactionTrace> Tracking { get; set; } = new List<InventoryTransactionTrace>();
@@ -770,6 +1311,8 @@ public sealed class InventoryCostAdjustment
     public DateOnly EntryDate { get; set; }
     public InventoryCostAdjustmentKind Kind { get; set; }
     public Guid? PurchaseReceiptId { get; set; }
+    public Guid? StandalonePurchaseReceiptId { get; set; }
+    public Guid? PurchaseInvoiceDraftId { get; set; }
     public string Description { get; set; } = "";
     public Guid? ReversalOfId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -786,6 +1329,7 @@ public sealed class InventoryCostAdjustmentLine
     public Guid WarehouseId { get; set; }
     public Guid StockItemId { get; set; }
     public Guid? PurchaseReceiptLineId { get; set; }
+    public Guid? StandalonePurchaseReceiptLineId { get; set; }
     public decimal QuantitySnapshot { get; set; }
     public decimal? UnitCostSnapshotBase { get; set; }
     public decimal AmountBase { get; set; }
@@ -1097,6 +1641,85 @@ public sealed class PurchaseOrderLine
 
 public enum PurchaseReceiptStatus { Posted = 1, Voided = 2 }
 
+public enum StandaloneInventoryDocumentStatus { Draft = 0, Posted = 1, Voided = 2 }
+
+/// <summary>Sales dispatch that is not sourced from a sales order.</summary>
+public sealed class StandaloneSalesDelivery
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid RequestId { get; set; }
+    public Guid CustomerId { get; set; }
+    public CustomerAccount Customer { get; set; } = null!;
+    public Guid WarehouseId { get; set; }
+    public Warehouse Warehouse { get; set; } = null!;
+    public string Code { get; set; } = "";
+    public DateOnly DeliveryDate { get; set; }
+    public StandaloneInventoryDocumentStatus Status { get; set; } = StandaloneInventoryDocumentStatus.Draft;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<StandaloneSalesDeliveryLine> Lines { get; set; } = new List<StandaloneSalesDeliveryLine>();
+}
+
+public sealed class StandaloneSalesDeliveryLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid DeliveryId { get; set; }
+    public StandaloneSalesDelivery Delivery { get; set; } = null!;
+    public int LineNumber { get; set; }
+    public Guid StockItemId { get; set; }
+    public string StockCode { get; set; } = "";
+    public string StockName { get; set; } = "";
+    public string UnitCode { get; set; } = "EA";
+    public decimal Quantity { get; set; }
+    public decimal? EnteredQuantity { get; set; }
+    public string? EnteredUnitCode { get; set; }
+    public string? TrackingCode { get; set; }
+    public DateOnly? ExpiryDate { get; set; }
+    public Guid? StorageLocationId { get; set; }
+    public WarehouseLocation? StorageLocation { get; set; }
+    public ICollection<InventoryTransaction> InventoryTransactions { get; set; } = new List<InventoryTransaction>();
+}
+
+/// <summary>Purchase receipt that is not sourced from a purchase order.</summary>
+public sealed class StandalonePurchaseReceipt
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid RequestId { get; set; }
+    public Guid SupplierId { get; set; }
+    public CustomerAccount Supplier { get; set; } = null!;
+    public Guid WarehouseId { get; set; }
+    public Warehouse Warehouse { get; set; } = null!;
+    public string Code { get; set; } = "";
+    public DateOnly ReceiptDate { get; set; }
+    public StandaloneInventoryDocumentStatus Status { get; set; } = StandaloneInventoryDocumentStatus.Draft;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<StandalonePurchaseReceiptLine> Lines { get; set; } = new List<StandalonePurchaseReceiptLine>();
+}
+
+public sealed class StandalonePurchaseReceiptLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ReceiptId { get; set; }
+    public StandalonePurchaseReceipt Receipt { get; set; } = null!;
+    public int LineNumber { get; set; }
+    public Guid StockItemId { get; set; }
+    public string StockCode { get; set; } = "";
+    public string StockName { get; set; } = "";
+    public string UnitCode { get; set; } = "EA";
+    public decimal Quantity { get; set; }
+    public decimal UnitCostBase { get; set; }
+    public decimal? EnteredQuantity { get; set; }
+    public string? EnteredUnitCode { get; set; }
+    public string? TrackingCode { get; set; }
+    public DateOnly? ExpiryDate { get; set; }
+    public Guid? StorageLocationId { get; set; }
+    public WarehouseLocation? StorageLocation { get; set; }
+    public ICollection<InventoryTransaction> InventoryTransactions { get; set; } = new List<InventoryTransaction>();
+}
+
 public sealed class PurchaseReceipt
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -1189,6 +1812,35 @@ public sealed class PurchaseReceiptLine
     public decimal? EnteredQuantity { get; set; }
     public string? EnteredUnitCode { get; set; }
     public ICollection<InventoryTransaction> InventoryTransactions { get; set; } = new List<InventoryTransaction>();
+}
+
+/// <summary>
+/// Supplier-issued delivery note evidence. This document records quantities only and never posts inventory.
+/// </summary>
+public sealed class PurchaseDeliveryNote
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid PurchaseOrderId { get; set; }
+    public PurchaseOrder PurchaseOrder { get; set; } = null!;
+    public Guid? PurchaseReceiptId { get; set; }
+    public PurchaseReceipt? PurchaseReceipt { get; set; }
+    public string DocumentNumber { get; set; } = "";
+    public DateOnly DocumentDate { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<PurchaseDeliveryNoteLine> Lines { get; set; } = new List<PurchaseDeliveryNoteLine>();
+}
+
+public sealed class PurchaseDeliveryNoteLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid DeliveryNoteId { get; set; }
+    public PurchaseDeliveryNote DeliveryNote { get; set; } = null!;
+    public Guid PurchaseOrderId { get; set; }
+    public int OrderLineNumber { get; set; }
+    public decimal Quantity { get; set; }
+    public string UnitCode { get; set; } = "EA";
 }
 
 public enum PurchaseInvoiceStatus { Posted = 1, Voided = 2 }
@@ -1347,11 +1999,38 @@ public sealed class SalesQuote
     public SalesOrder? Order { get; set; }
 }
 
+public sealed class SalesPromotionCampaign
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public decimal DiscountPercent { get; set; }
+    public DateOnly EffectiveFrom { get; set; }
+    public DateOnly EffectiveThrough { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? CreatedByUserId { get; set; }
+}
+
+public sealed class SalesPromotionApplication
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid CampaignId { get; set; }
+    public Guid QuoteId { get; set; }
+    public decimal DiscountPercent { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public DateOnly AppliedOn { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? AppliedByUserId { get; set; }
+}
+
 public sealed class SalesQuoteLine
 {
     public Guid TenantId { get; set; }
-    public Guid QuoteId { get; set; }
-    public SalesQuote Quote { get; set; } = null!;
+    public Guid? QuoteId { get; set; }
+    public SalesQuote? Quote { get; set; }
     public int LineNumber { get; set; }
     public Guid StockItemId { get; set; }
     public StockItem StockItem { get; set; } = null!;
@@ -1429,8 +2108,8 @@ public sealed class SalesOrder
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
-    public Guid QuoteId { get; set; }
-    public SalesQuote Quote { get; set; } = null!;
+    public Guid? QuoteId { get; set; }
+    public SalesQuote? Quote { get; set; }
     public Guid CustomerId { get; set; }
     public CustomerAccount Customer { get; set; } = null!;
     public string Code { get; set; } = "";
@@ -1719,8 +2398,65 @@ public sealed class CustomerCollection
 
 public enum FinancialAccountType { Cash = 1, Bank = 2 }
 public enum FinancialDirection { Inflow = 1, Outflow = 2 }
+public enum CashFlowCategory { Unclassified = 0, Operating = 1, Investing = 2, Financing = 3, InternalTransfer = 4, OpeningBalance = 5 }
 public enum FinancialTransferStatus { Posted = 1, Voided = 2 }
 public enum BankStatementStatus { Imported = 1, Reconciled = 2 }
+public enum PaymentInstrumentType { Check = 1, PromissoryNote = 2 }
+public enum PaymentInstrumentDirection { Receivable = 1, Payable = 2 }
+public enum PaymentInstrumentStatus { Portfolio = 1, Endorsed = 2, Collected = 3, Bounced = 4, Cancelled = 5 }
+
+/// <summary>Company-scoped portfolio instrument. Collection and bounce movements are recorded separately in the cash/bank ledger.</summary>
+public sealed class PaymentInstrument
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public Guid RequestId { get; set; }
+    public PaymentInstrumentType Type { get; set; }
+    public PaymentInstrumentDirection Direction { get; set; }
+    public PaymentInstrumentStatus Status { get; set; } = PaymentInstrumentStatus.Portfolio;
+    public string Code { get; set; } = "";
+    public string InstrumentNumber { get; set; } = "";
+    public string CounterpartyName { get; set; } = "";
+    /// <summary>Stable customer/supplier identity when the instrument is entered after this field was introduced. Older instruments may have only the display name.</summary>
+    public Guid? CounterpartyAccountId { get; set; }
+    public CustomerAccount? CounterpartyAccount { get; set; }
+    public string BankName { get; set; } = "";
+    public string CurrencyCode { get; set; } = "TRY";
+    public decimal Amount { get; set; }
+    public DateOnly IssueDate { get; set; }
+    public DateOnly DueDate { get; set; }
+    public DateOnly PortfolioDate { get; set; }
+    public string? EndorsedTo { get; set; }
+    public DateTimeOffset? EndorsedAt { get; set; }
+    public DateTimeOffset? CollectedAt { get; set; }
+    public Guid? FinancialAccountId { get; set; }
+    public FinancialAccount? FinancialAccount { get; set; }
+    public Guid? FinancialAccountTransactionId { get; set; }
+    public FinancialAccountTransaction? FinancialAccountTransaction { get; set; }
+    public string? Notes { get; set; }
+    public Guid? CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public byte[] RowVersion { get; set; } = [];
+    public ICollection<PaymentInstrumentEvent> Events { get; set; } = new List<PaymentInstrumentEvent>();
+}
+
+public sealed class PaymentInstrumentEvent
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid PaymentInstrumentId { get; set; }
+    public PaymentInstrument PaymentInstrument { get; set; } = null!;
+    public Guid RequestId { get; set; }
+    public string EventType { get; set; } = "";
+    public PaymentInstrumentStatus? PreviousStatus { get; set; }
+    public PaymentInstrumentStatus NewStatus { get; set; }
+    public DateOnly EventDate { get; set; }
+    public string? Note { get; set; }
+    public Guid? FinancialAccountTransactionId { get; set; }
+    public Guid? CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
 
 public sealed class BankStatement
 {
@@ -1799,6 +2535,104 @@ public sealed class FinancialAccount
     public ICollection<BankStatement> BankStatements { get; set; } = new List<BankStatement>();
 }
 
+public enum CreditFacilityStatus { Active = 1, Closed = 2 }
+public enum CreditFacilityScheduleStatus { Planned = 1, Paid = 2, Cancelled = 3 }
+public enum CreditFacilityMovementType { Drawdown = 1, Repayment = 2, Reversal = 3 }
+public enum CreditSecurityType { Guarantee = 1, Collateral = 2 }
+public enum CreditSecurityStatus { Active = 1, Released = 2, Called = 3, Expired = 4 }
+
+public sealed class CreditFacility
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public string Code { get; set; } = "";
+    public string LenderName { get; set; } = "";
+    public string FacilityType { get; set; } = "Loan";
+    public string CurrencyCode { get; set; } = "TRY";
+    public decimal ApprovedLimit { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly? MaturityDate { get; set; }
+    public decimal? AnnualInterestRatePercent { get; set; }
+    public CreditFacilityStatus Status { get; set; } = CreditFacilityStatus.Active;
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<CreditFacilitySchedule> Schedule { get; set; } = new List<CreditFacilitySchedule>();
+    public ICollection<CreditFacilityMovement> Movements { get; set; } = new List<CreditFacilityMovement>();
+    public ICollection<CreditFacilitySecurity> Securities { get; set; } = new List<CreditFacilitySecurity>();
+}
+
+public sealed class CreditFacilitySecurity
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid CreditFacilityId { get; set; }
+    public CreditFacility CreditFacility { get; set; } = null!;
+    public CreditSecurityType Type { get; set; }
+    public string Code { get; set; } = "";
+    public string Issuer { get; set; } = "";
+    public string Beneficiary { get; set; } = "";
+    public decimal Amount { get; set; }
+    public string CurrencyCode { get; set; } = "TRY";
+    public decimal CommissionAmount { get; set; }
+    public DateOnly IssueDate { get; set; }
+    public DateOnly ExpiryDate { get; set; }
+    public CreditSecurityStatus Status { get; set; } = CreditSecurityStatus.Active;
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Per-user dismissal state for a tenant-scoped facility security expiry alert.</summary>
+public sealed class CreditSecurityAlertDismissal
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid UserId { get; set; }
+    public Guid CreditFacilitySecurityId { get; set; }
+    public CreditFacilitySecurity CreditFacilitySecurity { get; set; } = null!;
+    public string AlertStatus { get; set; } = "Expiring";
+    public DateTimeOffset DismissedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class CreditFacilitySchedule
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid CreditFacilityId { get; set; }
+    public CreditFacility CreditFacility { get; set; } = null!;
+    public DateOnly DueDate { get; set; }
+    public decimal PrincipalAmount { get; set; }
+    public decimal InterestAmount { get; set; }
+    public decimal FeeAmount { get; set; }
+    public CreditFacilityScheduleStatus Status { get; set; } = CreditFacilityScheduleStatus.Planned;
+    public DateOnly? PaidDate { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class CreditFacilityMovement
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid CreditFacilityId { get; set; }
+    public CreditFacility CreditFacility { get; set; } = null!;
+    public Guid FinancialAccountTransactionId { get; set; }
+    public FinancialAccountTransaction FinancialAccountTransaction { get; set; } = null!;
+    public Guid? CreditFacilityScheduleId { get; set; }
+    public CreditFacilitySchedule? CreditFacilitySchedule { get; set; }
+    public Guid? ReversesMovementId { get; set; }
+    public CreditFacilityMovement? ReversesMovement { get; set; }
+    public ICollection<CreditFacilityMovement> Reversals { get; set; } = new List<CreditFacilityMovement>();
+    public Guid RequestId { get; set; }
+    public CreditFacilityMovementType Type { get; set; }
+    public DateOnly TransactionDate { get; set; }
+    public decimal PrincipalAmount { get; set; }
+    public decimal InterestAmount { get; set; }
+    public decimal FeeAmount { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class FinancialAccountTransaction
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -1808,6 +2642,7 @@ public sealed class FinancialAccountTransaction
     public string CurrencyCode { get; set; } = "TRY";
     public DateOnly TransactionDate { get; set; }
     public FinancialDirection Direction { get; set; }
+    public CashFlowCategory CashFlowCategory { get; set; } = CashFlowCategory.Unclassified;
     public decimal Amount { get; set; }
     public string Description { get; set; } = "";
     public string? Reference { get; set; }
@@ -1981,6 +2816,38 @@ public sealed class TenantCustomFormSubmission
     public string? DecisionReason { get; set; }
 }
 
+/// <summary>A tenant-scoped, allowlisted layout override for a built-in ERP list screen.</summary>
+public sealed class TenantScreenView
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string ScreenKey { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string LayoutJson { get; set; } = "[]";
+    public int Revision { get; set; } = 1;
+    public bool IsPublished { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<TenantScreenViewRevision> Revisions { get; set; } = new List<TenantScreenViewRevision>();
+}
+
+public sealed class TenantScreenViewRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ScreenViewId { get; set; }
+    public TenantScreenView ScreenView { get; set; } = null!;
+    public int Revision { get; set; }
+    public string ScreenKey { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string LayoutJson { get; set; } = "[]";
+    public string ChangeKind { get; set; } = "Updated";
+    public Guid ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class TenantWorkflowDefinition
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -2078,6 +2945,23 @@ public sealed class TenantSavedReport
     public Guid UpdatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public int DefinitionRevision { get; set; } = 1;
+    public ICollection<TenantSavedReportRevision> Revisions { get; set; } = new List<TenantSavedReportRevision>();
+}
+
+public sealed class TenantSavedReportRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid SavedReportId { get; set; }
+    public TenantSavedReport SavedReport { get; set; } = null!;
+    public int Revision { get; set; }
+    public string Name { get; set; } = "";
+    public string Kind { get; set; } = "Report";
+    public string Source { get; set; } = "customers";
+    public string DefinitionJson { get; set; } = "{}";
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class TenantDashboardWidget
@@ -2163,6 +3047,19 @@ public sealed class DevelopmentProjectAccess
     public string AccessLevel { get; set; } = "Viewer";
     public Guid GrantedByUserId { get; set; }
     public DateTimeOffset GrantedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>User-confirmed tenant mapping from an enabled ERP module code to an existing Studio project and bounded source scope.</summary>
+public sealed class StudioModuleSourceMapping
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string ModuleCode { get; set; } = "";
+    public Guid ProjectId { get; set; }
+    public string Ref { get; set; } = "main";
+    public string PathAllowlistJson { get; set; } = "[]";
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class DevelopmentWorkspaceRequest

@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace AIERP.ModuleSDK;
 
 public sealed record ModuleDependencyResolutionResult(
@@ -79,31 +77,28 @@ public static class ModuleDependencyResolver
         }
     }
 
-    private readonly record struct SemVersion(int Major, int Minor, int Patch, string? Prerelease) : IComparable<SemVersion>
+    private readonly record struct SemVersion(string Major, string Minor, string Patch, string? Prerelease) : IComparable<SemVersion>
     {
         public static bool TryParse(string value, out SemVersion version)
         {
             version = default;
+            if (!ModuleManifestValidator.IsValidSemVersion(value)) return false;
             var withoutBuild = value.Split('+', 2)[0];
             var parts = withoutBuild.Split('-', 2);
             var core = parts[0].Split('.');
-            if (core.Length != 3 ||
-                !int.TryParse(core[0], NumberStyles.None, CultureInfo.InvariantCulture, out var major) ||
-                !int.TryParse(core[1], NumberStyles.None, CultureInfo.InvariantCulture, out var minor) ||
-                !int.TryParse(core[2], NumberStyles.None, CultureInfo.InvariantCulture, out var patch))
-                return false;
+            if (core.Length != 3) return false;
 
-            version = new(major, minor, patch, parts.Length == 2 ? parts[1] : null);
+            version = new(core[0], core[1], core[2], parts.Length == 2 ? parts[1] : null);
             return true;
         }
 
         public int CompareTo(SemVersion other)
         {
-            var coreResult = Major.CompareTo(other.Major);
+            var coreResult = CompareNumeric(Major, other.Major);
             if (coreResult != 0) return coreResult;
-            coreResult = Minor.CompareTo(other.Minor);
+            coreResult = CompareNumeric(Minor, other.Minor);
             if (coreResult != 0) return coreResult;
-            coreResult = Patch.CompareTo(other.Patch);
+            coreResult = CompareNumeric(Patch, other.Patch);
             if (coreResult != 0) return coreResult;
             if (Prerelease is null) return other.Prerelease is null ? 0 : 1;
             if (other.Prerelease is null) return -1;
@@ -112,10 +107,10 @@ public static class ModuleDependencyResolver
             var right = other.Prerelease.Split('.');
             for (var i = 0; i < Math.Min(left.Length, right.Length); i++)
             {
-                var leftNumeric = int.TryParse(left[i], NumberStyles.None, CultureInfo.InvariantCulture, out var leftNumber);
-                var rightNumeric = int.TryParse(right[i], NumberStyles.None, CultureInfo.InvariantCulture, out var rightNumber);
+                var leftNumeric = IsNumericIdentifier(left[i]);
+                var rightNumeric = IsNumericIdentifier(right[i]);
                 var result = leftNumeric && rightNumeric
-                    ? leftNumber.CompareTo(rightNumber)
+                    ? CompareNumeric(left[i], right[i])
                     : leftNumeric != rightNumeric
                         ? leftNumeric ? -1 : 1
                         : string.Compare(left[i], right[i], StringComparison.Ordinal);
@@ -123,5 +118,11 @@ public static class ModuleDependencyResolver
             }
             return left.Length.CompareTo(right.Length);
         }
+
+        private static bool IsNumericIdentifier(string value) => value.All(char.IsAsciiDigit);
+
+        private static int CompareNumeric(string left, string right) => left.Length != right.Length
+            ? left.Length.CompareTo(right.Length)
+            : string.Compare(left, right, StringComparison.Ordinal);
     }
 }

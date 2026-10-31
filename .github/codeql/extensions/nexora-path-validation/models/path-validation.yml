@@ -1,0 +1,13 @@
+extensions:
+  - addsTo:
+      pack: codeql/csharp-all
+      extensible: barrierModel
+    data:
+      # Guid text formats cannot contain path separators or traversal segments.
+      - [System, Guid, false, ToString, "()", "", ReturnValue, path-injection, manual]
+      - [System, Guid, false, ToString, "(System.String)", "", ReturnValue, path-injection, manual]
+      - [System, Guid, false, ToString, "(System.String,System.IFormatProvider)", "", ReturnValue, path-injection, manual]
+      - [AIERP.ReleaseDeployer, ReleaseDeployerPath, true, SafeGuidSegment, "(System.Guid)", "", ReturnValue, path-injection, manual]
+      # SafeChild canonicalizes beneath the supplied root and rejects traversal,
+      # platform path syntax, and existing reparse points before returning a path.
+      - [AIERP.ReleaseDeployer, ReleaseDeployerPath, true, SafeChild, "(System.String,System.String)", "", ReturnValue, path-injection, manual]

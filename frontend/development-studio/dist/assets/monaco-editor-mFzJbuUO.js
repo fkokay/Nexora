@@ -1,0 +1,1 @@
+function e(e){return new Worker(`/assets/json.worker-DdeUAmHa.js`,{name:e?.name})}function t(e){return new Worker(`/assets/html.worker-C5yZDBHz.js`,{name:e?.name})}function n(e){return new Worker(`/assets/ts.worker-DGGa2mF8.js`,{name:e?.name})}export{t as n,e as r,n as t};

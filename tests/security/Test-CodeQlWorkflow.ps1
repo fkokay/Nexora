@@ -26,6 +26,26 @@ foreach ($language in @('csharp', 'javascript-typescript')) {
 }
 $assertions.Add('C# and JavaScript/TypeScript are in the analysis matrix')
 
+$extensionRoot = Join-Path (Split-Path -Parent $resolved) '..\codeql\extensions'
+$extensionRoot = [IO.Path]::GetFullPath($extensionRoot)
+$deployerModels = @(
+    (Join-Path $extensionRoot 'nexora-path-validation\models\path-validation.yml'),
+    (Join-Path $extensionRoot 'nexora-path-validation-models\models\path-validation.yml')
+)
+foreach ($modelPath in $deployerModels) {
+    if (-not (Test-Path -LiteralPath $modelPath -PathType Leaf)) { throw "CodeQL path model file was not found: $modelPath" }
+    $model = Get-Content -LiteralPath $modelPath -Raw
+    if ($model -match '(?m)^\s*- \[AIERP\.ReleaseDeployer, ReleaseDeployerPath, false, (?:SafeChild|SafeGuidSegment),') {
+        throw 'Static ReleaseDeployer path resolvers must be modeled with isStatic=true.'
+    }
+    foreach ($method in @('SafeChild', 'SafeGuidSegment')) {
+        if ($model -notmatch "(?m)^\s*- \[AIERP\.ReleaseDeployer, ReleaseDeployerPath, true, $method,") {
+            throw "The CodeQL model is missing the static ReleaseDeployerPath.$method entry."
+        }
+    }
+}
+$assertions.Add('both C# model packs match the static SafeChild and SafeGuidSegment declarations')
+
 if ($workflow -notmatch '(?m)^permissions:\s*\r?\n  contents:\s*read\s*\r?\n  security-events:\s*write\s*$') {
     throw 'Workflow permissions must stay limited to repository reads plus Security Events upload.'
 }

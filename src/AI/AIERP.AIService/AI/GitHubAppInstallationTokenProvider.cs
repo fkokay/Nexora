@@ -1,10 +1,9 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace AIERP.AIService.AI;
 
@@ -30,21 +29,25 @@ public sealed class GitHubAppInstallationTokenProvider(HttpClient httpClient, IC
         if (installationId <= 0 || string.IsNullOrWhiteSpace(repository) || repository.Length > 200 || repository.Any(char.IsControl))
             throw new GitHubIntegrationException("GitHub installation or repository is invalid.");
 
+        var repositoryParts = repository.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (repositoryParts.Length != 2 || repositoryParts.Any(part => part == "." || part == ".." ||
+            part.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_' or '.'))))
+            throw new GitHubIntegrationException("GitHub repository is invalid.");
+
         using var rsa = RSA.Create();
         try { rsa.ImportFromPem(privateKeyPem); }
         catch (Exception ex) when (ex is CryptographicException or ArgumentException) { throw new GitHubAppConfigurationException(); }
         var now = DateTimeOffset.UtcNow;
-        var credentials = new SigningCredentials(new RsaSecurityKey(rsa), SecurityAlgorithms.RsaSha256);
-        var payload = new JwtPayload
+        var header = WebEncoders.Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(new { alg = "RS256", typ = "JWT" }));
+        var payload = WebEncoders.Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(new
         {
-            ["iss"] = appId,
-            ["iat"] = now.AddSeconds(-30).ToUnixTimeSeconds(),
-            ["exp"] = now.AddMinutes(8).ToUnixTimeSeconds()
-        };
-        var appJwt = new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(new JwtHeader(credentials), payload));
-        var repositoryParts = repository.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (repositoryParts.Length != 2 || repositoryParts.Any(part => part.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_' or '.'))))
-            throw new GitHubIntegrationException("GitHub repository is invalid.");
+            iss = appId,
+            iat = now.AddSeconds(-30).ToUnixTimeSeconds(),
+            exp = now.AddMinutes(8).ToUnixTimeSeconds()
+        }));
+        var signingInput = $"{header}.{payload}";
+        var signature = rsa.SignData(Encoding.ASCII.GetBytes(signingInput), HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var appJwt = $"{signingInput}.{WebEncoders.Base64UrlEncode(signature)}";
         using var request = new HttpRequestMessage(HttpMethod.Post, $"https://api.github.com/app/installations/{installationId}/access_tokens");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", appJwt);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));

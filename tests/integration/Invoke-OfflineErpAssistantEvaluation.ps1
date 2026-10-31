@@ -27,26 +27,53 @@ if (-not (Test-Path -LiteralPath $trxPath)) {
 [xml]$trx = Get-Content -LiteralPath $trxPath -Raw
 $testResults = @($trx.SelectNodes("//*[local-name()='UnitTestResult']"))
 $behaviorTestMap = @{
+    'Warehouse_tool_result_is_bounded_by_rows_and_serialized_size' = 'warehouse-result-bounds'
+    'Report_schema_tool_returns_only_the_requested_source_fields_and_aggregates' = 'report-schema-source-isolation'
     'Stock_lookup_routes_one_read_only_tool_and_keeps_injected_tool_text_untrusted' = 'stock-lookup-untrusted-tool-output'
+    'Customer_name_lookup_can_continue_to_authorized_balance_lookup_in_the_same_answer' = 'customer-search-to-balance'
+    'Report_schema_discovery_can_continue_to_a_schema_constrained_report_in_the_same_answer' = 'report-schema-to-query'
+    'Purchase_order_fulfillment_semantic_fixture_reconciles_quantities_and_discloses_synthetic_scope' = 'purchase-order-fulfillment-semantic'
+    'Unknown_tool_name_is_rejected_before_executor_and_without_retry' = 'unknown-tool-rejected-before-execution'
     'Tool_budget_violation_is_rejected_before_any_read_tool_side_effect' = 'four-call-budget-rejection'
     'Tool_failure_is_sanitized_and_does_not_leak_internal_error_details' = 'tool-failure-sanitization'
     'Provider_429_is_classified_without_body_inspection_or_automatic_retry' = 'provider-429-classification'
     'Versioned_dataset_matches_the_scripted_tool_matrix_and_declares_its_semantic_limit' = 'contract-validation'
+    'Live_quality_set_limits_each_case_to_applicable_review_dimensions' = 'live-quality-contract-validation'
+    'Live_review_contract_requires_two_independent_reviewers_and_third_party_adjudication' = 'live-quality-reviewer-governance-contract'
 }
+$scenarioCatalog = @{}
+foreach ($scenario in $dataset.cases) {
+    $scenarioCatalog[[string]$scenario.id] = [pscustomobject]@{ kind = [string]$scenario.kind; declaredAssertions = @($scenario.assertions) }
+}
+foreach ($scenario in $dataset.behaviorCases) {
+    $scenarioCatalog[[string]$scenario.id] = [pscustomobject]@{ kind = [string]$scenario.kind; declaredAssertions = @($scenario.assertions) }
+}
+$scenarioCatalog['contract-validation'] = [pscustomobject]@{ kind = 'dataset-contract'; declaredAssertions = @('tool-matrix-matches-executable-cases', 'scenario-ids-unique', 'assertion-contracts-present') }
+$scenarioCatalog['live-quality-contract-validation'] = [pscustomobject]@{ kind = 'live-quality-dataset-contract'; declaredAssertions = @('one-request-synthetic-only-limits', 'unique-case-and-rubric-contracts', 'case-specific-applicable-dimensions') }
+$scenarioCatalog['live-quality-reviewer-governance-contract'] = [pscustomobject]@{ kind = 'live-quality-reviewer-governance-contract'; declaredAssertions = @('two-distinct-human-reviewers', 'identity-and-independence-attestation', 'third-distinct-adjudicator-on-disagreement') }
 $cases = foreach ($result in $testResults) {
     $name = [string]$result.GetAttribute('testName')
     $id = $null
     if ($name -match 'caseId:\s*"?([a-z0-9-]+)') { $id = $Matches[1] }
+    if (-not $id -and $name -match 'Hr_summary_tool_is_strict_read_only_and_passes_only_synthetic_aggregate_result.*toolName: "(get_hr_leave_summary|get_hr_attendance_summary)"') {
+        $id = if ($Matches[1] -eq 'get_hr_leave_summary') { 'hr-leave-summary-data-minimization' } else { 'hr-attendance-summary-data-minimization' }
+    }
     if (-not $id) {
         foreach ($testName in $behaviorTestMap.Keys) {
             if ($name -match [regex]::Escape($testName)) { $id = $behaviorTestMap[$testName]; break }
         }
     }
     if (-not $id) { $id = 'unmapped-test' }
-    [pscustomobject]@{ id = $id; outcome = [string]$result.GetAttribute('outcome') }
+    $scenario = $scenarioCatalog[$id]
+    [pscustomobject]@{
+        id = $id
+        kind = if ($scenario) { $scenario.kind } else { 'unmapped' }
+        outcome = [string]$result.GetAttribute('outcome')
+        declaredAssertions = if ($scenario) { @($scenario.declaredAssertions) } else { @() }
+    }
 }
 
-$declaredIds = @($dataset.cases | ForEach-Object id) + @($dataset.behaviorCases | ForEach-Object id) + @('contract-validation')
+$declaredIds = @($dataset.cases | ForEach-Object id) + @($dataset.behaviorCases | ForEach-Object id) + @('contract-validation', 'live-quality-contract-validation', 'live-quality-reviewer-governance-contract')
 $mappedIds = @($cases | ForEach-Object id)
 $unmapped = @($cases | Where-Object id -eq 'unmapped-test')
 $missing = @($declaredIds | Where-Object { $_ -notin $mappedIds })

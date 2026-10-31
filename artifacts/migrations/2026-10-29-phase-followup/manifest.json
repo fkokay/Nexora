@@ -1,0 +1,25 @@
+{
+  "generatedAtUtc": "2026-10-29T18:54:30Z",
+  "status": "applied-and-verified",
+  "appliedAtUtc": "2026-10-29T19:13:19Z",
+  "apiDeployment": {
+    "sourceCommit": "c7e43bcc",
+    "imageId": "sha256:38e3c2444aba75eedd43e16911d8f63f5923f6ee45a80380c7b7678c2bcd1c35",
+    "deployedAtUtc": "2026-10-29T19:20:16Z",
+    "health": "healthy"
+  },
+  "targetScope": "remote-development-platform-and-active-tenant",
+  "platformBaseline": "20261029100432_AddAttendanceApprovalV2",
+  "tenantBaseline": "20261029100426_AddAttendanceApprovalV2",
+  "platformTarget": "20261029184008_AddOrganizationalDefinitionsPermission",
+  "tenantTarget": "20261029134657_AddCreditFacilitySecurities",
+  "files": [
+    "Platform.Incremental.sql",
+    "Tenant.Incremental.sql",
+    "Platform.Preflight.sql",
+    "Tenant.Preflight.sql",
+    "Platform.Verify.sql",
+    "Tenant.Verify.sql"
+  ],
+  "deploymentNote": "Database migrations were applied after verified backups and preflight identity checks. The matching API image was then built from a clean pushed commit and deployed with no dependencies recreated."
+}

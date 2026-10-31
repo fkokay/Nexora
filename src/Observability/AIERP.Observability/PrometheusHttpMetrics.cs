@@ -23,7 +23,12 @@ public sealed class PrometheusHttpMetrics
     private static readonly HashSet<string> BusinessTools = new(StringComparer.Ordinal)
     {
         "search_stock_items", "list_warehouses", "get_warehouse_balances", "search_customer_accounts",
-        "get_customer_balance", "generate_report", "other"
+        "get_customer_balance", "search_customer_ledger", "get_supplier_balance", "search_supplier_payments",
+        "search_supplier_ledger", "get_exchange_rate", "search_sales_orders", "search_purchase_orders",
+        "search_sales_quotes", "search_purchase_requests", "search_manufacturing_orders", "search_sales_deliveries",
+        "search_purchase_receipts", "search_purchase_delivery_notes", "generate_report", "get_hr_leave_summary",
+        "get_hr_attendance_summary", "search_sales_invoices", "search_purchase_invoices", "get_cash_flow_forecast",
+        "get_invoice_maturity_summary", "search_fixed_assets", "get_cash_bank_balances", "other"
     };
     private readonly ConcurrentDictionary<RequestSeries, Histogram> series = new();
     private readonly ConcurrentDictionary<BusinessSeries, long> businessCounters = new();
@@ -58,7 +63,11 @@ public sealed class PrometheusHttpMetrics
         var output = new StringBuilder();
         output.AppendLine("# HELP aierp_http_server_request_duration_seconds HTTP request duration in seconds.");
         output.AppendLine("# TYPE aierp_http_server_request_duration_seconds histogram");
-        foreach (var (key, histogram) in series.OrderBy(x => x.Key.Route, StringComparer.Ordinal).ThenBy(x => x.Key.Method, StringComparer.Ordinal).ThenBy(x => x.Key.StatusCode))
+        // LINQ's OrderBy may use ICollection<T>.ToArray when its source is a
+        // ConcurrentDictionary. That path calls CopyTo, which can throw while
+        // the dictionary is growing. Enumerate through its concurrency-safe
+        // iterator into a local list, then sort the stable list.
+        foreach (var (key, histogram) in Snapshot(series).OrderBy(x => x.Key.Route, StringComparer.Ordinal).ThenBy(x => x.Key.Method, StringComparer.Ordinal).ThenBy(x => x.Key.StatusCode))
         {
             var labels = $"method=\"{Escape(key.Method)}\",route=\"{Escape(key.Route)}\",status=\"{key.StatusCode.ToString(CultureInfo.InvariantCulture)}\"";
             var cumulative = 0L;
@@ -78,14 +87,14 @@ public sealed class PrometheusHttpMetrics
                 .Append(count.ToString(CultureInfo.InvariantCulture)).AppendLine();
         }
 
-        foreach (var group in businessCounters.OrderBy(x => x.Key.Name, StringComparer.Ordinal).GroupBy(x => x.Key.Name, StringComparer.Ordinal))
+        foreach (var group in Snapshot(businessCounters).OrderBy(x => x.Key.Name, StringComparer.Ordinal).GroupBy(x => x.Key.Name, StringComparer.Ordinal))
         {
             output.Append("# HELP ").Append(group.Key).AppendLine(" Bounded AI ERP business operation count.");
             output.Append("# TYPE ").Append(group.Key).AppendLine(" counter");
             foreach (var (key, value) in group.OrderBy(x => x.Key.Labels, StringComparer.Ordinal))
                 output.Append(group.Key).Append('{').Append(key.Labels).Append("} ").Append(value.ToString(CultureInfo.InvariantCulture)).AppendLine();
         }
-        foreach (var group in businessHistograms.OrderBy(x => x.Key.Name, StringComparer.Ordinal).GroupBy(x => x.Key.Name, StringComparer.Ordinal))
+        foreach (var group in Snapshot(businessHistograms).OrderBy(x => x.Key.Name, StringComparer.Ordinal).GroupBy(x => x.Key.Name, StringComparer.Ordinal))
         {
             output.Append("# HELP ").Append(group.Key).AppendLine(" Bounded AI ERP business operation duration in seconds.");
             output.Append("# TYPE ").Append(group.Key).AppendLine(" histogram");
@@ -109,6 +118,14 @@ public sealed class PrometheusHttpMetrics
             }
         }
         return output.ToString();
+    }
+
+    private static List<KeyValuePair<TKey, TValue>> Snapshot<TKey, TValue>(ConcurrentDictionary<TKey, TValue> dictionary)
+        where TKey : notnull
+    {
+        var snapshot = new List<KeyValuePair<TKey, TValue>>(dictionary.Count);
+        foreach (var entry in dictionary) snapshot.Add(entry);
+        return snapshot;
     }
 
     private static string Escape(string value) => value.Replace("\\", "\\\\", StringComparison.Ordinal)

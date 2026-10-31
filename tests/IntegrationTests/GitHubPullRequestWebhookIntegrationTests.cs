@@ -24,14 +24,47 @@ public sealed class GitHubPullRequestWebhookIntegrationTests
     private const string ChangedSha = "abcdef0123456789abcdef0123456789abcdef01";
 
     [Fact]
+    public void Older_webhook_snapshot_cannot_regress_newer_pull_request_state_or_tested_head()
+    {
+        var latest = DateTimeOffset.Parse("2026-10-19T10:05:00Z");
+        var candidate = new ReleaseCandidateRecord
+        {
+            TenantId = Guid.NewGuid(), GitHubRepository = "nexora/erp", GitHubPullRequestNumber = 42,
+            CommitSha = TestedSha, GitHubPullRequestState = "open", GitHubPullRequestUpdatedAt = latest
+        };
+        var stale = new GitHubPullRequestWebhookEvent("nexora/erp", 42, "closed", "closed",
+            latest.AddMinutes(-1), ChangedSha);
+
+        var applied = GitHubPullRequestStateSynchronizer.TryApply(candidate, stale, "stale-delivery", out var audit);
+
+        Assert.False(applied);
+        Assert.Null(audit);
+        Assert.Equal("open", candidate.GitHubPullRequestState);
+        Assert.Equal(latest, candidate.GitHubPullRequestUpdatedAt);
+        Assert.True(AIERP.Platform.Domain.GitHubPullRequestReleaseRules.CanRelease(candidate));
+    }
+
+    [Fact]
     public async Task Signed_route_tracks_pull_request_lifecycle_and_rejects_invalid_signature()
     {
         var options = new DbContextOptionsBuilder<AIStudioDbContext>()
             .UseInMemoryDatabase($"github-webhook-{Guid.NewGuid():N}").Options;
         await using var studioDb = new AIStudioDbContext(options);
+        var tenantId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        studioDb.DevelopmentProjects.Add(new DevelopmentProject
+        {
+            Id = projectId,
+            TenantId = tenantId,
+            CreatedByUserId = Guid.NewGuid(),
+            Name = "Webhook integration project",
+            RepositoryUrl = "https://github.com/nexora/erp",
+            DefaultBranch = "main",
+            GitHubInstallationId = 12345
+        });
         studioDb.ReleaseCandidateRecords.Add(new ReleaseCandidateRecord
         {
-            TenantId = Guid.NewGuid(), GitHubRepository = "nexora/erp", GitHubPullRequestNumber = 42,
+            TenantId = tenantId, ProjectId = projectId, GitHubRepository = "nexora/erp", GitHubPullRequestNumber = 42,
             CommitSha = TestedSha, GitHubPullRequestState = "draft"
         });
         await studioDb.SaveChangesAsync();
@@ -69,7 +102,7 @@ public sealed class GitHubPullRequestWebhookIntegrationTests
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(client, "synchronize", "open", false, false, ChangedSha, time)).StatusCode);
         var candidate = await studioDb.ReleaseCandidateRecords.SingleAsync();
         Assert.Equal("head-changed", candidate.GitHubPullRequestState);
-        Assert.False(GitHubPullRequestReleaseRules.CanRelease(candidate));
+        Assert.False(AIERP.Platform.Domain.GitHubPullRequestReleaseRules.CanRelease(candidate));
 
         time = time.AddMinutes(1);
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(client, "synchronize", "open", false, false, TestedSha, time)).StatusCode);
@@ -104,6 +137,7 @@ public sealed class GitHubPullRequestWebhookIntegrationTests
         var payload = JsonSerializer.SerializeToUtf8Bytes(new
         {
             action,
+            installation = new { id = 12345L },
             repository = new { full_name = "nexora/erp" },
             pull_request = new { number = 42, state, merged, draft, updated_at = updatedAt, head = new { sha = headSha } }
         });

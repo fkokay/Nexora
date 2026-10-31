@@ -1,0 +1,12 @@
+import AdvancedDataGrid from '../../AdvancedDataGrid'
+import { categories, formatMonth, money, type PlanView } from '../types'
+
+type Props = { selected: PlanView; draft: boolean; admin: boolean; busy: boolean; onEdit: (plan: PlanView) => void; onApprove: () => void }
+
+export default function DirectCashBudgetDetail({ selected, draft, admin, busy, onEdit, onApprove }: Props) {
+  return <section className="panel direct-cash-budget-detail" aria-labelledby="direct-cash-budget-detail-title">
+    <div className="panel-heading"><div><p className="eyebrow">{selected.fiscalYear} · {selected.currencyCode} · Sürüm {selected.revision}</p><h2 id="direct-cash-budget-detail-title">{selected.name}</h2><p>{draft ? 'Taslak · tahminlere dahil edilmez' : `Onaylayan: ${selected.approvedByUserId ?? '—'}`}</p></div><div className="heading-actions">{draft && admin && <><span className="direct-cash-budget-approval-hint">Onay için farklı bir TenantAdmin gerekir.</span><button type="button" className="secondary" onClick={() => onEdit(selected)} disabled={busy}>Düzenle</button><button type="button" className="primary" onClick={onApprove} disabled={busy || selected.lines.length === 0}>{busy ? 'Onaylanıyor…' : 'Onayla'}</button></>}</div></div>
+    <div className="ledger-list" role="region" aria-label="Nakit bütçesi satır tablosu" tabIndex={0}><AdvancedDataGrid enableRowSelection={false} className="customer-table"><caption>{selected.name} · {selected.currencyCode} para biriminde planlanan tahsilat ve ödemeler</caption><thead><tr><th scope="col">Dönem</th><th scope="col">Tür</th><th scope="col">Kategori</th><th scope="col">Açıklama</th><th scope="col">Tutar</th></tr></thead><tbody>{selected.lines.map((line, index) => <tr key={line.id ?? index}><td data-label="Dönem">{formatMonth(line.periodStart)}</td><td data-label="Tür">{line.direction === 'Inflow' ? 'Tahsilat' : 'Ödeme'}</td><td data-label="Kategori">{categories.find(([value]) => value === line.category)?.[1] ?? line.category}</td><td data-label="Açıklama" className="direct-cash-budget-description-cell">{line.description}</td><td data-label="Tutar"><b>{money(line.amount, selected.currencyCode)}</b></td></tr>)}</tbody></AdvancedDataGrid></div>
+    {admin && draft && <div className="boundary-note"><span>Onaylayan kullanıcı, taslağı oluşturan TenantAdmin’den farklı olmalıdır. Sunucu bunu doğrular. Bu onay yalnızca tahmin planını etkinleştirir; finansal kayıt oluşturmaz.</span></div>}
+  </section>
+}

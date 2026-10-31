@@ -2,12 +2,19 @@ node_modules/
 frontend/erp-web/dist/
 **/bin/
 **/obj/
+**/TestResults/
+.codex-build/
 .env
 **/.env
 *.user
 .vs/
 deploy/docker/integration-secrets/
+deploy/docker/secrets/
 deploy/docker/sandbox-package-cache/
 deploy/docker/sandbox-package-cache-runtime/
+deploy/docker/sandbox-package-cache-r4/
 
 .local-scout-cache/
+
+/artifacts/
+docs/trx-*/

@@ -1,24 +1,55 @@
 # Production deployment and recovery readiness
 
+## Legacy shared database cutover
+
+The application runtime no longer supports shared company data. A legacy deployment must be migrated during an approved maintenance window before installing this release. Changing `Database__SeparationEnabled` is only configuration; it does not move records. After isolated database copies are verified, a separate operator-only purge is required before cutover is complete. Preserve a checksum-verified full backup as an offline recovery artifact; the active `AIERPPlatform` database must contain platform metadata but no active tenant operational rows.
+
+1. Rehearse from a restored copy of the latest full `AIERPPlatform` backup. Confirm every tenant row and company-owned record can be associated with exactly one tenant; resolve orphaned or ambiguous records before cutover.
+2. Stop all Platform API, AI Service and other application writers. Create a checksum full backup of PlatformDB and verify it with `RESTORE VERIFYONLY WITH CHECKSUM`; set `Database:SeparationBackupPath` to that exact file.
+3. Run the current API migration/provisioning binary once with `Database:SeparationEnabled=true`, Platform/Tenant/AIStudio connection strings and the verified backup path using `--migrate-only`. It applies the context migrations, provisions `AIERPTenant_<tenant-guid>` databases, copies matching tenant rows with IDs preserved, provisions `AIERPStudio`, and marks entries Ready only after row-count/FK verification.
+4. Run `--verify-separation`; review Ready status, exact database names, copied row counts, and trusted foreign keys.
+5. While writers remain stopped, take a new checksum full backup of the now-migrated Platform database, verify it with `RESTORE VERIFYONLY WITH CHECKSUM`, and configure `Database:SeparationBackupPath` to this exact backup. Run `--legacy-tenant-data-purge-preview`; inspect only the table and row counts it reports. Resolve any unregistered tenant rows before continuing.
+6. After reviewing the preview and confirming the recovery backup, run `--purge-legacy-tenant-data --confirm-legacy-tenant-data-purge=I_HAVE_VERIFIED_BACKUP_AND_COPIES`. The command rechecks every registered tenant’s canonical Ready database, AIERPStudio readiness, exact source/destination row values (bidirectional comparison over every comparable non-computed, non-rowversion column), and the fresh backup before it starts. It holds source and destination table locks from comparison through purge, then transactionally deletes only rows from tenant-scoped operational tables mapped by `TenantDbContext`, preserves Platform tenant/user/membership/catalog metadata, checks constraints, and refuses to commit unless those operational tables are empty. AuditEvents deletion is enabled only inside the purge transaction through the same SQL session-context gate used by audit retention. Start the new API and AI Service only after the purge succeeds.
+
+On any failure, keep writers stopped. The purge transaction rolls back as one unit; repair the topology or copy mismatch and retry only from a new verified backup. The backup intentionally retains the pre-purge operational rows as an offline recovery artifact. Do not re-enable shared runtime or treat the backup as an active company database.
+
+For local Docker, `deploy/docker/Enable-TenantDatabaseSeparation.ps1 -Apply -PurgeLegacyTenantData` automates this sequence. Without `-PurgeLegacyTenantData`, it leaves the API and AI Service stopped and the cutover incomplete for operator review. IIS and Linux installations must use the same reviewed one-off migration and purge commands before their install/switch; their installers intentionally do not migrate or purge data. This operation was not run against a live database as part of this source change.
+
 ## Deployment paths
 
 Nexora has two different production deployment paths:
 
-- The managed production Compose release deployer builds a versioned Compose package, takes and verifies the complete database backup set, runs its one-shot migrator, then starts the application. If migration may have started, it blocks automatic restart of the previous application because connectivity health does not prove schema compatibility. Its explicit restore operation is destructive to writes after the selected recovery point.
+- The managed production Compose release deployer builds a versioned Compose package, takes and verifies the complete database backup set, runs its one-shot migrator, then starts the application. Restore now requires the selected backup to contain exactly the current database-name set and rechecks that set after application writers stop. If migration may have started, it blocks automatic restart of the previous application because connectivity health does not prove schema compatibility. Its explicit restore operation is destructive to writes after the selected recovery point.
 - The standalone [Linux bundle](../deploy/linux/README.md) and [IIS bundle](../deploy/iis/README.md) host Platform API, AI Service and frontends while connecting to an external SQL Server. They do not install SQL Server or run production migrations during install/switch. The database change is a separately reviewed operation using only the script for the configured topology.
 
 Do not transfer the managed Compose migrator's behavior or its local restore evidence to IIS/Linux deployments. Keep startup migrations disabled on production hosts. Application rollback only changes the application version; it does not reverse schema changes.
 
 ## Package and schema evidence
 
-The offline bundle validation passed against `artifacts/linux/local-20261018-refresh/aierp-linux-local-20261018-refresh.tar.gz` and `artifacts/iis/local-20261018-refresh/`. It checked bundle metadata and component coverage, Linux archive and release SHA-256 checksums, environment templates, route configuration, systemd hardening and deployment script syntax. It did not install either bundle on a Linux or Windows Server host.
+### OCI image source and revision labels
 
-Current source migrations are in `artifacts/migrations/2026-10-19/`: 106 Platform, 22 Tenant and 10 AIStudio migration IDs. The SQL is idempotent and generated, but unapplied. The older `artifacts/migrations/2026-10-18/` scripts are stale; do not use them for a release against current source. `manifest.json` and `SHA256SUMS.txt` identify the current scripts and latest migration IDs.
+Platform API, AI Service and Development Studio images carry `org.opencontainers.image.source`, `org.opencontainers.image.revision` and `org.opencontainers.image.version` labels. Ordinary local Compose builds and staging builds default revision/version to `unknown`, so they do not require a `.git` directory or Git metadata. The managed production ReleaseDeployer writes the package version and the commit SHA only after matching the approved deployment request against the package metadata and verified release manifest; these values are passed as Docker build arguments to the three images. No credentials or other secrets are build arguments or labels.
+
+Record the deployed image digest for each service from the deployment/registry record. To verify the labels on a registry image without loading it into the Docker daemon, inspect that exact immutable digest with Skopeo:
+
+```bash
+skopeo inspect --config docker://registry.example.com/nexora/platform-api@sha256:<digest> | jq -r '.config.Labels | {source: ."org.opencontainers.image.source", revision: ."org.opencontainers.image.revision", version: ."org.opencontainers.image.version"}'
+```
+
+Repeat for `ai-service` and `development-studio`. Confirm `source` is `https://github.com/fkokay/Nexora`, `revision` exactly matches the approved package's full commit SHA, and `version` matches that package's version. Retain the digest and label output beside the package ID, SHA-256 and approval record: the digest identifies the immutable image bytes, while the labels provide the declared source/revision claim. For an image already present locally, `docker image inspect --format '{{json .Config.Labels}}' <image-id>` reads the same config labels. A local/staging image labeled `unknown` is not evidence for production provenance.
+
+The 2026-10-25 local candidate was rebuilt from clean detached commit `bba999b933048eb8549b12663e57d76ab839c08f` (version `20261025-bba999b`) in a fresh Git worktree. The IIS bundle and Linux archive were both generated from that commit; `tests/deployment/Invoke-DeploymentBundleValidation.ps1` passed all eight offline checks, including exact component/configuration manifests and the Linux `ConnectionStrings__AIStudio` examples. Linux archive SHA-256: `c08af6ea3d613e0a7214c04e9255dc759c67d86b9e6cedf6bcc182d8b7c5d55a`. IIS `bundle.json` SHA-256: `49e3e5e2d9553d21052b1c0a6898a38bcd5d2e78e59c809a961786db6d200d05`. Package outputs are under `artifacts/deployment-source-20261025-bba999b/`; the redacted offline validation report is checked in as [deployment-package-validation-20261025-bba999b.json](deployment-package-validation-20261025-bba999b.json). This closes the local package construction/content gate for that candidate only. On 2026-10-26 the branch advanced to `96d2857`; rebuild and revalidate its package before promotion, as the prior candidate does not represent the current head. Independent release-owner review, approved provenance/promotion, and real IIS/Linux host tests remain outstanding; no deployment occurred. The Linux package is framework-dependent. Older `20261022-source-r1`, `local-preflight-20261022-r2`, IIS v24 and Linux v16 artifacts are historical snapshots.
+
+On 2026-10-26, the Linux installer-preflight fixture smoke, IIS bundle-integrity fixture smoke, and `bash -n` on all seven Linux deployment scripts passed. The eight-check offline package validator also passed against the existing `20261025-bba999b` package, which remains a historical candidate and does not validate the contents of head `96d2857`. Rebuilding IIS from a clean detached `96d2857` worktree was attempted but did not finish during the available local build window; its partial output is not a release package. Do not promote `20261025-bba999b` as current-head output. No real host, database, local Docker Engine, or remote Docker Engine was contacted by these checks.
+
+The initial shared-login finding in [tenant-physical-isolation-acceptance.md](tenant-physical-isolation-acceptance.md) is superseded for newly provisioned ERP and Studio tenant principals: the remote disposable SQL/Vault acceptance verified per-tenant access and cross-database denial, plus signed API routing. Production rollout is still blocked because Compose/ReleaseDeployer and host examples retain the global `aierp_data_runtime` connection template, its effective grants on existing targets have not been inventoried, the provisioning SQL role lacks DBA approval, and production Vault/JWT configuration has not been accepted. Do not claim production tenant isolation from the disposable test alone.
+
+The current source-generated migration package is `artifacts/migrations/2026-10-24-r5/`: 136 Platform, 49 Tenant and 11 AIStudio migrations. Its exact scripts passed checksum-verified restored-backup rehearsals and were applied to local development after fresh backups; direct SQL verified histories at 136/49/11. Evidence is in `docs/migration-r5-restored-backup-rehearsal.md`. A prior `dotnet ef migrations list` invocation may have read `__EFMigrationsHistory`; its all-Pending result is not target-history evidence. Production remains unchanged and unverified. Before production, obtain authoritative target histories and rehearse the exact r5 package on a checksum-verified restore of each affected database.
 
 Before applying a script on a real database:
 
-1. Confirm the server, database name, separation flag, per-tenant database list and migration history with the database owner.
-2. Select Platform for `AIERPPlatform`; select Tenant for every provisioned tenant database only when separation is enabled; select AIStudio for `AIERPStudio` only when separation is enabled. Never apply Tenant or AIStudio scripts to the shared Platform database.
+1. Confirm the server and database names, mandatory isolation setting (`true`), every tenant catalog/database pair, and separate migration histories with the database owner.
+2. Select Platform for `AIERPPlatform`, Tenant for every `AIERPTenant_<tenant-guid>` database, and AIStudio for `AIERPStudio`. This release requires isolated databases; never apply Tenant or AIStudio scripts to the shared Platform source database.
 3. Review generated SQL for destructive, blocking or data-conversion operations. Validate it against the target SQL Server version and a recent isolated copy of the target data.
 4. Take checksum-protected backups for the full affected database set, copy them to an independent destination and verify them with `RESTORE VERIFYONLY WITH CHECKSUM`. Record backup IDs, file hashes and the restore owner.
 5. Apply in an approved maintenance window using the DBA's controlled process. Check migration history, application readiness and representative data before switching traffic. Retain the prior application package and verified backups through the rollback window.
@@ -33,6 +64,49 @@ Before customer production, rehearse each intended deployment path on its own st
 - .NET 10 Hosting Bundle on IIS or .NET 10 ASP.NET Core Runtime, nginx and systemd on Linux; URL Rewrite/ARR and IIS app pool startup on Windows.
 - Protected secrets, least-privilege SQL accounts, certificate validation, signing-key agreement between services, and all external support-service URLs required by enabled features.
 - Upgrade from the prior release, failed health-check recovery, manual application rollback, backup verification and isolated database restore. Validate permissions for service identities, backup destinations, log paths and release directories.
-- Schema compatibility on a copy of the real migration history and representative data, including the configured shared or separated database topology.
+- Schema compatibility on a copy of the real migration history and representative data, using the mandatory separated database topology. A legacy shared database may be rehearsed only as a migration source, not as a target runtime topology.
 
 Successful local Compose health probes, SQL restore drills and offline bundle inspection are useful preflight evidence only. They do not establish customer credentials, Windows/Linux host behavior, production data compatibility, off-host backup retention, TLS/DNS, multi-node coordination or customer restore performance. Production release approval requires the host owner and DBA to attach their staging rehearsal, backup/restore evidence and go/no-go decision to the release record.
+
+### Outstanding external inputs for Linux/IIS acceptance
+
+Local package checks cannot provide these customer/environment-owned inputs. Assign an owner and attach a redacted evidence reference before calling the real-host gate complete:
+
+- [ ] Release owner: approved immutable commit/package ID, independently reviewed checksums/provenance, target environment, maintenance window, promotion authorization, and rollback decision owner.
+- [ ] Host owner: a supported Windows Server IIS staging host and a separate supported Linux/systemd/nginx staging host (or explicitly approved target path), host access, service identities, required runtime/module versions, firewall/ingress access, and permission to perform an upgrade plus a forced health-check failure/recovery rehearsal.
+- [ ] DNS/TLS owner: staging ERP, Studio and API DNS names; trusted certificate(s) with private key and SAN coverage for the actual bindings; certificate-chain validation and renewal owner. Never place private keys in the bundle or evidence record.
+- [ ] DBA: SQL Server version/topology, Platform/Tenant/AIStudio connection endpoints, least-privilege migration and runtime identities, authoritative target migration histories, topology-matched scripts, checksum-verified backups for every affected database, independent backup destination, and a restored isolated copy for rehearsal.
+- [ ] Application owner and DBA: the 2026-10-26 disposable two-tenant SQL/Vault acceptance verified the new per-tenant ERP/Studio principals and API sentinel routing. Before production, inventory existing shared `aierp_data_runtime` grants, remove or constrain cross-tenant access, obtain written DBA approval for provisioning/runtime least privilege, and repeat authenticated denial probes against production-equivalent staging. The disposable result does not close this gate.
+- [ ] Security/operations: production-equivalent signing keys, PluginHost signing key, optional queue encryption key, secret delivery/ACLs and rotation owner, service-to-service issuer/audience agreement, required support-service URLs, monitoring/alert destination, incident escalation and recovery objectives. Record only secret identifiers/rotation evidence, never secret values.
+- [ ] Product/licensing owner: active entitlement/license for the target tenant and any licensed modules, validation path, and approval for staging and production use. Do not copy license material into package artifacts or test reports.
+- [ ] Integrations owner, when integrations will be enabled: approved Stripe/PayPal sandbox accounts and test credentials for non-live verification; production credentials and endpoint/API-version approval are a separate go-live gate. Live payment traffic remains disabled until the business owner authorizes it.
+- [ ] Host owner and DBA jointly: confirm the exact application/schema compatibility order for this release, successful install and upgrade, failed-health rollback, manual application rollback, representative authenticated reads, backup restore, and accepted data-loss interval for any restore. Application rollback alone does not reverse schema changes.
+
+Do not mark these items complete from local Compose, mocks, source inspection, or a successful bundle checksum. If a customer does not use an optional integration or support service, record it as disabled/out of scope with the responsible owner's approval.
+
+## Phases 7–9 external evidence checklist
+
+Complete these checks in the customer-equivalent staging environment and attach the evidence to the release record. Mark a check complete only when the named owner has run it against the intended topology; local fixtures and Compose drills do not satisfy these gates.
+
+### Release and database operations
+
+- [ ] Release owner records the package ID, version, commit SHA, checksum, target environment and expected active deployment ID; a second operator reviews the promotion.
+- [ ] Host owner runs the Linux or IIS bundle on the actual supported OS and records upgrade, health-failure recovery, manual application rollback, service-account permissions and log/release-directory behavior.
+- [ ] DBA confirms database topology and migration history, reviews generated SQL, and rehearses it on a recent isolated copy using the target SQL Server version and representative data.
+- [ ] DBA records checksummed backups for every affected database, verifies an independent off-host copy, then times an isolated restore and validates DBCC plus representative application reads.
+- [ ] Operations owner verifies monitoring/alert delivery, maintenance-window ownership, incident escalation and the manual decision path when a migration may have changed schema.
+- [ ] For more than one deployer node, operations verifies shared-lock correctness and fencing during concurrent promotion and node failure; single-node local tests do not prove this.
+
+### Extensions and payment providers
+
+- [ ] Marketplace owner verifies publisher identity/trust roots, signing-key rotation/revocation handling, entitlement changes and audit events using the production-equivalent catalog configuration.
+- [ ] Host owner verifies tenant secret mount permissions, backup/rotation procedure and that secrets are absent from logs, metrics, package artifacts and support bundles.
+- [ ] Integration owner runs Stripe test-mode and PayPal sandbox transactions with approved test accounts; verifies configured endpoint allowlists, idempotent retries, timeout behavior, response mapping and provider error handling. PayPal order approval/capture remains a separate explicitly authorized business flow.
+- [ ] Provider owner confirms the exact live endpoint/API version and required credentials before enabling live traffic, then runs the vendor's approved non-destructive verification and records the resulting request IDs without storing credentials or payment data.
+
+### Enterprise security and capacity
+
+- [ ] Security owner completes an authenticated penetration test of the deployed API, Studio, Marketplace and integration execution boundary, including tenant isolation, role/permission escalation, SSRF/redirect controls, package/signature handling and secret exposure; attach findings and remediation disposition.
+- [ ] Operations owner provisions representative seeded test tenants, verifies dataset preflight counts, then runs the approved read-only load profile at target concurrency and records latency, errors, resource use and database saturation. Do not run it against customer data without a separately approved plan.
+- [ ] Platform owner rehearses the intended high-availability/failover path, including SQL recovery, deployer coordination, traffic health checks and recovery-time objectives; local single-node restore evidence is insufficient.
+- [ ] Security owner checks the exact release commit against the required hosted code-scanning gate and records remaining default-branch or image findings with an owner and disposition.

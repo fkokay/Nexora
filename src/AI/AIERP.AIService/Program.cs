@@ -1,3 +1,4 @@
+﻿using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
@@ -22,21 +23,34 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
+const int MaxManualWorkspaceFileBytes = 900 * 1024;
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddAierpHttpMetrics();
 builder.Services.AddHostedService<PrometheusBusinessMetricsBridge>();
 var jwtKey = builder.Configuration["Authentication:SigningKey"];
 if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32) throw new InvalidOperationException("Authentication:SigningKey must be configured with at least 32 bytes.");
 var connectionString = builder.Configuration.GetConnectionString("Platform") ?? throw new InvalidOperationException("ConnectionStrings:Platform is required.");
-var separationEnabled = builder.Configuration.GetValue<bool>("Database:SeparationEnabled");
-var studioConnection = separationEnabled ? builder.Configuration.GetConnectionString("AIStudio") ?? connectionString : connectionString;
+DatabaseIsolationConfiguration.RequireEnabled(builder.Configuration, "AI Development Service", "AIStudio");
+DatabaseIsolationConfiguration.RequireTenantCredentialIsolation("AI Development Service", builder.Configuration);
+var studioConnection = builder.Configuration.GetConnectionString("AIStudio")!;
 builder.Services.AddDbContext<PlatformDbContext>(o => o.UseSqlServer(connectionString));
+builder.Services.AddMemoryCache();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddVaultTenantSqlCredentialReader(options =>
+{
+    if (Uri.TryCreate(builder.Configuration["Vault:Address"], UriKind.Absolute, out var address)) options.Address = address;
+    options.Mount = builder.Configuration["Vault:Mount"] ?? "secret";
+    options.RoleId = DeploymentSecretConfiguration.GetValue(builder.Configuration, "Vault:TenantSqlCredentialReader:RoleId") ?? "";
+    options.SecretId = DeploymentSecretConfiguration.GetValue(builder.Configuration, "Vault:TenantSqlCredentialReader:SecretId") ?? "";
+    options.AllowHttpForLocalDevelopment = builder.Configuration.GetValue<bool>("Vault:AllowHttpForLocalDevelopment");
+});
 builder.Services.AddDbContext<AIStudioDbContext>((services, options) =>
 {
     var http = services.GetRequiredService<IHttpContextAccessor>().HttpContext;
-    options.UseSqlServer(TenantDatabaseRouting.ResolveStudio(http, studioConnection, separationEnabled));
+    options.UseSqlServer(TenantDatabaseRouting.ResolveStudio(http));
 });
+builder.Services.AddScoped<IAIStudioMigrationReadinessChecker, AIStudioMigrationReadinessChecker>();
 builder.Services.AddHostedService<StudioKnowledgeRetentionWorker>();
 builder.Services.AddScoped<IAuditExecutionContext>(services =>
 {
@@ -108,14 +122,32 @@ builder.Services.AddRateLimiter(options =>
 });
 var frontendOrigins = builder.Configuration.GetSection("Frontend:Origins").Get<string[]>() ?? [builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173"];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod()));
-var app = builder.Build(); app.UseAierpHttpMetrics(); app.UseCors(); app.UseAuthentication();
+var app = builder.Build(); app.UseMiddleware<StudioTraceMiddleware>(); app.UseAierpSecurityHeaders(); app.UseAierpHttpMetrics(); app.UseCors(); app.UseAuthentication();
 app.Use(async (context, next) =>
 {
-    await TenantDatabaseRouting.ResolveAIStudioRequestAsync(context, app.Services, studioConnection, separationEnabled);
-    if (context.Items.ContainsKey(TenantDatabaseRouting.LegacyModeUnavailableKey))
+    // Health performs its own bounded catalog/sample probe and must not be
+    // redirected through caller-tenant routing before the endpoint can run.
+    if (context.Request.Path.Equals("/health", StringComparison.OrdinalIgnoreCase))
     {
-        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-        await context.Response.WriteAsJsonAsync(new { error = "database_mode_mismatch", message = "AIStudio is provisioned separately; enable Database:SeparationEnabled before serving Studio data." });
+        await next();
+        return;
+    }
+    if (context.Request.Path.Equals("/studio/github/setup-callback", StringComparison.OrdinalIgnoreCase))
+    {
+        var state = context.Request.Query["state"].ToString();
+        if (!GitHubSetupState.TryGetTenantId(state, jwtKey, out var callbackTenantId))
+        {
+            var studioUrl = builder.Configuration["GitHub:StudioRedirectUrl"] ?? "https://nexorastudio.ozgurteknolojiyazilim.com/?app=studio";
+            context.Response.Redirect(QueryHelpers.AddQueryString(studioUrl, "github", "invalid"));
+            return;
+        }
+        context.Items[TenantDatabaseRouting.GitHubCallbackTenantIdKey] = callbackTenantId;
+    }
+    await TenantDatabaseRouting.ResolveAIStudioRequestAsync(context, app.Services, studioConnection);
+    if (context.Items.ContainsKey(TenantDatabaseRouting.TenantSelectionRequiredKey))
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await context.Response.WriteAsJsonAsync(new { error = "tenant_selection_required", message = "Select an active company before accessing Studio data." });
         return;
     }
     if (context.Items.ContainsKey("AIERP.AIStudioDatabaseUnavailable"))
@@ -126,54 +158,135 @@ app.Use(async (context, next) =>
     }
     await next();
 });
-app.UseAuthorization(); app.UseRateLimiter();
-app.MapGet("/health", async (PlatformDbContext platformDb, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.UseAuthorization();
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Path.Equals("/health", StringComparison.OrdinalIgnoreCase)
+        && AIStudioMigrationReadinessResult.ShouldCheckRequest(context.Request.Path, context.GetEndpoint())
+        && context.Items.ContainsKey(TenantDatabaseRouting.StudioConnectionItemKey))
+    {
+        AIStudioMigrationReadinessResult readiness;
+        try
+        {
+            var studioDb = context.RequestServices.GetRequiredService<AIStudioDbContext>();
+            readiness = await context.RequestServices.GetRequiredService<IAIStudioMigrationReadinessChecker>()
+                .CheckAsync(studioDb, context.RequestAborted);
+        }
+        catch (Exception) when (!context.RequestAborted.IsCancellationRequested)
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "studio_migration_check_failed",
+                message = "AIStudio schema readiness could not be checked. Ask the operator to verify database access and migration history."
+            });
+            return;
+        }
+        if (!readiness.Ready)
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "studio_migrations_pending",
+                message = "AIStudio schema migrations are not current. Ask the operator to apply the deployment migration bundle.",
+                requiredMigration = readiness.RequiredMigration
+            });
+            return;
+        }
+    }
+    await next();
+});
+app.UseRateLimiter();
+app.MapGet("/health", async (PlatformDbContext platformDb, IConfiguration configuration,
+    ITenantSqlCredentialReader credentialReader,
+    IAIStudioMigrationReadinessChecker migrationReadinessChecker, CancellationToken cancellationToken) =>
 {
     try
     {
         if (!await platformDb.Database.CanConnectAsync(cancellationToken))
-            return Results.Json(new { status = "not_ready", service = "ai-development-service", dependency = "platform-database" }, statusCode: StatusCodes.Status503ServiceUnavailable);
-        if (separationEnabled)
+            return Results.Json(new { status = "not_ready", service = "ai-development-service", scope = "platform-database-only", dependency = "platform-database" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        var tenantIds = await platformDb.Tenants.AsNoTracking().Select(x => x.Id).OrderBy(x => x).ToListAsync(cancellationToken);
+        var studioStates = await platformDb.DatabaseSeparationComponentStates.AsNoTracking()
+            .Where(x => x.Component.StartsWith("AIStudio:"))
+            .ToDictionaryAsync(x => x.Component, cancellationToken);
+        if (tenantIds.Count == 0)
         {
-            var studio = await platformDb.DatabaseSeparationComponentStates.AsNoTracking()
-                .SingleOrDefaultAsync(x => x.Component == "AIStudio", cancellationToken);
-            if (studio is null || studio.State != TenantDatabaseProvisioningState.Ready)
-                return Results.Json(new { status = "not_ready", service = "ai-development-service", dependency = "studio-database" }, statusCode: StatusCodes.Status503ServiceUnavailable);
-            var connection = new SqlConnectionStringBuilder(configuration.GetConnectionString("AIStudio") ?? connectionString)
+            var legacySharedState = await platformDb.DatabaseSeparationComponentStates.AsNoTracking()
+                .AnyAsync(x => x.Component == "AIStudio", cancellationToken);
+            if (legacySharedState)
+                return Results.Json(new { status = "not_ready", service = "ai-development-service", scope = "platform-and-legacy-studio-catalog", dependency = "legacy-shared-studio-catalog" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+            return Results.Ok(new { status = "ready", service = "ai-development-service", scope = "platform-database-only-no-tenants", dependencies = new[] { "platform-database" } });
+        }
+
+        Guid? firstReadyTenant = null;
+        foreach (var tenantId in tenantIds)
+        {
+            var component = TenantDatabaseRouting.StudioComponentKey(tenantId);
+            var expectedDatabase = TenantSqlCredentialPath.DatabaseName(tenantId, TenantSqlDatabaseComponent.AiStudio);
+            if (!studioStates.TryGetValue(component, out var state)
+                || state.State != TenantDatabaseProvisioningState.Ready
+                || state.DatabaseName != expectedDatabase)
+                return Results.Json(new { status = "not_ready", service = "ai-development-service", scope = "platform-and-all-tenant-studio-catalogs", dependency = "tenant-studio-catalog" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+            firstReadyTenant ??= tenantId;
+        }
+
+        var healthTenantId = firstReadyTenant!.Value;
+        var credential = await credentialReader.ReadAsync(healthTenantId, TenantSqlDatabaseComponent.AiStudio,
+            TenantSqlCredentialPath.ForTenant(healthTenantId, TenantSqlDatabaseComponent.AiStudio), cancellationToken);
+        var connection = TenantDatabaseRouting.BuildComponentConnectionString(studioConnection, healthTenantId,
+            TenantSqlDatabaseComponent.AiStudio, credential);
+        var studioOptions = new DbContextOptionsBuilder<AIStudioDbContext>().UseSqlServer(connection).Options;
+        await using var healthStudio = new AIStudioDbContext(studioOptions);
+        var migrationReadiness = await migrationReadinessChecker.CheckAsync(healthStudio, cancellationToken);
+        if (!migrationReadiness.Ready)
+            return Results.Json(new
             {
-                InitialCatalog = studio.DatabaseName
-            };
-            await using var healthStudioConnection = new SqlConnection(connection.ConnectionString);
-            await healthStudioConnection.OpenAsync(cancellationToken);
-        }
-        else
+                status = "not_ready", service = "ai-development-service", scope = "platform-all-tenant-catalogs-plus-one-studio-sample", dependency = "studio-migrations",
+                requiredMigration = migrationReadiness.RequiredMigration
+            }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        return Results.Ok(new
         {
-            await using var healthStudioConnection = new SqlConnection(studioConnection);
-            await healthStudioConnection.OpenAsync(cancellationToken);
-        }
-        return Results.Ok(new { status = "ready", service = "ai-development-service", dependencies = new[] { "platform-database", "studio-database" } });
+            status = "ready", service = "ai-development-service",
+            scope = "platform-all-tenant-catalogs-plus-one-studio-sample",
+            dependencies = new[] { "platform-database", "all-tenant-studio-catalogs", "sample-tenant-vault-credential", "sample-tenant-studio-database", "sample-tenant-studio-migrations" }
+        });
+    }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+        throw;
     }
     catch
     {
-        return Results.Json(new { status = "not_ready", service = "ai-development-service", dependency = "database" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        return Results.Json(new { status = "not_ready", service = "ai-development-service", scope = "platform-and-sample-studio-probe", dependency = "database-or-credential-provider" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 });
 app.MapGitHubWebhook(async (context, webhook, deliveryId, cancellationToken) =>
 {
     var configuration = context.RequestServices.GetRequiredService<IConfiguration>();
     var platformDb = context.RequestServices.GetRequiredService<PlatformDbContext>();
-    var studioConnection = configuration.GetConnectionString("AIStudio") ?? configuration.GetConnectionString("Platform")!;
-    if (configuration.GetValue<bool>("Database:SeparationEnabled"))
+    var studioConnection = configuration.GetConnectionString("AIStudio")!;
+    var credentialReader = context.RequestServices.GetRequiredService<ITenantSqlCredentialReader>();
+    var components = await platformDb.DatabaseSeparationComponentStates.AsNoTracking()
+        .Where(x => x.Component.StartsWith("AIStudio:") && x.State == TenantDatabaseProvisioningState.Ready)
+        .Select(x => new { x.Component, x.DatabaseName })
+        .ToListAsync(cancellationToken);
+    var changed = 0;
+    foreach (var component in components)
     {
-        var component = await platformDb.DatabaseSeparationComponentStates.AsNoTracking()
-            .SingleOrDefaultAsync(x => x.Component == "AIStudio", cancellationToken);
-        if (component is null || component.State != TenantDatabaseProvisioningState.Ready)
-            return Results.Problem("AI Studio database is not ready to process GitHub events.", statusCode: StatusCodes.Status503ServiceUnavailable);
-        studioConnection = new SqlConnectionStringBuilder(studioConnection) { InitialCatalog = component.DatabaseName }.ConnectionString;
+        var suffix = component.Component["AIStudio:".Length..];
+        if (!Guid.TryParseExact(suffix, "N", out var tenantId)
+            || TenantDatabaseRouting.StudioComponentKey(tenantId) != component.Component
+            || TenantSqlCredentialPath.DatabaseName(tenantId, TenantSqlDatabaseComponent.AiStudio) != component.DatabaseName)
+            return Results.Problem("AI Studio tenant catalog is not ready to process GitHub events.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        var secretReference = TenantSqlCredentialPath.ForTenant(tenantId, TenantSqlDatabaseComponent.AiStudio);
+        var credential = await credentialReader.ReadAsync(tenantId, TenantSqlDatabaseComponent.AiStudio,
+            secretReference, cancellationToken);
+        var connection = TenantDatabaseRouting.BuildComponentConnectionString(studioConnection, tenantId,
+            TenantSqlDatabaseComponent.AiStudio, credential);
+        var studioOptions = new DbContextOptionsBuilder<AIStudioDbContext>().UseSqlServer(connection).Options;
+        await using var studioDb = new AIStudioDbContext(studioOptions);
+        changed += await GitHubPullRequestStateSynchronizer.ApplyAsync(studioDb, webhook, deliveryId, cancellationToken);
     }
-    var studioOptions = new DbContextOptionsBuilder<AIStudioDbContext>().UseSqlServer(studioConnection).Options;
-    await using var studioDb = new AIStudioDbContext(studioOptions);
-    var changed = await GitHubPullRequestStateSynchronizer.ApplyAsync(studioDb, webhook, deliveryId, cancellationToken);
     return Results.Ok(new { updated = changed });
 }).RequireRateLimiting("github-webhook");
 app.MapGet("/studio/capabilities", async (ClaimsPrincipal user, IConfiguration configuration, PlatformDbContext platformDb) =>
@@ -200,7 +313,8 @@ studio.MapGet("/", async (Guid? projectId, ClaimsPrincipal user, AIStudioDbConte
             (x.ProjectId == null || isTenantAdmin || (x.Project!.IsActive && x.Project.AccessGrants.Any(a => a.UserId == userId))))
         .OrderByDescending(x => x.CreatedAt)
         .Take(100)
-        .Select(x => new RequestView(x.Id, x.Title, x.Description, x.Status, x.CreatedAt, x.ProjectId, x.Project == null ? null : x.Project.Name)).ToListAsync();
+        .Select(x => new RequestView(x.Id, x.Title, x.Description, x.Status, x.CreatedAt, x.ProjectId, x.Project == null ? null : x.Project.Name,
+            x.Status == "Submitted" && (isTenantAdmin || x.CreatedByUserId == userId))).ToListAsync();
     return Results.Ok(requests);
 });
 studio.MapPost("/", async (CreateRequest body, ClaimsPrincipal user, AIStudioDbContext db) =>
@@ -223,9 +337,62 @@ studio.MapPost("/", async (CreateRequest body, ClaimsPrincipal user, AIStudioDbC
     db.DevelopmentRequests.Add(request); db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.request.created", Resource = request.Id.ToString() });
     await db.SaveChangesAsync();
     return Results.Created($"/studio/requests/{request.Id}", new RequestView(request.Id, request.Title, request.Description,
-        request.Status, request.CreatedAt, request.ProjectId, project?.Name));
+        request.Status, request.CreatedAt, request.ProjectId, project?.Name, true));
+});
+studio.MapPut("/{requestId:guid}", async (Guid requestId, UpdateRequest body, ClaimsPrincipal user, AIStudioDbContext db) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var request = await db.DevelopmentRequests.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == requestId);
+    if (request is null) return Results.NotFound();
+    if (!user.IsInRole("TenantAdmin") && request.CreatedByUserId != userId) return Results.Forbid();
+    if (request.Status != "Submitted") return Results.Conflict(new { error = "Yalnızca henüz işleme alınmamış talepler düzenlenebilir." });
+
+    var title = body.Title?.Trim();
+    var description = body.Description?.Trim();
+    if (string.IsNullOrWhiteSpace(title) || title.Length > 180 || string.IsNullOrWhiteSpace(description) || description.Length > 8000)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = ["Title and description are required; title must be at most 180 and description at most 8000 characters."] });
+
+    DevelopmentProject? project = null;
+    if (body.ProjectId is { } projectId)
+    {
+        project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+            .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive);
+        if (project is null) return Results.NotFound(new { error = "Proje bulunamadı veya etkin değil." });
+        var canContribute = user.IsInRole("TenantAdmin") || project.AccessGrants.Any(x => x.UserId == userId && x.AccessLevel is "Contributor" or "Maintainer");
+        if (!canContribute) return Results.Forbid();
+    }
+
+    request.Title = title;
+    request.Description = description;
+    request.ProjectId = project?.Id;
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.request.updated", Resource = request.Id.ToString() });
+    await db.SaveChangesAsync();
+    return Results.Ok(new RequestView(request.Id, request.Title, request.Description, request.Status, request.CreatedAt, request.ProjectId, project?.Name, true));
+});
+studio.MapDelete("/{requestId:guid}", async (Guid requestId, ClaimsPrincipal user, AIStudioDbContext db) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var request = await db.DevelopmentRequests.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == requestId);
+    if (request is null) return Results.NotFound();
+    if (!user.IsInRole("TenantAdmin") && request.CreatedByUserId != userId) return Results.Forbid();
+    if (request.Status != "Submitted") return Results.Conflict(new { error = "Yalnızca henüz işleme alınmamış talepler silinebilir." });
+
+    var linkedWorkspaces = await db.DevelopmentWorkspaceRequests
+        .Where(x => x.TenantId == tenantId && x.DevelopmentRequestId == requestId).ToListAsync();
+    foreach (var workspace in linkedWorkspaces) workspace.DevelopmentRequestId = null;
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.request.deleted", Resource = request.Id.ToString() });
+    db.DevelopmentRequests.Remove(request);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
 });
 var projects = app.MapGroup("/studio/projects").RequireAuthorization();
+app.MapGet("/studio/modules/active", async (ClaimsPrincipal user, PlatformDbContext platformDb, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out _)) return Results.Forbid();
+    var moduleCodes = await platformDb.TenantModuleActivations.AsNoTracking().Where(x => x.TenantId == tenantId)
+        .OrderBy(x => x.ModuleCode).Select(x => x.ModuleCode).Distinct().ToListAsync(cancellationToken);
+    return Results.Ok(moduleCodes);
+}).RequireAuthorization().RequireRateLimiting("workspace-write");
 projects.MapGet("/", async (ClaimsPrincipal user, AIStudioDbContext db) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
@@ -241,10 +408,73 @@ projects.MapGet("/", async (ClaimsPrincipal user, AIStudioDbContext db) =>
     return Results.Ok(rows.Select(x => new ProjectView(x.project.Id, x.project.Name, x.project.RepositoryUrl,
         x.project.DefaultBranch, x.accessLevel ?? "Viewer", x.project.CreatedAt, x.project.GitHubInstallationId is not null)));
 });
-projects.MapGet("/{id:guid}/branches", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider githubTokens, IConfiguration configuration, CancellationToken cancellationToken) =>
+projects.MapGet("/{id:guid}/module-source-mappings", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanViewProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var mappings = await db.StudioModuleSourceMappings.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.ProjectId == id).OrderBy(x => x.ModuleCode).ToListAsync(cancellationToken);
+    return Results.Ok(mappings.Select(x => new ModuleSourceMappingView(x.Id, x.ModuleCode, x.ProjectId,
+        project.Name, project.RepositoryUrl, x.Ref, JsonSerializer.Deserialize<string[]>(x.PathAllowlistJson) ?? [], x.CreatedAt)));
+}).RequireRateLimiting("workspace-write");
+projects.MapPost("/module-source-mappings", async (CreateModuleSourceMapping body, ClaimsPrincipal user, AIStudioDbContext db,
+    PlatformDbContext platformDb, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (!body.MappingConfirmed || body.ProjectId == Guid.Empty || !IsValidStudioModuleCode(body.ModuleCode) || !IsValidBranchName(body.Ref) ||
+        !TryNormalizeModulePathAllowlist(body.PathAllowlist, out var paths))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["mapping"] = ["Etkin modül kodu, geçerli ref ve güvenli göreli path allowlist girin (1–32 path)."] });
+    var moduleCode = body.ModuleCode!;
+    var reference = body.Ref!.Trim();
+    var project = await db.DevelopmentProjects.Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == body.ProjectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    if (!await platformDb.TenantModuleActivations.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.ModuleCode == moduleCode, cancellationToken))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["moduleCode"] = ["Bu modül kodu etkin tenant modülleri arasında bulunamadı."] });
+    var mapping = await db.StudioModuleSourceMappings.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ModuleCode == moduleCode, cancellationToken);
+    if (mapping is not null && mapping.ProjectId != project.Id)
+        return Results.Conflict(new
+        {
+            error = "Bu modül başka bir Studio projesine eşlenmiş. Eşlemeyi düzenlemek için mevcut projeyi açıp aynı modül kodunu kaydedin; modülü yeni projeye taşımak için önce mevcut projedeki eşlemeyi kaldırın."
+        });
+    var created = mapping is null;
+    if (mapping is null)
+    {
+        mapping = new StudioModuleSourceMapping { TenantId = tenantId, ModuleCode = moduleCode, CreatedByUserId = userId };
+        db.StudioModuleSourceMappings.Add(mapping);
+    }
+    mapping.ProjectId = project.Id;
+    mapping.Ref = reference;
+    mapping.PathAllowlistJson = JsonSerializer.Serialize(paths);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId,
+        Action = created ? "studio.module-source-mapping.created" : "studio.module-source-mapping.updated", Resource = mapping.ModuleCode });
+    try { await db.SaveChangesAsync(cancellationToken); }
+    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu modül için eşleme başka bir istek tarafından oluşturuldu. Listeyi yenileyip mevcut eşlemeyi inceleyin; farklı projeye taşımak için mevcut projedeki eşlemeyi kaldırın." }); }
+    return Results.Ok(new ModuleSourceMappingView(mapping.Id, mapping.ModuleCode, project.Id, project.Name, project.RepositoryUrl,
+        mapping.Ref, paths, mapping.CreatedAt));
+}).RequireRateLimiting("workspace-write");
+projects.MapDelete("/module-source-mappings/{mappingId:guid}", async (Guid mappingId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var mapping = await db.StudioModuleSourceMappings.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == mappingId, cancellationToken);
+    if (mapping is null) return Results.NotFound();
+    var project = await db.DevelopmentProjects.Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == mapping.ProjectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    db.StudioModuleSourceMappings.Remove(mapping);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.module-source-mapping.deleted", Resource = mapping.ModuleCode });
+    await db.SaveChangesAsync(cancellationToken);
+    return Results.NoContent();
+}).RequireRateLimiting("workspace-write");
+projects.MapGet("/{id:guid}/branches", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider githubTokens, IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var project = await db.DevelopmentProjects.Include(x => x.AccessGrants)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.IsActive, cancellationToken);
     if (project is null) return Results.NotFound();
     if (!CanContributeToProject(user, project.AccessGrants, userId)) return Results.Forbid();
@@ -270,11 +500,24 @@ projects.MapGet("/{id:guid}/branches", async (Guid id, ClaimsPrincipal user, AIS
         if (!response.IsSuccessStatusCode)
             return Results.Problem("Workspace Runner depo dallarını sağlayamadı.", statusCode: (int)response.StatusCode is >= 500 and <= 599 ? (int)response.StatusCode : StatusCodes.Status502BadGateway);
         var result = await response.Content.ReadFromJsonAsync<RunnerProjectBranchesResponse>(cancellationToken: cancellationToken);
-        if (result is null || result.Branches.Count > 200 || result.Branches.Any(branch => !IsValidBranchName(branch)))
+        if (result is null || result.Branches.Count > 200 || result.Branches.Any(branch => !IsValidBranchName(branch)) ||
+            !IsValidBranchName(result.DefaultBranch) || !result.Branches.Contains(result.DefaultBranch!, StringComparer.Ordinal))
             return Results.Problem("Workspace Runner geçersiz dal listesi döndürdü.", statusCode: StatusCodes.Status502BadGateway);
+        if (!string.Equals(project.DefaultBranch, result.DefaultBranch, StringComparison.Ordinal))
+        {
+            var previousDefaultBranch = project.DefaultBranch;
+            project.DefaultBranch = result.DefaultBranch!;
+            db.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                Action = "studio.project.default-branch.synced",
+                Resource = $"{id}:{previousDefaultBranch}->{result.DefaultBranch}"
+            });
+        }
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.project.branches.listed", Resource = id.ToString() });
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new ProjectBranchesView(project.DefaultBranch, result.Branches));
+        return Results.Ok(new ProjectBranchesView(result.DefaultBranch!, result.Branches));
     }
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) { return Results.Problem("Depo dal listesi isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
@@ -293,8 +536,7 @@ projects.MapPost("/{id:guid}/github/authorization", async (Guid id, ClaimsPrinci
         !Uri.TryCreate(callback, UriKind.Absolute, out var callbackUri) ||
         (callbackUri.Scheme != Uri.UriSchemeHttps && !(callbackUri.Scheme == Uri.UriSchemeHttp && callbackUri.IsLoopback)))
         return Results.Problem("GitHub App bağlantısı yönetici tarafından bir kez yapılandırılmalıdır.", statusCode: StatusCodes.Status503ServiceUnavailable);
-    var randomState = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
-        .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    var randomState = GitHubSetupState.Create(tenantId, jwtKey);
     var stateHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(randomState)));
     var now = DateTimeOffset.UtcNow;
     await db.GitHubInstallationAuthorizationStates.Where(x => x.ExpiresAt <= now || x.ConsumedAt != null).ExecuteDeleteAsync(cancellationToken);
@@ -319,44 +561,52 @@ projects.MapDelete("/{id:guid}/github/authorization", async (Guid id, ClaimsPrin
     return Results.NoContent();
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
 app.MapGet("/studio/github/setup-callback", async (long? installation_id, string? setup_action, string? state,
-    AIStudioDbContext db, PlatformDbContext platformDb, GitHubAppInstallationTokenProvider tokenProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+    AIStudioDbContext db, PlatformDbContext platformDb, GitHubAppInstallationTokenProvider tokenProvider,
+    IConfiguration configuration, ILogger<AIServiceEntryPointMarker> logger, CancellationToken cancellationToken) =>
 {
     var studioUrl = configuration["GitHub:StudioRedirectUrl"] ?? "http://localhost:5174/?app=studio";
     string Return(string outcome, Guid? projectId = null) => QueryHelpers.AddQueryString(studioUrl,
         new Dictionary<string, string?> { ["github"] = outcome, ["projectId"] = projectId?.ToString("D") });
     if (installation_id is null or <= 0 || setup_action is not ("install" or "update") || string.IsNullOrWhiteSpace(state) || state.Length > 200)
         return Results.Redirect(Return("invalid"));
-    var stateHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(state)));
-    var now = DateTimeOffset.UtcNow;
-    var authorization = await db.GitHubInstallationAuthorizationStates.AsNoTracking()
-        .SingleOrDefaultAsync(x => x.StateHash == stateHash && x.ExpiresAt > now && x.ConsumedAt == null, cancellationToken);
-    if (authorization is null) return Results.Redirect(Return("expired"));
-    var project = await db.DevelopmentProjects.Include(x => x.AccessGrants)
-        .SingleOrDefaultAsync(x => x.TenantId == authorization.TenantId && x.Id == authorization.ProjectId && x.IsActive, cancellationToken);
-    var membership = await platformDb.TenantMemberships.Include(x => x.User)
-        .SingleOrDefaultAsync(x => x.TenantId == authorization.TenantId && x.UserId == authorization.UserId, cancellationToken);
-    if (project is null || membership?.User.IsActive != true ||
-        (membership.Role != "TenantAdmin" && !project.AccessGrants.Any(x => x.UserId == authorization.UserId && x.AccessLevel == "Maintainer")))
-        return Results.Redirect(Return("not-authorized", authorization.ProjectId));
     try
     {
+        var stateHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(state)));
+        var now = DateTimeOffset.UtcNow;
+        var authorization = await db.GitHubInstallationAuthorizationStates.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.StateHash == stateHash && x.ExpiresAt > now && x.ConsumedAt == null, cancellationToken);
+        if (authorization is null) return Results.Redirect(Return("expired"));
+        var project = await db.DevelopmentProjects.Include(x => x.AccessGrants)
+            .SingleOrDefaultAsync(x => x.TenantId == authorization.TenantId && x.Id == authorization.ProjectId && x.IsActive, cancellationToken);
+        var membership = await platformDb.TenantMemberships.Include(x => x.User)
+            .SingleOrDefaultAsync(x => x.TenantId == authorization.TenantId && x.UserId == authorization.UserId, cancellationToken);
+        if (project is null || membership?.User.IsActive != true ||
+            (membership.Role != "TenantAdmin" && !project.AccessGrants.Any(x => x.UserId == authorization.UserId && x.AccessLevel == "Maintainer")))
+            return Results.Redirect(Return("not-authorized", authorization.ProjectId));
+
         var repository = GetGitHubRepositoryIdentifier(project.RepositoryUrl);
         if (repository is null) return Results.Redirect(Return("unsupported", project.Id));
         _ = await tokenProvider.CreateRepositoryReadTokenAsync(installation_id.Value, repository, cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var consumed = await db.GitHubInstallationAuthorizationStates.Where(x => x.Id == authorization.Id && x.ExpiresAt > now && x.ConsumedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.ConsumedAt, now), cancellationToken);
+        if (consumed != 1) return Results.Redirect(Return("expired", project.Id));
+        project.GitHubInstallationId = installation_id.Value;
+        db.AuditEvents.Add(new AuditEvent { TenantId = authorization.TenantId, UserId = authorization.UserId, Action = "studio.project.github.authorization.connected", Resource = project.Id.ToString() });
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Results.Redirect(Return("connected", project.Id));
     }
-    catch (GitHubAppConfigurationException) { return Results.Redirect(Return("not-configured", project.Id)); }
-    catch (GitHubIntegrationException) { return Results.Redirect(Return("repository-access-denied", project.Id)); }
-    catch (HttpRequestException) { return Results.Redirect(Return("repository-access-denied", project.Id)); }
-    catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Redirect(Return("repository-access-denied", project.Id)); }
-    await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-    var consumed = await db.GitHubInstallationAuthorizationStates.Where(x => x.Id == authorization.Id && x.ExpiresAt > now && x.ConsumedAt == null)
-        .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.ConsumedAt, now), cancellationToken);
-    if (consumed != 1) return Results.Redirect(Return("expired", project.Id));
-    project.GitHubInstallationId = installation_id.Value;
-    db.AuditEvents.Add(new AuditEvent { TenantId = authorization.TenantId, UserId = authorization.UserId, Action = "studio.project.github.authorization.connected", Resource = project.Id.ToString() });
-    await db.SaveChangesAsync(cancellationToken);
-    await transaction.CommitAsync(cancellationToken);
-    return Results.Redirect(Return("connected", project.Id));
+    catch (GitHubAppConfigurationException) { return Results.Redirect(Return("not-configured")); }
+    catch (GitHubIntegrationException) { return Results.Redirect(Return("repository-access-denied")); }
+    catch (HttpRequestException) { return Results.Redirect(Return("repository-access-denied")); }
+    catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Redirect(Return("repository-access-denied")); }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+    catch (Exception exception)
+    {
+        logger.LogError("GitHub App setup callback failed ({FailureType}); sensitive callback parameters were omitted.", exception.GetType().Name);
+        return Results.Redirect(Return("setup-failed"));
+    }
 }).AllowAnonymous();
 projects.MapPost("/", async (CreateProject body, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
@@ -437,7 +687,7 @@ projects.MapGet("/{id:guid}/workspace-requests", async (Guid id, ClaimsPrincipal
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.IsActive);
     if (project is null) return Results.NotFound();
     if (!CanViewProject(user, project.AccessGrants, userId)) return Results.Forbid();
-    var rows = await db.DevelopmentWorkspaceRequests.AsNoTracking().Where(x => x.TenantId == tenantId && x.ProjectId == id)
+    var rows = await db.DevelopmentWorkspaceRequests.AsNoTracking().Where(x => x.TenantId == tenantId && x.ProjectId == id && x.Status != "Archived")
         .OrderByDescending(x => x.CreatedAt)
         .Select(x => new { x.Id, x.ProjectId, x.RequestedByUserId, x.BranchName, x.WorkspaceBranchName, x.Status, x.CreatedAt, x.ReviewedByUserId, x.ReviewedAt, x.ReviewNote, x.CommitSha, x.ProvisioningError, x.ProvisionedAt, x.DevelopmentRequestId,
             DevelopmentRequestTitle = x.DevelopmentRequest == null ? null : x.DevelopmentRequest.Title,
@@ -449,7 +699,8 @@ projects.MapGet("/{id:guid}/workspace-requests", async (Guid id, ClaimsPrincipal
         canManage && (x.RequestedByUserId != userId || isTenantAdmin),
         x.CommitSha, x.ProvisioningError, x.ProvisionedAt,
         x.Status == "PendingApproval" && (x.RequestedByUserId == userId || canManage),
-        x.DevelopmentRequestId, x.DevelopmentRequestTitle, x.DevelopmentRequestDescription, x.WorkspaceBranchName)));
+        x.DevelopmentRequestId, x.DevelopmentRequestTitle, x.DevelopmentRequestDescription, x.WorkspaceBranchName,
+        CanDelete: x.RequestedByUserId == userId || canManage)));
 });
 app.MapGet("/studio/workspace-requests/pending", async (int? offset, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb, CancellationToken cancellationToken) =>
 {
@@ -520,6 +771,23 @@ app.MapPost("/studio/workspace-requests/{id:guid}/cancel", async (Guid id, Claim
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.workspace.cancelled", Resource = request.Id.ToString() });
     await db.SaveChangesAsync(cancellationToken);
     return Results.Ok(ToWorkspaceView(request, false));
+}).RequireAuthorization();
+app.MapPost("/studio/workspace-requests/{id:guid}/archive", async (Guid id, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var request = await db.DevelopmentWorkspaceRequests.FromSqlInterpolated($"SELECT * FROM [dbo].[DevelopmentWorkspaceRequests] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}")
+        .SingleOrDefaultAsync(cancellationToken);
+    if (request is null || request.Status == "Archived") return Results.NotFound();
+    if (request.Status == "Provisioning") return Results.Conflict(new { error = "Checkout oluşturulurken talep silinemez. İşlem tamamlandıktan sonra yeniden deneyin." });
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.ProjectId, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (request.RequestedByUserId != userId && !CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var previousStatus = request.Status;
+    request.Status = "Archived";
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.workspace.archived", Resource = $"{request.Id}:{previousStatus}" });
+    await db.SaveChangesAsync(cancellationToken);
+    return Results.NoContent();
 }).RequireAuthorization();
 app.MapPost("/studio/workspace-requests/{id:guid}/review", async (Guid id, ReviewWorkspaceRequest body, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
@@ -691,6 +959,41 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) { return Results.Problem("Dosya listesi isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization();
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/files/search", async (Guid projectId, Guid requestId, string? query, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (string.IsNullOrWhiteSpace(query) || query.Length > 120 || query.Any(char.IsControl))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = ["Arama metni 1–120 karakter olmalı."] });
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanViewProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var request = await db.DevelopmentWorkspaceRequests.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId, cancellationToken);
+    if (request is null) return Results.NotFound();
+    if (request.Status != "Ready") return Results.Conflict(new { error = "Dosya araması yalnızca hazır çalışma alanlarında kullanılabilir." });
+    var baseUrl = configuration["WorkspaceRunner:BaseUrl"];
+    if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var runnerUri) || runnerUri.Scheme != Uri.UriSchemeHttp)
+        return Results.Problem("Workspace Runner yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    using var client = clients.CreateClient("workspace-runner");
+    client.BaseAddress = runnerUri;
+    using var message = new HttpRequestMessage(HttpMethod.Get, $"/internal/workspaces/{request.Id:D}/files/search?query={Uri.EscapeDataString(query.Trim())}");
+    message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateRunnerToken(configuration, request.Id, "workspace.read"));
+    try
+    {
+        using var response = await client.SendAsync(message, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<RunnerFileSearchResult>(cancellationToken: cancellationToken);
+            return result is null ? Results.Problem("Runner geçersiz dosya arama sonucu döndürdü.", statusCode: StatusCodes.Status502BadGateway) : Results.Ok(result);
+        }
+        if (response.StatusCode == HttpStatusCode.NotFound) return Results.Conflict(new { error = "Checkout bulunamadı; çalışma alanı durumunu yenileyin." });
+        if (response.StatusCode == HttpStatusCode.BadRequest) return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = ["Arama metni geçersiz."] });
+        return Results.Problem("Workspace Runner dosya adı araması yapamadı.", statusCode: StatusCodes.Status502BadGateway);
+    }
+    catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (TaskCanceledException) { return Results.Problem("Dosya araması zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
+}).RequireAuthorization();
 app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/file-content", async (Guid projectId, Guid requestId, string? path, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
@@ -800,21 +1103,39 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (TaskCanceledException) { return Results.Problem("Test hedefleri taraması zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization();
 app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPrincipal user, HttpContext httpContext,
-    IAIModelProvider aiProvider, IHttpClientFactory clients, AIStudioDbContext db, CancellationToken cancellationToken) =>
+    IAIModelProvider aiProvider, IHttpClientFactory clients, AIStudioDbContext db,
+    IPlatformPermissionAuthorizer sourceAuthorizer, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    // This is a per-request privacy consent gate, never an authorization decision: JWT authentication and tenant scope are enforced independently, and downstream ERP reads reauthorize the forwarded bearer token.
     if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "ERP sorusunu AI sağlayıcısına göndermek için açık kullanıcı onayı gerekli." });
     var question = body.Question?.Trim();
     if (string.IsNullOrWhiteSpace(question) || question.Length > 2000)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["question"] = ["Soru gerekli ve en fazla 2000 karakter olabilir."] });
     var authorization = httpContext.Request.Headers.Authorization.ToString();
     if (!authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return Results.Unauthorized();
+    var customerAccountSelection = new ERPAssistantCustomerAccountSelection();
 
     async Task<string> ExecuteReadOnlyTool(string name, string argumentsJson, CancellationToken ct)
     {
         using var arguments = JsonDocument.Parse(argumentsJson);
         if (arguments.RootElement.ValueKind != JsonValueKind.Object) throw new ArgumentException("Tool arguments must be an object.");
         string path;
+        Guid? supplierBalanceId = null;
+        DateOnly? hrPeriodFrom = null;
+        DateOnly? hrPeriodTo = null;
+        DateOnly? maturityAsOfDate = null;
+        DateOnly? customerLedgerFrom = null;
+        DateOnly? customerLedgerTo = null;
+        DateOnly? supplierPaymentFrom = null;
+        DateOnly? supplierPaymentTo = null;
+        DateOnly? supplierLedgerFrom = null;
+        DateOnly? supplierLedgerTo = null;
+        string? inventoryMovementStockCode = null;
+        DateOnly? inventoryMovementFrom = null;
+        DateOnly? inventoryMovementTo = null;
+        string? genealogyStockCode = null;
+        string? genealogyTrackingCode = null;
         object? postBody = null;
         switch (name)
         {
@@ -841,6 +1162,60 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 path = $"/api/warehouses/{warehouseId:D}/balances";
                 break;
             }
+            case "search_inventory_movements":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 3 || !arguments.RootElement.TryGetProperty("stockCode", out var stockElement) || stockElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("to", out var toElement) || toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantInventoryMovementTools.TryValidateRequest(stockElement.GetString(), fromElement.GetString(), toElement.GetString(),
+                        IstanbulDateHelper.FromUtc(DateTimeOffset.UtcNow), out var stockCode, out var from, out var to))
+                    throw new ArgumentException("Inventory movement search requires a stock code and a past/current date window of at most 365 days.");
+
+                if (!await ERPAssistantInventoryMovementTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                inventoryMovementStockCode = stockCode;
+                inventoryMovementFrom = from;
+                inventoryMovementTo = to;
+                path = "/api/reports/run";
+                postBody = new
+                {
+                    source = "inventoryTransactions",
+                    columns = new[] { "entryDate", "direction", "stockCode", "quantity", "enteredUnitCode" },
+                    filters = new[]
+                    {
+                        new { field = "stockCode", @operator = "equals", value = stockCode },
+                        new { field = "entryDate", @operator = "gte", value = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) },
+                        new { field = "entryDate", @operator = "lte", value = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) }
+                    },
+                    sortBy = "entryDate", descending = true, page = 1, pageSize = 10
+                };
+                break;
+            }
+            case "search_inventory_genealogy":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 2 || !arguments.RootElement.TryGetProperty("stockItemCode", out var stockCodeElement) || stockCodeElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("trackingCode", out var trackingCodeElement) || trackingCodeElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantInventoryGenealogyTools.TryValidateRequest(stockCodeElement.GetString(), trackingCodeElement.GetString(), out var stockCode, out var trackingCode))
+                    throw new ArgumentException("Inventory genealogy requires an exact stock code and lot/serial code.");
+
+                if (!await ERPAssistantInventoryGenealogyTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                genealogyStockCode = stockCode;
+                genealogyTrackingCode = trackingCode;
+                path = QueryHelpers.AddQueryString("/api/inventory-tracking/genealogy", new Dictionary<string, string?>
+                {
+                    ["stockItemCode"] = stockCode,
+                    ["trackingCode"] = trackingCode,
+                    ["pageSize"] = ERPAssistantInventoryGenealogyTools.MaxEvents.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                });
+                break;
+            }
             case "search_customer_accounts":
             {
                 var props = arguments.RootElement.EnumerateObject().ToArray();
@@ -857,19 +1232,405 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 if (props.Length != 1 || !arguments.RootElement.TryGetProperty("customerId", out var idElement) ||
                     idElement.ValueKind != JsonValueKind.String || !Guid.TryParse(idElement.GetString(), out var customerId))
                     throw new ArgumentException("Invalid customer identifier.");
+                if (!customerAccountSelection.CanReadBalance(customerId))
+                    return JsonSerializer.Serialize(new { error = "Search for the account in this request and clarify the match if it is not unique before reading a balance.", errorCode = "account_not_uniquely_selected", requiresClarification = true });
                 path = $"/api/customers/{customerId:D}/balance";
+                break;
+            }
+            case "search_customer_ledger":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 3 || !arguments.RootElement.TryGetProperty("customerId", out var idElement) ||
+                    idElement.ValueKind != JsonValueKind.String || !Guid.TryParse(idElement.GetString(), out var customerId) ||
+                    !arguments.RootElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("to", out var toElement) || toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantCustomerLedgerTools.TryValidatePeriod(fromElement.GetString(), toElement.GetString(),
+                        IstanbulDateHelper.FromUtc(DateTimeOffset.UtcNow), out var from, out var to))
+                    throw new ArgumentException("Customer-ledger search requires a selected customer and a past/current date window of at most 365 days.");
+
+                if (!customerAccountSelection.TryGetSelectedCustomerCode(customerId, out var customerCode))
+                    return JsonSerializer.Serialize(new { error = "Search for one customer account in this request before reading its ledger.", errorCode = "account_not_uniquely_selected", requiresClarification = true });
+                if (!await ERPAssistantCustomerLedgerTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                customerLedgerFrom = from;
+                customerLedgerTo = to;
+                path = "/api/reports/run";
+                postBody = new
+                {
+                    source = "customerLedgerEntries",
+                    columns = new[] { "entryDate", "direction", "amount", "currencyCode" },
+                    filters = new[]
+                    {
+                        new { field = "customerCode", @operator = "equals", value = customerCode },
+                        new { field = "entryDate", @operator = "gte", value = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) },
+                        new { field = "entryDate", @operator = "lte", value = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) }
+                    },
+                    sortBy = "entryDate", descending = true, page = 1, pageSize = 10
+                };
+                break;
+            }
+            case "search_supplier_payments":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 3 || !arguments.RootElement.TryGetProperty("supplierId", out var idElement) ||
+                    idElement.ValueKind != JsonValueKind.String || !Guid.TryParse(idElement.GetString(), out var supplierId) ||
+                    !arguments.RootElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("to", out var toElement) || toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantSupplierPaymentTools.TryValidatePeriod(fromElement.GetString(), toElement.GetString(),
+                        IstanbulDateHelper.FromUtc(DateTimeOffset.UtcNow), out var from, out var to))
+                    throw new ArgumentException("Supplier-payment search requires a selected supplier and a past/current date window of at most 365 days.");
+
+                if (!customerAccountSelection.TryGetSelectedSupplierCode(supplierId, out var supplierCode))
+                    return JsonSerializer.Serialize(new { error = "Search for one supplier account in this request before reading its payment history.", errorCode = "account_not_uniquely_selected", requiresClarification = true });
+                if (!await ERPAssistantSupplierPaymentTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                supplierPaymentFrom = from;
+                supplierPaymentTo = to;
+                path = "/api/reports/run";
+                postBody = new
+                {
+                    source = "supplierPayments",
+                    columns = new[] { "paymentDate", "amount", "currencyCode", "paymentMethod", "status" },
+                    filters = new[]
+                    {
+                        new { field = "supplierCode", @operator = "equals", value = supplierCode },
+                        new { field = "paymentDate", @operator = "gte", value = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) },
+                        new { field = "paymentDate", @operator = "lte", value = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) }
+                    },
+                    sortBy = "paymentDate", descending = true, page = 1, pageSize = 10
+                };
+                break;
+            }
+            case "search_supplier_ledger":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 3 || !arguments.RootElement.TryGetProperty("supplierId", out var idElement) ||
+                    idElement.ValueKind != JsonValueKind.String || !Guid.TryParse(idElement.GetString(), out var supplierId) ||
+                    !arguments.RootElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("to", out var toElement) || toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantSupplierLedgerTools.TryValidatePeriod(fromElement.GetString(), toElement.GetString(),
+                        IstanbulDateHelper.FromUtc(DateTimeOffset.UtcNow), out var from, out var to))
+                    throw new ArgumentException("Supplier-ledger search requires a selected supplier and a past/current date window of at most 365 days.");
+
+                if (!customerAccountSelection.TryGetSelectedSupplierCode(supplierId, out var supplierCode))
+                    return JsonSerializer.Serialize(new { error = "Search for one supplier account in this request before reading its ledger.", errorCode = "account_not_uniquely_selected", requiresClarification = true });
+                if (!await ERPAssistantSupplierLedgerTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                supplierLedgerFrom = from;
+                supplierLedgerTo = to;
+                path = "/api/reports/run";
+                postBody = new
+                {
+                    source = "supplierLedgerEntries",
+                    columns = new[] { "entryDate", "direction", "amount", "currencyCode" },
+                    filters = new[]
+                    {
+                        new { field = "supplierCode", @operator = "equals", value = supplierCode },
+                        new { field = "entryDate", @operator = "gte", value = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) },
+                        new { field = "entryDate", @operator = "lte", value = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) }
+                    },
+                    sortBy = "entryDate", descending = true, page = 1, pageSize = 10
+                };
+                break;
+            }
+            case "get_supplier_balance":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("supplierId", out var idElement) ||
+                    idElement.ValueKind != JsonValueKind.String || !Guid.TryParse(idElement.GetString(), out var supplierId))
+                    throw new ArgumentException("Invalid supplier identifier.");
+                if (!customerAccountSelection.CanReadBalance(supplierId))
+                    return JsonSerializer.Serialize(new { error = "Search for the account in this request and clarify the match if it is not unique before reading a balance.", errorCode = "account_not_uniquely_selected", requiresClarification = true });
+                // Verify the target is actually a supplier using the same caller-scoped customer API
+                // before reading its balance; the shared balance route also accepts customer ids.
+                supplierBalanceId = supplierId;
+                path = $"/api/customers/{supplierId:D}";
+                break;
+            }
+            case "get_exchange_rate":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 2 || !arguments.RootElement.TryGetProperty("currencyCode", out var currencyElement) ||
+                    currencyElement.ValueKind != JsonValueKind.String || !arguments.RootElement.TryGetProperty("rateDate", out var dateElement) ||
+                    dateElement.ValueKind != JsonValueKind.String)
+                    throw new ArgumentException("Invalid exchange-rate arguments.");
+                var currencyCode = currencyElement.GetString()?.Trim().ToUpperInvariant();
+                if (currencyCode is null || !System.Text.RegularExpressions.Regex.IsMatch(currencyCode, "^[A-Z]{3}$") ||
+                    !DateOnly.TryParseExact(dateElement.GetString(), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out var rateDate) ||
+                    rateDate > IstanbulDateHelper.FromUtc(DateTimeOffset.UtcNow))
+                    throw new ArgumentException("Exchange-rate lookup requires a three-letter currency code and a valid past or current yyyy-MM-dd date.");
+                path = QueryHelpers.AddQueryString("/api/finance/exchange-rates", new Dictionary<string, string?>
+                {
+                    ["currencyCode"] = currencyCode,
+                    ["rateDate"] = rateDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                });
+                break;
+            }
+            case "search_sales_orders":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) || termElement.ValueKind != JsonValueKind.String)
+                    throw new ArgumentException("Invalid sales order search arguments.");
+                var term = termElement.GetString()?.Trim();
+                if (term is null || term.Length is < 2 or > 100) throw new ArgumentException("Search term must contain 2–100 characters.");
+                if (!await ERPAssistantSalesOrderTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+                path = QueryHelpers.AddQueryString("/api/sales/orders", new Dictionary<string, string?>
+                {
+                    ["q"] = term, ["page"] = "1", ["pageSize"] = "10"
+                });
+                break;
+            }
+            case "get_sales_order_details":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("orderCode", out var codeElement) ||
+                    codeElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantSalesOrderTools.TryValidateOrderCode(codeElement.GetString(), out var orderCode))
+                    throw new ArgumentException("Sales order details require an exact 2–100 character sales order code.");
+
+                if (!await ERPAssistantSalesOrderTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/sales/orders/assistant-summary", new Dictionary<string, string?>
+                {
+                    ["code"] = orderCode
+                });
+                break;
+            }
+            case "search_purchase_orders":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) || termElement.ValueKind != JsonValueKind.String)
+                    throw new ArgumentException("Invalid purchase order search arguments.");
+                var term = termElement.GetString()?.Trim();
+                if (term is null || term.Length is < 2 or > 100) throw new ArgumentException("Search term must contain 2–100 characters.");
+                if (!await ERPAssistantPurchaseOrderTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+                path = QueryHelpers.AddQueryString("/api/purchasing/orders", new Dictionary<string, string?>
+                {
+                    ["q"] = term, ["page"] = "1", ["pageSize"] = "10"
+                });
+                break;
+            }
+            case "get_purchase_order_details":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("orderCode", out var codeElement) ||
+                    codeElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantPurchaseOrderTools.TryValidateOrderCode(codeElement.GetString(), out var orderCode))
+                    throw new ArgumentException("Purchase order details require an exact 2–100 character purchase order code.");
+
+                if (!await ERPAssistantPurchaseOrderTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/purchasing/orders/assistant-summary", new Dictionary<string, string?>
+                {
+                    ["code"] = orderCode
+                });
+                break;
+            }
+            case "search_sales_quotes":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantSalesQuoteTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Sales-quote search requires a 2–100 character term.");
+
+                if (!await ERPAssistantSalesQuoteTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/sales/quotes", new Dictionary<string, string?>
+                {
+                    ["q"] = term, ["page"] = "1", ["pageSize"] = "10"
+                });
+                break;
+            }
+            case "search_purchase_requests":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantPurchaseRequestTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Purchase-request search requires a 2–100 character term.");
+
+                if (!await ERPAssistantPurchaseRequestTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/purchasing/requests/search", new Dictionary<string, string?>
+                {
+                    ["q"] = term
+                });
+                break;
+            }
+            case "search_manufacturing_orders":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantManufacturingTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Manufacturing-order search requires a 2–100 character term.");
+
+                if (!await ERPAssistantManufacturingTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/manufacturing/orders/search", new Dictionary<string, string?>
+                {
+                    ["q"] = term
+                });
+                break;
+            }
+            case "search_sales_deliveries":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantSalesDeliveryTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Sales-delivery search requires a 2–100 character term.");
+
+                if (!await ERPAssistantSalesDeliveryTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/sales/deliveries/search", new Dictionary<string, string?>
+                {
+                    ["q"] = term
+                });
+                break;
+            }
+            case "search_purchase_receipts":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantPurchaseReceiptTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Purchase-receipt search requires a 2–100 character term.");
+
+                if (!await ERPAssistantPurchaseReceiptTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/purchasing/receipts/search", new Dictionary<string, string?>
+                {
+                    ["q"] = term
+                });
+                break;
+            }
+            case "search_purchase_delivery_notes":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantPurchaseDeliveryNoteTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Supplier delivery-note search requires a 2–100 character term.");
+
+                if (!await ERPAssistantPurchaseDeliveryNoteTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/purchasing/delivery-notes/search", new Dictionary<string, string?>
+                {
+                    ["q"] = term
+                });
+                break;
+            }
+            case "get_sales_delivery_details":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("code", out var codeElement) ||
+                    codeElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantSalesDeliveryTools.TryValidateDeliveryCode(codeElement.GetString(), out var code))
+                    throw new ArgumentException("Sales delivery detail lookup requires an exact 2–100 character delivery code.");
+
+                if (!await ERPAssistantSalesDeliveryTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/sales/deliveries/search/details", new Dictionary<string, string?>
+                {
+                    ["code"] = code
+                });
+                break;
+            }
+            case "get_purchase_delivery_note_details":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("documentNumber", out var documentElement) ||
+                    documentElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantPurchaseDeliveryNoteTools.TryValidateDocumentNumber(documentElement.GetString(), out var documentNumber))
+                    throw new ArgumentException("Supplier delivery-note detail lookup requires an exact 2–80 character document number.");
+
+                if (!await ERPAssistantPurchaseDeliveryNoteTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/purchasing/delivery-notes/search/details", new Dictionary<string, string?>
+                {
+                    ["documentNumber"] = documentNumber
+                });
+                break;
+            }
+            case "search_sales_invoices":
+            case "search_sales_invoice_details":
+            case "search_purchase_invoices":
+            case "search_purchase_invoice_details":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantInvoiceTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Invoice search requires a 2–100 character term.");
+                if (name == "search_sales_invoice_details")
+                    path = QueryHelpers.AddQueryString("/api/sales/invoices/assistant-detail", new Dictionary<string, string?> { ["q"] = term });
+                else if (name == "search_purchase_invoice_details")
+                    path = QueryHelpers.AddQueryString("/api/purchasing/invoices/assistant-detail", new Dictionary<string, string?> { ["q"] = term });
+                else
+                {
+                    var endpoint = name == "search_sales_invoices" ? "/api/sales/invoices" : "/api/purchasing/invoices";
+                    path = QueryHelpers.AddQueryString(endpoint, new Dictionary<string, string?>
+                    {
+                        ["q"] = term, ["page"] = "1", ["pageSize"] = "10"
+                    });
+                }
+                break;
+            }
+            case "get_report_schema":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                var source = arguments.RootElement.TryGetProperty("source", out var sourceElement) && sourceElement.ValueKind == JsonValueKind.String
+                    ? sourceElement.GetString() : null;
+                var allowedSources = new HashSet<string>(ErpReportSources.All, StringComparer.Ordinal);
+                if (props.Length != 1 || source is null || !allowedSources.Contains(source))
+                    throw new ArgumentException("Invalid operational report source.");
+                if (!await ERPAssistantReportAccess.IsSourceAllowedAsync(source, tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new UnauthorizedAccessException("ERP report source permission denied.");
+                if (!await ERPAssistantReportAccess.IsReportCatalogAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new UnauthorizedAccessException("ERP report catalog permission denied.");
+                path = "/api/reports/catalog";
                 break;
             }
             case "generate_report":
             {
                 var root = arguments.RootElement;
                 var properties = root.EnumerateObject().ToArray();
-                var allowedSources = new HashSet<string>(StringComparer.Ordinal)
-                {
-                    "customers", "salesInvoices", "purchaseOrders", "purchaseInvoices", "purchaseReceipts",
-                    "manufacturingOrders", "inventoryTransactions", "salesOrders", "salesDeliveries", "salesReturns",
-                    "purchaseRequests", "stockItems"
-                };
+                var allowedSources = new HashSet<string>(ErpReportSources.All, StringComparer.Ordinal);
                 if (properties.Length != 5 || !root.TryGetProperty("source", out var sourceElement) || sourceElement.ValueKind != JsonValueKind.String ||
                     !allowedSources.Contains(sourceElement.GetString() ?? "") || !root.TryGetProperty("columns", out var columnsElement) ||
                     columnsElement.ValueKind != JsonValueKind.Array || columnsElement.GetArrayLength() is < 1 or > 10 ||
@@ -877,6 +1638,16 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                     !root.TryGetProperty("sortBy", out var sortByElement) || sortByElement.ValueKind != JsonValueKind.String ||
                     !root.TryGetProperty("descending", out var descendingElement) || descendingElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
                     throw new ArgumentException("Invalid bounded report arguments.");
+
+                var source = sourceElement.GetString()!;
+                if (!await ERPAssistantReportAccess.IsSourceAllowedAsync(source, tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new UnauthorizedAccessException("ERP report source permission denied.");
+                if (!await ERPAssistantReportAccess.IsReportRunAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new UnauthorizedAccessException("ERP report execution permission denied.");
+                if (!ERPAssistantReportAccess.HasBoundedDateWindow(source, filtersElement))
+                    throw new ArgumentException("Date-based reports require a date window of at most 365 days.");
 
                 var columns = columnsElement.EnumerateArray().Select(column =>
                 {
@@ -909,6 +1680,250 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 };
                 break;
             }
+            case "get_hr_leave_summary":
+            case "get_hr_attendance_summary":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 2 || !arguments.RootElement.TryGetProperty("from", out var fromElement) ||
+                    fromElement.ValueKind != JsonValueKind.String || !arguments.RootElement.TryGetProperty("to", out var toElement) ||
+                    toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantHrTools.TryValidatePeriod(fromElement.GetString(), toElement.GetString(),
+                        IstanbulDateHelper.FromUtc(DateTimeOffset.UtcNow), out var from, out var to))
+                    throw new ArgumentException("HR summary requires a past or current date window of at most 366 days.");
+
+                if (!await ERPAssistantHrTools.IsReadAllowedAsync(name, tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                hrPeriodFrom = from;
+                hrPeriodTo = to;
+                path = name == "get_hr_attendance_summary"
+                    ? QueryHelpers.AddQueryString("/api/hr/attendance", new Dictionary<string, string?>
+                    {
+                        ["from"] = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                        ["to"] = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                    })
+                    : "/api/hr/leave-requests";
+                break;
+            }
+            case "get_cash_flow_forecast":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 2 || !arguments.RootElement.TryGetProperty("from", out var fromElement) ||
+                    fromElement.ValueKind != JsonValueKind.String || !arguments.RootElement.TryGetProperty("months", out var monthsElement) ||
+                    monthsElement.ValueKind != JsonValueKind.Number || !monthsElement.TryGetInt32(out var months) ||
+                    !ERPAssistantFinanceTools.TryValidatePeriod(fromElement.GetString(), months, out var from, out var horizon))
+                    throw new ArgumentException("Cash-flow forecast requires a month-start date and a 1–12 month horizon.");
+
+                if (!await ERPAssistantFinanceTools.IsReadAllowedAsync(name, tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/finance/cash-flow/forecast", new Dictionary<string, string?>
+                {
+                    ["from"] = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                    ["months"] = horizon.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                });
+                break;
+            }
+            case "get_budget_variance_summary":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantBudgetVarianceTools.TryValidateSearchTerm(termElement.GetString(), out var budgetTerm))
+                    throw new ArgumentException("Budget variance search requires a 2–100 character budget-name term.");
+
+                if (!await ERPAssistantBudgetVarianceTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/finance/budgets/assistant-summary", new Dictionary<string, string?>
+                {
+                    ["term"] = budgetTerm
+                });
+                break;
+            }
+            case "get_invoice_maturity_summary":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("asOfDate", out var dateElement) ||
+                    dateElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantMaturityTools.TryValidateAsOfDate(dateElement.GetString(), DateTimeOffset.UtcNow, out var asOfDate))
+                    throw new ArgumentException("Invoice maturity summary requires a valid past or current yyyy-MM-dd as-of date.");
+
+                if (!await ERPAssistantMaturityTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                maturityAsOfDate = asOfDate;
+                path = QueryHelpers.AddQueryString("/api/finance/maturities", new Dictionary<string, string?>
+                {
+                    ["asOfDate"] = asOfDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                });
+                break;
+            }
+            case "search_fixed_assets":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantFixedAssetTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Fixed-asset search requires a 2–100 character term.");
+
+                if (!await ERPAssistantFixedAssetTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/fixed-assets", new Dictionary<string, string?>
+                {
+                    ["q"] = term, ["page"] = "1", ["pageSize"] = "25"
+                });
+                break;
+            }
+            case "search_operational_projects":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantOperationalProjectTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Project search requires a 2–100 character term.");
+
+                if (!await ERPAssistantOperationalProjectTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/projects", new Dictionary<string, string?>
+                {
+                    ["search"] = term, ["page"] = "1", ["pageSize"] = "10", ["sortBy"] = "code", ["sortDirection"] = "asc"
+                });
+                break;
+            }
+            case "get_operational_project_progress":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 3 || !arguments.RootElement.TryGetProperty("projectCode", out var codeElement) || codeElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("to", out var toElement) || toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantOperationalProjectTools.TryValidateProgressRequest(codeElement.GetString(), fromElement.GetString(), toElement.GetString(), out var projectCode, out var from, out var to))
+                    throw new ArgumentException("Project progress requires an exact project code and explicit past/current date range of at most 366 days.");
+
+                if (!await ERPAssistantOperationalProjectTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/projects/assistant-summary", new Dictionary<string, string?>
+                {
+                    ["projectCode"] = projectCode,
+                    ["from"] = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                    ["to"] = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                });
+                break;
+            }
+            case "search_commercial_contracts":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantCommercialContractTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Commercial contract search requires a 2–100 character term.");
+
+                if (!await ERPAssistantCommercialContractTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/commercial-contracts", new Dictionary<string, string?>
+                {
+                    ["search"] = term, ["page"] = "1", ["pageSize"] = "10", ["sortBy"] = "code", ["sortDirection"] = "asc"
+                });
+                break;
+            }
+            case "search_foreign_trade_cases":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantForeignTradeTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Foreign-trade search requires a 2–100 character term.");
+
+                if (!await ERPAssistantForeignTradeTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/foreign-trade/assistant-cases", new Dictionary<string, string?>
+                {
+                    ["term"] = term
+                });
+                break;
+            }
+            case "search_crm_opportunities":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantCrmOpportunityTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("CRM opportunity search requires a 2–100 character term.");
+
+                if (!await ERPAssistantCrmOpportunityTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/crm/assistant-opportunities", new Dictionary<string, string?>
+                {
+                    ["term"] = term
+                });
+                break;
+            }
+            case "search_credit_facilities":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantCreditFacilityTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Credit facility search requires a 2–100 character code term.");
+
+                if (!await ERPAssistantCreditFacilityTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/finance/credit-facilities/assistant-summary", new Dictionary<string, string?>
+                {
+                    ["term"] = term
+                });
+                break;
+            }
+            case "search_payment_instruments":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantPaymentInstrumentTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Payment instrument search requires a 2–100 character term.");
+
+                if (!await ERPAssistantPaymentInstrumentTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/finance/payment-instruments/", new Dictionary<string, string?>
+                {
+                    ["term"] = term,
+                    ["page"] = "1",
+                    ["pageSize"] = "10"
+                });
+                break;
+            }
+            case "get_financial_account_balances":
+            {
+                if (!ERPAssistantFinancialAccountTools.HasNoArguments(arguments.RootElement))
+                    throw new ArgumentException("Financial-account balance lookup does not accept arguments.");
+
+                if (!await ERPAssistantFinancialAccountTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = "/api/finance/accounts";
+                break;
+            }
             default: throw new ArgumentException("Unknown read-only ERP tool.");
         }
 
@@ -917,15 +1932,91 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         if (postBody is not null) request.Content = JsonContent.Create(postBody);
         request.Headers.Authorization = System.Net.Http.Headers.AuthenticationHeaderValue.Parse(authorization);
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-        if (!response.IsSuccessStatusCode) return JsonSerializer.Serialize(new { error = $"ERP data request failed ({(int)response.StatusCode})." });
+        if (response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized)
+            throw new ERPAssistantAccessDeniedException(name);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (name == "get_sales_delivery_details" && response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return JsonSerializer.Serialize(new { error = "No authorized sales delivery matched that exact code.", errorCode = "not_found", requiresClarification = true });
+            if (name == "get_sales_delivery_details" && response.StatusCode == System.Net.HttpStatusCode.Conflict)
+                return JsonSerializer.Serialize(new { error = "More than one authorized sales delivery has that code. Ask for an exact unique delivery code.", errorCode = "ambiguous", requiresClarification = true });
+            if (name == "get_purchase_delivery_note_details" && response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return JsonSerializer.Serialize(new { error = "No authorized delivery note matched that exact document number.", errorCode = "not_found", requiresClarification = true });
+            if (name == "get_purchase_delivery_note_details" && response.StatusCode == System.Net.HttpStatusCode.Conflict)
+                return JsonSerializer.Serialize(new { error = "More than one authorized delivery note has that document number. Ask for an exact unique document number.", errorCode = "ambiguous", requiresClarification = true });
+            return name is "get_supplier_balance" or "get_exchange_rate"
+                ? JsonSerializer.Serialize(new
+                {
+                    error = $"ERP data request failed ({(int)response.StatusCode}).",
+                    errorCode = response.StatusCode == System.Net.HttpStatusCode.NotFound ? "not_found" : "request_failed"
+                })
+                : JsonSerializer.Serialize(new { error = $"ERP data request failed ({(int)response.StatusCode})." });
+        }
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var result = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+        if (supplierBalanceId is Guid requestedSupplierId)
+        {
+            if (!result.RootElement.TryGetProperty("type", out var accountType)
+                || !string.Equals(accountType.ToString(), "Supplier", StringComparison.OrdinalIgnoreCase))
+                return JsonSerializer.Serialize(new { error = "Selected account is not a supplier.", errorCode = "invalid_target" });
+
+            using var balanceRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/customers/{requestedSupplierId:D}/balance");
+            balanceRequest.Headers.Authorization = System.Net.Http.Headers.AuthenticationHeaderValue.Parse(authorization);
+            using var balanceResponse = await client.SendAsync(balanceRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (balanceResponse.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized)
+                throw new ERPAssistantAccessDeniedException(name);
+            if (!balanceResponse.IsSuccessStatusCode)
+                return JsonSerializer.Serialize(new
+                {
+                    error = $"ERP data request failed ({(int)balanceResponse.StatusCode}).",
+                    errorCode = balanceResponse.StatusCode == System.Net.HttpStatusCode.NotFound ? "not_found" : "request_failed"
+                });
+            await using var balanceStream = await balanceResponse.Content.ReadAsStreamAsync(ct);
+            using var balanceResult = await JsonDocument.ParseAsync(balanceStream, cancellationToken: ct);
+            return JsonSerializer.Serialize(balanceResult.RootElement);
+        }
+        if (name == "get_report_schema")
+            return ERPReportSchemaToolResult.Serialize(result.RootElement, arguments.RootElement.GetProperty("source").GetString()!);
+        if (name == "get_cash_flow_forecast")
+            return ERPAssistantFinanceTools.SummarizeCashForecast(result.RootElement);
+        if (name == "get_budget_variance_summary")
+            return ERPAssistantBudgetVarianceTools.SummarizeBudgets(result.RootElement);
+        if (name == "get_invoice_maturity_summary" && maturityAsOfDate is DateOnly maturityDate)
+            return ERPAssistantMaturityTools.SummarizeMaturities(result.RootElement, maturityDate);
+        if (name == "search_customer_ledger" && customerLedgerFrom is DateOnly ledgerFrom && customerLedgerTo is DateOnly ledgerTo)
+            return ERPAssistantCustomerLedgerTools.SummarizeLedgerReport(result.RootElement, ledgerFrom, ledgerTo);
+        if (name == "search_supplier_payments" && supplierPaymentFrom is DateOnly paymentFrom && supplierPaymentTo is DateOnly paymentTo)
+            return ERPAssistantSupplierPaymentTools.SummarizeReport(result.RootElement, paymentFrom, paymentTo);
+        if (name == "search_supplier_ledger" && supplierLedgerFrom is DateOnly supplierFrom && supplierLedgerTo is DateOnly supplierTo)
+            return ERPAssistantSupplierLedgerTools.SummarizeReport(result.RootElement, supplierFrom, supplierTo);
+        if (name == "search_inventory_movements" && inventoryMovementStockCode is string movementStockCode && inventoryMovementFrom is DateOnly movementFrom && inventoryMovementTo is DateOnly movementTo)
+            return ERPAssistantInventoryMovementTools.SummarizeReport(result.RootElement, movementStockCode, movementFrom, movementTo);
+        if (name == "search_inventory_genealogy" && genealogyStockCode is string tracedStockCode && genealogyTrackingCode is string trackedCode)
+            return ERPAssistantInventoryGenealogyTools.SummarizeGenealogy(result.RootElement, tracedStockCode, trackedCode);
+        if (name == "search_fixed_assets")
+            return ERPAssistantFixedAssetTools.SummarizeSearchResult(result.RootElement);
+        if (name == "search_operational_projects")
+            return ERPAssistantOperationalProjectTools.SummarizeProjects(result.RootElement);
+        if (name == "get_operational_project_progress")
+            return ERPAssistantOperationalProjectTools.SummarizeProjectProgress(result.RootElement);
+        if (name == "get_purchase_order_details")
+            return ERPAssistantPurchaseOrderTools.SummarizeOrder(result.RootElement);
+        if (name == "get_sales_order_details")
+            return ERPAssistantSalesOrderTools.SummarizeOrder(result.RootElement);
+        if (name == "search_commercial_contracts")
+            return ERPAssistantCommercialContractTools.SummarizeContracts(result.RootElement);
+        if (name == "search_foreign_trade_cases")
+            return ERPAssistantForeignTradeTools.SummarizeCases(result.RootElement);
+        if (name == "search_crm_opportunities")
+            return ERPAssistantCrmOpportunityTools.SummarizeOpportunities(result.RootElement);
+        if (name == "search_credit_facilities")
+            return ERPAssistantCreditFacilityTools.SummarizeFacilities(result.RootElement);
+        if (name == "search_payment_instruments")
+            return ERPAssistantPaymentInstrumentTools.SummarizeSearchResult(result.RootElement);
+        if (name == "get_financial_account_balances")
+            return ERPAssistantFinancialAccountTools.SummarizeBalances(result.RootElement);
         if (name == "list_warehouses")
-            return JsonSerializer.Serialize(result.RootElement.EnumerateArray().Select(item => new
-            {
-                id = item.GetProperty("id").GetGuid(), code = item.GetProperty("code").GetString(),
-                name = item.GetProperty("name").GetString(), active = item.GetProperty("isActive").GetBoolean()
-            }));
+            return ERPWarehouseToolResult.Serialize(result.RootElement);
         if (name == "search_stock_items")
         {
             var items = result.RootElement.GetProperty("items").EnumerateArray().Select(item => new
@@ -936,15 +2027,81 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
             return JsonSerializer.Serialize(items);
         }
         if (name == "search_customer_accounts")
-            return JsonSerializer.Serialize(result.RootElement.GetProperty("items").EnumerateArray().Select(item => new
+        {
+            var items = result.RootElement.GetProperty("items").EnumerateArray().Select(item => new
             {
                 id = item.GetProperty("id").GetGuid(), code = item.GetProperty("code").GetString(),
                 name = item.GetProperty("name").GetString(), type = item.GetProperty("type").ToString(),
                 active = item.GetProperty("isActive").GetBoolean()
-            }));
-        if (name == "get_customer_balance") return JsonSerializer.Serialize(result.RootElement);
+            }).ToArray();
+            customerAccountSelection.TryRememberUniqueSearchResult(result.RootElement);
+            return JsonSerializer.Serialize(new { totalCount = result.RootElement.GetProperty("totalCount").GetInt32(), returned = items.Length, items });
+        }
+        if (name is "get_customer_balance" or "get_supplier_balance") return JsonSerializer.Serialize(result.RootElement);
+        if (name == "get_exchange_rate")
+        {
+            var currencyCode = arguments.RootElement.GetProperty("currencyCode").GetString()!.Trim().ToUpperInvariant();
+            var rateDate = DateOnly.ParseExact(arguments.RootElement.GetProperty("rateDate").GetString()!, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            var matchingRate = result.RootElement.ValueKind == JsonValueKind.Array
+                ? result.RootElement.EnumerateArray()
+                    .Where(item => item.GetProperty("currencyCode").GetString() == currencyCode &&
+                        DateOnly.ParseExact(item.GetProperty("rateDate").GetString()!, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) == rateDate)
+                    .OrderByDescending(item => item.GetProperty("revision").GetInt32())
+                    .Select(item => new
+                    {
+                        currencyCode,
+                        rateDate = rateDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                        revision = item.GetProperty("revision").GetInt32(),
+                        rate = item.GetProperty("rate").GetDecimal(),
+                        source = item.TryGetProperty("source", out var source) && source.ValueKind == JsonValueKind.String ? source.GetString() : null
+                    }).FirstOrDefault()
+                : null;
+            return matchingRate is null
+                ? JsonSerializer.Serialize(new { currencyCode, rateDate = rateDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), error = "No tenant-authorized exchange rate was found for this currency and date.", errorCode = "not_found" })
+                : JsonSerializer.Serialize(matchingRate);
+        }
+        if (name == "search_sales_orders")
+            return JsonSerializer.Serialize(new
+            {
+                totalCount = result.RootElement.GetProperty("totalCount").GetInt32(),
+                returned = result.RootElement.GetProperty("items").GetArrayLength(),
+                items = result.RootElement.GetProperty("items").EnumerateArray().Select(item => new
+                {
+                    code = item.GetProperty("code").GetString(),
+                    orderDate = item.GetProperty("orderDate").GetString(), status = item.GetProperty("status").ToString(),
+                    requestedDeliveryDate = item.GetProperty("requestedDeliveryDate").ValueKind == JsonValueKind.Null
+                        ? null : item.GetProperty("requestedDeliveryDate").GetString()
+                })
+            });
+        if (name == "search_purchase_orders")
+            return JsonSerializer.Serialize(new
+            {
+                totalCount = result.RootElement.GetProperty("totalCount").GetInt32(),
+                returned = result.RootElement.GetProperty("items").GetArrayLength(),
+                items = result.RootElement.GetProperty("items").EnumerateArray().Select(item => new
+                {
+                    code = item.GetProperty("code").GetString(), supplier = item.GetProperty("supplierName").GetString(),
+                    orderDate = item.GetProperty("orderDate").GetString(), status = item.GetProperty("status").ToString()
+                })
+            });
+        if (name == "search_sales_quotes") return ERPAssistantSalesQuoteTools.SummarizeQuotes(result.RootElement);
+        if (name == "search_purchase_requests") return ERPAssistantPurchaseRequestTools.SummarizeRequests(result.RootElement);
+        if (name == "search_sales_invoices") return ERPAssistantInvoiceTools.SummarizeSalesInvoices(result.RootElement);
+        if (name == "search_sales_invoice_details") return ERPAssistantInvoiceTools.SummarizeSalesInvoiceDetails(result.RootElement);
+        if (name == "search_purchase_invoices") return ERPAssistantInvoiceTools.SummarizePurchaseInvoices(result.RootElement);
+        if (name == "search_purchase_invoice_details") return ERPAssistantInvoiceTools.SummarizePurchaseInvoiceDetails(result.RootElement);
+        if (name == "search_manufacturing_orders") return ERPAssistantManufacturingTools.SummarizeOrders(result.RootElement);
+        if (name == "search_sales_deliveries") return ERPAssistantSalesDeliveryTools.SummarizeDeliveries(result.RootElement);
+        if (name == "get_sales_delivery_details") return ERPAssistantSalesDeliveryTools.SummarizeDeliveryDetails(result.RootElement);
+        if (name == "search_purchase_receipts") return ERPAssistantPurchaseReceiptTools.SummarizeReceipts(result.RootElement);
+        if (name == "search_purchase_delivery_notes") return ERPAssistantPurchaseDeliveryNoteTools.SummarizeNotes(result.RootElement);
+        if (name == "get_purchase_delivery_note_details") return ERPAssistantPurchaseDeliveryNoteTools.SummarizeNoteDetails(result.RootElement);
         if (name == "generate_report")
             return ERPReportToolResult.Serialize(result.RootElement);
+        if (name == "get_hr_leave_summary" && hrPeriodFrom is DateOnly leaveFrom && hrPeriodTo is DateOnly leaveTo)
+            return ERPAssistantHrTools.SummarizeLeaves(result.RootElement.GetRawText(), leaveFrom, leaveTo);
+        if (name == "get_hr_attendance_summary" && hrPeriodFrom is DateOnly attendanceFrom && hrPeriodTo is DateOnly attendanceTo)
+            return ERPAssistantHrTools.SummarizeAttendance(result.RootElement.GetRawText(), attendanceFrom, attendanceTo);
         return JsonSerializer.Serialize(result.RootElement.EnumerateArray().Take(100).Select(item => new
         {
             code = item.GetProperty("code").GetString(), name = item.GetProperty("name").GetString(),
@@ -959,10 +2116,21 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         var history = body.History ?? Array.Empty<StudioChatTurn>();
         if (history.Count > 10 || history.Any(turn => turn.Role is not ("user" or "assistant") || turn.Content.Length > 2000))
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["history"] = ["Sohbet geçmişi izin verilen sınırları aşıyor."] });
-        var answer = await aiProvider.ReplyToERPDataQuestionAsync(question, history, cancellationToken, ExecuteReadOnlyTool);
+        var providerQuestion = ERPAssistantPrivacyFilter.RedactUserText(question);
+        var providerHistory = history.Select(turn => turn with { Content = ERPAssistantPrivacyFilter.RedactUserText(turn.Content) }).ToArray();
+        var answer = await ERPAssistantSharingConsent.InvokeProviderAsync(body.AISharingConfirmed,
+            () => aiProvider.ReplyToERPDataQuestionAsync(providerQuestion, providerHistory, cancellationToken, ExecuteReadOnlyTool));
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.ai.read_assistant", Resource = "read-only-erp-data" });
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(new { answer, readOnly = true });
+    }
+    catch (ERPAssistantAccessDeniedException error)
+    {
+        var requestId = httpContext.TraceIdentifier;
+        var answer = error.ToolName is "get_customer_balance" or "get_supplier_balance" or "search_customer_ledger"
+            ? $"Bu cari hesap için erişim izniniz yok. TenantAdmin'den cari kayıt okuma ve kayıt düzeyindeki erişim politikanızı gözden geçirmesini isteyin. Başvuru kodu: {requestId}"
+            : $"İstenen ERP verisi için erişim izniniz yok. TenantAdmin'den ilgili modülün okuma ve kayıt düzeyindeki erişim politikasını gözden geçirmesini isteyin. Başvuru kodu: {requestId}";
+        return Results.Ok(new { answer, readOnly = true, requestId });
     }
     catch (AIProviderNotConfiguredException) { return Results.Problem("AI sağlayıcısı yapılandırılmamış.", statusCode: 503); }
     catch (AIProviderResponseException error) { return Results.Problem(error.Message, statusCode: 502); }
@@ -1126,7 +2294,6 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
 app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/sandbox-error-analysis/{jobId:guid}", async (Guid projectId, Guid requestId, Guid jobId, CreateSandboxErrorAnalysis body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
-    if (!body.AISharingConfirmed) return Results.BadRequest(new { error = "Sandbox çıktısını maskeleyip OpenAI’ye göndermek için açık onay gerekli." });
     if (body.Operation is not ("test" or "build")) return Results.ValidationProblem(new Dictionary<string, string[]> { ["operation"] = ["İşlem test veya build olmalıdır."] });
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
@@ -1156,6 +2323,8 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         var context = new SandboxErrorContext(body.Operation, status.TargetPath, status.Status, status.ExitCode,
             SandboxLogRedactor.Redact(status.Message), SandboxLogRedactor.Redact(status.Output), status.CommitSha);
         var triage = SandboxFailureTriage.Classify(context.Operation, context.Status, context.Message, context.Output);
+        if (SandboxFailureTriage.RequiresAISharingConsent(triage) && !body.AISharingConfirmed)
+            return Results.BadRequest(new { error = "Sandbox çıktısını maskeleyip OpenAI’ye göndermek için açık onay gerekli." });
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.sandbox-error-analysis.requested", Resource = $"{request.Id:D}:{jobId:D}" });
         await db.SaveChangesAsync(cancellationToken);
         SandboxErrorAnalysis analysis;
@@ -2147,6 +3316,67 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("GitHub geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("GitHub inceleme talebi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/mark-pull-request-ready", async (Guid projectId, Guid requestId, Guid candidateId, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider tokenProvider, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var candidate = await db.ReleaseCandidateRecords.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId &&
+        x.WorkspaceRequestId == requestId && x.Id == candidateId, cancellationToken);
+    if (candidate is null) return Results.NotFound();
+    if (candidate.GitHubPullRequestNumber is null || string.IsNullOrWhiteSpace(candidate.GitHubRepository) ||
+        project.GitHubInstallationId is not long installationId || installationId <= 0)
+        return Results.Conflict(new { error = "GitHub PR veya repository yetkilendirmesi bulunamadı." });
+    var review = await db.ReleaseCandidateReviewRecords.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidateId, cancellationToken);
+    if (review?.Decision != "Approved" || review.ReviewedByUserId == candidate.CreatedByUserId)
+        return Results.Conflict(new { error = "Draft PR yalnız adayı oluşturan kişiden bağımsız yetkili onayından sonra hazır duruma alınabilir." });
+    var repositoryParts = candidate.GitHubRepository.Split('/');
+    if (repositoryParts.Length != 2)
+        return Results.Conflict(new { error = "GitHub repository kaydı geçersiz." });
+    var owner = repositoryParts[0];
+    var repository = repositoryParts[1];
+    if (owner.Length is < 1 or > 100 || repository.Length is < 1 or > 100 ||
+        owner.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_')) ||
+        repository.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('.' or '-' or '_')))
+        return Results.Conflict(new { error = "GitHub repository kaydı geçersiz." });
+    try
+    {
+        var installationToken = await tokenProvider.CreateRepositoryTokenAsync(installationId, candidate.GitHubRepository, cancellationToken);
+        using var github = clients.CreateClient("github-api");
+        github.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", installationToken);
+        var repoPath = $"{Uri.EscapeDataString(owner)}/{Uri.EscapeDataString(repository)}";
+        using var currentResponse = await github.GetAsync($"repos/{repoPath}/pulls/{candidate.GitHubPullRequestNumber}", cancellationToken);
+        if (!currentResponse.IsSuccessStatusCode)
+            return Results.Problem("GitHub PR durumu doğrulanamadı.", statusCode: StatusCodes.Status502BadGateway);
+        var current = await currentResponse.Content.ReadFromJsonAsync<GitHubPullRequestResponse>(cancellationToken: cancellationToken);
+        if (current is null || current.State != "open" || !current.Draft || string.IsNullOrWhiteSpace(current.NodeId) ||
+            !string.Equals(current.Head?.Sha, candidate.CommitSha, StringComparison.OrdinalIgnoreCase))
+            return Results.Conflict(new { error = "Yalnız açık draft PR, test edilen aynı commit ve bağımsız yetkili onayıyla hazır yapılabilir." });
+        var markedReady = await GitHubPullRequestLifecycle.MarkReadyForReviewAsync(github, current.NodeId, cancellationToken);
+        using var verifiedResponse = await github.GetAsync($"repos/{repoPath}/pulls/{candidate.GitHubPullRequestNumber}", cancellationToken);
+        if (!verifiedResponse.IsSuccessStatusCode)
+            return Results.Problem("GitHub PR geçişi tamamlandı ancak yeni durum doğrulanamadı.", statusCode: StatusCodes.Status502BadGateway);
+        var verified = await verifiedResponse.Content.ReadFromJsonAsync<GitHubPullRequestResponse>(cancellationToken: cancellationToken);
+        if (verified is null || verified.State != "open" ||
+            !string.Equals(verified.Head?.Sha, candidate.CommitSha, StringComparison.OrdinalIgnoreCase))
+            return Results.Conflict(new { error = "PR hazır duruma alındı ancak release adayıyla aynı HEAD doğrulanamadı." });
+        if (verified.Draft)
+            return Results.Problem(markedReady ? "GitHub geçişi yanıt verdi ancak PR hâlâ taslak." : "GitHub PR incelemeye hazır duruma alınamadı.", statusCode: StatusCodes.Status502BadGateway);
+        if (!GitHubPullRequestStateSynchronizer.ApplyVerifiedSnapshot(candidate, verified.State, verified.Draft, verified.Head?.Sha, verified.UpdatedAt))
+            return Results.Conflict(new { error = "GitHub PR daha yeni bir durumla güncellendi; release adayı yenileyip tekrar deneyin." });
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.release.pull-request.ready-for-review", Resource = $"{requestId:D}:{candidateId:D}:{candidate.GitHubPullRequestNumber}:{candidate.CommitSha}" });
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Ok(new { pullNumber = candidate.GitHubPullRequestNumber, htmlUrl = candidate.GitHubPullRequestUrl, state = candidate.GitHubPullRequestState, commitSha = candidate.CommitSha });
+    }
+    catch (GitHubAppConfigurationException) { return Results.Problem("GitHub App yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable); }
+    catch (GitHubIntegrationException) { return Results.Problem("GitHub App bu repository için yetki veremedi.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (HttpRequestException) { return Results.Problem("GitHub'a bağlanılamadı.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (System.Text.Json.JsonException) { return Results.Problem("GitHub geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("GitHub PR geçişi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
+}).RequireAuthorization().RequireRateLimiting("workspace-write");
 app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/pull-request-review", async (Guid projectId, Guid requestId, Guid candidateId, SubmitGitHubPullRequestReview body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider tokenProvider, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
@@ -2181,7 +3411,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         if (!response.IsSuccessStatusCode) return Results.Problem("GitHub PR incelemesini kabul etmedi.", statusCode: response.StatusCode == HttpStatusCode.UnprocessableEntity ? StatusCodes.Status409Conflict : StatusCodes.Status502BadGateway);
         var result = await response.Content.ReadFromJsonAsync<GitHubPullRequestReviewResponse>(cancellationToken: cancellationToken);
         if (result is null || result.Id <= 0) return Results.Problem("GitHub geçersiz inceleme yanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway);
-        candidate.GitHubPullRequestState = current.Draft ? "draft" : current.State;
+        GitHubPullRequestStateSynchronizer.ApplyVerifiedSnapshot(candidate, current.State!, current.Draft, current.Head?.Sha, current.UpdatedAt);
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = $"studio.release.pull-request.review.{eventName.ToLowerInvariant()}", Resource = $"{requestId:D}:{candidateId:D}:{candidate.GitHubPullRequestNumber}:{result.Id}" });
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(new { reviewId = result.Id, state = result.State, submittedAt = result.SubmittedAt, htmlUrl = candidate.GitHubPullRequestUrl });
@@ -2571,9 +3801,10 @@ app.MapDelete("/studio/projects/{projectId:guid}/test-plans/{planId:guid}", asyn
     await db.SaveChangesAsync(cancellationToken);
     return Results.NoContent();
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/ui-design", async (Guid projectId, Guid requestId, CreateUiDesign body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/ui-design", async (Guid projectId, Guid requestId, CreateUiDesign body, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (!await HasSourceCodeLicenseAsync(platformDb, tenantId, cancellationToken)) return Results.Conflict(new { code = "license.source_code_required", error = "Kod üreten Studio araçları için etkin Orta veya Büyük firma lisansı gereklidir." });
     var targetPath = body.TargetFilePath?.Trim();
     if (string.IsNullOrWhiteSpace(body.Request) || body.Request.Trim().Length > 2000 || !body.AiSharingConfirmed ||
         !CodeSourcePolicy.IsEligibleFilePath(targetPath) || !string.Equals(Path.GetExtension(targetPath), ".tsx", StringComparison.OrdinalIgnoreCase))
@@ -2623,9 +3854,10 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("AI UI Designer geçersiz bir yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("ai-developer");
 
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/code-suggestion", async (Guid projectId, Guid requestId, CreateCodeSuggestion body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/code-suggestion", async (Guid projectId, Guid requestId, CreateCodeSuggestion body, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (!await HasSourceCodeLicenseAsync(platformDb, tenantId, cancellationToken)) return Results.Conflict(new { code = "license.source_code_required", error = "Kaynak kodu düzenleme için etkin Orta veya Büyük firma lisansı gereklidir." });
     if (string.IsNullOrWhiteSpace(body.Request) || body.Request.Trim().Length > 2000 || !body.SourceSharingConfirmed ||
         !CodeSourcePolicy.IsEligibleFilePath(body.FilePath))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = ["İstek, izinli bir kaynak dosya yolu ve kaynak paylaşım onayı gereklidir; istek en fazla 2000 karakter olabilir."] });
@@ -2692,9 +3924,10 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (TaskCanceledException) { return Results.Problem("Kod önerisi isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("AI sağlayıcısı geçersiz bir yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("ai-developer");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/multi-file-code-suggestion", async (Guid projectId, Guid requestId, CreateMultiFileCodeSuggestion body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/multi-file-code-suggestion", async (Guid projectId, Guid requestId, CreateMultiFileCodeSuggestion body, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (!await HasSourceCodeLicenseAsync(platformDb, tenantId, cancellationToken)) return Results.Conflict(new { code = "license.source_code_required", error = "Kaynak kodu düzenleme için etkin Orta veya Büyük firma lisansı gereklidir." });
     var paths = body.FilePaths?.Select(x => x?.Trim()).ToArray();
     if (string.IsNullOrWhiteSpace(body.Request) || body.Request.Trim().Length > 2000 || !body.SourceSharingConfirmed ||
         paths is null || paths.Length is < 2 or > 5 || paths.Any(x => string.IsNullOrWhiteSpace(x) || !CodeSourcePolicy.IsEligibleFilePath(x)) ||
@@ -2762,15 +3995,17 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (TaskCanceledException) { return Results.Problem("Çoklu dosya önerisi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("AI sağlayıcısı geçersiz bir yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization().RequireRateLimiting("ai-developer");
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/apply-code-suggestion", async (Guid projectId, Guid requestId, ApplyCodeSuggestion body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/apply-code-suggestion", async (Guid projectId, Guid requestId, ApplyCodeSuggestion body, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (!await HasSourceCodeLicenseAsync(platformDb, tenantId, cancellationToken)) return Results.Conflict(new { code = "license.source_code_required", error = "Kaynak kodu düzenleme için etkin Orta veya Büyük firma lisansı gereklidir." });
     var expectedSha256 = body.CreateNewFile ? GetEmptyFileSha256() : body.ExpectedSha256;
     var allowEmptyManualEdit = body.ManualEdit && !body.CreateNewFile;
+    var proposedContentLimit = allowEmptyManualEdit ? MaxManualWorkspaceFileBytes : 128 * 1024;
     if (!body.ApprovalConfirmed || !CodeSourcePolicy.IsEligibleFilePath(body.FilePath) || !IsSha256(expectedSha256) ||
         body.ProposedContent is null || (string.IsNullOrWhiteSpace(body.ProposedContent) && !allowEmptyManualEdit) ||
-        body.ProposedContent.Contains('\0') || Encoding.UTF8.GetByteCount(body.ProposedContent) > 128 * 1024)
-        return Results.ValidationProblem(new Dictionary<string, string[]> { ["approval"] = ["Açık kullanıcı onayı, geçerli bir kaynak dosyası özeti ve 128 KiB sınırında öneri içeriği gerekli."] });
+        body.ProposedContent.Contains('\0') || Encoding.UTF8.GetByteCount(body.ProposedContent) > proposedContentLimit)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["approval"] = ["Açık kullanıcı onayı, geçerli bir kaynak dosyası özeti ve izin verilen boyut sınırında öneri içeriği gerekli."] });
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
     if (project is null) return Results.NotFound();
@@ -2840,9 +4075,10 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (TaskCanceledException) { return Results.Problem("Değişiklik geçmişi isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization();
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/commit-approved-changes", async (Guid projectId, Guid requestId, CommitWorkspaceChanges body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/commit-approved-changes", async (Guid projectId, Guid requestId, CommitWorkspaceChanges body, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (!await HasSourceCodeLicenseAsync(platformDb, tenantId, cancellationToken)) return Results.Conflict(new { code = "license.source_code_required", error = "Kaynak kodu commit etmek için etkin Orta veya Büyük firma lisansı gereklidir." });
     if (!body.ApprovalConfirmed || !IsCommitSha(body.ExpectedHeadCommitSha) || body.ChangeIds is null || body.ChangeIds.Length is 0 or > 100 ||
         body.ChangeIds.Any(id => id == Guid.Empty) || body.ChangeIds.Distinct().Count() != body.ChangeIds.Length ||
         string.IsNullOrWhiteSpace(body.Message) || body.Message.Trim().Length is < 8 or > 160 || body.Message.Any(char.IsControl))
@@ -3149,9 +4385,16 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     if (!CanViewProject(user, project.AccessGrants, userId)) return Results.Forbid();
     var request = await db.DevelopmentWorkspaceRequests.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId, cancellationToken);
     if (request is null) return Results.NotFound();
-    var documents = await db.StudioKnowledgeDocuments.AsNoTracking().Where(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId)
-        .GroupBy(x => x.Path).Select(g => g.OrderByDescending(x => x.IndexedAt).ThenByDescending(x => x.Id).First()).Where(x => x.Content.Length > 0).OrderBy(x => x.Path)
-        .Select(x => new { x.Id, x.Path, x.ContentSha256, x.CommitSha, x.IndexedAt, x.EmbeddingModel, CharacterCount = x.Content.Length }).ToListAsync(cancellationToken);
+    var latestDocumentIds = db.StudioKnowledgeDocuments.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId)
+        .GroupBy(x => x.Path)
+        .Select(group => group.OrderByDescending(x => x.IndexedAt).ThenByDescending(x => x.Id).Select(x => x.Id).First());
+    var documents = await db.StudioKnowledgeDocuments.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId &&
+            latestDocumentIds.Contains(x.Id) && x.Content.Length > 0)
+        .OrderBy(x => x.Path)
+        .Select(x => new { x.Id, x.Path, x.ContentSha256, x.CommitSha, x.IndexedAt, x.EmbeddingModel, CharacterCount = x.Content.Length })
+        .ToListAsync(cancellationToken);
     var refreshConsent = await db.StudioKnowledgeRefreshConsents.AsNoTracking().SingleOrDefaultAsync(x =>
         x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId, cancellationToken);
     string[] refreshPaths = [];
@@ -3161,7 +4404,40 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
         catch (JsonException) { refreshPaths = []; }
     }
     return Results.Ok(new { documents, indexedFileCount = documents.Count,
-        autoRefresh = new { enabled = refreshConsent is not null, paths = refreshPaths, lastRefreshedAt = refreshConsent?.LastRefreshedAt } });
+        autoRefresh = new { enabled = refreshConsent is not null, allFiles = refreshPaths.Length == 1 && refreshPaths[0] == "*",
+            paths = refreshPaths.Where(path => path != "*").ToArray(), lastRefreshedAt = refreshConsent?.LastRefreshedAt } });
+}).RequireAuthorization();
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/knowledge/auto-refresh-all", async
+    (Guid projectId, Guid requestId, EnableStudioKnowledgeAutoRefreshAll body, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (!body.Confirmed) return Results.BadRequest(new { error = "Tüm güvenli kaynak dosyalarını sohbetlerde kullanmak için açık onay gerekli." });
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanContributeToProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var request = await db.DevelopmentWorkspaceRequests.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
+    if (request is null) return Results.NotFound();
+    var consent = await db.StudioKnowledgeRefreshConsents.SingleOrDefaultAsync(x =>
+        x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId, cancellationToken);
+    if (consent is null)
+    {
+        consent = new StudioKnowledgeRefreshConsent { TenantId = tenantId, ProjectId = projectId, WorkspaceRequestId = requestId,
+            GrantedByUserId = userId, SelectedPathsJson = JsonSerializer.Serialize(new[] { "*" }), GrantedAt = DateTimeOffset.UtcNow,
+            LastRefreshedAt = DateTimeOffset.UtcNow };
+        db.StudioKnowledgeRefreshConsents.Add(consent);
+    }
+    else
+    {
+        consent.GrantedByUserId = userId;
+        consent.SelectedPathsJson = JsonSerializer.Serialize(new[] { "*" });
+        consent.GrantedAt = DateTimeOffset.UtcNow;
+        consent.LastRefreshedAt = DateTimeOffset.UtcNow;
+    }
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.knowledge.auto-refresh-all.enabled", Resource = requestId.ToString("D") });
+    await db.SaveChangesAsync(cancellationToken);
+    return Results.Ok(new { enabled = true, allFiles = true });
 }).RequireAuthorization();
 app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/knowledge/approved-history", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
 {
@@ -3461,6 +4737,192 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     var result = messages.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Select(x => new StudioConversationMessageView(x.Id, x.Role, x.Content, x.CreatedAt)).ToList();
     return Results.Ok(result);
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations/{conversationId:guid}/code-changes", async (Guid projectId, Guid requestId, Guid conversationId, CreateStudioChatCodeChange body, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb, IHttpClientFactory clients, IAIModelProvider aiProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var requestText = body.Request?.Trim();
+    if (string.IsNullOrWhiteSpace(requestText) || requestText.Length > 2000)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = ["Değişiklik isteği gerekli ve en fazla 2000 karakter olabilir."] });
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanContributeToProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    if (!await HasSourceCodeLicenseAsync(platformDb, tenantId, cancellationToken))
+        return Results.Conflict(new { code = "license.source_code_required", error = "Kaynak kodu düzenleme için etkin Orta veya Büyük firma lisansı gereklidir." });
+    var request = await db.DevelopmentWorkspaceRequests.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
+    if (request is null) return Results.NotFound();
+    if (string.IsNullOrWhiteSpace(request.WorkspaceBranchName)) return Results.Conflict(new { error = "Önce izole çalışma dalı oluşturulmalı." });
+    var conversation = await db.StudioConversations
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId && x.Id == conversationId, cancellationToken);
+    if (conversation is null) return Results.NotFound();
+    if (conversation.CreatedByUserId != userId && !CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
+
+    var savedConsent = await db.StudioKnowledgeRefreshConsents.AsNoTracking().Where(x =>
+        x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId)
+        .Select(x => x.SelectedPathsJson).SingleOrDefaultAsync(cancellationToken);
+    var hasPersistentAllFilesConsent = false;
+    if (savedConsent is not null)
+    {
+        try { hasPersistentAllFilesConsent = JsonSerializer.Deserialize<string[]>(savedConsent) is { Length: 1 } paths && paths[0] == "*"; }
+        catch (JsonException) { }
+    }
+    if (!body.AISharingConfirmed)
+        return Results.BadRequest(new { error = "AI paylaşımı için açık kullanıcı onayı gerekli." });
+    if (!body.SourceSharingConfirmed && !hasPersistentAllFilesConsent)
+        return Results.BadRequest(new { error = "Kaynak dosyalarını AI Developer'a göndermek için bu işlemde açık onay veya kalıcı proje erişim izni gerekli." });
+    if (string.IsNullOrWhiteSpace(configuration["AI:OpenAI:ApiKey"]))
+        return Results.Problem("AI Developer sağlayıcısı yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    if (!Uri.TryCreate(configuration["WorkspaceRunner:BaseUrl"], UriKind.Absolute, out var runnerUri) || runnerUri.Scheme != Uri.UriSchemeHttp)
+        return Results.Problem("Workspace Runner yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+    try
+    {
+        using var client = clients.CreateClient("workspace-runner");
+        client.BaseAddress = runnerUri;
+        var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        { "için", "olan", "olarak", "değiştir", "değiştirme", "sayfasının", "menüsünün", "lütfen", "bunu", "şunu", "nasıl", "nedir", "hangi", "bir", "the", "with", "from", "that", "this", "please", "change", "update", "rename", "make" };
+        var requestTokens = System.Text.RegularExpressions.Regex.Matches(requestText, "[\\p{L}\\p{N}_-]{4,}")
+            .Select(match => match.Value).Where(term => !stopWords.Contains(term)).ToArray();
+        var searchTerms = requestTokens.Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(term => term.Length).Take(6).ToArray();
+        if (searchTerms.Length == 0) return Results.BadRequest(new { error = "Kaynak kodda arama yapacak anlamlı terim bulunamadı. İstek metnine ekran, menü veya alan adını ekleyin." });
+
+        var phraseQueries = Enumerable.Range(0, Math.Max(0, requestTokens.Length - 1))
+            .Select(index => $"{requestTokens[index]} {requestTokens[index + 1]}")
+            .Where(phrase => phrase.Length <= 120).Distinct(StringComparer.OrdinalIgnoreCase).Take(4);
+        var searchQueries = phraseQueries.Concat(searchTerms).Distinct(StringComparer.OrdinalIgnoreCase).Take(10).ToArray();
+        var candidateScores = new Dictionary<string, int>(StringComparer.Ordinal);
+        var foundMatches = new List<RunnerWorkspaceSearchMatch>();
+        foreach (var term in searchQueries)
+        {
+            using var searchMessage = new HttpRequestMessage(HttpMethod.Get,
+                $"/internal/workspaces/{request.Id:D}/search?query={Uri.EscapeDataString(term)}");
+            searchMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
+                CreateRunnerToken(configuration, request.Id, "workspace.search"));
+            using var searchResponse = await client.SendAsync(searchMessage, cancellationToken);
+            if (!searchResponse.IsSuccessStatusCode) continue;
+            var result = await searchResponse.Content.ReadFromJsonAsync<RunnerWorkspaceSearchResult>(cancellationToken: cancellationToken);
+            if (result is null) continue;
+            foreach (var match in result.Matches.Where(match => CodeSourcePolicy.IsEligibleFilePath(match.Path)))
+            {
+                candidateScores[match.Path] = candidateScores.GetValueOrDefault(match.Path) + 1;
+                foundMatches.Add(match);
+            }
+        }
+        var candidatePaths = candidateScores.OrderByDescending(item => item.Value).ThenBy(item => item.Key, StringComparer.Ordinal)
+            .Take(5).Select(item => item.Key).ToHashSet(StringComparer.Ordinal);
+        var contexts = foundMatches.Where(match => candidatePaths.Contains(match.Path))
+            .DistinctBy(match => (match.Path, match.Line)).Take(12)
+            .Select(match => new StudioCodeContext(match.Path, match.Line, match.Excerpt)).ToArray();
+        if (contexts.Length == 0)
+            return Results.Conflict(new { error = "Bu isteği karşılayacak güvenli kaynak eşleşmesi bulunamadı. Ekran, menü veya alan adını isteğe ekleyin." });
+
+        foreach (var path in candidatePaths)
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId,
+                Action = "studio.chat.code-change.source-shared", Resource = WorkspaceAuditResource(request.Id, path) });
+        await db.SaveChangesAsync(cancellationToken);
+
+        var suggestion = await aiProvider.CreateStudioCodePatchSuggestionAsync(requestText, project.Name,
+            request.WorkspaceBranchName, contexts, cancellationToken);
+        if (suggestion.Patches.Count is 0 or > 20 || suggestion.Patches.Any(patch => !candidatePaths.Contains(patch.Path)))
+            return Results.Conflict(new { error = "AI ilgili kaynaklarda güvenilir ve tekil bir değişiklik noktası bulamadı. Dosya gezgininde hedef dosyayı seçip yeni öneri oluşturun." });
+        var patchGroups = suggestion.Patches.GroupBy(patch => patch.Path, StringComparer.Ordinal).OrderBy(group => group.Key, StringComparer.Ordinal).ToArray();
+        var preview = new List<StudioChatCodeChangeFilePreview>(patchGroups.Length);
+        foreach (var group in patchGroups)
+        {
+            using var hashMessage = new HttpRequestMessage(HttpMethod.Get,
+                $"/internal/workspaces/{request.Id:D}/file-hash?path={Uri.EscapeDataString(group.Key)}");
+            hashMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
+                CreateRunnerToken(configuration, request.Id, "workspace.read-file-hash"));
+            using var hashResponse = await client.SendAsync(hashMessage, cancellationToken);
+            if (hashResponse.StatusCode == HttpStatusCode.RequestEntityTooLarge)
+                return Results.Conflict(new { error = $"{group.Key} güvenli yama sınırını aşıyor (2 MiB)." });
+            if (!hashResponse.IsSuccessStatusCode) continue;
+            var fileHash = await hashResponse.Content.ReadFromJsonAsync<RunnerFileHash>(cancellationToken: cancellationToken);
+            if (fileHash is null || !string.Equals(fileHash.Path, group.Key, StringComparison.Ordinal) || !IsSha256(fileHash.Sha256)) continue;
+            preview.Add(new StudioChatCodeChangeFilePreview(group.Key, fileHash.Sha256,
+                group.Select(patch => new StudioCodePatchPreview(patch.FindText, patch.ReplaceText, patch.Notes)).ToArray()));
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId,
+                Action = "studio.chat.code-change.proposed", Resource = WorkspaceAuditResource(request.Id, group.Key) });
+        }
+        if (preview.Count == 0)
+            return Results.Conflict(new { error = "Taslak dosyaları çalışma alanında doğrulanamadı. Dosyaları yenileyip yeniden deneyin." });
+        await db.SaveChangesAsync(cancellationToken);
+        var userMessage = new StudioConversationMessage { TenantId = tenantId, ConversationId = conversationId, Role = "user", Content = requestText };
+        var assistantMessage = new StudioConversationMessage
+        {
+            TenantId = tenantId,
+            ConversationId = conversationId,
+            Role = "assistant",
+            Content = $"{suggestion.Summary} {preview.Count} dosya için inceleme taslağı hazırlandı; hiçbir dosya henüz değiştirilmedi."
+        };
+        db.StudioConversationMessages.AddRange(userMessage, assistantMessage);
+        conversation.UpdatedAt = DateTimeOffset.UtcNow;
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId,
+            Action = "studio.chat.code-change.completed", Resource = conversationId.ToString("D") });
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Ok(new StudioChatCodeChangePreview(suggestion.Summary, preview, suggestion.Risks,
+            new StudioConversationMessageView(userMessage.Id, userMessage.Role, userMessage.Content, userMessage.CreatedAt),
+            new StudioConversationMessageView(assistantMessage.Id, assistantMessage.Role, assistantMessage.Content, assistantMessage.CreatedAt)));
+    }
+    catch (AIProviderNotConfiguredException) { return Results.Problem("AI Developer sağlayıcısı yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable); }
+    catch (AIProviderRateLimitException) { return Results.Problem("AI sağlayıcısının kotası veya istek limiti dolmuş. OpenAI faturalandırma bakiyesini ve kullanım limitini kontrol edin.", statusCode: StatusCodes.Status429TooManyRequests); }
+    catch (AIProviderResponseException) { return Results.Problem("AI Developer geçerli bir kod değişikliği taslağı döndürmedi.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (HttpRequestException) { return Results.Problem("AI sağlayıcısına veya Workspace Runner'a bağlanılamadı.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (TaskCanceledException) { return Results.Problem("Kod değişikliği taslağı zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
+    catch (JsonException) { return Results.Problem("AI Developer geçersiz bir yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
+}).RequireAuthorization().RequireRateLimiting("ai-developer");
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/apply-code-patches", async (Guid projectId, Guid requestId, ApplyStudioCodePatches body, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (!await HasSourceCodeLicenseAsync(platformDb, tenantId, cancellationToken))
+        return Results.Conflict(new { code = "license.source_code_required", error = "Kaynak kodu düzenleme için etkin Orta veya Büyük firma lisansı gereklidir." });
+    if (!body.ApprovalConfirmed || !CodeSourcePolicy.IsEligibleFilePath(body.FilePath) || !IsSha256(body.ExpectedSha256) ||
+        body.Patches is null || body.Patches.Count is 0 or > 20 || body.Patches.Any(patch => string.IsNullOrEmpty(patch.FindText) ||
+            patch.ReplaceText is null || patch.FindText == patch.ReplaceText || patch.FindText.Length > 8 * 1024 || patch.ReplaceText.Length > 8 * 1024))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["approval"] = ["Açık onay, güvenli dosya özeti ve 1–20 geçerli literal yama gerekli."] });
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanContributeToProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var request = await db.DevelopmentWorkspaceRequests.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
+    if (request is null) return Results.NotFound();
+    if (string.IsNullOrWhiteSpace(configuration["WorkspaceRunner:BaseUrl"]) ||
+        !Uri.TryCreate(configuration["WorkspaceRunner:BaseUrl"], UriKind.Absolute, out var runnerUri) || runnerUri.Scheme != Uri.UriSchemeHttp)
+        return Results.Problem("Workspace Runner yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.chat.code-change.approved",
+        Resource = WorkspaceAuditResource(request.Id, body.FilePath!) });
+    await db.SaveChangesAsync(cancellationToken);
+    try
+    {
+        using var client = clients.CreateClient("workspace-runner");
+        client.BaseAddress = runnerUri;
+        using var message = new HttpRequestMessage(HttpMethod.Post, $"/internal/workspaces/{request.Id:D}/apply-patches")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new RunnerApplyCodePatchesRequest(Guid.NewGuid(), body.FilePath,
+                body.ExpectedSha256, body.Patches.Select(patch => new RunnerCodePatch(patch.FindText, patch.ReplaceText)).ToArray(), true))
+        };
+        message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
+            CreateRunnerToken(configuration, request.Id, "workspace.apply-patches"));
+        using var response = await client.SendAsync(message, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Conflict)
+            return Results.Conflict(new { error = "Dosya değişmiş veya yama hedefi tekil bulunamadı. Güncel dosya için yeni taslak oluşturun." });
+        if (response.StatusCode == HttpStatusCode.NotFound) return Results.NotFound(new { error = "Çalışma alanı veya dosya bulunamadı." });
+        if (response.StatusCode == HttpStatusCode.RequestEntityTooLarge) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+        if (response.StatusCode == HttpStatusCode.UnsupportedMediaType) return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+        if (!response.IsSuccessStatusCode) return Results.Problem("Workspace Runner kod yamasını uygulayamadı.", statusCode: StatusCodes.Status502BadGateway);
+        var applied = await response.Content.ReadFromJsonAsync<RunnerFilePatchApplyResponse>(cancellationToken: cancellationToken);
+        if (applied is null) return Results.Problem("Workspace Runner geçersiz yama yanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway);
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.chat.code-change.applied",
+            Resource = WorkspaceAuditResource(request.Id, applied.Path) });
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Ok(new AppliedCodeSuggestion(applied.ChangeId, applied.Path, applied.Sha256, applied.AppliedAt));
+    }
+    catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (TaskCanceledException) { return Results.Problem("Yama uygulama isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
+}).RequireAuthorization().RequireRateLimiting("workspace-write");
 app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/conversations/{conversationId:guid}/messages", async (Guid projectId, Guid requestId, Guid conversationId, SendStudioChatMessage body, ClaimsPrincipal user, AIStudioDbContext db, IAIModelProvider aiProvider, IHttpClientFactory clients, IConfiguration configuration, HttpContext httpContext, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
@@ -3479,18 +4941,32 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     var conversation = await db.StudioConversations.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId && x.Id == conversationId, cancellationToken);
     if (conversation is null) return Results.NotFound();
     if (conversation.CreatedByUserId != userId && !CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
-    if (body.IncludeKnowledgeBase && !body.AISharingConfirmed)
+    var persistentConsent = await db.StudioKnowledgeRefreshConsents.AsNoTracking().Where(x =>
+        x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId)
+        .Select(x => x.SelectedPathsJson).SingleOrDefaultAsync(cancellationToken);
+    var persistentAllFilesConsent = false;
+    if (persistentConsent is not null)
+    {
+        try { persistentAllFilesConsent = JsonSerializer.Deserialize<string[]>(persistentConsent) is { Length: 1 } paths && paths[0] == "*"; }
+        catch (JsonException) { }
+    }
+    var includeKnowledge = body.IncludeKnowledgeBase || persistentAllFilesConsent;
+    if (includeKnowledge && !body.AISharingConfirmed)
         return Results.BadRequest(new { error = "İndekslenmiş kaynak kodunu bu mesajla AI sağlayıcısına paylaşmak için ayrıca onay gerekli." });
     string? knowledgeContext = null;
-    if (body.IncludeKnowledgeBase)
+    if (includeKnowledge && !persistentAllFilesConsent)
     {
         var refreshed = await StudioKnowledgeAutoRefresher.RefreshAsync(tenantId, projectId, requestId, userId, db, clients, aiProvider, configuration, CreateRunnerToken, cancellationToken);
         if (!refreshed.Success) return Results.Problem(refreshed.Error, statusCode: refreshed.StatusCode);
-        var documents = await db.StudioKnowledgeDocuments.AsNoTracking()
+        var knowledgeSnapshots = await db.StudioKnowledgeDocuments.AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId)
-            .GroupBy(x => x.Path).Select(g => g.OrderByDescending(x => x.IndexedAt).ThenByDescending(x => x.Id).First())
+            .OrderByDescending(x => x.IndexedAt).ThenByDescending(x => x.Id)
+            .Take(1000).ToListAsync(cancellationToken);
+        var documents = knowledgeSnapshots
+            .GroupBy(x => x.Path, StringComparer.Ordinal)
+            .Select(group => group.First())
             .Where(x => x.Content.Length > 0)
-            .Take(50).ToListAsync(cancellationToken);
+            .Take(50).ToList();
         var terms = content.Split(new[] { ' ', '\t', '\r', '\n', '.', ',', ':', ';', '(', ')', '{', '}', '[', ']', '"', '\'' }, StringSplitOptions.RemoveEmptyEntries)
             .Where(term => term.Length >= 3).Select(term => term.ToLowerInvariant()).Distinct().Take(12).ToArray();
         var matches = new List<(StudioKnowledgeDocument Document, double Score, IReadOnlyList<(int Number, string Line)> Lines)>();
@@ -3537,6 +5013,51 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
             }
             knowledgeContext = bounded.ToString();
         }
+    }
+    if (persistentAllFilesConsent)
+    {
+        var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        { "için", "olan", "olarak", "değiştir", "değiştirme", "sayfasının", "menüsünün", "lütfen", "bunu", "şunu", "nasıl", "nedir", "hangi", "bir", "the", "with", "from", "that", "this" };
+        var searchTerms = System.Text.RegularExpressions.Regex.Matches(content, "[\\p{L}\\p{N}_-]{4,}")
+            .Select(match => match.Value).Where(term => !stopWords.Contains(term)).Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(term => term.Length).Take(3).ToArray();
+        var sourceMatches = new List<RunnerWorkspaceSearchMatch>();
+        if (Uri.TryCreate(configuration["WorkspaceRunner:BaseUrl"], UriKind.Absolute, out var sourceRunnerUri) && sourceRunnerUri.Scheme == Uri.UriSchemeHttp)
+        {
+            using var sourceClient = clients.CreateClient("workspace-runner");
+            sourceClient.BaseAddress = sourceRunnerUri;
+            foreach (var term in searchTerms)
+            {
+                using var searchMessage = new HttpRequestMessage(HttpMethod.Get,
+                    $"/internal/workspaces/{request.Id:D}/search?query={Uri.EscapeDataString(term)}");
+                searchMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
+                    CreateRunnerToken(configuration, request.Id, "workspace.search"));
+                using var searchResponse = await sourceClient.SendAsync(searchMessage, cancellationToken);
+                if (!searchResponse.IsSuccessStatusCode) continue;
+                var result = await searchResponse.Content.ReadFromJsonAsync<RunnerWorkspaceSearchResult>(cancellationToken: cancellationToken);
+                if (result is not null) sourceMatches.AddRange(result.Matches);
+            }
+        }
+        var safeMatches = sourceMatches
+            .Where(match => StudioKnowledgePathRules.IsSafeKnowledgePath(match.Path) &&
+                !StudioApprovedHistoryKnowledge.ContainsPotentialSecret(match.Excerpt))
+            .GroupBy(match => $"{match.Path}:{match.Line}", StringComparer.Ordinal)
+            .Select(group => group.First()).Take(12).ToArray();
+        if (safeMatches.Length > 0)
+        {
+            var bounded = new StringBuilder();
+            foreach (var match in safeMatches)
+            {
+                var excerpt = $"[{match.Path}:L{match.Line}]\n{match.Excerpt}";
+                var remaining = 10000 - bounded.Length;
+                if (remaining <= 0) break;
+                if (bounded.Length > 0) bounded.Append("\n\n");
+                bounded.Append(excerpt.AsSpan(0, Math.Min(excerpt.Length, remaining)));
+            }
+            knowledgeContext = bounded.ToString();
+        }
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.chat.source-context-requested",
+            Resource = $"{request.Id:D}:terms={searchTerms.Length}:matches={safeMatches.Length}" });
     }
     var previous = await db.StudioConversationMessages.AsNoTracking().Where(x => x.TenantId == tenantId && x.ConversationId == conversationId)
         .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Take(11).ToListAsync(cancellationToken);
@@ -3622,9 +5143,10 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (TaskCanceledException) { return Results.Problem("Diff isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (System.Text.Json.JsonException) { return Results.Problem("Workspace Runner geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
 }).RequireAuthorization();
-app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/changes/{changeId:guid}/restore", async (Guid projectId, Guid requestId, Guid changeId, RestoreCodeChange body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/changes/{changeId:guid}/restore", async (Guid projectId, Guid requestId, Guid changeId, RestoreCodeChange body, ClaimsPrincipal user, AIStudioDbContext db, PlatformDbContext platformDb, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (!await HasSourceCodeLicenseAsync(platformDb, tenantId, cancellationToken)) return Results.Conflict(new { code = "license.source_code_required", error = "Kaynak kodu düzenleme için etkin Orta veya Büyük firma lisansı gereklidir." });
     if (!body.ApprovalConfirmed || !IsSha256(body.ExpectedSha256))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["approval"] = ["Açık onay ve geçerli dosya özeti gerekli."] });
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
@@ -3874,6 +5396,14 @@ static bool TryScope(ClaimsPrincipal user, out Guid tenantId, out Guid userId)
     var hasUser = Guid.TryParse(user.FindFirstValue(JwtRegisteredClaimNames.Sub), out userId);
     return hasTenant && hasUser;
 }
+
+static async Task<bool> HasSourceCodeLicenseAsync(PlatformDbContext db, Guid tenantId, CancellationToken cancellationToken)
+{
+    var license = await db.TenantLicenses.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId, cancellationToken);
+    return license is not null && license.ExpiresAt > DateTimeOffset.UtcNow &&
+           LicenseTierCatalog.IsValidStoredLicense(license) &&
+           LicenseTierCatalog.TryGet(license.Tier, out var policy) && policy.CustomModuleSource;
+}
 static Dictionary<string, string[]> ValidateProject(CreateProject body)
 {
     var errors = new Dictionary<string, string[]>();
@@ -3883,6 +5413,31 @@ static Dictionary<string, string[]> ValidateProject(CreateProject body)
     if (!IsValidBranchName(body.DefaultBranch?.Trim()))
         errors["defaultBranch"] = ["Geçerli bir Git branch adı girin (en fazla 256 karakter)."];
     return errors;
+}
+
+static bool IsValidStudioModuleCode(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 60 &&
+    value[0] is >= 'a' and <= 'z' && value.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '.' or '-' or '_');
+
+static bool TryNormalizeModulePathAllowlist(IReadOnlyList<string>? input, out string[] paths)
+{
+    paths = [];
+    if (input is null || input.Count is < 1 or > 32) return false;
+    var normalized = new SortedSet<string>(StringComparer.Ordinal);
+    foreach (var raw in input)
+    {
+        var path = raw?.Trim();
+        if (string.IsNullOrWhiteSpace(path) || path.Length > 500 || path.StartsWith('/') || path.Contains('\\') ||
+            path.Contains(':') || path.Any(char.IsControl)) return false;
+        path = path.TrimEnd('/');
+        var segments = path.Split('/');
+        if (segments.Length is 0 or > 20 || segments.Any(segment => string.IsNullOrWhiteSpace(segment) || segment is "." or ".." ||
+            segment.Equals(".git", StringComparison.OrdinalIgnoreCase) || segment.Equals("node_modules", StringComparison.OrdinalIgnoreCase) ||
+            segment.Equals("credentials", StringComparison.OrdinalIgnoreCase) || segment.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
+            segment.StartsWith(".env", StringComparison.OrdinalIgnoreCase))) return false;
+        normalized.Add(path);
+    }
+    paths = normalized.ToArray();
+    return paths.Length > 0 && JsonSerializer.Serialize(paths).Length <= 12000;
 }
 
 static bool TryRepositoryUrl(string? value, out Uri? uri)
@@ -4018,13 +5573,18 @@ static StudioProductionApprovalView ToProductionApprovalView(StudioProductionPro
     approval.ReviewedAt, ProductionDeploymentStarted: false);
 
 internal sealed record CreateRequest(string? Title, string? Description, Guid? ProjectId = null);
-internal sealed record RequestView(Guid Id, string Title, string Description, string Status, DateTimeOffset CreatedAt, Guid? ProjectId, string? ProjectName);
+internal sealed record UpdateRequest(string? Title, string? Description, Guid? ProjectId = null);
+internal sealed record RequestView(Guid Id, string Title, string Description, string Status, DateTimeOffset CreatedAt, Guid? ProjectId, string? ProjectName, bool CanEdit);
 internal sealed record CreateProject(string? Name, string? RepositoryUrl, string? DefaultBranch);
+internal sealed record CreateModuleSourceMapping(Guid ProjectId, string? ModuleCode, string? Ref, IReadOnlyList<string>? PathAllowlist, bool MappingConfirmed);
+internal sealed record ModuleSourceMappingView(Guid Id, string ModuleCode, Guid ProjectId, string ProjectName, string RepositoryUrl,
+    string Ref, IReadOnlyList<string> PathAllowlist, DateTimeOffset CreatedAt);
 internal sealed record GrantProjectAccess(string? Email, string? AccessLevel);
-internal sealed record ProjectView(Guid Id, string Name, string RepositoryUrl, string DefaultBranch, string AccessLevel, DateTimeOffset CreatedAt, bool GitHubAuthorized = false);
+internal sealed record ProjectView(Guid Id, string Name, string RepositoryUrl, string DefaultBranch, string AccessLevel, DateTimeOffset CreatedAt,
+    [property: JsonPropertyName("githubAuthorized")] bool GitHubAuthorized = false);
 internal sealed record ProjectBranchesView(string DefaultBranch, IReadOnlyList<string> Branches);
 internal sealed record RunnerProjectBranchesRequest(Guid ProjectId, string RepositoryUrl);
-internal sealed record RunnerProjectBranchesResponse(IReadOnlyList<string> Branches);
+internal sealed record RunnerProjectBranchesResponse(string? DefaultBranch, IReadOnlyList<string> Branches);
 internal sealed record PendingWorkspaceApprovalView(Guid Id, Guid ProjectId, string ProjectName, Guid RequestedByUserId,
     string RequesterEmail, string BranchName, DateTimeOffset CreatedAt, string? ReviewNote, string? DevelopmentRequestTitle, string? DevelopmentRequestDescription);
 internal sealed record PendingWorkspaceApprovalsPage(IReadOnlyList<PendingWorkspaceApprovalView> Items, int? NextOffset);
@@ -4041,8 +5601,12 @@ internal sealed record CreateStudioConversation(string? Title);
 internal sealed record DeleteStudioConversation(bool Confirm);
 internal sealed record DeleteSavedStudioPlan(bool Confirm);
 internal sealed record SendStudioChatMessage(string? Content, bool AISharingConfirmed, bool IncludeKnowledgeBase = false);
+internal sealed record CreateStudioChatCodeChange(string? Request, bool AISharingConfirmed, bool SourceSharingConfirmed);
+internal sealed record ApplyStudioCodePatches(string? FilePath, string? ExpectedSha256, IReadOnlyList<StudioCodePatchPreview>? Patches, bool ApprovalConfirmed);
+internal sealed record StudioCodePatchPreview(string FindText, string ReplaceText, IReadOnlyList<string> Notes);
 internal sealed record ERPAssistantQuestion(string? Question, bool AISharingConfirmed, IReadOnlyList<StudioChatTurn>? History = null);
 internal sealed record IndexStudioKnowledge(IReadOnlyList<string>? Paths, bool AISharingConfirmed, IReadOnlyList<Guid>? ApprovedHistoryCandidateIds = null, bool EnableAutoRefresh = false);
+internal sealed record EnableStudioKnowledgeAutoRefreshAll(bool Confirmed);
 internal sealed record AnalyzeSelectedSource(string? Question, IReadOnlyList<StudioSourceReference>? Sources, bool AISharingConfirmed);
 internal sealed record StudioSourceReference(string Path, int Line, string Excerpt);
 internal sealed record ReviewStudioDiff(string? Path, bool AISharingConfirmed);
@@ -4061,10 +5625,16 @@ internal sealed record RestoreCodeChange(string? ExpectedSha256, bool ApprovalCo
 internal sealed record CommitWorkspaceChanges(Guid[]? ChangeIds, string? ExpectedHeadCommitSha, string? Message, bool ApprovalConfirmed);
 internal sealed record CodeSuggestionPreview(string FilePath, string SourceSha256, string OriginalContent, string Summary, string ProposedContent, IReadOnlyList<string> Notes, bool CreateNewFile = false);
 internal sealed record MultiFileCodeSuggestionPreview(string Summary, IReadOnlyList<MultiFileCodeChangePreview> Changes, IReadOnlyList<string> Risks);
+internal sealed record StudioChatCodeChangePreview(string Summary, IReadOnlyList<StudioChatCodeChangeFilePreview> Changes, IReadOnlyList<string> Risks,
+    StudioConversationMessageView UserMessage, StudioConversationMessageView AssistantMessage);
+internal sealed record StudioChatCodeChangeFilePreview(string FilePath, string SourceSha256, IReadOnlyList<StudioCodePatchPreview> Patches);
 internal sealed record MultiFileCodeChangePreview(string FilePath, string SourceSha256, string OriginalContent, string ProposedContent, IReadOnlyList<string> Notes);
 internal sealed record AppliedCodeSuggestion(Guid ChangeId, string FilePath, string Sha256, DateTimeOffset AppliedAt);
 internal sealed record RunnerApplyFileRequest(Guid ChangeId, string? Path, string? ExpectedSha256, string? ProposedContent, bool ApprovalConfirmed, bool AllowEmptyContent = false);
 internal sealed record RunnerApplyFileResponse(Guid ChangeId, string Path, string Sha256, DateTimeOffset AppliedAt);
+internal sealed record RunnerApplyCodePatchesRequest(Guid ChangeId, string? Path, string? ExpectedSha256, IReadOnlyList<RunnerCodePatch> Patches, bool ApprovalConfirmed);
+internal sealed record RunnerCodePatch(string? FindText, string? ReplaceText);
+internal sealed record RunnerFilePatchApplyResponse(Guid ChangeId, string Path, string Sha256, DateTimeOffset AppliedAt);
 internal sealed record RunnerRestoreFileRequest(string? ExpectedSha256, bool ApprovalConfirmed);
 internal sealed record RunnerRestoreFileResponse(Guid ChangeId, string Path, string Sha256);
 internal sealed record RunnerWorkspaceChanges(IReadOnlyList<RunnerWorkspaceChangeSummary> Changes, bool Truncated);
@@ -4083,8 +5653,10 @@ internal sealed record RunnerProvisionRequest(Guid WorkspaceId, string Repositor
 internal sealed record RunnerProvisionResponse(Guid WorkspaceId, string CommitSha, string WorkspaceBranchName);
 internal sealed record RunnerWorkspaceBranch(Guid WorkspaceId, string BranchName, string CommitSha);
 internal sealed record RunnerFileListing(string Path, IReadOnlyList<RunnerFileEntry> Entries, int? NextOffset);
+internal sealed record RunnerFileSearchResult(int ScannedEntries, bool Truncated, IReadOnlyList<RunnerFileEntry> Entries);
 internal sealed record RunnerFileEntry(string Name, string Path, string Kind, long? SizeBytes);
 internal sealed record RunnerFileContent(string Path, string Content, int SizeBytes, string Sha256);
+internal sealed record RunnerFileHash(string Path, long SizeBytes, string Sha256);
 internal sealed record RunnerNewFileTarget(string Path, bool Exists);
 internal sealed record RunnerWorkspaceAnalysis(int ScannedFiles, bool Truncated, IReadOnlyList<RunnerTechnologyCount> Technologies, IReadOnlyList<string> EntryPoints);
 internal sealed record RunnerTechnologyCount(string Name, int FileCount);
@@ -4123,7 +5695,7 @@ internal sealed record RestoreProductionDatabase(Guid IdempotencyKey, Guid Expec
 internal sealed record DeployerRestoreProductionDeployment(Guid DeploymentId, Guid TenantId, Guid ProjectId, Guid PackageId, Guid IdempotencyKey, Guid ExpectedActiveDeploymentId, Guid BackupDeploymentId, Guid TargetDeploymentId, string PackageSha256, string CommitSha, string Version);
 internal sealed record StudioStagingDeploymentOperationResult(StudioReleaseDeploymentView Deployment, string BootstrapEmail, string BootstrapPassword);
 internal sealed record RunnerPushBranchResponse(string BranchName, string CommitSha, bool Pushed);
-internal sealed record GitHubPullRequestResponse(int Number, [property: JsonPropertyName("html_url")] string? HtmlUrl, string? State, bool Draft, [property: JsonPropertyName("head")] GitHubPullRequestHead? Head, [property: JsonPropertyName("updated_at")] DateTimeOffset? UpdatedAt);
+internal sealed record GitHubPullRequestResponse(int Number, [property: JsonPropertyName("html_url")] string? HtmlUrl, string? State, bool Draft, [property: JsonPropertyName("head")] GitHubPullRequestHead? Head, [property: JsonPropertyName("updated_at")] DateTimeOffset? UpdatedAt, [property: JsonPropertyName("node_id")] string? NodeId);
 internal sealed record GitHubPullRequestHead([property: JsonPropertyName("sha")] string? Sha);
 internal sealed record GitHubPullRequestReviewResponse(long Id, string? State, [property: JsonPropertyName("submitted_at")] DateTimeOffset? SubmittedAt);
 internal sealed record GitHubReviewCommentResponse(long Id, [property: JsonPropertyName("in_reply_to_id")] long? InReplyToId,
@@ -4140,4 +5712,4 @@ internal sealed record WorkspaceRequestView(Guid Id, Guid ProjectId, Guid Reques
     DateTimeOffset CreatedAt, Guid? ReviewedByUserId, DateTimeOffset? ReviewedAt, string? ReviewNote, bool CanReview,
     string? CommitSha, string? ProvisioningError, DateTimeOffset? ProvisionedAt, bool CanCancel = false,
     Guid? DevelopmentRequestId = null, string? DevelopmentRequestTitle = null, string? DevelopmentRequestDescription = null,
-    string? WorkspaceBranchName = null);
+    string? WorkspaceBranchName = null, bool CanDelete = false);
