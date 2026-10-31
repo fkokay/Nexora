@@ -1,4 +1,8 @@
 # Master Prompt Phase Status
+### 2026-10-31 internal payroll voucher reversal
+
+Added a TenantAdmin-only reversal route for finalized internal payroll vouchers. It validates tenant/run/calculation ownership and reason, serializes against fiscal-year close, rejects a closed posting date, reverses each debit/credit line, writes an audit event, and returns the existing reversal on retries. The HR page now offers the reversal action and directs users to create a separate correction draft. The payroll-focused HumanResourcesEndpointsIntegrationTests passed 15/15, API build passed with 0 warnings/errors, and ERP Web production build passed. No schema migration is required. This is an internal ledger correction only; statutory payroll cancellation, legal gross/net recalculation, declarations, and accountant/legal acceptance remain open.
+
 ### 2026-10-31 fixed-asset and payroll continuation
 
 The VUK fixed-asset useful-life snapshot migration 20261031170951_AddFixedAssetVukUsefulLifeSnapshot passed a checksum-verified disposable SQL Server restore rehearsal and DBCC CHECKDB, then was applied and verified on the single active remote development tenant. Only platform-api and erp-web were rebuilt; public ERP and Studio health checks returned HTTP 200. Other tenants and production were untouched. Payroll now exposes TenantAdmin posting of a finalized, hash-verified internal calculation to an idempotent balanced tenant-mapped journal; it rejects unauthorized users, mismatched run/calculation IDs, closed periods, invalid mappings and unbalanced totals. The focused integration test and API/ERP Web builds passed. It does not calculate statutory payroll or file declarations. Correction/reversal flow and accountant/legal acceptance remain open.

@@ -698,6 +698,63 @@ public sealed class HumanResourcesEndpointsIntegrationTests
                 x.Action == "hr.payroll-run.accounting-voucher-posted");
         }
 
+        SetIdentity(client, TenantA, EmployeeUserA, "Employee");
+        using var unauthorizedReversal = await client.PostAsJsonAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/reverse-voucher",
+            new ManualJournalEntryReverseRequest(new DateOnly(2026, 2, 1), "Correction"));
+        Assert.Equal(HttpStatusCode.Forbidden, unauthorizedReversal.StatusCode);
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+        var closedPeriodId = Guid.NewGuid();
+        await using (var closedPeriodScope = app.Services.CreateAsyncScope())
+        {
+            var closeDb = closedPeriodScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            closeDb.JournalEntries.Add(new JournalEntry
+            {
+                Id = closedPeriodId, TenantId = TenantA, Code = "FY-CLOSE-20260201-20260201",
+                EntryDate = new DateOnly(2026, 2, 1), Description = "Synthetic closed-period acceptance fixture",
+                SourceType = "FiscalYearClose", SourceId = Guid.NewGuid()
+            });
+            await closeDb.SaveChangesAsync();
+        }
+        using var closedPeriodReversal = await client.PostAsJsonAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/reverse-voucher",
+            new ManualJournalEntryReverseRequest(new DateOnly(2026, 2, 1), "Payroll correction"));
+        Assert.Equal(HttpStatusCode.Conflict, closedPeriodReversal.StatusCode);
+        await using (var closeCleanupScope = app.Services.CreateAsyncScope())
+        {
+            var closeDb = closeCleanupScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var syntheticClose = await closeDb.JournalEntries.SingleAsync(x => x.TenantId == TenantA && x.Id == closedPeriodId);
+            closeDb.JournalEntries.Remove(syntheticClose);
+            await closeDb.SaveChangesAsync();
+        }
+        using var reverseVoucherResponse = await client.PostAsJsonAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/reverse-voucher",
+            new ManualJournalEntryReverseRequest(new DateOnly(2026, 2, 1), "Payroll correction"));
+        Assert.Equal(HttpStatusCode.Created, reverseVoucherResponse.StatusCode);
+        var reversal = await reverseVoucherResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var reversalEntryId = reversal.GetProperty("journalEntryId").GetGuid();
+        Assert.Equal(1234.57m, reversal.GetProperty("totalDebit").GetDecimal());
+        Assert.Equal(1234.57m, reversal.GetProperty("totalCredit").GetDecimal());
+        Assert.Equal("ManualReversal", reversal.GetProperty("sourceType").GetString());
+
+        using var replayReversalResponse = await client.PostAsJsonAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/reverse-voucher",
+            new ManualJournalEntryReverseRequest(new DateOnly(2026, 2, 1), "Payroll correction"));
+        Assert.Equal(HttpStatusCode.OK, replayReversalResponse.StatusCode);
+        var replayedReversal = await replayReversalResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(reversalEntryId, replayedReversal.GetProperty("journalEntryId").GetGuid());
+        await using (var reversalScope = app.Services.CreateAsyncScope())
+        {
+            var reversalDb = reversalScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var reversalJournal = await reversalDb.JournalEntries.Include(x => x.Lines)
+                .SingleAsync(x => x.TenantId == TenantA && x.SourceType == "ManualReversal" && x.SourceId == journalEntryId);
+            Assert.Equal(2, reversalJournal.Lines.Count);
+            Assert.Equal(1234.57m, reversalJournal.Lines.Sum(x => x.Debit));
+            Assert.Equal(1234.57m, reversalJournal.Lines.Sum(x => x.Credit));
+            Assert.Contains(reversalDb.AuditEvents, x => x.TenantId == TenantA && x.UserId == Admin &&
+                x.Action == "hr.payroll-run.accounting-voucher-reversed");
+        }
+
         using var packageResponse = await client.GetAsync(
             $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/manual-package");
         Assert.Equal(HttpStatusCode.OK, packageResponse.StatusCode);
