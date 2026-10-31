@@ -12,7 +12,13 @@ export default defineConfig(({ mode }) => {
       rolldownOptions: {
         output: {
           codeSplitting: {
-            groups: [{ name: 'vendor', test: /node_modules[\\/]/, minSize: 30_000, maxSize: 240_000 }],
+            groups: [
+              // Keep SheetJS behind the existing dynamic imports in the grid and
+              // import dialog. Matching it first prevents the generic vendor
+              // group from pulling the 490 KB parser into the initial app chunk.
+              { name: 'spreadsheet', test: /node_modules[\\/]xlsx[\\/]/ },
+              { name: 'vendor', test: /node_modules[\\/]/, minSize: 30_000, maxSize: 240_000 },
+            ],
           },
         },
       },
