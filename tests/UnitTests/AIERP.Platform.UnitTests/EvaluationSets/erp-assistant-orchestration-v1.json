@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "evaluationSetId": "erp-assistant-orchestration",
-  "version": "1.19.0",
+  "version": "1.20.0",
   "purpose": "Deterministic offline evaluation of ERP assistant tool routing, operational report facts, report schema-to-query chaining, handoff, and safety orchestration. Scripted semantic fixtures validate answer-to-fact contracts but do not score a live language model's semantic quality.",
   "provider": "openai-responses-mock",
   "model": "offline-scripted-model-v1",
@@ -60,6 +60,7 @@
     { "id": "provider-429-classification", "kind": "provider-failure-classification", "assertions": ["http-429-classified-without-response-body", "rate-limit-versus-quota-remains-unknown", "no-automatic-retry"] },
     { "id": "purchase-order-fulfillment-semantic", "kind": "synthetic-semantic-contract", "assertions": ["intent-selects-operational-report", "authorized-quantity-facts-are-preserved", "ordered-minus-received-equals-outstanding", "synthetic-sample-scope-is-disclosed", "no-external-provider-request"] },
     { "id": "hr-leave-summary-data-minimization", "kind": "data-minimization", "assertions": ["strict-read-only-date-window", "synthetic-aggregate-only", "no-employee-identifiers-or-payroll-values"] },
-    { "id": "hr-attendance-summary-data-minimization", "kind": "data-minimization", "assertions": ["strict-read-only-date-window", "synthetic-aggregate-only", "no-employee-identifiers-or-payroll-values"] }
+    { "id": "hr-attendance-summary-data-minimization", "kind": "data-minimization", "assertions": ["strict-read-only-date-window", "synthetic-aggregate-only", "no-employee-identifiers-or-payroll-values"] },
+    { "id": "payroll-compensation-search", "kind": "tool-routing", "prompt": "EMP-007 için 2026 takvim yılındaki onaylı brüt ücret hedefini bul.", "expectedTool": "search_payroll_compensation", "arguments": "{\"term\":\"EMP-007\",\"from\":\"2026-01-01\",\"to\":\"2026-12-31\"}", "authorizedToolResult": "{\"searchTerm\":\"EMP-007\",\"from\":\"2026-01-01\",\"to\":\"2026-12-31\",\"returned\":1,\"cappedAt500\":false,\"items\":[{\"employee\":\"EMP-007 · Synthetic Employee\",\"targetKind\":\"Gross\",\"amount\":75000,\"currencyCode\":\"TRY\",\"payBasisCode\":\"Monthly\",\"effectiveFrom\":\"2026-01-01\",\"status\":\"Approved\"}]}", "scriptedAnswer": "EMP-007 için 1 Ocak 2026 tarihinden itibaren onaylı aylık brüt hedef 75.000 TRY.", "assertions": ["exact-tool", "strict-schema", "single-tool-call", "tool-result-handoff", "dedicated-compensation-permission", "explicit-period", "synthetic-data-only", "no-internal-ids-or-unrelated-hr-metadata"] }
   ]
 }

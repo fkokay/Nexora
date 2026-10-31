@@ -66,3 +66,5 @@ The read-only assistant already includes `search_purchase_receipts`, despite an 
 ## AI payroll-read update — 2026-10-31
 
 Added a permission-gated read-only assistant tool for effective-dated gross/net compensation. It calls the existing tenant-scoped API endpoint, which also enforces the dedicated confidential compensation permission and audit logging. The assistant filters to the requested employee and effective-date window, caps output at 20, and excludes employee/internal GUIDs, row version, approver/creator metadata, and free text. Focused unit verification passed 9/9. Live model scoring and security/privacy review remain open.
+
+The v1.20.0 offline orchestration set now includes a synthetic employee/date-bounded payroll-compensation routing case. The orchestration class passed 43/43 with the updated system guidance and strict tool schema; this remains a mocked-provider contract check, not live-model quality evidence.

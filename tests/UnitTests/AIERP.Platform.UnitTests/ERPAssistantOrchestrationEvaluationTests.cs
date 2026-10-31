@@ -50,7 +50,9 @@ public sealed class ERPAssistantOrchestrationEvaluationTests
         Assert.False(tool.GetProperty("parameters").GetProperty("additionalProperties").GetBoolean());
         Assert.Equal(new[] { "from", "to" }, tool.GetProperty("parameters").GetProperty("required").EnumerateArray()
             .Select(item => item.GetString()).ToArray());
-        Assert.Contains("There is no AI tool for salary amounts", bodies[0].RootElement.GetProperty("input")[0].GetProperty("content").GetString());
+        var systemInstructions = bodies[0].RootElement.GetProperty("input")[0].GetProperty("content").GetString();
+        Assert.Contains("Use search_payroll_compensation", systemInstructions, StringComparison.Ordinal);
+        Assert.Contains("separate confidential compensation-view permission", systemInstructions, StringComparison.Ordinal);
         var toolResult = bodies[1].RootElement.GetProperty("input").EnumerateArray()
             .Single(item => item.TryGetProperty("type", out var type) && type.GetString() == "function_call_output")
             .GetProperty("output").GetString();
@@ -58,6 +60,43 @@ public sealed class ERPAssistantOrchestrationEvaluationTests
         Assert.DoesNotContain("employeeId", toolResult, StringComparison.Ordinal);
         Assert.DoesNotContain("name", toolResult, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("payroll", toolResult, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Payroll_compensation_tool_requires_employee_and_bounded_period_and_hands_off_only_scoped_result()
+    {
+        const string toolArguments = "{\"term\":\"EMP-007\",\"from\":\"2026-01-01\",\"to\":\"2026-12-31\"}";
+        const string scopedResult = "{\"searchTerm\":\"EMP-007\",\"from\":\"2026-01-01\",\"to\":\"2026-12-31\",\"returned\":1,\"items\":[{\"employee\":\"EMP-007 · Synthetic Employee\",\"targetKind\":\"Gross\",\"amount\":75000,\"currencyCode\":\"TRY\",\"payBasisCode\":\"Monthly\",\"effectiveFrom\":\"2026-01-01\",\"status\":\"Approved\"}]}";
+        var requestBodies = new List<JsonDocument>();
+        var handler = new ScriptedResponsesHandler(async request =>
+        {
+            requestBodies.Add(JsonDocument.Parse(await request.Content!.ReadAsStringAsync()));
+            return requestBodies.Count == 1
+                ? Response(new { status = "completed", output = new[] { new { type = "function_call", name = "search_payroll_compensation", arguments = toolArguments, call_id = "payroll-search-1" } } })
+                : Response(new { status = "completed", output = new[] { new { type = "message", content = new[] { new { type = "output_text", text = "EMP-007 için onaylı aylık brüt hedef 75.000 TRY." } } } } });
+        });
+        var provider = CreateProvider(handler);
+        var executed = new List<(string Name, string Arguments)>();
+
+        var answer = await provider.ReplyToERPDataQuestionAsync("EMP-007 brüt ücretini getir.", [], CancellationToken.None,
+            (name, arguments, _) =>
+            {
+                executed.Add((name, arguments));
+                return Task.FromResult(scopedResult);
+            });
+
+        Assert.Equal("EMP-007 için onaylı aylık brüt hedef 75.000 TRY.", answer);
+        Assert.Equal(("search_payroll_compensation", toolArguments), Assert.Single(executed));
+        var declaration = requestBodies[0].RootElement.GetProperty("tools").EnumerateArray()
+            .Single(item => item.GetProperty("name").GetString() == "search_payroll_compensation");
+        Assert.True(declaration.GetProperty("strict").GetBoolean());
+        Assert.Equal(new[] { "term", "from", "to" }, declaration.GetProperty("parameters").GetProperty("required")
+            .EnumerateArray().Select(item => item.GetString()).ToArray());
+        var handedOff = requestBodies[1].RootElement.GetProperty("input").EnumerateArray()
+            .Single(item => item.TryGetProperty("type", out var type) && type.GetString() == "function_call_output")
+            .GetProperty("output").GetString();
+        Assert.Equal(scopedResult, handedOff);
+        Assert.DoesNotContain("employeeId", handedOff, StringComparison.Ordinal);
     }
 
     private static readonly OfflineEvaluationSet EvaluationSet = LoadEvaluationSet();
