@@ -28,8 +28,9 @@
 .app-shell:not(.standalone-studio) .topbar .locale-switch button{color:#dce4ef}
 .app-shell:not(.standalone-studio) .topbar .locale-switch button[aria-pressed=true]{background:var(--nexora-gold);color:var(--nexora-navy);box-shadow:none;border-radius:3px}
 .app-shell:not(.standalone-studio) .menu-button{display:grid!important;color:#fff!important}
-.workspace-tabs{height:52px;position:sticky;top:56px;z-index:25;display:flex;align-items:stretch;background:#fff;border-bottom:1px solid #C9D2DE;padding:0 28px;overflow:auto;scrollbar-width:thin}
-.workspace-tab-list{display:flex;align-items:stretch;gap:5px;min-width:max-content}
+.workspace-tabs{height:52px;position:sticky;top:56px;z-index:25;display:flex;align-items:stretch;background:#fff;border-bottom:1px solid #C9D2DE;padding:0 28px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none}
+.workspace-tabs::-webkit-scrollbar{display:none;height:0}
+.workspace-tab-list{display:flex;align-items:stretch;gap:5px;min-width:max-content;flex:0 0 auto}
 .workspace-tab{display:flex;align-items:center;position:relative;min-width:132px;max-width:240px;margin-top:5px;border:1px solid transparent;border-bottom:0;background:#F1F3F6;border-radius:4px 4px 0 0}
 .workspace-tab.active{background:var(--nexora-gold);border-color:#E0AB1B;border-bottom-color:var(--nexora-gold)}
 .workspace-tab-home{flex:0 0 48px;min-width:48px;width:48px;max-width:48px}
