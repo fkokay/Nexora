@@ -210,6 +210,80 @@ public static class FinanceCreditFacilityEndpoints
             return Results.Ok(new { currencies, facilities = items });
         });
 
+        group.MapPost("/{id:guid}/effective-interest-preview", async (Guid id, CreditFacilityEffectiveInterestPreviewRequest request,
+            ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetTenantId(user, out var tenantId)) return Results.Forbid();
+            if (request.InitialTransactionCosts < 0 || request.InitialTransactionCosts > 9999999999999999.99m ||
+                decimal.Round(request.InitialTransactionCosts, 2) != request.InitialTransactionCosts)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["initialTransactionCosts"] = ["İlk kullandırım işlem maliyeti sıfır veya pozitif, en fazla iki ondalık olmalıdır."] });
+
+            var facility = await db.CreditFacilities.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (facility is null) return Results.NotFound();
+            var movements = await db.CreditFacilityMovements.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.CreditFacilityId == id && !x.Reversals.Any())
+                .OrderBy(x => x.TransactionDate).ThenBy(x => x.CreatedAt)
+                .Select(x => new { x.Type, x.TransactionDate, x.PrincipalAmount, x.InterestAmount, x.FeeAmount })
+                .ToListAsync(ct);
+            var paidScheduleIds = await db.CreditFacilityMovements.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.CreditFacilityId == id && x.Type == CreditFacilityMovementType.Repayment && !x.Reversals.Any() && x.CreditFacilityScheduleId != null)
+                .Select(x => x.CreditFacilityScheduleId!.Value).ToListAsync(ct);
+            var schedules = await db.CreditFacilitySchedules.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.CreditFacilityId == id && x.Status == CreditFacilityScheduleStatus.Planned)
+                .OrderBy(x => x.DueDate).Select(x => new { x.Id, x.DueDate, x.PrincipalAmount, x.InterestAmount, x.FeeAmount })
+                .ToListAsync(ct);
+
+            var cashFlows = new List<EffectiveInterestCashFlow>();
+            var firstDrawdown = movements.FirstOrDefault(x => x.Type == CreditFacilityMovementType.Drawdown);
+            if (firstDrawdown is null) return Results.Conflict(new { error = "Etkin faiz önizlemesi için en az bir gerçek kullandırım kaydı gerekir." });
+            if (request.InitialTransactionCosts >= firstDrawdown.PrincipalAmount)
+                return Results.Conflict(new { error = "İlk işlem maliyeti ilk kullandırım tutarından küçük olmalıdır." });
+            var costApplied = false;
+            foreach (var movement in movements)
+            {
+                if (movement.Type == CreditFacilityMovementType.Drawdown)
+                {
+                    var netProceeds = movement.PrincipalAmount;
+                    if (!costApplied) { netProceeds -= request.InitialTransactionCosts; costApplied = true; }
+                    cashFlows.Add(new(movement.TransactionDate, netProceeds));
+                }
+                else if (movement.Type == CreditFacilityMovementType.Repayment)
+                    cashFlows.Add(new(movement.TransactionDate, -(movement.PrincipalAmount + movement.InterestAmount + movement.FeeAmount)));
+            }
+            foreach (var schedule in schedules.Where(x => !paidScheduleIds.Contains(x.Id)))
+                cashFlows.Add(new(schedule.DueDate, -(schedule.PrincipalAmount + schedule.InterestAmount + schedule.FeeAmount)));
+
+            var signs = cashFlows.GroupBy(x => x.Date).OrderBy(x => x.Key).Select(x => Math.Sign(x.Sum(y => y.Amount)))
+                .Where(x => x != 0).ToArray();
+            if (signs.Length < 2 || signs.Zip(signs.Skip(1)).Count(x => x.First != x.Second) != 1)
+                return Results.Conflict(new { error = "Tekil etkin faiz oranı için nakit akışları bir kez yön değiştirmelidir. Çoklu kullandırım/ödeme dizisini kontrol edin." });
+            var effectiveRate = CreditFacilityEffectiveInterestCalculator.SolveEffectiveAnnualRate(cashFlows);
+            if (effectiveRate is null) return Results.Conflict(new { error = "Kayıtlı kullandırım ve ödeme planından tek bir etkin faiz oranı çözülemedi. Tarihleri ve nakit akışlarını kontrol edin." });
+            var rows = new List<CreditFacilityEffectiveInterestRow>();
+            decimal carryingAmount = 0m;
+            DateOnly? priorDate = null;
+            foreach (var day in cashFlows.GroupBy(x => x.Date).OrderBy(x => x.Key))
+            {
+                var opening = carryingAmount;
+                var days = priorDate is null ? 0 : day.Key.DayNumber - priorDate.Value.DayNumber;
+                var factor = Math.Pow(1d + (double)effectiveRate.Value, days / 365d);
+                if (!double.IsFinite(factor) || factor * (double)carryingAmount > 7e28)
+                    return Results.Conflict(new { error = "Etkin faiz oranı bu vade için güvenli hesaplama aralığını aşıyor." });
+                var interest = decimal.Round(carryingAmount * ((decimal)factor - 1m), 2, MidpointRounding.AwayFromZero);
+                carryingAmount += interest;
+                var netCashFlow = day.Sum(x => x.Amount);
+                var cashPayment = -day.Where(x => x.Amount < 0).Sum(x => x.Amount);
+                carryingAmount += netCashFlow;
+                if (priorDate is not null)
+                    rows.Add(new(day.Key, opening, interest, cashPayment, carryingAmount));
+                priorDate = day.Key;
+            }
+            return Results.Ok(new CreditFacilityEffectiveInterestPreview(facility.Code, facility.CurrencyCode,
+                decimal.Round(effectiveRate.Value * 100m, 6), request.InitialTransactionCosts, "Actual/365 · yıllık bileşik", rows,
+                "TFRS 9 etkin faiz yöntemi için önizlemedir; genel muhasebe fişi oluşturmaz. Doğrudan işlem maliyeti ilk kullandırımdan düşülmüştür; ödeme planındaki faiz ve ücretler nakit akışı kabul edilmiştir. Raporlama profili ve muhasebe uygulaması uzman tarafından doğrulanmalıdır."));
+        });
+
         group.MapPost("/{id:guid}/securities", async (Guid id, CreditFacilitySecurityCreateRequest request,
             ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
@@ -875,6 +949,33 @@ public static class FinanceCreditFacilityEndpoints
     }
 }
 
+internal sealed record EffectiveInterestCashFlow(DateOnly Date, decimal Amount);
+
+internal static class CreditFacilityEffectiveInterestCalculator
+{
+    public static decimal? SolveEffectiveAnnualRate(IReadOnlyList<EffectiveInterestCashFlow> flows)
+    {
+        if (flows.Count < 2) return null;
+        var origin = flows.Min(x => x.Date);
+        double Npv(double rate) => flows.Sum(x => (double)x.Amount / Math.Pow(1d + rate, (x.Date.DayNumber - origin.DayNumber) / 365d));
+        var low = -0.999999d;
+        var high = 1000d;
+        var lowValue = Npv(low);
+        var highValue = Npv(high);
+        if (!double.IsFinite(lowValue) || !double.IsFinite(highValue) || Math.Sign(lowValue) == Math.Sign(highValue)) return null;
+        for (var i = 0; i < 240; i++)
+        {
+            var middle = (low + high) / 2d;
+            var middleValue = Npv(middle);
+            if (!double.IsFinite(middleValue)) return null;
+            if (Math.Sign(middleValue) == Math.Sign(lowValue)) { low = middle; lowValue = middleValue; }
+            else high = middle;
+        }
+        var result = (decimal)((low + high) / 2d);
+        return result is >= -0.999999m and <= 1000m ? result : null;
+    }
+}
+
 public sealed record CreditFacilityCreateRequest(string Code, string LenderName, string FacilityType, string CurrencyCode,
     decimal ApprovedLimit, DateOnly StartDate, DateOnly? MaturityDate, decimal? AnnualInterestRatePercent, string? Notes);
 public sealed record CreditFacilityScheduleCreateRequest(DateOnly DueDate, decimal PrincipalAmount, decimal InterestAmount, decimal FeeAmount, string? Notes);
@@ -887,6 +988,11 @@ public sealed record CreditFacilityMovementReversalRequest(Guid RequestId, DateO
 public sealed record CreditFacilitySecurityCreateRequest(CreditSecurityType Type, string Code, string Issuer, string Beneficiary,
     decimal Amount, string CurrencyCode, decimal CommissionAmount, DateOnly IssueDate, DateOnly ExpiryDate, string? Notes);
 public sealed record CreditFacilitySecurityStatusRequest(string Status);
+public sealed record CreditFacilityEffectiveInterestPreviewRequest(decimal InitialTransactionCosts);
+public sealed record CreditFacilityEffectiveInterestRow(DateOnly Date, decimal OpeningAmortizedCost, decimal EffectiveInterestExpense,
+    decimal CashPayment, decimal ClosingAmortizedCost);
+public sealed record CreditFacilityEffectiveInterestPreview(string FacilityCode, string CurrencyCode, decimal EffectiveAnnualRatePercent,
+    decimal InitialTransactionCosts, string DayCountConvention, IReadOnlyList<CreditFacilityEffectiveInterestRow> Rows, string Note);
 public sealed record CreditFacilityAccrualMovement(DateOnly TransactionDate, CreditFacilityMovementType Type, decimal PrincipalAmount,
     CreditFacilityMovementType? ReversedType);
 public sealed record CreditFacilityMonthlyAccrual(string Month, decimal Amount, decimal ClosingPrincipal);

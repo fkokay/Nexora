@@ -124,6 +124,60 @@ public sealed class FinanceCreditFacilityIntegrationTests
     }
 
     [Fact]
+    public async Task Effective_interest_preview_uses_drawdowns_payments_and_transaction_cost_without_posting_journal()
+    {
+        await using var app = await StartApplicationAsync();
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var drawdownDate = new DateOnly(2026, 1, 1);
+            db.CreditFacilitySchedules.RemoveRange(db.CreditFacilitySchedules.Where(x => x.TenantId == TenantA && x.CreditFacilityId == FacilityA));
+            db.CreditFacilityMovements.Add(new CreditFacilityMovement
+            {
+                TenantId = TenantA, CreditFacilityId = FacilityA, Type = CreditFacilityMovementType.Drawdown,
+                TransactionDate = drawdownDate, PrincipalAmount = 1000m, RequestId = Guid.NewGuid(),
+                FinancialAccountTransaction = new FinancialAccountTransaction
+                {
+                    TenantId = TenantA, FinancialAccountId = AccountA, CurrencyCode = "TRY", TransactionDate = drawdownDate,
+                    Direction = FinancialDirection.Inflow, CashFlowCategory = CashFlowCategory.Financing, Amount = 1000m,
+                    Description = "EIR test drawdown"
+                }
+            });
+            db.CreditFacilitySchedules.Add(new CreditFacilitySchedule
+            {
+                TenantId = TenantA, CreditFacilityId = FacilityA, DueDate = new DateOnly(2027, 1, 1),
+                PrincipalAmount = 1000m, InterestAmount = 100m, FeeAmount = 0m
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        using var preview = await client.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/effective-interest-preview", new
+        {
+            initialTransactionCosts = 50m
+        });
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        using var json = JsonDocument.Parse(await preview.Content.ReadAsStringAsync());
+        var result = json.RootElement;
+        Assert.Equal(15.789474m, result.GetProperty("effectiveAnnualRatePercent").GetDecimal());
+        Assert.Equal(50m, result.GetProperty("initialTransactionCosts").GetDecimal());
+        Assert.Contains("fişi oluşturmaz", result.GetProperty("note").GetString(), StringComparison.OrdinalIgnoreCase);
+        var finalRow = Assert.Single(result.GetProperty("rows").EnumerateArray());
+        Assert.Equal(950m, finalRow.GetProperty("openingAmortizedCost").GetDecimal());
+        Assert.Equal(150m, finalRow.GetProperty("effectiveInterestExpense").GetDecimal());
+        Assert.Equal(1100m, finalRow.GetProperty("cashPayment").GetDecimal());
+        Assert.Equal(0m, finalRow.GetProperty("closingAmortizedCost").GetDecimal());
+
+        using var otherTenant = app.GetTestClient();
+        otherTenant.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var foreign = await otherTenant.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/effective-interest-preview", new { initialTransactionCosts = 0m });
+        Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
+        using var invalid = await client.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/effective-interest-preview", new { initialTransactionCosts = -1m });
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+
+    [Fact]
     public async Task Security_alert_summary_is_tenant_scoped_bounded_and_excludes_released_securities()
     {
         await using var app = await StartApplicationAsync();
