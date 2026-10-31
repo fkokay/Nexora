@@ -1,12 +1,17 @@
 .hr-page {
   --hr-accent: #0f6cbd;
-  --hr-soft: color-mix(in srgb, var(--hr-accent) 6%, var(--surface));
+  --hr-surface: var(--erp-surface, #fff);
+  --hr-background: var(--erp-bg, #f3f6fa);
+  --hr-line: var(--erp-border, #e5e7ee);
+  --hr-text: var(--erp-text, #1f2937);
+  --hr-muted: var(--erp-muted, #858c9b);
+  --hr-soft: color-mix(in srgb, var(--hr-accent) 6%, var(--hr-surface));
   display: grid;
   gap: 18px;
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  color: var(--text);
+  color: var(--hr-text);
   container: hr-page / inline-size;
 }
 
@@ -17,7 +22,7 @@
   gap: 20px;
   min-width: 0;
   padding: 0 0 16px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--hr-line);
 }
 .hr-title { min-width: 0; }
 .hr-title .eyebrow {
@@ -37,7 +42,7 @@
 .hr-title .muted {
   max-width: 700px;
   margin: 7px 0 0;
-  color: var(--muted);
+  color: var(--hr-muted);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -50,9 +55,9 @@
   max-width: 100%;
   padding: 0 2px;
   overflow-x: auto;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--hr-line);
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 35%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--hr-muted) 35%, transparent) transparent;
 }
 .hr-tabs button {
   flex: 0 0 auto;
@@ -63,7 +68,7 @@
   border-bottom: 3px solid transparent;
   border-radius: 7px 7px 0 0;
   background: transparent;
-  color: var(--muted);
+  color: var(--hr-muted);
   font: inherit;
   font-size: 13px;
   font-weight: 650;
@@ -71,7 +76,7 @@
   cursor: pointer;
   transition: color .15s ease, background-color .15s ease, border-color .15s ease;
 }
-.hr-tabs button:hover { background: var(--hr-soft); color: var(--text); }
+.hr-tabs button:hover { background: var(--hr-soft); color: var(--hr-text); }
 .hr-tabs button.active { border-bottom-color: var(--hr-accent); color: var(--hr-accent); }
 .hr-tabs button:focus-visible,
 .hr-page button:focus-visible,
@@ -93,10 +98,10 @@
   gap: 12px;
   min-height: 190px;
   padding: 24px;
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--hr-line);
   border-radius: 12px;
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--hr-surface);
+  color: var(--hr-muted);
   font-size: 14px;
 }
 .hr-spinner {
@@ -116,10 +121,10 @@
   gap: 14px;
   min-width: 0;
   padding: 13px 16px;
-  border: 1px solid color-mix(in srgb, #bd3c45 25%, var(--line));
+  border: 1px solid color-mix(in srgb, #bd3c45 25%, var(--hr-line));
   border-radius: 10px;
-  background: color-mix(in srgb, #bd3c45 8%, var(--surface));
-  color: var(--text);
+  background: color-mix(in srgb, #bd3c45 8%, var(--hr-surface));
+  color: var(--hr-text);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -130,9 +135,9 @@
   max-width: 100%;
   padding: clamp(16px, 1.7cqi, 22px);
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid var(--hr-line);
   border-radius: 12px;
-  background: var(--surface);
+  background: var(--hr-surface);
   box-shadow: 0 2px 10px #17203308;
 }
 .hr-panel h3 { margin: 0 0 12px; font-size: 16px; letter-spacing: -.015em; }
@@ -144,14 +149,14 @@
   min-width: 0;
   margin: 0 0 14px;
   padding: 0 0 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--hr-line);
 }
 .hr-panel .panel-heading > div { min-width: 0; }
 .hr-panel .panel-heading h3 { margin: 0 0 4px; }
 .hr-panel .panel-heading p {
   max-width: 720px;
   margin: 0;
-  color: var(--muted);
+  color: var(--hr-muted);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -164,12 +169,12 @@
   gap: 8px;
   min-width: 0;
   padding: 14px 16px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--hr-line);
   border-radius: 10px;
-  background: var(--surface);
+  background: var(--hr-surface);
 }
-.hr-kpi-strip span { color: var(--muted); font-size: 12px; line-height: 1.4; }
-.hr-kpi-strip b { color: var(--text); font-size: 22px; font-variant-numeric: tabular-nums; line-height: 1; }
+.hr-kpi-strip span { color: var(--hr-muted); font-size: 12px; line-height: 1.4; }
+.hr-kpi-strip b { color: var(--hr-text); font-size: 22px; font-variant-numeric: tabular-nums; line-height: 1; }
 
 .hr-employee-workspace {
   display: grid;
@@ -192,7 +197,7 @@
   flex: 1 1 auto;
   gap: 5px;
   min-width: 0;
-  color: var(--muted);
+  color: var(--hr-muted);
   font-size: 11px;
   font-weight: 600;
 }
@@ -202,10 +207,10 @@
   min-width: 0;
   min-height: 40px;
   padding: 9px 11px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--hr-line);
   border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--hr-surface);
+  color: var(--hr-text);
   font: inherit;
   font-size: 13px;
 }
@@ -216,30 +221,30 @@
   border-color: var(--hr-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--hr-accent) 12%, transparent);
 }
-.hr-list-toolbar small { padding-bottom: 10px; color: var(--muted); white-space: nowrap; }
+.hr-list-toolbar small { padding-bottom: 10px; color: var(--hr-muted); white-space: nowrap; }
 
 .hr-table-wrap {
   width: 100%;
   max-width: 100%;
   overflow: auto;
-  border: 1px solid var(--line);
+  border: 1px solid var(--hr-line);
   border-radius: 9px;
   overscroll-behavior-inline: contain;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 35%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--hr-muted) 35%, transparent) transparent;
 }
 .hr-table { width: 100%; min-width: 620px; border-collapse: separate; border-spacing: 0; }
 .hr-table th,
 .hr-table td {
   padding: 11px 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--hr-line);
   text-align: left;
   vertical-align: middle;
   font-size: 12px;
 }
 .hr-table th {
-  background: color-mix(in srgb, var(--surface) 75%, var(--background, #f5f6fa));
-  color: var(--muted);
+  background: color-mix(in srgb, var(--hr-surface) 75%, var(--hr-background));
+  color: var(--hr-muted);
   font-size: 10px;
   font-weight: 750;
   letter-spacing: .04em;
@@ -247,15 +252,15 @@
   white-space: nowrap;
 }
 .hr-table tbody tr:last-child td { border-bottom: 0; }
-.hr-table tbody tr:hover:not(:has(td[colspan])) { background: color-mix(in srgb, var(--hr-accent) 4%, var(--surface)); }
+.hr-table tbody tr:hover:not(:has(td[colspan])) { background: color-mix(in srgb, var(--hr-accent) 4%, var(--hr-surface)); }
 .hr-table td { overflow-wrap: anywhere; }
 .hr-table td b { overflow-wrap: anywhere; }
-.hr-table td small { display: block; margin-top: 4px; color: var(--muted); overflow-wrap: anywhere; }
+.hr-table td small { display: block; margin-top: 4px; color: var(--hr-muted); overflow-wrap: anywhere; }
 .hr-table td a { color: var(--hr-accent); overflow-wrap: anywhere; }
-.hr-table td[colspan] { color: var(--muted); }
+.hr-table td[colspan] { color: var(--hr-muted); }
 .hr-table td button { max-width: 100%; white-space: normal; }
 .hr-empty { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 78px; padding: 12px; text-align: center; line-height: 1.5; }
-.hr-empty svg { flex: none; color: var(--muted); }
+.hr-empty svg { flex: none; color: var(--hr-muted); }
 .hr-status {
   display: inline-flex;
   align-items: center;
@@ -288,7 +293,7 @@
   display: grid;
   gap: 6px;
   min-width: 0;
-  color: var(--muted);
+  color: var(--hr-muted);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.4;
@@ -301,18 +306,18 @@
   min-width: 0;
   min-height: 42px;
   padding: 9px 11px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--hr-line);
   border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--hr-surface);
+  color: var(--hr-text);
   font: inherit;
   font-size: 13px;
   transition: border-color .15s ease, box-shadow .15s ease;
 }
 .hr-form input:hover,
 .hr-form select:hover,
-.hr-form textarea:hover { border-color: color-mix(in srgb, var(--hr-accent) 35%, var(--line)); }
-.hr-form input::placeholder { color: var(--muted); opacity: .75; }
+.hr-form textarea:hover { border-color: color-mix(in srgb, var(--hr-accent) 35%, var(--hr-line)); }
+.hr-form input::placeholder { color: var(--hr-muted); opacity: .75; }
 .hr-form textarea { min-height: 120px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; line-height: 1.55; }
 .hr-form .wide { grid-column: 1 / -1; }
 .hr-form > button { justify-self: start; min-height: 40px; }
@@ -326,30 +331,30 @@
   min-width: 0;
   min-height: 80px;
   padding: 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--hr-line);
   border-radius: 10px;
   background: var(--hr-soft);
 }
-.hr-summary-grid span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.hr-summary-grid span { color: var(--hr-muted); font-size: 11px; line-height: 1.45; }
 .hr-summary-grid b { font-size: 18px; overflow-wrap: anywhere; }
 .hr-success,
 .hr-policy-note {
   padding: 13px 15px;
-  border: 1px solid color-mix(in srgb, #168455 20%, var(--line));
+  border: 1px solid color-mix(in srgb, #168455 20%, var(--hr-line));
   border-radius: 10px;
-  background: color-mix(in srgb, #168455 9%, var(--surface));
-  color: var(--text);
+  background: color-mix(in srgb, #168455 9%, var(--hr-surface));
+  color: var(--hr-text);
   font-size: 13px;
   line-height: 1.55;
 }
-.hr-policy-note { border-color: color-mix(in srgb, #d29128 25%, var(--line)); background: color-mix(in srgb, #d29128 10%, var(--surface)); }
-.hr-footnote { margin: 0 3px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.hr-policy-note { border-color: color-mix(in srgb, #d29128 25%, var(--hr-line)); background: color-mix(in srgb, #d29128 10%, var(--hr-surface)); }
+.hr-footnote { margin: 0 3px; color: var(--hr-muted); font-size: 12px; line-height: 1.6; }
 
 .hr-employee-form {
   border-top: 3px solid var(--hr-accent);
-  background: color-mix(in srgb, var(--surface) 97%, var(--hr-accent));
+  background: color-mix(in srgb, var(--hr-surface) 97%, var(--hr-accent));
 }
-.hr-employee-form-heading { margin-bottom: 15px; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
+.hr-employee-form-heading { margin-bottom: 15px; padding-bottom: 13px; border-bottom: 1px solid var(--hr-line); }
 .hr-employee-form-heading > span {
   display: inline-block;
   margin-bottom: 6px;
@@ -359,7 +364,7 @@
   letter-spacing: .1em;
 }
 .hr-employee-form-heading h3 { margin: 0 0 5px; }
-.hr-employee-form-heading p { max-width: 620px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.hr-employee-form-heading p { max-width: 620px; margin: 0; color: var(--hr-muted); font-size: 12px; line-height: 1.5; }
 .hr-employee-create-form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px 12px; }
 .hr-employee-create-form label { gap: 5px; font-size: 11px; }
 .hr-employee-create-form input { min-height: 40px; }
@@ -372,9 +377,9 @@
   .hr-page, .hr-content { gap: 14px; }
   .hr-header { align-items: flex-start; }
   .hr-title h1 { font-size: clamp(24px, 5cqi, 30px); }
-  .hr-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--hr-soft); overflow: visible; }
+  .hr-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid var(--hr-line); border-radius: 10px; background: var(--hr-soft); overflow: visible; }
   .hr-tabs button { min-height: 42px; padding: 8px 9px; border: 1px solid transparent; border-radius: 7px; white-space: normal; text-align: center; }
-  .hr-tabs button.active { border-color: color-mix(in srgb, var(--hr-accent) 20%, var(--line)); background: var(--surface); }
+  .hr-tabs button.active { border-color: color-mix(in srgb, var(--hr-accent) 20%, var(--hr-line)); background: var(--hr-surface); }
   .hr-kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hr-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hr-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -384,7 +389,7 @@
   .hr-employee-table { display: block; width: 100%; min-width: 0; }
   .hr-employee-table thead { display: none; }
   .hr-employee-table tbody { display: grid; gap: 8px; }
-  .hr-employee-table tr { display: grid; min-width: 0; padding: 3px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+  .hr-employee-table tr { display: grid; min-width: 0; padding: 3px 11px; border: 1px solid var(--hr-line); border-radius: 9px; background: var(--hr-surface); }
   .hr-employee-table td {
     display: grid;
     grid-template-columns: minmax(92px, .8fr) minmax(0, 1.2fr);
@@ -392,10 +397,10 @@
     gap: 10px;
     min-width: 0;
     padding: 8px 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--hr-line);
     text-align: right;
   }
-  .hr-employee-table td::before { content: attr(data-label); color: var(--muted); font-size: 10px; font-weight: 700; line-height: 1.35; text-align: left; }
+  .hr-employee-table td::before { content: attr(data-label); color: var(--hr-muted); font-size: 10px; font-weight: 700; line-height: 1.35; text-align: left; }
   .hr-employee-table td[colspan] { display: block; text-align: center; }
   .hr-employee-table td[colspan]::before { content: none; }
   .hr-employee-table td:last-child { border-bottom: 0; }
@@ -461,9 +466,9 @@
 .hr-title .muted { color: #d6e6f4; }
 .hr-refresh { position: relative; z-index: 1; border-color: rgba(255,255,255,.4); background: #fff; color: #174a78; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
 .hr-refresh:hover { background: #eef6fd; }
-.hr-tabs { padding: 5px 7px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 2px 8px #17203308; }
+.hr-tabs { padding: 5px 7px 0; border: 1px solid var(--hr-line); border-radius: 10px; background: var(--hr-surface); box-shadow: 0 2px 8px #17203308; }
 .hr-tabs button { min-height: 42px; border-radius: 7px 7px 0 0; }
-.hr-tabs button.active { background: color-mix(in srgb, var(--hr-accent) 6%, var(--surface)); }
+.hr-tabs button.active { background: color-mix(in srgb, var(--hr-accent) 6%, var(--hr-surface)); }
 .hr-content { gap: 14px; }
 .hr-kpi-strip { gap: 12px; }
 .hr-kpi-strip article {
@@ -473,35 +478,35 @@
   gap: 9px;
   padding: 15px 17px 15px 20px;
   overflow: hidden;
-  border-color: color-mix(in srgb, var(--hr-accent) 15%, var(--line));
+  border-color: color-mix(in srgb, var(--hr-accent) 15%, var(--hr-line));
   border-radius: 11px;
-  background: linear-gradient(140deg, var(--surface), color-mix(in srgb, var(--hr-accent) 3%, var(--surface)));
+  background: linear-gradient(140deg, var(--hr-surface), color-mix(in srgb, var(--hr-accent) 3%, var(--hr-surface)));
   box-shadow: 0 3px 12px #17203308;
 }
 .hr-kpi-strip article::before { position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--hr-accent); content: ""; opacity: .72; }
 .hr-kpi-strip span { font-size: 11px; font-weight: 600; }
-.hr-kpi-strip b { color: color-mix(in srgb, var(--hr-accent) 75%, var(--text)); font-size: 24px; }
+.hr-kpi-strip b { color: color-mix(in srgb, var(--hr-accent) 75%, var(--hr-text)); font-size: 24px; }
 .hr-employee-workspace { grid-template-columns: minmax(0, 1.18fr) minmax(340px, .92fr); gap: 15px; }
 .hr-panel { border-radius: 11px; box-shadow: 0 3px 13px rgba(23, 42, 70, .045); }
 .hr-employee-directory .panel-heading { align-items: center; }
-.hr-employee-directory .panel-heading > svg { box-sizing: content-box; padding: 9px; border-radius: 9px; background: color-mix(in srgb, var(--hr-accent) 9%, var(--surface)); }
-.hr-list-toolbar { align-items: end; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: color-mix(in srgb, var(--hr-accent) 3%, var(--surface)); }
-.hr-list-toolbar input { min-height: 42px; background: var(--surface); }
+.hr-employee-directory .panel-heading > svg { box-sizing: content-box; padding: 9px; border-radius: 9px; background: color-mix(in srgb, var(--hr-accent) 9%, var(--hr-surface)); }
+.hr-list-toolbar { align-items: end; padding: 12px; border: 1px solid var(--hr-line); border-radius: 9px; background: color-mix(in srgb, var(--hr-accent) 3%, var(--hr-surface)); }
+.hr-list-toolbar input { min-height: 42px; background: var(--hr-surface); }
 .hr-list-toolbar small { padding-bottom: 12px; font-variant-numeric: tabular-nums; }
 .hr-table-wrap { border-radius: 10px; }
 .hr-table th { padding-top: 12px; padding-bottom: 12px; }
 .hr-table td { padding-top: 12px; padding-bottom: 12px; }
-.hr-table tbody tr:hover:not(:has(td[colspan])) { background: color-mix(in srgb, var(--hr-accent) 5%, var(--surface)); }
+.hr-table tbody tr:hover:not(:has(td[colspan])) { background: color-mix(in srgb, var(--hr-accent) 5%, var(--hr-surface)); }
 .hr-employee-directory .hr-table td[colspan] { padding: 0; }
-.hr-employee-directory .hr-empty { min-height: 142px; flex-direction: column; gap: 10px; color: var(--muted); }
-.hr-employee-directory .hr-empty svg { box-sizing: content-box; width: 22px; height: 22px; padding: 12px; border: 1px solid color-mix(in srgb, var(--hr-accent) 16%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--hr-accent) 6%, var(--surface)); color: var(--hr-accent); }
+.hr-employee-directory .hr-empty { min-height: 142px; flex-direction: column; gap: 10px; color: var(--hr-muted); }
+.hr-employee-directory .hr-empty svg { box-sizing: content-box; width: 22px; height: 22px; padding: 12px; border: 1px solid color-mix(in srgb, var(--hr-accent) 16%, var(--hr-line)); border-radius: 12px; background: color-mix(in srgb, var(--hr-accent) 6%, var(--hr-surface)); color: var(--hr-accent); }
 .hr-employee-form {
-  border: 1px solid color-mix(in srgb, var(--hr-accent) 19%, var(--line));
-  border-top: 1px solid color-mix(in srgb, var(--hr-accent) 19%, var(--line));
-  background: linear-gradient(155deg, color-mix(in srgb, var(--hr-accent) 4%, var(--surface)), var(--surface) 45%);
+  border: 1px solid color-mix(in srgb, var(--hr-accent) 19%, var(--hr-line));
+  border-top: 1px solid color-mix(in srgb, var(--hr-accent) 19%, var(--hr-line));
+  background: linear-gradient(155deg, color-mix(in srgb, var(--hr-accent) 4%, var(--hr-surface)), var(--hr-surface) 45%);
 }
 .hr-employee-form-heading { padding-bottom: 14px; }
-.hr-employee-form-heading > span { display: inline-flex; align-items: center; padding: 5px 8px; border: 1px solid color-mix(in srgb, var(--hr-accent) 17%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--hr-accent) 7%, var(--surface)); }
+.hr-employee-form-heading > span { display: inline-flex; align-items: center; padding: 5px 8px; border: 1px solid color-mix(in srgb, var(--hr-accent) 17%, var(--hr-line)); border-radius: 999px; background: color-mix(in srgb, var(--hr-accent) 7%, var(--hr-surface)); }
 .hr-employee-form-heading h3 { font-size: 18px; }
 .hr-employee-create-form { gap: 13px 14px; }
 .hr-employee-create-form label { font-size: 11px; font-weight: 650; }
@@ -509,10 +514,10 @@
 .hr-employee-create-form > button { min-height: 44px; border-radius: 9px; box-shadow: 0 4px 10px rgba(8, 117, 209, .16); }
 html[data-theme="dark"] .hr-header { border-color: #244867; background: linear-gradient(112deg, #102d4c, #173e66 68%, #1a4a70); }
 html[data-theme="dark"] .hr-header::after { border-color: rgba(255,255,255,.08); }
-html[data-theme="dark"] .hr-tabs { background: var(--surface); }
-html[data-theme="dark"] .hr-kpi-strip article { background: linear-gradient(140deg, var(--surface), color-mix(in srgb, var(--hr-accent) 8%, var(--surface))); }
-html[data-theme="dark"] .hr-list-toolbar { background: color-mix(in srgb, var(--hr-accent) 8%, var(--surface)); }
-html[data-theme="dark"] .hr-employee-form { background: linear-gradient(155deg, color-mix(in srgb, var(--hr-accent) 10%, var(--surface)), var(--surface) 55%); }
+html[data-theme="dark"] .hr-tabs { background: var(--hr-surface); }
+html[data-theme="dark"] .hr-kpi-strip article { background: linear-gradient(140deg, var(--hr-surface), color-mix(in srgb, var(--hr-accent) 8%, var(--hr-surface))); }
+html[data-theme="dark"] .hr-list-toolbar { background: color-mix(in srgb, var(--hr-accent) 8%, var(--hr-surface)); }
+.hr-employee-form { background: linear-gradient(155deg, color-mix(in srgb, var(--hr-accent) 10%, var(--hr-surface)), var(--hr-surface) 55%); }
 @container hr-page (max-width: 1000px) {
   .hr-employee-workspace { grid-template-columns: minmax(0, 1fr); }
 }
@@ -528,7 +533,7 @@ html[data-theme="dark"] .hr-employee-form { background: linear-gradient(155deg, 
 .hr-employee-directory.is-empty .advanced-grid-toolbar,
 .hr-employee-directory.is-empty .advanced-grid-footer { display: none; }
 .hr-employee-directory.is-empty .hr-table-wrap { overflow: hidden; border: 0; }
-.hr-employee-directory.is-empty .advanced-grid-scroll { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; }
+.hr-employee-directory.is-empty .advanced-grid-scroll { overflow: hidden; border: 1px solid var(--hr-line); border-radius: 10px; }
 .hr-employee-directory.is-empty .advanced-grid-scroll > table.hr-employee-table {
   width: 100%;
   min-width: 0;
@@ -536,5 +541,34 @@ html[data-theme="dark"] .hr-employee-form { background: linear-gradient(155deg, 
 }
 .hr-employee-directory.is-empty .hr-employee-table thead { display: none; }
 .hr-employee-directory.is-empty .hr-employee-table td[colspan] { border: 0; }
-.hr-employee-directory.is-empty .hr-empty { min-height: 210px; gap: 8px; }
-.hr-employee-directory.is-empty .hr-empty small { max-width: 320px; color: var(--muted); font-size: 12px; }
+.hr-employee-directory.is-empty .hr-empty {
+  min-height: 136px;
+  gap: 7px;
+  padding: 18px;
+  border: 1px dashed color-mix(in srgb, var(--hr-accent) 24%, var(--hr-line));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--hr-accent) 3%, var(--hr-surface));
+}
+.hr-employee-directory.is-empty .hr-empty svg { width: 18px; height: 18px; padding: 9px; }
+.hr-employee-directory.is-empty .hr-empty small { max-width: 320px; color: var(--hr-muted); font-size: 12px; }
+.hr-employee-directory.is-empty .advanced-grid-scroll { border: 0; background: transparent; }
+
+html[data-theme="dark"] .hr-page .hr-status { border-color: #37547a; background: #1a2d43; color: #aad4f4; }
+
+/* Keep the directory at full width; creation lives in a modal dialog. */
+.hr-employee-workspace { grid-template-columns: minmax(0, 1fr); }
+.hr-employee-directory .panel-heading > .primary { flex-shrink: 0; }
+.hr-employee-dialog { box-sizing: border-box; width: min(760px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 40px); margin: auto; padding: 24px; overflow-y: auto; color: var(--hr-text); }
+.hr-employee-dialog::backdrop { background: rgb(10 28 48 / 55%); }
+.hr-dialog-close { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+.hr-dialog-close button { min-width: 36px; font-size: 22px; line-height: 1; }
+.hr-dialog-error { padding: 12px; border-radius: 8px; color: #b42318; background: #fff0ee; }
+.hr-employee-dialog .hr-employee-create-form > button { grid-column: 1 / -1; }
+@media (max-width: 600px) {
+  .hr-employee-dialog { padding: 16px; }
+  .hr-employee-dialog .hr-employee-create-form { grid-template-columns: minmax(0, 1fr); }
+}
+
+.hr-employee-multi-picker { display: grid; gap: 8px; min-width: 0; }
+.hr-employee-multi-picker select { min-height: 150px; }
+.hr-employee-multi-picker small { color: var(--hr-muted); font-size: 11px; line-height: 1.45; }

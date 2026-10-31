@@ -40,6 +40,7 @@ html[data-theme="dark"] .payment-instrument-metrics article>span{background:#302
 .payment-instrument-filters select { min-width: 132px; padding: 6px 8px; }
 .payment-instrument-table-wrap { border-color: #d6e0ea; border-radius: 6px; }
 .payment-instrument-table { min-width: 1020px; }
+.payment-instrument-row-actions { max-width: none; flex-wrap: nowrap; white-space: nowrap; }
 .payment-instrument-table th { padding: 8px 10px; background: #edf2f7; color: #34475a; }
 .payment-instrument-table td { padding: 8px 10px; font-size: 11px; }
 .payment-instrument-status { padding: 3px 7px; border-radius: 4px; }
@@ -95,3 +96,71 @@ html[data-theme="dark"] .payment-instrument-empty{background:linear-gradient(180
 html[data-theme="dark"] .payment-instrument-empty b{color:var(--erp-ink)}
 @media(max-width:820px){.payment-instruments-page{padding:18px 16px 36px}.payment-instruments-page>.page-heading{margin:0 0 14px;padding:18px}.payment-instrument-metrics{grid-template-columns:1fr}.payment-instrument-create,.payment-instrument-list{padding:16px}}
 @media(max-width:520px){.payment-instruments-page{padding:14px 12px 28px}.payment-instruments-page>.page-heading{align-items:flex-start;flex-direction:column;gap:14px}.payment-instrument-heading-actions{width:100%}.payment-instrument-heading-actions button{flex:1;justify-content:center}.payment-instrument-form-grid{grid-template-columns:1fr}.payment-instrument-wide{grid-column:auto}.payment-instrument-list-heading{align-items:flex-start;flex-direction:column}.payment-instrument-filters{width:100%}.payment-instrument-filters select{flex:1;min-width:0}}
+
+/* Keep the portfolio's navy hero above the shared light page-title treatment. */
+#root .main-area .payment-instruments-page > .page-heading {
+  border-color: #153e67;
+  border-left-color: #49a2f5;
+  background: linear-gradient(115deg, #10365d 0%, #174a78 72%, #1b5688 100%);
+  color: #fff;
+}
+#root .main-area .payment-instruments-page > .page-heading h1,
+#root .main-area .payment-instruments-page > .page-heading .eyebrow,
+#root .main-area .payment-instruments-page > .page-heading p:not(.eyebrow) { color: #fff !important; }
+#root .main-area .payment-instruments-page > .page-heading .eyebrow { color: #a9d4ff !important; }
+#root .main-area .payment-instruments-page > .page-heading p:not(.eyebrow) { color: #dce8f4 !important; }
+html[data-theme="dark"] #root .main-area .payment-instruments-page > .page-heading {
+  border-color: #285176;
+  background: linear-gradient(115deg, #102b47, #173f63);
+}
+
+.payment-instrument-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  min-width: 0;
+}
+.payment-instrument-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+  max-width: 640px;
+}
+.payment-instrument-search label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--erp-border, #dce5ef);
+  border-radius: 8px;
+  background: var(--erp-surface, #fff);
+  color: var(--erp-muted, #718096);
+}
+.payment-instrument-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--erp-ink, #203c59);
+  font: inherit;
+  font-size: 12px;
+}
+.payment-instrument-search input:focus-visible { outline: 0; }
+.payment-instrument-search button { min-height: 38px; white-space: nowrap; }
+@media(max-width:820px) {
+  .payment-instrument-list-toolbar { align-items: stretch; flex-direction: column; }
+  .payment-instrument-search { max-width: none; }
+}
+@media(max-width:520px) {
+  .payment-instrument-search { flex-wrap: wrap; }
+  .payment-instrument-search label { flex-basis: 100%; }
+  .payment-instrument-search button { flex: 1; justify-content: center; }
+}

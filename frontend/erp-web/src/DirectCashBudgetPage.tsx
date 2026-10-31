@@ -1,33 +1,13 @@
-import AdvancedDataGrid from './AdvancedDataGrid'
 import { useEffect, useState } from 'react'
 import { authenticatedFetch } from './authApi';
+import { isApproved, type Forecast, type LineInput, type PlanScreenField, type PlanSummary, type PlanView } from './direct-cash-budget/types'
+import DirectCashBudgetMetrics from './direct-cash-budget/components/DirectCashBudgetMetrics'
+import DirectCashBudgetForecast from './direct-cash-budget/components/DirectCashBudgetForecast'
+import DirectCashBudgetPlanList from './direct-cash-budget/components/DirectCashBudgetPlanList'
+import DirectCashBudgetEditor from './direct-cash-budget/components/DirectCashBudgetEditor'
+import DirectCashBudgetDetail from './direct-cash-budget/components/DirectCashBudgetDetail'
 import './direct-cash-budget.css'
 
-type PlanSummary = {
-  id: string
-  name: string
-  fiscalYear: number
-  currencyCode: string
-  status: string | number
-  createdAt: string
-  createdByUserId: string
-  approvedByUserId: string | null
-  approvedAt: string | null
-  revision: number
-  lineCount: number
-}
-type PlanScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean }
-type BudgetLine = { id?: string; periodStart: string; direction: 'Inflow' | 'Outflow'; category: string; description: string; amount: number }
-type PlanView = Omit<PlanSummary, 'lineCount'> & { lines: BudgetLine[] }
-type ForecastMonth = { periodStart: string; directCashBudgetInflows: number; directCashBudgetOutflows: number; netChange: number }
-type Forecast = { currencies: { currencyCode: string; months: ForecastMonth[] }[] }
-type LineInput = Omit<BudgetLine, 'amount'> & { amount: number }
-
-const categories = [
-  ['Sales', 'Satış tahsilatları'], ['Collections', 'Diğer tahsilatlar'], ['Payroll', 'Bordro'],
-  ['Suppliers', 'Tedarikçiler'], ['Taxes', 'Vergi ve harçlar'], ['Investment', 'Yatırım'],
-  ['Financing', 'Finansman'], ['Operating', 'İşletme giderleri'], ['Other', 'Diğer'],
-] as const
 const today = new Date()
 const currentYear = today.getFullYear()
 const currentMonth = String(today.getMonth() + 1).padStart(2, '0')
@@ -44,12 +24,6 @@ async function request<T>(url: string, token: string, init?: RequestInit): Promi
   }
   return response.json() as Promise<T>
 }
-const money = (value: number, currency: string) => {
-  try { return new Intl.NumberFormat('tr-TR', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value) }
-  catch { return `${value.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ${currency}` }
-}
-const isApproved = (status: PlanSummary['status']) => status === 'Approved' || status === 2
-const formatMonth = (value: string) => new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(new Date(`${value}T00:00:00`))
 const defaultPlanScreenFields: PlanScreenField[] = [
   { key: 'name', label: 'Plan adı', visible: true, position: 0 },
   { key: 'fiscalYear', label: 'Mali yıl', visible: true, position: 1 },
@@ -167,66 +141,59 @@ export default function DirectCashBudgetPage({ token, role }: { token: string; r
 
   const forecastRows = forecast?.currencies.flatMap(currencyRow => currencyRow.months.map(month => ({ ...month, currencyCode: currencyRow.currencyCode }))) ?? []
   const draft = selected?.status === 'Draft'
+
   return <div className="finance-page direct-cash-budget-page">
     <header className="page-heading direct-cash-budget-hero">
       <div><p className="eyebrow">FİNANS YÖNETİMİ · NAKİT PLANLAMA</p><h1>Doğrudan nakit bütçesi</h1><p className="muted">Tahmini tahsilat ve ödemeleri aylara göre planlayın. Onaylı planlar nakit tahmininde görünür; gerçek kasa, banka ve muhasebe kayıtları oluşturulmaz.</p></div>
       <div className="heading-actions"><button type="button" className="secondary" onClick={() => void load()} disabled={loading || busy}>{loading ? 'Yenileniyor…' : 'Yenile'}</button>{admin && <button type="button" className="primary" onClick={newDraft} disabled={busy}>Yeni nakit bütçesi</button>}</div>
     </header>
-    <section className="direct-cash-budget-metrics" aria-label="Bütçe özeti">
-      <article><span>Toplam plan</span><strong>{plans.length}</strong><small>Firma kapsamındaki kayıtlar</small></article>
-      <article><span>Onaylı plan</span><strong>{plans.filter(plan => isApproved(plan.status)).length}</strong><small>Nakit tahminine dahil</small></article>
-      <article><span>Taslak</span><strong>{plans.filter(plan => !isApproved(plan.status)).length}</strong><small>Henüz tahmine dahil değil</small></article>
-      <article><span>Tahmin satırı</span><strong>{forecastRows.length}</strong><small>Önümüzdeki 12 ay</small></article>
-    </section>
+    <DirectCashBudgetMetrics
+      planCount={plans.length}
+      approvedCount={plans.filter(plan => isApproved(plan.status)).length}
+      draftCount={plans.filter(plan => !isApproved(plan.status)).length}
+      forecastRowCount={forecastRows.length}
+    />
     {error && <div className="alert inline-alert" role="alert"><span>{error}</span><button type="button" className="row-action" onClick={() => void load()} disabled={loading}>Yeniden dene</button></div>}
     {notice && <div className="notice inline-notice" role="status">{notice}</div>}
-    <section className="panel direct-cash-budget-forecast" aria-labelledby="direct-cash-forecast-title">
-      <div className="panel-heading"><div><h2 id="direct-cash-forecast-title">Onaylı planların nakit tahminine etkisi</h2><p>Önümüzdeki 12 ay · tahsilat ve ödeme satırları para birimi bazında ayrıdır.</p></div></div>
-      <div className="ledger-list" role="region" aria-label="Onaylı planların nakit tahmini tablosu" tabIndex={0}><AdvancedDataGrid className="customer-table"><caption>Önümüzdeki 12 ay için onaylı planların para birimi bazında nakit tahmini</caption><thead><tr><th scope="col">Dönem</th><th scope="col">Döviz</th><th scope="col">Planlanan tahsilat</th><th scope="col">Planlanan ödeme</th><th scope="col">Net nakit değişimi</th></tr></thead><tbody>
-        {forecastRows.map(row => <tr key={`${row.currencyCode}-${row.periodStart}`}><td data-label="Dönem">{formatMonth(row.periodStart)}</td><td data-label="Döviz">{row.currencyCode}</td><td data-label="Planlanan tahsilat">{money(row.directCashBudgetInflows, row.currencyCode)}</td><td data-label="Planlanan ödeme">{money(row.directCashBudgetOutflows, row.currencyCode)}</td><td data-label="Net nakit değişimi"><b>{money(row.directCashBudgetInflows - row.directCashBudgetOutflows, row.currencyCode)}</b></td></tr>)}
-        {!loading && forecastRows.length === 0 && <tr><td colSpan={5} className="table-empty">Seçilen tahmin döneminde onaylı nakit bütçesi yok.</td></tr>}
-      </tbody></AdvancedDataGrid></div>
-      <div className="boundary-note"><span>Tahmin satırları yalnızca planlama bilgisidir. Onay, tahsilat/ödeme veya yevmiye kaydı başlatmaz.</span></div>
-    </section>
+    <DirectCashBudgetForecast rows={forecastRows} loading={loading} />
     <div className={`direct-cash-budget-layout ${editing && admin ? 'has-editor' : ''}`}>
-      <section className="panel direct-cash-budget-list" aria-labelledby="direct-cash-budget-list-title">
-        <div className="panel-heading"><div><h2 id="direct-cash-budget-list-title">Bütçe planları</h2><p>{loading ? 'Planlar yükleniyor…' : `${plans.length} kayıt · firma kapsamlı`}</p></div></div>
-        {loading ? <div className="budget-state" role="status">Nakit bütçeleri yükleniyor…</div> : plans.length === 0 ? <div className="budget-state budget-empty"><strong>Henüz plan yok</strong><span>{admin ? 'Bir taslak oluşturarak başlayın.' : 'Firma yöneticisi bir nakit bütçesi oluşturduğunda burada görünür.'}</span></div> : <div className="budget-plan-list" aria-label="Nakit bütçesi planları">
-          {plans.map(plan => <article key={plan.id} className={`budget-plan-item direct-cash-budget-plan-card ${selected?.id === plan.id && !editing ? 'active' : ''}`}>
-            <div className="direct-cash-budget-plan-fields">
-              {planScreenFields.filter(field => field.visible && field.key !== 'actions').map(field => <span className={`direct-cash-budget-plan-field direct-cash-budget-field-${field.key}`} key={field.key}>
-                <small>{field.label}</small>
-                {field.key === 'status'
-                  ? <span className={`quote-status ${isApproved(plan.status) ? 'accepted' : 'pending'}`}>{isApproved(plan.status) ? 'Onaylı' : 'Taslak'}</span>
-                  : <strong>{field.key === 'name' ? plan.name : field.key === 'fiscalYear' ? plan.fiscalYear : field.key === 'currencyCode' ? plan.currencyCode : field.key === 'lineCount' ? `${plan.lineCount} satır` : `Sürüm ${plan.revision}`}</strong>}
-              </span>)}
-            </div>
-            <button type="button" className="secondary small-button direct-cash-budget-open" onClick={() => void open(plan)} disabled={busy} aria-label={`${planScreenFields.find(field => field.key === 'actions')?.label ?? 'Aç'}: ${plan.name}`}>{planScreenFields.find(field => field.key === 'actions')?.label ?? 'Aç'}</button>
-          </article>)}
-        </div>}
-      </section>
-      {editing && admin && <section className="panel direct-cash-budget-editor" aria-labelledby="direct-cash-budget-editor-title">
-        <div className="panel-heading"><div><h2 id="direct-cash-budget-editor-title">{selected ? 'Taslağı düzenle' : 'Yeni taslak'}</h2><p>Tahsilat ve ödemeleri planlayın; kaydetmek gerçek işlem başlatmaz.</p></div></div>
-        <form className="collection-form" onSubmit={save}>
-          <div className="form-two"><label>Plan adı<input value={name} onChange={event => setName(event.target.value)} maxLength={120} required disabled={busy}/></label><label>Mali yıl<input type="number" min="2000" max="2100" value={year} onChange={event => { const nextYear = Number(event.target.value); setYear(nextYear); setLines(existing => existing.map(line => ({ ...line, periodStart: `${nextYear}-${line.periodStart.slice(5)}` }))) }} required disabled={busy}/></label></div>
-          <div className="form-two"><label>Para birimi (ISO 4217)<input value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} minLength={3} maxLength={3} pattern="[A-Z]{3}" required disabled={busy}/></label><div className="boundary-note"><span>Plan yalnız aynı para birimindeki tahmin satırlarıyla toplanır; kur dönüşümü yapılmaz.</span></div></div>
-          <div className="direct-cash-budget-line-heading"><div><h3>Aylık nakit satırları</h3><p>En çok 1.200 satır; ayın ilk günü kullanılır.</p></div><button className="secondary small-button" type="button" onClick={() => setLines(current => [...current, initialLine(year)])} disabled={busy || lines.length >= 1200}>+ Satır ekle</button></div>
-          {lines.map((line, index) => <fieldset className="direct-cash-budget-line" key={index}><legend>Satır {index + 1}</legend>
-            <label>Ay<input type="month" value={line.periodStart.slice(0, 7)} onChange={event => updateLine(index, { periodStart: `${event.target.value}-01` })} required disabled={busy}/></label>
-            <label>Tür<select value={line.direction} onChange={event => updateLine(index, { direction: event.target.value as LineInput['direction'] })} disabled={busy}><option value="Inflow">Tahsilat</option><option value="Outflow">Ödeme</option></select></label>
-            <label>Kategori<select value={line.category} onChange={event => updateLine(index, { category: event.target.value })} disabled={busy}>{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            <label>Açıklama<input value={line.description} onChange={event => updateLine(index, { description: event.target.value })} maxLength={240} required disabled={busy}/></label>
-            <label>Tutar<input type="number" min="0" max="9999999999999999" step="0.01" value={line.amount} onChange={event => updateLine(index, { amount: Number(event.target.value) })} required disabled={busy}/></label>
-            <button type="button" className="row-action danger" onClick={() => setLines(current => current.filter((_, i) => i !== index))} disabled={busy || lines.length <= 1}>Sil</button>
-          </fieldset>)}
-          <div className="budget-form-foot"><span>Sürüm {selected?.revision ?? 1} · Onaylama farklı bir TenantAdmin tarafından yapılmalıdır.</span><div><button type="button" className="secondary" onClick={() => { setEditing(false); setError('') }} disabled={busy}>Vazgeç</button><button type="submit" className="primary" disabled={busy || !name.trim() || !/^[A-Z]{3}$/.test(currency) || lines.length === 0}>{busy ? 'Kaydediliyor…' : selected ? 'Taslağı kaydet' : 'Taslak oluştur'}</button></div></div>
-        </form>
-      </section>}
+      <DirectCashBudgetPlanList
+        plans={plans}
+        fields={planScreenFields}
+        loading={loading}
+        busy={busy}
+        admin={admin}
+        selectedId={selected?.id}
+        editing={editing}
+        onOpen={plan => void open(plan)}
+      />
+      {editing && admin && <DirectCashBudgetEditor
+        selected={selected}
+        name={name}
+        year={year}
+        currency={currency}
+        lines={lines}
+        busy={busy}
+        onSubmit={save}
+        onNameChange={setName}
+        onYearChange={nextYear => {
+          setYear(nextYear)
+          setLines(existing => existing.map(line => ({ ...line, periodStart: `${nextYear}-${line.periodStart.slice(5)}` })))
+        }}
+        onCurrencyChange={setCurrency}
+        onAddLine={() => setLines(current => [...current, initialLine(year)])}
+        onUpdateLine={updateLine}
+        onRemoveLine={index => setLines(current => current.filter((_, i) => i !== index))}
+        onCancel={() => { setEditing(false); setError('') }}
+      />}
     </div>
-    {selected && !editing && <section className="panel direct-cash-budget-detail" aria-labelledby="direct-cash-budget-detail-title">
-      <div className="panel-heading"><div><p className="eyebrow">{selected.fiscalYear} · {selected.currencyCode} · Sürüm {selected.revision}</p><h2 id="direct-cash-budget-detail-title">{selected.name}</h2><p>{draft ? 'Taslak · tahminlere dahil edilmez' : `Onaylayan: ${selected.approvedByUserId ?? '—'}`}</p></div><div className="heading-actions">{draft && admin && <><span className="direct-cash-budget-approval-hint">Onay için farklı bir TenantAdmin gerekir.</span><button type="button" className="secondary" onClick={() => edit(selected)} disabled={busy}>Düzenle</button><button type="button" className="primary" onClick={() => void approve()} disabled={busy || selected.lines.length === 0}>{busy ? 'Onaylanıyor…' : 'Onayla'}</button></>}</div></div>
-      <div className="ledger-list" role="region" aria-label="Nakit bütçesi satır tablosu" tabIndex={0}><AdvancedDataGrid className="customer-table"><caption>{selected.name} · {selected.currencyCode} para biriminde planlanan tahsilat ve ödemeler</caption><thead><tr><th scope="col">Dönem</th><th scope="col">Tür</th><th scope="col">Kategori</th><th scope="col">Açıklama</th><th scope="col">Tutar</th></tr></thead><tbody>{selected.lines.map(line => <tr key={line.id}><td data-label="Dönem">{formatMonth(line.periodStart)}</td><td data-label="Tür">{line.direction === 'Inflow' ? 'Tahsilat' : 'Ödeme'}</td><td data-label="Kategori">{categories.find(([value]) => value === line.category)?.[1] ?? line.category}</td><td data-label="Açıklama" className="direct-cash-budget-description-cell">{line.description}</td><td data-label="Tutar"><b>{money(line.amount, selected.currencyCode)}</b></td></tr>)}</tbody></AdvancedDataGrid></div>
-      {admin && draft && <div className="boundary-note"><span>Onaylayan kullanıcı, taslağı oluşturan TenantAdmin’den farklı olmalıdır. Sunucu bunu doğrular. Bu onay yalnızca tahmin planını etkinleştirir; finansal kayıt oluşturmaz.</span></div>}
-    </section>}
+    {selected && !editing && <DirectCashBudgetDetail
+      selected={selected}
+      draft={draft}
+      admin={admin}
+      busy={busy}
+      onEdit={edit}
+      onApprove={() => void approve()}
+    />}
   </div>
 }

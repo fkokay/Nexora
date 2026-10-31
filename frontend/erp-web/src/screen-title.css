@@ -143,3 +143,69 @@
     #root .main-area .sales-distribution-header, #root .main-area .sales-promotions-header, #root .main-area .pie-heading, #root .main-area .sid-heading
   ) h1 { font-size: 22px; }
 }
+
+/* Keep the shared title treatment readable when the ERP switches to dark mode. */
+html[data-theme="dark"] :is(
+  #root .main-area .page-heading:has(h1),
+  #root .main-area .screen-page-header,
+  #root .main-area .hr-header,
+  #root .main-area .op-project-heading,
+  #root .main-area .erp-home-heading,
+  #root .main-area .forms-hero,
+  #root .main-area .platform-license-heading,
+  #root .main-area .sales-distribution-header,
+  #root .main-area .sales-promotions-header,
+  #root .main-area .pie-heading,
+  #root .main-area .sid-heading
+) {
+  border-color: var(--erp-border, #30394d);
+  border-left-color: #5ca8ee;
+  background: var(--erp-surface, #191e2d);
+  color: var(--erp-text, #e6eaf3);
+}
+html[data-theme="dark"] :is(
+  #root .main-area .page-heading:has(h1),
+  #root .main-area .screen-page-header,
+  #root .main-area .hr-header,
+  #root .main-area .op-project-heading,
+  #root .main-area .erp-home-heading,
+  #root .main-area .forms-hero,
+  #root .main-area .platform-license-heading,
+  #root .main-area .sales-distribution-header,
+  #root .main-area .sales-promotions-header,
+  #root .main-area .pie-heading,
+  #root .main-area .sid-heading
+) h1 { color: var(--erp-text, #e6eaf3) !important; }
+html[data-theme="dark"] :is(
+  #root .main-area .page-heading:has(h1),
+  #root .main-area .screen-page-header,
+  #root .main-area .hr-header,
+  #root .main-area .op-project-heading,
+  #root .main-area .erp-home-heading,
+  #root .main-area .forms-hero,
+  #root .main-area .platform-license-heading,
+  #root .main-area .sales-distribution-header,
+  #root .main-area .sales-promotions-header,
+  #root .main-area .pie-heading,
+  #root .main-area .sid-heading
+) .eyebrow { color: #8fc8ff !important; }
+html[data-theme="dark"] :is(
+  #root .main-area .page-heading:has(h1),
+  #root .main-area .screen-page-header,
+  #root .main-area .hr-header,
+  #root .main-area .op-project-heading,
+  #root .main-area .erp-home-heading,
+  #root .main-area .forms-hero,
+  #root .main-area .platform-license-heading,
+  #root .main-area .sales-distribution-header,
+  #root .main-area .sales-promotions-header,
+  #root .main-area .pie-heading,
+  #root .main-area .sid-heading
+) p:not(.eyebrow) { color: var(--erp-muted, #a7b0c2) !important; }
+html[data-theme="dark"] #root .main-area .hr-refresh {
+  border-color: #3a455d;
+  background: #242b3c;
+  color: #e6eaf3;
+}
+html[data-theme="dark"] #root .main-area .crm-hero-total,
+html[data-theme="dark"] #root .main-area .crm-hero-total * { color: var(--erp-text, #e6eaf3) !important; }

@@ -71,10 +71,32 @@
 .company-profile-fields small { color: var(--erp-muted, #858c9b); font-size: 9px; font-weight: 400; line-height: 1.5; }
 .company-profile-fields .field-optional { margin-left: 4px; color: var(--erp-muted, #858c9b); font-size: 9px; font-weight: 400; }
 .company-identity-card > .modal-foot { margin: 13px 0; }
+.company-identity-card > .modal-foot > span { color: var(--erp-muted-ink, #718198); font-size: 10px; line-height: 1.5; }
+.company-identity-card .status-live.pending { border-color: #d9e6f4; background: #f3f7fc; color: #58708a; }
+.company-identity-card .status-live.unavailable { border-color: #f1d3d0; background: #fff5f4; color: #a2443d; }
 .tenant-operational-settings-page .company-identity-values { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 16px 0 18px; }
-.tenant-operational-settings-page .company-identity-values>div { padding: 11px 13px; border: 1px solid #e6edf5; border-radius: 8px; background: #f8fafd; }
+.tenant-operational-settings-page .company-identity-values>div { display: grid; gap: 5px; min-width: 0; padding: 12px 14px; border: 1px solid #e2eaf4; border-radius: 9px; background: linear-gradient(120deg,#f9fbfe,#f3f7fc); }
 .tenant-operational-settings-page .company-identity-values small { display: block; margin-bottom: 5px; color: #7a899d; font-size: 9px; }
-.tenant-operational-settings-page .company-identity-values b { color: #273c5a; font-size: 12px; }
+.tenant-operational-settings-page .company-identity-values b { overflow-wrap: anywhere; color: #273c5a; font-size: 12px; line-height: 1.4; }
+.tenant-operational-settings-page .company-profile-fields { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 13px 16px; }
+.tenant-operational-settings-page .company-profile-fields .company-setting-field:first-child { grid-column: 1 / -1; }
+.tenant-operational-settings-page .company-profile-fields input { min-height: 40px; border-radius: 8px; font-size: 12px; }
+.tenant-operational-settings-page .company-profile-fields input:focus-visible { border-color: #1681e8; outline: 3px solid #1681e824; outline-offset: 1px; }
+.tenant-operational-settings-page .company-identity-card > .modal-foot { align-items: center; min-height: 54px; margin: 16px 0 12px; padding: 12px 0 0; border-top: 1px solid #e7edf4; }
+.tenant-operational-settings-page .company-identity-card .setting-actions { flex-wrap: wrap; }
+.tenant-operational-settings-page .company-profile-empty { display: flex; align-items: center; gap: 12px; min-height: 88px; margin: 16px 0 4px; padding: 16px; border: 1px dashed #cbd9e8; border-radius: 10px; background: #f8fafd; }
+.company-profile-empty-mark { display: grid; flex: 0 0 38px; place-items: center; width: 38px; height: 38px; border: 1px solid #dce8f5; border-radius: 10px; background: #edf5ff; color: #1768ac; }
+.company-profile-empty>div { display: grid; gap: 4px; min-width: 0; }
+.company-profile-empty b { color: #273c5a; font-size: 12px; }
+.company-profile-empty p { margin: 0; color: #718198; font-size: 10px; line-height: 1.5; }
+html[data-theme="dark"] .company-setting-card .status-live.pending { border-color: #34445a; background: #202d40; color: #c2cfdf; }
+html[data-theme="dark"] .company-setting-card .status-live.unavailable { border-color: #69403e; background: #302120; color: #f3a39c; }
+html[data-theme="dark"] .tenant-operational-settings-page .company-identity-values>div { border-color: #34445a; background: linear-gradient(120deg,#1c293a,#202d40); }
+html[data-theme="dark"] .tenant-operational-settings-page .company-profile-empty { border-color: #3a4d65; background: #1a2636; }
+html[data-theme="dark"] .company-profile-empty-mark { border-color: #34445a; background: #202d40; color: #8ec5fa; }
+html[data-theme="dark"] .company-profile-empty b { color: #e6edf7; }
+html[data-theme="dark"] .company-profile-empty p { color: #a7b6c9; }
+html[data-theme="dark"] .tenant-operational-settings-page .company-identity-card > .modal-foot { border-color: #303d50; }
 html[data-theme="dark"] .stock-policy-state { background: #151d2c; border-color: #303b50; }
 html[data-theme="dark"] .stock-policy-state.is-enabled { background: #2b2619; border-color: #66512d; }
 html[data-theme="dark"] .stock-policy-state b { color: #e4eaf4; }
@@ -118,6 +140,10 @@ html[data-theme="dark"] .tenant-operational-settings-page .company-settings-acti
   .company-profile-fields { grid-template-columns: 1fr; }
   .tenant-settings-detail>.panel { padding: 16px; }
   .tenant-operational-settings-page .company-identity-values { grid-template-columns: 1fr; }
+  .tenant-operational-settings-page .company-profile-fields { grid-template-columns: 1fr; }
+  .tenant-operational-settings-page .company-profile-fields .company-setting-field:first-child { grid-column: auto; }
+  .tenant-operational-settings-page .company-identity-card > .modal-foot { align-items: flex-start; }
+  .tenant-operational-settings-page .company-identity-card .modal-foot > span { width: 100%; }
   .company-setting-card .setting-actions { width: 100%; justify-content: flex-start; }
   .company-setting-card .modal-foot .setting-actions .primary { align-self: auto; }
 }

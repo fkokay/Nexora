@@ -1,13 +1,14 @@
-import AdvancedDataGrid from './AdvancedDataGrid'
-import ScreenViewGroupHeader from './ScreenViewGroupHeader'
 import { useCallback, useEffect, useState } from 'react'
 import { authenticatedFetch } from './authApi';
+import { addLocalCalendarDays, localDateString } from './dateUtils'
 import type { FormEvent } from 'react'
 import './sales-promotions.css'
+import CampaignsSection from './sales-promotions/components/CampaignsSection'
+import CampaignPerformanceSection from './sales-promotions/components/CampaignPerformanceSection'
+import ApplyCampaignSection from './sales-promotions/components/ApplyCampaignSection'
+import CampaignDialog from './sales-promotions/components/CampaignDialog'
+import type { Campaign, CampaignScreenField, PerformancePage, PerformanceScreenField, Quote } from './sales-promotions/components/types'
 
-type Campaign = { id:string; code:string; name:string; discountPercent:number; effectiveFrom:string; effectiveThrough:string; isActive:boolean; applicationCount:number }
-type CampaignScreenField = { key:string; label:string; visible:boolean; position:number }
-type PerformanceScreenField = { key:string; label:string; visible:boolean; position:number }
 const defaultCampaignScreenFields: CampaignScreenField[] = [
   { key:'code', label:'Kampanya kodu', visible:true, position:0 },
   { key:'name', label:'Kampanya adı', visible:true, position:1 },
@@ -24,10 +25,7 @@ const defaultPerformanceScreenFields:PerformanceScreenField[]=[
   {key:'linkedOrders',label:'Bağlantılı sipariş',visible:true,position:4},{key:'linkedOrderTotals',label:'Sipariş toplamı',visible:true,position:5}
 ]
 const performanceScreenKeys=new Set(defaultPerformanceScreenFields.map(field=>field.key))
-type Quote = { id:string; code:string; customerName:string; quoteDate:string; status:string; grandTotal:number; lineCount:number }
-type QuotePage = { items:Quote[]; page:number; pageSize:number; totalCount:number }
-type Performance = { campaignId:string;code:string;name:string;discountPercent:number;effectiveFrom:string;effectiveThrough:string;isActive:boolean;applications:number;discountTotals:{currencyCode:string;amount:number}[];appliedQuotes:number;linkedOrders:number;linkedOrderTotals:{currencyCode:string;amount:number}[] }
-type PerformancePage = { items:Performance[];page:number;pageSize:number;totalCount:number;method:string }
+type QuotePage = { items: Quote[]; page: number; pageSize: number; totalCount: number }
 type Props = { token:string; role:string; onBack?:()=>void }
 
 async function request<T>(url:string, token:string, init:RequestInit={}):Promise<T>{
@@ -38,9 +36,11 @@ async function request<T>(url:string, token:string, init:RequestInit={}):Promise
 
 export default function SalesPromotionsPage({token,role,onBack}:Props){
   const [campaigns,setCampaigns]=useState<Campaign[]>([]),[quotes,setQuotes]=useState<Quote[]>([])
-  const [code,setCode]=useState(''),[name,setName]=useState(''),[percent,setPercent]=useState('10'),[from,setFrom]=useState(new Date().toISOString().slice(0,10)),[through,setThrough]=useState(new Date(Date.now()+30*86400000).toISOString().slice(0,10))
+  const [code,setCode]=useState(''),[name,setName]=useState(''),[percent,setPercent]=useState('10'),[from,setFrom]=useState(localDateString()),[through,setThrough]=useState(addLocalCalendarDays(30))
   const [campaignId,setCampaignId]=useState(''),[quoteId,setQuoteId]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
   const [createOpen,setCreateOpen]=useState(false)
+  const [editingCampaign,setEditingCampaign]=useState<Campaign|null>(null)
+  const [activeSection,setActiveSection]=useState<'campaigns'|'performance'|'apply'>('campaigns')
   const [campaignScreenFields,setCampaignScreenFields]=useState(defaultCampaignScreenFields)
   const [performanceScreenFields,setPerformanceScreenFields]=useState(defaultPerformanceScreenFields)
   const [campaignQuery,setCampaignQuery]=useState('')
@@ -67,51 +67,20 @@ export default function SalesPromotionsPage({token,role,onBack}:Props){
     return()=>{current=false}
   },[token])
   useEffect(()=>{void loadPerformance().catch(e=>setError((e as Error).message))},[loadPerformance])
-  async function create(e:FormEvent):Promise<boolean>{e.preventDefault();setBusy(true);setError('');setNotice('');try{const row=await request<Campaign>('/api/sales/promotions/',token,{method:'POST',body:JSON.stringify({code,name,discountPercent:Number(percent),effectiveFrom:from,effectiveThrough:through,isActive:true})});setCampaigns(current=>[row,...current]);setCampaignId(row.id);setCode('');setName('');setNotice('Kampanya oluşturuldu. Teklif tarihinin kampanya aralığında olması gerekir.');return true}catch(e){setError((e as Error).message);return false}finally{setBusy(false)}}
+  function openCreate(){setEditingCampaign(null);setCode('');setName('');setPercent('10');setFrom(localDateString());setThrough(addLocalCalendarDays(30));setError('');setCreateOpen(true)}
+  function openEdit(campaign:Campaign){setEditingCampaign(campaign);setCode(campaign.code);setName(campaign.name);setPercent(String(campaign.discountPercent));setFrom(campaign.effectiveFrom);setThrough(campaign.effectiveThrough);setError('');setCreateOpen(true)}
+  async function saveCampaign(e:FormEvent):Promise<boolean>{e.preventDefault();setBusy(true);setError('');setNotice('');try{const body=JSON.stringify({code,name,discountPercent:Number(percent),effectiveFrom:from,effectiveThrough:through,isActive:editingCampaign?.isActive??true});const row=await request<Campaign>(editingCampaign?`/api/sales/promotions/${editingCampaign.id}`:'/api/sales/promotions/',token,{method:editingCampaign?'PUT':'POST',body});setCampaigns(current=>editingCampaign?current.map(item=>item.id===row.id?row:item):[row,...current]);setCampaignId(row.id);setNotice(editingCampaign?'Kampanya güncellendi.':'Kampanya oluşturuldu. Teklif tarihinin kampanya aralığında olması gerekir.');return true}catch(e){setError((e as Error).message);return false}finally{setBusy(false)}}
+  async function toggleCampaignStatus(campaign:Campaign){setBusy(true);setError('');setNotice('');try{const row=await request<Campaign>(`/api/sales/promotions/${campaign.id}`,token,{method:'PUT',body:JSON.stringify({code:campaign.code,name:campaign.name,discountPercent:campaign.discountPercent,effectiveFrom:campaign.effectiveFrom,effectiveThrough:campaign.effectiveThrough,isActive:!campaign.isActive})});setCampaigns(current=>current.map(item=>item.id===row.id?row:item));setNotice(row.isActive?'Kampanya yeniden etkinleştirildi.':'Kampanya pasifleştirildi.')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
   async function apply(e:FormEvent){e.preventDefault();setBusy(true);setError('');setNotice('');try{const result=await request<{discountAmount:number;grandTotal:number}>('/api/sales/promotions/'+campaignId+'/apply',token,{method:'POST',body:JSON.stringify({quoteId})});setNotice(`Kampanya uygulandı. Ek indirim: ${result.discountAmount.toLocaleString('tr-TR',{minimumFractionDigits:2})} · Yeni toplam: ${result.grandTotal.toLocaleString('tr-TR',{minimumFractionDigits:2})}`);await load()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
   const selectedCampaign=campaigns.find(item=>item.id===campaignId)||null
   const visibleCampaigns=campaigns.filter(item=>`${item.code} ${item.name}`.toLocaleLowerCase('tr-TR').includes(campaignQuery.trim().toLocaleLowerCase('tr-TR')))
-  const visibleCampaignFields=campaignScreenFields.filter(field=>field.visible)
-  const visiblePerformanceFields=performanceScreenFields.filter(field=>field.visible)
-  const performanceCell=(item:Performance,key:string)=>{
-    switch(key){
-      case 'campaign': return <><b>{item.code}</b><br/><span className="muted">{item.name}</span></>
-      case 'applications': return item.applications
-      case 'appliedQuotes': return item.appliedQuotes
-      case 'discountTotals': return item.discountTotals.map(t=>`${t.currencyCode} ${t.amount.toLocaleString('tr-TR',{minimumFractionDigits:2})}`).join(' · ')||'—'
-      case 'linkedOrders': return item.linkedOrders
-      case 'linkedOrderTotals': return item.linkedOrderTotals.map(t=>`${t.currencyCode} ${t.amount.toLocaleString('tr-TR',{minimumFractionDigits:2})}`).join(' · ')||'—'
-      default:return null
-    }
-  }
-  const campaignCell=(campaign:Campaign,key:string)=>{
-    switch(key){
-      case 'code': return <b>{campaign.code}</b>
-      case 'name': return campaign.name
-      case 'discountPercent': return `%${campaign.discountPercent}`
-      case 'effectiveFrom': return campaign.effectiveFrom
-      case 'effectiveThrough': return campaign.effectiveThrough
-      case 'status': return campaign.isActive?'Aktif':'Pasif'
-      case 'applicationCount': return campaign.applicationCount
-      default: return null
-    }
-  }
   return <main className="sales-promotions-page">
-    <header className="sales-promotions-header"><div><p className="eyebrow">SATIŞ YÖNETİMİ</p><h1>Kampanyalar ve promosyonlar</h1><p className="muted">Tarih aralığına bağlı yüzde indirimi taslak satış tekliflerine uygulayın.</p></div><div className="sales-promotions-header-actions">{onBack&&<button className="secondary" onClick={onBack}>Satışa dön</button>}{role==='TenantAdmin'&&<button className="primary" onClick={()=>setCreateOpen(true)}>+ Kampanya oluştur</button>}</div></header>
+    <header className="sales-promotions-header"><div><p className="eyebrow">SATIŞ YÖNETİMİ</p><h1>Kampanyalar ve promosyonlar</h1><p className="muted">Tarih aralığına bağlı yüzde indirimi taslak satış tekliflerine uygulayın.</p></div><div className="sales-promotions-header-actions">{onBack&&<button className="secondary" onClick={onBack}>Satışa dön</button>}{role==='TenantAdmin'&&<button className="primary" onClick={openCreate}>+ Kampanya oluştur</button>}</div></header>
     {error&&<div className="alert inline-alert" role="alert">{error}</div>}{notice&&<div className="notice inline-notice" role="status">{notice}</div>}
-    <section className="panel sales-campaign-workbench"><div className="panel-heading"><div><b>Tanımlı kampanyalar</b><small>{campaigns.length} kayıt · indirim teklif satırlarına bileşik uygulanır</small></div><button className="secondary" onClick={()=>void load().catch(e=>setError((e as Error).message))}>Yenile</button></div>
-      <label className="sales-campaign-search">Kampanya ara<input type="search" value={campaignQuery} onChange={event=>setCampaignQuery(event.target.value)} placeholder="Kod veya kampanya adı"/></label><div className="sales-campaign-layout"><div className="table-scroll"><AdvancedDataGrid hideSearch><thead><tr>{visibleCampaignFields.map(field=><th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleCampaigns.map(x=><tr key={x.id} aria-selected={x.id===campaignId} onClick={()=>setCampaignId(x.id)}>{visibleCampaignFields.map(field=><td key={field.key}>{campaignCell(x,field.key)}</td>)}</tr>)}{visibleCampaigns.length===0&&<tr><td colSpan={Math.max(1,visibleCampaignFields.length)}>{campaignQuery?'Aramayla eşleşen kampanya yok.':'Henüz kampanya tanımlanmadı.'}</td></tr>}</tbody></AdvancedDataGrid></div><aside className="sales-campaign-detail">{selectedCampaign?<><small>SEÇİLİ KAMPANYA</small><h2>{selectedCampaign.name}</h2><p>{selectedCampaign.code}</p><dl><div><dt>İndirim</dt><dd>%{selectedCampaign.discountPercent}</dd></div><div><dt>Geçerlilik</dt><dd>{selectedCampaign.effectiveFrom} – {selectedCampaign.effectiveThrough}</dd></div><div><dt>Durum</dt><dd>{selectedCampaign.isActive?'Aktif':'Pasif'}</dd></div><div><dt>Uygulama sayısı</dt><dd>{selectedCampaign.applicationCount}</dd></div></dl></>:<p>Kampanya seçildiğinde özeti burada görünür.</p>}</aside></div>
-    </section>
-    <section className="panel sales-campaign-performance"><div className="panel-heading sales-campaign-performance-heading"><div className="sales-campaign-performance-title"><b>Kampanya performansı</b><small>Uygulanan indirimler ve bağlantılı siparişler</small></div><button className="secondary" onClick={()=>void loadPerformance().catch(e=>setError((e as Error).message))}>Raporu yenile</button></div><div className="form-two sales-campaign-filters"><label className="sales-campaign-filter-label">Kampanya ara<input value={reportQuery} maxLength={120} onChange={e=>{setReportQuery(e.target.value);setReportPage(1)}} placeholder="Kod veya ad"/></label><label className="sales-campaign-filter-label">Uygulama tarihi başlangıç<input type="date" value={reportFrom} onChange={e=>{setReportFrom(e.target.value);setReportPage(1)}}/></label><label className="sales-campaign-filter-label">Uygulama tarihi bitiş<input type="date" value={reportThrough} onChange={e=>{setReportThrough(e.target.value);setReportPage(1)}}/></label></div>{performance&&<><div className="table-scroll sales-campaign-report-table" role="region" aria-label="Kampanya performans raporu" tabIndex={0}><AdvancedDataGrid hideSearch><thead><ScreenViewGroupHeader fields={visiblePerformanceFields}/><tr>{visiblePerformanceFields.map(field=><th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{performance.items.map(x=><tr key={x.campaignId}>{visiblePerformanceFields.map(field=><td key={field.key}>{performanceCell(x,field.key)}</td>)}</tr>)}{performance.items.length===0&&<tr className="sales-campaign-empty"><td colSpan={Math.max(1,visiblePerformanceFields.length)}>Eşleşen kampanya bulunamadı.</td></tr>}</tbody></AdvancedDataGrid></div><div className="panel-heading sales-campaign-pagination"><small className="muted">{performance.method} · {performance.totalCount} kampanya</small><div><button className="secondary" disabled={reportPage<=1} onClick={()=>setReportPage(x=>Math.max(1,x-1))}>Önceki</button><span aria-live="polite">{reportPage}</span><button className="secondary" disabled={reportPage*performance.pageSize>=performance.totalCount} onClick={()=>setReportPage(x=>x+1)}>Sonraki</button></div></div></>}</section>
-    {createOpen&&role==='TenantAdmin'&&<div className="sales-promotion-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setCreateOpen(false)}}><section className="panel sales-campaign-create" role="dialog" aria-modal="true" aria-labelledby="sales-campaign-create-title"><div className="panel-heading"><div><b id="sales-campaign-create-title">Kampanya oluştur</b><small>Yönetim işlemleri firma yöneticisi yetkisi gerektirir.</small></div><button type="button" className="secondary" onClick={()=>setCreateOpen(false)}>Kapat</button></div><form onSubmit={event=>{void create(event).then(created=>{if(created)setCreateOpen(false)})}} className="form-two">
-      <label>Kampanya kodu<input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} required maxLength={40}/></label><label>Kampanya adı<input value={name} onChange={e=>setName(e.target.value)} required maxLength={120}/></label>
-      <label>İndirim yüzdesi<input type="number" min="0.01" max="100" step="0.01" value={percent} onChange={e=>setPercent(e.target.value)} required/></label><label>Başlangıç tarihi<input type="date" value={from} onChange={e=>setFrom(e.target.value)} required/></label><label>Bitiş tarihi<input type="date" value={through} onChange={e=>setThrough(e.target.value)} required/></label>
-      <div className="modal-foot"><span>İndirim tutarları sunucuda hesaplanır.</span><button className="primary" disabled={busy}>{busy?'Kaydediliyor…':'Kampanya oluştur'}</button></div>
-    </form></section></div>}
-    <section className="panel"><div className="panel-heading"><div><b>Teklife uygula</b><small>Yalnızca taslak teklifler ve teklif tarihi geçerlilik aralığına uyan kampanyalar kullanılabilir.</small></div></div><form onSubmit={apply} className="form-two">
-      <label>Kampanya<select value={campaignId} onChange={e=>setCampaignId(e.target.value)} required><option value="">Kampanya seçin</option>{campaigns.filter(x=>x.isActive).map(x=><option key={x.id} value={x.id}>{x.code} · {x.name} (%{x.discountPercent})</option>)}</select></label>
-      <label>Taslak teklif<select value={quoteId} onChange={e=>setQuoteId(e.target.value)} required><option value="">Teklif seçin</option>{quotes.map(x=><option key={x.id} value={x.id}>{x.code} · {x.customerName} · {x.quoteDate} · {x.grandTotal.toLocaleString('tr-TR')}</option>)}</select></label>
-      <div className="modal-foot"><span>Kampanya aynı teklife bir kez uygulanabilir.</span><button className="primary" disabled={busy||!campaignId||!quoteId}>{busy?'Uygulanıyor…':'Teklife uygula'}</button></div>
-    </form></section>
+    <nav className="sales-campaign-tabs" role="tablist" aria-label="Kampanya işlemleri"><button type="button" role="tab" aria-selected={activeSection==='campaigns'} onClick={()=>setActiveSection('campaigns')}><b>Kampanyalar</b><small>İndirim kurallarını yönetin</small></button><button type="button" role="tab" aria-selected={activeSection==='performance'} onClick={()=>setActiveSection('performance')}><b>Performans</b><small>Uygulama ve sipariş sonuçları</small></button><button type="button" role="tab" aria-selected={activeSection==='apply'} onClick={()=>setActiveSection('apply')}><b>Teklife uygula</b><small>Taslak teklife indirim ekleyin</small></button></nav>
+    {activeSection==='campaigns'&&<CampaignsSection campaigns={campaigns} visibleCampaigns={visibleCampaigns} selectedCampaign={selectedCampaign} selectedCampaignId={campaignId} fields={campaignScreenFields} query={campaignQuery} role={role} busy={busy} onQueryChange={setCampaignQuery} onRefresh={()=>void load().catch(e=>setError((e as Error).message))} onSelect={setCampaignId} onEdit={openEdit} onToggleStatus={campaign=>void toggleCampaignStatus(campaign)} />}
+    {activeSection==='performance'&&<CampaignPerformanceSection performance={performance} fields={performanceScreenFields} query={reportQuery} from={reportFrom} through={reportThrough} page={reportPage} onQueryChange={value=>{setReportQuery(value);setReportPage(1)}} onFromChange={value=>{setReportFrom(value);setReportPage(1)}} onThroughChange={value=>{setReportThrough(value);setReportPage(1)}} onPageChange={setReportPage} onRefresh={()=>void loadPerformance().catch(e=>setError((e as Error).message))} />}
+    {createOpen&&role==='TenantAdmin'&&<CampaignDialog editing={Boolean(editingCampaign)} code={code} name={name} percent={percent} from={from} through={through} busy={busy} onCodeChange={setCode} onNameChange={setName} onPercentChange={setPercent} onFromChange={setFrom} onThroughChange={setThrough} onClose={()=>{setCreateOpen(false);setEditingCampaign(null)}} onSubmit={event=>{void saveCampaign(event).then(saved=>{if(saved){setCreateOpen(false);setEditingCampaign(null)}})}} />}
+    {activeSection==='apply'&&<ApplyCampaignSection campaigns={campaigns} quotes={quotes} campaignId={campaignId} quoteId={quoteId} busy={busy} onCampaignChange={setCampaignId} onQuoteChange={setQuoteId} onSubmit={apply} />}
   </main>
 }

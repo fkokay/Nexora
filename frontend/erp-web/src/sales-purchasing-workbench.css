@@ -30,22 +30,357 @@
 .delivery-screen .customer-table td,.receipt-screen .customer-table td,.purchase-invoices-page .customer-table td,.purchase-orders-page .customer-table td{font-size:12px;white-space:nowrap}
 .delivery-screen .customer-table tbody tr,.receipt-screen .customer-table tbody tr,.purchase-invoices-page .customer-table tbody tr,.purchase-orders-page .customer-table tbody tr{cursor:pointer}
 .delivery-screen .customer-table tbody tr:hover td,.receipt-screen .customer-table tbody tr:hover td,.purchase-invoices-page .customer-table tbody tr:hover td,.purchase-orders-page .customer-table tbody tr:hover td{background:#f3f8ff}
-.delivery-screen .standalone-fulfillment-panel{margin:0 0 18px!important;padding:18px 20px;border:1px solid #dce5f1;border-radius:12px;background:linear-gradient(180deg,#fff,#fbfdff);box-shadow:0 5px 18px #172b4d0a}
-.delivery-screen .standalone-fulfillment-panel>.panel-heading{display:flex;align-items:flex-start;gap:16px;margin:0 0 16px;padding:0 0 14px;border-bottom:1px solid #e8eef6}
-.delivery-screen .standalone-fulfillment-panel>.panel-heading>div{display:grid;gap:5px;min-width:0}
-.delivery-screen .standalone-fulfillment-panel>.panel-heading b{display:block;color:#172b4d;font-size:15px;font-weight:700;line-height:1.35}
-.delivery-screen .standalone-fulfillment-panel>.panel-heading small{display:block;color:#64748b;font-size:11px;line-height:1.5}
-.delivery-screen .standalone-fulfillment-panel .collection-form{display:grid;gap:14px;margin:0;padding:16px;border:1px solid #e7edf5;border-radius:10px;background:#f8fafd}
-.delivery-screen .standalone-fulfillment-panel .form-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.delivery-screen .standalone-fulfillment-panel .form-two>label{display:grid;align-content:start;gap:7px;min-width:0;color:#42536a;font-size:11px;font-weight:650;line-height:1.4}
-.delivery-screen .standalone-fulfillment-panel .form-two input,.delivery-screen .standalone-fulfillment-panel .form-two select{width:100%;min-width:0;height:40px;padding:0 11px;border:1px solid #d4deeb;border-radius:8px;background:#fff;color:#1e2e44;font-size:12px;outline:none;box-shadow:0 1px 2px #243b5308}
-.delivery-screen .standalone-fulfillment-panel .form-two input:focus,.delivery-screen .standalone-fulfillment-panel .form-two select:focus{border-color:#4f91e7;box-shadow:0 0 0 3px #3685e51a}
-.delivery-screen .standalone-fulfillment-panel .collection-form>.modal-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0;padding-top:3px}
-.delivery-screen .standalone-fulfillment-panel .collection-form>.modal-foot .primary{min-width:142px}
-.delivery-screen .standalone-fulfillment-panel .alert{margin:0 0 14px}
-@media(max-width:760px){.delivery-screen .standalone-fulfillment-panel{padding:15px}.delivery-screen .standalone-fulfillment-panel .collection-form{padding:12px}.delivery-screen .standalone-fulfillment-panel .form-two{grid-template-columns:minmax(0,1fr);gap:11px}.delivery-screen .standalone-fulfillment-panel .collection-form>.modal-foot{align-items:stretch;flex-wrap:wrap}.delivery-screen .standalone-fulfillment-panel .collection-form>.modal-foot .primary{margin-left:auto}}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel{margin:0 0 18px!important;padding:18px 20px;border:1px solid #dce5f1;border-radius:12px;background:linear-gradient(180deg,#fff,#fbfdff);box-shadow:0 5px 18px #172b4d0a}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel>.panel-heading{display:flex;align-items:flex-start;gap:16px;margin:0 0 16px;padding:0 0 14px;border-bottom:1px solid #e8eef6}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel>.panel-heading>div{display:grid;gap:5px;min-width:0}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel>.panel-heading b{display:block;color:#172b4d;font-size:15px;font-weight:700;line-height:1.35}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel>.panel-heading small{display:block;color:#64748b;font-size:11px;line-height:1.5}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .collection-form{display:grid;gap:14px;margin:0;padding:16px;border:1px solid #e7edf5;border-radius:10px;background:#f8fafd}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .form-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .form-two>label{display:grid;align-content:start;gap:7px;min-width:0;color:#42536a;font-size:11px;font-weight:650;line-height:1.4}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .form-two input,:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .form-two select{width:100%;min-width:0;height:40px;padding:0 11px;border:1px solid #d4deeb;border-radius:8px;background:#fff;color:#1e2e44;font-size:12px;outline:none;box-shadow:0 1px 2px #243b5308}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .form-two input:focus,:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .form-two select:focus{border-color:#4f91e7;box-shadow:0 0 0 3px #3685e51a}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .collection-form>.modal-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0;padding-top:3px}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .collection-form>.modal-foot .primary{min-width:142px}
+:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .alert{margin:0 0 14px}
+@media(max-width:760px){:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel{padding:15px}:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .collection-form{padding:12px}:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .form-two{grid-template-columns:minmax(0,1fr);gap:11px}:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .collection-form>.modal-foot{align-items:stretch;flex-wrap:wrap}:is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .collection-form>.modal-foot .primary{margin-left:auto}}
 .erp-selected-request{border-color:#84b5f4!important;background:#eaf2ff!important}
 .purchase-requests-page .requests-list{display:grid;gap:0;border:1px solid #d9e2f0;border-radius:8px;background:#fff;overflow:hidden}
 .purchase-requests-page .request-row{margin:0;border:0;border-bottom:1px solid #e5ebf3;border-radius:0;cursor:pointer}
 .purchase-requests-page .request-row:last-child{border-bottom:0}
+.purchase-requests-page .purchase-request-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) minmax(160px,220px) auto;align-items:center;gap:10px;margin:0 0 12px;padding:10px 12px;border:1px solid #e5e9f1;border-radius:9px;background:#f8faff}
+.purchase-requests-page .purchase-request-toolbar .customer-search{display:flex;align-items:center;gap:8px;min-width:0;color:#7b8495}
+.purchase-requests-page .purchase-request-toolbar input,.purchase-requests-page .purchase-request-toolbar select{width:100%;min-width:0;height:36px;padding:0 10px;border:1px solid #dfe4ed;border-radius:7px;background:#fff;color:#30394c;font-size:11px}
+.purchase-requests-page .purchase-request-status{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px;color:#737c8d;font-size:10px;font-weight:650}
+.purchase-requests-page .purchase-request-count{justify-self:end;color:#778197;font-size:10px;white-space:nowrap}
+@media(max-width:620px){.purchase-requests-page .purchase-request-toolbar{grid-template-columns:minmax(0,1fr) auto}.purchase-requests-page .purchase-request-toolbar .customer-search{grid-column:1/-1}.purchase-requests-page .purchase-request-status{grid-column:1}.purchase-requests-page .purchase-request-count{grid-column:2;grid-row:2}}
 @media(max-width:1100px){.erp-workbench{grid-template-columns:minmax(0,1fr)}.erp-record-pane{position:static}.customer-workbench .erp-record-pane{order:-1}}
+
+html[data-theme="dark"] .erp-workbench .erp-list-pane,
+html[data-theme="dark"] .erp-workbench .erp-record-pane{border-color:var(--erp-border);background:var(--erp-surface);color:var(--erp-text);box-shadow:0 4px 16px #05081236}
+html[data-theme="dark"] .erp-workbench .erp-pane-heading{border-color:var(--erp-border);background:#1d2636;color:var(--erp-text)}
+html[data-theme="dark"] .erp-workbench .erp-pane-heading small,
+html[data-theme="dark"] .erp-workbench .erp-record-heading small,
+html[data-theme="dark"] .erp-workbench .erp-empty-detail{color:var(--erp-muted)}
+html[data-theme="dark"] .erp-workbench .erp-record-heading,
+html[data-theme="dark"] .erp-workbench .erp-record-actions{border-color:var(--erp-border)}
+html[data-theme="dark"] .erp-workbench .erp-record-heading h2,
+html[data-theme="dark"] .erp-workbench .erp-record-facts dd{color:var(--erp-text)}
+html[data-theme="dark"] .erp-workbench .erp-record-kind,
+html[data-theme="dark"] .erp-workbench .erp-record-facts dt{color:var(--erp-muted)}
+html[data-theme="dark"] .erp-workbench .erp-record-facts div{border-color:var(--erp-border);background:var(--erp-surface-raised)}
+html[data-theme="dark"] .erp-workbench .erp-list-pane .customer-table th{background:#242b3b;color:#bec7d8;border-color:var(--erp-border)}
+html[data-theme="dark"] .erp-workbench .erp-list-pane .customer-table td{background:var(--erp-surface);color:#c7cede;border-color:var(--erp-border)}
+html[data-theme="dark"] .erp-workbench .erp-list-pane .customer-table tbody tr:hover td{background:#252c3d}
+html[data-theme="dark"] .erp-workbench .erp-list-pane .customer-table tbody tr.erp-selected-row td{background:#252e45;border-top-color:#41577a}
+html[data-theme="dark"] .erp-workbench .erp-list-pane .table-pagination{border-color:var(--erp-border);color:var(--erp-muted)}
+html[data-theme="dark"] .erp-selected-request{border-color:#526b91!important;background:#202c40!important}
+html[data-theme="dark"] .purchase-requests-page .purchase-request-toolbar{border-color:var(--erp-border);background:var(--erp-surface-raised);color:var(--erp-text)}
+html[data-theme="dark"] .purchase-requests-page .purchase-request-toolbar input,
+html[data-theme="dark"] .purchase-requests-page .purchase-request-toolbar select{border-color:var(--erp-border);background:var(--erp-surface);color:var(--erp-text)}
+html[data-theme="dark"] .purchase-requests-page .purchase-request-toolbar input::placeholder{color:var(--erp-muted)}
+html[data-theme="dark"] .purchase-requests-page .purchase-request-status,
+html[data-theme="dark"] .purchase-requests-page .purchase-request-count{color:var(--erp-muted)}
+html[data-theme="dark"] .erp-record-pane{border-color:var(--erp-border);background:var(--erp-surface);color:var(--erp-text);box-shadow:none}
+html[data-theme="dark"] .erp-record-pane .erp-record-heading,
+html[data-theme="dark"] .erp-record-pane .erp-record-actions{border-color:var(--erp-border)}
+html[data-theme="dark"] .erp-record-pane .erp-record-heading h2,
+html[data-theme="dark"] .erp-record-pane .erp-record-facts dd{color:var(--erp-text)}
+html[data-theme="dark"] .erp-record-pane .erp-record-heading small,
+html[data-theme="dark"] .erp-record-pane .erp-record-kind,
+html[data-theme="dark"] .erp-record-pane .erp-record-facts dt{color:var(--erp-muted)}
+html[data-theme="dark"] .erp-record-pane .erp-record-facts div{border-color:var(--erp-border);background:var(--erp-surface-raised)}
+.purchase-settings-panel{margin-bottom:12px}
+.purchase-settings-panel>summary{display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer;list-style:none}
+.purchase-settings-panel>summary::-webkit-details-marker{display:none}
+.purchase-settings-panel>summary::after{content:"▾";flex:none;color:#64748b;font-size:18px;transition:transform .16s ease}
+.purchase-settings-panel[open]>summary{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #e8eef6}
+.purchase-settings-panel[open]>summary::after{transform:rotate(180deg)}
+html[data-theme="dark"] .purchase-settings-panel[open]>summary{border-color:var(--erp-border)}
+
+/* Keep supplier quote details beside the long result list so selection does
+   not send the user below as many as 50 table rows. */
+.supplier-quotes-page .customer-summary { margin: 0; }
+.supplier-quotes-page .purchase-request-toolbar {
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
+}
+.supplier-quotes-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, .9fr);
+  align-items: start;
+  gap: 14px;
+  min-width: 0;
+}
+.supplier-quotes-list { min-width: 0; }
+.supplier-quotes-table-wrap {
+  max-height: min(68vh, 740px);
+  overflow: auto;
+  border: 1px solid #d9e2f0;
+  border-radius: 8px;
+  scrollbar-gutter: stable;
+}
+.supplier-quotes-table-wrap .customer-table {
+  min-width: 780px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.supplier-quotes-table-wrap .customer-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f1f5f9;
+  white-space: nowrap;
+}
+.supplier-quotes-table-wrap .customer-table tbody tr { cursor: pointer; }
+.supplier-quotes-table-wrap .customer-table tbody tr:focus-visible {
+  outline: 2px solid #1681e8;
+  outline-offset: -2px;
+}
+.supplier-quotes-table-wrap .customer-table tbody tr:hover td { background: #f3f8ff; }
+.supplier-quotes-table-wrap .customer-table tbody tr.erp-selected-row td {
+  background: #eaf2ff;
+  border-top-color: #c8dcff;
+}
+.supplier-quotes-detail {
+  min-width: 0;
+  max-height: calc(100vh - 116px);
+  margin: 0;
+  overflow: auto;
+  top: 90px;
+}
+.supplier-quotes-detail .customer-table-wrap {
+  overflow: auto;
+  border: 1px solid #e5ebf3;
+  border-radius: 7px;
+}
+.supplier-quotes-detail .customer-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+.supplier-quotes-detail .customer-table :is(th, td) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.sales-delivery-lines-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.sales-delivery-lines-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+.sales-delivery-lines-wrap .sales-delivery-lines-table {
+  min-width: 0;
+}
+.sales-delivery-lines-table th:first-child { width: 62%; }
+.sales-delivery-lines-table th:nth-child(2) { width: 22%; }
+.sales-delivery-lines-table th:nth-child(3) { width: 16%; }
+.sales-delivery-lines-table :is(th, td) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.sales-delivery-lines-table td:first-child small {
+  display: block;
+  margin-top: 3px;
+  line-height: 1.45;
+}
+.sales-detail-modal {
+  width: min(920px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.sales-detail-modal .ledger-list { overflow-x: auto; }
+.sales-detail-modal .modal-head { gap: 14px; }
+.sales-detail-modal .modal-head > div { min-width: 0; }
+.sales-detail-modal .modal-head h2 { overflow-wrap: anywhere; }
+.customer-table .erp-link-button.customer-code {
+  padding: 0;
+  font-size: inherit;
+  text-align: left;
+}
+.customer-table .erp-link-button.customer-code:focus-visible {
+  outline: 2px solid #1681e8;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+@media (max-width: 620px) {
+  .modal-backdrop:has(> .sales-detail-modal) { padding: 10px; }
+  .sales-detail-modal { max-height: calc(100dvh - 20px); padding: 16px; border-radius: 10px; }
+  .sales-detail-modal .modal-foot { align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+  .sales-detail-modal .modal-foot > div { width: 100%; flex-wrap: wrap; justify-content: flex-end; }
+}
+html[data-theme="dark"] .supplier-quotes-table-wrap {
+  border-color: var(--erp-border);
+  background: var(--erp-surface);
+}
+html[data-theme="dark"] .supplier-quotes-table-wrap .customer-table th {
+  background: #242b3b;
+  color: #bec7d8;
+  border-color: var(--erp-border);
+}
+html[data-theme="dark"] .supplier-quotes-table-wrap .customer-table td {
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  border-color: var(--erp-border);
+}
+html[data-theme="dark"] .supplier-quotes-table-wrap .customer-table tbody tr:hover td,
+html[data-theme="dark"] .supplier-quotes-table-wrap .customer-table tbody tr.erp-selected-row td {
+  background: #252e45;
+}
+html[data-theme="dark"] .supplier-quotes-detail .customer-table-wrap {
+  border-color: var(--erp-border);
+}
+@media (max-width: 1040px) {
+  .supplier-quotes-workspace { grid-template-columns: minmax(0, 1fr); }
+  .supplier-quotes-detail { position: static; max-height: none; }
+}
+@media (max-width: 620px) {
+  .supplier-quotes-page .purchase-request-toolbar { grid-template-columns: minmax(0, 1fr); }
+}
+
+html[data-theme="dark"] :is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel{border-color:var(--erp-border);background:linear-gradient(180deg,var(--erp-surface),var(--erp-surface-raised));box-shadow:0 5px 18px #05081236}
+html[data-theme="dark"] :is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel>.panel-heading{border-color:var(--erp-border)}
+html[data-theme="dark"] :is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel>.panel-heading b{color:var(--erp-text)}
+html[data-theme="dark"] :is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel>.panel-heading small{color:var(--erp-muted)}
+html[data-theme="dark"] :is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .collection-form{border-color:var(--erp-border);background:var(--erp-surface-raised)}
+html[data-theme="dark"] :is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .form-two>label{color:var(--erp-muted)}
+html[data-theme="dark"] :is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .form-two input,html[data-theme="dark"] :is(.delivery-screen,.receipt-screen) .standalone-fulfillment-panel .form-two select{border-color:var(--erp-border);background:var(--erp-surface);color:var(--erp-text)}
+html[data-theme="dark"] .delivery-create-screen>.page-heading>.secondary:hover,html[data-theme="dark"] .delivery-create-screen>.page-heading>.secondary:focus-visible{border-color:var(--erp-border);background:#30364d;color:var(--erp-text);outline-color:#6b91c2}
+
+/* Sales order detail modal: stable grid search and clearer document sections. */
+.sales-detail-modal{width:min(960px,calc(100vw - 32px));max-height:calc(100dvh - 40px);padding:22px;overflow:auto;border:1px solid #d9e5f1;border-radius:14px;box-shadow:0 24px 72px #102a4350}
+.sales-detail-modal .modal-head{align-items:flex-start;margin-bottom:15px;padding-bottom:14px;border-bottom:1px solid #e8edf4}
+.sales-detail-modal .modal-head .eyebrow{margin-bottom:6px;color:#1674c4;font-size:9px;letter-spacing:.12em}
+.sales-detail-modal .modal-head h2{font-size:21px;line-height:1.25;color:#18324c}
+.sales-detail-modal .balance-banner{margin:0 0 16px;padding:15px 17px;border-color:#dce8f5;border-radius:11px;background:linear-gradient(110deg,#f0f7ff,#f8fbff)}
+.sales-detail-modal .balance-banner>div{gap:5px;min-width:0}
+.sales-detail-modal .balance-banner small{color:#71839a;font-size:10px}
+.sales-detail-modal .balance-banner b{color:#173c5d;font-size:22px;font-variant-numeric:tabular-nums}
+.sales-detail-modal .balance-banner span:not(.quote-status){color:#75859b;font-size:10px;line-height:1.5}
+.sales-detail-modal .advanced-grid-toolbar{display:flex;align-items:center;gap:7px;padding:10px;border-color:#e0e7f0;background:#f8fafd}
+.sales-detail-modal .advanced-grid-search{display:flex;flex:1 1 100%;align-items:center;gap:8px;width:100%;min-width:0;max-width:none;height:36px;padding:0 10px;border-color:#dce4ee;border-radius:7px;background:#fff;color:#8090a3;font-size:11px}
+.sales-detail-modal .advanced-grid-search input{display:block;width:100%;min-width:0;height:auto;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:#26384d;font-size:11px;box-shadow:none}
+.sales-detail-modal .advanced-grid-search input:focus{outline:0;border:0;box-shadow:none}
+.sales-detail-modal .advanced-grid-menu>summary,.sales-detail-modal .advanced-grid-action{min-height:33px;border-color:#dce4ee;border-radius:7px;background:#fff;color:#40566d;font-size:10px}
+.sales-detail-modal .advanced-grid-menu>summary:hover,.sales-detail-modal .advanced-grid-action:hover{border-color:#b8cde1;background:#f0f6fc;color:#175f98}
+.sales-detail-modal .advanced-grid-count{margin-left:auto;color:#74849a;font-size:10px}
+.sales-detail-modal .ledger-list{max-height:min(34vh,300px);margin-bottom:16px;border-color:#e0e7f0;border-radius:0 0 9px 9px;background:#fff}
+.sales-detail-modal .advanced-grid-scroll{max-height:min(30vh,260px);border-color:#e0e7f0}
+.sales-detail-modal .advanced-grid-footer{gap:8px 12px;padding:9px 11px;border-color:#e0e7f0;background:#fff;color:#74849a}
+.sales-detail-modal .delivery-history-head{justify-content:flex-start;flex-wrap:wrap;gap:8px;margin:14px 0 0;padding:13px 14px;border:1px solid #e0e7f0;border-radius:10px 10px 0 0;background:#f8fafd;color:#28435e;font-size:12px}
+.sales-detail-modal .delivery-history-head>b{margin-right:auto;font:700 13px Manrope,sans-serif}
+.sales-detail-modal .delivery-history-head .primary,.sales-detail-modal .delivery-history-head .secondary{min-height:33px;height:33px}
+.sales-detail-modal .delivery-list{margin:0;padding:10px;border:1px solid #e0e7f0;border-top:0;border-radius:0 0 10px 10px;background:#fff}
+.sales-detail-modal .delivery-row{gap:10px;padding:10px 11px;border-color:#e6ebf2;background:#fff}
+.sales-detail-modal .delivery-row b{color:#27435f;font-size:11px}
+.sales-detail-modal .delivery-row small{color:#8190a3;font-size:10px;line-height:1.45}
+.sales-detail-modal>.modal-foot{margin-top:17px;padding-top:14px;border-top:1px solid #e8edf4}
+@media(max-width:620px){.sales-detail-modal{padding:16px}.sales-detail-modal .balance-banner{align-items:flex-start;gap:10px;padding:13px}.sales-detail-modal .balance-banner b{font-size:19px}.sales-detail-modal .advanced-grid-toolbar{gap:6px}.sales-detail-modal .advanced-grid-count{flex:1 1 100%;margin-left:0}.sales-detail-modal .delivery-history-head>b{flex:1 1 100%}.sales-detail-modal .delivery-row{align-items:flex-start;flex-wrap:wrap}.sales-detail-modal .delivery-row>div{flex-basis:100%}}
+html[data-theme="dark"] .sales-detail-modal .modal-head{border-color:var(--erp-border)}
+html[data-theme="dark"] .sales-detail-modal .modal-head h2,html[data-theme="dark"] .sales-detail-modal .balance-banner b{color:var(--erp-text)}
+html[data-theme="dark"] .sales-detail-modal .balance-banner{border-color:var(--erp-border);background:linear-gradient(110deg,#202a3b,#1b2332)}
+html[data-theme="dark"] .sales-detail-modal .balance-banner small,html[data-theme="dark"] .sales-detail-modal .balance-banner span:not(.quote-status),html[data-theme="dark"] .sales-detail-modal .delivery-row small{color:var(--erp-muted)}
+html[data-theme="dark"] .sales-detail-modal .advanced-grid-toolbar,html[data-theme="dark"] .sales-detail-modal .delivery-history-head{border-color:var(--erp-border);background:var(--erp-surface-raised);color:var(--erp-text)}
+html[data-theme="dark"] .sales-detail-modal .advanced-grid-search,html[data-theme="dark"] .sales-detail-modal .advanced-grid-menu>summary,html[data-theme="dark"] .sales-detail-modal .advanced-grid-action,html[data-theme="dark"] .sales-detail-modal .advanced-grid-footer,html[data-theme="dark"] .sales-detail-modal .delivery-list,html[data-theme="dark"] .sales-detail-modal .delivery-row{border-color:var(--erp-border);background:var(--erp-surface);color:var(--erp-text)}
+html[data-theme="dark"] .sales-detail-modal .advanced-grid-search input{background:transparent;color:var(--erp-text)}
+html[data-theme="dark"] .sales-detail-modal .delivery-row b{color:var(--erp-text)}
+html[data-theme="dark"] .sales-detail-modal>.modal-foot{border-color:var(--erp-border)}
+
+.sales-delivery-detail-modal{width:min(880px,calc(100vw - 36px));padding:24px;max-height:calc(100dvh - 36px);overflow:auto}
+.sales-delivery-detail-modal .modal-head{align-items:flex-start;margin-bottom:12px}
+.sales-delivery-detail-modal .modal-head h2{margin:0 0 8px;font:700 23px Manrope,sans-serif;letter-spacing:-.5px;color:#18324c}
+.delivery-document-code{display:inline-flex;max-width:100%;padding:5px 8px;border:1px solid #dbe8f5;border-radius:6px;background:#f6faff;color:#526b83;font:600 10px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
+.delivery-detail-statusbar{display:flex;align-items:center;gap:10px;margin:0 0 15px;color:#75869a;font-size:10px}
+.delivery-detail-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 20px}
+.delivery-detail-summary article{display:grid;align-content:start;gap:6px;min-width:0;min-height:96px;padding:13px;border:1px solid #e1e9f2;border-radius:9px;background:linear-gradient(180deg,#fff,#f9fbfe)}
+.delivery-detail-summary small{color:#78899c;font-size:9px;font-weight:600}
+.delivery-detail-summary b{overflow-wrap:anywhere;color:#24435f;font-size:12px;line-height:1.4}
+.delivery-detail-summary span{color:#9aa5b4;font-size:9px}
+.delivery-detail-lines-section{padding:16px;border:1px solid #e2e9f1;border-radius:11px;background:#fff}
+.delivery-detail-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 13px}
+.delivery-detail-section-head .eyebrow,.delivery-detail-invoice .eyebrow{margin:0 0 5px;color:#1780ca;font-size:8px}
+.delivery-detail-section-head h3,.delivery-detail-invoice h3{margin:0;color:#24415d;font:700 14px Manrope,sans-serif}
+.delivery-detail-section-head>span{flex:none;padding:5px 8px;border-radius:6px;background:#eef5fc;color:#59748e;font-size:9px;font-weight:650}
+.sales-delivery-detail-modal .sales-delivery-lines-wrap{overflow-x:auto;border:1px solid #e5ebf2;border-radius:8px;background:#fff}
+.sales-delivery-detail-modal .sales-delivery-lines-table{width:100%;min-width:580px;border-collapse:separate;border-spacing:0;table-layout:fixed}
+.sales-delivery-detail-modal .sales-delivery-lines-table th{padding:10px 12px;border-bottom:1px solid #e4eaf1;background:#f4f7fb;color:#718399;font-size:9px;font-weight:700;text-align:left}
+.sales-delivery-detail-modal .sales-delivery-lines-table td{padding:11px 12px;border-bottom:1px solid #edf1f5;color:#33485d;font-size:10px;vertical-align:middle}
+.sales-delivery-detail-modal .sales-delivery-lines-table tbody tr:last-child td{border-bottom:0}
+.sales-delivery-detail-modal .sales-delivery-lines-table th:first-child,.sales-delivery-detail-modal .sales-delivery-lines-table td:first-child{width:42px;color:#95a1b0;text-align:center}
+.sales-delivery-detail-modal .sales-delivery-lines-table th:nth-child(3),.sales-delivery-detail-modal .sales-delivery-lines-table td:nth-child(3){width:120px}
+.sales-delivery-detail-modal .sales-delivery-lines-table th:last-child,.sales-delivery-detail-modal .sales-delivery-lines-table td:last-child{width:150px;text-align:right}
+.sales-delivery-detail-modal .sales-delivery-lines-table td>b{display:block;color:#24435f;font-size:10px}
+.sales-delivery-detail-modal .sales-delivery-lines-table .cell-subtitle{display:block;margin-top:3px;color:#8391a2;font-size:9px;white-space:normal;line-height:1.4}
+.sales-delivery-detail-modal .sales-delivery-lines-table td strong{font-size:12px;font-variant-numeric:tabular-nums;color:#173f62}
+.delivery-line-unit{display:inline-flex;margin-left:6px;color:#77889b;font-size:9px}
+.delivery-detail-invoice{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:14px;padding:13px 15px;border:1px solid #e1e9f2;border-radius:10px;background:#f8fafd}
+.delivery-detail-invoice>div{min-width:0}
+.delivery-detail-invoice h3{font-size:12px}
+.delivery-detail-invoice span{display:block;margin-top:5px;color:#7e8da0;font-size:9px;line-height:1.5}
+.sales-delivery-detail-modal>.modal-foot{margin-top:16px;padding-top:13px;border-top:1px solid #e9eef4}
+@media(max-width:680px){.sales-delivery-detail-modal{width:calc(100vw - 24px);padding:17px;max-height:calc(100dvh - 24px)}.sales-delivery-detail-modal .modal-head h2{font-size:20px}.delivery-detail-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}.delivery-detail-summary article{min-height:84px;padding:10px}.delivery-detail-lines-section{padding:12px}.delivery-detail-invoice{align-items:flex-start;flex-direction:column}.sales-delivery-detail-modal>.modal-foot{align-items:flex-start;flex-direction:column;gap:10px}}
+@media(max-width:380px){.delivery-detail-summary{grid-template-columns:1fr}.delivery-detail-summary article{min-height:0}.sales-delivery-detail-modal .modal-head{gap:4px}}
+html[data-theme="dark"] .delivery-document-code,html[data-theme="dark"] .delivery-detail-summary article,html[data-theme="dark"] .delivery-detail-lines-section,html[data-theme="dark"] .sales-delivery-detail-modal .sales-delivery-lines-wrap{border-color:var(--erp-border);background:var(--erp-surface)}
+html[data-theme="dark"] .delivery-detail-statusbar,html[data-theme="dark"] .delivery-detail-summary small,html[data-theme="dark"] .delivery-detail-summary span,html[data-theme="dark"] .delivery-detail-invoice span{color:var(--erp-muted)}
+html[data-theme="dark"] .delivery-document-code,html[data-theme="dark"] .delivery-detail-summary b,html[data-theme="dark"] .delivery-detail-section-head h3,html[data-theme="dark"] .delivery-detail-invoice h3,html[data-theme="dark"] .sales-delivery-detail-modal .sales-delivery-lines-table td,html[data-theme="dark"] .sales-delivery-detail-modal .sales-delivery-lines-table td>b,html[data-theme="dark"] .sales-delivery-detail-modal .sales-delivery-lines-table td strong{color:var(--erp-text)}
+html[data-theme="dark"] .delivery-detail-section-head>span,html[data-theme="dark"] .delivery-detail-invoice{border-color:var(--erp-border);background:var(--erp-surface-raised);color:var(--erp-text)}
+html[data-theme="dark"] .sales-delivery-detail-modal .sales-delivery-lines-table th{border-color:var(--erp-border);background:#242b3b;color:var(--erp-muted)}
+html[data-theme="dark"] .sales-delivery-detail-modal .sales-delivery-lines-table td{border-color:var(--erp-border)}
+
+/* Invoice detail: put payment status first and group supporting information below it. */
+.invoice-detail-modal{width:min(920px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:22px;overflow:auto;border-radius:13px}
+.invoice-detail-modal>.modal-head{margin-bottom:15px;padding-bottom:13px;border-bottom:1px solid #e8edf3}
+.invoice-detail-modal>.modal-head .eyebrow{margin-bottom:5px;color:#1774b8;font-size:8px;letter-spacing:.13em}
+.invoice-detail-modal>.modal-head h2{margin:0;color:#203850;font:700 21px Manrope,sans-serif;line-height:1.3}
+.invoice-detail-layout{display:flex;flex-direction:column;gap:11px;min-width:0}
+.invoice-payment-overview{order:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;align-items:center;gap:9px;margin:0;padding:12px;border:1px solid #dce6ef;border-radius:10px;background:#f5f8fc}
+.invoice-payment-overview article{display:grid;gap:5px;min-width:0;padding:4px 7px}
+.invoice-payment-overview article small{color:#718399;font-size:9px;font-weight:600}
+.invoice-payment-overview article b{overflow-wrap:anywhere;color:#1d4262;font-size:15px;font-variant-numeric:tabular-nums}
+.invoice-payment-overview .quote-status{justify-self:end}
+.invoice-detail-summary{order:1;margin:0;padding:14px;border:1px solid #e3e9f0;border-radius:10px;background:#fff}
+.invoice-detail-summary>.panel-heading,.invoice-custom-fields>.panel-heading,.invoice-field-history>.panel-heading{align-items:center;gap:14px;margin:0 0 11px;padding:0 0 10px;border-bottom:1px solid #edf1f5}
+.invoice-detail-summary>.panel-heading>div,.invoice-custom-fields>.panel-heading>div,.invoice-field-history>.panel-heading>div{display:grid;gap:4px;min-width:0}
+.invoice-detail-summary>.panel-heading b,.invoice-custom-fields>.panel-heading b,.invoice-field-history>.panel-heading b{display:block;color:#30465d;font:700 13px Manrope,sans-serif}
+.invoice-detail-summary>.panel-heading small,.invoice-custom-fields>.panel-heading small,.invoice-field-history>.panel-heading small{display:block;margin:0;color:#8794a3;font-size:9px;line-height:1.45}
+.invoice-detail-summary .erp-record-facts{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0}
+.invoice-detail-summary .erp-record-facts>div{min-width:0;padding:9px 10px;border-color:#e7edf3;border-radius:7px;background:#f8fafc}
+.invoice-detail-summary .erp-record-facts dt{color:#77889a;font-size:9px}
+.invoice-detail-summary .erp-record-facts dd{margin-top:4px;color:#30475f;font-size:10px;line-height:1.4}
+.invoice-custom-fields{order:2;margin:0;padding:12px 14px;border-color:#e5eaf0;border-radius:10px;background:#fff}
+.invoice-custom-fields .panel-heading{margin-bottom:8px}
+.invoice-custom-fields .empty-small{min-height:42px;padding:8px 0 0;border-top:0;color:#7d8b9a;font-size:10px}
+.invoice-field-history{order:3;margin:0;padding:12px 14px;border-color:#e5eaf0;border-radius:10px;background:#fff}
+.invoice-lines-wrap{order:4;max-height:260px;margin:0;border-color:#e4eaf1;border-radius:9px}
+.invoice-lines-wrap .customer-table{min-width:650px}
+.invoice-lines-wrap .customer-table th{background:#f4f7fa;color:#667b90;font-size:9px}
+.invoice-lines-wrap .customer-table td{font-size:10px}
+.invoice-collections-heading{order:5;margin:2px 0 -7px;padding:0;border:0;background:transparent}
+.invoice-collections-heading h2,.invoice-returns-heading h2{margin:0;color:#2f465f;font:700 13px Manrope,sans-serif}
+.invoice-collections-heading p,.invoice-returns-heading p{margin:4px 0 0;color:#8090a1;font-size:9px}
+.invoice-collections-wrap{order:6;max-height:210px;margin:0;border-color:#e4eaf1;border-radius:8px}
+.invoice-collection-form{order:7;margin:0;padding:13px;border-color:#e3e9f0;border-radius:9px;background:#f8fafc}
+.invoice-returns-heading{order:8;margin:5px 0 -7px;padding:0;border:0;background:transparent}
+.invoice-returns-wrap{order:9;max-height:220px;margin:0;border-color:#e4eaf1;border-radius:8px}
+.invoice-return-form{order:10;margin:0;padding:13px;border-color:#e3e9f0;border-radius:9px;background:#f8fafc}
+.invoice-detail-meta{order:11;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;margin:0;padding:9px 2px;color:#77889a;font-size:9px}
+.invoice-detail-modal>.modal-foot{margin-top:14px;padding-top:12px;border-top:1px solid #e8edf3}
+@media(max-width:680px){.invoice-detail-modal{width:calc(100vw - 24px);max-height:calc(100dvh - 24px);padding:16px}.invoice-payment-overview{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.invoice-payment-overview .quote-status{justify-self:start;margin-left:7px}.invoice-detail-summary .erp-record-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.invoice-detail-summary{padding:12px}.invoice-custom-fields,.invoice-field-history{padding:11px}.invoice-detail-meta{display:grid}}
+@media(max-width:380px){.invoice-payment-overview{grid-template-columns:1fr}.invoice-payment-overview .quote-status{margin-left:7px}.invoice-detail-summary .erp-record-facts{grid-template-columns:1fr}}
+html[data-theme="dark"] .invoice-detail-modal>.modal-head{border-color:var(--erp-border)}
+html[data-theme="dark"] .invoice-detail-modal>.modal-head h2,html[data-theme="dark"] .invoice-detail-summary>.panel-heading b,html[data-theme="dark"] .invoice-custom-fields>.panel-heading b,html[data-theme="dark"] .invoice-field-history>.panel-heading b,html[data-theme="dark"] .invoice-detail-summary .erp-record-facts dd{color:var(--erp-text)}
+html[data-theme="dark"] .invoice-payment-overview,html[data-theme="dark"] .invoice-detail-summary,html[data-theme="dark"] .invoice-custom-fields,html[data-theme="dark"] .invoice-field-history,html[data-theme="dark"] .invoice-collection-form,html[data-theme="dark"] .invoice-return-form{border-color:var(--erp-border);background:var(--erp-surface-raised)}
+html[data-theme="dark"] .invoice-payment-overview article b{color:var(--erp-text)}
+html[data-theme="dark"] .invoice-payment-overview article small,html[data-theme="dark"] .invoice-detail-summary .erp-record-facts dt,html[data-theme="dark"] .invoice-detail-summary>.panel-heading small,html[data-theme="dark"] .invoice-custom-fields>.panel-heading small,html[data-theme="dark"] .invoice-field-history>.panel-heading small,html[data-theme="dark"] .invoice-detail-meta{color:var(--erp-muted)}
+html[data-theme="dark"] .invoice-detail-summary .erp-record-facts>div{border-color:var(--erp-border);background:var(--erp-surface)}
+html[data-theme="dark"] .invoice-detail-summary>.panel-heading,html[data-theme="dark"] .invoice-custom-fields>.panel-heading,html[data-theme="dark"] .invoice-field-history>.panel-heading,html[data-theme="dark"] .invoice-detail-modal>.modal-foot{border-color:var(--erp-border)}
+html[data-theme="dark"] .invoice-lines-wrap .customer-table th{background:#242b3b;color:var(--erp-muted)}
+html[data-theme="dark"] .invoice-collections-heading h2,html[data-theme="dark"] .invoice-returns-heading h2{color:var(--erp-text)}
+html[data-theme="dark"] .invoice-collections-heading p,html[data-theme="dark"] .invoice-returns-heading p{color:var(--erp-muted)}
+
+/* Keep request management actions grouped horizontally in the section heading. */
+.purchase-requests-page .panel-heading>.heading-actions{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;justify-content:flex-end;gap:8px;flex:0 0 auto}

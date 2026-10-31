@@ -184,3 +184,9 @@ html[data-theme="dark"] .access-control-page>section.panel:last-of-type .request
 html[data-theme="dark"] .access-control-page>section.panel:last-of-type .request-row:hover,html[data-theme="dark"] .access-control-page>section.panel:last-of-type .request-row.security-selected-row{background:#1e3045!important}
 @media(max-width:900px){.access-page-scope{display:none}.access-control-page>section.panel:nth-of-type(2) form>.form-two{padding-bottom:0;border-bottom:0}}
 @media(max-width:680px){.access-page-heading{align-items:flex-start;gap:10px}.access-page-title-icon{flex-basis:36px;width:36px;height:36px}.access-control-page>.panel{padding:15px}.access-control-page .access-member-list{padding:6px}.access-control-page .access-member-row{grid-template-columns:minmax(0,1fr);gap:8px;padding:11px}.access-control-page .access-member-row .access-member-role{max-width:none}.access-control-page .access-member-row>.row-action{justify-self:start}.access-control-page>section.panel:last-of-type .panel-heading{align-items:flex-start;flex-direction:column}.access-control-page>section.panel:last-of-type .compact-search{width:100%;max-width:none}.access-control-page>section.panel:nth-of-type(2) .modal-foot>span{max-width:none}}
+.audit-workbench{grid-template-columns:minmax(0,1fr)}
+.audit-detail-dialog{position:fixed;inset:0;margin:auto;width:min(560px,calc(100vw - 32px));max-width:none;max-height:min(80vh,680px);overflow:auto;padding:20px;border:1px solid #dce5ef;border-radius:14px;background:var(--erp-surface,#fff);box-shadow:0 24px 80px #10233b40;color:var(--erp-text,#263b58)}
+.audit-detail-dialog::backdrop{background:#0e1a2b80;backdrop-filter:blur(2px)}
+.audit-detail-dialog .security-record-heading{align-items:flex-start}
+.audit-detail-dialog .security-record-heading h3{font-size:16px}
+@media(max-width:600px){.audit-detail-dialog{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);padding:16px;border-radius:12px}}

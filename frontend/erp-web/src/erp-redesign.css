@@ -44,10 +44,10 @@ body { background: var(--erp-canvas); color: var(--erp-ink); }
 @media(max-width:700px){.cash-forecast-panel>.panel-heading{align-items:flex-start;flex-direction:column}.cash-forecast-controls{width:100%}.cash-forecast-controls label{flex:1;min-width:120px}}
 .profile { border-color: var(--erp-line); }
 
-.main-area { min-width: 0; margin-left: 250px; background: var(--erp-canvas); }
+.main-area { min-width: 0; margin-left: 0; background: var(--erp-canvas); }
 .topbar {
   height: 54px;
-  margin-left: 250px;
+  margin-left: 0;
   padding: 0 clamp(18px, 3vw, 42px);
   border-color: #173e60;
   background: #092f50;
@@ -65,7 +65,7 @@ body { background: var(--erp-canvas); color: var(--erp-ink); }
 .topbar .locale-switch button { color: #d7e3ef; }
 .topbar .locale-switch button:hover { background: #214b6c; color: #fff; }
 .topbar .locale-switch button[aria-pressed="true"] { background: #fff; color: #123b64; box-shadow: none; }
-.content { width: min(100%, 1580px); max-width: none; padding: clamp(22px, 3vw, 38px) clamp(18px, 3vw, 42px) 52px; }
+.content { width: 100%; max-width: none; margin: 0; padding: clamp(22px, 3vw, 38px) clamp(18px, 3vw, 42px) 52px; }
 .page-heading { margin-bottom: 21px; gap: 20px; }
 .page-heading h1, .auth-card h1 { color: var(--erp-ink); font-size: clamp(23px, 2vw, 29px); letter-spacing: -.045em; }
 .page-heading .muted { max-width: 760px; color: var(--erp-muted-ink); font-size: 13px; line-height: 1.6; }
@@ -156,8 +156,7 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 3px s
 /* Small laptop/tablet: keep the work area usable without horizontal page scrolling. */
 @media (max-width: 1120px) {
   .sidebar { width: 232px; }
-  .main-area { margin-left: 232px; }
-  .topbar { margin-left: 232px; }
+  .main-area, .topbar { margin-left: 0; }
   .content { padding-inline: 24px; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

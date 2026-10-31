@@ -214,7 +214,7 @@ export default function CashForecastPanel({ token }: { token: string }) {
           </div>
           <div className="cash-forecast-table-wrap" role="region" aria-label={`${currency.currencyCode} tahmin tablosu`} tabIndex={0}>
             <p className="cash-forecast-scroll-hint">Geniş tabloda diğer sütunları görmek için yatay kaydırın.</p>
-            <AdvancedDataGrid  className="customer-table cash-forecast-table">
+            <AdvancedDataGrid enableRowSelection={false} className="customer-table cash-forecast-table">
               <caption className="cash-forecast-sr-only">{currency.currencyCode} bazında aylık nakit tahmini</caption>
               <thead><ScreenViewGroupHeader fields={visibleFields}/><tr>{visibleFields.map(field => <th key={field.key} scope="col">{field.label}</th>)}</tr></thead>
               <tbody>{currency.months.map(row => {

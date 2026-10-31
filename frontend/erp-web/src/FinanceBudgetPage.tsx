@@ -1,14 +1,11 @@
-import AdvancedDataGrid from './AdvancedDataGrid'
 import { useEffect, useMemo, useState } from 'react'
 import { authenticatedFetch } from './authApi';
 import './finance-budget.css'
-
-type Account = { id:string; code:string; name:string; isActive:boolean; statementSection:string }
-type Line = { id?:string; accountId:string; accountCode?:string; accountName?:string; statementSection?:string; periodStart:string; plannedAmount:number; actualAmount?:number; variance?:number|null; notes:string|null }
-type Plan = { id:string; name:string; fiscalYear:number; currencyCode:string; baseCurrencyCode:string; status:number|string; lineCount:number; plannedTotal:number; actualTotal:number; createdAt:string; createdByUserId:string; approvedByUserId:string|null; approvedAt:string|null; revision:number }
-type PlanView = { plan:Plan; lines:Line[] }
-type Entry = { accountId:string; periodStart:string; plannedAmount:number; notes:string|null }
-type BudgetLayoutField = { key:string; label:string; visible:boolean; position:number }
+import { BudgetBoundaryNote, BudgetPageChrome } from './finance-budget/BudgetPageChrome'
+import BudgetPlanList from './finance-budget/BudgetPlanList'
+import BudgetEditor from './finance-budget/BudgetEditor'
+import BudgetDetail from './finance-budget/BudgetDetail'
+import type { Account, BudgetLayoutField, Entry, Plan, PlanView } from './finance-budget/types'
 
 const defaultBudgetFields:BudgetLayoutField[]=[
   {key:'periodStart',label:'Dönem',visible:true,position:0},
@@ -29,12 +26,6 @@ async function request<T>(url:string, token:string, init?:RequestInit):Promise<T
 const money=(n:number,currency='TRY')=>{
   try{return new Intl.NumberFormat('tr-TR',{style:'currency',currency,maximumFractionDigits:2}).format(n)}
   catch{return `${new Intl.NumberFormat('tr-TR',{maximumFractionDigits:2}).format(n)} ${currency}`}
-}
-const isApproved=(status:Plan['status'])=>status===2||status==='Approved'
-const planStatus=(status:Plan['status'])=>isApproved(status)?'Onaylı':status===1||status==='Draft'?'Taslak':String(status)
-const formatPeriod=(value:string)=>{
-  const date=new Date(`${value}T00:00:00`)
-  return Number.isNaN(date.getTime())?value:new Intl.DateTimeFormat('tr-TR',{month:'long',year:'numeric'}).format(date)
 }
 
 export default function FinanceBudgetPage({token,role}:{token:string;role:string}) {
@@ -91,75 +82,14 @@ export default function FinanceBudgetPage({token,role}:{token:string;role:string
   const currencyMismatch=Boolean(selected&&baseCurrency&&selected.plan.currencyCode!==baseCurrency)
   const visibleBudgetFields=budgetFields.filter(field=>field.visible).sort((a,b)=>a.position-b.position)
   return <div className="finance-page finance-budget-page">
-    <header className="page-heading budget-hero">
-      <div className="budget-hero-copy"><p className="eyebrow">FİNANS YÖNETİMİ <span>·</span> PLANLAMA</p><h1>Bütçe planı ve gerçekleşen</h1><p>Aylık gelir ve gider hedeflerini yevmiye gerçekleşenleriyle aynı ekranda izleyin.</p><div className="budget-hero-caption"><span className="budget-hero-dot"/> Onaylanan bütçeler değiştirilemez ve mali yıl bazında takip edilir.</div></div>
-      <button type="button" className="budget-refresh" onClick={()=>void load()} disabled={controlsLocked} aria-busy={loading}>{loading?'Yenileniyor…':'Yenile'}</button>
-    </header>
-
-    <section className="budget-overview" aria-label="Bütçe özeti">
-      <article className="budget-overview-card"><span>Toplam senaryo</span><strong>{plans.length}</strong><small>Firma kapsamındaki bütçeler</small></article>
-      <article className="budget-overview-card"><span>Taslak</span><strong>{plans.filter(plan=>!isApproved(plan.status)).length}</strong><small>Onay sürecine hazır</small></article>
-      <article className="budget-overview-card"><span>Onaylı</span><strong>{plans.filter(plan=>isApproved(plan.status)).length}</strong><small>Değiştirilemez planlar</small></article>
-      <article className="budget-overview-card"><span>Uygun hesap</span><strong>{eligible.length}</strong><small>Gelir ve gider hesapları</small></article>
-    </section>
-
-    {error&&<div className="alert inline-alert budget-alert" role="alert"><span>{error}</span><button type="button" className="row-action" onClick={()=>void load()} disabled={loading}>Yeniden dene</button></div>}
-    {notice&&<div className="notice inline-notice budget-notice" role="status">{notice}</div>}
-
+    <BudgetPageChrome plans={plans} eligibleCount={eligible.length} loading={loading} controlsLocked={controlsLocked} error={error} notice={notice} onRefresh={()=>void load()} onRetry={()=>void load()} />
     <div className={`budget-layout ${plans.length===0&&!loading&&!loadError&&!editing?'is-empty':''}`}>
-      <section className="panel budget-list" aria-labelledby="budget-list-title">
-        <div className="panel-heading">
-          <div><h2 id="budget-list-title">Bütçe senaryoları</h2><p>{loading?'Senaryolar yükleniyor…':`${plans.length} kayıt · firma kapsamlı`}</p></div>
-          {admin&&<button type="button" className="primary" onClick={clearForm} disabled={controlsLocked||!baseCurrency}>Yeni bütçe</button>}
-        </div>
-        {loading?<div className="budget-state" role="status"><span className="budget-spinner" aria-hidden="true"/>Bütçe senaryoları yükleniyor…</div>
-          :loadError?<div className="budget-state budget-empty budget-load-error" role="alert"><strong>Bütçe senaryoları yüklenemedi</strong><span>{loadError}</span><button type="button" className="secondary" onClick={()=>void load()} disabled={controlsLocked}>Yeniden dene</button></div>
-          :plans.length===0?<div className="budget-state budget-empty"><strong>Henüz bütçe senaryosu yok</strong><span>{admin?'İlk bütçe taslağınızı oluşturarak başlayın.':'Firma yöneticisi bir bütçe senaryosu oluşturduğunda burada görünür.'}</span>{admin&&<button type="button" className="secondary" onClick={clearForm} disabled={controlsLocked}>İlk bütçeyi oluştur</button>}</div>
-          :<div className="budget-plan-list" aria-label="Bütçe senaryoları">
-            {plans.map(plan=><button type="button" key={plan.id} className={`budget-plan-item ${selected?.plan.id===plan.id&&!editing?'active':''}`} onClick={()=>void open(plan)} disabled={controlsLocked} aria-pressed={selected?.plan.id===plan.id&&!editing}>
-              <span className="budget-plan-top"><span className="budget-plan-title">{plan.name}</span><span className={`quote-status ${isApproved(plan.status)?'accepted':'pending'}`}>{planStatus(plan.status)}</span></span>
-              <span className="budget-plan-meta">{plan.fiscalYear} · {plan.currencyCode} · {plan.lineCount} satır</span>
-              <span className="budget-plan-total-label">Plan toplamı (brüt · {plan.currencyCode})</span><strong className="budget-plan-total">{money(plan.plannedTotal,plan.currencyCode)}</strong>
-              <span className="budget-plan-meta">Yevmiye gerçekleşeni (brüt · {baseCurrency})</span><span className="budget-plan-actual">{money(plan.actualTotal,baseCurrency)}</span>
-              {openingPlanId===plan.id&&<span className="budget-opening" role="status">Açılıyor…</span>}
-            </button>)}
-          </div>}
-      </section>
-
-      {admin&&editing&&<section className="panel budget-editor" aria-labelledby="budget-editor-title">
-        <div className="panel-heading"><div><h2 id="budget-editor-title">{selected?'Bütçe taslağını düzenle':'Yeni bütçe taslağı'}</h2><p>Yalnız aktif gelir ve gider hesapları seçilebilir.</p></div>{selected&&<button type="button" className="row-action" onClick={clearForm} disabled={controlsLocked}>Yeni</button>}</div>
-        <form className="collection-form budget-form" onSubmit={save}>
-          <div className="budget-form-basics">
-            <label>Senaryo adı<input value={name} onChange={e=>setName(e.target.value)} maxLength={120} required autoComplete="off" disabled={controlsLocked} /></label>
-            <label>Mali yıl<input type="number" min="2000" max="2100" value={year} onChange={e=>{const y=Number(e.target.value);setYear(y);if(Number.isFinite(y))setEntries(xs=>xs.map(x=>({...x,periodStart:`${y}-${x.periodStart.slice(5)}`})))}} required disabled={controlsLocked} /></label>
-            <label>Baz para birimi<input value={baseCurrency} readOnly aria-readonly="true" aria-describedby="budget-currency-help" disabled={controlsLocked} /></label>
-          </div>
-          <p className="budget-field-help" id="budget-currency-help">Bütçe ve yevmiye gerçekleşenleri aynı ölçekte karşılaştırmak için yalnızca firmanın baz para birimi kullanılır. Döviz çevrimi uygulanmaz.</p>
-
-          <div className="budget-entry-header"><div><h3>Aylık bütçe satırları</h3><p>Her satır bir hesap ve ay için planlanan tahakkuk tutarını belirtir.</p></div><button type="button" className="secondary small-button" onClick={addLine} disabled={controlsLocked}>+ Satır ekle</button></div>
-          {entries.length===0&&<div className="budget-inline-empty">Henüz satır yok. Devam etmek için bir bütçe satırı ekleyin.</div>}
-          <div className="budget-entry-list">
-            {entries.map((line,index)=><fieldset className="budget-entry-row" key={index}>
-              <legend>Satır {index+1}</legend>
-              <label className="budget-entry-account">Gelir / gider hesabı<select value={line.accountId} onChange={e=>updateLine(index,{accountId:e.target.value})} required disabled={controlsLocked}><option value="">Hesap seçin</option>{eligible.map(account=><option key={account.id} value={account.id}>{account.code} · {account.name} ({account.statementSection==='Revenue'?'Gelir':'Gider'})</option>)}</select></label>
-              <label>Ay<input type="month" value={line.periodStart.slice(0,7)} onChange={e=>updateLine(index,{periodStart:`${e.target.value}-01`})} required disabled={controlsLocked} /></label>
-              <label>Planlanan tahakkuk tutarı<input type="number" min="0" step="0.01" value={line.plannedAmount} onChange={e=>updateLine(index,{plannedAmount:Number(e.target.value)})} required disabled={controlsLocked} /></label>
-              <label className="budget-entry-note">Not <input value={line.notes||''} maxLength={240} onChange={e=>updateLine(index,{notes:e.target.value||null})} disabled={controlsLocked} /></label>
-              <button type="button" className="row-action danger budget-remove" aria-label={`Satır ${index+1} sil`} disabled={controlsLocked||entries.length===1} onClick={()=>setEntries(xs=>xs.filter((_,i)=>i!==index))}>Sil</button>
-            </fieldset>)}
-          </div>
-          <div className="budget-form-foot"><span>{eligible.length} uygun hesap</span><div><button type="button" className="secondary" onClick={()=>setEditing(false)} disabled={controlsLocked}>Vazgeç</button><button type="submit" className="primary" disabled={controlsLocked||!baseCurrency||eligible.length===0||entries.length===0} aria-busy={busy}>{busy?'Kaydediliyor…':selected?'Taslağı kaydet':'Taslak oluştur'}</button></div></div>
-          {eligible.length===0&&<p className="budget-field-help" role="status">Aktif gelir veya gider hesabı bulunamadı. Bütçe oluşturmak için önce hesap planını güncelleyin.</p>}
-        </form>
-      </section>}
+      <BudgetPlanList plans={plans} selected={selected} editing={editing} loading={loading} loadError={loadError} controlsLocked={controlsLocked} admin={admin} baseCurrency={baseCurrency} openingPlanId={openingPlanId} onOpen={plan=>void open(plan)} onNew={clearForm} onRetry={()=>void load()} money={money} />
+      {admin&&editing&&<BudgetEditor selected={selected} name={name} year={year} entries={entries} eligible={eligible} baseCurrency={baseCurrency} controlsLocked={controlsLocked} busy={busy}
+        onNameChange={setName} onYearChange={y=>{setYear(y);if(Number.isFinite(y))setEntries(xs=>xs.map(x=>({...x,periodStart:`${y}-${x.periodStart.slice(5)}`})))}}
+        onAddLine={addLine} onUpdateLine={updateLine} onRemoveLine={index=>setEntries(xs=>xs.filter((_,i)=>i!==index))} onCancel={()=>setEditing(false)} onNew={clearForm} onSubmit={save} />}
     </div>
-
-    {selected&&<section className="panel budget-detail" aria-labelledby="budget-detail-title">
-      <div className="panel-heading budget-detail-heading"><div><p className="eyebrow">{selected.plan.fiscalYear} · {selected.plan.currencyCode}</p><h2 id="budget-detail-title">{selected.plan.name}</h2><p>{isApproved(selected.plan.status)?`Onaylayan: ${selected.plan.approvedByUserId||'—'}`:'Taslak · Onay için farklı bir TenantAdmin gerekir'}</p></div><div className="budget-actions">{draft&&admin&&!currencyMismatch&&<><button type="button" className="secondary" onClick={()=>edit(selected)} disabled={controlsLocked}>Düzenle</button><button type="button" className="primary" disabled={controlsLocked||selected.lines.length===0} onClick={()=>void approve()} aria-busy={busy}>{busy?'Onaylanıyor…':'Onayla'}</button></>}</div></div>
-      {currencyMismatch&&<div className="budget-currency-warning" role="status"><strong>Para birimi uyumsuzluğu</strong><span>Bu senaryo {selected.plan.currencyCode} ile oluşturulmuş; firmanın güncel baz para birimi {baseCurrency}. Plan tutarları {selected.plan.currencyCode}, yevmiye gerçekleşenleri {baseCurrency} cinsindedir ve aralarında kur çevrimi yapılmaz. Fark gösterilmez. Bu senaryo düzenlenemez veya onaylanamaz; güncel baz para biriminde yeni bir taslak oluşturun.</span></div>}
-      {selected.lines.length===0?<div className="budget-state budget-empty"><strong>Bu senaryoda bütçe satırı yok</strong><span>{draft&&admin&&!currencyMismatch?'Taslağı düzenleyip satır ekleyebilirsiniz.':'Senaryo henüz herhangi bir bütçe satırı içermiyor.'}</span>{draft&&admin&&!currencyMismatch&&<button type="button" className="secondary" onClick={()=>edit(selected)} disabled={controlsLocked}>Taslağı düzenle</button>}</div>
-        :<div className="ledger-list budget-ledger-wrap"><AdvancedDataGrid className="customer-table budget-ledger"><caption>{selected.plan.name} bütçe ve yevmiye gerçekleşenleri</caption><thead><tr>{visibleBudgetFields.map(field=><th key={field.key} scope="col">{field.key==='plannedAmount'?`${field.label} (${selected.plan.currencyCode})`:field.key==='actualAmount'?`${field.label} (${baseCurrency})`:field.key==='variance'?`${field.label}${currencyMismatch?' (hesaplanmıyor)':` (${baseCurrency})`}`:field.label}</th>)}</tr></thead><tbody>{selected.lines.map((line,index)=>{const variance=line.variance;const favorable=variance!==null&&variance!==undefined&&(line.statementSection==='Revenue'?variance>=0:variance<=0);return <tr key={line.id||`${line.accountId}-${line.periodStart}-${index}`}>{visibleBudgetFields.map(field=>{const value=field.key==='periodStart'?formatPeriod(line.periodStart):field.key==='account'?<><b>{line.accountCode||'—'}</b><small className="cell-subtitle">{line.accountName}</small></>:field.key==='section'?line.statementSection==='Revenue'?'Gelir':line.statementSection==='Expense'?'Gider':'—':field.key==='plannedAmount'?money(line.plannedAmount,selected.plan.currencyCode):field.key==='actualAmount'?money(line.actualAmount??0,baseCurrency):field.key==='variance'?variance==null?'—':money(variance,baseCurrency):field.key==='notes'?line.notes||'—':'—';return <td key={field.key} data-label={field.label} className={field.key==='variance'&&variance!=null?(favorable?'positive':'negative'):undefined}>{value}</td>})}</tr>})}{selected.lines.length===0&&<tr><td colSpan={Math.max(1,visibleBudgetFields.length)} className="table-empty">Bütçe satırı yok.</td></tr>}</tbody></AdvancedDataGrid></div>}
-    </section>}
-    <div className="boundary-note"><span>Gerçekleşen değerler yalnız mali yıldaki yevmiye kayıtlarından ve firmanın baz para birimi ({baseCurrency||'yükleniyor'}) üzerinden hesaplanır. Gelir hesabında alacak − borç, gider hesabında borç − alacak kullanılır. Bu ekran kur çevrimi, bordro veya vergi mevzuatı hesabı yapmaz.</span></div>
+    {selected&&<BudgetDetail selected={selected} draft={Boolean(draft)} admin={admin} currencyMismatch={currencyMismatch} baseCurrency={baseCurrency} visibleFields={visibleBudgetFields} controlsLocked={controlsLocked} busy={busy} onEdit={edit} onApprove={()=>void approve()} money={money} />}
+    <BudgetBoundaryNote baseCurrency={baseCurrency} />
   </div>
 }

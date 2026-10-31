@@ -323,13 +323,34 @@ html[data-theme="dark"] .general-ledger-panel > .list-toolbar h3 { color: #dcecf
 .cash-flow-empty b { color: #203a54; font-size: 13px; }
 .cash-flow-empty p { margin: 4px 0 0; color: #718198; font-size: 11px; }
 .cash-flow-footnote { margin: -3px 0 0; color: #8593a5; font-size: 10px; line-height: 1.5; }
+.general-ledger-panel .ledger-section-nav { position: sticky; top: 66px; z-index: 3; display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; padding: 9px 0; border-bottom: 1px solid #e6edf5; background: var(--erp-surface,#fff); }
+.general-ledger-panel .ledger-subpanel { min-width: 0; margin: 0 0 14px; padding: 14px; border: 1px solid #e1e8f0; border-radius: 11px; background: var(--erp-surface,#fff); }
+html[data-theme="dark"] .general-ledger-panel .ledger-subpanel { border-color: var(--erp-border); background: var(--erp-surface); }
+.general-ledger-panel .ledger-subpanel > .list-toolbar:first-child { margin-top: 0; }
+.general-ledger-panel .ledger-section-nav a { display: inline-flex; min-height: 34px; align-items: center; padding: 0 12px; border: 1px solid #d7e3ef; border-radius: 999px; background: #f7faff; color: #24577f; font-size: 11px; font-weight: 700; text-decoration: none; }
+.general-ledger-panel .ledger-section-nav a:hover,.general-ledger-panel .ledger-section-nav a:focus-visible { border-color: #75a9d5; background: #eaf4fd; outline: none; }
+.general-ledger-panel [id^="ledger-"] { scroll-margin-top: 122px; }
+.tms7-cashflow-panel .finance-summary-strip { grid-template-columns: repeat(5,minmax(0,1fr)); }
+.tms7-cashflow-panel .ledger-list { max-height: 360px; overflow: auto; }
+.tms7-cashflow-panel .customer-table { min-width: 620px; }
 @media (max-width: 760px) {
   .finance-workbench-page .cash-flow-toolbar { align-items: stretch; }
   .finance-workbench-page .cash-flow-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cash-flow-filters label, .cash-flow-filters input { min-width: 0; width: 100%; }
   .cash-flow-filters button { grid-column: 1 / -1; }
   .finance-workbench-page .cash-flow-report { padding: 15px; }
+  .general-ledger-panel .ledger-section-nav { position: static; }
+  .general-ledger-panel .ledger-subpanel { padding: 10px; }
+  .tms7-cashflow-panel .finance-summary-strip { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
+
+@media (max-width: 520px) {
+  .general-ledger-panel .ledger-section-nav { gap: 6px; }
+  .general-ledger-panel .ledger-section-nav a { min-height: 32px; padding-inline: 9px; font-size: 10px; }
+  .tms7-cashflow-panel > .list-toolbar { align-items: flex-start; flex-direction: column; }
+  .tms7-cashflow-panel .finance-summary-strip { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) { .finance-workbench-page .tms7-cashflow-panel .finance-summary-strip { grid-template-columns: 1fr; } }
 
 @media (max-width: 1100px) {
   .finance-workbench-page > .panel:has(+ .finance-summary-strip) .form-two {
@@ -422,6 +443,69 @@ html[data-theme="dark"] .finance-account-page > .finance-filterbar { background:
   .finance-account-heading h1 { font-size: 20px; }
   .finance-account-page > .finance-account-create .collection-form { grid-template-columns: 1fr; }
   .finance-account-page > .finance-account-create .modal-foot { align-items: stretch; flex-direction: column; }
+}
+
+/* Cash and bank creation and statement import dialogs. */
+.finance-account-create-prompt,
+.finance-statement-import-prompt { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 18px; border-color: #d5e0ec; border-radius: 10px; }
+.finance-account-create-prompt h2,
+.finance-statement-import-prompt h2 { margin: 0 0 5px; color: #173e66; font-size: 16px; }
+.finance-account-create-prompt p,
+.finance-statement-import-prompt p { max-width: 660px; margin: 0; color: #65778a; font-size: 11px; line-height: 1.5; }
+.finance-statement-import-prompt .eyebrow { margin-bottom: 5px; color: #1676b8; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+.finance-form-dialog { box-sizing: border-box; width: min(640px,calc(100vw - 28px)); max-width: none; max-height: min(88vh,850px); padding: 0; overflow: hidden; border: 1px solid #d5dfeb; border-radius: 13px; background: #fff; color: #26364a; box-shadow: 0 24px 80px #0b1d3440; }
+.finance-form-dialog::backdrop { background: rgb(11 27 47 / 58%); backdrop-filter: blur(2px); }
+.finance-form-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 22px 15px; border-bottom: 1px solid #e3eaf2; background: linear-gradient(120deg,#f8fbfe,#fff); }
+.finance-form-dialog-header>div { min-width: 0; }
+.finance-form-dialog-header .eyebrow { margin: 0 0 6px; color: #1676b8; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+.finance-form-dialog-header h2 { margin: 0 0 5px; color: #173e66; font-size: 20px; }
+.finance-form-dialog-header p:last-child { margin: 0; color: #65778a; font-size: 11px; line-height: 1.5; }
+.finance-form-dialog-header .icon-button { flex: none; }
+.finance-form-dialog .collection-form { display: grid; gap: 14px; margin: 0; padding: 18px 22px 20px; border: 0; border-radius: 0; background: #fff; }
+.finance-form-dialog .collection-form .form-two { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 14px; }
+.finance-form-dialog .collection-form label { display: grid; align-content: start; gap: 6px; min-width: 0; color: #50647b; font-size: 11px; font-weight: 650; }
+.finance-form-dialog .collection-form input,
+.finance-form-dialog .collection-form select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid #cbd8e6; border-radius: 7px; background: #fff; color: #22354b; font: inherit; font-size: 12px; }
+.finance-form-dialog .collection-form input:focus-visible,
+.finance-form-dialog .collection-form select:focus-visible { border-color: #1681c2; outline: 3px solid #1681c224; outline-offset: 1px; }
+.finance-form-dialog .collection-form .modal-foot { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin: 0; padding-top: 13px; border-top: 1px solid #e4eaf1; }
+.finance-form-dialog .collection-form .modal-foot .primary,
+.finance-form-dialog .collection-form .modal-foot .secondary { min-height: 39px; white-space: nowrap; }
+.finance-form-helper { align-self: end; margin: 0; padding: 10px 12px; border: 1px solid #dce8f3; border-radius: 8px; background: #f5f9fd; color: #61768b; font-size: 10px; line-height: 1.5; }
+.finance-form-dialog-body { max-height: calc(min(88vh,850px) - 80px); padding: 16px 22px 20px; overflow: auto; overscroll-behavior: contain; }
+.finance-form-dialog-body>.link-button { display: inline-flex; margin-bottom: 13px; }
+.finance-form-dialog-body .finance-statement-import-form { padding: 0; }
+.finance-form-import-note { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px solid #dce8f3; border-radius: 8px; background: #f5f9fd; color: #5f7388; font-size: 10px; line-height: 1.5; }
+.finance-form-import-note svg { flex: none; margin-top: 1px; color: #1676b8; }
+html[data-theme="dark"] .finance-account-create-prompt,
+html[data-theme="dark"] .finance-statement-import-prompt { background: #202638; border-color: var(--erp-border); }
+html[data-theme="dark"] .finance-account-create-prompt h2,
+html[data-theme="dark"] .finance-statement-import-prompt h2,
+html[data-theme="dark"] .finance-form-dialog-header h2 { color: #deebf8; }
+html[data-theme="dark"] .finance-account-create-prompt p,
+html[data-theme="dark"] .finance-statement-import-prompt p { color: #a9b7c8; }
+html[data-theme="dark"] .finance-form-dialog { border-color: #39475a; background: #1b2432; color: #dbe5ef; }
+html[data-theme="dark"] .finance-form-dialog-header { border-color: #364458; background: linear-gradient(120deg,#202d40,#1b2432); }
+html[data-theme="dark"] .finance-form-dialog-header p:last-child { color: #a9b7c8; }
+html[data-theme="dark"] .finance-form-dialog .collection-form { background: #1b2432; }
+html[data-theme="dark"] .finance-form-dialog .collection-form label { color: #c1cedd; }
+html[data-theme="dark"] .finance-form-dialog .collection-form input,
+html[data-theme="dark"] .finance-form-dialog .collection-form select { border-color: #405168; background: #202d40; color: #e1eaf4; }
+html[data-theme="dark"] .finance-form-dialog .collection-form .modal-foot { border-color: #364458; }
+html[data-theme="dark"] .finance-form-helper,
+html[data-theme="dark"] .finance-form-import-note { border-color: #394e64; background: #202d40; color: #afc0d2; }
+@media (max-width: 620px) {
+  .finance-account-create-prompt,
+  .finance-statement-import-prompt { align-items: flex-start; flex-direction: column; }
+  .finance-account-create-prompt>.primary,
+  .finance-statement-import-prompt>.primary { align-self: stretch; justify-content: center; }
+  .finance-form-dialog { width: calc(100vw - 16px); max-height: 92vh; border-radius: 11px; }
+  .finance-form-dialog-header { padding: 16px 16px 12px; }
+  .finance-form-dialog-body { max-height: calc(92vh - 72px); padding: 14px 16px 16px; }
+  .finance-form-dialog .collection-form { padding: 15px 16px 16px; }
+  .finance-form-dialog .collection-form .form-two { grid-template-columns: minmax(0,1fr); gap: 11px; }
+  .finance-form-dialog .collection-form .modal-foot { align-items: stretch; flex-direction: column-reverse; }
+  .finance-form-dialog .collection-form .modal-foot>button { width: 100%; justify-content: center; }
 }
 .fx-exposure-panel {
   display: grid;
