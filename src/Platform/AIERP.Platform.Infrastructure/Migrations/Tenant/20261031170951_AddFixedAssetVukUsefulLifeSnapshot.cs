@@ -58,10 +58,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                 type: "int",
                 nullable: true);
 
-            migrationBuilder.AddCheckConstraint(
-                name: "CK_FixedAssets_VukUsefulLifeProfile",
-                table: "FixedAssets",
-                sql: "([VukUsefulLifeCode] IS NULL AND [VukUsefulLifeDescription] IS NULL AND [VukUsefulLifeTableYear] IS NULL AND [VukUsefulLifeCommuniqueNumber] IS NULL AND [VukUsefulLifeMonths] IS NULL AND [VukNormalDepreciationRatePercent] IS NULL AND [VukTaxDepreciationStartDate] IS NULL) OR ([VukUsefulLifeCode] IS NOT NULL AND [VukUsefulLifeDescription] IS NOT NULL AND [VukUsefulLifeTableYear] IS NOT NULL AND [VukUsefulLifeCommuniqueNumber] IS NOT NULL AND [VukUsefulLifeMonths] BETWEEN 1 AND 1200 AND [VukNormalDepreciationRatePercent] > 0 AND [VukNormalDepreciationRatePercent] <= 100 AND [VukTaxDepreciationStartDate] IS NOT NULL AND [VukTaxDepreciationStartDate] >= [AcquisitionDate])");
+            migrationBuilder.Sql(
+                "EXEC(N'ALTER TABLE [FixedAssets] ADD CONSTRAINT [CK_FixedAssets_VukUsefulLifeProfile] CHECK (([VukUsefulLifeCode] IS NULL AND [VukUsefulLifeDescription] IS NULL AND [VukUsefulLifeTableYear] IS NULL AND [VukUsefulLifeCommuniqueNumber] IS NULL AND [VukUsefulLifeMonths] IS NULL AND [VukNormalDepreciationRatePercent] IS NULL AND [VukTaxDepreciationStartDate] IS NULL) OR ([VukUsefulLifeCode] IS NOT NULL AND [VukUsefulLifeDescription] IS NOT NULL AND [VukUsefulLifeTableYear] IS NOT NULL AND [VukUsefulLifeCommuniqueNumber] IS NOT NULL AND [VukUsefulLifeMonths] BETWEEN 1 AND 1200 AND [VukNormalDepreciationRatePercent] > 0 AND [VukNormalDepreciationRatePercent] <= 100 AND [VukTaxDepreciationStartDate] IS NOT NULL AND [VukTaxDepreciationStartDate] >= [AcquisitionDate]))');");
         }
 
         /// <inheritdoc />
