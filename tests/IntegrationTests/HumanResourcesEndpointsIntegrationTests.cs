@@ -394,6 +394,8 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         var row = Assert.Single(rows!);
         Assert.Equal("A-001 · Tenant A Employee", row.GetProperty("employee").GetString());
         Assert.Equal(75000m, row.GetProperty("amount").GetDecimal());
+        Assert.Equal(new[] { "amount", "currencyCode", "effectiveFrom", "employee", "payBasisCode", "status", "targetKind" },
+            row.EnumerateObject().Select(property => property.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray());
 
         SetIdentity(client, TenantB, Admin, "TenantAdmin");
         var otherTenant = await client.GetFromJsonAsync<JsonElement[]>($"/api/hr/payroll/compensation/?q=A-001&from={start}&to={periodEnd}");
