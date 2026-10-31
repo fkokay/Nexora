@@ -12,11 +12,14 @@ public static class CrmEndpoints
         var opportunities = app.MapGroup("/api/crm/opportunities").WithTags("CRM Fırsatları").RequireAuthorization();
 
         opportunities.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, string? q, string? stage,
+            DateOnly? closeFrom, DateOnly? closeTo, decimal? valueFrom, decimal? valueTo,
             int page = 1, int pageSize = 25, CancellationToken ct = default) =>
         {
             if (!TryTenant(user, out var tenantId, out _)) return Results.Forbid();
-            if (!ValidatePaging(page, pageSize) || (stage is not null && !TryStage(stage, out _)))
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = ["Sayfalama veya fırsat aşaması geçersiz."] });
+            if (!ValidatePaging(page, pageSize) || (stage is not null && !TryStage(stage, out _)) ||
+                (closeFrom is not null && closeTo is not null && closeFrom > closeTo) ||
+                valueFrom < 0 || valueTo < 0 || (valueFrom is not null && valueTo is not null && valueFrom > valueTo))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = ["Sayfalama, tarih veya tahmini değer filtresi geçersiz."] });
 
             var query = db.CrmOpportunities.AsNoTracking().Where(x => x.TenantId == tenantId);
             if (!string.IsNullOrWhiteSpace(q))
@@ -26,6 +29,10 @@ public static class CrmEndpoints
                     (x.Customer != null && x.Customer.Name.Contains(term)));
             }
             if (stage is not null && TryStage(stage, out var parsedStage)) query = query.Where(x => x.Stage == parsedStage);
+            if (closeFrom is not null) query = query.Where(x => x.ExpectedCloseDate != null && x.ExpectedCloseDate >= closeFrom);
+            if (closeTo is not null) query = query.Where(x => x.ExpectedCloseDate != null && x.ExpectedCloseDate <= closeTo);
+            if (valueFrom is not null) query = query.Where(x => x.EstimatedValue != null && x.EstimatedValue >= valueFrom);
+            if (valueTo is not null) query = query.Where(x => x.EstimatedValue != null && x.EstimatedValue <= valueTo);
             var total = await query.CountAsync(ct);
             var items = await query.OrderBy(x => x.ExpectedCloseDate == null).ThenBy(x => x.ExpectedCloseDate)
                 .ThenByDescending(x => x.UpdatedAt).Skip((page - 1) * pageSize).Take(pageSize)
