@@ -797,8 +797,6 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
                     b.HasKey("Id");
 
-                    b.HasAlternateKey("TenantId", "Id");
-
                     b.HasIndex("TenantId", "Code")
                         .IsUnique();
 
@@ -813,6 +811,44 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                             t.HasCheckConstraint("CK_CreditFacilitySecurities_Status", "[Status] IN (1,2,3,4)");
 
                             t.HasCheckConstraint("CK_CreditFacilitySecurities_Type", "[Type] IN (1,2)");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditSecurityAlertDismissal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AlertStatus")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("CreditFacilitySecurityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("DismissedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "CreditFacilitySecurityId");
+
+                    b.HasIndex("TenantId", "UserId", "CreditFacilitySecurityId", "AlertStatus")
+                        .IsUnique();
+
+                    b.ToTable("CreditSecurityAlertDismissals", t =>
+                        {
+                            t.HasCheckConstraint("CK_CreditSecurityAlertDismissals_AlertStatus", "[AlertStatus] IN ('Expired','Expiring')");
                         });
                 });
 
@@ -17956,6 +17992,18 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .IsRequired();
 
                     b.Navigation("CreditFacility");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.CreditSecurityAlertDismissal", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.CreditFacilitySecurity", "CreditFacilitySecurity")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CreditFacilitySecurityId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreditFacilitySecurity");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.CrmOpportunity", b =>

@@ -37,6 +37,45 @@ public sealed class FinanceCreditFacilityIntegrationTests
         Assert.Equal("TEM-001", item.GetProperty("code").GetString());
         var securityId = item.GetProperty("id").GetGuid();
 
+        var userA = Guid.Parse("11111111-aaaa-aaaa-aaaa-111111111111");
+        var userB = Guid.Parse("22222222-bbbb-bbbb-bbbb-222222222222");
+        client.DefaultRequestHeaders.Add("X-Test-User", userA.ToString());
+        using var dismiss = await client.PostAsync($"/api/finance/credit-facilities/securities/{securityId}/alerts/Expiring/dismiss", null);
+        Assert.Equal(HttpStatusCode.NoContent, dismiss.StatusCode);
+        using var dismissedAlerts = await client.GetAsync("/api/finance/credit-facilities/securities/alerts?expiryWithinDays=30");
+        using var dismissedJson = JsonDocument.Parse(await dismissedAlerts.Content.ReadAsStringAsync());
+        Assert.Equal(0, dismissedJson.RootElement.GetProperty("expiringCount").GetInt32());
+        Assert.Empty(dismissedJson.RootElement.GetProperty("items").EnumerateArray());
+        using var duplicateDismiss = await client.PostAsync($"/api/finance/credit-facilities/securities/{securityId}/alerts/Expiring/dismiss", null);
+        Assert.Equal(HttpStatusCode.NoContent, duplicateDismiss.StatusCode);
+
+        using var otherUser = app.GetTestClient();
+        otherUser.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        otherUser.DefaultRequestHeaders.Add("X-Test-User", userB.ToString());
+        using var otherUserAlerts = await otherUser.GetAsync("/api/finance/credit-facilities/securities/alerts?expiryWithinDays=30");
+        using var otherUserJson = JsonDocument.Parse(await otherUserAlerts.Content.ReadAsStringAsync());
+        Assert.Equal(1, otherUserJson.RootElement.GetProperty("expiringCount").GetInt32());
+        Assert.Single(otherUserJson.RootElement.GetProperty("items").EnumerateArray());
+        using var otherTenant = app.GetTestClient();
+        otherTenant.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        otherTenant.DefaultRequestHeaders.Add("X-Test-User", userA.ToString());
+        using var crossTenantDismiss = await otherTenant.PostAsync($"/api/finance/credit-facilities/securities/{securityId}/alerts/Expiring/dismiss", null);
+        Assert.Equal(HttpStatusCode.NotFound, crossTenantDismiss.StatusCode);
+        using var invalidDismiss = await client.PostAsync($"/api/finance/credit-facilities/securities/{securityId}/alerts/invalid/dismiss", null);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidDismiss.StatusCode);
+
+        await using (var expiryScope = app.Services.CreateAsyncScope())
+        {
+            var expiryDb = expiryScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var security = await expiryDb.CreditFacilitySecurities.SingleAsync(x => x.TenantId == TenantA && x.Id == securityId);
+            security.ExpiryDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+            await expiryDb.SaveChangesAsync();
+        }
+        using var transitionedAlerts = await client.GetAsync("/api/finance/credit-facilities/securities/alerts?expiryWithinDays=30");
+        using var transitionedJson = JsonDocument.Parse(await transitionedAlerts.Content.ReadAsStringAsync());
+        Assert.Equal(1, transitionedJson.RootElement.GetProperty("expiredCount").GetInt32());
+        Assert.Equal("Expired", Assert.Single(transitionedJson.RootElement.GetProperty("items").EnumerateArray()).GetProperty("alert").GetString());
+
         using var exposure = await client.GetAsync("/api/finance/credit-facilities/exposure-summary");
         Assert.Equal(HttpStatusCode.OK, exposure.StatusCode);
         using var exposureJson = JsonDocument.Parse(await exposure.Content.ReadAsStringAsync());

@@ -2582,6 +2582,18 @@ public sealed class CreditFacilitySecurity
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>Per-user dismissal state for a tenant-scoped facility security expiry alert.</summary>
+public sealed class CreditSecurityAlertDismissal
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid UserId { get; set; }
+    public Guid CreditFacilitySecurityId { get; set; }
+    public CreditFacilitySecurity CreditFacilitySecurity { get; set; } = null!;
+    public string AlertStatus { get; set; } = "Expiring";
+    public DateTimeOffset DismissedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class CreditFacilitySchedule
 {
     public Guid Id { get; set; } = Guid.NewGuid();

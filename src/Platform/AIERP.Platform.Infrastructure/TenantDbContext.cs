@@ -26,6 +26,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
     public DbSet<PayrollWorkplaceCalendar> PayrollWorkplaceCalendars => Set<PayrollWorkplaceCalendar>();
     public DbSet<PayrollEmployeeWorkCalendarOverride> PayrollEmployeeWorkCalendarOverrides => Set<PayrollEmployeeWorkCalendarOverride>();
     public DbSet<PayrollPriorEmployerTaxBaseDeclaration> PayrollPriorEmployerTaxBaseDeclarations => Set<PayrollPriorEmployerTaxBaseDeclaration>();
+    public DbSet<CreditSecurityAlertDismissal> CreditSecurityAlertDismissals => Set<CreditSecurityAlertDismissal>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -386,5 +387,16 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
         foreach (var type in studioEntities) modelBuilder.Ignore(type);
         modelBuilder.ApplyConfiguration(new CommercialContractEntityConfiguration());
         modelBuilder.ApplyConfiguration(new CommercialContractStatusTransitionConfiguration());
+        modelBuilder.Entity<CreditSecurityAlertDismissal>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.UserId, x.CreditFacilitySecurityId, x.AlertStatus }).IsUnique();
+            e.Property(x => x.AlertStatus).HasMaxLength(16).IsRequired();
+            e.HasOne(x => x.CreditFacilitySecurity).WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.CreditFacilitySecurityId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.ToTable(t => t.HasCheckConstraint("CK_CreditSecurityAlertDismissals_AlertStatus", "[AlertStatus] IN ('Expired','Expiring')"));
+        });
     }
 }

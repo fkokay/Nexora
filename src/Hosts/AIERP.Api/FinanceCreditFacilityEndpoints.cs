@@ -105,7 +105,7 @@ public static class FinanceCreditFacilityEndpoints
 
         group.MapGet("/securities/alerts", async (int? expiryWithinDays, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
-            if (!TryGetTenantId(user, out var tenantId)) return Results.Forbid();
+            if (!TryGetTenantId(user, out var tenantId) || GetUserId(user) is not { } userId) return Results.Forbid();
             var days = expiryWithinDays ?? 30;
             if (days is < 0 or > 365)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["expiryWithinDays"] = ["Süre 0–365 gün arasında olmalıdır."] });
@@ -113,7 +113,9 @@ public static class FinanceCreditFacilityEndpoints
             var today = IstanbulToday();
             var through = today.AddDays(days);
             var active = db.CreditFacilitySecurities.AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.Status == CreditSecurityStatus.Active);
+                .Where(x => x.TenantId == tenantId && x.Status == CreditSecurityStatus.Active)
+                .Where(x => !db.CreditSecurityAlertDismissals.Any(d => d.TenantId == tenantId && d.UserId == userId &&
+                    d.CreditFacilitySecurityId == x.Id && d.AlertStatus == (x.ExpiryDate < today ? "Expired" : "Expiring")));
             var expiredCount = await active.CountAsync(x => x.ExpiryDate < today, ct);
             var expiringCount = await active.CountAsync(x => x.ExpiryDate >= today && x.ExpiryDate <= through, ct);
             var items = await active.Where(x => x.ExpiryDate <= through)
@@ -133,6 +135,37 @@ public static class FinanceCreditFacilityEndpoints
                 }).ToListAsync(ct);
 
             return Results.Ok(new { asOf = today, expiryWithinDays = days, expiredCount, expiringCount, items });
+        });
+
+        group.MapPost("/securities/{securityId:guid}/alerts/{alertStatus}/dismiss", async (Guid securityId, string alertStatus,
+            ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetTenantId(user, out var tenantId) || GetUserId(user) is not { } userId) return Results.Forbid();
+            if (alertStatus is not ("Expired" or "Expiring"))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["alertStatus"] = ["Uyarı türü Expired veya Expiring olmalıdır."] });
+
+            var security = await db.CreditFacilitySecurities.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == securityId && x.Status == CreditSecurityStatus.Active, ct);
+            if (security is null) return Results.NotFound();
+            var today = IstanbulToday();
+            var currentStatus = security.ExpiryDate < today ? "Expired" : "Expiring";
+            if (currentStatus != alertStatus || security.ExpiryDate > today.AddDays(365))
+                return Results.Conflict(new { error = "Bu uyarı artık etkin değil veya kapsam dışı." });
+
+            var exists = await db.CreditSecurityAlertDismissals.AnyAsync(x => x.TenantId == tenantId && x.UserId == userId &&
+                x.CreditFacilitySecurityId == securityId && x.AlertStatus == alertStatus, ct);
+            if (exists) return Results.NoContent();
+
+            db.CreditSecurityAlertDismissals.Add(new CreditSecurityAlertDismissal
+            {
+                TenantId = tenantId, UserId = userId, CreditFacilitySecurityId = securityId,
+                AlertStatus = alertStatus, DismissedAt = DateTimeOffset.UtcNow
+            });
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId,
+                Action = "finance.credit-facility.security-alert-dismissed", Resource = $"{security.Code};{alertStatus}" });
+            try { await db.SaveChangesAsync(ct); }
+            catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { }
+            return Results.NoContent();
         });
 
         group.MapGet("/exposure-summary", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
