@@ -1709,7 +1709,12 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 payrollCompensationSearchTerm = parsedPayrollTerm;
                 hrPeriodFrom = parsedPayrollFrom;
                 hrPeriodTo = parsedPayrollTo;
-                path = "/api/hr/payroll/compensation";
+                path = QueryHelpers.AddQueryString("/api/hr/payroll/compensation", new Dictionary<string, string?>
+                {
+                    ["q"] = parsedPayrollTerm,
+                    ["from"] = parsedPayrollFrom.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                    ["to"] = parsedPayrollTo.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                });
                 break;
             }
             case "get_cash_flow_forecast":

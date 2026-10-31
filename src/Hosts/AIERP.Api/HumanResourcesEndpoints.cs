@@ -431,13 +431,26 @@ public static partial class HumanResourcesEndpoints
             return Results.Ok(new { ruleSet.Id, ruleSet.Status, ruleSet.ApprovedAt });
         });
 
-        payrollCompensation.MapGet("/", async (Guid? employeeId, ClaimsPrincipal user, IPlatformPermissionAuthorizer authorizer, TenantDbContext db, CancellationToken ct) =>
+        payrollCompensation.MapGet("/", async (Guid? employeeId, string? q, DateOnly? from, DateOnly? to,
+            ClaimsPrincipal user, IPlatformPermissionAuthorizer authorizer, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
             var role = user.FindFirstValue("role") ?? "";
             if (!await HasCompensationPermissionAsync(authorizer, tenantId, userId, role, "view", ct)) return Results.Forbid();
             var query = db.PayrollCompensationRecords.AsNoTracking().Where(x => x.TenantId == tenantId);
             if (employeeId is not null) query = query.Where(x => x.EmployeeId == employeeId.Value);
+            if (q is not null || from.HasValue || to.HasValue)
+            {
+                var search = q?.Trim();
+                var todayInIstanbul = DateOnly.FromDateTime(DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).DateTime);
+                if (search is null || search.Length is < 2 or > 100 || from is null || to is null ||
+                    from.Value > to.Value || to.Value > todayInIstanbul || to.Value.DayNumber - from.Value.DayNumber > 365)
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Ücret araması için 2–100 karakter çalışan kodu/adı ve en fazla 366 günlük geçmiş tarih aralığı zorunludur."] });
+
+                query = query.Where(x => x.EffectiveFrom >= from.Value && x.EffectiveFrom <= to.Value &&
+                    db.EmployeeRecords.Any(employee => employee.TenantId == tenantId && employee.Id == x.EmployeeId &&
+                        (employee.PersonnelCode.Contains(search) || employee.FullName.Contains(search))));
+            }
             var rows = await query.OrderByDescending(x => x.EffectiveFrom).ThenByDescending(x => x.Version).Take(500)
                 .Select(x => new PayrollCompensationView(x.Id, x.EmployeeId,
                     db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == x.EmployeeId)

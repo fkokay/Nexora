@@ -368,6 +368,42 @@ public sealed class HumanResourcesEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Payroll_compensation_search_filters_employee_and_effective_period_inside_tenant_api()
+    {
+        await using var app = await StartApplicationAsync();
+        var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).DateTime);
+        var periodStart = new DateOnly(today.Year, 1, 1);
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.PayrollCompensationRecords.AddRange(
+                new PayrollCompensationRecord { Id = Guid.Parse("a1000000-0000-0000-0000-000000000001"), TenantId = TenantA, EmployeeId = EmployeeA, TargetKind = "Gross", Amount = 75000m, CurrencyCode = "TRY", PayBasisCode = "Monthly", EffectiveFrom = periodStart, Status = "Approved", CreatedByUserId = Admin, RowVersion = new byte[8] },
+                new PayrollCompensationRecord { Id = Guid.Parse("a1000000-0000-0000-0000-000000000002"), TenantId = TenantA, EmployeeId = EmployeeA, TargetKind = "Gross", Amount = 65000m, CurrencyCode = "TRY", PayBasisCode = "Monthly", EffectiveFrom = periodStart.AddYears(-1), Status = "Approved", CreatedByUserId = Admin, RowVersion = new byte[8] },
+                new PayrollCompensationRecord { Id = Guid.Parse("a1000000-0000-0000-0000-000000000003"), TenantId = TenantA, EmployeeId = Guid.Parse("15151515-1515-1515-1515-151515151515"), TargetKind = "Gross", Amount = 88000m, CurrencyCode = "TRY", PayBasisCode = "Monthly", EffectiveFrom = periodStart, Status = "Approved", CreatedByUserId = Admin, RowVersion = new byte[8] },
+                new PayrollCompensationRecord { Id = Guid.Parse("a2000000-0000-0000-0000-000000000001"), TenantId = TenantB, EmployeeId = EmployeeB, TargetKind = "Gross", Amount = 99000m, CurrencyCode = "TRY", PayBasisCode = "Monthly", EffectiveFrom = periodStart, Status = "Approved", CreatedByUserId = Admin, RowVersion = new byte[8] });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+        var periodEnd = today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var start = periodStart.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var response = await client.GetAsync($"/api/hr/payroll/compensation/?q=A-001&from={start}&to={periodEnd}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var rows = await response.Content.ReadFromJsonAsync<JsonElement[]>();
+        var row = Assert.Single(rows!);
+        Assert.Equal("A-001 · Tenant A Employee", row.GetProperty("employee").GetString());
+        Assert.Equal(75000m, row.GetProperty("amount").GetDecimal());
+
+        SetIdentity(client, TenantB, Admin, "TenantAdmin");
+        var otherTenant = await client.GetFromJsonAsync<JsonElement[]>($"/api/hr/payroll/compensation/?q=A-001&from={start}&to={periodEnd}");
+        Assert.Empty(otherTenant!);
+
+        var invalidWindow = await client.GetAsync($"/api/hr/payroll/compensation/?q=A-001&from={start}&to=2099-12-31");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidWindow.StatusCode);
+    }
+
+    [Fact]
     public async Task Payroll_rule_set_approvals_reject_overlapping_periods_and_allow_adjacent_periods()
     {
         await using var app = await StartApplicationAsync();
