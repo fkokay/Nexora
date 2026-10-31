@@ -43,9 +43,14 @@ public static class FinancialStatementEndpoints
             await db.SaveChangesAsync();
             return Results.Ok(new { accountId, classification = classification.ToString() });
         });
-        group.MapGet("/financial-statements/tms7/cash-flow", async (DateOnly? from, DateOnly? to, ClaimsPrincipal principal, TenantDbContext db) =>
+        group.MapGet("/financial-statements/tms7/cash-flow", async (DateOnly? from, DateOnly? to, string? method, ClaimsPrincipal principal, TenantDbContext db) =>
         {
             if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
+            var selectedMethod = string.IsNullOrWhiteSpace(method) ? "Indirect" : method.Trim();
+            if (!selectedMethod.Equals("Indirect", StringComparison.OrdinalIgnoreCase) &&
+                !selectedMethod.Equals("Direct", StringComparison.OrdinalIgnoreCase))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["method"] = ["Yöntem Direct veya Indirect olmalıdır."] });
+            selectedMethod = selectedMethod.Equals("Direct", StringComparison.OrdinalIgnoreCase) ? "Direct" : "Indirect";
             var start = from ?? new DateOnly(DateTime.UtcNow.Year, 1, 1);
             var end = to ?? DateOnly.FromDateTime(DateTime.UtcNow);
             if (start > end || end.DayNumber - start.DayNumber > 365)
@@ -124,7 +129,7 @@ public static class FinancialStatementEndpoints
             var currencies = movements.Select(x => x.CurrencyCode).Distinct().Where(x => x != baseCurrency).ToArray();
             var rates = await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && currencies.Contains(x.CurrencyCode) && x.RateDate <= end)
                 .OrderBy(x => x.RateDate).Select(x => new { x.CurrencyCode, x.RateDate, x.Rate }).ToListAsync();
-            decimal investing = 0m, financing = 0m, directOperating = 0m;
+            decimal investing = 0m, financing = 0m, directOperating = 0m, directOperatingInflows = 0m, directOperatingOutflows = 0m;
             var unclassifiedMovementCount = 0; var missingFlowRateCount = 0; var openingAdjustmentCount = 0;
             foreach (var movement in movements)
             {
@@ -134,7 +139,11 @@ public static class FinancialStatementEndpoints
                 var signed = (movement.Direction == FinancialDirection.Inflow ? 1m : -1m) * movement.Amount * rate.Value;
                 switch (movement.CashFlowCategory)
                 {
-                    case CashFlowCategory.Operating: directOperating += signed; break;
+                    case CashFlowCategory.Operating:
+                        directOperating += signed;
+                        if (movement.Direction == FinancialDirection.Inflow) directOperatingInflows += movement.Amount * rate.Value;
+                        else directOperatingOutflows += movement.Amount * rate.Value;
+                        break;
                     case CashFlowCategory.Investing: investing += signed; break;
                     case CashFlowCategory.Financing: financing += signed; break;
                     case CashFlowCategory.InternalTransfer: break;
@@ -142,17 +151,19 @@ public static class FinancialStatementEndpoints
                     default: unclassifiedMovementCount += movement.Count; break;
                 }
             }
-            var operating = netProfitLoss + nonCashAdjustments + workingCapitalChanges + investingFinancingPnlAdjustments;
+            var indirectOperating = netProfitLoss + nonCashAdjustments + workingCapitalChanges + investingFinancingPnlAdjustments;
+            var operating = selectedMethod == "Direct" ? directOperating : indirectOperating;
             var cashMovement = closingCash - openingCash;
             var netClassifiedFlows = operating + investing + financing;
             var reconciliationDifference = cashMovement - netClassifiedFlows;
             var operatingMethodDifference = operating - directOperating;
             var complete = unclassifiedBalanceAccounts.Count == 0 && pAndLUnclassified == 0 && unclassifiedMovementCount == 0 &&
                 missingFlowRateCount == 0 && openingAdjustmentCount == 0 && decimal.Abs(reconciliationDifference) <= 0.01m && decimal.Abs(operatingMethodDifference) <= 0.01m;
-            return Results.Ok(new { standard = "TMS 7", method = "Indirect", from = start, to = end, baseCurrencyCode = baseCurrency,
+            return Results.Ok(new { standard = "TMS 7", method = selectedMethod, from = start, to = end, baseCurrencyCode = baseCurrency,
                 openingCashAndCashEquivalents = openingCash, closingCashAndCashEquivalents = closingCash,
                 operating = new { netProfitLoss, nonCashAdjustments, workingCapitalChanges, investingFinancingPnlAdjustments, netCashFlow = operating,
-                    directOperatingCashFlowComparison = directOperating, methodDifference = operatingMethodDifference },
+                    indirectMethodCashFlow = indirectOperating, directOperatingCashFlowComparison = directOperating,
+                    directOperatingInflows, directOperatingOutflows, methodDifference = operatingMethodDifference },
                 investing = new { netCashFlow = investing }, financing = new { netCashFlow = financing },
                 reconciliation = new { netChangeInCash = cashMovement, classifiedCashFlows = netClassifiedFlows, difference = reconciliationDifference },
                 unclassifiedMovementCount, missingFlowRateCount, openingAdjustmentCount, pAndLUnclassifiedAccountCount = pAndLUnclassified,

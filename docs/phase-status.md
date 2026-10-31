@@ -1,4 +1,8 @@
 # Master Prompt Phase Status
+### 2026-10-31 TMS 7 direct-method cash-flow view
+
+Added a selectable direct method to the tenant-scoped TMS 7 cash-flow report while preserving indirect as the default. Direct operating inflows/outflows are converted using the tenant's dated exchange rates; the report keeps the indirect/direct difference and cash reconciliation visible, and rejects unsupported method values. The Finance page now allows switching methods and displays the corresponding operating lines. The focused TMS 7 integration test passed 1/1, API build passed with 0 warnings/errors, and ERP Web production build passed. The report remains an uncertified draft; profile validation, gross disclosure lines, exchange-effect reconciliation, professional review, and statutory validation remain open. No schema migration is required.
+
 ### 2026-10-31 internal payroll voucher reversal
 
 Added a TenantAdmin-only reversal route for finalized internal payroll vouchers. It validates tenant/run/calculation ownership and reason, serializes against fiscal-year close, rejects a closed posting date, reverses each debit/credit line, writes an audit event, and returns the existing reversal on retries. The HR page now offers the reversal action and directs users to create a separate correction draft. The payroll-focused HumanResourcesEndpointsIntegrationTests passed 15/15, API build passed with 0 warnings/errors, and ERP Web production build passed. No schema migration is required. This is an internal ledger correction only; statutory payroll cancellation, legal gross/net recalculation, declarations, and accountant/legal acceptance remain open.

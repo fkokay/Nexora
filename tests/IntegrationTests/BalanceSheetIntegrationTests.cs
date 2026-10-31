@@ -152,6 +152,17 @@ public sealed class BalanceSheetIntegrationTests
         Assert.False(beforeJson.RootElement.GetProperty("isComplete").GetBoolean());
         Assert.Equal(3, beforeJson.RootElement.GetProperty("unclassifiedBalanceAccounts").GetArrayLength());
 
+        using var directMethod = await client.GetAsync("/api/finance/general-ledger/financial-statements/tms7/cash-flow?from=2026-01-01&to=2026-01-07&method=Direct");
+        Assert.True(directMethod.IsSuccessStatusCode, await directMethod.Content.ReadAsStringAsync());
+        using var directJson = JsonDocument.Parse(await directMethod.Content.ReadAsStringAsync());
+        Assert.Equal("Direct", directJson.RootElement.GetProperty("method").GetString());
+        var directOperating = directJson.RootElement.GetProperty("operating");
+        Assert.Equal(500m, directOperating.GetProperty("directOperatingInflows").GetDecimal());
+        Assert.Equal(0m, directOperating.GetProperty("directOperatingOutflows").GetDecimal());
+        Assert.Equal(500m, directOperating.GetProperty("netCashFlow").GetDecimal());
+        using var invalidMethod = await client.GetAsync("/api/finance/general-ledger/financial-statements/tms7/cash-flow?method=Other");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidMethod.StatusCode);
+
         using var accountsResponse = await client.GetAsync("/api/finance/general-ledger/financial-statements/tms7/cash-flow-classifications");
         Assert.True(accountsResponse.IsSuccessStatusCode, await accountsResponse.Content.ReadAsStringAsync());
         using var accountsJson = JsonDocument.Parse(await accountsResponse.Content.ReadAsStringAsync());
