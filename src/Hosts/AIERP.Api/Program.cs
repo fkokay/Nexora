@@ -280,6 +280,16 @@ app.MapGet("/health", async (PlatformDbContext db, CancellationToken cancellatio
     }
 });
 var auth = app.MapGroup("/api/auth").WithTags("Authentication");
+auth.MapGet("/tenants", async (ClaimsPrincipal principal, PlatformDbContext db, CancellationToken cancellationToken) =>
+{
+    if (!Guid.TryParse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub), out var userId)) return Results.Unauthorized();
+    var memberships = await db.TenantMemberships.AsNoTracking()
+        .Where(m => m.UserId == userId && m.User.IsActive && m.Tenant.IsActive)
+        .OrderBy(m => m.Tenant.Name)
+        .Select(m => new TenantSummary(m.TenantId, m.Tenant.Name, m.Tenant.Slug, m.Role))
+        .ToListAsync(cancellationToken);
+    return Results.Ok(memberships);
+}).RequireAuthorization();
 auth.MapPost("/login", async (LoginRequest request, PlatformDbContext db, IConfiguration config) =>
 {
     if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password)) return Results.BadRequest(new { error = "Email and password are required." });
@@ -2613,6 +2623,60 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "inventory-transfer.voided", Resource = transferRecord.Code });
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new { transferRecord.Id, transferRecord.Code, transferRecord.Status });
+});
+warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, string? q, int? page, int? pageSize,
+    bool? belowMinimumOnly, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId)) return Results.NotFound();
+    var currentPage = Math.Max(1, page ?? 1);
+    var currentPageSize = Math.Clamp(pageSize ?? 25, 1, 100);
+    var search = q?.Trim();
+    var itemBalances = db.StockItems.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.IsActive)
+        .Select(item => new
+        {
+            Item = item,
+            Quantity = db.InventoryTransactions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.StockItemId == item.Id)
+                .Sum(x => (decimal?)(x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity)) ?? 0m
+        });
+    var belowMinimumCount = await itemBalances.CountAsync(x => x.Quantity < x.Item.MinimumStock);
+    var matchingItems = itemBalances;
+    if (!string.IsNullOrWhiteSpace(search))
+        matchingItems = matchingItems.Where(x => x.Item.Code.Contains(search) || x.Item.Name.Contains(search));
+    if (belowMinimumOnly == true)
+        matchingItems = matchingItems.Where(x => x.Quantity < x.Item.MinimumStock);
+    var totalCount = await matchingItems.CountAsync();
+    var selected = await matchingItems.OrderBy(x => x.Item.Code).ThenBy(x => x.Item.Name)
+        .Skip((currentPage - 1) * currentPageSize).Take(currentPageSize).ToListAsync();
+    var ids = selected.Select(x => x.Item.Id).ToArray();
+    var baseCurrency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.BaseCurrencyCode).SingleAsync();
+    var values = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && ids.Contains(x.StockItemId))
+        .GroupBy(x => x.StockItemId).Select(g => new { StockItemId = g.Key,
+            Valuation = g.Sum(x => (decimal?)(x.UnitCostBase == null ? 0m : (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) * x.UnitCostBase.Value)) ?? 0m,
+            Unvalued = g.Sum(x => (decimal?)(x.UnitCostBase == null ? (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) : 0m)) ?? 0m })
+        .ToDictionaryAsync(x => x.StockItemId);
+    var adjustments = await db.InventoryCostAdjustmentLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && ids.Contains(x.StockItemId))
+        .GroupBy(x => x.StockItemId).Select(g => new { StockItemId = g.Key, Amount = g.Sum(x => x.AmountBase) })
+        .ToDictionaryAsync(x => x.StockItemId, x => x.Amount);
+    var reservations = await db.SalesOrderReservations.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId
+            && x.Status == SalesOrderReservationStatus.Active && ids.Contains(x.OrderLine.StockItemId))
+        .GroupBy(x => x.OrderLine.StockItemId).Select(g => new { StockItemId = g.Key, Quantity = g.Sum(x => x.Quantity - x.FulfilledQuantity) })
+        .ToDictionaryAsync(x => x.StockItemId, x => x.Quantity);
+    var rows = selected.Select(x =>
+    {
+        var item = x.Item;
+        var reservedQuantity = reservations.GetValueOrDefault(item.Id);
+        var total = values.GetValueOrDefault(item.Id);
+        var balance = new InventoryBalanceView(item.Id, item.Code, item.Name, item.UnitCode, item.MinimumStock,
+            x.Quantity, x.Quantity < item.MinimumStock, reservedQuantity, Math.Max(0m, x.Quantity - reservedQuantity),
+            (total?.Valuation ?? 0m) + adjustments.GetValueOrDefault(item.Id), Math.Max(0m, total?.Unvalued ?? 0m), baseCurrency);
+        var stockItem = new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock,
+            item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays);
+        return new { balance, stockItem };
+    }).ToArray();
+    return Results.Ok(new { items = rows, totalCount, belowMinimumCount, page = currentPage, pageSize = currentPageSize });
 });
 warehouses.MapGet("/{warehouseId:guid}/balances", async (Guid warehouseId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
