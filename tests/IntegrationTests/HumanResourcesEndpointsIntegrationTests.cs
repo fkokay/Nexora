@@ -661,6 +661,43 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         Assert.Contains("DRAFT,\"2026-01-31\",\"A-001\",\"Synthetic <employee>\",\"Net ücret ödeme borcu\",\"335.01\",0.00,1234.57,\"TRY\"", voucherDraft);
         Assert.Equal(0, await finalDb.JournalEntries.CountAsync(x => x.TenantId == TenantA));
 
+        SetIdentity(client, TenantA, EmployeeUserA, "Employee");
+        using var unauthorizedPost = await client.PostAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/post-voucher", content: null);
+        Assert.Equal(HttpStatusCode.Forbidden, unauthorizedPost.StatusCode);
+        Assert.Equal(0, await finalDb.JournalEntries.CountAsync(x => x.TenantId == TenantA));
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+        using var postVoucherResponse = await client.PostAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/post-voucher", content: null);
+        Assert.Equal(HttpStatusCode.Created, postVoucherResponse.StatusCode);
+        var postedVoucher = await postVoucherResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var journalEntryId = postedVoucher.GetProperty("journalEntryId").GetGuid();
+        Assert.False(postedVoucher.GetProperty("idempotent").GetBoolean());
+        Assert.Equal(1234.57m, postedVoucher.GetProperty("totalDebit").GetDecimal());
+        Assert.Equal(1234.57m, postedVoucher.GetProperty("totalCredit").GetDecimal());
+        Assert.False(postedVoucher.GetProperty("officialPayrollResult").GetBoolean());
+
+        using var replayPostResponse = await client.PostAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/post-voucher", content: null);
+        Assert.Equal(HttpStatusCode.OK, replayPostResponse.StatusCode);
+        var replayedVoucher = await replayPostResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(journalEntryId, replayedVoucher.GetProperty("journalEntryId").GetGuid());
+        Assert.True(replayedVoucher.GetProperty("idempotent").GetBoolean());
+        using var mismatchedRunReplay = await client.PostAsync(
+            $"/api/hr/payroll/runs/{Guid.NewGuid():D}/calculations/{calculationId:D}/post-voucher", content: null);
+        Assert.Equal(HttpStatusCode.NotFound, mismatchedRunReplay.StatusCode);
+        await using (var postedScope = app.Services.CreateAsyncScope())
+        {
+            var postedDb = postedScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var journal = await postedDb.JournalEntries.Include(x => x.Lines)
+                .SingleAsync(x => x.TenantId == TenantA && x.SourceType == "PayrollCalculation" && x.SourceId == calculationId);
+            Assert.Equal(2, journal.Lines.Count);
+            Assert.Equal(1234.57m, journal.Lines.Sum(x => x.Debit));
+            Assert.Equal(1234.57m, journal.Lines.Sum(x => x.Credit));
+            Assert.Contains(postedDb.AuditEvents, x => x.TenantId == TenantA && x.UserId == Admin &&
+                x.Action == "hr.payroll-run.accounting-voucher-posted");
+        }
+
         using var packageResponse = await client.GetAsync(
             $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/manual-package");
         Assert.Equal(HttpStatusCode.OK, packageResponse.StatusCode);
