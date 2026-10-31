@@ -1095,11 +1095,18 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.ResidualValueBase).HasPrecision(18, 2);
             e.Property(x => x.VukDepreciationLowerLimitTry).HasPrecision(18, 2);
             e.Property(x => x.VukSourceUrl).HasMaxLength(500);
+            e.Property(x => x.VukUsefulLifeCode).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.VukUsefulLifeDescription).HasMaxLength(500);
+            e.Property(x => x.VukNormalDepreciationRatePercent).HasPrecision(5, 2);
             e.Property(x => x.AccumulatedDepreciationBase).HasPrecision(18, 2);
             e.Property(x => x.SourceReference).HasMaxLength(120);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16).IsUnicode(false);
             e.Property(x => x.RowVersion).IsRowVersion();
-            e.ToTable(t => t.HasCheckConstraint("CK_FixedAssets_CostAndLife", "[AcquisitionCostBase] > 0 AND [ResidualValueBase] >= 0 AND [ResidualValueBase] < [AcquisitionCostBase] AND [UsefulLifeMonths] BETWEEN 1 AND 1200 AND [InServiceDate] >= [AcquisitionDate] AND [AccumulatedDepreciationBase] >= 0 AND [AccumulatedDepreciationBase] <= [AcquisitionCostBase] - [ResidualValueBase]"));
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_FixedAssets_CostAndLife", "[AcquisitionCostBase] > 0 AND [ResidualValueBase] >= 0 AND [ResidualValueBase] < [AcquisitionCostBase] AND [UsefulLifeMonths] BETWEEN 1 AND 1200 AND [InServiceDate] >= [AcquisitionDate] AND [AccumulatedDepreciationBase] >= 0 AND [AccumulatedDepreciationBase] <= [AcquisitionCostBase] - [ResidualValueBase]");
+                t.HasCheckConstraint("CK_FixedAssets_VukUsefulLifeProfile", "([VukUsefulLifeCode] IS NULL AND [VukUsefulLifeDescription] IS NULL AND [VukUsefulLifeTableYear] IS NULL AND [VukUsefulLifeCommuniqueNumber] IS NULL AND [VukUsefulLifeMonths] IS NULL AND [VukNormalDepreciationRatePercent] IS NULL AND [VukTaxDepreciationStartDate] IS NULL) OR ([VukUsefulLifeCode] IS NOT NULL AND [VukUsefulLifeDescription] IS NOT NULL AND [VukUsefulLifeTableYear] IS NOT NULL AND [VukUsefulLifeCommuniqueNumber] IS NOT NULL AND [VukUsefulLifeMonths] BETWEEN 1 AND 1200 AND [VukNormalDepreciationRatePercent] > 0 AND [VukNormalDepreciationRatePercent] <= 100 AND [VukTaxDepreciationStartDate] IS NOT NULL AND [VukTaxDepreciationStartDate] >= [AcquisitionDate])");
+            });
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<CustomerAccount>().WithMany().HasForeignKey(x => new { x.TenantId, x.SupplierAccountId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);

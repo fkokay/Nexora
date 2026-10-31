@@ -41,7 +41,9 @@ public static class FixedAssetEndpoints
                 .Select(x => new FixedAssetView(x.Id, x.AssetCode, x.Name, x.Category, x.AcquisitionDate, x.InServiceDate,
                     x.AcquisitionCostBase, x.ResidualValueBase, x.UsefulLifeMonths, x.AccumulatedDepreciationBase,
                     x.Status.ToString(), x.SupplierAccountId, x.SourceReference, x.PurchaseInvoiceId, Convert.ToBase64String(x.RowVersion),
-                    x.VukTaxYear, x.VukDepreciationLowerLimitTry, x.VukCommuniqueNumber, x.VukSourceUrl))
+                    x.VukTaxYear, x.VukDepreciationLowerLimitTry, x.VukCommuniqueNumber, x.VukSourceUrl,
+                    x.VukUsefulLifeCode, x.VukUsefulLifeDescription, x.VukUsefulLifeTableYear, x.VukUsefulLifeCommuniqueNumber,
+                    x.VukUsefulLifeMonths, x.VukNormalDepreciationRatePercent, x.VukTaxDepreciationStartDate))
                 .ToListAsync(ct);
             return Results.Ok(new { items = rows, page = currentPage, pageSize = size, totalCount = total });
         });
@@ -67,7 +69,8 @@ public static class FixedAssetEndpoints
                 request.AcquisitionDate == default || request.InServiceDate < request.AcquisitionDate ||
                 request.AcquisitionCostBase <= 0 || request.AcquisitionCostBase > 9999999999999999.99m ||
                 request.ResidualValueBase < 0 || request.ResidualValueBase >= request.AcquisitionCostBase ||
-                request.UsefulLifeMonths is < 1 or > 1200 || (request.SourceReference?.Length ?? 0) > 120)
+                request.UsefulLifeMonths is < 1 or > 1200 || (request.SourceReference?.Length ?? 0) > 120 ||
+                !ValidVukUsefulLifeProfile(request, request.AcquisitionDate))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["asset"] = ["Kod, ad, geçerli edinim ve kullanım tarihleri, maliyet, kalıntı değer ve 1–1200 ay faydalı ömür zorunludur."] });
             if (await db.FixedAssets.AnyAsync(x => x.TenantId == tenantId && x.AssetCode == code, ct))
                 return Results.Conflict(new { error = "Bu firmada sabit kıymet kodu zaten kullanılıyor." });
@@ -87,7 +90,11 @@ public static class FixedAssetEndpoints
                 AcquisitionCostBase = decimal.Round(request.AcquisitionCostBase, 2, MidpointRounding.AwayFromZero),
                 ResidualValueBase = decimal.Round(request.ResidualValueBase, 2, MidpointRounding.AwayFromZero),
                 UsefulLifeMonths = request.UsefulLifeMonths, SupplierAccountId = supplierAccountId, PurchaseInvoiceId = request.PurchaseInvoiceId,
-                SourceReference = Clean(request.SourceReference) };
+                SourceReference = Clean(request.SourceReference),
+                VukUsefulLifeCode = Clean(request.VukUsefulLifeCode), VukUsefulLifeDescription = Clean(request.VukUsefulLifeDescription),
+                VukUsefulLifeTableYear = request.VukUsefulLifeTableYear, VukUsefulLifeCommuniqueNumber = request.VukUsefulLifeCommuniqueNumber,
+                VukUsefulLifeMonths = request.VukUsefulLifeMonths, VukNormalDepreciationRatePercent = request.VukNormalDepreciationRatePercent,
+                VukTaxDepreciationStartDate = request.VukTaxDepreciationStartDate };
             if (VukDepreciationLimitCatalog.Get(request.AcquisitionDate.Year) is { } vukLimit)
             {
                 asset.VukTaxYear = vukLimit.TaxYear;
@@ -207,6 +214,37 @@ public static class FixedAssetEndpoints
             return Results.Ok(new { assetId = id, method = "StraightLineMonthlyAfterInServiceMonth", currencyBasis = "Tenant base currency",
                 acquisitionCostBase = asset.AcquisitionCostBase, residualValueBase = asset.ResidualValueBase,
                 accumulatedDepreciationBase = asset.AccumulatedDepreciationBase, rows });
+        });
+
+        group.MapGet("/{id:guid}/tax-depreciation-schedule", async (Guid id, DateOnly? through, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
+            var asset = await db.FixedAssets.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (asset is null) return Results.NotFound();
+            if (asset.VukUsefulLifeMonths is not { } usefulLife || asset.VukTaxDepreciationStartDate is not { } startDate ||
+                asset.VukNormalDepreciationRatePercent is not { } rate || asset.VukUsefulLifeCode is null)
+                return Results.Conflict(new { error = "Bu kıymette mali müşavir tarafından doğrulanmış VUK faydalı ömür profili yok.", requiresApprovedVukProfile = true });
+            var endMonth = through ?? DateOnly.FromDateTime(DateTime.UtcNow);
+            if (endMonth > DateOnly.FromDateTime(DateTime.UtcNow).AddYears(20)) return Results.BadRequest(new { error = "Bitiş tarihi 20 yıldan fazla ileride olamaz." });
+            var firstMonth = new DateOnly(startDate.Year, startDate.Month, 1).AddMonths(1);
+            var finalMonth = firstMonth.AddMonths(usefulLife - 1);
+            var lastMonth = new DateOnly(endMonth.Year, endMonth.Month, 1);
+            var depreciable = asset.AcquisitionCostBase - asset.ResidualValueBase;
+            var monthly = decimal.Max(0.01m, decimal.Round(depreciable * rate / 100m / 12m, 2, MidpointRounding.AwayFromZero));
+            var remaining = depreciable;
+            var rows = new List<DepreciationScheduleLine>();
+            for (var month = firstMonth; month <= lastMonth && remaining > 0; month = month.AddMonths(1))
+            {
+                var amount = month == finalMonth ? remaining : decimal.Min(monthly, remaining);
+                if (amount > 0) rows.Add(new(month, amount, false, null));
+                remaining -= amount;
+            }
+            return Results.Ok(new { assetId = id, schedule = "VUKNormalDepreciationEstimate", isStatutoryFiling = false,
+                confirmationRequired = true, source = "Accountant-confirmed per-asset snapshot; verify against the applicable GİB table and tax rules.",
+                vukUsefulLifeCode = asset.VukUsefulLifeCode, vukUsefulLifeDescription = asset.VukUsefulLifeDescription,
+                vukUsefulLifeTableYear = asset.VukUsefulLifeTableYear, vukUsefulLifeCommuniqueNumber = asset.VukUsefulLifeCommuniqueNumber,
+                vukUsefulLifeMonths = usefulLife, annualRatePercent = rate, taxDepreciationStartDate = startDate,
+                commencementRule = "Following month after accountant-confirmed tax commencement date", rows });
         });
 
         group.MapPost("/{id:guid}/depreciation-postings", async (Guid id, FixedAssetDepreciationRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -459,7 +497,9 @@ public static class FixedAssetEndpoints
     private static FixedAssetView ToView(FixedAsset x) => new(x.Id, x.AssetCode, x.Name, x.Category, x.AcquisitionDate, x.InServiceDate,
         x.AcquisitionCostBase, x.ResidualValueBase, x.UsefulLifeMonths, x.AccumulatedDepreciationBase, x.Status.ToString(),
         x.SupplierAccountId, x.SourceReference, x.PurchaseInvoiceId, Convert.ToBase64String(x.RowVersion),
-        x.VukTaxYear, x.VukDepreciationLowerLimitTry, x.VukCommuniqueNumber, x.VukSourceUrl);
+        x.VukTaxYear, x.VukDepreciationLowerLimitTry, x.VukCommuniqueNumber, x.VukSourceUrl, x.VukUsefulLifeCode,
+        x.VukUsefulLifeDescription, x.VukUsefulLifeTableYear, x.VukUsefulLifeCommuniqueNumber, x.VukUsefulLifeMonths,
+        x.VukNormalDepreciationRatePercent, x.VukTaxDepreciationStartDate);
     private static FixedAssetAcquisitionPostingView ToAcquisitionPostingView(JournalEntry entry) =>
         new(entry.SourceId, null, entry.Id, entry.EntryDate, entry.Lines.OrderBy(x => x.LineNumber)
             .Select(x => new FixedAssetAcquisitionJournalLineView(x.AccountId, null, null, x.Debit, x.Credit)).ToArray());
@@ -475,6 +515,18 @@ public static class FixedAssetEndpoints
         : db.Tenants.AnyAsync(x => x.Id == tenantId, ct);
     private static bool ValidCode(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 40 && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.');
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static bool ValidVukUsefulLifeProfile(FixedAssetCreateRequest request, DateOnly acquisitionDate)
+    {
+        var values = new object?[] { request.VukUsefulLifeCode, request.VukUsefulLifeDescription, request.VukUsefulLifeTableYear,
+            request.VukUsefulLifeCommuniqueNumber, request.VukUsefulLifeMonths, request.VukNormalDepreciationRatePercent,
+            request.VukTaxDepreciationStartDate };
+        if (values.All(x => x is null)) return true;
+        return !string.IsNullOrWhiteSpace(request.VukUsefulLifeCode) && request.VukUsefulLifeCode.Length <= 40 &&
+            !string.IsNullOrWhiteSpace(request.VukUsefulLifeDescription) && request.VukUsefulLifeDescription.Length <= 500 &&
+            request.VukUsefulLifeTableYear is >= 2004 and <= 2100 && request.VukUsefulLifeCommuniqueNumber is > 0 and <= 999 &&
+            request.VukUsefulLifeMonths is >= 1 and <= 1200 && request.VukNormalDepreciationRatePercent is > 0 and <= 100 &&
+            request.VukTaxDepreciationStartDate is { } start && start >= acquisitionDate;
+    }
     private static bool TryIdentity(ClaimsPrincipal user, out Guid tenantId, out Guid userId)
     {
         var hasTenant = Guid.TryParse(user.FindFirstValue("tenant_id"), out tenantId);
@@ -518,11 +570,17 @@ internal sealed record VukDepreciationLimitView(int TaxYear, decimal LowerLimitT
 
 public sealed record FixedAssetCreateRequest(string? AssetCode, string? Name, string? Category, DateOnly AcquisitionDate,
     DateOnly InServiceDate, decimal AcquisitionCostBase, decimal ResidualValueBase, int UsefulLifeMonths,
+    string? VukUsefulLifeCode = null, string? VukUsefulLifeDescription = null, int? VukUsefulLifeTableYear = null,
+    int? VukUsefulLifeCommuniqueNumber = null, int? VukUsefulLifeMonths = null, decimal? VukNormalDepreciationRatePercent = null,
+    DateOnly? VukTaxDepreciationStartDate = null,
     Guid? SupplierAccountId = null, string? SourceReference = null, Guid? PurchaseInvoiceId = null);
 public sealed record FixedAssetView(Guid Id, string AssetCode, string Name, string? Category, DateOnly AcquisitionDate,
     DateOnly InServiceDate, decimal AcquisitionCostBase, decimal ResidualValueBase, int UsefulLifeMonths,
     decimal AccumulatedDepreciationBase, string Status, Guid? SupplierAccountId, string? SourceReference, Guid? PurchaseInvoiceId, string RowVersion,
-    int? VukTaxYear = null, decimal? VukDepreciationLowerLimitTry = null, int? VukCommuniqueNumber = null, string? VukSourceUrl = null);
+    int? VukTaxYear = null, decimal? VukDepreciationLowerLimitTry = null, int? VukCommuniqueNumber = null, string? VukSourceUrl = null,
+    string? VukUsefulLifeCode = null, string? VukUsefulLifeDescription = null, int? VukUsefulLifeTableYear = null,
+    int? VukUsefulLifeCommuniqueNumber = null, int? VukUsefulLifeMonths = null, decimal? VukNormalDepreciationRatePercent = null,
+    DateOnly? VukTaxDepreciationStartDate = null);
 public sealed record FixedAssetPurchaseInvoiceOption(Guid Id, string Code, Guid SupplierId, DateOnly InvoiceDate, decimal GrandTotal, Guid? JournalEntryId);
 public sealed record FixedAssetAcquisitionPostingRequest(Guid OffsetAccountId);
 public sealed record FixedAssetAcquisitionPostingView(Guid AssetId, string? PurchaseInvoiceCode, Guid? JournalEntryId, DateOnly? EntryDate,

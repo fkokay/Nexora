@@ -73,6 +73,51 @@ public sealed class FixedAssetAcquisitionPostingIntegrationTests
     }
 
     [Fact]
+    public async Task Accountant_confirmed_vuk_profile_is_snapshotted_and_tax_schedule_stays_separate_from_book_schedule()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var app = await StartAsync(tenantId);
+        using var client = Client(app, tenantId);
+        using var create = await client.PostAsJsonAsync("/api/fixed-assets", new
+        {
+            assetCode = "VUK-SNAPSHOT-01", name = "Ofis bilgisayarı", category = "IT",
+            acquisitionDate = new DateOnly(2026, 1, 1), inServiceDate = new DateOnly(2026, 1, 1),
+            acquisitionCostBase = 120000m, residualValueBase = 0m, usefulLifeMonths = 72,
+            vukUsefulLifeCode = "3.31.1", vukUsefulLifeDescription = "Mali müşavirce doğrulanan bilgisayar sınıfı",
+            vukUsefulLifeTableYear = 2026, vukUsefulLifeCommuniqueNumber = 333,
+            vukUsefulLifeMonths = 60, vukNormalDepreciationRatePercent = 20m,
+            vukTaxDepreciationStartDate = new DateOnly(2026, 1, 15)
+        });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        using var created = JsonDocument.Parse(await create.Content.ReadAsStringAsync());
+        var id = created.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal("3.31.1", created.RootElement.GetProperty("vukUsefulLifeCode").GetString());
+        Assert.Equal(60, created.RootElement.GetProperty("vukUsefulLifeMonths").GetInt32());
+
+        using var tax = await client.GetAsync($"/api/fixed-assets/{id}/tax-depreciation-schedule?through=2026-04-30");
+        Assert.Equal(HttpStatusCode.OK, tax.StatusCode);
+        using var taxJson = JsonDocument.Parse(await tax.Content.ReadAsStringAsync());
+        Assert.Equal("VUKNormalDepreciationEstimate", taxJson.RootElement.GetProperty("schedule").GetString());
+        Assert.False(taxJson.RootElement.GetProperty("isStatutoryFiling").GetBoolean());
+        var rows = taxJson.RootElement.GetProperty("rows").EnumerateArray().ToArray();
+        Assert.Equal(3, rows.Length);
+        Assert.Equal(new DateOnly(2026, 2, 1), DateOnly.Parse(rows[0].GetProperty("periodStart").GetString()!));
+        Assert.All(rows, row => Assert.Equal(2000m, row.GetProperty("amountBase").GetDecimal()));
+
+        using var unprofiled = await client.PostAsJsonAsync("/api/fixed-assets", new
+        {
+            assetCode = "VUK-NO-PROFILE", name = "No tax profile", acquisitionDate = new DateOnly(2026, 1, 1),
+            inServiceDate = new DateOnly(2026, 1, 1), acquisitionCostBase = 1000m, residualValueBase = 0m, usefulLifeMonths = 12
+        });
+        Assert.Equal(HttpStatusCode.Created, unprofiled.StatusCode);
+        using var unprofiledJson = JsonDocument.Parse(await unprofiled.Content.ReadAsStringAsync());
+        using var missingProfile = await client.GetAsync($"/api/fixed-assets/{unprofiledJson.RootElement.GetProperty("id").GetGuid()}/tax-depreciation-schedule");
+        Assert.Equal(HttpStatusCode.Conflict, missingProfile.StatusCode);
+        using var foreignClient = Client(app, Guid.NewGuid());
+        Assert.Equal(HttpStatusCode.NotFound, (await foreignClient.GetAsync($"/api/fixed-assets/{id}/tax-depreciation-schedule")).StatusCode);
+    }
+
+    [Fact]
     public async Task Acquisition_posting_requires_active_tenant_cost_mapping_and_offset_account()
     {
         var tenantId = Guid.NewGuid();

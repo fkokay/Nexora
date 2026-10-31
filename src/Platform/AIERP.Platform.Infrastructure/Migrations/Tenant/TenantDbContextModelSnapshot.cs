@@ -9421,11 +9421,36 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("VukNormalDepreciationRatePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
                     b.Property<string>("VukSourceUrl")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<DateOnly?>("VukTaxDepreciationStartDate")
+                        .HasColumnType("date");
+
                     b.Property<int?>("VukTaxYear")
+                        .HasColumnType("int");
+
+                    b.Property<string>("VukUsefulLifeCode")
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<int?>("VukUsefulLifeCommuniqueNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("VukUsefulLifeDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("VukUsefulLifeMonths")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("VukUsefulLifeTableYear")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -9442,6 +9467,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.ToTable("FixedAssets", t =>
                         {
                             t.HasCheckConstraint("CK_FixedAssets_CostAndLife", "[AcquisitionCostBase] > 0 AND [ResidualValueBase] >= 0 AND [ResidualValueBase] < [AcquisitionCostBase] AND [UsefulLifeMonths] BETWEEN 1 AND 1200 AND [InServiceDate] >= [AcquisitionDate] AND [AccumulatedDepreciationBase] >= 0 AND [AccumulatedDepreciationBase] <= [AcquisitionCostBase] - [ResidualValueBase]");
+
+                            t.HasCheckConstraint("CK_FixedAssets_VukUsefulLifeProfile", "([VukUsefulLifeCode] IS NULL AND [VukUsefulLifeDescription] IS NULL AND [VukUsefulLifeTableYear] IS NULL AND [VukUsefulLifeCommuniqueNumber] IS NULL AND [VukUsefulLifeMonths] IS NULL AND [VukNormalDepreciationRatePercent] IS NULL AND [VukTaxDepreciationStartDate] IS NULL) OR ([VukUsefulLifeCode] IS NOT NULL AND [VukUsefulLifeDescription] IS NOT NULL AND [VukUsefulLifeTableYear] IS NOT NULL AND [VukUsefulLifeCommuniqueNumber] IS NOT NULL AND [VukUsefulLifeMonths] BETWEEN 1 AND 1200 AND [VukNormalDepreciationRatePercent] > 0 AND [VukNormalDepreciationRatePercent] <= 100 AND [VukTaxDepreciationStartDate] IS NOT NULL AND [VukTaxDepreciationStartDate] >= [AcquisitionDate])");
                         });
                 });
 
