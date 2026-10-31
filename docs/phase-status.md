@@ -1,7 +1,7 @@
 # Master Prompt Phase Status
 ### 2026-10-31 credit security expiry alert summary
 
-Added `GET /api/finance/credit-facilities/securities/alerts`, a tenant-scoped, authenticated summary for active expired and near-expiry guarantees/collateral. It validates the 0–365 day horizon, returns aggregate counts, and caps detail rows at the ten nearest expiry dates. The Finance credit-facility integration class passed 9/9, including expiry classification, released-record exclusion, date-range validation, and cross-tenant isolation. No schema migration or database write is required. The endpoint is an API foundation; the ERP notification bell is not yet connected to it. Remote deployment is pending.
+Added `GET /api/finance/credit-facilities/securities/alerts`, a tenant-scoped, authenticated summary for active expired and near-expiry guarantees/collateral. It validates the 0–365 day horizon, returns aggregate counts, and caps detail rows at the ten nearest expiry dates. The ERP notification bell now loads a count badge and a 30-day expiry list on login, refreshes every five minutes, and links to the credit-facilities screen. The Finance credit-facility integration class passed 9/9, including expiry classification, released-record exclusion, date-range validation, and cross-tenant isolation; the ERP Web production build passed. No schema migration or database write is required. The alert is in-app only; there is no email/SMS delivery or persisted read/dismiss state. Remote deployment and authenticated browser verification are pending.
 
 ### 2026-10-29 credit facility security and organizational permission remote delivery
 
