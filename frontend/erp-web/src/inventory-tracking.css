@@ -135,3 +135,57 @@ html[data-theme="dark"] .inventory-list-title,html[data-theme="dark"] .inventory
 html[data-theme="dark"] .inventory-tracking-table tbody tr.selected{background:#25213d}
 html[data-theme="dark"] .inventory-detail-note{background:var(--erp-surface-soft,#20242e)}
 @media(max-width:1100px){.inventory-workbench-body{grid-template-columns:minmax(0,1fr)}}
+
+/* Polished lot/serial workbench with clear scan hierarchy and compact filtering. */
+.inventory-tracking-page { gap: 16px; }
+.inventory-tracking-page .page-heading {
+  min-height: 92px;
+  align-items: center;
+  padding: 18px 22px;
+  border: 1px solid var(--erp-border, #dfe5ed);
+  border-left: 4px solid #f0b72f;
+  border-radius: 10px;
+  background: linear-gradient(110deg, var(--erp-surface, #fff), var(--erp-surface-soft, #f7f9fc));
+}
+.inventory-tracking-page .page-heading .eyebrow { margin-bottom: 5px; color: #0f6cbd; font-size: 9px; letter-spacing: .12em; }
+.inventory-tracking-page .page-heading h1 { margin: 0 0 5px; font-size: 23px; }
+.inventory-tracking-page .page-heading .muted { margin: 0; font-size: 11px; }
+.inventory-tracking-page .page-heading > button { min-height: 38px; padding-inline: 14px; border-radius: 7px; }
+.inventory-workbench-summary { gap: 12px; }
+.inventory-workbench-summary article { min-height: 74px; padding: 14px 16px; border-radius: 10px; box-shadow: 0 2px 8px #18334d08; }
+.inventory-workbench-summary article > span { font-size: 10px; }
+.inventory-workbench-summary article > b { color: #0f6cbd; font-size: 20px; }
+.inventory-workbench-summary article > small { font-size: 10px; }
+.inventory-workbench-summary > .tenant-scope { padding: 8px 10px; border: 1px solid #e7e4ff; border-radius: 8px; background: #f7f6ff; color: #6858d8; font-size: 10px; }
+.inventory-tracking-page .inventory-tracking-toolbar { gap: 12px; padding: 14px; border-radius: 10px; background: var(--erp-surface, #fff); box-shadow: 0 2px 8px #18334d08; }
+.inventory-tracking-page .inventory-tracking-toolbar .customer-search,
+.inventory-tracking-page .inventory-tracking-toolbar select { min-height: 40px; border-radius: 8px; }
+.inventory-tracking-page .inventory-tracking-filter-actions > button { min-height: 40px; padding-inline: 14px; border-radius: 8px; }
+.inventory-tracking-page .inventory-tracking-results { padding: 0 4px; font-size: 10px; }
+.inventory-workbench-body { grid-template-columns: minmax(0, 1fr) minmax(280px, 320px); gap: 16px; }
+.inventory-list-pane, .inventory-record-detail { padding: 18px; border-radius: 11px; box-shadow: 0 3px 12px #18334d08; }
+.inventory-list-title { margin-bottom: 12px; padding-bottom: 12px; }
+.inventory-list-title b { font-size: 14px; }
+.inventory-list-title small { font-size: 10px; }
+.inventory-list-pane .inventory-tracking-table-wrap { min-height: 190px; }
+.inventory-tracking-table th { white-space: nowrap; }
+.inventory-tracking-table td { height: 48px; }
+.inventory-tracking-table tbody tr.selected { background: #eef5ff; }
+.inventory-tracking-table tbody tr.selected td:first-child { box-shadow: inset 3px 0 #0f6cbd; }
+.inventory-record-identity { gap: 9px; padding: 8px 2px 14px; }
+.inventory-record-identity h2 { font-size: 20px; letter-spacing: -.02em; }
+.inventory-record-detail dl > div { padding: 11px 2px; }
+.inventory-record-detail dt { font-size: 10px; }
+.inventory-record-detail dd { font-size: 12px; }
+.inventory-detail-note { padding: 10px; border: 1px solid var(--erp-border, #e7eaf1); border-radius: 8px; }
+html[data-theme="dark"] .inventory-tracking-page .page-heading,
+html[data-theme="dark"] .inventory-tracking-page .inventory-tracking-toolbar { background: var(--erp-surface, #171a22); border-color: var(--erp-border, #303542); }
+html[data-theme="dark"] .inventory-workbench-summary > .tenant-scope { border-color: #413970; background: #25213d; color: #c4baff; }
+html[data-theme="dark"] .inventory-tracking-table tbody tr.selected { background: #202b3f; }
+@media (max-width: 760px) { .inventory-workbench-body { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) {
+  .inventory-tracking-page .page-heading { align-items: flex-start; padding: 16px; }
+  .inventory-workbench-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inventory-workbench-summary > .tenant-scope { grid-column: 1 / -1; justify-self: start; }
+  .inventory-list-pane, .inventory-record-detail { padding: 14px; }
+}
