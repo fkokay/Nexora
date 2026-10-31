@@ -2,7 +2,7 @@ import type { FinancePageKey, FinanceGridColumn, LedgerStatementSection } from '
 
 
 
-export const financePageTitles:Record<FinancePageKey,string>={'finance-accounts':'Kasa & Banka','finance-statements':'Banka Ekstreleri','finance-cash-flow':'Nakit Akışı','finance-fx':'Kur & Değerleme','finance-ledger':'Genel Muhasebe','finance-budget':'Bütçe Planlama','finance-cash-budget':'Doğrudan nakit bütçesi','finance-exposure':'Döviz Pozisyonu','finance-maturities':'Vade Takibi','finance-instruments':'Çek ve Senet','finance-credit-facilities':'Krediler & Finansman'}
+export const financePageTitles:Record<FinancePageKey,string>={'finance-accounts':'Kasa & Banka','finance-cash-accounts':'Kasalar','finance-bank-accounts':'Bankalar','finance-statements':'Banka Ekstreleri','finance-cash-flow':'Nakit Akışı','finance-fx':'Kur & Değerleme','finance-ledger':'Genel Muhasebe','finance-budget':'Bütçe Planlama','finance-cash-budget':'Doğrudan nakit bütçesi','finance-exposure':'Döviz Pozisyonu','finance-maturities':'Vade Takibi','finance-instruments':'Çek ve Senet','finance-credit-facilities':'Krediler & Finansman'}
 
 export const financeGridDefaults: Record<string, FinanceGridColumn[]> = {
   'sales-returns': [{key:'code',label:'İade no'},{key:'returnDate',label:'Tarih'},{key:'warehouseName',label:'Depo'},{key:'lineCount',label:'Satır'},{key:'grandTotal',label:'Tutar'},{key:'status',label:'Durum'},{key:'actions',label:'İşlemler'}],

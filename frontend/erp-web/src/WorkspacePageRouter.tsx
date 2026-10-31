@@ -35,6 +35,8 @@ const InventoryTrackingPage = lazy(() => import('./InventoryTrackingPage'))
 const FinanceBudgetPage = lazy(() => import('./FinanceBudgetPage'))
 const DirectCashBudgetPage = lazy(() => import('./DirectCashBudgetPage'))
 const FinanceAccountsPage = lazy(() => import('./FinanceAccountsPage'))
+const FinanceCashAccountsPage = lazy(() => import('./FinanceCashAccountsPage'))
+const FinanceBankAccountsPage = lazy(() => import('./FinanceBankAccountsPage'))
 const BankStatementsPage = lazy(() => import('./BankStatementsPage'))
 const CashFlowPage = lazy(() => import('./CashFlowPage'))
 const FxSettingsPage = lazy(() => import('./FxSettingsPage'))
@@ -59,6 +61,7 @@ const SupplierInvoiceDraftsPage = lazy(() => import('./SupplierInvoiceDraftsPage
 const OperationalProjectsPage = lazy(() => import('./OperationalProjectsPage'))
 const OperationalDefinitionsPage = lazy(() => import('./OperationalDefinitionsPage'))
 const InventoryStockPage = lazy(() => import('./InventoryStockPage'))
+const InventoryValuationPage = lazy(() => import('./InventoryValuationPage'))
 const InventoryWarehousesPage = lazy(() => import('./InventoryWarehousesPage'))
 const InventoryTransfersPage = lazy(() => import('./InventoryTransfersPage'))
 const DashboardPage = lazy(() => import('./DashboardPage').then(module => ({ default: module.DashboardPage })))
@@ -122,6 +125,7 @@ export function WorkspacePageRouter({page,token,tenant,locale,dashboard,platform
   if(page==='inventory-tracking')return <InventoryTrackingPage token={token}/>
   if(page==='inventory-locations')return <WarehouseLocationsPage token={token} role={tenant.role}/>
   if(page==='inventory-stock')return <InventoryStockPage token={token} role={tenant.role}/>
+  if(page==='inventory-valuation')return <InventoryValuationPage token={token} role={tenant.role}/>
   if(page==='inventory-warehouses')return <InventoryWarehousesPage token={token} role={tenant.role}/>
   if(page==='inventory-transfers')return <InventoryTransfersPage token={token} role={tenant.role}/>
   if(page==='commercial-contracts')return <CommercialContractsPage token={token} role={tenant.role} locale={locale}/>
@@ -143,6 +147,8 @@ export function WorkspacePageRouter({page,token,tenant,locale,dashboard,platform
   if(page==='finance-budget')return <div className='finance-embedded-workbench'><FinanceBudgetPage token={token} role={tenant.role}/></div>
   if(page==='finance-cash-budget')return <div className='finance-embedded-workbench'><DirectCashBudgetPage token={token} role={tenant.role}/></div>
   if(page==='finance-accounts')return <FinanceAccountsPage token={token} role={tenant.role}/>
+  if(page==='finance-cash-accounts')return <FinanceCashAccountsPage token={token} role={tenant.role}/>
+  if(page==='finance-bank-accounts')return <FinanceBankAccountsPage token={token} role={tenant.role}/>
   if(page==='finance-statements')return <BankStatementsPage token={token} role={tenant.role}/>
   if(page==='finance-cash-flow')return <CashFlowPage token={token} role={tenant.role}/>
   if(page==='finance-fx')return <FxSettingsPage token={token} role={tenant.role}/>

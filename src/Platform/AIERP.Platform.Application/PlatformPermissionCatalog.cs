@@ -111,7 +111,11 @@ public static class PlatformPermissionCatalog
         out ResolvedPlatformPermission? resolved)
     {
         resolved = null;
-        if (string.Equals(path, "/api/auth/select-tenant", StringComparison.OrdinalIgnoreCase)) return true;
+        // Tenant discovery and selection run before a tenant-scoped token exists.
+        // They are authenticated session bootstrap routes and must not require a
+        // tenant permission (there is no tenant_id claim to resolve yet).
+        if (string.Equals(path, "/api/auth/tenants", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path, "/api/auth/select-tenant", StringComparison.OrdinalIgnoreCase)) return true;
         PermissionResourceDefinition? resource = null;
         var normalizedRoute = routePattern.TrimEnd('/');
         var nestedWriteAction = false;
@@ -218,6 +222,11 @@ public static class PlatformPermissionCatalog
         else if (path.Equals("/api/sales/promotions", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/sales/promotions/", StringComparison.OrdinalIgnoreCase))
             resource = Resources.First(x => x.ResourceType == "erp.sales-promotions");
+        else if (path.Equals("/api/location-definitions", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/location-definitions/", StringComparison.OrdinalIgnoreCase))
+            // Province and district lookups are used by customer address forms and share
+            // the existing customer read permission. Mutations still enforce TenantAdmin.
+            resource = Resources.First(x => x.ResourceType == "erp.customers");
         resource ??= Resources.Where(x => path.Equals(x.RoutePrefix, StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith(x.RoutePrefix.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(x => x.RoutePrefix.Length).FirstOrDefault();

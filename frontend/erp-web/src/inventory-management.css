@@ -1,5 +1,14 @@
-.warehouse-management{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}
-.warehouse-panel{min-width:0;padding:18px 20px}
+.warehouse-management{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start;width:100%}
+.warehouse-overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.warehouse-overview-card{display:flex;align-items:center;gap:12px;min-width:0;min-height:82px;padding:14px 16px;border:1px solid var(--erp-border,#e1e7f0);border-radius:12px;background:linear-gradient(135deg,var(--erp-surface,#fff),var(--erp-surface-soft,#f8faff));box-shadow:0 3px 12px #18345b08}
+.warehouse-overview-icon{display:grid;place-items:center;flex:none;width:40px;height:40px;border:1px solid #dce9fb;border-radius:11px;background:#eef5ff;color:#2874ca}
+.warehouse-overview-icon.active{border-color:#d3eee1;background:#eaf8f1;color:#21875b}
+.warehouse-overview-icon.muted{border-color:#e5e9ef;background:#f2f4f7;color:#8290a2}
+.warehouse-overview-card>div{display:grid;gap:2px;min-width:0}
+.warehouse-overview-card small{color:var(--erp-muted,#7d8798);font-size:10px;font-weight:650}
+.warehouse-overview-card b{color:var(--erp-ink,#263247);font-size:20px;line-height:1.15;font-variant-numeric:tabular-nums}
+.warehouse-overview-card span:not(.warehouse-overview-icon){color:var(--erp-muted,#8a93a3);font-size:10px;line-height:1.35}
+.warehouse-panel{min-width:0;width:100%;padding:20px 22px}
 .warehouse-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:13px;margin-bottom:12px;border-bottom:1px solid var(--erp-border,#e6eaf1)}
 .warehouse-panel-heading>div:first-child{min-width:0}
 .warehouse-panel-heading .eyebrow{margin:0 0 4px;font-size:9px;letter-spacing:.12em;color:#7b70e9;font-weight:700}
@@ -9,8 +18,22 @@
 .warehouse-count{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;padding:7px 10px;border:1px solid var(--erp-border,#e6eaf1);border-radius:8px;background:var(--erp-surface-soft,#f8f9fc);color:var(--erp-muted,#727b8c);font-size:10px}
 .warehouse-count b{color:var(--erp-ink,#2e394d);font-size:12px}
 .warehouse-count i{width:3px;height:3px;border-radius:50%;background:#aab2c1;margin:0 2px}
-.warehouse-list{display:grid;gap:7px}
-.warehouse-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:10px;min-height:54px;padding:8px 10px;border:1px solid var(--erp-border,#e8ebf2);border-radius:9px;background:var(--erp-surface,#fff)}
+.warehouse-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px}
+.warehouse-row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:center;gap:12px;min-height:78px;padding:13px 15px;border:1px solid var(--erp-border,#e8ebf2);border-radius:11px;background:linear-gradient(145deg,var(--erp-surface,#fff),var(--erp-surface-soft,#fafbfe));transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.warehouse-row:hover{border-color:#bfd5f2;box-shadow:0 6px 18px #17365d0d;transform:translateY(-1px)}
+.warehouse-transfer-row{grid-template-columns:42px minmax(0,1fr);align-content:start;min-height:132px;padding:15px}
+.warehouse-transfer-row .warehouse-row-icon{width:40px;height:40px}
+.warehouse-transfer-row .warehouse-row-info{align-self:center;min-height:54px;align-content:center}
+.warehouse-transfer-row .warehouse-row-info>b{flex-wrap:wrap;row-gap:4px;font-size:12px}
+.warehouse-transfer-row .warehouse-row-info>small{font-size:10px}
+.warehouse-transfer-row .warehouse-row-actions{grid-column:2;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--erp-border,#e8ebf2)}
+.transfer-stock-results{display:grid;gap:5px;max-height:220px;overflow:auto;margin:-6px 0 12px;padding:6px;border:1px solid var(--erp-border,#dfe5ef);border-radius:10px;background:var(--erp-surface-soft,#f8faff)}
+.transfer-stock-results>button{display:grid;grid-template-columns:minmax(0,1fr) auto 18px;align-items:center;gap:12px;padding:9px 10px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--erp-ink,#2e394d);text-align:left;cursor:pointer}
+.transfer-stock-results>button:hover{border-color:#d7e5f8;background:#fff}
+.transfer-stock-results>button>b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.transfer-stock-results>button>small,.transfer-stock-results>span{color:var(--erp-muted,#81899c);font-size:10px}
+.transfer-stock-results>button>svg{color:#2874ca}
+.transfer-stock-results>span{padding:8px}
 .warehouse-row-icon,.warehouse-empty-icon{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#f0edff;color:#6d5ce7}
 .warehouse-row-icon.transfer,.warehouse-empty-icon.transfer{background:#eaf3ff;color:#2875d5}
 .warehouse-row-info{display:grid;gap:3px;min-width:0}
@@ -35,6 +58,8 @@
 .inventory-cost-title p:not(.eyebrow){margin:4px 0 0;color:#78869a;font-size:11px;line-height:1.45}
 .inventory-cost-count{display:flex;align-items:center;gap:8px;flex:none;padding:8px 11px;border:1px solid #e1eaf5;border-radius:10px;background:#f7faff;color:#718096;font-size:10px}
 .inventory-cost-count b{color:#1c568d;font-size:15px;font-variant-numeric:tabular-nums}
+.inventory-valuation-warehouse{display:grid;gap:5px;min-width:210px;color:#66758a;font-size:10px;font-weight:700}
+.inventory-valuation-warehouse select{width:100%;min-height:36px;padding:0 10px;border:1px solid #dce5ef;border-radius:8px;background:#fff;color:#2e394d;font:inherit;font-weight:500}
 .inventory-cost-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,285px),1fr));gap:11px}
 .inventory-cost-card{min-width:0;padding:13px;border:1px solid #e5ebf3;border-radius:12px;background:#fff;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
 .inventory-cost-card:hover{border-color:#c8dbf3;box-shadow:0 7px 18px #1c47780d;transform:translateY(-1px)}
@@ -73,8 +98,9 @@
 .stock-category-create input:focus{border-color:#76a7df;box-shadow:0 0 0 3px #4b92da17}
 .stock-category-create>.modal-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:2px}
 .stock-category-create>.modal-foot>span{color:#8994a4;font-size:9px}
-@media(min-width:1500px){.warehouse-management{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:16px}.warehouse-panel{padding:19px 20px}}
-@media(max-width:720px){.warehouse-panel{padding:14px}.warehouse-panel-heading{align-items:flex-start;flex-direction:column;gap:10px}.warehouse-panel-tools{width:100%;justify-content:space-between}.warehouse-row{grid-template-columns:32px minmax(0,1fr);gap:8px}.warehouse-row>.quote-status,.warehouse-row-actions{grid-column:2;justify-self:start}.warehouse-empty{align-items:flex-start;flex-wrap:wrap}.warehouse-empty>div{flex-basis:calc(100% - 45px)}.warehouse-empty>.primary{margin-left:43px}.inventory-cost-panel{padding:15px}.inventory-cost-heading{align-items:flex-start}.inventory-cost-title{align-items:flex-start;gap:9px}.inventory-cost-mark{width:36px;height:36px;border-radius:10px}.inventory-cost-title h2{font-size:15px}.inventory-cost-title p:not(.eyebrow){font-size:10px}.inventory-cost-count{gap:5px;padding:7px 8px}.inventory-cost-grid{grid-template-columns:1fr}.inventory-cost-card{padding:12px}}
+@media(max-width:980px){.warehouse-overview{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:720px){.warehouse-overview{grid-template-columns:1fr}.warehouse-overview-card{min-height:70px}.warehouse-panel{padding:14px}.warehouse-panel-heading{align-items:flex-start;flex-direction:column;gap:10px}.warehouse-panel-tools{width:100%;justify-content:space-between}.warehouse-row{grid-template-columns:36px minmax(0,1fr);gap:9px}.warehouse-row>.quote-status,.warehouse-row-actions{grid-column:2;justify-self:start}.warehouse-transfer-row{grid-template-columns:36px minmax(0,1fr);min-height:120px;padding:12px}.warehouse-transfer-row .warehouse-row-icon{width:34px;height:34px}.warehouse-transfer-row .warehouse-row-actions{justify-content:flex-start;flex-wrap:wrap}.warehouse-empty{align-items:flex-start;flex-wrap:wrap}.warehouse-empty>div{flex-basis:calc(100% - 45px)}.warehouse-empty>.primary{margin-left:43px}.inventory-cost-panel{padding:15px}.inventory-cost-heading{align-items:flex-start}.inventory-cost-title{align-items:flex-start;gap:9px}.inventory-cost-mark{width:36px;height:36px;border-radius:10px}.inventory-cost-title h2{font-size:15px}.inventory-cost-title p:not(.eyebrow){font-size:10px}.inventory-cost-count{gap:5px;padding:7px 8px}.inventory-cost-grid{grid-template-columns:1fr}.inventory-cost-card{padding:12px}}
+@media(max-width:560px){.inventory-cost-heading{flex-wrap:wrap}.inventory-valuation-warehouse{width:100%;min-width:0}}
 .warehouse-field-create-form > .panel-heading > div {
   display: grid;
   gap: 5px;

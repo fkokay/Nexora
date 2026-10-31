@@ -7,10 +7,10 @@ export const shellText: Record<Locale, Record<string, string>> = {
 }
 
 export const inventoryPageTitles: Record<InventoryPageKey, string> = {
-  'inventory-stock':'Stok Kartları', 'inventory-warehouses':'Depo Yönetimi', 'inventory-transfers':'Depolar arası transferler', 'inventory-locations':'Raf ve Konumlar', 'inventory-tracking':'Lot / Seri İzleme'
+  'inventory-stock':'Stok Kartları', 'inventory-valuation':'Stok Değerleme', 'inventory-warehouses':'Depo Yönetimi', 'inventory-transfers':'Depolar arası transferler', 'inventory-locations':'Raf ve Konumlar', 'inventory-tracking':'Lot / Seri İzleme'
 }
 const inventoryPageTitlesEn: Record<InventoryPageKey, string> = {
-  'inventory-stock':'Stock items', 'inventory-warehouses':'Warehouses', 'inventory-transfers':'Inter-warehouse transfers', 'inventory-locations':'Locations', 'inventory-tracking':'Lot / serial tracking'
+  'inventory-stock':'Stock items', 'inventory-valuation':'Inventory valuation', 'inventory-warehouses':'Warehouses', 'inventory-transfers':'Inter-warehouse transfers', 'inventory-locations':'Locations', 'inventory-tracking':'Lot / serial tracking'
 }
 
 export const manufacturingPageTitles: Record<ManufacturingPageKey, string> = {
