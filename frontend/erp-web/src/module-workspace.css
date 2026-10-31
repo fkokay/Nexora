@@ -449,6 +449,118 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .global-search-dialog
 .module-launcher-company-copy small,.module-launcher-company-menu p{font-size:12px}
 @media(max-width:760px){.module-launcher-welcome h1{font-size:32px}.module-launcher-welcome span{font-size:15px}.module-launcher-search input,.module-launcher-search input:hover,.module-launcher-search input:active,.module-launcher-search input:focus,.module-launcher-search input:focus-visible{font-size:16px}.module-launcher-company{max-width:150px;font-size:12px}.module-launcher-company b{max-width:110px}.module-launcher-section-heading h2{font-size:17px}.module-launcher-section-heading button{font-size:13px}.module-launcher-card>b{font-size:14px}}
 
+/* The module launcher uses its own canvas and needs explicit dark-theme surfaces. */
+html[data-theme="dark"] .module-launcher {
+  --nexora-bg: #101725;
+  --nexora-border: #30394d;
+  --nexora-text: #e6eaf3;
+  --nexora-muted: #a7b0c2;
+  background: #101725;
+  color: #e6eaf3;
+}
+html[data-theme="dark"] .module-launcher-main { color: #e6eaf3; }
+html[data-theme="dark"] .module-launcher-welcome h1,
+html[data-theme="dark"] .module-launcher-section-heading h2 { color: #f1f4fa; }
+html[data-theme="dark"] .module-launcher-welcome span { color: #a7b0c2; }
+html[data-theme="dark"] .module-launcher-search,
+html[data-theme="dark"] .module-launcher-card,
+html[data-theme="dark"] .module-launcher-suggestions,
+html[data-theme="dark"] .module-launcher-suggestions #module-launcher-results > button,
+html[data-theme="dark"] .module-launcher-search-quick > div > button,
+html[data-theme="dark"] .module-launcher-company-menu {
+  border-color: #30394d;
+  background: #191f2e;
+  color: #e6eaf3;
+}
+html[data-theme="dark"] .module-launcher-search:focus-within { border-color: #8aa4ce !important; }
+html[data-theme="dark"] .module-launcher-search input,
+html[data-theme="dark"] .module-launcher-search input::placeholder { color: #e6eaf3; }
+html[data-theme="dark"] .module-launcher-search input::placeholder { color: #9aa7bc; }
+html[data-theme="dark"] .module-launcher-search > kbd,
+html[data-theme="dark"] .module-launcher-result-icon,
+html[data-theme="dark"] .module-launcher-search-quick > div > button > span { border-color: #3a4559; background: #232b3b; color: #d4deed; }
+html[data-theme="dark"] .module-launcher-card > span,
+html[data-theme="dark"] .module-launcher-card > b,
+html[data-theme="dark"] .module-launcher-suggestions #module-launcher-results > button b,
+html[data-theme="dark"] .module-launcher-search-quick > div > button > b,
+html[data-theme="dark"] .module-launcher-section-heading button { color: #e6eaf3; }
+html[data-theme="dark"] .module-launcher-suggestions #module-launcher-results > button small,
+html[data-theme="dark"] .module-launcher-suggestions #module-launcher-results > button > svg,
+html[data-theme="dark"] .module-launcher-search-quick > div > button > svg { color: #a7b0c2; }
+html[data-theme="dark"] .module-launcher-card:hover,
+html[data-theme="dark"] .module-launcher-card:focus-visible { border-color: #e7b52d; background: #302b1c; color: #f5cc62; }
+html[data-theme="dark"] .module-launcher-card:hover > span,
+html[data-theme="dark"] .module-launcher-card:hover > b { color: #f5cc62; }
+html[data-theme="dark"] .module-launcher-suggestions #module-launcher-results > button:hover,
+html[data-theme="dark"] .module-launcher-suggestions #module-launcher-results > button[aria-selected="true"],
+html[data-theme="dark"] .module-launcher-search-quick > div > button:hover { border-color: #77652a; background: #302b1c; }
+html[data-theme="dark"] .module-launcher-search-quick { border-color: #30394d; background: #151c2a; }
+html[data-theme="dark"] .module-launcher-search-quick h2 { color: #a7b0c2; }
+html[data-theme="dark"] .module-launcher-company-menu { box-shadow: 0 16px 40px #0008; }
+html[data-theme="dark"] .module-launcher-company-menu > button { color: #e6eaf3; }
+html[data-theme="dark"] .module-launcher-company-menu > button:hover,
+html[data-theme="dark"] .module-launcher-company-menu > button.active { background: #232b3b; }
+html[data-theme="dark"] .module-launcher-company-menu-heading,
+html[data-theme="dark"] .module-launcher-company-copy small { color: #a7b0c2; }
+
+/* Clearer company switching menu in the module launcher's compact top bar. */
+.module-launcher-company-menu {
+  width: min(340px, calc(100vw - 24px));
+  padding: 6px;
+  overflow: hidden;
+  border-radius: 10px;
+  box-shadow: 0 16px 42px #10213a24;
+}
+.module-launcher-company-menu-heading {
+  padding: 10px 12px 9px;
+  letter-spacing: .08em;
+}
+.module-launcher-company-menu > button:not(.module-launcher-company-create) {
+  min-height: 62px;
+  margin: 2px 0;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  transition: background .16s ease, border-color .16s ease;
+}
+.module-launcher-company-menu > button:not(.module-launcher-company-create):hover,
+.module-launcher-company-menu > button:not(.module-launcher-company-create).active {
+  border-color: #d9e4f2;
+  background: #f3f7fc;
+}
+.module-launcher-company-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #edf4ff;
+  color: #1263b5;
+}
+.module-launcher-company-copy { gap: 4px; }
+.module-launcher-company-copy b { font-size: 13px; }
+.module-launcher-company-copy small { font-size: 11px; }
+.module-launcher-company-menu > button.module-launcher-company-create {
+  min-height: 44px;
+  margin-top: 5px;
+  padding: 9px 10px;
+  border: 0;
+  border-top: 1px solid #e7ebf1;
+  border-radius: 0 0 6px 6px;
+  font-size: 13px;
+}
+html[data-theme="dark"] .module-launcher-company-menu > button:not(.module-launcher-company-create):hover,
+html[data-theme="dark"] .module-launcher-company-menu > button:not(.module-launcher-company-create).active {
+  border-color: #3a4559;
+  background: #232b3b;
+}
+html[data-theme="dark"] .module-launcher-company-avatar {
+  border-color: #3a4559;
+  background: #232b3b;
+  color: #a9c8ff;
+}
+html[data-theme="dark"] .module-launcher-company-menu > button.module-launcher-company-create {
+  border-top-color: #30394d;
+}
+
 /* Shared page surfaces stay flat and consistent across every module. */
 .app-shell:not(.standalone-studio) .content :is(.panel,.card,.metric-card,.customer-summary,.request-row,.empty-state,.boundary-note,.forms-section,.form-builder,.history-panel,.screen-view-editor,.screen-view-preview,.screen-view-history,.company-setting-card,.published-card,.customer-table-wrap,.customer-company-hierarchy,.erp-home-panel,.erp-home-heading,.erp-home-tabs,.dashboard-reference-status) {
   border-radius: 4px;
