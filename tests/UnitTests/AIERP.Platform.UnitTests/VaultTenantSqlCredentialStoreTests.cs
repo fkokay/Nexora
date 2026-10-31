@@ -13,7 +13,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
     private static readonly Guid TenantId = Guid.Parse("5dbd2b8b-0539-4e53-87f3-1bd9eb5da4c9");
     private const string RoleId = "test-role-id";
     private const string SecretId = "test-secret-id";
-    private const string Password = "unit-test-password-with-high-entropy";
+    private const string Password = "test-vault-password";
 
     [Fact]
     public void Deployment_secret_is_read_from_a_mounted_file_without_needing_an_environment_value()

@@ -824,9 +824,11 @@ public sealed class ManufacturingEndpointsIntegrationTests
         var approval = Assert.Single(instances, x => x.GetProperty("subjectId").GetGuid() == purchaseRequestId);
         var workflowInstanceId = approval.GetProperty("id").GetGuid();
         Assert.Equal("Pending", approval.GetProperty("status").GetString());
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"/api/workflows/instances/{workflowInstanceId}/decision",
             new { decision = "Approved", comment = "Self approval must fail" })).StatusCode);
 
+        client.DefaultRequestHeaders.Remove("X-Test-Role");
         client.DefaultRequestHeaders.Add("X-Test-User", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         var approved = await client.PostAsJsonAsync($"/api/workflows/instances/{workflowInstanceId}/decision",
             new { decision = "Approved", comment = "MRP shortage reviewed" });
