@@ -5,9 +5,9 @@ using AIERP.Platform.Application;
 namespace AIERP.AIService.AI;
 
 /// <summary>
-/// Limits ERP assistant access to the two existing, tenant-authorized HR read routes.
-/// Results are reduced to period aggregates so names, employee IDs, notes and other
-/// user-authored text never enter the model context.
+/// Limits ERP assistant access to tenant-authorized HR reads. Leave/attendance are
+/// aggregated; confidential compensation is separately permission-gated and reduced
+/// to an employee/date-scoped set of fields with internal metadata removed.
 /// </summary>
 internal static class ERPAssistantHrTools
 {
@@ -18,15 +18,78 @@ internal static class ERPAssistantHrTools
         ["get_hr_attendance_summary"] = "/api/hr/attendance"
     };
 
+    private const string CompensationTool = "search_payroll_compensation";
+    private const string CompensationPath = "/api/hr/payroll/compensation";
+
     public static async Task<bool> IsReadAllowedAsync(string toolName, Guid tenantId, Guid userId, string role,
         IPlatformPermissionAuthorizer authorizer, CancellationToken cancellationToken)
     {
+        if (toolName == CompensationTool)
+        {
+            if (!PlatformPermissionCatalog.TryResolve(CompensationPath, "GET", CompensationPath,
+                    new Dictionary<string, string?>(), tenantId, userId, role, out var compensationPermission) ||
+                compensationPermission is null || compensationPermission.Permission.Code != "erp.payroll-compensation.view")
+                return false;
+
+            return await authorizer.IsAllowedAsync(tenantId, userId, role, compensationPermission, cancellationToken);
+        }
+
         if (!ReadPaths.TryGetValue(toolName, out var path) ||
             !PlatformPermissionCatalog.TryResolve(path, "GET", path, new Dictionary<string, string?>(), tenantId, userId, role,
                 out var permission) || permission is null || permission.Permission.Code != "erp.human-resources.read")
             return false;
 
         return await authorizer.IsAllowedAsync(tenantId, userId, role, permission, cancellationToken);
+    }
+
+    public static bool TryValidateCompensationSearch(string? termText, string? fromText, string? toText, DateOnly today,
+        out string term, out DateOnly from, out DateOnly to)
+    {
+        term = termText?.Trim() ?? string.Empty;
+        from = default;
+        to = default;
+        return term.Length is >= 2 and <= 100 &&
+            TryValidatePeriod(fromText, toText, today, out from, out to);
+    }
+
+    public static string SummarizeCompensation(string json, string term, DateOnly from, DateOnly to)
+    {
+        using var document = JsonDocument.Parse(json);
+        var rows = GetRows(document.RootElement);
+        var matches = new List<object>();
+        foreach (var row in rows)
+        {
+            var employee = GetString(row, "employee");
+            if (employee is null || !employee.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                !TryGetDate(row, "effectiveFrom", out var effectiveFrom) || effectiveFrom < from || effectiveFrom > to ||
+                !TryGetDecimal(row, "amount", out var amount) || amount < 0 ||
+                !TryGetStringValue(row, "targetKind", out var targetKind) || targetKind is not ("Gross" or "Net") ||
+                !TryGetStringValue(row, "currencyCode", out var currencyCode) || currencyCode.Length != 3 ||
+                !TryGetStringValue(row, "payBasisCode", out var payBasisCode) ||
+                !TryGetStringValue(row, "status", out var status))
+                continue;
+
+            matches.Add(new
+            {
+                employee,
+                targetKind,
+                amount,
+                currencyCode,
+                payBasisCode,
+                effectiveFrom = effectiveFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                status
+            });
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            searchTerm = term,
+            from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            returned = Math.Min(matches.Count, 20),
+            cappedAt500 = rows.Length == MaxApiRows,
+            items = matches.Take(20)
+        });
     }
 
     public static bool TryValidatePeriod(string? fromText, string? toText, DateOnly today, out DateOnly from, out DateOnly to)
@@ -116,6 +179,12 @@ internal static class ERPAssistantHrTools
         row.ValueKind == JsonValueKind.Object && row.TryGetProperty(name, out var element)
             && element.ValueKind == JsonValueKind.Number && element.TryGetDecimal(out value)
             ? true : Fail(out value);
+
+    private static bool TryGetStringValue(JsonElement row, string name, out string value)
+    {
+        value = GetString(row, name) ?? string.Empty;
+        return value.Length is > 0 and <= 100;
+    }
 
     private static bool TryGetInt32(JsonElement row, string name, out int value) =>
         row.ValueKind == JsonValueKind.Object && row.TryGetProperty(name, out var element)

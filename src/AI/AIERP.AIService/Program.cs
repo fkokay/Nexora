@@ -1108,6 +1108,7 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         Guid? supplierBalanceId = null;
         DateOnly? hrPeriodFrom = null;
         DateOnly? hrPeriodTo = null;
+        string? payrollCompensationSearchTerm = null;
         DateOnly? maturityAsOfDate = null;
         DateOnly? customerLedgerFrom = null;
         DateOnly? customerLedgerTo = null;
@@ -1690,6 +1691,27 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                     : "/api/hr/leave-requests";
                 break;
             }
+            case "search_payroll_compensation":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 3 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("to", out var toElement) || toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantHrTools.TryValidateCompensationSearch(termElement.GetString(), fromElement.GetString(), toElement.GetString(),
+                        IstanbulDateHelper.FromUtc(DateTimeOffset.UtcNow), out var parsedPayrollTerm, out var parsedPayrollFrom, out var parsedPayrollTo))
+                    throw new ArgumentException("Payroll compensation search requires a 2–100 character employee code/name and an explicit past/current date window of at most 366 days.");
+
+                if (!await ERPAssistantHrTools.IsReadAllowedAsync(name, tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                payrollCompensationSearchTerm = parsedPayrollTerm;
+                hrPeriodFrom = parsedPayrollFrom;
+                hrPeriodTo = parsedPayrollTo;
+                path = "/api/hr/payroll/compensation";
+                break;
+            }
             case "get_cash_flow_forecast":
             {
                 var props = arguments.RootElement.EnumerateObject().ToArray();
@@ -2086,6 +2108,9 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
             return ERPAssistantHrTools.SummarizeLeaves(result.RootElement.GetRawText(), leaveFrom, leaveTo);
         if (name == "get_hr_attendance_summary" && hrPeriodFrom is DateOnly attendanceFrom && hrPeriodTo is DateOnly attendanceTo)
             return ERPAssistantHrTools.SummarizeAttendance(result.RootElement.GetRawText(), attendanceFrom, attendanceTo);
+        if (name == "search_payroll_compensation" && payrollCompensationSearchTerm is string compensationTerm &&
+            hrPeriodFrom is DateOnly compensationFrom && hrPeriodTo is DateOnly compensationTo)
+            return ERPAssistantHrTools.SummarizeCompensation(result.RootElement.GetRawText(), compensationTerm, compensationFrom, compensationTo);
         return JsonSerializer.Serialize(result.RootElement.EnumerateArray().Take(100).Select(item => new
         {
             code = item.GetProperty("code").GetString(), name = item.GetProperty("name").GetString(),
