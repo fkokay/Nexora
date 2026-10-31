@@ -416,6 +416,29 @@ export default function App() {
     }
   }
 
+  async function refreshMarketplace() {
+    setMarketplaceLoading(true); setMarketplaceError('')
+    try { setMarketplaceModules(await api<MarketplaceModule[]>('/api/tenant/modules/marketplace', token)) }
+    catch (cause) { setMarketplaceError((cause as Error).message) }
+    finally { setMarketplaceLoading(false) }
+  }
+
+  async function toggleMarketplaceModule(item: MarketplaceModule, remove = false) {
+    if (remove && !window.confirm(`${item.manifest?.displayName || item.moduleCode} modülünü tenant kataloğunuzdan çıkarmak istiyor musunuz?`)) return
+    setMarketplaceBusy(item.moduleCode); setMarketplaceError(''); setMarketplaceNotice('')
+    try {
+      if (remove) {
+        await api<void>(`/api/tenant/modules/${encodeURIComponent(item.moduleCode)}`, token, { method: 'DELETE' })
+        setMarketplaceNotice(`${item.moduleCode} tenant kataloğundan çıkarıldı.`)
+      } else {
+        await api('/api/tenant/modules/activate', token, { method: 'POST', body: JSON.stringify({ moduleCode: item.moduleCode, version: item.version }) })
+        setMarketplaceNotice(`${item.moduleCode}@${item.version} tenant çalışma alanına eklendi.`)
+      }
+      await refreshMarketplace()
+    } catch (cause) { setMarketplaceError((cause as Error).message) }
+    finally { setMarketplaceBusy('') }
+  }
+
   useEffect(() => {
     if (!token || !tenant) return;
     let current = true;
@@ -671,6 +694,17 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function deleteRequest(request: DevelopmentRequest) {
+    if (!request.canEdit || request.status !== 'Submitted') return
+    if (!window.confirm(`“${request.title}” talebini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`)) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      await api<void>(`/studio/requests/${encodeURIComponent(request.id)}`, token, { method: 'DELETE' })
+      setRequests(items => items.filter(item => item.id !== request.id))
+      setNotice('Geliştirme talebi silindi.')
+    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
 
   function closeRequestDialog() {
