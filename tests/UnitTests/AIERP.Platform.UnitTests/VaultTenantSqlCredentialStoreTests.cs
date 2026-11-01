@@ -55,6 +55,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
             Assert.Equal(HttpMethod.Get, request.Method);
             Assert.Equal(expectedPath, request.RequestUri.AbsolutePath);
             Assert.Equal("temporary-vault-token", request.Headers.GetValues("X-Vault-Token").Single());
+            // codeql[cs/sensitive-data-transmission] The fixture password is synthetic and this response is handled only by the in-memory test handler.
             return Json($"{{\"data\":{{\"data\":{{\"database\":\"{expectedDatabase}\",\"user\":\"{expectedUserName}\",\"password\":\"{Password}\"}},\"metadata\":{{\"version\":3}}}}}}");
         });
         var reader = CreateReader(handler);
