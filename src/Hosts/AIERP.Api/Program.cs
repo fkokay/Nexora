@@ -6719,6 +6719,19 @@ generalLedger.MapGet("/accounts", async (ClaimsPrincipal principal, TenantDbCont
     return Results.Ok(await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId)
         .OrderBy(x => x.Code).Select(x => new LedgerAccountView(x.Id, x.Code, x.Name, x.IsActive, x.StatementSection.ToString())).ToListAsync());
 });
+generalLedger.MapGet("/accounts/assistant-search", async (string? term, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var normalized = term?.Trim();
+    if (normalized is null || normalized.Length is < 2 or > 100)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["term"] = ["Hesap arama ifadesi 2–100 karakter olmalıdır."] });
+    var accounts = await db.LedgerAccounts.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && (x.Code.Contains(normalized) || x.Name.Contains(normalized)))
+        .OrderBy(x => x.Code).Take(10)
+        .Select(x => new { x.Code, x.Name, x.IsActive, StatementSection = x.StatementSection.ToString() })
+        .ToListAsync();
+    return Results.Ok(new { totalCount = accounts.Count, accounts });
+});
 generalLedger.MapGet("/accounts/standard-chart", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();

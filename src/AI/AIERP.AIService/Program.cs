@@ -1139,6 +1139,18 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         object? postBody = null;
         switch (name)
         {
+            case "search_general_ledger_accounts":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) || termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantLedgerAccountTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("General-ledger account search requires a 2–100 character term.");
+                if (!await ERPAssistantLedgerAccountTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+                path = QueryHelpers.AddQueryString("/api/finance/general-ledger/accounts/assistant-search", "term", term);
+                break;
+            }
             case "search_stock_items":
             {
                 var props = arguments.RootElement.EnumerateObject().ToArray();
@@ -2055,6 +2067,8 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
             customerAccountSelection.TryRememberUniqueSearchResult(result.RootElement);
             return JsonSerializer.Serialize(new { totalCount = result.RootElement.GetProperty("totalCount").GetInt32(), returned = items.Length, items });
         }
+        if (name == "search_general_ledger_accounts")
+            return ERPAssistantLedgerAccountTools.SummarizeAccounts(result.RootElement);
         if (name is "get_customer_balance" or "get_supplier_balance") return JsonSerializer.Serialize(result.RootElement);
         if (name == "get_exchange_rate")
         {

@@ -237,6 +237,43 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
         Assert.DoesNotContain(accounts.RootElement.EnumerateArray(), x => x.GetProperty("name").GetString() == "Diğer firma kasa hesabı");
     }
 
+    [Fact]
+    public async Task Assistant_chart_search_is_bounded_tenant_scoped_and_omits_ids_and_balances()
+    {
+        var tenantId = Guid.NewGuid();
+        var otherTenantId = Guid.NewGuid();
+        await using var factory = new FinanceApiFactory();
+        await SeedTenantCatalogAsync(factory, tenantId);
+        await SeedTenantCatalogAsync(factory, otherTenantId);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.LedgerAccounts.AddRange(
+                new LedgerAccount { TenantId = tenantId, Code = "120", Name = "ALICILAR", StatementSection = LedgerAccountStatementSection.Asset },
+                new LedgerAccount { TenantId = tenantId, Code = "120.01", Name = "YURTİÇİ ALICILAR", StatementSection = LedgerAccountStatementSection.Asset },
+                new LedgerAccount { TenantId = otherTenantId, Code = "120", Name = "GİZLİ DİĞER FİRMA HESABI", StatementSection = LedgerAccountStatementSection.Asset });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-User", Guid.NewGuid().ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+
+        using var invalid = await client.GetAsync("/api/finance/general-ledger/accounts/assistant-search?term=x");
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        using var response = await client.GetAsync("/api/finance/general-ledger/accounts/assistant-search?term=120");
+        await AssertStatusCodeAsync(HttpStatusCode.OK, response);
+        using var result = await response.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(result);
+        Assert.Equal(2, result.RootElement.GetProperty("totalCount").GetInt32());
+        var account = Assert.Single(result.RootElement.GetProperty("accounts").EnumerateArray(), x => x.GetProperty("code").GetString() == "120");
+        Assert.Equal("ALICILAR", account.GetProperty("name").GetString());
+        Assert.False(account.TryGetProperty("id", out _));
+        Assert.False(account.TryGetProperty("balance", out _));
+        Assert.DoesNotContain("GİZLİ", result.RootElement.GetRawText());
+    }
+
     private static async Task AssertStatusCodeAsync(HttpStatusCode expected, HttpResponseMessage response)
     {
         var body = await response.Content.ReadAsStringAsync();

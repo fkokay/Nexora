@@ -19,7 +19,7 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly HashSet<string> ERPAssistantReadOnlyToolNames = new(StringComparer.Ordinal)
     {
-        "search_stock_items", "list_warehouses", "get_warehouse_balances", "search_inventory_movements", "search_inventory_genealogy",
+        "search_general_ledger_accounts", "search_stock_items", "list_warehouses", "get_warehouse_balances", "search_inventory_movements", "search_inventory_genealogy",
         "search_customer_accounts", "get_customer_balance", "search_customer_ledger", "get_supplier_balance", "search_supplier_payments", "search_supplier_ledger", "get_exchange_rate", "search_sales_orders", "get_sales_order_details", "search_purchase_orders", "get_purchase_order_details", "search_sales_quotes", "search_purchase_requests", "search_manufacturing_orders", "search_manufacturing_work_centers", "search_sales_deliveries", "get_sales_delivery_details", "search_purchase_receipts", "search_purchase_delivery_notes", "get_purchase_delivery_note_details", "get_report_schema", "generate_report",
         "get_hr_leave_summary", "get_hr_attendance_summary", "search_sales_invoices", "search_sales_invoice_details", "search_purchase_invoices", "search_purchase_invoice_details", "get_cash_flow_forecast", "get_invoice_maturity_summary",
         "search_fixed_assets", "get_financial_account_balances", "search_operational_projects", "get_operational_project_progress", "search_commercial_contracts", "search_foreign_trade_cases", "search_crm_opportunities", "search_credit_facilities", "search_payment_instruments", "get_budget_variance_summary"
@@ -471,6 +471,8 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
                     stockItemCode = new { type = "string" },
                     trackingCode = new { type = "string" }
                 }, required = new[] { "stockItemCode", "trackingCode" } } },
+            new { type = "function", name = "search_general_ledger_accounts", description = "Search tenant-authorized chart-of-account code or name using an explicit 2–100 character term. Returns at most ten matches with code, name, active state, and statement section; never returns balances, mappings, or internal IDs.", strict = true,
+                parameters = new { type = "object", additionalProperties = false, properties = new { term = new { type = "string" } }, required = new[] { "term" } } },
             new { type = "function", name = "search_customer_accounts", description = "Search caller-authorized customer and supplier accounts by code, name or tax number. The result includes totalCount; only a unique single match can be used for a balance lookup, otherwise ask the user to clarify.", strict = true,
                 parameters = new { type = "object", additionalProperties = false, properties = new { term = new { type = "string" } }, required = new[] { "term" } } },
             new { type = "function", name = "get_customer_balance", description = "Read the current calculated balance and risk limit in the account currency, using an ID from the unique single result of search_customer_accounts in this request.", strict = true,

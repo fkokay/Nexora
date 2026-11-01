@@ -1,4 +1,8 @@
 # Master Prompt Phase Status
+### 2026-11-01 read-only AI chart-of-accounts search
+
+Added a consent-gated AI assistant tool for tenant chart-of-account code/name lookup. The ERP endpoint validates a 2–100 character search term, scopes by tenant, and returns at most ten account codes, names, active states and statement sections without internal IDs, balances or mappings; the assistant additionally enforces `erp.general-ledger.read` and emits only the bounded projection. Focused AI tool tests passed 7/7 and API tenant-isolation/projection acceptance passed 1/1. This improves read-only assistant coverage but does not add journal-detail access or live model quality evidence. Remote API/AI deployment and authenticated browser acceptance remain pending.
+
 ### 2026-11-01 same-receipt multi-invoice SQL acceptance coverage
 
 Extended the disposable SQL Server acceptance test for standalone supplier invoices to post two invoices against one purchase-receipt line, verify posting replay reuses the same journal/ledger IDs, reject billing beyond the receipt quantity, and assert exactly two posted invoice/valuation/journal records. The targeted in-memory supplier-invoice integration suite passed 3/3 and `git diff --check` passed. The focused SQL acceptance test compiled but was skipped because `AIERP_REPORT_TEST_SQL_CONNECTION_STRING` is not configured in this session; no SQL Server result is claimed. No schema or application change was made. Committed and pushed as `d2f35dfe` to PR #1. The disposable SQL Server execution and migration checks for every tenant database remain open.
