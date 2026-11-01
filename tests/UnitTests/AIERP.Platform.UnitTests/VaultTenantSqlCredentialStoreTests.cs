@@ -13,7 +13,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
     private static readonly Guid TenantId = Guid.Parse("5dbd2b8b-0539-4e53-87f3-1bd9eb5da4c9");
     private const string RoleId = "test-role-id";
     private const string SecretId = "test-secret-id";
-    private const string Password = "test-vault-password";
+    private const string FixtureCredential = "test-vault-password";
 
     [Fact]
     public void Deployment_secret_is_read_from_a_mounted_file_without_needing_an_environment_value()
@@ -56,7 +56,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
             Assert.Equal(expectedPath, request.RequestUri.AbsolutePath);
             Assert.Equal("temporary-vault-token", request.Headers.GetValues("X-Vault-Token").Single());
             // codeql[cs/sensitive-data-transmission] The fixture password is synthetic and this response is handled only by the in-memory test handler.
-            return Json($"{{\"data\":{{\"data\":{{\"database\":\"{expectedDatabase}\",\"user\":\"{expectedUserName}\",\"password\":\"{Password}\"}},\"metadata\":{{\"version\":3}}}}}}");
+            return Json($"{{\"data\":{{\"data\":{{\"database\":\"{expectedDatabase}\",\"user\":\"{expectedUserName}\",\"password\":\"{FixtureCredential}\"}},\"metadata\":{{\"version\":3}}}}}}");
         });
         var reader = CreateReader(handler);
 
@@ -64,7 +64,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
 
         Assert.Equal(expectedDatabase, credential.DatabaseName);
         Assert.Equal(expectedUserName, credential.UserName);
-        Assert.Equal(Password, credential.Password);
+        Assert.Equal(FixtureCredential, credential.Password);
         Assert.Equal(3, credential.Version);
         Assert.Equal(2, handler.RequestCount);
     }
@@ -94,7 +94,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
             var data = payload.RootElement.GetProperty("data");
             Assert.Equal(expectedDatabase, data.GetProperty("database").GetString());
             Assert.Equal(expectedUserName, data.GetProperty("user").GetString());
-            Assert.Equal(Password, data.GetProperty("password").GetString());
+            Assert.Equal(FixtureCredential, data.GetProperty("password").GetString());
             return Json("{}", HttpStatusCode.OK);
         });
         var writer = new VaultTenantSqlCredentialWriter(new HttpClient(handler), Options.Create(new VaultTenantSqlCredentialWriteOptions
@@ -106,7 +106,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
         }));
 
         await writer.WriteAsync(TenantId, component,
-            new TenantSqlCredential(expectedDatabase, expectedUserName, Password, 0));
+            new TenantSqlCredential(expectedDatabase, expectedUserName, FixtureCredential, 0));
 
         Assert.Equal(2, handler.RequestCount);
     }
@@ -145,7 +145,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
     public async Task Reader_rejects_cross_component_database_and_username(
         TenantSqlDatabaseComponent requestedComponent, string otherDatabase, string otherUserName)
     {
-        var response = $"{{\"data\":{{\"data\":{{\"database\":\"{otherDatabase}\",\"user\":\"{otherUserName}\",\"password\":\"{Password}\"}},\"metadata\":{{\"version\":1}}}}}}";
+        var response = $"{{\"data\":{{\"data\":{{\"database\":\"{otherDatabase}\",\"user\":\"{otherUserName}\",\"password\":\"{FixtureCredential}\"}},\"metadata\":{{\"version\":1}}}}}}";
         var reader = CreateReader(ReaderHandler(response));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => reader.ReadAsync(
@@ -158,7 +158,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
     public async Task Reader_rejects_cross_component_username_even_when_database_matches(
         TenantSqlDatabaseComponent requestedComponent, string expectedDatabase, string otherUserName)
     {
-        var response = $"{{\"data\":{{\"data\":{{\"database\":\"{expectedDatabase}\",\"user\":\"{otherUserName}\",\"password\":\"{Password}\"}},\"metadata\":{{\"version\":1}}}}}}";
+        var response = $"{{\"data\":{{\"data\":{{\"database\":\"{expectedDatabase}\",\"user\":\"{otherUserName}\",\"password\":\"{FixtureCredential}\"}},\"metadata\":{{\"version\":1}}}}}}";
         var reader = CreateReader(ReaderHandler(response));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => reader.ReadAsync(
@@ -303,7 +303,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
         }));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => writer.WriteAsync(TenantId, TenantSqlDatabaseComponent.Erp,
-            new TenantSqlCredential("AIERPTenant_00000000000000000000000000000000", $"aierp_t_{TenantId:N}", Password, 0)));
+            new TenantSqlCredential("AIERPTenant_00000000000000000000000000000000", $"aierp_t_{TenantId:N}", FixtureCredential, 0)));
 
         Assert.Equal(0, handler.RequestCount);
     }
@@ -321,7 +321,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
         }));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => writer.WriteAsync(TenantId, requestedComponent,
-            new TenantSqlCredential(otherDatabase, otherUserName, Password, 0)));
+            new TenantSqlCredential(otherDatabase, otherUserName, FixtureCredential, 0)));
 
         Assert.Equal(0, handler.RequestCount);
     }
@@ -339,7 +339,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
         }));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => writer.WriteAsync(TenantId, requestedComponent,
-            new TenantSqlCredential(expectedDatabase, otherUserName, Password, 0)));
+            new TenantSqlCredential(expectedDatabase, otherUserName, FixtureCredential, 0)));
 
         Assert.Equal(0, handler.RequestCount);
     }
