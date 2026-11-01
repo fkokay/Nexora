@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
+import './searchable-record-picker.css'
 
 export type SearchableRecordOption = {
   id: string
@@ -58,9 +59,18 @@ export default function SearchableRecordPicker({ options, selectedId, onSelect, 
       <section id={dialogId} className="modal customer-picker-modal searchable-record-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-title`}>
         <div className="modal-head"><div><p className="eyebrow">KAYIT SEÇİMİ</p><h2 id={`${dialogId}-title`}>{title}</h2></div><button type="button" className="icon-button" aria-label="Seçim penceresini kapat" onClick={() => setOpen(false)}><X size={19}/></button></div>
         <label className="customer-search" htmlFor={searchId}><Search size={15}/><input id={searchId} type="search" autoFocus value={query} onChange={event => { setQuery(event.target.value); onSearchChange?.(event.target.value) }} placeholder={searchPlaceholder}/></label>
+        <div className="searchable-record-results-heading" aria-live="polite">
+          <span>Sonuçlar</span>
+          <small>{Math.min(filtered.length, visible.length)} kayıt{filtered.length > visible.length ? ` · ilk ${visible.length} gösteriliyor` : ''}</small>
+        </div>
         <div className="customer-picker-options" role="listbox" aria-label={title}>
-          {clearable && <button type="button" role="option" aria-selected={!selectedId} className="customer-picker-option" onClick={() => { onSelect(''); setOpen(false) }}><span><b>{clearLabel}</b></span>{!selectedId && <span className="customer-picker-selected"><Check size={12}/> Seçili</span>}</button>}
-          {visible.map(option => <button type="button" role="option" aria-selected={option.id === selectedId} className="customer-picker-option" key={option.id} onClick={() => { onSelect(option.id); setOpen(false) }}><span><b>{option.label}</b>{option.description && <small>{option.description}</small>}</span>{option.id === selectedId && <span className="customer-picker-selected"><Check size={12}/> Seçili</span>}</button>)}
+          {clearable && <button type="button" role="option" aria-selected={!selectedId} className="customer-picker-option" onClick={() => { onSelect(''); setOpen(false) }}><span className="searchable-record-option-copy"><b className="searchable-record-option-name">{clearLabel}</b></span>{!selectedId && <span className="customer-picker-selected"><Check size={12}/> Seçili</span>}</button>}
+          {visible.map(option => {
+            const separator = option.label.indexOf(' · ')
+            const code = separator >= 0 ? option.label.slice(0, separator) : ''
+            const name = separator >= 0 ? option.label.slice(separator + 3) : option.label
+            return <button type="button" role="option" aria-selected={option.id === selectedId} className="customer-picker-option" key={option.id} onClick={() => { onSelect(option.id); setOpen(false) }}><span className="searchable-record-option-copy">{code && <small className="searchable-record-code">{code}</small>}<b className="searchable-record-option-name">{name}</b>{option.description && <small>{option.description}</small>}</span>{option.id === selectedId && <span className="customer-picker-selected"><Check size={12}/> Seçili</span>}</button>
+          })}
           {filtered.length > visible.length && <div className="customer-picker-empty">İlk {visible.length} sonuç gösteriliyor. Aramayı daraltın.</div>}
           {filtered.length === 0 && <div className="customer-picker-empty">{emptyMessage}</div>}
         </div>

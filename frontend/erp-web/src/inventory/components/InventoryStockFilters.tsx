@@ -13,13 +13,14 @@ type Props = {
   onWarehouseChange: (id: string) => void
   onSearchChange: (value: string) => void
   onToggleBelowMinimum: () => void
+  showMinimumFilter?: boolean
 }
 
-export function InventoryStockFilters({ warehouses, warehouseId, search, belowMinimumOnly, belowMinimumCount, balancesLoading, loading, onWarehouseChange, onSearchChange, onToggleBelowMinimum }: Props) {
+export function InventoryStockFilters({ warehouses, warehouseId, search, belowMinimumOnly, belowMinimumCount, balancesLoading, loading, onWarehouseChange, onSearchChange, onToggleBelowMinimum, showMinimumFilter = true }: Props) {
   return <div className="customer-toolbar">
     <label className="warehouse-picker">Depo<SearchableRecordPicker options={warehouses.map(item => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.isActive ? 'Aktif' : 'Pasif' }))} selectedId={warehouseId} onSelect={onWarehouseChange} title="Depo seçin" placeholder="Depo seçin" searchPlaceholder="Depo kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen depo bulunamadı."/></label>
     <label className="inventory-stock-search"><Search size={16}/><input aria-label="Stok ara" value={search} onChange={event => onSearchChange(event.target.value)} placeholder="Kod veya stok adıyla ara"/></label>
-    <button type="button" className={belowMinimumOnly ? 'primary' : 'secondary'} aria-pressed={belowMinimumOnly} disabled={balancesLoading} onClick={onToggleBelowMinimum}>Minimum altı · {balancesLoading ? '…' : belowMinimumCount}</button>
+    {showMinimumFilter&&<button type="button" className={belowMinimumOnly ? 'primary' : 'secondary'} aria-pressed={belowMinimumOnly} disabled={balancesLoading} onClick={onToggleBelowMinimum}>Minimum altı · {balancesLoading ? '…' : belowMinimumCount}</button>}
     <span className="date-pill">{balancesLoading ? 'Bakiyeler yükleniyor…' : loading ? 'Yükleniyor…' : 'Tenant kapsamlı stok'}</span>
   </div>
 }

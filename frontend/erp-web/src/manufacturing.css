@@ -131,6 +131,108 @@ html[data-theme="dark"] .manufacturing-recipe-list{background:var(--erp-surface-
 html[data-theme="dark"] .manufacturing-recipe-list-heading h3{color:var(--erp-text,#e4e7ed)}
 html[data-theme="dark"] .manufacturing-recipe-search input{background:var(--erp-surface,#171a22);border-color:var(--erp-border,#39404e);color:var(--erp-text,#e4e7ed)}
 
+/* Recipe directory follows the shared ERP list pattern: one toolbar, table and pager. */
+.manufacturing-page .manufacturing-recipe-list {
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--erp-surface, #fff);
+  border: 1px solid var(--erp-border, #dfe4ed);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px #172b4d0d;
+}
+.manufacturing-page .manufacturing-recipe-list-heading {
+  min-height: 58px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--erp-border, #e5ebf3);
+  background: var(--erp-surface-soft, #f8fafc);
+}
+.manufacturing-page .manufacturing-recipe-list-heading > p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px;
+  margin: 0;
+  color: var(--erp-text-muted, #64748b);
+  font-size: 11px;
+}
+.manufacturing-page .manufacturing-recipe-list-heading > p b { color: var(--erp-text, #172b4d); font-variant-numeric: tabular-nums; }
+.manufacturing-page .manufacturing-recipe-hint { margin-left: 7px; color: var(--erp-text-muted, #8791a2); font-size: 10px; }
+.manufacturing-page .manufacturing-recipe-search {
+  display: flex;
+  flex: 0 1 320px;
+  align-items: center;
+  gap: 8px;
+  min-width: 210px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--erp-border, #d8deea);
+  border-radius: 6px;
+  background: var(--erp-surface, #fff);
+  color: var(--erp-text-muted, #718096);
+}
+.manufacturing-page .manufacturing-recipe-search input {
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 12px;
+  box-shadow: none;
+}
+.manufacturing-page .manufacturing-recipe-search:focus-within { border-color: #7ba6d6; box-shadow: 0 0 0 3px rgb(49 95 159 / 10%); }
+.manufacturing-page .manufacturing-recipe-table-wrap { margin: 0; border: 0; border-radius: 0; background: transparent; }
+.manufacturing-page .manufacturing-recipe-table-wrap table { min-width: 940px; border-collapse: collapse; }
+.manufacturing-page .manufacturing-recipe-table-wrap th {
+  height: 39px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--erp-border, #e5ebf3);
+  background: var(--erp-surface, #fff);
+  color: var(--erp-text-muted, #64748b);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.manufacturing-page .manufacturing-recipe-table-wrap td {
+  height: 54px;
+  padding: 8px 12px;
+  border-top: 0;
+  border-bottom: 1px solid var(--erp-border, #edf0f5);
+  color: var(--erp-text, #334155);
+  font-size: 12px;
+  vertical-align: middle;
+}
+.manufacturing-page .manufacturing-recipe-table-wrap tbody tr:last-child td { border-bottom: 0; }
+.manufacturing-page .manufacturing-recipe-table-wrap tbody tr:hover td { background: #f7faff; }
+.manufacturing-page .manufacturing-recipe-table-wrap td:first-child b { color: var(--erp-text, #172b4d); font-size: 12px; }
+.manufacturing-page .manufacturing-recipe-table-wrap td:first-child small,
+.manufacturing-page .manufacturing-recipe-table-wrap td > small { font-size: 10px; }
+.manufacturing-page .manufacturing-recipe-actions { min-width: 0; flex-wrap: nowrap; }
+.manufacturing-page .manufacturing-recipe-actions button { min-height: 31px; border-radius: 5px; }
+.manufacturing-page .manufacturing-recipe-pagination {
+  min-height: 48px;
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid var(--erp-border, #e5ebf3);
+  font-size: 11px;
+}
+html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-list-heading { background: #1d2636; border-color: var(--erp-border, #303542); }
+html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-list-heading > p b { color: var(--erp-text, #e4e7ed); }
+html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-table-wrap th { background: #1b2332; border-color: var(--erp-border, #303542); color: var(--erp-muted, #a7afbf); }
+html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-table-wrap td { border-color: var(--erp-border, #303542); color: var(--erp-text, #c7cede); }
+html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-table-wrap td:first-child b { color: var(--erp-text, #e4e7ed); }
+html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-table-wrap tbody tr:hover td { background: #202a3a; }
+html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-pagination { border-color: var(--erp-border, #303542); }
+@media (max-width: 700px) {
+  .manufacturing-page .manufacturing-recipe-list-heading { align-items: stretch; flex-direction: column; }
+  .manufacturing-page .manufacturing-recipe-search { flex: 1; width: 100%; min-width: 0; }
+  .manufacturing-page .manufacturing-recipe-hint { flex-basis: 100%; margin: 3px 0 0; }
+  .manufacturing-page .manufacturing-recipe-actions { flex-wrap: wrap; }
+}
+
 /* Keep the dense production-order grid readable beside its inspector. */
 .manufacturing-page .manufacturing-order-workbench{grid-template-columns:minmax(0,1fr) minmax(270px,300px)}
 .manufacturing-page .manufacturing-order-list .manufacturing-table-wrap table{min-width:1320px;table-layout:auto}

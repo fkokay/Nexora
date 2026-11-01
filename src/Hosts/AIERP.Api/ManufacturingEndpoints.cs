@@ -36,6 +36,23 @@ public static class ManufacturingEndpoints
                     x.ShiftStartMinuteOfDay, x.ShiftEndMinuteOfDay)).ToListAsync(ct));
         });
 
+        workCenters.MapGet("/search", async (string? q, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
+            var term = q?.Trim().ToUpperInvariant();
+            if (term is null || term.Length is < 2 or > 100)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["İş merkezi araması 2–100 karakter olmalıdır."] });
+
+            var query = db.ManufacturingWorkCenters.AsNoTracking().Where(x => x.TenantId == tenantId &&
+                (x.Code.ToUpper().Contains(term) || x.Name.ToUpper().Contains(term)));
+            var totalCount = await query.CountAsync(ct);
+            var items = await query.OrderBy(x => x.Code).Take(10)
+                .Select(x => new WorkCenterAssistantSearchItem(x.Code, x.Name, x.CapacityMinutesPerDay, x.IsActive,
+                    x.WorkingDaysMask, x.ShiftStartMinuteOfDay, x.ShiftEndMinuteOfDay))
+                .ToListAsync(ct);
+            return Results.Ok(new { totalCount, items });
+        });
+
         workCenters.MapGet("/{id:guid}/calendar", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
@@ -1538,6 +1555,8 @@ public sealed record WorkCenterWriteRequest(string? Code, string? Name, int Capa
     decimal OverheadCostPerHourBase, int? WorkingDaysMask = null, int? ShiftStartMinuteOfDay = null, int? ShiftEndMinuteOfDay = null);
 public sealed record WorkCenterView(Guid Id, string Code, string Name, int CapacityMinutesPerDay, decimal LaborCostPerHourBase,
     decimal OverheadCostPerHourBase, bool IsActive, int WorkingDaysMask, int ShiftStartMinuteOfDay = 480, int ShiftEndMinuteOfDay = 960);
+public sealed record WorkCenterAssistantSearchItem(string Code, string Name, int CapacityMinutesPerDay, bool IsActive,
+    int WorkingDaysMask, int ShiftStartMinuteOfDay, int ShiftEndMinuteOfDay);
 public sealed record WorkCenterCapacityOverrideWriteRequest(DateOnly WorkDate, int CapacityMinutes, string? Note = null);
 public sealed record WorkCenterCapacityOverrideView(DateOnly WorkDate, int CapacityMinutes, string? Note);
 public sealed record WorkCenterAnnualCapacityRuleWriteRequest(int Month, int Day, int CapacityMinutes, string? Note = null);

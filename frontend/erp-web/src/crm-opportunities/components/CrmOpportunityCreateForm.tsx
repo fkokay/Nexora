@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { Plus, X } from 'lucide-react'
+import { BriefcaseBusiness, Plus, X } from 'lucide-react'
 import SearchableRecordPicker from '../../SearchableRecordPicker'
 import type { Customer } from '../types'
 
@@ -34,7 +34,7 @@ type Props = {
 
 export function CrmOpportunityCreateForm({ customerError, customers, customerId, selectedCustomer, customerLoading, code, name, value, currency, probability, closeDate, activity, notes, busy, onClose, onSubmit, onCodeChange, onNameChange, onCustomerSelect, onCustomerSearchChange, onValueChange, onCurrencyChange, onProbabilityChange, onCloseDateChange, onActivityChange, onNotesChange }: Props) {
   return <div className="crm-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><section className="crm-panel crm-create-modal" role="dialog" aria-modal="true" aria-labelledby="crm-create-title">
-    <div className="crm-panel-heading"><div><h2 id="crm-create-title">Yeni fırsat</h2><p>Fırsatı müşteri carisine bağlayın; kapanış ve sonraki takip tarihini planlayın.</p></div><button type="button" className="secondary" aria-label="Kapat" onClick={onClose}><X size={17} /></button></div>
+    <div className="crm-panel-heading crm-create-heading"><span className="crm-create-heading-icon" aria-hidden="true"><BriefcaseBusiness size={20}/></span><div><p className="eyebrow">CRM · SATIŞ HATTI</p><h2 id="crm-create-title">Yeni fırsat</h2><p>Fırsatı müşteri carisine bağlayın; kapanış ve sonraki takip tarihini planlayın.</p></div><button type="button" className="secondary" aria-label="Kapat" onClick={onClose}><X size={17} /></button></div>
     {customerError && <p className="crm-inline-error" role="status">Müşteri listesi yüklenemedi: {customerError}</p>}
     <form className="crm-form" onSubmit={onSubmit}>
       <label>Fırsat kodu<input value={code} onChange={event => onCodeChange(event.target.value)} required maxLength={40} placeholder="FRS-2026-001" /></label>

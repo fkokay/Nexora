@@ -19,6 +19,7 @@ const CrmOpportunitiesPage = lazy(() => import('./CrmOpportunitiesPage'))
 const ManufacturingRecipesPage = lazy(() => import('./ManufacturingRecipesPage'))
 const ManufacturingRecipeCreatePage = lazy(() => import('./ManufacturingRecipeCreatePage'))
 const ManufacturingWorkCentersPage = lazy(() => import('./ManufacturingWorkCentersPage'))
+const ManufacturingWorkCenterCreatePage = lazy(() => import('./ManufacturingWorkCenterCreatePage'))
 const ManufacturingOrdersPage = lazy(() => import('./ManufacturingOrdersPage'))
 const ManufacturingMrpPage = lazy(() => import('./ManufacturingMrpPage'))
 const ManufacturingCostVariancePage = lazy(() => import('./ManufacturingCostVariancePage'))
@@ -59,6 +60,7 @@ const SupplierInvoiceDraftsPage = lazy(() => import('./SupplierInvoiceDraftsPage
 const OperationalProjectsPage = lazy(() => import('./OperationalProjectsPage'))
 const OperationalDefinitionsPage = lazy(() => import('./OperationalDefinitionsPage'))
 const InventoryStockPage = lazy(() => import('./InventoryStockPage'))
+const InventoryCostPage = lazy(() => import('./InventoryCostPage'))
 const InventoryWarehousesPage = lazy(() => import('./InventoryWarehousesPage'))
 const InventoryTransfersPage = lazy(() => import('./InventoryTransfersPage'))
 const DashboardPage = lazy(() => import('./DashboardPage').then(module => ({ default: module.DashboardPage })))
@@ -116,12 +118,14 @@ export function WorkspacePageRouter({page,token,tenant,locale,dashboard,platform
   if(page==='manufacturing-recipes')return <ManufacturingRecipesPage {...manufacturingPageProps}/>
   if(page==='manufacturing-recipe-create')return <ManufacturingRecipeCreatePage {...manufacturingPageProps}/>
   if(page==='manufacturing-work-centers')return <ManufacturingWorkCentersPage {...manufacturingPageProps}/>
+  if(page==='manufacturing-work-center-create')return <ManufacturingWorkCenterCreatePage {...manufacturingPageProps}/>
   if(page==='manufacturing-orders')return <ManufacturingOrdersPage {...manufacturingPageProps}/>
   if(page==='manufacturing-mrp')return <ManufacturingMrpPage {...manufacturingPageProps}/>
   if(page==='modules')return <ModuleMarketplacePage token={token} role={tenant.role} onDevelopStarter={onDevelopModuleStarter}/>
   if(page==='inventory-tracking')return <InventoryTrackingPage token={token}/>
+  if(page==='inventory-cost')return <InventoryCostPage token={token} role={tenant.role}/>
   if(page==='inventory-locations')return <WarehouseLocationsPage token={token} role={tenant.role}/>
-  if(page==='inventory-stock')return <InventoryStockPage token={token} role={tenant.role}/>
+  if(page==='inventory-stock'||page==='inventory-stock-create')return <InventoryStockPage token={token} role={tenant.role} section={page as 'inventory-stock'|'inventory-stock-create'} onNavigate={onNavigate}/>
   if(page==='inventory-warehouses')return <InventoryWarehousesPage token={token} role={tenant.role}/>
   if(page==='inventory-transfers')return <InventoryTransfersPage token={token} role={tenant.role}/>
   if(page==='commercial-contracts')return <CommercialContractsPage token={token} role={tenant.role} locale={locale}/>
@@ -143,6 +147,7 @@ export function WorkspacePageRouter({page,token,tenant,locale,dashboard,platform
   if(page==='finance-budget')return <div className='finance-embedded-workbench'><FinanceBudgetPage token={token} role={tenant.role}/></div>
   if(page==='finance-cash-budget')return <div className='finance-embedded-workbench'><DirectCashBudgetPage token={token} role={tenant.role}/></div>
   if(page==='finance-accounts')return <FinanceAccountsPage token={token} role={tenant.role}/>
+  if(page==='finance-banks')return <FinanceAccountsPage token={token} role={tenant.role} section="finance-banks"/>
   if(page==='finance-statements')return <BankStatementsPage token={token} role={tenant.role}/>
   if(page==='finance-cash-flow')return <CashFlowPage token={token} role={tenant.role}/>
   if(page==='finance-fx')return <FxSettingsPage token={token} role={tenant.role}/>

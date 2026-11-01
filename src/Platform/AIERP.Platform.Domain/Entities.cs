@@ -610,6 +610,8 @@ public static class LedgerMappingKeys
     public const string InventoryReversalOffset = "inventory.reversal-offset";
     public const string FixedAssetDepreciationExpense = "fixed-assets.depreciation-expense";
     public const string FixedAssetAccumulatedDepreciation = "fixed-assets.accumulated-depreciation";
+    public const string FixedAssetTaxDepreciationExpense = "fixed-assets.tax-depreciation-expense";
+    public const string FixedAssetTaxAccumulatedDepreciation = "fixed-assets.tax-accumulated-depreciation";
     public const string FixedAssetCost = "fixed-assets.cost";
     public const string FixedAssetDisposalProceeds = "fixed-assets.disposal-proceeds";
     public const string FixedAssetDisposalGain = "fixed-assets.disposal-gain";

@@ -1,8 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import { FileText, MoreHorizontal, Pencil, ShieldCheck, Trash2, Users, X } from 'lucide-react'
+import { CircleDollarSign, FileText, MoreHorizontal, Pencil, ShieldCheck, Trash2, Users, X } from 'lucide-react'
 import { api, localDateString } from './erpApi'
 import { groupBuiltInScreenFields } from './FinanceStudioGrid'
 import type {
@@ -10,7 +8,7 @@ import type {
   CustomerAddressItem, BuiltInScreenLayoutField, CustomerDialogRequest,
   CustomerCustomFieldDefinition, CustomerCustomFieldRevision, CustomerCustomFieldValueRevision,
   CustomerBalance, CustomerStatement, ExternalStatementLine, CustomerLedgerItem,
-  CustomerCustomFieldValue, TurkeyLocationOption, TurkeyDistrictOption,
+  CustomerCustomFieldValue,
 } from './erp-types'
 import CustomerSalesInvoicesPanel from './CustomerSalesInvoicesPanel'
 import MasterDataImportDialog from './MasterDataImportDialog'
@@ -18,50 +16,8 @@ import { CustomerDirectoryHeader } from './customers/components/CustomerDirector
 import { CustomerFilters } from './customers/components/CustomerFilters'
 import { CustomerGrid } from './customers/components/CustomerGrid'
 import { CustomerDetailPanel, type CustomerDetailTab } from './customers/components/CustomerDetailPanel'
-
-const customerCountryCodes='AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW'.split(' ')
-const customerCountryNames=new Intl.DisplayNames(['tr'],{type:'region'})
-function turkeyDistrictsForProvince(province: string, provinces: TurkeyLocationOption[], districts: TurkeyDistrictOption[]): TurkeyLocationOption[] {
-  const selected = provinces.find(item => item.name.toLocaleLowerCase('tr-TR') === province.trim().toLocaleLowerCase('tr-TR'))
-  return selected ? districts.filter(item => item.provinceId === selected.id) : []
-}
-
-function CustomerLocationInput({id,label,value,options,onChange,required=false,optional=true}:{id:string;label:string;value:string;options:TurkeyLocationOption[];onChange:(value:string)=>void;required?:boolean;optional?:boolean}) {
-  return <label>{label}{optional&&<span className="optional-label">İsteğe bağlı</span>}<input list={`${id}-options`} autoComplete="off" value={value} onChange={event=>onChange(event.target.value)} maxLength={100} required={required}/><datalist id={`${id}-options`}>{options.map(option=><option key={option.id} value={option.name}/>)}</datalist>{options.length===0&&<small className="customer-location-hint">Konum listesi boşsa il veya ilçeyi elle yazabilirsiniz.</small>}</label>
-}
-
-function CustomerCountryInput({value,onChange}:{value:string;onChange:(value:string)=>void}) {
-  return <label>Ülke<select value={value} onChange={event=>onChange(event.target.value)} required>{customerCountryCodes.map(code=><option key={code} value={code}>{customerCountryNames.of(code)??code} ({code})</option>)}</select></label>
-}
-
-function CustomerLocationMap({latitude,longitude,onChange}:{latitude:number|null;longitude:number|null;onChange:(latitude:number|null,longitude:number|null)=>void}) {
-  const [mapOpen,setMapOpen]=useState(false)
-  const mapElement=useRef<HTMLDivElement|null>(null),mapInstance=useRef<L.Map|null>(null),pin=useRef<L.CircleMarker|null>(null),onChangeRef=useRef(onChange)
-  useEffect(()=>{onChangeRef.current=onChange},[onChange])
-  useEffect(()=>{
-    if(!mapOpen||!mapElement.current)return
-    const map=L.map(mapElement.current,{center:latitude!==null&&longitude!==null?[latitude,longitude]:[39,35],zoom:latitude!==null&&longitude!==null?14:6,scrollWheelZoom:true})
-    const environment=import.meta.env as ImportMetaEnv & { VITE_MAP_TILE_URL?:string }
-    L.tileLayer(environment.VITE_MAP_TILE_URL||'https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>'}).addTo(map)
-    map.on('click',event=>onChangeRef.current(event.latlng.lat,event.latlng.lng))
-    mapInstance.current=map
-    window.requestAnimationFrame(()=>map.invalidateSize())
-    return()=>{map.remove();mapInstance.current=null;pin.current=null}
-  },[mapOpen])
-  useEffect(()=>{
-    const map=mapInstance.current
-    if(!map)return
-    if(latitude===null||longitude===null){if(pin.current){map.removeLayer(pin.current);pin.current=null}return}
-    if(pin.current)pin.current.setLatLng([latitude,longitude])
-    else pin.current=L.circleMarker([latitude,longitude],{radius:9,color:'#ffffff',weight:3,fillColor:'#0878f9',fillOpacity:1}).addTo(map)
-  },[latitude,longitude,mapOpen])
-  const coordinatesRequired=latitude!==null||longitude!==null
-  return <section className="customer-location-picker" aria-label="Harita konumu">
-    <div className="customer-location-picker-heading"><div><b>Harita konumu</b><small>Haritaya tıklayarak pini seçin. Harita alanı OpenStreetMap harita sunucusuna iletilir.</small></div><button type="button" className="secondary small-button" aria-expanded={mapOpen} onClick={()=>setMapOpen(value=>!value)}>{mapOpen?'Haritayı kapat':'Haritayı aç'}</button></div>
-    {mapOpen&&<><p className="customer-map-privacy-note">Cari adresinin metni harita hizmetine gönderilmez; ancak görüntülenen harita bölgesi tile isteklerinden tahmin edilebilir.</p><div ref={mapElement} className="customer-location-map" role="application" aria-label="Konum seçme haritası"/><div className="form-two customer-coordinate-fields"><label>Enlem<input aria-label="Enlem" type="number" min="-90" max="90" step="0.000001" value={latitude??''} required={coordinatesRequired} onChange={event=>onChange(event.target.value===''?null:Number(event.target.value),longitude)}/></label><label>Boylam<input aria-label="Boylam" type="number" min="-180" max="180" step="0.000001" value={longitude??''} required={coordinatesRequired} onChange={event=>onChange(latitude,event.target.value===''?null:Number(event.target.value))}/></label></div></>}
-    <small className="customer-location-coordinates">{latitude!==null&&longitude!==null?`Seçilen konum: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`:'Haritada konum seçilmedi.'}</small>
-  </section>
-}
+import { CustomerCountryInput, CustomerLocationInput, CustomerLocationMap, turkeyDistrictsForProvince } from './customers/components/CustomerFormControls'
+import CustomerCreatePage from './customers/components/CustomerCreatePage'
 
 function CustomerActionsMenu({item,busy,onEdit,onInvoices,onPurchaseInvoices,onLedger,onAddresses,onFields,onToggleActive}:{item:CustomerItem;busy:boolean;onEdit:()=>void;onInvoices:()=>void;onPurchaseInvoices:()=>void;onLedger:()=>void;onAddresses:()=>void;onFields:()=>void;onToggleActive:()=>void}) {
   const [open,setOpen]=useState(false),[position,setPosition]=useState({top:0,left:0,maxHeight:230})
@@ -366,7 +322,8 @@ function CustomersPage({token,role,initialSearch,onOpenSalesInvoice,onOpenPurcha
       default: return '—'
     }
   }
-  return <><CustomerDirectoryHeader canImport={role==='TenantAdmin'} exportBusy={exportBusy} onImport={()=>setImportOpen(true)} onExport={format=>void exportCustomers(format)} onGroups={()=>{setEditingGroup(null);setGroupCode('');setGroupName('');setGroupError('');setGroupModal(true)}} onCreate={()=>void openCustomerModal()}/>
+  const customerCreatePage = <CustomerCreatePage busy={busy} error={error} setError={setError} setModal={setModal} create={create} customerCreateTab={customerCreateTab} setCustomerCreateTab={setCustomerCreateTab} code={code} setCode={setCode} name={name} setName={setName} type={type} setType={setType} groups={groups} groupId={groupId} setGroupId={setGroupId} parentCompanyId={parentCompanyId} setParentCompanyId={setParentCompanyId} companyOptions={companyOptions} editingCustomer={editingCustomer} currencyCode={currencyCode} setCurrencyCode={setCurrencyCode} riskLimit={riskLimit} setRiskLimit={setRiskLimit} paymentTermDays={paymentTermDays} setPaymentTermDays={setPaymentTermDays} identityNumber={identityNumber} setIdentityNumber={setIdentityNumber} taxNumber={taxNumber} setTaxNumber={setTaxNumber} taxOffice={taxOffice} setTaxOffice={setTaxOffice} addressPostalCode={addressPostalCode} setAddressPostalCode={setAddressPostalCode} addressCountry={addressCountry} setAddressCountry={setAddressCountry} addressCity={addressCity} setAddressCity={setAddressCity} addressDistrict={addressDistrict} setAddressDistrict={setAddressDistrict} addressLine={addressLine} setAddressLine={setAddressLine} locationDefinitions={locationDefinitions} addressLatitude={addressLatitude} setAddressLatitude={setAddressLatitude} addressLongitude={addressLongitude} setAddressLongitude={setAddressLongitude} customerCreateFields={customerCreateFields} customerCreateValues={customerCreateValues} setCustomerCreateValues={setCustomerCreateValues} />
+  return modal ? customerCreatePage : <><CustomerDirectoryHeader canImport={role==='TenantAdmin'} exportBusy={exportBusy} onImport={()=>setImportOpen(true)} onExport={format=>void exportCustomers(format)} onGroups={()=>{setEditingGroup(null);setGroupCode('');setGroupName('');setGroupError('');setGroupModal(true)}} onCreate={()=>void openCustomerModal()}/>
     {error&&<div className="alert inline-alert">{error}<button onClick={()=>setError('')}><X size={15}/></button></div>}{notice&&<div className="notice">{notice}<button onClick={()=>setNotice('')}><X size={15}/></button></div>}
     <nav className="customer-directory-tabs" aria-label="Cari türü sekmeleri">{[{label:'Tüm Cariler',value:''},{label:'Müşteriler',value:'Customer'},{label:'Tedarikçiler',value:'Supplier'},{label:'Diğer',value:'Both'}].map(tab=><button type="button" key={tab.label} className={typeFilter===tab.value?'active':''} aria-current={typeFilter===tab.value?'page':undefined} onClick={()=>{setTypeFilter(tab.value);setPage(1)}}>{tab.label}</button>)}</nav>
     <CustomerFilters search={search} typeFilter={typeFilter} statusFilter={statusFilter} onSearchChange={setSearch} onTypeChange={value=>{setTypeFilter(value);setPage(1)}} onStatusChange={value=>{setStatusFilter(value);setPage(1)}} onApply={()=>{setPage(1);setFilter(search.trim())}}/>
@@ -387,7 +344,7 @@ function CustomersPage({token,role,initialSearch,onOpenSalesInvoice,onOpenPurcha
               </div>
             </fieldset>
             <fieldset className="customer-edit-section">
-              <legend>Finansal bilgiler</legend>
+              <legend><CircleDollarSign size={16} aria-hidden="true"/>Finansal Bilgiler</legend>
               <div className="form-two">
                 <label>Risk limiti<input type="number" min="0" step="0.01" value={riskLimit} onChange={e=>setRiskLimit(e.target.value)} placeholder="Belirtilmedi"/></label>
                 <label>Vade günü<input type="number" min="0" max="3650" value={paymentTermDays} onChange={e=>setPaymentTermDays(e.target.value)} required/></label>
@@ -413,7 +370,7 @@ function CustomersPage({token,role,initialSearch,onOpenSalesInvoice,onOpenPurcha
           </div>
           <div className="modal-foot customer-edit-footer"><span><ShieldCheck size={14}/>{editingCustomer.isActive?'Aktif cari kartı':'Pasif cari kartı'} · sürüm kontrollü kayıt</span><div><button type="button" className="secondary" disabled={busy} onClick={()=>setEditingCustomer(null)}>Vazgeç</button><button className="primary" disabled={busy}>{busy?'Kaydediliyor…':'Değişiklikleri kaydet'} <span>→</span></button></div></div>
         </form></div></div>}
-    {modal&&<div className="master-data-create-backdrop"><section className="master-data-create-surface customer-create-modal"><div className="modal-head"><div><p className="eyebrow">CARİ YÖNETİMİ</p><h2>Yeni cari kartı</h2></div><button className="icon-button" onClick={()=>setModal(false)}><X size={19}/></button></div><p className="muted modal-sub">Bu kart yalnızca seçili firmanızda kullanılabilir.</p><form className="customer-create-form" onSubmit={create}><nav className="customer-create-tabs" aria-label="Cari form bölümleri">{[['basic','Genel bilgiler','customer-create-basic'],['finance','Finansal bilgiler','customer-create-finance'],['contact','Vergi ve iletişim','customer-create-contact'],['other','Diğer bilgiler','customer-create-other']].map(([key,label,id])=><button key={key} type="button" aria-current={customerCreateTab===key?'page':undefined} onClick={()=>{setCustomerCreateTab(key);document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'})}}>{label}</button>)}</nav><div className="customer-create-fields"><fieldset id="customer-create-basic" className="customer-create-section"><legend>Temel bilgiler</legend><div className="form-two"><label>Cari kodu<input value={code} onChange={e=>setCode(e.target.value)} required maxLength={64} placeholder="Örn. C-1001"/></label><label>Cari türü<select value={type} onChange={e=>setType(e.target.value as CustomerItem['type'])}><option value="Customer">Müşteri</option><option value="Supplier">Tedarikçi</option><option value="Both">Müşteri & Tedarikçi</option></select></label></div><label>Ünvan<input value={name} onChange={e=>setName(e.target.value)} required maxLength={200} placeholder="Firma veya kişi adı"/></label></fieldset><fieldset id="customer-create-finance" className="customer-create-section"><legend>Finansal bilgiler</legend><div className="form-two"><label>Cari grubu<select value={groupId} onChange={e=>setGroupId(e.target.value)}><option value="">Grup atama</option>{groups.filter(x=>x.isActive).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label>Grup şirketi / Ana firma<select value={parentCompanyId} onChange={event=>setParentCompanyId(event.target.value)}><option value="">Bağımsız firma</option>{companyOptions.filter(company=>company.id!==editingCustomer?.id).map(company=><option key={company.id} value={company.id}>{company.name} · {company.code}</option>)}</select><small>Bu cari seçilen ana firmanın alt firması olur.</small></label><label>Döviz kodu<input value={currencyCode} onChange={e=>setCurrencyCode(e.target.value.toUpperCase().slice(0,3))} required maxLength={3} placeholder="TRY"/></label><label>Risk limiti<input type="number" min="0" step="0.01" value={riskLimit} onChange={e=>setRiskLimit(e.target.value)} placeholder="Belirtilmedi"/></label><label>Vade günü<input type="number" min="0" max="3650" value={paymentTermDays} onChange={e=>setPaymentTermDays(e.target.value)}/></label></div></fieldset><fieldset id="customer-create-contact" className="customer-create-section"><legend>Vergi ve iletişim bilgileri</legend><div className="form-two"><label>T.C. kimlik no <span className="optional-label">İsteğe bağlı</span><input inputMode="numeric" value={identityNumber} onChange={e=>setIdentityNumber(e.target.value.replace(/\D/g,"").slice(0,11))} maxLength={11} placeholder="11 haneli TCKN"/></label><label>Vergi numarası <span className="optional-label">İsteğe bağlı</span><input inputMode="numeric" value={taxNumber} onChange={e=>setTaxNumber(e.target.value)} maxLength={32} placeholder="VKN"/></label><label>Vergi dairesi <span className="optional-label">İsteğe bağlı</span><input value={taxOffice} onChange={e=>setTaxOffice(e.target.value)} maxLength={120}/></label><label>Posta kodu <span className="optional-label">İsteğe bağlı</span><input value={addressPostalCode} onChange={e=>setAddressPostalCode(e.target.value)} maxLength={20}/></label><CustomerCountryInput value={addressCountry} onChange={value=>{setAddressCountry(value);setAddressCity('');setAddressDistrict('')}}/></div><label>Adres <span className="optional-label">İsteğe bağlı</span><textarea value={addressLine} onChange={e=>setAddressLine(e.target.value)} maxLength={400} required={!!(addressCity.trim()||addressDistrict.trim()||addressPostalCode.trim())} placeholder="Mahalle, cadde, sokak ve kapı no"/></label><div className="form-two"><CustomerLocationInput id="customer-create-province" label="İl" value={addressCity} options={addressCountry==='TR'?locationDefinitions.provinces:[]} required={!!(addressLine.trim()||addressDistrict.trim()||addressPostalCode.trim())} onChange={value=>{setAddressCity(value);setAddressDistrict('')}}/><CustomerLocationInput id="customer-create-district" label="İlçe" value={addressDistrict} options={addressCountry==='TR'?turkeyDistrictsForProvince(addressCity,locationDefinitions.provinces,locationDefinitions.districts):[]} onChange={setAddressDistrict}/></div><CustomerLocationMap latitude={addressLatitude} longitude={addressLongitude} onChange={(latitude,longitude)=>{setAddressLatitude(latitude);setAddressLongitude(longitude)}}/></fieldset>{customerCreateFields.length>0&&<fieldset id="customer-create-other" className="customer-create-section"><legend>Cari özel alanları</legend><p>Zorunlu değerler cari kartıyla birlikte kaydedilir.</p><div className="form-two">{customerCreateFields.map(field=><label key={field.id}>{field.label}{field.isRequired?' *':''}<small>{field.code} · {field.dataType}</small>{field.dataType==='Boolean'?<select required={field.isRequired} value={customerCreateValues[field.code]||''} onChange={e=>setCustomerCreateValues(current=>({...current,[field.code]:e.target.value}))}><option value="">Seçin</option><option value="true">Evet</option><option value="false">Hayır</option></select>:<input type={field.dataType==='Decimal'?'number':field.dataType==='Date'?'date':'text'} step={field.dataType==='Decimal'?'any':undefined} maxLength={field.dataType==='Text'?field.maxLength:undefined} required={field.isRequired} value={customerCreateValues[field.code]||''} onChange={e=>setCustomerCreateValues(current=>({...current,[field.code]:e.target.value}))}/>}</label>)}</div></fieldset>}</div><div className="modal-foot"><span><ShieldCheck size={14}/>{localStorage.getItem('aierp.tenant') ? JSON.parse(localStorage.getItem('aierp.tenant')||'{}').name : 'Aktif firma'}</span><div><button type="button" className="secondary" onClick={()=>setModal(false)}>Vazgeç</button><button className="primary" disabled={busy}>{busy?'Kaydediliyor…':'Cari kartını kaydet'} <span>→</span></button></div></div></form></section></div>}
+
     {fieldCustomer && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget && !busy) setFieldCustomer(null) }}>
       <div className="modal customer-fields-modal">
         <div className="modal-head">

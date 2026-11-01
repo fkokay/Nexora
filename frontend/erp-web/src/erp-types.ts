@@ -1,8 +1,8 @@
 export type Tenant = { id: string; name: string; slug: string; role: string }
-export type FinancePageKey = 'finance-accounts'|'finance-statements'|'finance-cash-flow'|'finance-fx'|'finance-ledger'|'finance-budget'|'finance-cash-budget'|'finance-exposure'|'finance-maturities'|'finance-instruments'|'finance-credit-facilities'
-export type InventoryPageKey ='inventory-stock'|'inventory-warehouses'|'inventory-transfers'|'inventory-locations'|'inventory-tracking'
+export type FinancePageKey = 'finance-accounts'|'finance-banks'|'finance-statements'|'finance-cash-flow'|'finance-fx'|'finance-ledger'|'finance-budget'|'finance-cash-budget'|'finance-exposure'|'finance-maturities'|'finance-instruments'|'finance-credit-facilities'
+export type InventoryPageKey ='inventory-stock'|'inventory-stock-create'|'inventory-cost'|'inventory-warehouses'|'inventory-transfers'|'inventory-locations'|'inventory-tracking'
 export type SalesPageKey = 'sales-quotes'|'sales-requests'|'sales-purchase-quotes'|'sales-orders'|'sales-invoices'|'sales-deliveries'|'sales-promotions'|'sales-distribution'|'sales-purchasing'|'sales-purchase-invoices'|'sales-purchase-receipts'|'sales-purchase-delivery-notes'|'sales-purchase-invoice-entry'|'sales-purchase-invoice-drafts'|'commercial-contracts'
-export type ManufacturingPageKey = 'manufacturing-recipes' | 'manufacturing-recipe-create' | 'manufacturing-work-centers' | 'manufacturing-orders' | 'manufacturing-mrp' | 'manufacturing-cost-variance'
+export type ManufacturingPageKey = 'manufacturing-recipes' | 'manufacturing-recipe-create' | 'manufacturing-work-centers' | 'manufacturing-work-center-create' | 'manufacturing-orders' | 'manufacturing-mrp' | 'manufacturing-cost-variance'
 export type Theme = 'light' | 'dark'
 export type CustomerItem = { id: string; code: string; name: string; type: 'Customer' | 'Supplier' | 'Both'; taxNumber: string | null; identityNumber?: string | null; taxOffice?: string | null; isActive: boolean; createdAt: string; rowVersion: string; groupId: string | null; groupName: string | null; parentCompanyId?: string | null; parentCompanyName?: string | null; subsidiaryCount?: number; currencyCode: string; riskLimit: number | null; paymentTermDays: number }
 export type CustomerCompanyOption = { id: string; code: string; name: string }

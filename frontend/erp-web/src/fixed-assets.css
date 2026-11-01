@@ -471,6 +471,37 @@ html[data-theme="dark"] .fixed-assets-page .customer-table th {
   font: inherit;
   font-size: 12px;
 }
+.fixed-assets-page .fixed-asset-vuk-toggle,
+.fixed-assets-page .fixed-asset-vuk-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--erp-text, #273047);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.fixed-assets-page .fixed-asset-vuk-toggle input,
+.fixed-assets-page .fixed-asset-vuk-confirm input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 1px 0 0;
+  accent-color: var(--erp-primary, #1769d2);
+}
+.fixed-assets-page .fixed-asset-vuk-confirm { margin-top: 12px; font-weight: 600; }
+.fixed-assets-page .fixed-asset-form-section a { color: var(--erp-primary, #1769d2); font-weight: 600; }
+.fixed-assets-page .fixed-asset-tax-profile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--erp-border, #e2e6ef);
+  border-radius: 10px;
+  background: var(--erp-surface-muted, #f6f7fa);
+  color: var(--erp-muted, #697386);
+  font-size: 12px;
+}
+.fixed-assets-page .fixed-asset-tax-profile b { flex-basis: 100%; color: var(--erp-text, #273047); }
 @container fixed-assets (max-width: 760px) {
   .fixed-assets-page .fixed-asset-form-section .form-three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

@@ -190,3 +190,31 @@ html[data-theme="dark"] .access-control-page>section.panel:last-of-type .request
 .audit-detail-dialog .security-record-heading{align-items:flex-start}
 .audit-detail-dialog .security-record-heading h3{font-size:16px}
 @media(max-width:600px){.audit-detail-dialog{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);padding:16px;border-radius:12px}}
+
+/* Access policy page hierarchy */
+.access-control-page{gap:16px}
+.access-control-page>.access-page-heading{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:12px;margin:0 0 1px!important;padding:2px 2px 4px}
+.access-page-title-icon{display:grid;place-items:center;width:42px;height:42px;border:1px solid #d7e8f8;border-radius:12px;background:linear-gradient(145deg,#fff,#edf6ff);color:#0876e8;box-shadow:0 4px 12px #0b67bc10}
+.access-page-title-copy{min-width:0}
+.access-page-title-copy .eyebrow{margin-bottom:4px;color:#1681d7}
+.access-page-title-copy .eyebrow span{padding:0 3px;color:#9aabc0}
+.access-page-title-copy h1{margin:0;color:#14253d;font-size:22px;letter-spacing:-.35px}
+.access-page-title-copy .muted{margin-top:4px;line-height:1.5}
+.access-page-summary{display:flex;align-items:center;gap:7px}
+.access-page-summary>span{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border:1px solid #dce7f2;border-radius:8px;background:#f8fbff;color:#60738c;font-size:10px;white-space:nowrap}
+.access-page-summary svg{color:#4384be}
+.access-page-summary b{color:#1d3552;font-size:11px}
+.access-control-page .access-members-panel{padding:20px}
+.access-control-page .access-members-panel>.panel-heading{margin-bottom:14px}
+.access-control-page .access-members-panel form.access-member-search{padding:13px 14px;border:1px solid #e2eaf4;border-radius:10px;background:#f8faff}
+.access-control-page .access-members-panel form.access-member-create{padding:15px;border:1px solid #dce7f3;border-radius:10px;background:linear-gradient(120deg,#f7faff,#f2f7ff)}
+.access-control-page .access-member-form-heading h4{margin:0 0 3px;color:#233b59;font-size:12px}
+.access-control-page .access-member-form-heading p{margin:0;color:#74849a;font-size:10px}
+.access-control-page .access-member-form-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:2px}
+.access-control-page>section.panel:last-of-type{margin-top:0!important}
+html[data-theme="dark"] .access-page-title-copy h1,html[data-theme="dark"] .access-page-summary b{color:var(--erp-text)}
+html[data-theme="dark"] .access-page-summary>span{border-color:var(--erp-border);background:#1b2636;color:var(--erp-muted)}
+html[data-theme="dark"] .access-control-page .access-members-panel form.access-member-search{border-color:var(--erp-border);background:#172233}
+html[data-theme="dark"] .access-control-page .access-members-panel form.access-member-create{border-color:var(--erp-border);background:#1b2636}
+html[data-theme="dark"] .access-control-page .access-member-form-heading h4{color:var(--erp-text)}
+@media(max-width:680px){.access-control-page>.access-page-heading{grid-template-columns:36px minmax(0,1fr);align-items:start;gap:9px}.access-page-title-icon{width:36px;height:36px;border-radius:10px}.access-page-title-copy h1{font-size:19px}.access-page-summary{grid-column:2;flex-wrap:wrap}.access-control-page .access-members-panel form.access-member-search{grid-template-columns:minmax(0,1fr)}.access-control-page .access-member-form-footer{align-items:stretch;flex-direction:column}.access-control-page .access-member-form-footer .primary{align-self:flex-start;white-space:normal}}

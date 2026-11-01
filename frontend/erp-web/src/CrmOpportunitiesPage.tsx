@@ -38,6 +38,7 @@ export default function CrmOpportunitiesPage({token}:{token:string}) {
   async function create(e:FormEvent):Promise<boolean>{e.preventDefault();setBusy(true);setError('');setNotice('');try{await request('/api/crm/opportunities/',{method:'POST',body:JSON.stringify({code,name,customerId:customerId||null,estimatedValue:value?Number(value):null,currencyCode:currency,probabilityPercent:Number(probability),expectedCloseDate:closeDate||null,nextActivityAt:activity?new Date(activity).toISOString():null,notes:notes||null})});setCode('');setName('');setCustomerId('');setSelectedCustomer(null);setValue('');setCloseDate('');setActivity('');setNotes('');setNotice('Fırsat kaydedildi.');await refresh();return true}catch(e){setError((e as Error).message);return false}finally{setBusy(false)}}
   async function move(item:Opportunity,stage:string){setBusy(true);setError('');setNotice('');try{await request(`/api/crm/opportunities/${item.id}/stage`,{method:'POST',body:JSON.stringify({stage})});setSelectedOpportunity({...item,stage});setNotice(`${item.name}: ${stageLabels[stage]||stage} aşamasına taşındı.`);await refresh()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
   const pipelineTotals=items.filter(x=>x.stage!=='Won'&&x.stage!=='Lost'&&x.estimatedValue!==null).reduce<Record<string,number>>((totals,item)=>{totals[item.currencyCode]=(totals[item.currencyCode]??0)+(item.estimatedValue??0);return totals},{})
+  const pipelineTotalText=Object.entries(pipelineTotals).length ? Object.entries(pipelineTotals).map(([code,amount])=>formatMoney(amount,code,0)).join(' · ') : 'Değer girilmedi'
   const visibleFields=screenFields.filter(field=>field.visible).sort((a,b)=>a.position-b.position)
   const renderField=(item:Opportunity,field:ScreenField)=>{
     switch(field.key){
@@ -55,7 +56,14 @@ export default function CrmOpportunitiesPage({token}:{token:string}) {
   }
 
   return <div className="crm-page">
-    <CrmOpportunityHeader pipelineTotals={pipelineTotals} formatMoney={formatMoney} onCreate={()=>setCreateOpen(true)}/>
+    <CrmOpportunityHeader onCreate={()=>setCreateOpen(true)}/>
+    <section className="crm-page-summary" aria-labelledby="crm-page-summary-title">
+      <div className="crm-page-summary-heading">
+        <span aria-hidden="true"><CircleDollarSign size={18}/></span>
+        <div><h2 id="crm-page-summary-title">Sayfa özeti</h2><p>Aktif filtrelere göre görüntülenen açık fırsatların tahmini değeri.</p></div>
+      </div>
+      <div className="crm-page-summary-value"><span>Görüntülenen açık fırsat değeri</span><b>{pipelineTotalText}</b></div>
+    </section>
     {error&&<div className="alert inline-alert" role="alert">{error}<button type="button" aria-label="Hata mesajını kapat" onClick={()=>setError('')}>×</button></div>}{notice&&<div className="notice" role="status" aria-live="polite">{notice}</div>}
     {createOpen&&<CrmOpportunityCreateForm customerError={customerError} customers={customers} customerId={customerId} selectedCustomer={selectedCustomer} customerLoading={customerLoading} code={code} name={name} value={value} currency={currency} probability={probability} closeDate={closeDate} activity={activity} notes={notes} busy={busy} onClose={()=>setCreateOpen(false)} onSubmit={event=>{void create(event).then(saved=>{if(saved)setCreateOpen(false)})}} onCodeChange={setCode} onNameChange={setName} onCustomerSelect={id=>{setCustomerId(id);setSelectedCustomer(customers.find(x=>x.id===id)||null)}} onCustomerSearchChange={setCustomerQuery} onValueChange={setValue} onCurrencyChange={setCurrency} onProbabilityChange={setProbability} onCloseDateChange={setCloseDate} onActivityChange={setActivity} onNotesChange={setNotes}/>}
     <section className="crm-panel crm-opportunity-workbench" aria-busy={listLoading}>

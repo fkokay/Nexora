@@ -105,13 +105,13 @@ export default function App() {
       ...Object.keys(inventoryPageTitles).map(key=>({page:key,label:inventoryPageTitle(key as InventoryPageKey,locale),description:tx('inventory')})),
       ...salesNavigationPages.map(key=>({page:key,label:salesPageTitle(key,locale),description:tx('sales')})),
       ...purchasingNavigationPages.filter(key=>!salesNavigationPages.includes(key)).map(key=>({page:key,label:salesPageTitle(key,locale),description:tx('purchasing')})),
-      ...Object.entries(financePageTitles).map(([key,label])=>({page:key,label:locale==='en'?({ 'finance-accounts':'Cash & Bank','finance-statements':'Bank statements','finance-cash-flow':'Cash flow','finance-fx':'FX & valuation','finance-ledger':'General ledger','finance-budget':'Budget planning','finance-cash-budget':'Direct cash budget','finance-exposure':'FX exposure','finance-maturities':'Maturity tracking','finance-instruments':'Checks & promissory notes','finance-credit-facilities':'Loans & financing' } as Record<string,string>)[key]:label,description:tx('finance')})),
+      ...Object.entries(financePageTitles).map(([key,label])=>({page:key,label:locale==='en'?({ 'finance-accounts':'Cash registers','finance-banks':'Bank accounts','finance-statements':'Bank statements','finance-cash-flow':'Cash flow','finance-fx':'FX & valuation','finance-ledger':'General ledger','finance-budget':'Budget planning','finance-cash-budget':'Direct cash budget','finance-exposure':'FX exposure','finance-maturities':'Maturity tracking','finance-instruments':'Checks & promissory notes','finance-credit-facilities':'Loans & financing' } as Record<string,string>)[key]:label,description:tx('finance')})),
       ...Object.keys(manufacturingPageTitles).map(key=>({page:key,label:manufacturingPageTitle(key as ManufacturingPageKey,locale),description:tx('manufacturing')})),
-      {page:'reports',label:tx('reports'),description:tx('platformTools')},
-      {page:'audit',label:tx('audit'),description:tx('management')},
-      {page:'access',label:tx('access'),description:tx('management')},
-      {page:'settings',label:tx('settings'),description:tx('management')},
-      {page:'ai-settings',label:locale==='en'?'AI provider settings':'AI sağlayıcı ayarları',description:tx('platformTools')}
+      {page:'reports',label:tx('reports'),description:locale==='en'?'Platform Customization':'Platform Uyarlama'},
+      {page:'audit',label:tx('audit'),description:locale==='en'?'Management':'Yönetim'},
+      {page:'access',label:tx('access'),description:locale==='en'?'Management':'Yönetim'},
+      {page:'settings',label:tx('settings'),description:locale==='en'?'Management':'Yönetim'},
+      {page:'ai-settings',label:locale==='en'?'AI provider settings':'AI sağlayıcı ayarları',description:locale==='en'?'Platform Customization':'Platform Uyarlama'}
     ]
     return [...pageResults,...tenantModuleSearchItems].filter(result=>!['audit','access','settings'].includes(result.page||'')||tenant?.role==='TenantAdmin')
   },[locale,tenant?.role,tenantModuleSearchItems])
@@ -167,7 +167,7 @@ export default function App() {
     const destination = new URL(studioUrl, window.location.origin)
     destination.searchParams.set('contextPage', contextPage)
     destination.searchParams.set('platformOrigin', window.location.origin)
-    const labels: Record<string, string> = { dashboard: 'Genel Bakış', customers: 'Cari Yönetimi', 'crm-opportunities': 'CRM Fırsatları', 'human-resources': 'İnsan Kaynakları', 'fixed-assets': 'Sabit Kıymetler', 'manufacturing-recipes': 'Tanımlı Reçeteler', 'manufacturing-recipe-create': 'Reçete Oluştur', 'manufacturing-work-centers': 'İş Merkezleri', 'manufacturing-orders': 'Üretim Emirleri', 'manufacturing-mrp': 'Malzeme Planlama', 'inventory-stock': 'Stok Kartları', 'inventory-warehouses': 'Depo Yönetimi', 'sales-quotes': 'Satış Teklifleri', 'sales-orders': 'Satış Siparişleri', 'sales-invoices': 'Satış Faturaları', 'sales-deliveries': 'İrsaliyeler', 'sales-purchase-invoices': 'Alış Faturaları', 'sales-purchase-receipts': 'Mal Kabulleri', 'finance-accounts': 'Kasa ve Banka', 'finance-ledger': 'Genel Muhasebe', 'custom-forms': 'Özel Formlar', 'custom-lists': 'Dinamik Listeler', 'custom-menus': 'Özel Menüler', workflows: 'İş Akışları', 'business-rules': 'İş Kuralları', reports: 'Raporlar' }
+    const labels: Record<string, string> = { dashboard: 'Genel Bakış', customers: 'Cari Yönetimi', 'crm-opportunities': 'CRM Fırsatları', 'human-resources': 'İnsan Kaynakları', 'fixed-assets': 'Sabit Kıymetler', 'manufacturing-recipes': 'Tanımlı Reçeteler', 'manufacturing-recipe-create': 'Reçete Oluştur', 'manufacturing-work-centers': 'İş Merkezleri', 'manufacturing-work-center-create': 'İş Merkezi Tanımla', 'manufacturing-orders': 'Üretim Emirleri', 'manufacturing-mrp': 'Malzeme Planlama', 'inventory-stock': 'Stok Kartları', 'inventory-stock-create': 'Yeni stok kartı', 'inventory-warehouses': 'Depo Yönetimi', 'sales-quotes': 'Satış Teklifleri', 'sales-orders': 'Satış Siparişleri', 'sales-invoices': 'Satış Faturaları', 'sales-deliveries': 'İrsaliyeler', 'sales-purchase-invoices': 'Alış Faturaları', 'sales-purchase-receipts': 'Mal Kabulleri', 'finance-accounts': 'Kasalar', 'finance-banks': 'Bankalar', 'finance-ledger': 'Genel Muhasebe', 'custom-forms': 'Özel Formlar', 'custom-lists': 'Dinamik Listeler', 'custom-menus': 'Özel Menüler', workflows: 'İş Akışları', 'business-rules': 'İş Kuralları', reports: 'Raporlar' }
     destination.searchParams.set('contextLabel', (selectedModuleMenu?.entry.label || labels[contextPage] || contextPage).slice(0, 100))
     if (section) destination.hash = section
     window.open(destination.toString(), '_blank', 'noopener,noreferrer')

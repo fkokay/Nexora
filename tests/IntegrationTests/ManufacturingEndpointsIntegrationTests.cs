@@ -70,6 +70,42 @@ public sealed class ManufacturingEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Work_center_search_is_tenant_scoped_bounded_and_omits_costs_and_internal_ids()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/manufacturing/work-centers/search?q=WC-LOOKUP")).StatusCode);
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+
+        for (var index = 1; index <= 12; index++)
+        {
+            var created = await client.PostAsJsonAsync("/api/manufacturing/work-centers/", new
+            {
+                code = $"WC-LOOKUP-{index:000}", name = $"Lookup center {index}", capacityMinutesPerDay = 420,
+                laborCostPerHourBase = 1250.50m, overheadCostPerHourBase = 300.25m
+            });
+            Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        }
+
+        using (var search = JsonDocument.Parse(await (await client.GetAsync("/api/manufacturing/work-centers/search?q=wc-lookup")).Content.ReadAsStringAsync()))
+        {
+            Assert.Equal(12, search.RootElement.GetProperty("totalCount").GetInt32());
+            Assert.Equal(10, search.RootElement.GetProperty("items").GetArrayLength());
+            var first = search.RootElement.GetProperty("items")[0];
+            Assert.Equal("WC-LOOKUP-001", first.GetProperty("code").GetString());
+            Assert.False(first.TryGetProperty("id", out _));
+            Assert.False(first.TryGetProperty("laborCostPerHourBase", out _));
+            Assert.False(first.TryGetProperty("overheadCostPerHourBase", out _));
+        }
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var otherTenant = JsonDocument.Parse(await (await client.GetAsync("/api/manufacturing/work-centers/search?q=WC-LOOKUP")).Content.ReadAsStringAsync());
+        Assert.Equal(0, otherTenant.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/manufacturing/work-centers/search?q=x")).StatusCode);
+    }
+
+    [Fact]
     public async Task Manufacturing_recipe_and_order_are_tenant_scoped_and_complete_atomically_with_costing()
     {
         await using var app = await StartAsync();

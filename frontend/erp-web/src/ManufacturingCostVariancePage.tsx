@@ -13,13 +13,8 @@ const today = () => {
   const date = new Date()
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
-const monthAgo = () => {
-  const date = new Date()
-  date.setDate(date.getDate() - 30)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
 export default function ManufacturingCostVariancePage({ token }: { token: string }) {
-  const [from, setFrom] = useState(monthAgo)
+  const [from, setFrom] = useState(today)
   const [to, setTo] = useState(today)
   const [page, setPage] = useState(1)
   const [report, setReport] = useState<CostReport | null>(null)

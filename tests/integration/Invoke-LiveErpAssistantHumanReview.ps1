@@ -5,6 +5,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'LiveAssistantReviewDecision.psm1') -Force
 $provider = [Environment]::GetEnvironmentVariable('AIERP_LIVE_EVAL_PROVIDER')
 $apiKey = [Environment]::GetEnvironmentVariable('AIERP_LIVE_EVAL_OPENAI_API_KEY')
 $model = [Environment]::GetEnvironmentVariable('AIERP_LIVE_EVAL_OPENAI_MODEL')
@@ -189,10 +190,8 @@ try {
         $adjudication = [ordered]@{ adjudicator = $adjudicatorId; reviewerNature = 'human-self-attested'; disagreements = @($adjudicatedItems); humanApproved = $adjudicationApproved }
     }
 
-    $allCriticalPassed = @($finalScores | Where-Object { -not $_.criticalChecksPassed }).Count -eq 0
-    $allApplicablePassed = @($finalScores | Where-Object { @($_.scores.Values | Where-Object { $_ -lt 2 }).Count -gt 0 }).Count -eq 0
     $reviewersApproved = $reviewer1.humanApproved -and $reviewer2.humanApproved
-    $accepted = $allCriticalPassed -and $allApplicablePassed -and $reviewersApproved -and $adjudicationApproved
+    $decision = Get-LiveAssistantReviewDecision -Rubric @($set.rubric) -FinalScores @($finalScores) -ReviewersApproved $reviewersApproved -AdjudicationApproved $adjudicationApproved
     $report = [ordered]@{
         schemaVersion = '1.1.0'
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
@@ -201,13 +200,13 @@ try {
         reviewers = @($reviewer1, $reviewer2)
         finalScores = @($finalScores)
         adjudication = $adjudication
-        decision = [ordered]@{ allCriticalChecksPassed = $allCriticalPassed; allApplicableRubricScoresPassed = $allApplicablePassed; reviewersApproved = $reviewersApproved; adjudicationApproved = $adjudicationApproved; accepted = $accepted }
+        decision = $decision
     }
     $reportFullPath = [System.IO.Path]::GetFullPath($ReportPath)
     [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($reportFullPath)) | Out-Null
     [System.IO.File]::WriteAllText($reportFullPath, ($report | ConvertTo-Json -Depth 10) + [Environment]::NewLine, [System.Text.UTF8Encoding]::new($false))
     Write-Output "Human review report written to $reportFullPath"
-    Write-Output "Accepted: $accepted (two independent reviews; disagreements require a third adjudicator; final critical checks and applicable rubric scores must pass, with explicit approvals)."
+    Write-Output "Accepted: $($decision.accepted) (two independent reviews; disagreements require a third adjudicator; final critical checks and applicable rubric scores must pass, with explicit approvals)."
 } finally {
     if ($response) { $response.Dispose() }
     $request.Dispose()

@@ -6,6 +6,7 @@ export type SecuritySummary = { items:Security[]; expiringCount:number; expiredC
 export type Exposure = { id:string; code:string; lenderName:string; facilityType:string; currencyCode:string; approvedLimit:number; status:string; outstandingPrincipal:number; activeGuarantees:number; activeCollateral:number; calledAmount:number; limitUtilizationPercent:number }
 export type ExposureSummary = { currencies:{currencyCode:string;facilityCount:number;outstandingPrincipal:number;approvedLimit:number;activeGuarantees:number;activeCollateral:number;calledAmount:number}[]; facilities:Exposure[] }
 export type InterestPreview = { from:string; to:string; currencyCode:string; dayCountConvention:string; months:{month:string;accruedInterest:number}[]; totalAccruedInterest:number; accountingPosted:boolean; note:string }
+export type EffectiveInterestPreview = { facilityCode:string; currencyCode:string; effectiveAnnualRatePercent:number; initialTransactionCosts:number; dayCountConvention:string; rows:{date:string; openingAmortizedCost:number; effectiveInterestExpense:number; cashPayment:number; closingAmortizedCost:number}[]; note:string }
 export type InterestPosting = { id:string; period:string; accruedInterest:number; currencyCode?:string; replayed?:boolean; posted?:boolean; reason?:string }
 export type Account = { id:string; code:string; name:string; type:number; currencyCode:string; isActive:boolean; balance:number }
 export type ScreenField = { key:string; label:string; visible:boolean; position:number; fixed?:boolean; section?:string|null }

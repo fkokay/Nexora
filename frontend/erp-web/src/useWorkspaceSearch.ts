@@ -17,7 +17,7 @@ type Props = {
 }
 
 export function useWorkspaceSearch({ pages, quickLinks, locale, token, tenant, page, setPage, onSelectModule }: Props) {
-  const [activeIndex, setActiveIndex] = useState(0)
+  const [activeIndex, setActiveIndex] = useState(-1)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [customers, setCustomers] = useState<CustomerItem[]>([])
@@ -40,13 +40,13 @@ export function useWorkspaceSearch({ pages, quickLinks, locale, token, tenant, p
   const clearQuery = useCallback(() => {
     setQuery('')
     setCustomers([])
-    setActiveIndex(0)
+    setActiveIndex(-1)
   }, [])
 
   const changeQuery = useCallback((nextQuery: string) => {
     setQuery(nextQuery)
     setCustomers([])
-    setActiveIndex(0)
+    setActiveIndex(-1)
   }, [])
 
   const openSearch = useCallback(() => {
@@ -60,8 +60,12 @@ export function useWorkspaceSearch({ pages, quickLinks, locale, token, tenant, p
     else openSearch()
   }, [open, openSearch])
 
-  const moveActiveIndex = useCallback((delta: number) => {
-    setActiveIndex(current => Math.max(0, Math.min(results.length - 1, current + delta)))
+  const moveActiveIndex = useCallback((delta: number, itemCount = results.length) => {
+    setActiveIndex(current => {
+      if (itemCount <= 0) return -1
+      if (current < 0 && delta < 0) return itemCount - 1
+      return Math.max(0, Math.min(itemCount - 1, current + delta))
+    })
   }, [results.length])
 
   const openResult = useCallback((result: GlobalSearchResult) => {
@@ -74,7 +78,7 @@ export function useWorkspaceSearch({ pages, quickLinks, locale, token, tenant, p
     } else if (result.page) {
       setPage(result.page)
     }
-    setActiveIndex(0)
+    setActiveIndex(-1)
     setOpen(false)
   }, [onSelectModule, setPage])
 

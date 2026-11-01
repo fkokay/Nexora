@@ -1495,6 +1495,24 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 });
                 break;
             }
+            case "search_manufacturing_work_centers":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantWorkCenterTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Work-center search requires a 2–100 character term.");
+
+                if (!await ERPAssistantWorkCenterTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/manufacturing/work-centers/search", new Dictionary<string, string?>
+                {
+                    ["q"] = term
+                });
+                break;
+            }
             case "search_sales_deliveries":
             {
                 var props = arguments.RootElement.EnumerateObject().ToArray();
@@ -2091,6 +2109,7 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         if (name == "search_purchase_invoices") return ERPAssistantInvoiceTools.SummarizePurchaseInvoices(result.RootElement);
         if (name == "search_purchase_invoice_details") return ERPAssistantInvoiceTools.SummarizePurchaseInvoiceDetails(result.RootElement);
         if (name == "search_manufacturing_orders") return ERPAssistantManufacturingTools.SummarizeOrders(result.RootElement);
+        if (name == "search_manufacturing_work_centers") return ERPAssistantWorkCenterTools.SummarizeSearchResult(result.RootElement);
         if (name == "search_sales_deliveries") return ERPAssistantSalesDeliveryTools.SummarizeDeliveries(result.RootElement);
         if (name == "get_sales_delivery_details") return ERPAssistantSalesDeliveryTools.SummarizeDeliveryDetails(result.RootElement);
         if (name == "search_purchase_receipts") return ERPAssistantPurchaseReceiptTools.SummarizeReceipts(result.RootElement);

@@ -1,6 +1,6 @@
 # Depolama kotası: geçiş, aşım ve uyarı kararları
 
-**Durum:** Ürün politikası onaylandı ve uygulandı: kota firma başına SQL `ROWS` data page kullanımıdır; okumalar devam eder, kota sınırında/aşımında tahsisi artıracak mutasyonlar reddedilir. Tahsisi artırmayan mutasyonlar kabul edilebilir; silmelerin de her durumda çalışacağı garanti edilmez. Bu not mevcut uygulamayı ve kalan geçiş/ürün kararlarını kaydeder. Small/Medium ticari limitleri, uyarı eşikleri ve migration büyüme raporlaması hâlâ karara bağlanmalıdır. Runtime staging SQL kabulü **NOT RUN**.
+**Durum:** Ürün sahibi lisans kotası ve uyarı politikasını belirledi; katalog ve ekranla uyumlu değerler Küçük 10 GB, Orta 50 GB, Büyük 250 GB, uygulama içi uyarı eşikleri %80 ve %95'tir. Kota firma başına SQL `ROWS` data page kullanımıdır; okumalar devam eder, kota sınırında/aşımında tahsisi artıracak mutasyonlar reddedilir. Tahsisi artırmayan mutasyonlar kabul edilebilir; silmelerin de her durumda çalışacağı garanti edilmez. Bu not mevcut uygulamayı ve kalan geçiş/ürün kararlarını kaydeder. Migration büyüme raporlaması ve runtime staging SQL kabulü hâlâ açıktır; runtime staging SQL kabulü **NOT RUN**.
 
 ## Bugünkü uygulama
 
@@ -16,7 +16,7 @@
 | Mevcut tenant etkinleştirme anında sınırın üstünde | (1) Eski kullanımı koruyup büyümeyi anında durdur; (2) ücretsiz/grace dönemi; (3) lisans etkinleştirmeyi kullanım düşene kadar engelle. | Onaylı davranış: eski veri korunur; okuma sürer, page tahsisini artırmayan mutasyonlar kabul edilir ve artıranlar reddedilir. Grace dönemi, onaylı lisans davranışını değiştireceği için ayrı ürün kararı gerektirir. Lisans yükseltme, kota kısıtını kaldıran çözüm olarak gösterilsin. |
 | Migration sırasında data page artışı ve raporlama | (1) Migration'ı kota üstünde de bitir ve tenant'ı hizmete al; (2) kota kontrolü nedeniyle migration'ı durdur; (3) önceden kapasite/tenant uygunluğu kontrolü yapıp migration'ı operasyonel olarak onayla. | Migration büyüme raporu, tenant bazlı ön/son ölçüm ve kota üstü migration davranışı açık ürün/operasyon kararıdır. Kayda alınana kadar migration'ın kota üstüne çıkarabileceği varsayılmalı; bunu runtime kota politikasının staging kabulü veya onayı gibi sunma. Migration şema değişikliğini başaramadıysa tenant `Ready` olmamalı. |
 | Firma yöneticisinin düzeltmesi | (1) TenantAdmin'e genel bypass; (2) kota altında çalışacak silme/temizlik ve ardından düzeltme; (3) sınırlı, izli remediation izni; (4) kota yükselttikten sonra düzeltme. | Genel bypass ekleme. Salt silme, büyüme dışı kalan düzeltme işlemleri ancak gerçekten SQL tahsisini artırmadığı ölçülüp doğrulanırsa yapılabilir. Düzeltme için yazma gerekiyorsa kota yükseltme veya ayrı, süreli ve audit'li remediation tasarımı gerekir. Mevcut uygulamada genel bir remediation istisnası yoktur. |
-| Kota uyarıları | (1) Yalnız dolu/aşılmış durumda ekran uyarısı; (2) ön eşikte in-app uyarılar; (3) e-posta/harici bildirim. | İlk aşamada lisans ekranında ölçüm, sınır, “dolu/aşılmış” durumu ve okumalar ile page tahsisini artıran/artırmayan mutasyon ayrımını göster. 80%/95% gibi ön eşikleri ve bildirim kanallarını ürün sahibi onayladıktan sonra ekle; polling/e-posta altyapısı varsayma. 409 ve 503 istemci mesajları kod bazında farklı ve kurtarma adımı içermeli. |
+| Kota uyarıları | (1) Yalnız dolu/aşılmış durumda ekran uyarısı; (2) ön eşikte in-app uyarılar; (3) e-posta/harici bildirim. | Onaylı başlangıç davranışı, lisans ekranında %80 ve %95 eşiklerinde uygulama içi uyarı göstermektir. E-posta/harici bildirim ve tüm yazıcılara özel bildirim kapsamı kararlaştırılmadı; polling/e-posta altyapısı varsayma. 409 ve 503 istemci mesajları kod bazında farklı ve kurtarma adımı içermeli. |
 
 ## Kabul ölçütleri
 
@@ -33,14 +33,14 @@ Bu maddeler staging kabulü için hedef ölçütlerdir; uygulama kanıtı olarak
 
 ## Açık ürün ve operasyon kararları
 
-- Small 10 GB, Medium 100 GB ve Large için sınırsız profilin sözleşme/satış taahhüdü olup olmadığı; Large `int.MaxValue` profili teknik olarak sınırsız sayılmamalıdır.
-- Ön eşik uyarı yüzdeleri, uyarının tenant yöneticisine mi tüm yazıcılara mı gösterileceği ve e-posta/harici kanal ihtiyacı.
+- Paket kota profilleri ve ekran uyarı eşikleri karara bağlanmıştır: Small 10 GB, Medium 50 GB, Large 250 GB; %80 ve %95'te uygulama içi uyarı. Eski Medium 100 GB ve Large `int.MaxValue` imzalı grant metadata'sı katalog geriye uyumluluğu için kabul edilir; kota uygulamasında güncel profil kullanılır.
+- E-posta/harici kanal ve uyarının TenantAdmin dışındaki kullanıcılara gösterilmesi henüz ürün kararı değildir.
 - Migration sırasında/bittikten sonra data page büyümesinin nasıl ölçülüp raporlanacağı, kota üstü migration'ın nasıl ele alınacağı ve sürüm öncesi tenant-bazlı rapor/eskalasyon sahibi.
 - Düzeltme için upgrade dışında süreli remediation gerekip gerekmediği. Onaylanana kadar genel bypass tasarlanmaz.
 
 ## Güvenli uygulama sırası
 
-1. Ürün sahibi Small/Medium paket limitlerini ve açık migration ölçüm/raporlama kararlarını yazılı olarak belirler. Aşımda okumaların sürmesi ve yalnızca page tahsisini artırmayan mutasyonların kabul edilmesi onaylanmıştır ve tekrar ratifikasyon beklemez.
+1. Paket limitleri ve uygulama içi ön eşikler zaten karara bağlanmış ve katalog/arayüzde uygulanmıştır: 10/50/250 GB, %80/%95. Açık migration ölçüm/raporlama kararlarını ayrıca belirle. Aşımda okumaların sürmesi ve yalnızca page tahsisini artırmayan mutasyonların kabul edilmesi onaylanmıştır ve tekrar ratifikasyon beklemez.
 2. Sürüm öncesi salt okunur preflight ile tenant bazında güncel kullanım, aktif profil, sınıra kalan/taşan miktar ve hedef migration sonrası beklenen büyüme raporlanır. Eşik üstü tenantlar için müşteri/operasyon iletişimi hazırlanır.
 3. Migration normal backup, hedef ortam provası ve migration-release kapılarıyla yürütülür. Her tenant için önce `Copying`, sonra doğrulama ve `Ready` sırası korunur.
 4. Yayın sonrası lisans ekranı ve kota hata kodlarıyla kullanım izlenir; kota üstü tenantlar için lisans yükseltme veya veri temizleme desteği sağlanır. Sayaç sayfa tahsisi olduğundan silme sonrası anında düşüş garantisi verilmez.

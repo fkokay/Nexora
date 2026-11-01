@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react'
+import { CalendarClock } from 'lucide-react'
 import type { AuditRetentionPolicy } from '../types'
 
 type Props = {
@@ -16,8 +17,8 @@ type Props = {
 export function AuditRetentionSettings({ retention, retentionDays, busy, error, notice, onDaysChange, onClearError, onClearNotice, onSubmit }: Props) {
   const minimumDays = retention?.minimumRetentionDays ?? 30
   const maximumDays = retention?.maximumRetentionDays ?? 3650
-  return <section className="panel" style={{ marginBottom: 18 }}>
-    <div className="panel-heading"><div><h3>Audit kayıtlarının saklanması</h3><p>Süre tenant bazındadır. Süresi dolan kayıtlar her gün 02.00 UTC’de denetlenebilir temizlik işiyle silinir.</p></div></div>
+  return <section className="panel audit-retention-panel">
+    <div className="panel-heading"><span className="audit-retention-icon" aria-hidden="true"><CalendarClock size={17}/></span><div><h3>Audit kayıtlarının saklanması</h3><p>Süre tenant bazındadır. Süresi dolan kayıtlar her gün 02.00 UTC’de denetlenebilir temizlik işiyle silinir.</p></div></div>
     {error && <div className="alert inline-alert">{error}<button type="button" onClick={onClearError}>×</button></div>}
     {notice && <div className="notice">{notice}<button type="button" onClick={onClearNotice}>×</button></div>}
     <form className="audit-retention-form" onSubmit={onSubmit}>
