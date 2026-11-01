@@ -86,7 +86,7 @@ type Props = {
   onInitialInvoiceOpened: () => void
   pendingPurchaseSupplier: {id:string;name:string} | null
   onInitialSupplierOpened: () => void
-  onNavigate: (page:string) => void
+  onNavigate: (page:string,label?:string) => void
   onLocaleChange: (locale:Locale) => void
   onThemeChange: (theme:AppTypes.Theme) => void
   requestApi: ApiRequest
@@ -136,6 +136,7 @@ export function WorkspacePageRouter({page,token,tenant,locale,dashboard,platform
   if(page==='sales-requests')return <SalesRequestsPage {...salesPageProps}/>
   if(page==='sales-purchase-quotes')return <PurchaseSupplierQuotesScreenPage {...salesPageProps}/>
   if(page==='sales-orders')return <SalesOrdersPage {...salesPageProps}/>
+  if(page==='sales-invoice-create')return <SalesInvoicesPage {...salesPageProps} openInvoiceCreate/>
   if(page==='sales-invoices')return <SalesInvoicesPage {...salesPageProps}/>
   if(page==='sales-deliveries')return <SalesDeliveriesScreenPage {...salesPageProps}/>
   if(page==='sales-purchasing')return <SupplierOrdersPage {...salesPageProps}/>
@@ -151,10 +152,16 @@ export function WorkspacePageRouter({page,token,tenant,locale,dashboard,platform
   if(page==='finance-statements')return <BankStatementsPage token={token} role={tenant.role}/>
   if(page==='finance-cash-flow')return <CashFlowPage token={token} role={tenant.role}/>
   if(page==='finance-fx')return <FxSettingsPage token={token} role={tenant.role}/>
-  if(page==='finance-ledger')return <LedgerOverviewPage token={token} role={tenant.role}/>
+  if(page==='finance-ledger')return <LedgerOverviewPage token={token} role={tenant.role} onNavigate={onNavigate}/>
+  if(page==='finance-ledger-chart'||page==='finance-journal-vouchers'||page==='finance-trial-balance'||page==='finance-balance-sheet'||page==='finance-journal-ledger')return <LedgerOverviewPage token={token} role={tenant.role} section={page as AppTypes.FinancePageKey} onNavigate={onNavigate}/>
   if(page==='finance-exposure')return <FxExposurePage token={token} role={tenant.role}/>
   if(page==='finance-maturities')return <MaturityTrackingPage token={token} role={tenant.role}/>
-  if(page==='finance-credit-facilities')return <CreditFacilitiesPage token={token} role={tenant.role}/>
+  if(page==='finance-credit-facilities')return <CreditFacilitiesPage token={token} role={tenant.role} onNavigate={onNavigate}/>
+  if(page==='finance-credit-facility-create')return <CreditFacilitiesPage token={token} role={tenant.role} view="facility-create" onNavigate={onNavigate}/>
+  if(page==='finance-credit-schedule-create')return <CreditFacilitiesPage token={token} role={tenant.role} view="schedule-create" onNavigate={onNavigate}/>
+  if(page==='finance-credit-movement-create')return <CreditFacilitiesPage token={token} role={tenant.role} view="movement-create" onNavigate={onNavigate}/>
+  if(page==='finance-credit-repayment-create')return <CreditFacilitiesPage token={token} role={tenant.role} view="repayment-create" onNavigate={onNavigate}/>
+  if(page==='finance-credit-security-create')return <CreditFacilitiesPage token={token} role={tenant.role} view="security-create" onNavigate={onNavigate}/>
   if(page==='location-definitions'&&tenant.role==='TenantAdmin')return <OperationalDefinitionsPage token={token} locale={locale} onNavigate={onNavigate}/>
   if(page==='address-definitions'&&tenant.role==='TenantAdmin')return <CustomerLocationDefinitionsPage token={token}/>
   if(page==='audit')return <AuditLogPage token={token}/>

@@ -4,16 +4,18 @@ type Props = {
   notice: string
   isAdmin: boolean
   onCreateFacility: () => void
+  onCreateSchedule?: () => void
+  onCreateMovement?: () => void
   onRefresh: () => void
   onDismissNotice: () => void
 }
 
-export function CreditFacilitiesPageStatus({ loading, error, notice, isAdmin, onCreateFacility, onRefresh, onDismissNotice }: Props) {
+export function CreditFacilitiesPageStatus({ loading, error, notice, isAdmin, onCreateFacility, onCreateSchedule, onCreateMovement, onRefresh, onDismissNotice }: Props) {
   return <>
     <div className="credit-page-actions">
       <span>{loading ? 'Kayıtlar yükleniyor' : 'Kredi ve ödeme planı kayıtları'}</span>
       <div className="credit-page-action-buttons">
-        {isAdmin && <button type="button" className="primary small-button" onClick={onCreateFacility}>Yeni kredi / limit</button>}
+        {isAdmin && <><button type="button" className="secondary small-button" onClick={onCreateSchedule}>Taksit planla</button><button type="button" className="secondary small-button" onClick={onCreateMovement}>Hareket kaydet</button><button type="button" className="primary small-button" onClick={onCreateFacility}>Yeni kredi / limit</button></>}
         <button className="secondary small-button" onClick={onRefresh} disabled={loading} aria-label="Kredi kayıtlarını yenile">{loading ? 'Yükleniyor…' : 'Yenile'}</button>
       </div>
     </div>

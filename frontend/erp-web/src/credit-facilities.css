@@ -399,3 +399,21 @@ html[data-theme="dark"] .credit-facilities-page .credit-overview-card .credit-ov
 html[data-theme="dark"] .credit-facilities-page .credit-balance-grid .credit-balance-emphasis {
   background: color-mix(in srgb, var(--credit-surface) 80%, #0876d1);
 }
+
+/* Credit operations use dedicated workspace pages instead of stacked forms. */
+.credit-facilities-page.credit-operation-screen { max-width: 1120px; margin-inline: auto; }
+.credit-operation-page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px; border: 1px solid var(--credit-border); border-left: 3px solid var(--credit-accent); border-radius: 10px; background: var(--credit-surface); }
+.credit-operation-page-heading .eyebrow { margin: 14px 0 4px; color: var(--credit-accent); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
+.credit-operation-page-heading h1 { margin: 0 0 5px; color: var(--credit-text); font-size: clamp(20px, 2.2vw, 26px); }
+.credit-operation-page-heading .muted { margin: 0; color: var(--credit-muted); font-size: 12px; }
+.credit-operation-page { width: 100%; box-sizing: border-box; padding: 20px; }
+.credit-operation-page .panel-heading { padding-bottom: 14px; border-bottom: 1px solid var(--credit-border); }
+.credit-operation-page .collection-form { max-width: 860px; margin-top: 16px; }
+.credit-operation-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.credit-facilities-page .credit-page-action-buttons { align-items: center; }
+@media(max-width:640px) {
+  .credit-operation-page-heading { padding: 14px; }
+  .credit-operation-page { padding: 14px; }
+  .credit-operation-actions { justify-content: stretch; width: 100%; }
+  .credit-operation-actions > button { flex: 1 1 auto; }
+}

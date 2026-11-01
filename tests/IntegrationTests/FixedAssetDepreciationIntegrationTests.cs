@@ -161,10 +161,17 @@ public sealed class FixedAssetDepreciationIntegrationTests
         Assert.Equal(3, depreciationJournals.Count);
         Assert.Equal(1000m, depreciationJournals.Sum(x => x.Lines.Sum(line => line.Debit)));
         Assert.Equal(1000m, depreciationJournals.Sum(x => x.Lines.Sum(line => line.Credit)));
-        var taxJournal = await verifyDb.JournalEntries.Include(x => x.Lines).SingleAsync(x => x.TenantId == tenantId && x.SourceType == $"FixedAssetTaxDepreciation:{asset.Id:N}");
+        var taxJournal = await verifyDb.JournalEntries.Include(x => x.Lines).SingleAsync(x => x.TenantId == tenantId &&
+            x.SourceType == "FixedAssetTaxDepreciation" && x.SourceId == TaxDepreciationSourceId(asset.Id, taxMonth));
         Assert.Equal(16.67m, taxJournal.Lines.Sum(line => line.Debit));
         Assert.Equal(taxExpenseId, taxJournal.Lines.Single(line => line.Debit > 0).AccountId);
         Assert.Equal(taxAccumulatedId, taxJournal.Lines.Single(line => line.Credit > 0).AccountId);
         Assert.Equal(1000m, (await verifyDb.FixedAssets.SingleAsync(x => x.TenantId == tenantId && x.Id == asset.Id)).AccumulatedDepreciationBase);
+    }
+
+    private static Guid TaxDepreciationSourceId(Guid assetId, DateOnly month)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{assetId:N}:{month:yyyy-MM}"));
+        return new Guid(hash.AsSpan(0, 16));
     }
 }

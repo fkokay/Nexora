@@ -1,5 +1,6 @@
 import { Boxes, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
+import AdvancedDataGrid from '../../AdvancedDataGrid'
 import type { ManufacturingBom, ManufacturingPageKey } from '../types'
 
 type Props = {
@@ -43,7 +44,6 @@ export default function ManufacturingRecipeList({
         <p>{loading ? 'Reçeteler yükleniyor…' : <><b>{filteredBoms.length.toLocaleString('tr-TR')}</b> kayıt <span>·</span> <b>{boms.filter(x => x.isActive).length.toLocaleString('tr-TR')}</b> aktif <span className="manufacturing-recipe-hint">Kullanılmış reçeteler geçmiş emirler için korunur.</span></>}</p>
         <label className="manufacturing-recipe-search">
           <Search size={16} aria-hidden="true" />
-          <span className="sr-only">Reçetelerde ara</span>
           <input value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} placeholder="Kod, reçete veya mamul ara" aria-label="Reçetelerde ara" />
         </label>
       </div>
@@ -52,7 +52,7 @@ export default function ManufacturingRecipeList({
           : filteredBoms.length === 0 ? <div className="manufacturing-empty">Aramanızla eşleşen reçete bulunamadı.</div>
             : <>
               <div className="manufacturing-table-wrap manufacturing-recipe-table-wrap">
-                <table aria-label="Ürün reçeteleri">
+                <AdvancedDataGrid className="customer-table manufacturing-recipe-grid" gridId="manufacturing-recipes" externalPagination hideSearch enableRowSelection={false} aria-label="Ürün reçeteleri">
                   <thead><tr><th>Reçete</th><th>Mamul</th><th>Çıktı</th><th>İçerik</th><th>Durum / kullanım</th><th>İşlemler</th></tr></thead>
                   <tbody>{pagedBoms.map(bom => <tr key={bom.id}>
                     <td><b>{bom.code}</b><small>{bom.name}</small></td>
@@ -66,7 +66,7 @@ export default function ManufacturingRecipeList({
                       <button type="button" className="secondary small-button manufacturing-recipe-delete" disabled={busy || bom.orderCount > 0} title={bom.orderCount > 0 ? 'Üretim emri referansı olan reçeteler silinemez.' : ''} aria-label={`${bom.code} reçetesini sil`} onClick={() => onDelete(bom)}><Trash2 size={13} /> Sil</button>
                     </div></td>
                   </tr>)}</tbody>
-                </table>
+                </AdvancedDataGrid>
               </div>
               <div className="manufacturing-recipe-pagination">
                 <span>{filteredBoms.length.toLocaleString('tr-TR')} reçete · Sayfa {page}/{pageCount}</span>

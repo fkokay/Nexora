@@ -90,6 +90,29 @@ html[data-theme="dark"] .manufacturing-page .manufacturing-table-wrap tbody tr:h
 .manufacturing-workbench-header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px}
 .manufacturing-header-actions{display:flex;align-items:center;gap:10px}
 .manufacturing-record-scope{padding:7px 9px;border:1px solid var(--erp-border,#dfe4ed);border-radius:6px;background:var(--erp-surface-soft,#f6f7fa);color:var(--erp-text-muted,#647087);font-size:10px;font-weight:650;white-space:nowrap}
+
+/* Clear, aligned entry rows for BOM components and routing operations. */
+.manufacturing-page .manufacturing-lines-title{gap:12px;min-height:36px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--erp-border,#e2e8f0)}
+.manufacturing-page .manufacturing-lines-title>div{display:grid;gap:3px;min-width:0}
+.manufacturing-page .manufacturing-lines-title>b,.manufacturing-page .manufacturing-lines-title>div>b{color:var(--erp-text,#24334b);font-size:12px;font-weight:750}
+.manufacturing-page .manufacturing-lines-title small{margin:0;color:var(--erp-text-muted,#718096);font-size:10px;font-weight:400}
+.manufacturing-page .manufacturing-component-section .manufacturing-line-labels,
+.manufacturing-page .manufacturing-component-section .manufacturing-line{display:grid;grid-template-columns:minmax(180px,1fr) 100px 90px 112px 30px;gap:8px;align-items:center;min-width:580px;box-sizing:border-box}
+.manufacturing-page .manufacturing-line-labels{margin:0 0 6px;padding:0 8px;color:var(--erp-text-muted,#718096);font-size:10px;font-weight:700}
+.manufacturing-page .manufacturing-line{margin:0 0 7px;padding:7px 8px;border:1px solid var(--erp-border,#e2e8f0);border-radius:7px;background:var(--erp-surface,#fff)}
+.manufacturing-page .manufacturing-line .searchable-record-trigger{width:100%;min-width:0;min-height:36px;justify-content:space-between;overflow:hidden;text-align:left;text-overflow:ellipsis;white-space:nowrap}
+.manufacturing-page .manufacturing-line input{width:100%;min-width:0}
+.manufacturing-page .manufacturing-line .manufacturing-remove{width:30px;height:34px;padding:0;font-size:17px}
+.manufacturing-page .manufacturing-component-section>small,.manufacturing-page .manufacturing-operation-section>small{margin:8px 0 0;color:var(--erp-text-muted,#718096);font-size:10px;line-height:1.5}
+.manufacturing-page .manufacturing-operation-section .manufacturing-operation-labels,
+.manufacturing-page .manufacturing-operation-section .manufacturing-operation{box-sizing:border-box;padding-inline:8px}
+.manufacturing-page .manufacturing-operation-section .manufacturing-operation{margin:0 0 7px;padding-block:8px;border:1px solid var(--erp-border,#e2e8f0);border-radius:7px;background:var(--erp-surface,#fff)}
+.manufacturing-page .manufacturing-operation-section .manufacturing-operation>span{display:grid;width:24px;height:24px;place-items:center;border-radius:7px;background:var(--erp-surface-soft,#f1f5f9);color:var(--erp-text,#334155);font-weight:750}
+html[data-theme="dark"] .manufacturing-page .manufacturing-line,
+html[data-theme="dark"] .manufacturing-page .manufacturing-operation-section .manufacturing-operation{background:var(--erp-surface,#171a22);border-color:var(--erp-border,#303542)}
+html[data-theme="dark"] .manufacturing-page .manufacturing-lines-title{border-color:var(--erp-border,#303542)}
+html[data-theme="dark"] .manufacturing-page .manufacturing-line-labels{color:var(--erp-text-muted,#a7afbf)}
+@media(max-width:700px){.manufacturing-page .manufacturing-lines-title{align-items:flex-start}.manufacturing-page .manufacturing-lines-title>button{flex:none}.manufacturing-page .manufacturing-line-labels{font-size:9px}}
 .manufacturing-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 .manufacturing-kpis article{display:grid;grid-template-columns:1fr auto;align-items:center;gap:3px 8px;min-width:0;padding:11px 13px;background:var(--erp-surface,#fff);border:1px solid var(--erp-border,#dfe4ed);border-radius:8px}
 .manufacturing-kpis article>span{color:var(--erp-text-muted,#647087);font-size:10px;font-weight:650}

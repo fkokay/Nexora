@@ -43,3 +43,31 @@
 .pie-table-wrap tbody tr[aria-selected="true"] { background: #eaf3fb; box-shadow: inset 3px 0 #0f6cbd; }
 .pie-record-detail { border-top: 2px solid #0f6cbd; }
 .pie-modal input:focus-visible { outline: 2px solid #0f6cbd; border-color: #0f6cbd; }
+
+/* The receipt directory stays full width; details become a focused dialog on compact screens. */
+.pie-record-detail { position: sticky; }
+.pie-detail-close,.pie-detail-backdrop { display: none; }
+@media(max-width:1180px) {
+  .pie-workbench { grid-template-columns: minmax(0,1fr); }
+  .pie-record-detail { display: none; }
+  .pie-record-detail.is-open {
+    position: fixed;
+    z-index: 1001;
+    top: 50%;
+    left: 50%;
+    display: block;
+    width: min(480px,calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    padding: 22px;
+    transform: translate(-50%,-50%);
+    box-shadow: 0 24px 80px #102a4338;
+  }
+  .pie-detail-backdrop { position: fixed; inset: 0; z-index: 1000; display: block; background: #0a192f70; backdrop-filter: blur(2px); }
+  .pie-detail-close { position: absolute; top: 12px; right: 12px; display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--border,#dce5ef); border-radius: 8px; background: var(--surface,#fff); color: var(--text,#24334b); cursor: pointer; }
+  .pie-record-detail.is-open>small { display: block; padding-right: 42px; }
+}
+@media(max-width:600px) {
+  .pie-record-detail.is-open { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 18px; }
+}

@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
+import AdvancedDataGrid from '../../AdvancedDataGrid'
 import ScreenViewGroupHeader from '../../ScreenViewGroupHeader'
 import type { BuiltInScreenLayoutField } from '../../erp-types'
 
 type SalesDocumentGridProps<T extends { id: string }> = {
+  gridId: string
   fields: BuiltInScreenLayoutField[]
   items: T[]
   selectedId: string | null
@@ -16,6 +18,7 @@ type SalesDocumentGridProps<T extends { id: string }> = {
 }
 
 export default function SalesDocumentGrid<T extends { id: string }>({
+  gridId,
   fields,
   items,
   selectedId,
@@ -29,8 +32,8 @@ export default function SalesDocumentGrid<T extends { id: string }>({
 }: SalesDocumentGridProps<T>) {
   const noRowsMessage = search ? searchEmptyMessage : emptyMessage
 
-  return <div className="customer-table-wrap">
-    <table className="customer-table quote-table">
+  return <div className="customer-table-wrap sales-document-grid-wrap">
+    <AdvancedDataGrid className="customer-table quote-table" gridId={gridId} externalPagination hideSearch enableRowSelection={false} aria-label="Satış belgesi kayıtları">
       <thead>
         <ScreenViewGroupHeader fields={fields}/>
         <tr>{fields.map(field => <th key={field.key}>{field.label}</th>)}</tr>
@@ -49,6 +52,6 @@ export default function SalesDocumentGrid<T extends { id: string }>({
               {fields.map(field => <td key={field.key}>{renderCell(field, item)}</td>)}
             </tr>)}
       </tbody>
-    </table>
+    </AdvancedDataGrid>
   </div>
 }

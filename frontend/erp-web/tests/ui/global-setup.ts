@@ -68,7 +68,10 @@ export default async function globalSetup(config: FullConfig) {
     ), undefined, { timeout: 30_000 })
 
     if (await tenantChoice.count()) {
-      if (await tenantChoice.first().isDisabled()) {
+      const companyChoiceVisible = await tenantChoice.first().isVisible().catch(() => false)
+      if (!companyChoiceVisible) {
+        await page.locator('.module-launcher-topbar, main.main-area').first().waitFor({ state: 'visible', timeout: 30_000 })
+      } else if (await tenantChoice.first().isDisabled()) {
         // A single-company login selects its tenant automatically; the choice row
         // can briefly render disabled while that request is still in flight.
         await page.locator('.module-launcher-topbar, main.main-area').first().waitFor({ state: 'visible', timeout: 30_000 })

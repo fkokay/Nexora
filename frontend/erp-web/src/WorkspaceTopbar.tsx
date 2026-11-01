@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Bell, Building2, ChevronDown, Code2, ExternalLink, LogOut, Menu, Moon, Search, Settings, ShieldAlert, Sparkles, Sun } from 'lucide-react'
 import type { Locale } from './WorkspaceComponents'
 import type { Tenant, Theme } from './erp-types'
@@ -48,6 +49,9 @@ export function WorkspaceTopbar({ locale, token, tenant, tenants, theme, standal
   const [dismissingAlert, setDismissingAlert] = useState<string | null>(null)
   const profileRef = useRef<HTMLDivElement>(null)
   const tenantRef = useRef<HTMLDivElement>(null)
+  const tenantTriggerRef = useRef<HTMLButtonElement>(null)
+  const tenantMenuRef = useRef<HTMLDivElement>(null)
+  const [tenantMenuPosition, setTenantMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null)
 
   const loadAlerts = useCallback(async (signal?: AbortSignal) => {
     if (standaloneStudio || !token) return
@@ -93,7 +97,7 @@ export function WorkspaceTopbar({ locale, token, tenant, tenants, theme, standal
     const closeOnOutsideClick = (event: PointerEvent) => {
       if (!(event.target instanceof Node)) return
       if (!profileRef.current?.contains(event.target)) setProfileOpen(false)
-      if (!tenantRef.current?.contains(event.target)) setTenantOpen(false)
+      if (!tenantRef.current?.contains(event.target) && !tenantMenuRef.current?.contains(event.target)) setTenantOpen(false)
       if (!(event.target as Element).closest('.notification-menu-wrap')) setNotificationsOpen(false)
     }
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -111,18 +115,40 @@ export function WorkspaceTopbar({ locale, token, tenant, tenants, theme, standal
     }
   }, [profileOpen, tenantOpen, notificationsOpen])
 
+  useLayoutEffect(() => {
+    if (!tenantOpen) {
+      setTenantMenuPosition(null)
+      return
+    }
+    const updatePosition = () => {
+      const trigger = tenantTriggerRef.current
+      if (!trigger) return
+      const bounds = trigger.getBoundingClientRect()
+      const width = Math.min(340, Math.max(0, window.innerWidth - 24))
+      const left = Math.min(Math.max(12, bounds.left), Math.max(12, window.innerWidth - width - 12))
+      setTenantMenuPosition({ top: bounds.bottom + 8, left, width })
+    }
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [tenantOpen])
+
   return <header className="topbar">
     <div className="crumb">
       <button className="icon-button menu-button" aria-label={english ? 'Open module search' : 'Modül aramayı aç'} onClick={onToggleMenu}><Menu size={18}/></button>
       <span className="topbar-brand"><span className="brand-mark small"><Sparkles size={15}/></span><span>nexora<strong>ERP</strong></span></span>
       <span className="topbar-divider"/>
       <div className="tenant-context-wrap" ref={tenantRef}>
-        <button type="button" className="tenant-context" aria-haspopup="menu" aria-expanded={tenantOpen} onClick={() => setTenantOpen(value => !value)}>
+        <button ref={tenantTriggerRef} type="button" className="tenant-context" aria-haspopup="menu" aria-expanded={tenantOpen} aria-controls={tenantOpen ? 'tenant-context-menu' : undefined} onClick={() => setTenantOpen(value => !value)}>
           <Building2 size={17}/><span>{tenant.name}</span><ChevronDown size={14}/>
         </button>
-        {tenantOpen && <div className="tenant-context-menu" role="menu">{tenants.map(item => <button type="button" role="menuitem" key={item.id} className={item.id === tenant.id ? 'active' : ''} onClick={() => { setTenantOpen(false); if (item.id !== tenant.id) void onSelectTenant(item) }}>
+        {tenantOpen && tenantMenuPosition && createPortal(<div id="tenant-context-menu" ref={tenantMenuRef} className="tenant-context-menu" role="menu" aria-label={english ? 'Available companies' : 'Tanımlı firmalar'} style={{ position: 'fixed', top: tenantMenuPosition.top, left: tenantMenuPosition.left, width: tenantMenuPosition.width, zIndex: 10050 }}><div className="tenant-context-menu-heading">{english ? 'COMPANIES' : 'TANIMLI FİRMALAR'}</div>{tenants.map(item => <button type="button" role="menuitem" key={item.id} className={item.id === tenant.id ? 'active' : ''} aria-current={item.id === tenant.id ? 'true' : undefined} onClick={() => { setTenantOpen(false); if (item.id !== tenant.id) void onSelectTenant(item) }}>
           <span className="tenant-context-avatar">{item.name.slice(0, 1).toUpperCase()}</span><span><b>{item.name}</b><small>{item.role}</small></span>{item.id === tenant.id && <i>✓</i>}
-        </button>)}</div>}
+        </button>)}</div>, document.body)}
       </div>
     </div>
     <div className="top-actions">

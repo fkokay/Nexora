@@ -246,8 +246,9 @@ public static class FixedAssetEndpoints
             var lastMonth = new DateOnly(endMonth.Year, endMonth.Month, 1);
             var depreciable = asset.AcquisitionCostBase - asset.ResidualValueBase;
             var monthly = decimal.Max(0.01m, decimal.Round(depreciable * rate / 100m / 12m, 2, MidpointRounding.AwayFromZero));
-            var sourceType = $"FixedAssetTaxDepreciation:{id:N}";
-            var postedEntries = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.SourceType == sourceType)
+            var sourceType = "FixedAssetTaxDepreciation";
+            var sourceIds = TaxDepreciationSourceIds(id, firstMonth, lastMonth < finalMonth ? lastMonth : finalMonth);
+            var postedEntries = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.SourceType == sourceType && sourceIds.Contains(x.SourceId))
                 .Select(x => new { x.Id, x.SourceId, x.EntryDate }).ToListAsync(ct);
             var postedByEntry = postedEntries.Count == 0 ? new Dictionary<Guid, decimal>() : await db.JournalEntryLines.AsNoTracking()
                 .Where(x => x.TenantId == tenantId && postedEntries.Select(e => e.Id).Contains(x.JournalEntryId))
@@ -296,7 +297,7 @@ public static class FixedAssetEndpoints
             if (month < firstMonth || month > currentMonth || month > finalMonth)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["periodStart"] = ["Yalnız doğrulanmış vergi başlangıcını izleyen ve geçerli faydalı ömür içindeki aylar kaydedilebilir."] });
 
-            var sourceType = $"FixedAssetTaxDepreciation:{id:N}";
+            var sourceType = "FixedAssetTaxDepreciation";
             var existing = await db.JournalEntries.Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId &&
                 x.SourceType == sourceType && x.SourceId == TaxDepreciationSourceId(id, month), ct);
             if (existing is not null) return Results.Conflict(new { error = "Bu kıymetin vergi amortismanı bu dönem için zaten kaydedilmiş." });
@@ -304,7 +305,8 @@ public static class FixedAssetEndpoints
             if (closedPeriod is { } closedTaxDepreciationPeriod)
                 return Results.Conflict(new { error = "Vergi amortisman dönemi kapalı mali dönem içinde; yevmiye oluşturulmadı.", fromDate = closedTaxDepreciationPeriod.FromDate, toDate = closedTaxDepreciationPeriod.ToDate });
 
-            var postedTaxEntries = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.SourceType == sourceType)
+            var sourceIds = TaxDepreciationSourceIds(id, firstMonth, month);
+            var postedTaxEntries = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.SourceType == sourceType && sourceIds.Contains(x.SourceId))
                 .OrderByDescending(x => x.EntryDate).ToListAsync(ct);
             var lastMonth = postedTaxEntries.Select(x => (DateOnly?)new DateOnly(x.EntryDate.Year, x.EntryDate.Month, 1)).FirstOrDefault();
             if (month != (lastMonth?.AddMonths(1) ?? firstMonth))
@@ -626,6 +628,12 @@ public static class FixedAssetEndpoints
     {
         var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{assetId:N}:{month:yyyy-MM}"));
         return new Guid(hash.AsSpan(0, 16));
+    }
+    private static Guid[] TaxDepreciationSourceIds(Guid assetId, DateOnly firstMonth, DateOnly lastMonth)
+    {
+        if (lastMonth < firstMonth) return [];
+        var monthCount = (lastMonth.Year - firstMonth.Year) * 12 + lastMonth.Month - firstMonth.Month + 1;
+        return Enumerable.Range(0, monthCount).Select(offset => TaxDepreciationSourceId(assetId, firstMonth.AddMonths(offset))).ToArray();
     }
     private static bool TryIdentity(ClaimsPrincipal user, out Guid tenantId, out Guid userId)
     {

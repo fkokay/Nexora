@@ -2622,6 +2622,74 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new { transferRecord.Id, transferRecord.Code, transferRecord.Status });
 });
+warehouses.MapGet("/balances/page", async (string? q, bool belowMinimumOnly, int page, int pageSize, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
+    var warehouseIds = await db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).Select(x => x.Id).ToArrayAsync();
+    var query = db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive);
+    if (!string.IsNullOrWhiteSpace(q))
+    {
+        var term = q.Trim();
+        query = query.Where(x => x.Code.Contains(term) || x.Name.Contains(term) || (x.Barcode != null && x.Barcode.Contains(term)) || (x.Category != null && x.Category.Contains(term)));
+    }
+
+    List<StockItem> selectedItems;
+    int totalCount;
+    if (belowMinimumOnly)
+    {
+        var candidates = await query.OrderBy(x => x.Name).ThenBy(x => x.Code).ToListAsync();
+        var candidateIds = candidates.Select(x => x.Id).ToArray();
+        var quantities = await db.InventoryTransactions.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && warehouseIds.Contains(x.WarehouseId) && candidateIds.Contains(x.StockItemId))
+            .GroupBy(x => x.StockItemId)
+            .Select(g => new { StockItemId = g.Key, Quantity = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) })
+            .ToDictionaryAsync(x => x.StockItemId, x => x.Quantity);
+        var lowItems = candidates.Where(x => quantities.GetValueOrDefault(x.Id) < x.MinimumStock).ToList();
+        totalCount = lowItems.Count;
+        selectedItems = lowItems.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+    }
+    else
+    {
+        totalCount = await query.CountAsync();
+        selectedItems = await query.OrderBy(x => x.Name).ThenBy(x => x.Code).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+    }
+
+    var stockIds = selectedItems.Select(x => x.Id).ToArray();
+    var totals = await db.InventoryTransactions.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && warehouseIds.Contains(x.WarehouseId) && stockIds.Contains(x.StockItemId))
+        .GroupBy(x => x.StockItemId).Select(g => new { StockItemId = g.Key,
+            Quantity = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity),
+            Valuation = g.Sum(x => (decimal?)(x.UnitCostBase == null ? 0m : (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) * x.UnitCostBase.Value)) ?? 0m,
+            Unvalued = g.Sum(x => (decimal?)(x.UnitCostBase == null ? (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) : 0m)) ?? 0m })
+        .ToDictionaryAsync(x => x.StockItemId);
+    var valueAdjustments = await db.InventoryCostAdjustmentLines.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && warehouseIds.Contains(x.WarehouseId) && stockIds.Contains(x.StockItemId))
+        .GroupBy(x => x.StockItemId).Select(g => new { StockItemId = g.Key, Amount = g.Sum(x => x.AmountBase) })
+        .ToDictionaryAsync(x => x.StockItemId, x => x.Amount);
+    var reserved = await db.SalesOrderReservations.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && warehouseIds.Contains(x.WarehouseId) && x.Status == SalesOrderReservationStatus.Active && stockIds.Contains(x.OrderLine.StockItemId))
+        .GroupBy(x => x.OrderLine.StockItemId).Select(g => new { StockItemId = g.Key, Quantity = g.Sum(x => x.Quantity - x.FulfilledQuantity) })
+        .ToDictionaryAsync(x => x.StockItemId, x => x.Quantity);
+    var baseCurrency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.BaseCurrencyCode).SingleAsync();
+    var activeItems = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).Select(x => new { x.Id, x.MinimumStock }).ToListAsync();
+    var belowTotals = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && warehouseIds.Contains(x.WarehouseId))
+        .GroupBy(x => x.StockItemId).Select(g => new { StockItemId = g.Key, Quantity = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) })
+        .ToDictionaryAsync(x => x.StockItemId, x => x.Quantity);
+    var belowMinimumCount = activeItems.Count(item => belowTotals.GetValueOrDefault(item.Id) < item.MinimumStock);
+
+    var result = selectedItems.Select(item =>
+    {
+        var total = totals.GetValueOrDefault(item.Id); var quantity = total?.Quantity ?? 0m; var reservedQuantity = reserved.GetValueOrDefault(item.Id);
+        var balance = new InventoryBalanceView(item.Id, item.Code, item.Name, item.UnitCode, item.MinimumStock, quantity, quantity < item.MinimumStock,
+            reservedQuantity, Math.Max(0m, quantity - reservedQuantity), (total?.Valuation ?? 0m) + valueAdjustments.GetValueOrDefault(item.Id), Math.Max(0m, total?.Unvalued ?? 0m), baseCurrency);
+        var stockItem = new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive,
+            item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays);
+        return new InventoryBalancePageItem(balance, stockItem);
+    }).ToList();
+    return Results.Ok(new InventoryBalancePage(result, page, pageSize, totalCount, belowMinimumCount));
+});
+
 warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, string? q, bool belowMinimumOnly, int page, int pageSize, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();

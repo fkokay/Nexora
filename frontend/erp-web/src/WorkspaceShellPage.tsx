@@ -1,5 +1,5 @@
 import { lazy, Suspense, type RefObject } from 'react'
-import { X } from 'lucide-react'
+import { ChevronRight, Home, X } from 'lucide-react'
 import { WorkspaceSearchDialog } from './WorkspaceSearchDialog'
 import { WorkspaceTopbar } from './WorkspaceTopbar'
 import { StandaloneStudioHeader } from './StandaloneStudioHeader'
@@ -91,6 +91,7 @@ export function WorkspaceShellPage(props: Props) {
     onDevelopModuleStarter, onQueryChange, onMoveActiveIndex, onOpenSearchResult,
     onCloseSearch, onToggleEditMode, onToggleQuickLink, onShowMarketplace, requestApi
   } = props
+  const activeTabLabel = moduleTabs.find(tab => tab.id === page)?.label || page.replace(/[-_]/g, ' ')
 
   return <div className={`app-shell${standaloneStudio ? ' standalone-studio' : ''}`}>
     <div className="workspace-search-index" aria-hidden="true"><Suspense fallback={null}><TenantModuleNavigation token={token} page={page} onSearchItems={onSearchItems} onSelect={onSelectModule}/></Suspense></div>
@@ -100,6 +101,7 @@ export function WorkspaceShellPage(props: Props) {
       {standaloneStudio && <StandaloneStudioHeader tenant={tenant} locale={locale} onReturn={() => window.location.assign('/')} onSignOut={onSignOut}/>}
       <WorkspaceTabs tabs={moduleTabs} activeId={page} locale={locale} dirtyTabs={dirtyTabs} onSelect={onNavigate} onClose={onCloseTab} onMove={onMoveTab}/>
       <section className="content" onInputCapture={event => { const target=event.target as HTMLElement; if (target.closest('form') && !target.closest('.customer-search, .customer-toolbar, .global-search-dialog')) onMarkDirty(page) }} onChangeCapture={event => { const target=event.target as HTMLElement; if (target.closest('form') && !target.closest('.customer-search, .customer-toolbar, .global-search-dialog')) onMarkDirty(page) }}>
+        {!standaloneStudio&&<nav className="workspace-breadcrumb" aria-label={locale==='en'?'Breadcrumb':'Sayfa yolu'}><button type="button" onClick={()=>onNavigate('dashboard')}><Home size={14} aria-hidden="true"/><span>{locale==='en'?'Home':'Ana Sayfa'}</span></button>{page!=='dashboard'&&<><ChevronRight size={13} aria-hidden="true"/><span aria-current="page">{activeTabLabel}</span></>}</nav>}
         {error && <div className="alert inline-alert">{error}<button onClick={onDismissError}><X size={15}/></button></div>}
         {notice && <div className="notice">{notice}<button onClick={onDismissNotice}><X size={15}/></button></div>}
         <KeepAliveViews activeKey={page} openKeys={moduleTabs.map(tab => tab.id)}><Suspense fallback={<div className="panel page-loading" role="status">Sayfa yükleniyor…</div>}>

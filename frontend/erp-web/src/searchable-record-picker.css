@@ -47,3 +47,62 @@ html[data-theme="dark"] .searchable-record-modal .customer-picker-selected { bac
   .searchable-record-modal { max-height: calc(100dvh - 24px); padding: 16px; gap: 10px; }
   .searchable-record-modal .customer-picker-option { min-height: 50px; }
 }
+
+/* Keep the record picker above sticky workspace chrome and within the viewport. */
+.customer-picker-backdrop { z-index: 1000; padding: 16px; }
+.customer-picker-backdrop .searchable-record-modal {
+  width: min(600px, calc(100vw - 32px));
+  height: auto;
+  max-height: min(780px, calc(100vh - 32px));
+  max-height: min(780px, calc(100dvh - 32px));
+  min-height: 0;
+  gap: 14px;
+  padding: 20px;
+  border-color: #d4dfeb;
+  border-radius: 14px;
+  background: var(--erp-surface, #fff);
+  box-shadow: 0 28px 80px rgb(15 32 56 / 28%);
+}
+.customer-picker-backdrop .searchable-record-modal .modal-head {
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--erp-border, #e5ebf2);
+}
+.customer-picker-backdrop .searchable-record-modal .modal-head .eyebrow { margin-bottom: 4px; color: #2878b7; }
+.customer-picker-backdrop .searchable-record-modal .modal-head h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
+.customer-picker-backdrop .searchable-record-modal .customer-search { box-sizing: border-box; flex: none; min-width: 0; overflow: hidden; }
+.customer-picker-backdrop .searchable-record-modal .customer-search input,
+.customer-picker-backdrop .searchable-record-modal .customer-search input:focus,
+.customer-picker-backdrop .searchable-record-modal .customer-search input:focus-visible {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0 !important;
+  height: 100%;
+  margin: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 13px;
+}
+.customer-picker-backdrop .customer-picker-options { min-height: 80px; max-height: min(52vh, 420px); padding: 2px 5px 3px 1px; }
+.customer-picker-backdrop .searchable-record-modal .customer-picker-option { min-height: 56px; }
+html[data-theme="dark"] .customer-picker-backdrop .searchable-record-modal { border-color: var(--erp-border); }
+
+@media (max-width: 600px) {
+  .customer-picker-backdrop { padding: 12px; }
+  .customer-picker-backdrop .searchable-record-modal {
+    width: calc(100vw - 24px);
+    height: auto;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    min-height: 0;
+    padding: 15px;
+    gap: 10px;
+  }
+  .customer-picker-backdrop .searchable-record-modal .modal-head h2 { font-size: 16px; }
+  .customer-picker-backdrop .searchable-record-results-heading small { font-size: 10px; }
+  .customer-picker-backdrop .customer-picker-options { max-height: min(48vh, 360px); }
+}
