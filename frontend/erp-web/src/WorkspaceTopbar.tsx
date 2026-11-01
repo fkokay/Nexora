@@ -1,10 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
-import { Bell, Building2, ChevronDown, Code2, LogOut, Menu, Moon, Search, Settings, Sparkles, Sun } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Bell, Building2, ChevronDown, Code2, ExternalLink, LogOut, Menu, Moon, Search, Settings, ShieldAlert, Sparkles, Sun } from 'lucide-react'
 import type { Locale } from './WorkspaceComponents'
 import type { Tenant, Theme } from './erp-types'
+import { api } from './erpApi'
+import './notification-alerts.css'
+
+type SecurityAlert = {
+  id: string
+  facilityCode: string
+  type: string
+  code: string
+  amount: number
+  currencyCode: string
+  expiryDate: string
+  alert: 'Expired' | 'Expiring'
+}
+type SecurityAlertSummary = { expiredCount: number; expiringCount: number; items: SecurityAlert[] }
 
 type Props = {
   locale: Locale
+  token: string
   tenant: Tenant
   tenants: Tenant[]
   theme: Theme
@@ -21,13 +36,57 @@ type Props = {
   onSignOut: () => void
 }
 
-export function WorkspaceTopbar({ locale, tenant, tenants, theme, standaloneStudio, developerModeOpen, onToggleMenu, onOpenSearch, onThemeChange, onLocaleChange, onOpenDeveloperMode, onSelectTenant, onOpenCompanySettings, onNavigate, onSignOut }: Props) {
+export function WorkspaceTopbar({ locale, token, tenant, tenants, theme, standaloneStudio, developerModeOpen, onToggleMenu, onOpenSearch, onThemeChange, onLocaleChange, onOpenDeveloperMode, onSelectTenant, onOpenCompanySettings, onNavigate, onSignOut }: Props) {
   const english = locale === 'en'
   const [profileOpen, setProfileOpen] = useState(false)
   const [tenantOpen, setTenantOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [alerts, setAlerts] = useState<SecurityAlert[]>([])
+  const [alertCount, setAlertCount] = useState(0)
+  const [alertsLoading, setAlertsLoading] = useState(false)
+  const [alertsError, setAlertsError] = useState('')
+  const [dismissingAlert, setDismissingAlert] = useState<string | null>(null)
   const profileRef = useRef<HTMLDivElement>(null)
   const tenantRef = useRef<HTMLDivElement>(null)
+
+  const loadAlerts = useCallback(async (signal?: AbortSignal) => {
+    if (standaloneStudio || !token) return
+    setAlertsLoading(true)
+    try {
+      const summary = await api<SecurityAlertSummary>('/api/finance/credit-facilities/securities/alerts?expiryWithinDays=30', token, { signal })
+      if (signal?.aborted) return
+      setAlerts(summary.items ?? [])
+      setAlertCount((summary.expiredCount ?? 0) + (summary.expiringCount ?? 0))
+      setAlertsError('')
+    } catch (error) {
+      if (signal?.aborted) return
+      setAlertsError(error instanceof Error ? error.message : (english ? 'Notifications could not be loaded.' : 'Bildirimler yüklenemedi.'))
+    } finally {
+      if (!signal?.aborted) setAlertsLoading(false)
+    }
+  }, [english, standaloneStudio, token])
+
+  useEffect(() => {
+    if (standaloneStudio || !token) return
+    const controller = new AbortController()
+    void loadAlerts(controller.signal)
+    const timer = window.setInterval(() => void loadAlerts(), 5 * 60 * 1000)
+    return () => { controller.abort(); window.clearInterval(timer) }
+  }, [loadAlerts, standaloneStudio, tenant.id, token])
+
+  const dismissAlert = async (alert: SecurityAlert) => {
+    const key = `${alert.id}:${alert.alert}`
+    setDismissingAlert(key)
+    try {
+      await api<void>(`/api/finance/credit-facilities/securities/${alert.id}/alerts/${alert.alert}/dismiss`, token, { method: 'POST' })
+      setAlerts(current => current.filter(item => item.id !== alert.id || item.alert !== alert.alert))
+      setAlertCount(count => Math.max(0, count - 1))
+    } catch (error) {
+      setAlertsError(error instanceof Error ? error.message : (english ? 'Notification could not be dismissed.' : 'Bildirim kapatılamadı.'))
+    } finally {
+      setDismissingAlert(null)
+    }
+  }
 
   useEffect(() => {
     if (!profileOpen && !tenantOpen && !notificationsOpen) return
@@ -71,9 +130,26 @@ export function WorkspaceTopbar({ locale, tenant, tenants, theme, standaloneStud
       <button className="icon-button theme-toggle" type="button" title={theme === 'dark' ? (english ? 'Switch to light theme' : 'Açık temaya geç') : (english ? 'Switch to dark theme' : 'Koyu temaya geç')} aria-label={theme === 'dark' ? (english ? 'Switch to light theme' : 'Açık temaya geç') : (english ? 'Switch to dark theme' : 'Koyu temaya geç')} aria-pressed={theme === 'dark'} onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}</button>
       <div className="locale-switch" role="group" aria-label={english ? 'Language' : 'Dil'}><button type="button" aria-pressed={!english} onClick={() => onLocaleChange('tr')}>TR</button><button type="button" aria-pressed={english} onClick={() => onLocaleChange('en')}>EN</button></div>
       <button type="button" className="global-search" aria-label={english ? 'Search pages and customers' : 'Ekran ve cari ara'} onClick={onOpenSearch}><Search size={16}/><span>{english ? 'Search' : 'Hızlı ara'}</span><kbd>Ctrl + K</kbd></button>
-      <div className="notification-menu-wrap">
-        <button type="button" className="icon-button notification" aria-label={english ? 'Notifications' : 'Bildirimler'} aria-haspopup="dialog" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(value => !value)}><Bell size={18}/></button>
-        {notificationsOpen && <section className="notification-popover" role="dialog" aria-label={english ? 'Notifications' : 'Bildirimler'}><header><b>{english ? 'Notifications' : 'Bildirimler'}</b><button type="button" className="link-button" onClick={() => { setNotificationsOpen(false); onNavigate('settings') }}>{english ? 'Settings' : 'Ayarlar'}</button></header><div className="notification-empty"><Bell size={20}/><b>{english ? 'You are all caught up' : 'Yeni bildiriminiz yok'}</b><span>{english ? 'New system and operation updates will appear here.' : 'Yeni sistem ve işlem bildirimleri burada görünecek.'}</span></div></section>}
+      <div className="notification-menu-wrap notification-wrap">
+        <button type="button" className="icon-button notification" aria-label={`${english ? 'Notifications' : 'Bildirimler'}${alertCount ? ` (${alertCount})` : ''}`} aria-haspopup="dialog" aria-expanded={notificationsOpen} onClick={() => { const open = !notificationsOpen; setNotificationsOpen(open); if (open) void loadAlerts() }}><Bell size={18}/>{alertCount > 0 && <span className="notification-count" aria-label={`${alertCount} ${english ? 'alerts' : 'uyarı'}`}>{alertCount > 99 ? '99+' : alertCount}</span>}</button>
+        {notificationsOpen && <section className="notification-popover" role="dialog" aria-label={english ? 'Notifications' : 'Bildirimler'}>
+          <header><div><b>{english ? 'Expiry alerts' : 'Vade uyarıları'}</b><small>{english ? 'Active guarantees and collateral' : 'Aktif teminat ve garantiler'}</small></div><button type="button" className="link-button" onClick={() => { setNotificationsOpen(false); onNavigate('finance-credit-facilities') }}>{english ? 'View finance' : 'Finansı aç'}</button></header>
+          {alertsError ? <p className="notification-message error" role="alert">{alertsError}</p> : alertsLoading && alerts.length === 0 ? <p className="notification-message" role="status">{english ? 'Loading alerts…' : 'Uyarılar yükleniyor…'}</p> : alerts.length === 0 ? <p className="notification-message">{english ? 'No active expiry alerts.' : 'Etkin vade uyarısı yok.'}</p> : <div className="notification-list">{alerts.map(alert => {
+            const expired = alert.alert === 'Expired'
+            const key = `${alert.id}:${alert.alert}`
+            const date = new Intl.DateTimeFormat(english ? 'en' : 'tr-TR').format(new Date(`${alert.expiryDate}T00:00:00`))
+            const amount = new Intl.NumberFormat(english ? 'en' : 'tr-TR', { maximumFractionDigits: 2 }).format(alert.amount)
+            return <div className="notification-item" key={key}>
+              <button type="button" className="notification-open" onClick={() => { setNotificationsOpen(false); onNavigate('finance-credit-facilities') }}>
+                <span className={`notification-indicator${expired ? ' expired' : ''}`}><ShieldAlert size={15}/></span>
+                <span className="notification-copy"><b>{alert.code} · {alert.facilityCode}</b><small>{expired ? (english ? `Expired ${date}` : `${date} tarihinde vadesi doldu`) : (english ? `Expires ${date}` : `${date} tarihinde vadesi doluyor`)}</small></span>
+                <strong className={expired ? 'expired' : ''}>{amount} {alert.currencyCode}</strong>
+              </button>
+              <button type="button" className="notification-dismiss" aria-label={english ? `Dismiss ${alert.code}` : `${alert.code} uyarısını kapat`} title={english ? 'Dismiss' : 'Kapat'} disabled={dismissingAlert === key} onClick={() => void dismissAlert(alert)}>{dismissingAlert === key ? '…' : '×'}</button>
+            </div>
+          })}</div>}
+          <footer><button type="button" onClick={() => { setNotificationsOpen(false); onNavigate('finance-credit-facilities') }}>{english ? 'Open loans & financing' : 'Krediler ve finansmanı aç'}<ExternalLink size={13}/></button></footer>
+        </section>}
       </div>
       <div className="profile-menu-wrap" ref={profileRef}>
         <button className="top-avatar" type="button" aria-label={english ? 'Open profile menu' : 'Profil menüsünü aç'} aria-haspopup="menu" aria-expanded={profileOpen} onClick={() => setProfileOpen(value => !value)}>{(localStorage.getItem('aierp.user') || 'A').slice(0, 1).toUpperCase()}</button>
