@@ -6732,6 +6732,44 @@ generalLedger.MapGet("/accounts/assistant-search", async (string? term, ClaimsPr
         .ToListAsync();
     return Results.Ok(new { totalCount = accounts.Count, accounts });
 });
+generalLedger.MapGet("/accounts/assistant-balances", async (string? term, DateOnly? from, DateOnly? to, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var normalized = term?.Trim();
+    if (normalized is null || normalized.Length is < 2 or > 100 || !from.HasValue || !to.HasValue ||
+        from.Value > to.Value || to.Value.DayNumber - from.Value.DayNumber > 364)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = ["Hesap bakiyesi araması 2–100 karakterlik ifade ve en fazla 365 günlük geçerli tarih aralığı gerektirir."] });
+
+    var matchingAccounts = await db.LedgerAccounts.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && (x.Code.Contains(normalized) || x.Name.Contains(normalized)))
+        .OrderBy(x => x.Code).Select(x => new { x.Id, x.Code, x.Name }).Take(11).ToListAsync();
+    var accounts = matchingAccounts.Take(10).ToArray();
+    var accountIds = accounts.Select(x => x.Id).ToArray();
+    var journalLines = from entry in db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId)
+                       join line in db.JournalEntryLines.AsNoTracking() on new { entry.TenantId, JournalEntryId = entry.Id } equals new { line.TenantId, line.JournalEntryId }
+                       where accountIds.Contains(line.AccountId)
+                       select new { entry.EntryDate, line.AccountId, line.Debit, line.Credit };
+    var openingTotals = await (from line in journalLines where line.EntryDate < @from.Value
+                               group line by line.AccountId into grouped
+                               select new { AccountId = grouped.Key, Debit = grouped.Sum(x => x.Debit), Credit = grouped.Sum(x => x.Credit) })
+        .ToDictionaryAsync(x => x.AccountId);
+    var periodTotals = await (from line in journalLines where line.EntryDate >= @from.Value && line.EntryDate <= to.Value
+                              group line by line.AccountId into grouped
+                              select new { AccountId = grouped.Key, Debit = grouped.Sum(x => x.Debit), Credit = grouped.Sum(x => x.Credit) })
+        .ToDictionaryAsync(x => x.AccountId);
+    var rows = accounts.Select(account =>
+    {
+        openingTotals.TryGetValue(account.Id, out var opening);
+        periodTotals.TryGetValue(account.Id, out var period);
+        var debit = period?.Debit ?? 0m;
+        var credit = period?.Credit ?? 0m;
+        var closing = (opening?.Debit ?? 0m) - (opening?.Credit ?? 0m) + debit - credit;
+        return new { account.Code, account.Name, openingDebit = opening?.Debit ?? 0m, openingCredit = opening?.Credit ?? 0m,
+            periodDebit = debit, periodCredit = credit, balanceDebit = Math.Max(0m, closing), balanceCredit = Math.Max(0m, -closing) };
+    }).ToArray();
+    return Results.Ok(new { term = normalized, from, to, matchCountAtLeast = matchingAccounts.Count > 10 ? 11 : matchingAccounts.Count,
+        returned = rows.Length, truncated = matchingAccounts.Count > 10, accounts = rows });
+});
 generalLedger.MapGet("/accounts/standard-chart", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
