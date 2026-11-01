@@ -1,4 +1,8 @@
 # Master Prompt Phase Status
+### 2026-11-01 General Ledger dark-theme heading contrast
+
+Corrected the dark-theme title rule for the General Ledger workbench. The rendered panel carries both `general-ledger-panel` and `finance-workbench`; the prior selector missed the latter, allowing a dark theme text token to override the white title on the fixed navy header. ERP Web production build passed with 1,939 transformed modules and no chunk-size warning; `git diff --check` passed. Rebuilt and recreated only remote development `erp-web`; the container became healthy and the public ERP endpoint returned HTTP 200. No API or schema change was required. Authenticated visual browser review remains open.
+
 ### 2026-11-01 General Ledger navigation and page separation
 
 Replaced the General Ledger overview's duplicated all-in-one content with a focused accounting workspace directory. Chart of Accounts, Journal Voucher, Trial Balance, Balance Sheet, and Journal Ledgers remain separate routes and now each render only their own screen content; the overview no longer triggers account, journal, or report data loads. Added responsive and dark-theme styling for the directory cards. Added a distinct `Genel Muhasebe` group in the module list while keeping the other finance screens under `Finans`. ERP Web production build passed (`npm.cmd run build`, 1,939 modules; verified again on 2026-11-01). No API/schema change or migration is required. Authenticated browser review and remote deployment have not been performed.

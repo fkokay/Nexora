@@ -59,7 +59,8 @@
 .ledger-page-nav button { min-height: 34px; padding: 7px 12px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #53657b; font-size: 12px; font-weight: 650; cursor: pointer; }
 .ledger-page-nav button:hover { border-color: #d3deea; background: #fff; color: #165e9d; }
 .ledger-page-nav button.active { border-color: #c9dff3; background: #fff; color: #075fb4; box-shadow: 0 1px 2px #172b4510; }
-html[data-theme="dark"] .general-ledger-panel > .panel-heading h1 { color: var(--erp-text); }
+/* Keep the title legible on the fixed navy workbench banner in either theme. */
+html[data-theme="dark"] .general-ledger-panel.finance-workbench > .panel-heading h1 { color: #fff; }
 html[data-theme="dark"] .ledger-page-nav { border-color: var(--erp-border); background: var(--erp-surface-soft); }
 html[data-theme="dark"] .ledger-page-nav button { color: var(--erp-text-muted); }
 html[data-theme="dark"] .ledger-page-nav button:hover,html[data-theme="dark"] .ledger-page-nav button.active { border-color: var(--erp-border); background: var(--erp-surface); color: #8dc3ff; }
