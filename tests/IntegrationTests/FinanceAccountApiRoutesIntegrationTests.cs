@@ -274,6 +274,48 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
         Assert.DoesNotContain("GİZLİ", result.RootElement.GetRawText());
     }
 
+    [Fact]
+    public async Task Assistant_account_balances_are_tenant_scoped_bounded_and_period_accurate()
+    {
+        var tenantId = Guid.NewGuid();
+        var otherTenantId = Guid.NewGuid();
+        await using var factory = new FinanceApiFactory();
+        await SeedTenantCatalogAsync(factory, tenantId);
+        await SeedTenantCatalogAsync(factory, otherTenantId);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var account = new LedgerAccount { TenantId = tenantId, Code = "120", Name = "ALICILAR", StatementSection = LedgerAccountStatementSection.Asset };
+            var otherAccount = new LedgerAccount { TenantId = otherTenantId, Code = "120", Name = "GİZLİ DİĞER FİRMA", StatementSection = LedgerAccountStatementSection.Asset };
+            db.LedgerAccounts.AddRange(account, otherAccount);
+            db.JournalEntries.AddRange(
+                new JournalEntry { TenantId = tenantId, Code = "J1", EntryDate = new DateOnly(2025, 12, 31), Description = "private opening", Lines = [new JournalEntryLine { TenantId = tenantId, AccountId = account.Id, LineNumber = 1, Debit = 100m }] },
+                new JournalEntry { TenantId = tenantId, Code = "J2", EntryDate = new DateOnly(2026, 1, 10), Description = "private period", Lines = [new JournalEntryLine { TenantId = tenantId, AccountId = account.Id, LineNumber = 1, Debit = 25m, Credit = 5m }] },
+                new JournalEntry { TenantId = otherTenantId, Code = "J3", EntryDate = new DateOnly(2026, 1, 10), Description = "other tenant", Lines = [new JournalEntryLine { TenantId = otherTenantId, AccountId = otherAccount.Id, LineNumber = 1, Debit = 999m }] });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-User", Guid.NewGuid().ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+
+        using var invalid = await client.GetAsync("/api/finance/general-ledger/accounts/assistant-balances?term=120&from=2025-01-01&to=2026-01-01");
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        using var response = await client.GetAsync("/api/finance/general-ledger/accounts/assistant-balances?term=120&from=2026-01-01&to=2026-01-31");
+        await AssertStatusCodeAsync(HttpStatusCode.OK, response);
+        using var result = await response.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(result);
+        var accountResult = Assert.Single(result.RootElement.GetProperty("accounts").EnumerateArray());
+        Assert.Equal(100m, accountResult.GetProperty("openingDebit").GetDecimal());
+        Assert.Equal(25m, accountResult.GetProperty("periodDebit").GetDecimal());
+        Assert.Equal(5m, accountResult.GetProperty("periodCredit").GetDecimal());
+        Assert.Equal(120m, accountResult.GetProperty("balanceDebit").GetDecimal());
+        Assert.False(accountResult.TryGetProperty("id", out _));
+        Assert.DoesNotContain("private", result.RootElement.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("GİZLİ", result.RootElement.GetRawText());
+    }
+
     private static async Task AssertStatusCodeAsync(HttpStatusCode expected, HttpResponseMessage response)
     {
         var body = await response.Content.ReadAsStringAsync();

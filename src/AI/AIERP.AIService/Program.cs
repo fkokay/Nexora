@@ -1151,6 +1151,25 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                 path = QueryHelpers.AddQueryString("/api/finance/general-ledger/accounts/assistant-search", "term", term);
                 break;
             }
+            case "search_general_ledger_account_balances":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 3 || !arguments.RootElement.TryGetProperty("term", out var termElement) || termElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("to", out var toElement) || toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantLedgerAccountTools.TryValidateBalanceQuery(termElement.GetString(), fromElement.GetString(), toElement.GetString(),
+                        out var term, out var from, out var to))
+                    throw new ArgumentException("General-ledger balance search requires a 2–100 character term and a valid period of at most 365 days.");
+                if (!await ERPAssistantLedgerAccountTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+                path = QueryHelpers.AddQueryString("/api/finance/general-ledger/accounts/assistant-balances", new Dictionary<string, string?>
+                {
+                    ["term"] = term, ["from"] = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                    ["to"] = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                });
+                break;
+            }
             case "search_stock_items":
             {
                 var props = arguments.RootElement.EnumerateObject().ToArray();
@@ -2069,6 +2088,8 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         }
         if (name == "search_general_ledger_accounts")
             return ERPAssistantLedgerAccountTools.SummarizeAccounts(result.RootElement);
+        if (name == "search_general_ledger_account_balances")
+            return ERPAssistantLedgerAccountTools.SummarizeBalances(result.RootElement);
         if (name is "get_customer_balance" or "get_supplier_balance") return JsonSerializer.Serialize(result.RootElement);
         if (name == "get_exchange_rate")
         {
