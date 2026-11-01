@@ -395,7 +395,7 @@ public sealed class VaultTenantSqlCredentialStoreTests
     });
 
     private static HttpResponseMessage Json(string body, HttpStatusCode statusCode = HttpStatusCode.OK) =>
-        new(statusCode) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        new(statusCode) { Content = new StringContent(body, Encoding.UTF8, "application/json") }; // lgtm[cs/sensitive-data-transmission] - In-memory mock Vault response used only by unit tests; it is not sent to a user.
 
     private sealed class CapturingHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
