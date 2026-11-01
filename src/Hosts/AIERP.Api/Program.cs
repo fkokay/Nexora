@@ -6719,6 +6719,56 @@ generalLedger.MapGet("/accounts", async (ClaimsPrincipal principal, TenantDbCont
     return Results.Ok(await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId)
         .OrderBy(x => x.Code).Select(x => new LedgerAccountView(x.Id, x.Code, x.Name, x.IsActive, x.StatementSection.ToString())).ToListAsync());
 });
+generalLedger.MapGet("/accounts/standard-chart", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var existingCodes = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId)
+        .Select(x => x.Code).ToListAsync();
+    var existing = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    return Results.Ok(new
+    {
+        template = "TurkishUniformChartOfAccounts",
+        version = TurkishUniformChartOfAccounts.Version,
+        sourceUrl = TurkishUniformChartOfAccounts.SourceUrl,
+        totalAccounts = TurkishUniformChartOfAccounts.Accounts.Length,
+        existingAccounts = TurkishUniformChartOfAccounts.Accounts.Count(x => existing.Contains(x.Code)),
+        accountsToAdd = TurkishUniformChartOfAccounts.Accounts.Count(x => !existing.Contains(x.Code))
+    });
+});
+generalLedger.MapPost("/accounts/standard-chart/apply", async (ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var existingCodes = await db.LedgerAccounts.Where(x => x.TenantId == tenantId)
+        .Select(x => x.Code).ToListAsync();
+    var existing = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var additions = TurkishUniformChartOfAccounts.Accounts.Where(x => !existing.Contains(x.Code)).ToArray();
+    db.LedgerAccounts.AddRange(additions.Select(x => new LedgerAccount
+    {
+        TenantId = tenantId,
+        Code = x.Code,
+        Name = x.Name,
+        IsActive = true,
+        StatementSection = x.Section
+    }));
+    if (additions.Length > 0)
+    {
+        db.AuditEvents.Add(new AuditEvent
+        {
+            TenantId = tenantId,
+            UserId = GetUserId(principal),
+            Action = "finance.general-ledger.standard-chart-applied",
+            Resource = $"{TurkishUniformChartOfAccounts.Version}:{additions.Length}"
+        });
+        await db.SaveChangesAsync();
+    }
+    return Results.Ok(new
+    {
+        template = "TurkishUniformChartOfAccounts",
+        addedCount = additions.Length,
+        preservedExistingCount = existing.Count(x => TurkishUniformChartOfAccounts.Accounts.Any(a => string.Equals(a.Code, x, StringComparison.OrdinalIgnoreCase))),
+        totalAccounts = TurkishUniformChartOfAccounts.Accounts.Length
+    });
+});
 generalLedger.MapPost("/accounts", async (LedgerAccountWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();

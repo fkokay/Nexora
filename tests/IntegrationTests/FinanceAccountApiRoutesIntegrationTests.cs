@@ -161,6 +161,82 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task Turkish_uniform_chart_preview_and_apply_are_tenant_scoped_idempotent_and_preserve_existing_accounts()
+    {
+        var tenantId = Guid.NewGuid();
+        var otherTenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var existingAccountId = Guid.NewGuid();
+        await using var factory = new FinanceApiFactory();
+        await SeedTenantCatalogAsync(factory, tenantId);
+        await SeedTenantCatalogAsync(factory, otherTenantId);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.LedgerAccounts.AddRange(
+                new LedgerAccount
+                {
+                    Id = existingAccountId, TenantId = tenantId, Code = "100", Name = "Firma kasa hesabı",
+                    IsActive = false, StatementSection = LedgerAccountStatementSection.Expense
+                },
+                new LedgerAccount
+                {
+                    TenantId = otherTenantId, Code = "100", Name = "Diğer firma kasa hesabı",
+                    StatementSection = LedgerAccountStatementSection.Asset
+                });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-User", userId.ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+
+        using var previewResponse = await client.GetAsync("/api/finance/general-ledger/accounts/standard-chart");
+        await AssertStatusCodeAsync(HttpStatusCode.OK, previewResponse);
+        using var preview = await previewResponse.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(preview);
+        Assert.Equal(238, preview.RootElement.GetProperty("totalAccounts").GetInt32());
+        Assert.Equal(1, preview.RootElement.GetProperty("existingAccounts").GetInt32());
+        Assert.Equal(237, preview.RootElement.GetProperty("accountsToAdd").GetInt32());
+        Assert.Equal("https://www.gib.gov.tr/mevzuat/kanun/434/teblig/8181", preview.RootElement.GetProperty("sourceUrl").GetString());
+
+        using var forbidden = await client.PostAsync("/api/finance/general-ledger/accounts/standard-chart/apply", content: null);
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role");
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
+        using var apply = await client.PostAsync("/api/finance/general-ledger/accounts/standard-chart/apply", content: null);
+        await AssertStatusCodeAsync(HttpStatusCode.OK, apply);
+        using var applied = await apply.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(applied);
+        Assert.Equal(237, applied.RootElement.GetProperty("addedCount").GetInt32());
+        Assert.Equal(1, applied.RootElement.GetProperty("preservedExistingCount").GetInt32());
+
+        using var repeatedApply = await client.PostAsync("/api/finance/general-ledger/accounts/standard-chart/apply", content: null);
+        await AssertStatusCodeAsync(HttpStatusCode.OK, repeatedApply);
+        using var repeated = await repeatedApply.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(repeated);
+        Assert.Equal(0, repeated.RootElement.GetProperty("addedCount").GetInt32());
+        Assert.Equal(238, repeated.RootElement.GetProperty("preservedExistingCount").GetInt32());
+
+        using var accountsResponse = await client.GetAsync("/api/finance/general-ledger/accounts");
+        await AssertStatusCodeAsync(HttpStatusCode.OK, accountsResponse);
+        using var accounts = await accountsResponse.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(accounts);
+        Assert.Equal(238, accounts.RootElement.GetArrayLength());
+        var preservedAccount = Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("id").GetGuid() == existingAccountId);
+        Assert.Equal("Firma kasa hesabı", preservedAccount.GetProperty("name").GetString());
+        Assert.Equal("Expense", preservedAccount.GetProperty("statementSection").GetString());
+        Assert.False(preservedAccount.GetProperty("isActive").GetBoolean());
+        Assert.Equal("Revenue", Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("code").GetString() == "600").GetProperty("statementSection").GetString());
+        Assert.Equal("Unclassified", Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("code").GetString() == "610").GetProperty("statementSection").GetString());
+        Assert.Equal("Expense", Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("code").GetString() == "620").GetProperty("statementSection").GetString());
+        Assert.Equal("Unclassified", Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("code").GetString() == "690").GetProperty("statementSection").GetString());
+        Assert.DoesNotContain(accounts.RootElement.EnumerateArray(), x => x.GetProperty("name").GetString() == "Diğer firma kasa hesabı");
+    }
+
     private static async Task AssertStatusCodeAsync(HttpStatusCode expected, HttpResponseMessage response)
     {
         var body = await response.Content.ReadAsStringAsync();

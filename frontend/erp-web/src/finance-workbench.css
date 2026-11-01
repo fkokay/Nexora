@@ -85,6 +85,163 @@ html[data-theme="dark"] .general-ledger-panel > .list-toolbar h3 { color: #dcecf
 @media (max-width: 850px) { .general-ledger-panel .gl-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .general-ledger-panel { padding: 14px; } .general-ledger-panel .gl-overview { gap: 7px; } .general-ledger-panel .gl-overview > div { padding: 11px; } }
 
+/* Genel Muhasebe ana sayfası, standart açık sayfa başlığıyla aynı görünür. */
+.general-ledger-panel.finance-workbench > .panel-heading {
+  margin: -16px -18px 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #dce4ed;
+  border-left: 3px solid #1675c1;
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(110deg, #f3f8fd 0%, #fff 78%);
+  color: #172b45;
+}
+.general-ledger-panel.finance-workbench > .panel-heading h1 { color: #172b45; }
+.general-ledger-panel.finance-workbench > .panel-heading .eyebrow { color: #1769aa; }
+.general-ledger-panel.finance-workbench > .panel-heading p:not(.eyebrow) { color: #687b92; }
+.general-ledger-panel.finance-workbench > .panel-heading .secondary {
+  border-color: #d2deea;
+  background: #fff;
+  color: #174d7c;
+}
+html[data-theme="dark"] .general-ledger-panel.finance-workbench > .panel-heading {
+  border-color: var(--erp-border);
+  background: var(--erp-surface-soft);
+  color: var(--erp-text);
+}
+html[data-theme="dark"] .general-ledger-panel.finance-workbench > .panel-heading h1 { color: var(--erp-text); }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench > .panel-heading .eyebrow { color: #8dc3ff; }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench > .panel-heading p:not(.eyebrow) { color: var(--erp-text-muted); }
+.general-ledger-panel.finance-workbench .ledger-subpanel > .panel-heading {
+  margin: 0 0 14px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid #dce4ed;
+  border-radius: 0;
+  background: transparent;
+  color: #172b45;
+}
+.general-ledger-panel.finance-workbench .ledger-subpanel > .panel-heading h3 { color: #172b45; }
+.general-ledger-panel.finance-workbench .ledger-subpanel > .panel-heading p { color: #687b92; }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-subpanel > .panel-heading {
+  border-color: var(--erp-border);
+  color: var(--erp-text);
+}
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-subpanel > .panel-heading h3 { color: var(--erp-text); }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-subpanel > .panel-heading p { color: var(--erp-text-muted); }
+
+/* Manuel yevmiye fişi: tek bir çalışma alanı ve hafif satır ayraçları. */
+.general-ledger-panel.finance-workbench > .ledger-manual-journal-panel {
+  margin: 18px 0 0 !important;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.general-ledger-panel.finance-workbench > .ledger-manual-journal-panel > .panel-heading {
+  margin: 0 0 14px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid #dce4ed;
+  border-radius: 0;
+  background: transparent;
+  color: #172b45;
+}
+.general-ledger-panel.finance-workbench > .ledger-manual-journal-panel > .panel-heading h3 { color: #172b45; }
+.general-ledger-panel.finance-workbench > .ledger-manual-journal-panel > .panel-heading p { color: #687b92; }
+.general-ledger-panel.finance-workbench .ledger-manual-journal-form {
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.general-ledger-panel.finance-workbench .ledger-manual-journal-form > .form-two {
+  max-width: 760px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.general-ledger-panel.finance-workbench .ledger-manual-journal-form > .quote-line {
+  margin: 0;
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid #e5ebf2;
+  border-radius: 0;
+  background: transparent;
+}
+.general-ledger-panel.finance-workbench .ledger-manual-journal-form > .quote-line .form-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.general-ledger-panel.finance-workbench .ledger-manual-journal-form .quote-line-title {
+  margin-bottom: 10px;
+  color: #52657d;
+}
+.general-ledger-panel.finance-workbench .ledger-manual-journal-form > .modal-foot {
+  margin-top: 2px;
+  padding-top: 14px;
+  border-top: 1px solid #dce4ed;
+}
+html[data-theme="dark"] .general-ledger-panel.finance-workbench > .ledger-manual-journal-panel > .panel-heading {
+  border-color: var(--erp-border);
+  color: var(--erp-text);
+}
+html[data-theme="dark"] .general-ledger-panel.finance-workbench > .ledger-manual-journal-panel > .panel-heading h3 { color: var(--erp-text); }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench > .ledger-manual-journal-panel > .panel-heading p { color: var(--erp-text-muted); }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-manual-journal-form > .quote-line,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-manual-journal-form > .modal-foot { border-color: var(--erp-border); }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-manual-journal-form .quote-line-title { color: var(--erp-text-muted); }
+@media (max-width: 700px) {
+  .general-ledger-panel.finance-workbench .ledger-manual-journal-form > .form-two,
+  .general-ledger-panel.finance-workbench .ledger-manual-journal-form > .quote-line .form-two { grid-template-columns: 1fr; }
+}
+
+/* Hesap planında form ve tabloyu aynı düz liste yüzeyinde birleştir. */
+.general-ledger-panel.finance-workbench > .ledger-accounts-panel,
+.general-ledger-panel.finance-workbench > .ledger-mappings-panel {
+  margin: 0;
+  padding: 14px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.general-ledger-panel.finance-workbench > .ledger-accounts-panel > .list-toolbar,
+.general-ledger-panel.finance-workbench > .ledger-mappings-panel > .list-toolbar {
+  margin: 0 0 14px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid #dce4ed;
+}
+.general-ledger-panel.finance-workbench .ledger-account-create-form {
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: 1px solid #dce4ed;
+  border-radius: 0;
+  background: transparent;
+}
+.general-ledger-panel.finance-workbench .ledger-account-create-form .form-two {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.general-ledger-panel.finance-workbench .ledger-account-create-form > .modal-foot {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.general-ledger-panel.finance-workbench .ledger-accounts-panel .ledger-list,
+.general-ledger-panel.finance-workbench .ledger-mappings-panel .ledger-list {
+  border-radius: 8px;
+}
+html[data-theme="dark"] .general-ledger-panel.finance-workbench > .ledger-accounts-panel > .list-toolbar,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench > .ledger-mappings-panel > .list-toolbar,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-account-create-form {
+  border-color: var(--erp-border);
+}
+@media (max-width: 700px) {
+  .general-ledger-panel.finance-workbench .ledger-account-create-form .form-two { grid-template-columns: 1fr; }
+  .general-ledger-panel.finance-workbench .ledger-account-create-form > .modal-foot { align-items: flex-start; flex-direction: column; }
+}
+
 /* Genel muhasebe: ayrı, kısa ve görev odaklı sayfalar. */
 .general-ledger-panel .ledger-page-nav {
   position: sticky;
@@ -104,6 +261,13 @@ html[data-theme="dark"] .general-ledger-panel > .list-toolbar h3 { color: #dcecf
 .general-ledger-panel .ledger-subpanel > .list-toolbar { margin: 0 0 14px; padding: 0 0 12px; border-color: #e5ebf2; }
 .general-ledger-panel .ledger-subpanel > .list-toolbar h3 { margin: 0; color: #173e66; font-size: 16px; }
 .general-ledger-panel .ledger-subpanel > .list-toolbar p { margin: 5px 0 0; color: #687b92; line-height: 1.5; }
+.general-ledger-panel .ledger-standard-chart { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; padding: 14px 16px; border: 1px solid #c9d9eb; border-radius: 10px; background: #f5f9ff; }
+.general-ledger-panel .ledger-standard-chart > div { flex: 1; }
+.general-ledger-panel .ledger-standard-chart p { margin: 4px 0; color: #52677f; }
+.general-ledger-panel .ledger-standard-chart small { color: #71839a; }
+html[data-theme="dark"] .general-ledger-panel .ledger-standard-chart { border-color: var(--erp-border); background: var(--erp-surface-muted); }
+html[data-theme="dark"] .general-ledger-panel .ledger-standard-chart p,
+html[data-theme="dark"] .general-ledger-panel .ledger-standard-chart small { color: var(--erp-text-muted); }
 .general-ledger-panel .gl-home { display: grid; gap: 18px; }
 .general-ledger-panel .gl-home-intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 24px; border: 1px solid #dce6f0; border-radius: 10px; background: linear-gradient(120deg,#f5f9fd,#fff); }
 .general-ledger-panel .gl-home-kicker { color: #1769aa; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
@@ -394,7 +558,28 @@ html[data-theme="dark"] .general-ledger-panel .gl-home-footnote { border-color: 
 .general-ledger-panel .ledger-subpanel { min-width: 0; margin: 0 0 14px; padding: 14px; border: 1px solid #e1e8f0; border-radius: 11px; background: var(--erp-surface,#fff); }
 .general-ledger-panel .ledger-subpanel > .ledger-list { max-height: none; overflow-x: auto; overflow-y: hidden; }
 html[data-theme="dark"] .general-ledger-panel .ledger-subpanel { border-color: var(--erp-border); background: var(--erp-surface); }
+.general-ledger-panel .ledger-subpanel {
+  padding: 14px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-theme="dark"] .general-ledger-panel .ledger-subpanel { background: transparent; }
+.general-ledger-panel .ledger-subpanel + .ledger-subpanel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #dce4ed;
+}
+html[data-theme="dark"] .general-ledger-panel .ledger-subpanel + .ledger-subpanel { border-color: var(--erp-border); }
 .general-ledger-panel .ledger-subpanel > .list-toolbar:first-child { margin-top: 0; }
+.general-ledger-panel .ledger-subpanel .heading-actions > label input,
+.general-ledger-panel .ledger-subpanel .heading-actions > button {
+  box-sizing: border-box;
+  height: 40px;
+  min-height: 40px;
+}
+.general-ledger-panel .ledger-subpanel .heading-actions > button { padding-inline: 14px; }
 .general-ledger-panel .ledger-section-nav a { display: inline-flex; min-height: 34px; align-items: center; padding: 0 12px; border: 1px solid #d7e3ef; border-radius: 999px; background: #f7faff; color: #24577f; font-size: 11px; font-weight: 700; text-decoration: none; }
 .general-ledger-panel .ledger-section-nav a:hover,.general-ledger-panel .ledger-section-nav a:focus-visible { border-color: #75a9d5; background: #eaf4fd; outline: none; }
 .general-ledger-panel [id^="ledger-"] { scroll-margin-top: 122px; }
