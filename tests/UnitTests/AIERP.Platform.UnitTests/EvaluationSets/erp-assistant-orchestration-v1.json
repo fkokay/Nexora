@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "evaluationSetId": "erp-assistant-orchestration",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "purpose": "Deterministic offline evaluation of ERP assistant tool routing, operational report facts, report schema-to-query chaining, handoff, and safety orchestration. Scripted semantic fixtures validate answer-to-fact contracts but do not score a live language model's semantic quality.",
   "provider": "openai-responses-mock",
   "model": "offline-scripted-model-v1",
