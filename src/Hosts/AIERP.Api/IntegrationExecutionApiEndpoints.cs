@@ -58,9 +58,9 @@ public static class IntegrationExecutionApiEndpoints
             if (documentType == "e-dispatch")
             {
                 var deliveries = await tenantDb.SalesDeliveries.AsNoTracking().Where(x => x.TenantId == tenantId &&
-                        x.Status == SalesDeliveryStatus.Posted)
+                        x.Status == SalesDeliveryStatus.Posted && x.Order != null)
                     .OrderByDescending(x => x.DeliveryDate).ThenBy(x => x.Code).Take(100)
-                    .Select(x => new EDocumentSourceDocument(x.Id, x.Code, x.DeliveryDate, x.Order.CurrencyCode,
+                    .Select(x => new EDocumentSourceDocument(x.Id, x.Code, x.DeliveryDate, x.Order!.CurrencyCode,
                         x.Order.Customer.Name, x.Lines.Sum(line => line.Quantity), x.Status.ToString()))
                     .ToListAsync(cancellationToken);
                 return Results.Ok(deliveries);
@@ -414,11 +414,11 @@ public static class IntegrationExecutionApiEndpoints
         if (draft.DocumentType == "e-dispatch")
         {
             var delivery = await db.SalesDeliveries.AsNoTracking()
-                .Include(x => x.Order).ThenInclude(x => x.Customer).ThenInclude(x => x.Addresses)
+                .Include(x => x.Order).ThenInclude(x => x!.Customer).ThenInclude(x => x.Addresses)
                 .Include(x => x.Lines)
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == draft.DocumentId &&
                     x.Status == SalesDeliveryStatus.Posted, cancellationToken);
-            if (delivery is null) return null;
+            if (delivery?.Order is null) return null;
             var document = JsonSerializer.SerializeToElement(new
             {
                 source = new { kind = "sales-delivery", id = delivery.Id, code = delivery.Code },
