@@ -2,7 +2,7 @@ namespace AIERP.Platform.Domain;
 
 public enum FixedAssetStatus { Active = 1, Disposed = 2 }
 
-/// <summary>Book asset record. Tax depreciation and statutory classifications are intentionally out of scope.</summary>
+/// <summary>Book asset record with an optional immutable accountant-confirmed tax-depreciation profile snapshot.</summary>
 public sealed class FixedAsset
 {
     public Guid Id { get; set; } = Guid.NewGuid();

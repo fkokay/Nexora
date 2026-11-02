@@ -1,4 +1,5 @@
 using System.Data;
+using System.Security.Cryptography;
 using System.Security.Claims;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -23,6 +24,20 @@ public static class FixedAssetEndpoints
             if (!TryIdentity(user, out _, out _)) return Results.Forbid();
             var limit = VukDepreciationLimitCatalog.Get(taxYear);
             return limit is null ? Results.NotFound() : Results.Ok(limit);
+        });
+
+        group.MapGet("/vuk-useful-life-catalog", (string? q, ClaimsPrincipal user) =>
+        {
+            if (!TryIdentity(user, out _, out _)) return Results.Forbid();
+            var term = q?.Trim();
+            if (!string.IsNullOrEmpty(term) && term.Length > 100)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["Arama en fazla 100 karakter olmalıdır."] });
+            return Results.Ok(new
+            {
+                version = "2026-11-01",
+                sourceUrl = "https://cdn.gib.gov.tr/api/gibportal-file/file/getFileResources?objectKey=arsiv%2Fyardim-kaynaklar%2Fyararli-bilgiler%2FAmortismanOranlariTablosu.pdf",
+                entries = VukUsefulLifeCatalog.Search(term)
+            });
         });
 
         group.MapGet("/", async (string? q, int? page, int? pageSize, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -231,10 +246,26 @@ public static class FixedAssetEndpoints
             var lastMonth = new DateOnly(endMonth.Year, endMonth.Month, 1);
             var depreciable = asset.AcquisitionCostBase - asset.ResidualValueBase;
             var monthly = decimal.Max(0.01m, decimal.Round(depreciable * rate / 100m / 12m, 2, MidpointRounding.AwayFromZero));
-            var remaining = depreciable;
+            var sourceType = "FixedAssetTaxDepreciation";
+            var sourceIds = TaxDepreciationSourceIds(id, firstMonth, lastMonth < finalMonth ? lastMonth : finalMonth);
+            var postedEntries = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.SourceType == sourceType && sourceIds.Contains(x.SourceId))
+                .Select(x => new { x.Id, x.SourceId, x.EntryDate }).ToListAsync(ct);
+            var postedByEntry = postedEntries.Count == 0 ? new Dictionary<Guid, decimal>() : await db.JournalEntryLines.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && postedEntries.Select(e => e.Id).Contains(x.JournalEntryId))
+                .GroupBy(x => x.JournalEntryId).Select(g => new { JournalEntryId = g.Key, Amount = g.Sum(x => x.Debit) })
+                .ToDictionaryAsync(x => x.JournalEntryId, x => x.Amount, ct);
+            var postedAmounts = postedEntries.Where(entry => postedByEntry.ContainsKey(entry.Id))
+                .ToDictionary(entry => entry.SourceId, entry => postedByEntry[entry.Id]);
+            var remaining = depreciable - postedAmounts.Values.Sum();
             var rows = new List<DepreciationScheduleLine>();
             for (var month = firstMonth; month <= lastMonth && remaining > 0; month = month.AddMonths(1))
             {
+                var sourceId = TaxDepreciationSourceId(id, month);
+                if (postedAmounts.TryGetValue(sourceId, out var postedAmount))
+                {
+                    rows.Add(new(month, postedAmount, true, postedEntries.Single(x => x.SourceId == sourceId).Id));
+                    continue;
+                }
                 var amount = month == finalMonth ? remaining : decimal.Min(monthly, remaining);
                 if (amount > 0) rows.Add(new(month, amount, false, null));
                 remaining -= amount;
@@ -245,6 +276,72 @@ public static class FixedAssetEndpoints
                 vukUsefulLifeTableYear = asset.VukUsefulLifeTableYear, vukUsefulLifeCommuniqueNumber = asset.VukUsefulLifeCommuniqueNumber,
                 vukUsefulLifeMonths = usefulLife, annualRatePercent = rate, taxDepreciationStartDate = startDate,
                 commencementRule = "Following month after accountant-confirmed tax commencement date", rows });
+        });
+
+        group.MapPost("/{id:guid}/tax-depreciation-postings", async (Guid id, FixedAssetDepreciationRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var month = request.PeriodStart;
+            if (month.Day != 1)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["periodStart"] = ["Dönem başlangıcı ayın ilk günü olmalıdır."] });
+            await using var transaction = await BeginTenantMutationAsync(db, tenantId, ct);
+            if (!await TenantExistsUnderLockAsync(db, tenantId, ct)) return Results.NotFound();
+            var asset = await db.FixedAssets.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.Status == FixedAssetStatus.Active, ct);
+            if (asset is null) return Results.NotFound();
+            if (asset.VukUsefulLifeMonths is not { } usefulLife || asset.VukTaxDepreciationStartDate is not { } taxStart ||
+                asset.VukNormalDepreciationRatePercent is not { } annualRate || asset.VukUsefulLifeCode is null)
+                return Results.Conflict(new { error = "Mali müşavir tarafından doğrulanmış VUK profili olmadan vergi amortismanı kaydedilemez." });
+            var firstMonth = new DateOnly(taxStart.Year, taxStart.Month, 1).AddMonths(1);
+            var finalMonth = firstMonth.AddMonths(usefulLife - 1);
+            var currentMonth = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+            if (month < firstMonth || month > currentMonth || month > finalMonth)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["periodStart"] = ["Yalnız doğrulanmış vergi başlangıcını izleyen ve geçerli faydalı ömür içindeki aylar kaydedilebilir."] });
+
+            var sourceType = "FixedAssetTaxDepreciation";
+            var existing = await db.JournalEntries.Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId &&
+                x.SourceType == sourceType && x.SourceId == TaxDepreciationSourceId(id, month), ct);
+            if (existing is not null) return Results.Conflict(new { error = "Bu kıymetin vergi amortismanı bu dönem için zaten kaydedilmiş." });
+            var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, month.AddMonths(1).AddDays(-1), ct);
+            if (closedPeriod is { } closedTaxDepreciationPeriod)
+                return Results.Conflict(new { error = "Vergi amortisman dönemi kapalı mali dönem içinde; yevmiye oluşturulmadı.", fromDate = closedTaxDepreciationPeriod.FromDate, toDate = closedTaxDepreciationPeriod.ToDate });
+
+            var sourceIds = TaxDepreciationSourceIds(id, firstMonth, month);
+            var postedTaxEntries = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.SourceType == sourceType && sourceIds.Contains(x.SourceId))
+                .OrderByDescending(x => x.EntryDate).ToListAsync(ct);
+            var lastMonth = postedTaxEntries.Select(x => (DateOnly?)new DateOnly(x.EntryDate.Year, x.EntryDate.Month, 1)).FirstOrDefault();
+            if (month != (lastMonth?.AddMonths(1) ?? firstMonth))
+                return Results.Conflict(new { error = "Vergi amortisman dönemleri sırayla kaydedilmelidir." });
+
+            var postedEntryIds = postedTaxEntries.Select(x => x.Id).ToArray();
+            var accumulated = postedEntryIds.Length == 0 ? 0m : await db.JournalEntryLines.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && postedEntryIds.Contains(x.JournalEntryId))
+                .SumAsync(x => x.Credit, ct);
+            var depreciable = asset.AcquisitionCostBase - asset.ResidualValueBase;
+            var remaining = depreciable - accumulated;
+            var normalMonthly = decimal.Round(depreciable * annualRate / 100m / 12m, 2, MidpointRounding.AwayFromZero);
+            var amount = month == finalMonth ? remaining : decimal.Min(normalMonthly, remaining);
+            if (amount <= 0) return Results.Conflict(new { error = "Vergi amortismana tabi tutarın tamamı ayrılmış." });
+
+            var taxExpenseKey = LedgerMappingKeys.FixedAssetTaxDepreciationExpense;
+            var taxAccumulatedKey = LedgerMappingKeys.FixedAssetTaxAccumulatedDepreciation;
+            var mappings = await db.LedgerAccountMappings.AsNoTracking().Where(x => x.TenantId == tenantId &&
+                    (x.MappingKey == taxExpenseKey || x.MappingKey == taxAccumulatedKey))
+                .Join(db.LedgerAccounts.Where(x => x.TenantId == tenantId && x.IsActive), m => new { m.TenantId, m.AccountId }, a => new { a.TenantId, AccountId = a.Id }, (m, a) => new { m.MappingKey, m.AccountId })
+                .ToDictionaryAsync(x => x.MappingKey, x => x.AccountId, ct);
+            if (!mappings.TryGetValue(taxExpenseKey, out var expenseId) || !mappings.TryGetValue(taxAccumulatedKey, out var accumulatedId) || expenseId == accumulatedId)
+                return Results.Conflict(new { error = "Vergi amortismanı için farklı ve etkin vergi gideri/birikmiş amortisman hesaplarını eşleyin." });
+
+            var entry = new JournalEntry { TenantId = tenantId, Code = $"FATAX-{month:yyyyMM}-{id.ToString("N")[..8]}",
+                EntryDate = month.AddMonths(1).AddDays(-1), Description = $"VUK vergi amortismanı {asset.AssetCode} · {month:yyyy-MM}",
+                SourceType = sourceType, SourceId = TaxDepreciationSourceId(id, month), CreatedByUserId = userId,
+                Lines = [new JournalEntryLine { TenantId = tenantId, AccountId = expenseId, LineNumber = 1, Description = $"Vergi amortisman gideri · {asset.AssetCode}", Debit = amount },
+                    new JournalEntryLine { TenantId = tenantId, AccountId = accumulatedId, LineNumber = 2, Description = $"Vergi birikmiş amortismanı · {asset.AssetCode}", Credit = amount }] };
+            db.JournalEntries.Add(entry);
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "fixed-asset.tax-depreciation-posted", Resource = $"{asset.AssetCode}/{month:yyyy-MM}" });
+            try { await db.SaveChangesAsync(ct); if (transaction is not null) await transaction.CommitAsync(ct); }
+            catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Kıymet aynı anda güncellendi; dönemi yenileyip tekrar deneyin." }); }
+            return Results.Created($"/api/fixed-assets/{id}/tax-depreciation-postings/{entry.Id}", new { entry.Id, assetId = id, periodStart = month,
+                periodEnd = entry.EntryDate, amountBase = amount, journalEntryId = entry.Id, isStatutoryFiling = false });
         });
 
         group.MapPost("/{id:guid}/depreciation-postings", async (Guid id, FixedAssetDepreciationRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -526,6 +623,17 @@ public static class FixedAssetEndpoints
             request.VukUsefulLifeTableYear is >= 2004 and <= 2100 && request.VukUsefulLifeCommuniqueNumber is > 0 and <= 999 &&
             request.VukUsefulLifeMonths is >= 1 and <= 1200 && request.VukNormalDepreciationRatePercent is > 0 and <= 100 &&
             request.VukTaxDepreciationStartDate is { } start && start >= acquisitionDate;
+    }
+    private static Guid TaxDepreciationSourceId(Guid assetId, DateOnly month)
+    {
+        var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{assetId:N}:{month:yyyy-MM}"));
+        return new Guid(hash.AsSpan(0, 16));
+    }
+    private static Guid[] TaxDepreciationSourceIds(Guid assetId, DateOnly firstMonth, DateOnly lastMonth)
+    {
+        if (lastMonth < firstMonth) return [];
+        var monthCount = (lastMonth.Year - firstMonth.Year) * 12 + lastMonth.Month - firstMonth.Month + 1;
+        return Enumerable.Range(0, monthCount).Select(offset => TaxDepreciationSourceId(assetId, firstMonth.AddMonths(offset))).ToArray();
     }
     private static bool TryIdentity(ClaimsPrincipal user, out Guid tenantId, out Guid userId)
     {

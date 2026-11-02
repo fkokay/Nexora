@@ -26,10 +26,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     options.MapInboundClaims = false;
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true, ValidIssuer = issuer,
-        ValidateAudience = true, ValidAudience = audience,
-        ValidateIssuerSigningKey = true, IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
-        ValidateLifetime = true, ClockSkew = TimeSpan.FromSeconds(15)
+        ValidateIssuer = true,
+        ValidIssuer = issuer,
+        ValidateAudience = true,
+        ValidAudience = audience,
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.FromSeconds(15)
     };
 });
 builder.Services.AddAuthorization(options =>
@@ -120,6 +124,12 @@ app.MapPost("/internal/projects/branches", async (RepositoryBranchesRequest requ
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .Take(200)
             .ToList();
+        if (defaultBranch is not null && !branches.Contains(defaultBranch, StringComparer.Ordinal))
+        {
+            if (branches.Count == 200) branches.RemoveAt(branches.Count - 1);
+            branches.Add(defaultBranch);
+            branches.Sort(StringComparer.OrdinalIgnoreCase);
+        }
         return Results.Ok(new RepositoryBranchesResponse(defaultBranch, branches));
     }
     catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -161,6 +171,9 @@ app.MapPost("/internal/workspaces/provision", async (ProvisionRequest request, C
 
         var branchCheck = await WorkspaceSecurity.RunGit(root, ["check-ref-format", "--branch", branchName], TimeSpan.FromSeconds(10), cancellationToken);
         if (branchCheck.ExitCode != 0) return Results.BadRequest(new { error = "Geçersiz Git dalı." });
+        // Git creates the destination before it finishes. Own it from the start so
+        // a timeout or cancellation cannot leave a partial checkout for a retry.
+        createdTarget = true;
         var clone = await WorkspaceSecurity.RunGit(root,
             ["-c", "core.hooksPath=/dev/null", "-c", "protocol.ext.allow=never", "-c", "credential.helper=", "-c", "http.followRedirects=false", "clone", "--depth", "1", "--single-branch", "--branch", branchName, "--filter=blob:none", validation.Uri!.AbsoluteUri, target],
             TimeSpan.FromMinutes(3), cancellationToken, gitEnvironment);
@@ -169,7 +182,6 @@ app.MapPost("/internal/workspaces/provision", async (ProvisionRequest request, C
             if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
             return Results.BadRequest(new { error = "Depo klonlanamadı. Depo ve dalın erişilebilir olduğunu doğrulayın." });
         }
-        createdTarget = true;
         var branch = await WorkspaceSecurity.EnsureWorkspaceBranchAsync(root, request.WorkspaceId, cancellationToken);
         if (branch.CommitSha is null)
         {
@@ -334,6 +346,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/git-status", async (Guid wor
     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
     catch (OperationCanceledException) { return Results.Problem("Git durumu okuma zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (IOException) { return Results.Problem("Git çalışma alanı durumu okunamadı.", statusCode: StatusCodes.Status500InternalServerError); }
+    finally { WorkspaceSecurity.Gate.Release(); }
 }).RequireAuthorization("AIServiceGitStatusReader");
 app.MapGet("/internal/workspaces/{workspaceId:guid}/git-diff", async (Guid workspaceId, string? path, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
@@ -358,6 +371,7 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/git-diff", async (Guid works
     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
     catch (OperationCanceledException) { return Results.Problem("Git diff okuma zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
     catch (IOException) { return Results.Problem("Git diff okunamadı.", statusCode: StatusCodes.Status500InternalServerError); }
+    finally { WorkspaceSecurity.Gate.Release(); }
 }).RequireAuthorization("AIServiceGitDiffReader");
 app.MapGet("/internal/workspaces/{workspaceId:guid}/files", async (Guid workspaceId, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken, string? path = null, int offset = 0) =>
 {
@@ -865,6 +879,8 @@ internal static class WorkspaceSecurity
     internal static IReadOnlyDictionary<string, string>? CreateGitHubReadEnvironment(Uri repositoryUri, string? installationToken)
     {
         if (string.IsNullOrWhiteSpace(installationToken)) return null;
+        installationToken = installationToken.Trim();
+        if (installationToken.Length == 0) return null;
         if (!string.Equals(repositoryUri.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
             installationToken.Length > 4096 || installationToken.Any(c => c < '!' || c > '~'))
             throw new InvalidOperationException("GitHub installation credential is invalid for this repository.");
@@ -2171,11 +2187,18 @@ internal static class WorkspaceSecurity
     internal static async Task<GitResult> RunGit(string root, IReadOnlyList<string> args, TimeSpan timeout, CancellationToken cancellationToken,
         IReadOnlyDictionary<string, string>? extraEnvironment = null)
     {
-        using var process = new Process { StartInfo = new ProcessStartInfo
+        using var process = new Process
         {
-            FileName = "git", WorkingDirectory = root, UseShellExecute = false, RedirectStandardOutput = true,
-            RedirectStandardError = true, CreateNoWindow = true
-        }};
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "git",
+                WorkingDirectory = root,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
         process.StartInfo.Environment.Clear();
         process.StartInfo.Environment["PATH"] = "/usr/bin:/bin";
         process.StartInfo.Environment["HOME"] = root;
@@ -2230,5 +2253,5 @@ internal sealed record WorkspaceFileApplyResult(bool Applied, string? Error, str
 
 internal static class WorkspaceFileLimits
 {
-    internal const int MaxManualWorkspaceFileBytes = 900 * 1024;
+    internal const int MaxManualWorkspaceFileBytes = 1024 * 1024;
 }

@@ -1,0 +1,4712 @@
+{
+  "version": "2026-11-01",
+  "sourceUrl": "https://cdn.gib.gov.tr/api/gibportal-file/file/getFileResources?objectKey=arsiv%2Fyardim-kaynaklar%2Fyararli-bilgiler%2FAmortismanOranlariTablosu.pdf",
+  "sourceSha256": "0c015c9530ad9f2449db1e8f33b4902758d906cefcac7c883b3dba9cfab5a226",
+  "rateMethod": "normal",
+  "entries": [
+    {
+      "code": "1.1.1",
+      "description": "Beton, kargir, demir, çelik",
+      "usefulLifeYears": 50,
+      "normalRatePercent": 2.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.1.2",
+      "description": "Yarı kargir, yarı ahşap (Ahşap yapılar üzerine beton ve emsali püskürtmek suretiyle yapılmış binalar dahil)",
+      "usefulLifeYears": 33,
+      "normalRatePercent": 3.03,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.1.3",
+      "description": "Ahşap, kerpiç",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.1.4",
+      "description": "Galip malzemesi saç, çinko, teneke olan mevsimlik faaliyette bulunan sinema, gazino ve emsali yerlerdeki cam veya ahşap tesisler ile benzeri binalar",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.1.5",
+      "description": "Galip malzemesi teneke muvakkat barakalar, inşaat şantiye binaları ve prefabrik yapılar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.1.6",
+      "description": "Galip malzemesi cam olan binalar (Depo ve tesisler) ve benzerleri",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "1.1.7",
+      "description": "Sarnıç ve benzerleri",
+      "usefulLifeYears": 50,
+      "normalRatePercent": 2.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.1.8.1",
+      "description": "İspirto ve benzeri tanklar",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.1.8.2",
+      "description": "Asit tankları, yakıt depolama tankları, reçine tankları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.1.8.3",
+      "description": "Diğer tanklar",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.2.1",
+      "description": "Beton, kargir, demir, çelik",
+      "usefulLifeYears": 40,
+      "normalRatePercent": 2.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.2.2",
+      "description": "Yarı kargir",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.2.3",
+      "description": "Ahşap",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.2.4",
+      "description": "Kerpiç",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.2.5",
+      "description": "Galip malzemesi saç, çinko, teneke",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.2.6",
+      "description": "Polyester izolasyonlu çadırlar (Taşıyıcı iskeleti ağırlıklı olarak çelik civatalar ile monte edilmiş çelik konstrüksiyondan veya elektro galvanizle kaplanmış demir konstrüksiyondan oluşan çadır niteliğinde inşa edilmiş yapılar)",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "1.3",
+      "description": "Belirli bir kısmı işyeri olarak kullanılan meskenler",
+      "usefulLifeYears": 50,
+      "normalRatePercent": 2.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.4",
+      "description": "İkamet olarak kullanımdan kiralık hale getirilen evler",
+      "usefulLifeYears": 50,
+      "normalRatePercent": 2.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "1.5",
+      "description": "Gergili membran sistemleri",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "2",
+      "description": "Tesis ve Arazi Düzenlemeleri: Yaya kaldırımları, otoparklar, kanallar, su yolları, arklar, setler, boşaltma sistemleri, lağımlar (Belediyelere ait lağımlar hariç), rıhtım ve doklar, mendirek ve dalga kıranlar, havuzlar (Sabit ve yüzer), kuyular, regülatörler, bentler, ihata duvarları, havai hatları ve direkleri, hudut ihata direkleri ve telleri, soğuk hava tesisleri, bahçe ve parklar, spor sahaları (Tribünler hariç), köprüler, çitler, araziye yerleştirilen vericiler ve bunlara benzer olanlar",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "2.1",
+      "description": "Yollar (Beton ve asfalt yol, parke yol, adi şose ve adi kaldırım ve bunlara benzeyen yollar)",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.1",
+      "description": "İşyerinde Kullanılan Mobilyalar, Ekipmanlar ve Diğer Demirbaşlar: Bu sınıf, masa, mobilya, sandalye, banko, kontuar, dolap ve ofiste kullanılan iletişim araçları gibi kıymetler ile işletmelerde müşteriler için tahsis edilen oturma gruplarını kapsar. (Başka bir sınıflamada yer alan iletişim araçları hariç)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.2",
+      "description": "Televizyonlar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.3",
+      "description": "Cep telefonu ve cep telefonu araç kiti",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.4",
+      "description": "Branda bezi, çuval, kanaviçe, bez torba, naylon torba, küfe, su hortumu",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.5.1",
+      "description": "Plastik kasalar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.5.2",
+      "description": "Tahta kasalar",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.5.3",
+      "description": "Demir, çelik vb. materyallerden mamul para veya değerli eşya saklamaya yarayan kasalar",
+      "usefulLifeYears": 50,
+      "normalRatePercent": 2.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.6.1",
+      "description": "Basit tahta palet",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.6.2",
+      "description": "Plastik palet",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.6.3",
+      "description": "Yoğunluğu ve kırılma direnci yüksek, esnemeye ve baskıya dayanıklı keresteden imal edilmiş ahşap palet",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.7",
+      "description": "Liman stoklama ve yükletme tesislerinin inşaatında kullanılan kazık temeller (Palplanşlar)",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.1",
+      "description": "Kazanlar (Sıcak su, kızgın su, buhar kazanları)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.2",
+      "description": "Isıtma boruları",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.3",
+      "description": "Pompalar",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.4",
+      "description": "Vanalar, pislik tutucular, çek valflar",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.5",
+      "description": "Sıcak hava apareyleri",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.6",
+      "description": "Isıtıcılar (Radyatör, konvektör v.b.)",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.7",
+      "description": "Sıcak su üreteçleri (Boyler, eşanjör v.b.)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.8",
+      "description": "Şofbenler ve kombiler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.9",
+      "description": "Hidroforlar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.10",
+      "description": "Su yumuşatma cihazları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.11",
+      "description": "Genleşme depoları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.12",
+      "description": "Brülörler",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.8.13",
+      "description": "İçten yanmalı motorlar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.8.14",
+      "description": "Soba",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.9.1",
+      "description": "Klima santralleri (Vantilatör, aspiratör, ısıtıcı-soğutucu)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.9.2",
+      "description": "Fan-coil cihazları",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.9.3",
+      "description": "Komple borulu ve kapalı tip soğutma ve ısıtma malzemeleri (VRF sistemleri)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.9.4",
+      "description": "Su soğutma grupları",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.9.5",
+      "description": "Pencere, duvar ve salon tipi klima cihazları",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.9.6",
+      "description": "Hava perdeleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.9.7",
+      "description": "Havalandırma sistemleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.10.1",
+      "description": "Sebze soyma ve doğrama makineleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.10.2",
+      "description": "Et kıyma makineleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.10.3",
+      "description": "Mikserler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.10.4",
+      "description": "Buzdolabı, derin dondurucu ve bunlara benzer soğutma dolapları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.10.4.1",
+      "description": "Ürünlerin teşhir ve muhafazası amacıyla kullanılanlar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "3.10.5",
+      "description": "Yemek pişirme tencereleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.10.6",
+      "description": "Fırınlar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.10.7",
+      "description": "Kuzine ve yer ocakları",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.10.8",
+      "description": "Bulaşık yıkama makineleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.10.9",
+      "description": "Komple soğuk odalar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.10.10",
+      "description": "Yemek asansörleri (Monşarjlar)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.10.11",
+      "description": "Elektrik ısıtıcılı yemek dağıtım tezgahı",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.11.1",
+      "description": "Çamaşır yıkama ve sıkma makineleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.11.2",
+      "description": "Ütü makineleri(Kolalama makineleri dahil)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.11.3",
+      "description": "Çamaşır kaynatma ve kurutma makineleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.12",
+      "description": "Asansörler (Yük, insan vb.)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.1",
+      "description": "Otoklav cihazları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.2",
+      "description": "Buhar Jeneratörleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.3",
+      "description": "Sterilizatörler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.4",
+      "description": "Oksijen ve azot tüpleri",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.5",
+      "description": "Basınç düşürücüler (Oksijen, azot vb.)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.6",
+      "description": "Basınçlı hava kompresörleri",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.7",
+      "description": "Oksijen, vakum, azot, basınçlı hava priz ve abone fişleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.8.1",
+      "description": "Analizorlar (Biyokimya, hormon, idrar v.b.)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.8.2",
+      "description": "Etüv, su banyosu, ısıtıcı sistemler",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.8.3",
+      "description": "Karıştırıcı ve çalkalayıcılar",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.8.4",
+      "description": "Mikroskoplar",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.8.5",
+      "description": "Analitik cihazlar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.9",
+      "description": "Teşhis ve tedavi cihazları (EKG, EMG, MRI, CT, Endoskopi cihazı, Endoskopik ameliyat robotu v.b.)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "3.13.9.1",
+      "description": "Diyaliz makinesi ve diyaliz su sistemleri",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.13.10",
+      "description": "Medikal mobilya (Hasta yatağı ve taşıma arabası v.b.)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.10.1",
+      "description": "Portatif sedye",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.13.11.1",
+      "description": "Sterilizatörler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.11.2",
+      "description": "Cerrahi termal yıkayıcı",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.11.3",
+      "description": "Ameliyat masası",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.11.4",
+      "description": "Ameliyat lambası",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.11.5",
+      "description": "Anastezi cihazı",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.11.6",
+      "description": "Elektro koter",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.11.7",
+      "description": "Video endoskopi ve görüntüleme ekipmanları",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.11.8",
+      "description": "Cerrahi el aletleri",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.12",
+      "description": "Radyo terapi cihazı (Linac)",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.13",
+      "description": "Pet (Pozitron emisyon tomogrofi cihazı)",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.13.14",
+      "description": "Kan şekeri ölçüm cihazları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.13.15",
+      "description": "Medikal enstrümasyon setleri (Dişçilikte, omurga ve ortopedi cerrahisinde ve benzeri tıbbi alanlarda kullanılan koltuk, set ve benzeri iktisadi kıymetler)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.13.16",
+      "description": "Hasta simülasyon cihazı",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "3.14.1",
+      "description": "Jeneratörler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.14.2",
+      "description": "Kesintisiz güç kaynakları (Statik ve dinamik UPS)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.14.3",
+      "description": "Paratonerler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.14.4",
+      "description": "Elektrojen grupları, rotatif elektrik konvektörleri v.b",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.14.5",
+      "description": "Transformatörler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.14.6",
+      "description": "Redröserler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.14.7",
+      "description": "Akümülatörler",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.14.8",
+      "description": "Akü şarj redresörü",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.14.9",
+      "description": "Şalt cihazları, kontaktörler",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.14.10",
+      "description": "Elektrik panoları, benzeri anahtarlama ve kontrol üniteleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.14.11",
+      "description": "Elektrik motorları, elektrik trafoları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.14.12",
+      "description": "Orta gerilim yedek güç üretim sistemi, enerji otomasyon sistemi, yedek güç sistemi için enerji senkronizasyon ve yük dağılım üniteleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.14.13",
+      "description": "Ticari amaç dışında elektrik ve ısı formları üretimi için kullanılan kojenerasyon sistemleri (Ticari amaçla kullanılan sistemler, sistem bünyesindeki iktisadi kıymetler bazında ayrı ayrı itfa edilecektir.)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "3.14.14",
+      "description": "Jeton, madeni para ve özel kart gibi sistemlerle çalışan, cep telefonu ve kamera gibi pilli cihazları şarj etmek için kullanılan makineler",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "3.14.15",
+      "description": "Taşıtlarda kullanılan lityum iyonlu piller",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.15",
+      "description": "Perde, güneşlik, store ve teferruatı ve benzerleri ile yatakhane ve yemekhane eşyası",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.16",
+      "description": "Silolar (Kömür, kum, tahıl v.b.)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.17",
+      "description": "Kaynak makinesi",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.18",
+      "description": "Zincir, halat",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.19",
+      "description": "Ponton",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.20",
+      "description": "Kondansatör",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.21",
+      "description": "Oksijen takımı, oksijen saati",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.22",
+      "description": "Güneş kollektörü",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.23",
+      "description": "Depolama raf sistemleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.24",
+      "description": "Çim biçme makinesi",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.25",
+      "description": "Çöp konteynerleri",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.26",
+      "description": "Elektronik güvenlik sistemleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.27",
+      "description": "POS cihazları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.28",
+      "description": "Yangın söndürme cihazları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.29",
+      "description": "Radyasyon aleti",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.30",
+      "description": "Nem alma cihazları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.31",
+      "description": "Kart basma makinesi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.32",
+      "description": "Kart kesme makinesi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.33",
+      "description": "Zarflama makinesi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.34",
+      "description": "Projeksiyon cihazı",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.35",
+      "description": "Fotoğraf makineleri ve kamera",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.36",
+      "description": "Ölçüm cihazları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.37",
+      "description": "Elektronik test cihazları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.37.1",
+      "description": "İklimlendirme kabini",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.37.2",
+      "description": "Yırtılma test cihazı",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.37.3",
+      "description": "PH metre cihazı",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.37.4",
+      "description": "Işık haslığı ve hava koşulları test cihazı",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.38",
+      "description": "Mekanik test cihazları",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.39",
+      "description": "El ölçü aletleri",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.40",
+      "description": "Hızlı protip makineleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "3.41",
+      "description": "Kompresörler (3.13.6. sınıfında sayılanlar hariç) ve pnömatik makineler",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.42",
+      "description": "Takım tezgahları, talaşlı ve talaşsız kesme makineleri",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.43",
+      "description": "Redüktörler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.44",
+      "description": "Metal işlemeye mahsus araç gereçler (Torna tezgahları, frezeler, bileme aparatları, taşlama makineleri ve bunların benzerleri)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.45",
+      "description": "Delme, kesme, zımparalama, planyalama, ısıtarak yapıştırma, lehimleme ve bunlara benzer işlemlerde kullanılan taşınabilen elektrikli makine ve el aletleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.46",
+      "description": "Asfalt-beton kesme makineleri, çatlak derz genişletme makineleri, perdah makineleri, asfalt makinesi, vibrasyonlu satıh mastarı, kompaktörler, vibrasyonlu tokmak, vibrasyonlu silindir, beton vibratörü, betonyerler, beton test çekici ve benzerleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.47",
+      "description": "Hidrolik kırıcı ve deliciler ile bunlara ait ataşmanlar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.48",
+      "description": "Elektrik süpürgeleri ve temizlik makineleri (Her türlü zeminin ıslak yada kuru olarak temizlenmesi veya vakumlanması işlevlerini yerine getiren makineler)",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.49.1",
+      "description": "Teleks ve data modem cihazları, data terminal ara birim cihazları, interaktif telekontrolsistemleri, network yan bileşenleri, veri iletişim sistemleri v.b",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 576
+    },
+    {
+      "code": "3.49.2",
+      "description": "Telefon santralleri ve dahili ve harici muharebe telsiz baz istasyonları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.49.3",
+      "description": "Araç içi konuşma kitleri, setleri ve benzerleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.49.4",
+      "description": "Telsiz telefon, telsiz telgraf veya radyo yayını alıcı cihazlar ve bunlara ait sistemler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.49.5",
+      "description": "Video kayıt ve gösterme cihazları, müzik seti, dijital ve diğer ses kaydediciler, amplifikatör, ekolayzır, ses mikser cihazları, uydu antenleri ve uydu alıcı cihazları, uzaktan kumanda cihazlar v.b",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.49.6",
+      "description": "Projeksiyon cihazları, slayt makinesi, tepegöz, sinema film makinesi, video konferans cihazı, stüdyo tipi veya mobil olarak kullanılan alıcı cihazları v.b",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.49.7",
+      "description": "Bilgi işlem makinelerinde kullanılan ses, TV, radyo ve görüntü faks modemleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.49.8",
+      "description": "GPRS ve benzeri uydular yardımı ile konum belirleme cihazları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.49.9",
+      "description": "Elektronik optik alet ve cihazlar",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.49.10",
+      "description": "Kapalı devre TV sistemi (CCTV)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.49.11",
+      "description": "Plaka tanıma sistemi, taşıt tanıma sistemi v.b",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 576
+    },
+    {
+      "code": "3.50",
+      "description": "LPG, doğalgaz ve benzeri yakıtlara yönelik araç dönüşüm kitleri v.b",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.51",
+      "description": "Yanma tadilat sistemleri ve benzeri yakıt tasarruf sistemleri ve ekipmanları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.52",
+      "description": "Yürüyen merdivenler, platformlar, konveyörler, bariyerler ve bunların benzerleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.53",
+      "description": "Ambalajlama, etiketleme, basım, markalama, kodlama, işaretleme, daldırma, damgalama ve benzeri işlemlerde kullanılan makine ve düzenekler ile banknot bantlama makinesi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.54",
+      "description": "Gaz, yangın, güvenlik ve benzeri amaçlarla kullanılan alarm cihazları",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.55",
+      "description": "Elektrik süpürgeleri, halı yıkama makineleri, yer yıkama ve temizleme makineleri",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.56",
+      "description": "Çöp öğütücüler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.57",
+      "description": "İlaçlama makineleri",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.58",
+      "description": "El kurutma makineleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.59",
+      "description": "Elektronik kantar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.60",
+      "description": "Baskül",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.61",
+      "description": "Hidrolik araç kantarları",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.62",
+      "description": "Her türlü standlar (Teşhir ve diğer amaçlarla kullanılanlar)",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.63",
+      "description": "Sabit konteynerler (Bekçi kulübesi ve bunun gibi sabit bir yerde yerleşik bulunan konteynerler)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.64",
+      "description": "Mağaza (showroom), istasyon, süpermarket ve benzeri yerlerde dış mekanlara belirli bir marka veya bir işletmeyi tanıtmak için konulan tabela, pano, totem ve bilboardlar ve bunların benzerleri (58.1. ve diğer sınıflamalada yer alanlar hariç)",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.65",
+      "description": "Madenden, camdan, tahtadan, nebati, kimyevi ve sair maddelerden mamul teneke, varil, bidon, kutu, sandık, fıçı, damacana, termosifon ve benzeri saklama kapları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.65.1",
+      "description": "Su taşımaya mahsus damacanalar",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 439
+    },
+    {
+      "code": "3.66",
+      "description": "Mağaza içi yerleşimde ve teşhir amaçlı yerlerde kullanılan araç gereçler (Panolar, metal ayaklar, raf düzenleri ve bunların benzerleri)",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.67",
+      "description": "Her türlü helezon taşıyıcılar (Taş, çakıl, maden, hububat ve benzerlerinin bir yerden bir yere naklinde kullanılanlar)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.68",
+      "description": "Vidalama makineleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.69",
+      "description": "Kalıplar (Diğer sınıflarda sayılanlar hariç)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.70",
+      "description": "Elektronik kapı dedektörü, el dedektörü, telsiz, bekçi kulübesi, x-ray cihazı v.b",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.71",
+      "description": "Bayrak, flama, aydınlatma direkleri",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.72",
+      "description": "Otomobil, kamyon, minibüs, midibüs, yük arabaları, özel amaçlı olarak kullanılan araçlar ve benzeri araçlara ait lastikler (Yeni satın alınan araçlarda hazır olanlar hariç)",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "3.73",
+      "description": "Yangın tesisi (Hidrofor, hidrantlar, borular, vanalar, kontrol paneli vb. ekipmanlardan oluşan komple yangın söndürme tesisatı)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.74",
+      "description": "Su tesisi (Su depolama ve dağıtımına ilişkin komple tesisat)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.75",
+      "description": "Atık su arıtma tesisi (Her türlü işletmede atık suların arıtılmasında kullanılan tesisler)",
+      "usefulLifeYears": 24,
+      "normalRatePercent": 4.16,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.76",
+      "description": "Duvar saati",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.77",
+      "description": "Matkaplar (Diğer sınıflarda sayılanlar hariç)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.78.1",
+      "description": "Otopark ücretlendirme sistemi",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "3.78.2",
+      "description": "Otopark yönlendirme sistemi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "3.79",
+      "description": "Fotoselli kayar kapılar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.80",
+      "description": "LPG ve doğalgaz tesisatı (Diğer sınıflarda sayılanlar hariç)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.81",
+      "description": "Kartlı geçiş sistemleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.82",
+      "description": "Yanmaz elbise",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "3.83",
+      "description": "Ticari amaçlı kiralanan iş elbiseleri (işçi önlüğü, işçi tulumu, işçi pantolonu ve benzeri)",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "3.84",
+      "description": "Muhtelif parçalardan oluşan, parçaları birbirinden ayrı olarak muhafaza edilen ve değişik yerlere kurulması mümkün olan reklam, tanıtım veya benzeri amaçlarla kullanılabilen, üzerinde ses sistemleri veya değişik elektronik sistemler de barındırabilen kule benzeri yapılar ile pilon (hava kapısı) olarak kullanılan plastik maddeden yapılmış şamandıralar",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "3.85",
+      "description": "Çift kovalı temizlik arabaları (ıslak paspaslamada kullanılan, pres ile sıkma özelliğine sahip metal-plastik materyallerden mamül tekerlekli temizlik araçları), temizlik malzemelerinin düzenli bir şekilde bulundurulmasında ve taşınmasında kullanılan metal iskeletli tekerlekli arabalar ve bunların benzerleri",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "3.86",
+      "description": "Otomatik para çekme makineleri (ATM)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "3.87",
+      "description": "Optik çerçeve ve camlardan deneme numunesi gözlükler",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "3.88",
+      "description": "Basınç odaları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.89",
+      "description": "Süs bitkileri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.90",
+      "description": "Modüler sistem tuvalet",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.91",
+      "description": "Su arıtma cihazları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.92",
+      "description": "Masaj koltukları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.93",
+      "description": "Dijital baskı makinesi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.94",
+      "description": "İşletmelerde kullanılan el, yüz ve banyo havluları, yatak çarşafları ve yastık kılıfları, masa örtüleri, plato ve her nevi peçeteler ve benzerleri",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "3.95",
+      "description": "Diğer sınıflarda sayılmayan demirbaşlar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "4.1",
+      "description": "Kişisel bilgisayarlar, el bilgisayarları (PDA), sunucu bilgisayarlar (Server)",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "4.2",
+      "description": "Bilgisayar Donanımları: Kart okuyucular, kart deliciler, kart seçiciler, manyetik teyp üniteleri, yüksek hızlı yazıcılar, optik karakter okuyucular, yüksek saklama kapasitesine sahip üniteler, kağıt bant donanımı, kağıt ve bantlara bilgi kaydeden klavyeli makineler, yazıcılar, terminaller, teyp sürücüleri, disk sürücüleri, görsel imaj koruyucu tüpleri ve benzeri araçlar (Eğlence amaçlı kullanılan ekipmanlar bu sınıfa girmez)",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "4.3",
+      "description": "Bilgisayar yazılımları",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "4.4",
+      "description": "Router (yönlendirici), swicth (anahtarlama birimi), data kablolaması ve bağlantı elemanları, UPS kablolama ve bağlantı elamanları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "4.5",
+      "description": "Data koruma kasası",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "5",
+      "description": "Elle Veri İşlenen Araçlar: Daktilo, hesap makinesi, para sayma makineleri, fotokopi makineleri, faks cihazları, kopyalayıcı ekipmanlar ve benzerleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "5.1",
+      "description": "Ödeme kaydedici cihazlar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.1",
+      "description": "Otomobiller ve taksiler (Jipler ve arazi taşıtları dahil)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.2",
+      "description": "Otobüs, Minibüs, Midibüsler",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.3",
+      "description": "Hafif kamyonlar (Yüksüz ağırlığı 6 tona kadar olanlar) ve kamyonetler",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.4",
+      "description": "Ağır yük kamyonları (Yüksüz ağırlığı 6 ton ve üzeri olanlar)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.5",
+      "description": "Motosikletler (Mopedler ve Triportörler dahil)",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.6",
+      "description": "Bisikletler ve at arabaları",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.7",
+      "description": "Kendinden hareketli yük arabaları (Kaldırma tertibatı ile donatılmış olanlar ve forkliftler,krikolar v.b. dahil)",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.7.1",
+      "description": "Taşıma ve yükleme amaçlı kullanılan robotlar, robotlu yükleme sistemleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "6.8",
+      "description": "Çekiciler (Transpaletler dahil)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.9",
+      "description": "Demiryolları araçları ve lokomotifler",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.10.1",
+      "description": "Yük ve yolcu gemileri",
+      "usefulLifeYears": 18,
+      "normalRatePercent": 5.55,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.10.2",
+      "description": "Tankerler ve frigorifik gemiler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.10.3",
+      "description": "Kayık ve mavnalar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.10.4",
+      "description": "Ağaç tekne",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.10.5",
+      "description": "Deniz motorları",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.10.6",
+      "description": "Şişme bot",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.10.7",
+      "description": "Kurtarma gemileri",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "6.10.8",
+      "description": "Römorkör",
+      "usefulLifeYears": 14,
+      "normalRatePercent": 7.14,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "6.10.9",
+      "description": "Acenta botları (pilot botlar)",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "6.10.10",
+      "description": "Enerji üretim/çevrim gemileri, Enerji üretim/çevrim deniz aracı",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "6.10.11",
+      "description": "Balık Nakliye Gemisi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "6.11",
+      "description": "Ray ve tel üzerinde çalışan makineli ve makinesiz araçlar",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.12.1",
+      "description": "Uçaklar ve Uçak simülatörleri",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 506
+    },
+    {
+      "code": "6.12.2",
+      "description": "Helikopterler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 506
+    },
+    {
+      "code": "6.13",
+      "description": "Treyler ve treylere bağlı konteynerler (yarı römorklar dahil)",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "6.14",
+      "description": "Sabit ve gezer vinçler, tavan vinçleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "6.14.1",
+      "description": "Limanlarda kullanılan mobil vinçlerin otomatik konteyner kaldırma ataçmanı",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "6.15",
+      "description": "Ambulans (İç tertibat ve teçhizatları hariç) ve itfaiye araçları",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "6.16",
+      "description": "Özel amaçlı araçlar ve bunların üst ekipmanları (Kar kürüme araçları, karavan, vidanjör ve tamir araçları, vinçli taşıtlar, beton karıştırıcı ile mücehhez taşıtlar, yol ve çevre temizlemeye mahsus arabalar, tohum, gübre, zift, su ve benzerlerini saçan arabalar, atölye arabaları, radyoloji cihazları ile donatılmış arabalar ve bunların benzerleri)",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "6.16.1.1",
+      "description": "Çöp temizleme araçları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "6.16.1.2",
+      "description": "Çöp temizleme araçları ekipmanları",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "6.17",
+      "description": "Bahçelerde, dış sahalarda veya çevre düzenlemesi gibi alanlarda atık maddeler, toprak veya malzeme vb. maddelerin taşınmasında kullanılan el arabaları, malzeme taşımada kullanılan ve tekerlekleri sağa sola dönebilen taşıma arabaları ve bunların benzerleri",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "7.1",
+      "description": "Sadece tarım ve bahçecilik işlerinde kullanılmak amacıyla edinilen yapılar",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.2",
+      "description": "Sadece hayvancılık işlerinde kullanılmak amacıyla tesis edilen yapılar (Tavla, ahır, ağıl, kümes, padoks, manej v.b.)",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.3",
+      "description": "Tarımda kullanılan hububat ambarları, depolama yerleri ve bunlara benzer yerler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.4",
+      "description": "Traktör, biçerdöver, tohum temizleme ve sınıflandırma makineleri ve bunlar gibi tarımda kullanılan makine, teçhizat ve tertibat",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.4.1",
+      "description": "Traktör, biçerdöver, triyör (İki tekerlekli, arkasına pulluk ve benzeri ekipman takılan hareketli araç v.b.) gibi araçların yardımcı ekipmanları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.4.2",
+      "description": "Kırkım makinesi",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "7.4.3",
+      "description": "Gaga kesme makinesi",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "7.4.4",
+      "description": "Krema makinesi",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "7.4.5",
+      "description": "Tavuk yolma makinesi",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "7.4.6",
+      "description": "Budama makinesi",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "7.4.7",
+      "description": "Motorlu el testeresi",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "7.4.8",
+      "description": "Meyve tasnif makinesi",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "7.4.9",
+      "description": "Buzağı emzirme makinesi",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "7.4.10",
+      "description": "Meyve bahçelerinde oluşabilecek don riski zararlarının asgariye indirilmesi için kullanılan, plastik malzemeden mamül ve demir direkler üzerine kurulmuş, motor desteğiyle çalışan rüzgar pervaneleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "7.5",
+      "description": "Mandıralar",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.6",
+      "description": "Sütlük ve damızlık sığırlar (Süt ineği, damızlık danalar vb. bu sınıfa dahildir.)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.7.1",
+      "description": "Damızlık olarak kullanılmak üzere iktisap edilen atlar (4 yaşından büyük olanlar)",
+      "usefulLifeYears": 18,
+      "normalRatePercent": 5.55,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "7.7.2",
+      "description": "Diğerleri (Aktife alındığı dönemde 2 yaşından büyük yarış atları vb.)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "7.8",
+      "description": "Sütlük koyun ve keçiler (Damızlık koç ve tekeler dahil)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.9",
+      "description": "Arılar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.10",
+      "description": "Yumurtalık tavuklar (Civciv ve besilik tavuklar hariç)",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.11",
+      "description": "Kümes hayvanları üretme tesisleri ve binalar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.11.1",
+      "description": "Üretimde kullanılan iktisadi kıymetler (Teçhizat v.b.)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.12",
+      "description": "Deniz ve tatlı su balıkları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.13",
+      "description": "Diğer hayvanlar (Köpek, iş hayvanları v.b.)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.1",
+      "description": "Zeytinlikler",
+      "usefulLifeYears": 50,
+      "normalRatePercent": 2.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.2",
+      "description": "Dutluklar",
+      "usefulLifeYears": 40,
+      "normalRatePercent": 2.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.3",
+      "description": "Fındıklıklar",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.4",
+      "description": "Süs ağaçları, güllükler",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.5",
+      "description": "Bağlar",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.6",
+      "description": "Narenciye ağaçları",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.7",
+      "description": "Şeftali ağaçları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.8",
+      "description": "Kayısı, erik, badem ağaçları",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.9",
+      "description": "Elma, armut, ayva, incir ağaçları",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.10",
+      "description": "Vişne, kiraz ağaçları",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.11",
+      "description": "Ceviz, kestane, antep fıstığı ağaçları",
+      "usefulLifeYears": 40,
+      "normalRatePercent": 2.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.12",
+      "description": "Sair meyveli ağaçlar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.13.1",
+      "description": "Seralarda kullanılan makine ve aletler ve çimlendirme odası (Isıtıcılar, ilaçlama makineleri, tohum ekme makineleri ve bunların benzerleri)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.13.2",
+      "description": "Cam örtü malzemeli seralar",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "7.14.13.3",
+      "description": "Plastik örtü malzemeli seralar",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "7.14.13.4",
+      "description": "Çelik konstrüksiyon yapı malzemeli seralar",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "7.14.13.5",
+      "description": "Galvanizlenmiş yapı malzemeli seralar",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "7.14.13.6",
+      "description": "Diğer yapı malzemeleri kullanılan seralar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "7.14.13.7",
+      "description": "Topraksız üretimde kullanılan sera plastiği",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "7.14.13.8",
+      "description": "Kaya yünü yatağı",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "7.14.13.9",
+      "description": "Seralarda kullanılan iklimlendirme sistemleri (Kontrol cihazları, sensörler, ısıtma, havalandırma, gölgeleme, sisleme, nemlendirme, karbondioksit, enjeksiyon makineleri vb.) ve bitki sulama- gübreleme sistemleri (sulama pompaj ve gübre dozaj makinesi vb.) gibi teknolojik ekipmanlar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "7.14.14",
+      "description": "Tarımsal sulama tesisleri (Yağmurlama, damla sulama v.b.)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.15",
+      "description": "Kanal ve kanaletler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.16",
+      "description": "Derin kuyular",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.17",
+      "description": "Sağım tesis ve makineleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.18",
+      "description": "Mahsul kurutma ve yem kırma tesis ve makineleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.19",
+      "description": "Çırçırlama ve delintasyon tesisleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.20",
+      "description": "Yoncalık tesisi",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.21",
+      "description": "Korunganlık tesisi",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.22",
+      "description": "Suni çayır mera tesisi",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "7.14.23",
+      "description": "Çam fıstığı tesisi",
+      "usefulLifeYears": 50,
+      "normalRatePercent": 2.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "7.14.24",
+      "description": "Kavaklık tesisi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "8",
+      "description": "Madencilik: Metalik ve metalik olmayan minerallerin maden olarak çıkarılmasında, öğütülmesinde, kullanılmasında ve bu tip materyallerin diğer şekillerde özel olarak hazırlanmasında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "8.1",
+      "description": "İzabe potaları",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "8.2",
+      "description": "Madeni emniyet şapkaları (Baretler)",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "8.3",
+      "description": "Linyit ve maden ocaklarının yer altı imalatında kullanılan, ihraç havalandırma, su ihraç tesisleri ve elektrik nakliye, ocak emniyet ve tahlisiye teçhizatı, nakliye, kazı, delme, yükleme, yıkama ve zenginleştirme tesisatı ile ocak aydınlatmasında kullanılan iktisadi kıymetler ve malzemeler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "9.1",
+      "description": "Petrol ve Gaz Sondaj Faaliyetleri: Petrol ve gaz arama faaliyetlerinde ve petrol ve gaz hizmetlerinin verilmesinde kullanılan kimyasal işlemler, kuyuların kapatılması beton ile kaplanması, kuyu ve boru yataklarının delinmesi gibi işlemlerde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "9.1.1",
+      "description": "Pompaj çubuklarından emiciler",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "9.2",
+      "description": "Petrol ve Doğal Gaz Rezervlerinin Araştırılması ve Bunların Üretilmesi: Petrol ve doğal gaz rezervlerinin araştırılması ve bunların üretimi, petrol ve doğal gazın boru hatlarına toplanması ve benzer saklama faaliyetlerini de içeren kuyuların kazılması, petrol ve doğal gazın üretimi için üreticilerce kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 14,
+      "normalRatePercent": 7.14,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "9.2.1",
+      "description": "Filtreler (Likit petrol gaz sanayiinde kullanılan)",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "9.3",
+      "description": "Petrol Arıtımı: Damıtma, parçalara ayırma ve ham petrolün gaz ve diğer unsurlar için kataliz olarak ayrılmasında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "9.3.1",
+      "description": "Buhar kazanlarından acı su kullanılanlar",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "9.4",
+      "description": "Petrol ve gaz ürünlerinin pazarlanması ve satılmasında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 9,
+      "normalRatePercent": 11.11,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "9.4.1",
+      "description": "Sıvı gaz buharlaştırıcılar",
+      "usefulLifeYears": 9,
+      "normalRatePercent": 11.11,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "10",
+      "description": "İnşaat İşleri: Kamu binaları, özel ticaret binaları, limanlar, işletme ve yönetim binaları, gayrimenkuller ve eklentileri, karayolları ve demiryollarının yapımında kullanılan iktisadi kıymetler (Aşağıdaki sınıflarda sayılanlar hariç)",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "10.1.1",
+      "description": "Ahşap inşaat kalıpları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "10.1.2",
+      "description": "Tünel kalıplar",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "10.1.3",
+      "description": "Yapı inşaatlarında kullanılan özel imal edilmiş hazır çelik iskeleler",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "10.1.4",
+      "description": "Karo taşı, kilit taşı, bordör taşı, park mantarı, çit direği vb. ürünlerin imalatında kullanılan kalıplar",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "10.1.5",
+      "description": "İş iskelesi ve iskele bağlantı elemanları (Sanayi borusundan imal edilmiş olanlar)",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "10.1.6",
+      "description": "Ağaç kalaslar",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "10.1.7",
+      "description": "Demir veya çelik inşaat kalıpları",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "10.2",
+      "description": "İnşaat demiri iskeleti üretiminde kullanılan çok amaçlı kazık demirleri işleme makinesi",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "10.3",
+      "description": "Kum, mıcır, çakıl kırma ve eleme işinde kullanılan iktisadi kıymetler: Kum değirmeni, kum-çakıl kırma-eleme tesisi",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "10.4",
+      "description": "İnşaat işlerinde kullanılan iş makinesi ve benzeri araçlar (Boru döşeyici, ekskavatör ve lastik tekerlekli yükleyici gibi)",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "10.5",
+      "description": "Kazık çakma makinesi",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "11",
+      "description": "Hububat ve Unlu Mamuller İmalatı: Un, tahıl ve diğer hububat ve unlu mamullerin üretiminde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "12",
+      "description": "Şeker ve Şeker Ürünleri İmalatı: Ham şeker, şurup, şekerkamışı ve şeker pancarından yapılan şekerin üretiminde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "13",
+      "description": "Bitkisel yağ ve bitkisel yağ ürünleri imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "14",
+      "description": "Balık yağı, balık unu, yaş meyve, kuru meyve, sucuk pastırma, nebati yağ, süt ve süt mamulleri imalatında kullanılan iktisadi kıymetler ve özel araç gereçler *",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "15",
+      "description": "Çay sanayiinde kullanılan iktisadi kıymetler ve özel araç gereçler *",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "16",
+      "description": "Alkollü ve alkolsüz içecekler ile bunlara benzer içecekler sanayiinde kullanılan iktisadi kıymetler ve özel araç gereçler *",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "16.1",
+      "description": "Meyve suyu konsantresi ve pulp üretiminde kullanılan iktisadi kıymetler (evarporatör, ultra filtre makinesi, püre işleme hattı, filtre tanbur ve pastarazatör vb. )",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "17",
+      "description": "Diğer Gıda ve Benzeri Ürünlerin İmalatı: ( 11, 12,13,14,15,16) numaralı sınıflarda yer almayan yiyecek ve içeceklerin üretiminde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "17.1",
+      "description": "Bisküvi, çikolata ve şekerleme fabrikalarında kullanılan lehimli kaplar",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "17.2",
+      "description": "Rafine tuz imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "17.3",
+      "description": "Hayvansal yağ ve kemik hammaddesi kullanılarak elde edilen don yağı, don yağı asidi, et ve kemik unu imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "18",
+      "description": "Özel İşleme Araçları ile Üretilen Yiyecek ve İçeceklerin İmalatı: Geri dönüşümlü foluklar, paketli konteynerler gibi aletleri kontrole yarayan ve özel materyaller olarak ( 11, 12, 13,14,15,16,17) numaralı sınıflarda tanımlanan faaliyetlerde kullanılan sepet, kutu, araba, ızgara tepsileri, balık işleme tepsileri v.b. iktisadi kıymetler",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "18.1",
+      "description": "Alkollü veya alkolsüz içeceklerin pazarlanması ve satılmasında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "18.2",
+      "description": "Cam şişeler",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "18.3",
+      "description": "Demir ve çelikten imal fıçılar ve tüpler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "19",
+      "description": "Tütün ve Tütün Mamulleri İmalatı: Sigara, puro, enfiye, cigarillo, pipo tütünü v.b. tütün ve tütün mamulleri imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "20.1",
+      "description": "Örgü Ürünleri İmalatı: Örme, ağ dokuma, dantel ve benzerlerinin üretiminde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "20.1.1",
+      "description": "Nakış makineleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "20.2",
+      "description": "Pamuk İşleme: Pamuk işlemeye yarayan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "20.3",
+      "description": "Pamuk ve Yün İplik, Lif ve Dokuma Kumaş İmalatı: Eğrilmiş ipliğin hazırlanması, karıştırılması, bükülmesi, iplik ve liflerin sarılması, ipliğin çözülmesi ve çevrilmesi, esnek iplik ve lifle kaplı ürünler, şerit, bez, lastik doku, örgü dokumalar, ambalajlama için bükülmüş jüt, şilte, yastık, çarşaf, endüstriyel kuşaklar, fiberle kaplanmış fabrika atıklarının işlenmesi, yumaklar ve kumaş tiftiklerinin işlenmesinde kullanılan iktisadi kıymetler ve benzerleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "20.4",
+      "description": "Halı İmalatı, Halı Boyama ve Bu Ürünlerin Tamamlanması ve Tekstil Ürünlerinin Paketlenmesi: Halı, kilim, paspas, çift yüzlü dokunmuş yün halı, saçak ve diğer saçaklı ürünlerin ve dokuma veya iplik halıların arka ve ön yüzlerinin birleştirilmesinde kullanılan iktisadi kıymetler ve elde dokuma halı ile fabrikasyon halıların örneklerinin hazırlanması veya çorap veya külotlu çorapların katlanması, dikilmesi ve yün olmayan ürünleri üretmek için fabrikasyon ürünlerin katlanması, kesilmesi, dikilmesi, buruşturulması, düzeltilmesi gibi elbiselerden daha çok katlanarak, şekil verilerek, kesilerek, dikilerek oluşturulan tekstil ürünlerinin paketlenmesi ve üretiminde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "20.5",
+      "description": "Giysi ve Diğer Bitmiş Ürünlerin İmalatı: Giyim eşyası/kıyafet, diğer tekstil ürünleri, kürkler ve dokumaların kesilerek ve dikilerek imal edilmesi ve tekstil ürünlerinin üretiminde kullanılan iktisadi kıymetler ve tamamlayıcı malzemelerinin üretiminde kullanılan iktisadi kıymetler (Deri ve sentetik giysilerin imalatında kullanılan iktisadi kıymetler hariç)",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "20.5.1",
+      "description": "Giysi ve diğer bitmiş ürünlerin imalatında kullanılan üç boyutlu vücut tarama ve ölçüm sistemleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "20.6",
+      "description": "Deri ve Deri Ürünleri İmalatı: Ayakkabı, kemer, giysi ve bavul gibi nihai deri ürünlerinin imalatında, ham kürklerin işleme tabi tutulmasında, deri ve postların tabakalanmasında, işlenmesinde ve nihai işlemlere tabi tutulmasında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "20.7",
+      "description": "Tekstil İpliği İmalatı: İpliği dökme yapmak veya ipliğin işlenmesinde ve bunlarla ilgili işlemlerde kullanılan iktisadi kıymetler (Bu tür imalatta kullanılan ana makineler şunlardır: Hatalı sarma, çizme, tartma, kumaş dolapları, yüksek hızlı burgu sargı makineleri ve benzeri makineler)",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "20.8",
+      "description": "Yün Olmayan Dokumaların İmalatı: Keçe ürünleri, vatka, tabaka pamuk, tampon, üstüpü v.b. üretiminde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "20.9",
+      "description": "Endüstriyel iplik ve kordbezi imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "20.10",
+      "description": "Ham kumaş boyama işlemlerinde (Boya, apre, kasar, ram, sanfor, yıkama, şardoş, tıraş v.b.) kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "20.11",
+      "description": "Tekstil ürünlerinin test işlemlerinde kullanılan iktisadi kıymetler: Kesim presi makinesi, dikiş makinesi, overlok makinesi, çamaşır makinesi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "20.12",
+      "description": "Dikiş makinesi (Terzilik, tekstil ürünleri tamiratı vb. işlerde kullanılanlar)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "21",
+      "description": "Tıbbi Malzeme, İlaç ve Diş Malzemesi İmalatı: Medikal ürünler, tıbbi ilaçlar ve dişle ilgili ilaç ve müstahzarların üretiminde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "21.1",
+      "description": "Çift cidarlı buhar kazanları, komprime makineleri, doldurma makineleri, cihazları ve vasıtaları, tephir kazanları, merhem sıvağı hazırlama kapları, merhem karıştırma cihazı (Melanjör), merhem ezme makinesi (Melaksör), odistile ve obidistile cihazları, biyolojik ve müstahzarları yapan laboratuvarlarda kullanılan cihaz, makine, tesisat, tertibat ve vasıtalar",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "21.2",
+      "description": "Vakum cihazı veya buna muadil tertibat, tüp veya kavanozlara merhem doldurma ve kapama makineleri, ajitatörlü ve termostatlı suppozituar makinesi, harici tesirattan muhafaza için hususi empermeabilize ambalaj makinesi, ampul kapatmadoldurma makinesi",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "21.3",
+      "description": "Kurutma evütü (Elektrikli, havagazlı ve buharlı), süzme tertibatı (muhtelif cins filtre cihazları), alkol distilasyon inbikleri, filtrasyon tertibatı, muhtelif filtre cihazları, bakteriyolojik ve immünolojik-serolojik müstahzar yapan laboratuvarlarda kullanılan cihaz, makine, tesisat ve vasıtalar, kalıplar (Tablet ve kaşeler ve diğer müstahzarlar için hususi suretle hazırlatılmış bulunan kalıplar), tıbbi müstahzarlara ait ambalaj maddelerinin baskısında kullanılan klişe, kalıp ve hususi bıçaklar",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "22",
+      "description": "Optik alet sanayiinde kullanılan iktisadi kıymetler ve özel araç gereçler *",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "23.1",
+      "description": "Kereste Kesimi: Kereste kesim makine ve ekipmanları ile benzerleri",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "23.2",
+      "description": "Ahşap Ürünler ve Mobilya İmalatı: Kereste ve direklerin işleme tabi tutulması da dahil kontrplak, sıkıştırılmış kereste, döşemelik malzeme, ahşap kaplamalar, mobilya ve diğer ahşap ürünleri ve bunların benzerlerinin üretiminde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "23.3",
+      "description": "Kağıt ve Kağıt Hamuru İmalatı: Hamur materyalleri işleme ve depolama, beyazlatma işlemleri, kağıt ve tabaka imalatı ve otomatik tamamlama işlemleri için kullanılan iktisadi kıymetler ve imalatta yararlanılan kimyevi maddelerin yeniden kullanılması veya arındırılması için kullanılan belirli bir kapasitedeki buhar ve kimyevi maddelerin ayırma sistemleri (Kağıt yapımında kullanılan kereste yada yapı sektöründe kullanılan kontralit imalatında kullanılanlar hariç)",
+      "usefulLifeYears": 13,
+      "normalRatePercent": 7.69,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "23.4",
+      "description": "Yeniden Kullanılabilen Kağıt, Tabaka Kağıtlar veya Kağıt Hamuru Ürünleri İmalatı: Kağıdın makinede katlanması, kağıt poşet, kağıt kutu, mukavva, zarf gibi kağıt hamurun belirli bir ürüne dönüştürülmesi, kağıdın yeniden imalı veya değiştirilmesinde kullanılan iktisadi kıymetler v.b",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "23.4.1",
+      "description": "Elektronik miğfer boru makinası, tuvalet kağıdı ve mutfak havlu sarma hattı, otomatik paket makinası, otomatik denetleme makinası, bobin asansörü",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "23.5",
+      "description": "Bebek bezi, kadın bağı ve bunların benzerlerinin imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "23.6",
+      "description": "Kağıt ve karton ambalajların üzerine yapılan baskılarda kullanılan kauçuk klişeler",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "24",
+      "description": "Basın Yayın ve Bağlantılı Sektörler: Baskı, taş basması, gravür veya yaprak gibi bir veya birden fazla süreç aracılığı ile yapılan basımda kullanılan; kitap ciltlemesi ve yazımı, oymacılık, resim oymacılığı ve elektronik araçlarla yazım gibi basım ticareti ile ilgili hizmetlerin görülmesinde; kitap, gazete ve süreli yayınların yayımlanmasında kullanılan iktisadi kıymetler ve benzerleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "24.1",
+      "description": "Metal ofset baskı makinesi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "25",
+      "description": "Kimyasal Ürünler ve Bağlantılı Ürünlerin İmalatı: Tamamlanmış kimyevi ürünler, sentetik fiber ve plastik materyaller gibi ileri aşamalarda kullanılan kimyevi ürünlerin ve temel organik ve inorganik kimyasalların imalatında kullanılan iktisadi kıymetler ve film, fotoğraf kağıdı, hassas fotoğraf kağıdı, gelişmiş kimyasallar gibi fotoğrafçılıkla ilgili gereçleri imal etmekte kullanılan iktisadi kıymetler ve atık su havuz ve kanalları gibi fabrika arazisi ve üretim süreciyle doğrudan bağlantılı bütün arazi düzenlemeleri (Binalar ve yapısal eklentiler bu kapsamda değildir.)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.1",
+      "description": "Elektrik, enerji dağıtım ve kontrol ekipmanları (Deniz suyunda çalışan eşanjör, filtre, pompa, boru, vana gibi ekipmanlar)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.1.1",
+      "description": "Motorlar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.1.2",
+      "description": "Deniz kıyısı, arıtma tesisi v.b. korozif ortamda çalışan motorlar",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.1.3",
+      "description": "Buhar emiş fanı v.b. sıcak ve nemli ortamda çalışan motorlar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.1.4",
+      "description": "Seyyar dalgıç pompa motorları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.1.5",
+      "description": "Paneller ve panel cihazları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.1.6",
+      "description": "Kablo, kanalet, tava, kondült, spiral, start-stop butonları ve benzerlerinden oluşan hatlar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.1.7",
+      "description": "Deniz kıyısı, arıtma tesisi ve korozif ortamda çalışan saha cihazları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.2",
+      "description": "Enstrümanlar ve saha cihazları (Asidik, bazik ve klorlu ortamlarda kullanılan tank, eşanjör, kolon, pompa, boru ve vana gibi ekipman)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.3",
+      "description": "Proses gereği korozyon ve erozyona uğrayan özel reaktörler ve müştemilatı",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.4",
+      "description": "Mamul ve yarı mamul ürün taşımasında kullanılan ve devamlı sirkülasyonda olan veya proses gereği periyodik ışıl işlemlerine maruz kalan kutu, sepet, konteyner gibi taşıma ekipmanları",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.5",
+      "description": "Petro kimya sanayiinde kullanılan iktisadi kıymetler ve bu sektörde kullanılan tesisler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.5.1",
+      "description": "Petrokimya sanayiinde kullanılan katalizörler (reaktörde sabit bir yatakta bulunup tüketilmeksizin reaksiyonun gerçekleşmesini sağlayanlar)",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "25.6",
+      "description": "Polyester elyaf imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.7",
+      "description": "Sentetik iplik imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.8",
+      "description": "Azot sanayiinde kullanılan iktisadi kıymetler ve özel araç gereçler *",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.9",
+      "description": "Suni gübre sanayinde kullanılan iktisadi kıymetler ve özel araç gereçler *",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.10",
+      "description": "Soda sanayinde kullanılan kalsiyum oksit (Kireç) fırınları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "25.11",
+      "description": "Pestit (Haşarat ilacı) ve diğer zirai kimyasal ürünler, boya, sentetik ürünler, vernik ve benzeri kaplayıcı maddeler, matbaa mürekkebi ve macun imalatı, eczacılıkta ve tıpta kullanılan kimyasal ve bitkisel kaynaklı ürünler, sabun ve deterjan, temizlik ve cilalama maddeleri, parfüm, kozmetik ve tuvalet malzemeleri imalatında kullanılan iktisadi kıymetler ve bunların benzerleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "25.12",
+      "description": "Nükleer yakıt imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "25.13",
+      "description": "Filtre ve havalandırma sistemleri imalatında kullanılan filter kağıdı pileleme makineleri, plastik kaynak makineleri, çift kompenantlı dozaj miks makineleri, poliüretan conta döküm robotları, ambalajlamada kullanılan shrink makineleri, pistonlu döndürme makineleri, üç köprülü gönyemele makineleri",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "25.14.1",
+      "description": "Enjeksiyon makine tesisatı ve aksesuarları",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "25.14.2",
+      "description": "Kalıplar",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "25.14.3",
+      "description": "Blok makineleri",
+      "usefulLifeYears": 9,
+      "normalRatePercent": 11.11,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "25.14.4",
+      "description": "Buhar kazanları",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "25.14.5",
+      "description": "Kesme ve dilme makineleri ile tezgahlar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "25.14.6",
+      "description": "Besleme tabancaları (enjektör) ve aksesuarları",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "25.14.7",
+      "description": "Alev test cihazları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "26",
+      "description": "Kauçuk Ürünleri İmalatı: Tekerlek, boru, kauçuktan yapılmış ayakkabı, mekanik kauçuk içeren eşyalar, ökçe ve tabanlar, döşemelik malzemeler ve taban geçirilen lastik kaplama ve tekerlerin onarımı gibi doğal, sentetik veya işlemden geçirilen kauçuk veya bir ağaçtan toplanan reçineden oluşan maddelerden yapılan ürünlerin üretiminde kullanılan iktisadi kıymetler ve benzerleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "26.1",
+      "description": "Transmisyon kayışları, konveyör bantları, V kayışlarının imalatında kullanılan iktisadi kıymetler: Sıvama bıçağı, kür fırını ve ön ısıtma grubu, laminasyon ve şekillendirme ünitesi, soğutma grubu ve sarım makinesinden oluşan konveyör bant üretim hattı",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "26.2",
+      "description": "Kauçuk Ürünleri İmalatında Kullanılan Özel Alet ve Cihazlar: Delme cihazı, damga, kalıp göbeği, kalıp, kundura kalıbı, şablon, özel variller, fırça, madeni levhalar ve benzerlerinden oluşan özel alet ve cihazlar *",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "27",
+      "description": "Nihai Plastik Ürünleri İmalatı: Ticari amaçla üretilen özel plastiklerin kalıba dökümünde ve plastik ürünlerin imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "27.1",
+      "description": "Plastik parça ve kalıpların imalatına ilişkin olarak boyama ünitesinde kullanılan iktisadi kıymetler: Yaş boya kabini ve ekipmanları, boya pişirme fırını, pozitif basınç ünitesi ve ekipmanları vb",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "27.2",
+      "description": "Nihai Plastik Ürün İmalatında Kullanılan Özel Aletler: Delme cihazı, damga aleti, kalıp, şablon, ölçü aletleri ve benzerlerinden oluşan özel alet ve cihazlar *",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "27.3",
+      "description": "Plastik enjeksiyonda kullanılan kalıplar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "27.4",
+      "description": "Cam-elyaf takviyeli plastik su boruları üretiminde kullanılan, boru üretim makinesi, boru taşlama ve pah kırma ünitesi, hidrostatik boru sızdırmazlık ünitesi, boru ve manşon kanal açma ünitesi, hidrostatik manşon sızdırmazlık ünitesi, rijitlik ölçme test makinesi gibi ünite ve makineler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "28.1.1",
+      "description": "Düz cam, buzlu cam ve cam kap fırınları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "28.1.2",
+      "description": "Otomatik züccaciye ve cam elyaf fırınları",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "28.1.3",
+      "description": "El imalatı züccaciye fırınları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "28.1.4",
+      "description": "Cam suyu (Slikat) fırınları",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "28.1.5",
+      "description": "Cam üretim potaları",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "28.2.1",
+      "description": "Cam üretimi, kesme ve işleme makine ve teçhizatı",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "28.2.2",
+      "description": "Rodaj, delme, çapak alma ve bizote makine ve teçhizatı",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "28.2.3",
+      "description": "Cam elyafı, otocamı, ayna, lamine temperleme, kaplama ve ısıcam makine ve teçhizatı",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "28.2.4",
+      "description": "Bilgisayar kontrollü, kumanda ve kalite kontrol cihazları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "28.3.1",
+      "description": "Doğalgaz basınç ve ölçme istasyonları",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "28.3.2",
+      "description": "Doğalgaz kazan ve kombi gibi yakma tesisleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "28.3.3",
+      "description": "Doğalgaz iç tesisat ve ilgili ekipmanlar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "28.4",
+      "description": "Cam ürünleri imalatında kullanılan diğer makine, tesis ve cihazlar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "28.5",
+      "description": "Cam Ürünleri İmalatında Kullanılan Özel Aletler: Kalıplar, şablonlar, fırçalar gibi özel alet ve cihazlar *",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "29",
+      "description": "Çimento İmalatı: Çimentonun torbalanarak ticari satış amacıyla imalinda kullanılan iktisadi kıymetler (Beton ve beton ürünleri imalatında ve her türlü madencilik veya istihraç işlemlerinde kullanılan iktisadi kıymetler hariç)",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "29.1",
+      "description": "Çimentolu yonga ve lif çimento levha imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 439
+    },
+    {
+      "code": "29.1.1",
+      "description": "Plastik kalıplar",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 439
+    },
+    {
+      "code": "29.1.2",
+      "description": "Çelik sac kalıplar ve ayraçlar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 439
+    },
+    {
+      "code": "29.2",
+      "description": "Çimento üretiminde döner fırınlarda kullanılan ateşe dayanıklı harç ve anker tuğlası (spiral ve magnezit ateş tuğlası)",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "29.3",
+      "description": "Çimento üretiminde kullanılan hava körükleri (blower), yüksek basınçlı su pompaları, çimento değirmeni ana tahrik redüktörü",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "30.1",
+      "description": "Taş ve Topraktan/Kilden Yapılan Ürünlerin İmalatında Kullanılan Ana Makine ve Teçhizatlar: Çamur, sır ve pasta değirmenleri, spraydierler, presler, kurutmalar, fırınlar v.b",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "30.2",
+      "description": "Taş ve Topraktan/Kilden Yapılan Ürünlerin İmalatında Kullanılan Yardımcı Makine ve Teçhizatlar: Kil kırıcılar, konveyörler, elektörler, pompalar, havuz karıştırıcılar, çelik silolar, arıtma, toz emme, kompresör, pres-çıkışı, kurutma giriş-çıkışı, sırlama bantları, sır havuzları, sır aplikasyon makineleri, stok arabaları, stok arabaları transfer sistemleri, fırın giriş-çıkışları, kalite-ayrım makineleri, tozlama makineleri, rektifiye makineleri, shrink fırınları, kesme makineleri, dekorlama hatları v.b",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "30.3",
+      "description": "Taş ve Topraktan/Kilden Yapılan Ürünlerin İmalatında Kullanılan Kalite Kontrol Sistemleri, Labaratuar cihazları: Otoklav, fiziksel ölçüm cihazları, karıştırıcılar, elektronik teraziler, sır eplikasyon çıkışları, elek baskı cihazları, kumpaslar, proses kontrol cihazları, kimyasal ölçüm cihazları v.b",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "30.4",
+      "description": "Taş ve Topraktan/Kilden Yapılan Ürünlerin İmalatında Kullanılan Yüksek Teknolojili Ürünler (Robot ve benzerleri)",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "31.1",
+      "description": "Demir İçermeyen Metallerin İmalatı: Maden cevheri, maden külçesi ve hurdadan elde edilen demir içermeyen metallerin eritilmesi, elektrolizi, saflaştırılmasında; demir içermeyen metallerin yuvarlanması, çıkarılması, alaşım haline getirilmesinde; aynı metallerin diğer temel ürünlerinin kalıpları ve dökümlerinin üretiminde; çivi, kalıp, tel, kablo, büyük çivi ve inşaat kalıplarının imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.1.1",
+      "description": "Demir İçermeyen Metallerin İmalatında Kullanılan Özel Aletler: Delme cihazları, kalıplar, şablonlar, demirbaşlar, ölçüm cihazları, dökümler gibi özel aletler *",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2",
+      "description": "Döküm Ürünleri ve Bunların İmalatı: Döküm ve göbek yapımı gibi ilgili işlemleri de içeren demir ve çeliğin dökümünde kullanılan kıymetler ve aynı zamanda arazi düzenlemeleri ve özel araçlar *",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2.1",
+      "description": "Kızaklar, merdaneler (Asit sıyırma), konveyör kayışı, şerit sarma tamburu",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2.2.1",
+      "description": "Alüminyum enjeksiyon kalıpları",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2.2.2",
+      "description": "Çelik kalıplar",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2.2.3",
+      "description": "Sert metal kalıplar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2.2.3",
+      "description": "Saç parça kalıpları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2.2.4",
+      "description": "Plastik kalıplar",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2.2.5",
+      "description": "Cam kalıplar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2.2.6",
+      "description": "Strofor kalıpları",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2.2.7",
+      "description": "Döküm kalıplar",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2.2.8",
+      "description": "Denge ağırlığı kalıpları",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.2.2.9",
+      "description": "Alüminyum ekstrüzyon presi ve hatları",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "31.3",
+      "description": "Çelik Ürünleri İmalatı: Maden cevheri, maden külçesi ve hurdadan elde edilen demir ve çeliğin eritilmesi, ayrıştırılması ve bir araya getirilmesinde; çeliğin yuvarlanması, alaşım haline getirilmesi, bükülmesi; çivi, büyük çivi, inşaat kalıpları, tel, kablo ve boruların yapımında kullanılan ve sahibine bakmaksızın kok kömürünün üretiminde kullanılan ve de çelik üretim merkezleri ve demir karışımlı metal döken dökümhaneler tarafından kullanılan iktisadi kıymetler ve aynı zamanda da ilgili arazi düzenlemeleri ve yukarıdaki faaliyetlerde kullanılan özel araçlar *",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.4",
+      "description": "Fabrikasyon Metal Ürünleri İmalatı: Metal kutular, teneke kaplar, yapısal fabrikasyon metal ürünler, metal kalıplar ve diğer demir bileşimli yada demir içermeyen metallerin üretiminde kullanılan iktisadi kıymetler (Elektrikle çalışmayan ısıtma cihazlarının imalatında kullanılan iktisadi kıymetler hariç)",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.4.1",
+      "description": "Fabrikasyon Metal Ürünlerinin Üretiminde Kullanılan Özel Aletler: Delme aletleri, kalıplar, demirbaşlar, ölçüm cihazı, dökümler ve dönüştürülebilir konteynerler gibi özel araçlar *",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "31.5",
+      "description": "Metal Yüzeylere Uygulanan İşlemlerde Kullanılan İktisadi Kıymetler: Bu işlemler, metallerin yüzeylerinin boya veya benzeri bir uygulamaya girmesinden önce, metalde pas ve cürufun bulunması, tuz, toz, gres ve yağ gibi yüzeyde kir bulunması ve yüzey profili gibi faktörlerden arındırılarak yüzeyin kumlama işlemi ile temizlenmesi, metalin tüm yüzeyine gözenek açılması, yüksek basınçta çelik granül-grit püskürtülerek yüzey, boya ve diğer koruyucu malzemelerin uygulanması için gerçekleştirilen işlemleri ve bunların benzerlerini içermektedir",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "31.6",
+      "description": "PVC kapı ve pencere sistemleri ve bunların benzerlerinin imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "31.6.1",
+      "description": "PVC imal kalıpları",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "31.7.1",
+      "description": "Galvanizli sac üretiminde kullanılan iktisadi kıymetler: Dilme hattı, boy kesme hattı, ince kesme hattı, kalın sac kesme ve istifleme makinesi, trapez formlama makinesi, orsis yağlama makinesi, boyama hattı",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "31.7.2",
+      "description": "Rulo sacların haddelenmesinde kullanılan iktisadi kıymetler: Temizleme hattı, asit regenerasyon hattı, soğuk hadde tesisi, tavlama fırınları, temper haddesi, demineralize su üretim cihazı",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "31.8",
+      "description": "Dövme çelik parça imalatında kullanılan kalıplar",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "31.9",
+      "description": "Pirinç yüzeylerin üzerine çeşitli kimyasal maddeler kullanarak elektroliz yöntemiyle nikel ve krom kaplama işinde kullanılan iktisadi kıymetler ile pirinç yüzeylerin üzerinde bulunan kurşun metalinin kaplama esnasında ayrıştırılması işleminde kullanılan kurşun giderme tesisleri",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "31.10.1",
+      "description": "Haddeleme işleminde kullanılan profil giriş ve çıkış yollukları",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "31.10.2",
+      "description": "Mamülü istenilen boyuta getiren testere bölümüne sevk eden transfer hatları",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "31.10.3",
+      "description": "Hammaddenin üretim prosesine uygun haddeleme sıcaklığına ulaşmasını sağlayan fırınlar, hammaddenin fırından stok bölgesine kadar takip ettği üretim peryodundaki elektrikli makineler ve elektronik cihazlar, haddeleme işleminde kullanılan; lopper, maniblatör, maniblatör role yolu ve redüktörlerin, yatakların yağlanmasını sağlayan prosesteki tüm hidrolik ve pnömatik pistonlar ile üretilen mamüllerin standartlara uygunluğunu tespit edilmesini sağlayan laboratuar malzemeleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "31.10.4",
+      "description": "Sistemin kullandığı elektriğin konpanzasyonu sağalayan panolar, elektrik ve kumanda odalarınının havalandırılmasını, soğutulmasını sağlayan sistemler, mamülün istenilen boyuta getirilmesini sağlayan hareketli testereler",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "31.10.5",
+      "description": "Haddeleme işleminde kullanılan ön redüktörler",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "31.10.6",
+      "description": "Hammaddenin fırından stok bölgesine kadar takip ettği üretim peryodunda kullanılan elektrikli makineler ve elektronik cihazlara ait elektrik otomasyon sistemleri, sistemin ihtiyacı olan enerjinin dağıtılmasını sağlayan orta gerilim sistemleri ve trafolar, haddeleşme işleminde kullanılan merdane değiştirme sisitemleri, mamulün paketlenmesinde ve stoklanmasında kullanılan taşıma sistemleri, üretim prosesinde kullanılan tüm ekipmanın altyapı sistemleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "31.10.7",
+      "description": "Haddeleme prosesinde kullanılan merdanelerin işlenmesini ve stoklanmasını sağlayan sistemler, elektrik ve kumanda odalarında yer alan sistemler, haddeleme işlemlerinde kullanılan universal hadde tezgahları, işgücünün ihtiyacını sağlayan sosyal tesislerde kullanılan iktisadi kıymetler (Genel sııflarda sayılanlar hariç)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "32",
+      "description": "Madeni Eşya ve Makine Sanayi: Demiryolları malzemesi imal eden tesisler, eğme makineleri (Metal varak), aletler (Anahtar, lokma, gönye v.b.), alüminyum eşya imal eden makineler, ateşli silâhlar imal eden makineler, boru imal eden makineler, buz ve soğutma cihazları imal makineleri, demir ve çelik aletleri imal eden makineler, elektrik ekipman ve malzemesi imal eden makineler, gemi inşa makineleri, ısıtma (Gaz, elektrik sobaları, radyatörler v. b.) cihazları imal eden makineler, kazan imalinde kullanılan makine ve aletler, konserve kutuları imal makineleri, motor, makine ve türbin imal makineleri, tarım makine ve aletleri imal makineleri, buldozer imal ve inşa eden makineler, cıvata ve somun imal makineleri, dişli imal makineleri, eğme makineleri (Zaviye, daire veya helezon) , galvanizleme makineleri, traktör imal edici makineler, büro makineleri (Daktilo, hesap makinesi, faks makinesi v.b.) imal eden makine ve tesisler, bobin sarma makineleri, hakketme makineleri, dikiş makineleri imal eden makineler, yatak imal makineleri (Motor, makine v. b.)",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "32.1",
+      "description": "El aletleri ve ev aletleri imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "32.2",
+      "description": "Madeni eşya ve demir çelik metal ürünleri imalatında mamüllerin elektrostatik toz boya ile boyanmasında kullanılan iktisadi kıymetler, kontinü toz boya tesisleri vb.(Eksenel konveyörlü fırın, eksenel kabin konveyörü, toz boya kabini, toz boya cihazı ve bunların benzerleri)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "32.3",
+      "description": "Cıvata ve somun imalatında soğuk üretim prosesinde kullanılan cıvata ve somun soğuk dövme makineleri",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "32.4",
+      "description": "Bağlantı elemanları üretim prosesinde ve çelik metallere esneklik, sertlik özelliği kazandırmakta kullanılan ısıl işlem fırını tesisleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "33.1",
+      "description": "Elektrikli ve Elektrikli Olmayan Makineler ve Diğer Mekanik Ürünlerin İmalatı: Makineli araçlar, endüstrinin genelinde kullanılan ve özel endüstri alanlarına ait makineler, elektrik trafoları, dağıtım ve iletim sistemleri, mahal ısıtma ve soğutma ve dondurma sistemleri, ticari olarak veya evlerde kullanılan araçlar, tarla ve bahçelerde kullanılan makineler, inşaat makineleri, petrol ve maden yataklarında kullanılan makineler, içten yanmalı motorlar, türbinler, aküler, lambalar, aydınlatma demirbaşları, karbon ve grafiti ürünleri, tıbbi araçlar, dişçilikle ilgili ekipman ve araçlar, bitmiş makine, ekipman ve ek parçaları imal etmek için kullanılan iktisadi kıymetler ve benzerleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "33.2",
+      "description": "Elektronik Parça, Ürün ve Sistemlerinin İmalatı: Havadan gerçekleştirilen uygulamalar da dahil elektronik iletişim, hesaplama, alet kullanma ve kontrol sistemlerinin; aynı zamanda frekans, modüle edilmiş dalga genişliği olan alıcı ve vericiler, elektrik sağlayan elektronik istasyonlar, televizyon ve video kameraları, kayıt cihazları, teypler, bilgisayarlar, bilgisayar ekipmanları, elektronik enstrümanlar, saatler, duvar saatleri; elektron tüpleri, kondansatörler, bobinler, rezistanslar, üstünde işaret taşıyan alt devreler, şalterler, lazerler, fiber optik araçlar, manyetik medya araçları ve hazır kablolar ve bunların benzerlerini imal etmede kullanılan iktisadi kıymetler (Fotokopi makineleri, yazıcılar, posta ölçüm cihazları, diğer elektro mekanik ve mekanik iş makineleri ve başka bir yerde sınıflandırılan iktisadi kıymetler kapsam dışındadır.)",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "33.3",
+      "description": "Her Türlü Yarı İletken İmalatı: Her türlü yarı iletken imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "34",
+      "description": "Motorlu Araçların İmalatı: Otomobiller, kamyonlar, treylerler, karavanlar, otobüslerin ve benzerlerinin montajında kullanılan iktisadi kıymetler (Başka bir sınıflamada yer alan iktisadi kıymetler bu sınıfın dışındadır.)",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "34.1",
+      "description": "Motorlu Araçlar İmalatında Kullanılan Özel Aletler: Matkap, kalıp, demirbaş, döküm, numune, ölçüm aleti ve özel transfer taşıma araçları gibi özel aletler olarak tanımlanan iktisadi kıymetler *",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "34.1.1",
+      "description": "Motosiklet, moped ve bisiklet üretiminde kullanılan üretim bantları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "34.2",
+      "description": "Motorlu araçlar yan sanayiinde kullanılan iktisadi kıymetler (Amortisör, yay, baskı, disk, debriyaj ve bunların benzeri gibi motorlu araçlara ait aksam, parça ve diğer ekipmanların imalatına kullanılan iktisadi kıymetler)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "34.3",
+      "description": "Otomobil ve benzeri araçların saclarının boyanmasında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "35",
+      "description": "Havacılıkta Kullanılan Mamullerin İmalatı: Hidrolik, hava basınçlı, elektrikli ve mekanik sistemleri de içeren havacılıkta kullanılan araçların ve onların parçalarının imalatı ve montajında kullanılan iktisadi kıymetler (Elektronik Hava Savunma Sistemleri, kılavuz, kontrol, radyasyon, hesaplama, test, denizcilik ve haberleşme araç-gereçleri veya onların parçalarının üretiminde kullanılan iktisadi kıymetler ise kapsam dışındadır.)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "35.1",
+      "description": "Havacılıkta Kullanılan Mamullerin İmalatında Kullanılan Özel Araç Gereçler *",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "36.1",
+      "description": "Gemi ve Bot İnşasıyla İlgili Makine ve Ekipmanlar: (6.10.) sınıfına dahil edilmeyen gemi, bot, gemi yüzdüren dubalar, rıhtımda kullanılan delme araçları ve özel fabrikasyonların tamir ve imalatında kullanılan iktisadi kıymetler ve bu kıymet sınıfına dahil edilen kıymetlerin işlemlerinde kullanılan makine ve ekipmanlar da dahil özellikle bütün imalat ve tamir makineleri ve ekipmanları (Binalar ve bunların yapısal eklentileri kapsam dahilinde değildir.)",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "36.2",
+      "description": "Gemi ve Bot İnşasında Kullanılan Özel Araç Gereçler: Kalıplar, matkaplar, numuneler, demirbaşlar, cerler ve ölçüm aletleri gibi özel araç olarak tanımlanan iktisadi kıymetler *",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "36.3",
+      "description": "Gemi ve Botların İnşa Edildiği Kuru Rıhtım ve Saha Uygulamaları: (36.1 ve 36.2.) sınıflarına dahil edilmeyen gemi, bot, gemi yüzdüren dubalar, rıhtımda kullanılan delme araçları ve özel fabrikasyonların imalatında ve tamirinde kullanılan iktisadi kıymetler ve su, kanalizasyon ve elektrik sistemleri gibi yüzen ve sabit kuru rıhtımlar, gemi havuzları, iskeleler, gemi güzergâhları ve bütün diğer saha uygulamaları (Binalar ve bunların yapısal eklentileri hariç)",
+      "usefulLifeYears": 16,
+      "normalRatePercent": 6.25,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "37.1",
+      "description": "Peron ve yükleme yerleri üzerindeki kontrüksiyonlar (Galeriler dahil)",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.2",
+      "description": "Peronlar",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.3",
+      "description": "Rampalar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.4",
+      "description": "Kömür ve akaryakıt verme tesisleri",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.5",
+      "description": "Cüruf temizleme tesisleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.6",
+      "description": "Bakım, muayene ve temizleme tesisleri",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.7",
+      "description": "Triyaj tesisleri (Atma ve kaydırma yerleri, ray frenleri, kirişli frenler)",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.8",
+      "description": "Esas toprak işleri, diğer tesisler",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.9",
+      "description": "Balast",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.10",
+      "description": "Tüneller ve yer altı tesisleri (Tek ve çift hatlı tüneller, yer altı trenleri tesisleri)",
+      "usefulLifeYears": 100,
+      "normalRatePercent": 1.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.11",
+      "description": "Menfezler (Boru merfezleri, karayolu merfezleri, su geçitleri ve diğerleri)",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.12",
+      "description": "Peron ve karayolu alt ve üst geçitleri",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.13",
+      "description": "Hemzemin geçitleri (Otomatik hemzemin geçit işaretleri, elle idareli bariyerler, otomatik bariyerler ve tesisler)",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.14.1",
+      "description": "Kumanda aletleri, blok tesisleri",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.14.2",
+      "description": "Sinyaller, transmisyon tertibatı",
+      "usefulLifeYears": 16,
+      "normalRatePercent": 6.25,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.14.3",
+      "description": "İstasyon sinyal tesisleri ve kumanda aletleri, otomatik blok tesisleri, transmisyon hatları",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.1",
+      "description": "Kumanda makineleri ve teçhizatı, röleler, makas, tahrik cihazları v.b",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.2",
+      "description": "Sinyaller",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.3",
+      "description": "Transmisyon hatları ve tesisleri",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.4",
+      "description": "Sinyalizasyon kuvvet tesisleri",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.5",
+      "description": "Otomatik fren tevfik tertibatı",
+      "usefulLifeYears": 16,
+      "normalRatePercent": 6.25,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.6",
+      "description": "Heyelan, taş düşme ve feyezan ihbar tesisleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.7",
+      "description": "Otomatik ve manivelalı telefon santralleri ve tesisleri, tren istikamet ve zamanlarını gösterir tesisler, kuranportör, dispeçing, telgraf, teleprümör, saat ve hoparlör tesisleri gibi tesisler ve bunların tesisleri",
+      "usefulLifeYears": 16,
+      "normalRatePercent": 6.25,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.8",
+      "description": "Yangın ihbar tesisleri ve yazı gönderme tesisleri",
+      "usefulLifeYears": 16,
+      "normalRatePercent": 6.25,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.9",
+      "description": "Telekomünikasyon kuvvet tesisleri",
+      "usefulLifeYears": 16,
+      "normalRatePercent": 6.25,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.10",
+      "description": "Yardımcı istihsal tesisleri (Tazyikli hava, su istihsali, jeneratör gazı, oksijen ve asetilen tesisleri gibi tesisler, sofaj santralleri ve benzerleri)",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.11",
+      "description": "Döner yada yürür köprüler, vagonları çevirerek boşaltan tesisler, yıkama ve temizleme tesisleri, ölçü kontrol ve tartı tesisleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.12",
+      "description": "Kimyevi ve termik tertibata maruz kalmayan makineler",
+      "usefulLifeYears": 16,
+      "normalRatePercent": 6.25,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.13",
+      "description": "Kimyevi ve termik tertibata maruz kalan makineler",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.14",
+      "description": "Madeni olmayan maddeleri işleyen diğer makine ve tesisler",
+      "usefulLifeYears": 16,
+      "normalRatePercent": 6.25,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.15",
+      "description": "Hurufat ve tertip makineleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.16",
+      "description": "Düz baskı makineleri, rotasyon, cilt, minatip ve portatif baskı makineleri v.b",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.17",
+      "description": "Talaş alan ve almayan tezgahlar, kereste işleyen tezgahlar ve diğer tezgahlar",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.18",
+      "description": "Yol makineleri (Buldozer, greyder, kompresör, betonyer, elevatör, traktör ve benzerleri ile bunların eklentileri)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.19",
+      "description": "Kuvvet makineleri ve tesisleri, uzak mesafe makineleri, muhavvile merkezleri, tali istasyonlar ve tevzi merkezleri, tali istasyonlar ve tevzi merkezleri, seyir hatları v.b",
+      "usefulLifeYears": 33,
+      "normalRatePercent": 3.03,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.20",
+      "description": "Yüksek ve orta gerilimli tesisler",
+      "usefulLifeYears": 33,
+      "normalRatePercent": 3.03,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.15.21",
+      "description": "Elektrik ölçü ve kontrol tertibatı, döner elektrik makineleri",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.16",
+      "description": "Nakil vasıtaları mefruşat ve teçhizatı",
+      "usefulLifeYears": 16,
+      "normalRatePercent": 6.25,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "37.17",
+      "description": "Diğer mefruşat ve teçhizat",
+      "usefulLifeYears": 16,
+      "normalRatePercent": 6.25,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "38",
+      "description": "Demiryolu Vagonlarının İmalatı: Demiryolu yük veya yolcu vagonlarının (Demiryolu transit vagonları da dahil) yapımı ve yenilenmesinde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "39",
+      "description": "Lokomotif İmalatı: Demiryolu lokomotiflerinin (Madencilik ve endüstride kullanılan lokomotifler de dahil) yapımı ve yenilenmesinde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 11,
+      "normalRatePercent": 9.09,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "40",
+      "description": "Demiryolu rayları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "40.1",
+      "description": "Dekovil hattı",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "41",
+      "description": "Madalya, Mücevherat, Oyuncak ve Diğer Bazı Malların İmalatı: Mücevher, müzik aletleri, oyuncak ve spor eşyalarının, sinema filmi, televizyon filmi ve teypler, mürekkepli kalemler, kalemler, ofis malzemeleri ve sanat ürünleri, saplı süpürgeler, fırçalar, kutuların ve benzerlerinin üretiminde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "42",
+      "description": "Boru Hattı Aracılığı İle Taşımacılık: Boru ve nakil araçları vasıtasıyla petrol, gaz ve diğer ürünlerin bir yerden bir yere taşınmasına yarayan özel, ticari ve anlaşma kabilinde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 22,
+      "normalRatePercent": 4.54,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "43.1",
+      "description": "Telefonla Haberleşmeyi Sağlayan İktisadi Kıymetler: Ticari faaliyet olarak yürütülen ve bir kontrata bağlı olarak verilen telefon hizmetlerinin temin edilmesinde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 45,
+      "normalRatePercent": 2.22,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "43.2",
+      "description": "Merkezde kullanılan yönetim binaları",
+      "usefulLifeYears": 45,
+      "normalRatePercent": 2.22,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "43.3",
+      "description": "Telefon Hizmetleri Vermeye Yarayan Teçhizatlar: Telefon istasyonu cihazları, kulübe, telefon santrali ve baz istasyonu ve benzer ekipmanlar gibi iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "43.4",
+      "description": "Telefon Dağıtım Santralleri: Direk hatları, alıcılar, yer altı kablosu boruları v.b.(İlgili ekipman ve araziye yapılan ilgili yenilikler ve bunların benzerleri de dahildir)",
+      "usefulLifeYears": 24,
+      "normalRatePercent": 4.16,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "43.5",
+      "description": "Bilgisayar Destekli Telefon Merkezine Ait Ofis Şalter Teçhizatları: Telefon merkezi ofis ekipmanı olarak merkezin kapasitesi içinde kullanılan bilgisayar ve bilgisayar donanımı fonksiyonu gören ekipmanlar ve benzerleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "44.1",
+      "description": "Radyo ve Televizyon Yayıncılığı: Yayın istasyon kuleleri dışında radyo ve televizyon yayıncılığında kullanılan iktisadi kıymetler ve telgraf, deniz kabloları, uydu iletişim araçları, yurt içi ve yurt dışı radyolu telgraf, kablolu telgraf ve deniz kablolarını ve uydu iletişim sistemlerini temin etmek için kullanılan, iletişimi sağlayan ilgili iktisadi kıymetler; aynı zamanda araziyle ilgili benzeri iyileştirmeler (Sınıflama, benzer ekipmanlar olarak sadece iletişim aracı olacak şekilde kullanılan kablolu televizyon ekipmanlarını ve karşılaştırılabilir araç-gereçleri ve sadece tek yönlü haberleşmede kullanılan kablolu televizyon araç-gereçlerini ise kapsamaz.)",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "44.2",
+      "description": "Yüksek Frekanslı Radyo ve Mikrodalga Sistemleri : Vericiler, alıcılar, antenler, anten destekli yapılar, cihazlardan antenlere nakil hatları, verici soğutma sistemleri ve kontrol ve amplifikasyon (Ses hacmini arttırma ekipmanları) gibi iktisadi kıymetler (Kablolu ve uzun hatlı sistemler ise kapsam dışındadır.)",
+      "usefulLifeYears": 13,
+      "normalRatePercent": 7.69,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "44.3",
+      "description": "Kablolu ve Uzun Menzilli Sistemler: Nakil hatları, direk hatları, deniz kabloları, gömülü kablolar ve muhafaza kabloları, elektronik sinyal göndericiler, elektronik sinyal gönderme istasyonları ve diğer ilgili iktisadi kıymetler (Bu sınıf, yüksek frekanslı radyo ve mikro dalga sistemlerini kapsamaz.)",
+      "usefulLifeYears": 27,
+      "normalRatePercent": 3.7,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "44.4",
+      "description": "Merkezi Ofiste Kullanılan Kontrol Ekipmanları: Elektro mekanik trafo, iletim aletleri, işlemleri takip eden ve yerine getiren çift taraflı iletim sistemleri, teleks teçhizatları, ev elektrik sistemleri ve ortak mahalde kullanılan araçları da içeren iletişime yarayan sinyallerin genel kontrolü, izlenmesi ve yön verilmesi için kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 17,
+      "normalRatePercent": 5.88,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "44.5",
+      "description": "Bilgisayarla Kontrol Edilen, Yönlendirilen ve Bunlarla İlgili Olan Kontrol Ekipmanları: Merkezi ofisten kontrol edilen ana bilgisayarlar, aynı şebekeye bağlı bilgisayarlar, kontrol amaçlı olarak özel yapılmış diğer ilgili ekipmanlar ve yer düzenekleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "44.6",
+      "description": "Uydularla Bağlantılı Olarak Çalışan Yeryüzündeki İktisadi Kıymetler: Yeryüzü istasyonlarındaki sabit teçhizatlar, antenler, uydu haberleşme teçhizatları ve uydu haberleşmesinde kullanılan yardımcı teçhizatlar gibi iktisadi kıymetler (Genel amaçlı kullanılan teçhizatları veya uyduların uzayda kullandıkları teçhizat sınıf dışındadır)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "44.7",
+      "description": "Özel Şahıslara Ait Mülkler Üzerine Monte Edilen Ekipmanlar: Bilgisayar terminal ekipmanı, güç üretim ve dağıtımı sistemleri, özel güç toplama merkezi ekipmanları ve diğer ilgili ve bağlantılı ekipmanlar gibi özel şahıslara ait mülklere monte edilen ekipmanlar",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "44.8.1",
+      "description": "Vericiler : Kuleler, antenler, ön amplifikatörler, değiştiriciler, tadilat araç- gereçleri ve kopyalanmayan sistem programları gibi iktisadi kıymetler (Verici binaları ve program yazmaya yarayan iktisadi kıymetler hariç)",
+      "usefulLifeYears": 11,
+      "normalRatePercent": 9.09,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "44.8.2",
+      "description": "Abone Bağlantı ve Dağıtım Sistemleri: Ana hat yardımcı kabloları, bağlantı sağlayıcı donanımlar, amplifikatörler, enerji teçhizatları, pasif aletler, yönlendirici bağlantılar, altlıklar, basınç girişleri, bağlantı kabloları, bağlantı kurucu transformatörler, çok yönlü bağlantı sağlayıcı ekipman ve dönüştürücüler gibi iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "44.8.3",
+      "description": "Program Yapımı: Kameralar, film makaraları, video teyp kaydedicileri, ışıklandırma araçları, araçlar dışındaki sahne gerisinde yer alan ekipmanlar gibi iktisadi kıymetler (Binalar ve onların yapısal mütemmim cüzleri kapsam dışındadır)",
+      "usefulLifeYears": 9,
+      "normalRatePercent": 11.11,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "44.10",
+      "description": "Telekomünikasyon network hizmetleri, internet hizmetleri, internet üzerinden sesli bağlantı hizmetleri, uydu ve mobil hizmetleri sağlamak amacıyla kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "45.1.1",
+      "description": "Elektrik Üretimi: Ticari amaçlı satışı için elektriğin üretiminde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 40,
+      "normalRatePercent": 2.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "45.1.2.1",
+      "description": "Baraj gövdesi, arklar, kanallar, tüneller ve su olukları gibi iktisadi kıymetler",
+      "usefulLifeYears": 40,
+      "normalRatePercent": 2.5,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "45.1.2.2",
+      "description": "Cebri boru, türbin, jeneratör gibi elektromekanik iktisadi kıymetler",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "45.1.3",
+      "description": "Elektrik Sağlayan Buhar Üretim Araçları: Temel buhar üniteleri ile birleşik sirkülasyonda çalıştırılan yanma tribünleri ve ticari olarak satış amacıyla buhar gücünden elektriğin üretiminde kullanılan iktisadi kıymetler ve atık ayrıştırma ve kaynakların geri dönüşümünü sağlayan araçlar tarafından kullanıldığı zaman elektrik ve buhar dağıtım sistemleri gibi elektrik jeneratörleri, ve benzeri kıymetler (Gaz türbinleri hariç)",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "45.1.4",
+      "description": "Elektrik Sağlayan İçten Yanmalı Türbin Üretim Araçları: İçten yanmalı türbinler, dizel motorlar, diğer içten yanmalı motorlar ve bunlarla ilgili güç türbinleri ve/veya jeneratörleri ve ilgili arazi düzenlemelerinden oluşan özel hareket ettiricilerin kullanılmasıyla meydana getirilen satış amaçlı elektrik üretiminde kullanılan iktisadi kıymetler (Temel buhar ünitelerine sahip ortak sirkülasyonla çalışan içten yanmalı türbinler hariç)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "45.1.5",
+      "description": "Endüstriyel enerji ve endüstriyel elektrik üretim sistemleri",
+      "usefulLifeYears": 22,
+      "normalRatePercent": 4.54,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "45.1.6",
+      "description": "Gaz Türbinleri: Kompresör ile basınçlandırılmış hava ile doğalgaz, motorin, nafta ve benzeri yakıtların karıştırılarak yakılması sonucunda ortaya çıkan ısı enerjisini mekanik enerjiye dönüştüren ekipmanlar",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "45.1.7",
+      "description": "Rüzgar enerjisi santralleri: Türbin, kule, jeneratör ve kanatlar gibi iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "45.1.8",
+      "description": "Jeotermal enerji santrallerinde kullanılan enjeksiyon ve reenjeksiyon sistemleri ile boru hatları dahil tüm teknolojik teçhizat",
+      "usefulLifeYears": 13,
+      "normalRatePercent": 7.69,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "45.1.9",
+      "description": "Güneş enerjisi santrali",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 439
+    },
+    {
+      "code": "45.2.1",
+      "description": "Elektrik Sağlayan İletim Araçları: Ticari olarak satılan elektriğin iletiminde kullanılan iktisadi kıymetler (Araziyle ilgili ilk olarak yapılan temizleme ve tasnif etme düzenlemeleri bu sınıf kapsamında değildir.)",
+      "usefulLifeYears": 30,
+      "normalRatePercent": 3.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "45.3.1",
+      "description": "Elektrik Sağlayan Dağıtım Araçları: Ticari olarak satılan elektriğin dağıtımında kullanılan iktisadi kıymetler (Araziyle ilgili ilk olarak yapılan temizleme ve tasnif etme düzenlemeleri bu sınıf kapsamında değildir.)",
+      "usefulLifeYears": 30,
+      "normalRatePercent": 3.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "45.3.2",
+      "description": "Endüstriyel enerji ve elektrik dağıtım sistemleri",
+      "usefulLifeYears": 22,
+      "normalRatePercent": 4.54,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "45.3.3",
+      "description": "Elektrik Enerjisi Dağıtım Sistemleri: Tadilat, arıza giderimi, şebeke döşeme, kontrol ve dağıtım yolları ile elektrik enerjisinin tedarikinde kullanılan iktisadi kıymetler (Tüketicilere ait bina ve bunların müştemilatına yerleştirildikleri zaman bu kıymetler kapsam dışındadır.)",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "45.4",
+      "description": "Elektrik enerjisi tüketimini ölçmede kullanılan sayaçlar",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "46.1",
+      "description": "Barajlar",
+      "usefulLifeYears": 50,
+      "normalRatePercent": 2.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "46.2",
+      "description": "Bentler",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "46.3.1",
+      "description": "Artezyen kuyular",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "46.3.2",
+      "description": "Kaya arazide açılan derin su kuyuları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "46.3.3",
+      "description": "Kumlu-kalkerli arazide açılan derin su kuyuları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "46.4.1",
+      "description": "Depo ve tanklar",
+      "usefulLifeYears": 40,
+      "normalRatePercent": 2.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "46.4.2",
+      "description": "Arıtma sistemleri",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "46.5.1",
+      "description": "Pompalama sistemleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "46.5.2",
+      "description": "Dağıtım ve borulama sistemleri",
+      "usefulLifeYears": 25,
+      "normalRatePercent": 4.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.1",
+      "description": "Gaz Sağlayan Dağıtım Araçları: Arazi üzerine kurulan ve gazla çalışan su ısıtıcıları ve gaz dönüştürücü ekipmanlar, dağım hatları, servis hatları, basınç düşürme ve ölçme istasyonları ve benzeri yer altı ve yer üstü düzenekleri",
+      "usefulLifeYears": 22,
+      "normalRatePercent": 4.54,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.2",
+      "description": "İç Tesisat ve İlgili Ekipmanlar: İç tesisat boru hattı ve teçhizatı, doğalgaz sayaçları, kazan ve kombi gibi gaz yakıcı cihazlar",
+      "usefulLifeYears": 14,
+      "normalRatePercent": 7.14,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.3",
+      "description": "İmal Edilmiş Gaz Sağlayan Araçlar: Yer altı doğalgazı ile tamamen dönüşmesine izin vermeyen kimyevi ve/veya fiziksel iktisadi kıymetlere sahip gaz imalatında kullanılan iktisadi kıymetler (Gaz üretim sistemleri ve başka bir yerde sınıflandırılan atık arıtımı ve kaynakların geri dönüşümünde kullanılan ilgili sistemler bu sınıfa dahil edilmez.)",
+      "usefulLifeYears": 30,
+      "normalRatePercent": 3.33,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.4",
+      "description": "Doğal Gaz Yerine Normal Gaz Sağlayan Üretim Araçları: Yeraltı doğal gazıyla beraber tamamen gaz yakıtına dönüştürülebilen daha hafif hidro karbonlar, neft yağı veya doymuş yağların katalitik dönüşümünde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 14,
+      "normalRatePercent": 7.14,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.5",
+      "description": "Doğalgaz üretim araçları",
+      "usefulLifeYears": 14,
+      "normalRatePercent": 7.14,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.6",
+      "description": "Gaz Sağlayan İletim Hatları ve Depolama Araçları: İletim boru hatları, katodik koruma ve telekomünikasyon tesisleri, kompresör istasyonları, depolama ile ilgili yer altı ve yer üstü tesisleri",
+      "usefulLifeYears": 22,
+      "normalRatePercent": 4.54,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.7",
+      "description": "Sıvılaştırılmış Doğalgaz Üreten Araçlar: Yükleme ve boşaltma bağlantıları, alet takım-teçhizatı ve kontrol, pompalama, buharlaştırma ve kurulandırma, tanklara koyma, doğalgazın sıvı hale getirilmesi, depolanması ve yeniden gaz haline getirilmesinde kullanılan iktisadi kıymetler ve gaz nakil hatları ve dağıtım sistemleri ve denizle ilgili terminal araçlarıyla birbirine bağlı olan boru hatları ve benzerleri",
+      "usefulLifeYears": 22,
+      "normalRatePercent": 4.54,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.1",
+      "description": "Gaz sıvılaştırıcı tesisler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.2",
+      "description": "Hava ayrıştırma ünitesi",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.3",
+      "description": "Gaz merkezi dağıtım sistemleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.4",
+      "description": "Tüp dolum sistemleri (Endüstriyel, tıbbi, gıda v.b.)",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.5",
+      "description": "Tüp test üniteleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.6",
+      "description": "Kimya tesisleri (Hidrojen ve narkoz üretim tesisi)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.7",
+      "description": "Likit silindirler",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.8",
+      "description": "Asetilen tüpleri",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.9",
+      "description": "Sınai gaz tüpleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.10",
+      "description": "Seyyar tüp taşıma paletleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.11",
+      "description": "Paletli tüp kollektörleri",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "47.8.12",
+      "description": "Sıvı gaz buharlaştırıcıları",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "48",
+      "description": "Merkezi Bir Sistemle Buharın Üretim ve Dağıtımı: Satış amacıyla buharın üretimi ve dağıtımında kullanılan iktisadi kıymetler (Başka bir sınıflamada yer alan atıkların ayrışmasını sağlayan ve kaynakların geri dönüşümünün yapıldığı fabrikalarda kullanılan iktisadi kıymetler hariç)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "49",
+      "description": "Atıkların Ayrıştırılmasının ve Kaynakların Geri Dönüşümünün Yapıldığı İktisadi Kıymetler: Çöplerin veya diğer katı atıkların veya ısıtma için kullanılan biyolojik atıkların veya katı, akışkan yada gaz halindeki yakıtların geri dönüşümünde kullanılan iktisadi kıymetler ve aynı zamanda elektrik, gaz, buhar ve sıcak su elde etmek için yakıt sistemlerinden çıkarılan atıklar, gaz veya yağ prolsis sistemleri veya yanma sistemleri yada barajlardaki işlemlerden kalma atıklar, diğer atıklar yada biyolojik atıkları toplamak, elde etmek ve işlemek için kullanılan alanlardaki yapılar ve bütün fabrika işlem ekipmanlarını ve katı atık toplama, biriktirme, işleme, ayırma, sınıflandırma ve katı çöp ve diğer çöpler için kullanılan destek ve dönüştürme işlevi gören iktisadi kıymetler ve su temini ve işleme araçları, atık ayrıştırması ve kaynakların geri dönüşümünü sağlayan araçların küllerinin temizlenmesi işini gören iktisadi kıymetler (Sınıflarında belirtilmiş elektrik, sıcak su, buhar ve işlenmiş gaz üretim ekipmanları gibi elektrik jeneratörü, ambalaj kazanları ve diğer ilgili kıymetleri ise kapsama dahil edilmez.)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "49.1",
+      "description": "Izgara Temizleme Makinesi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "50",
+      "description": "Belediyelere veya belediye iktisadi teşekküllerine ait atık su arıtma araçları",
+      "usefulLifeYears": 24,
+      "normalRatePercent": 4.16,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "51",
+      "description": "Belediyelere veya belediye iktisadi teşekküllerine ait kanalizasyonlar",
+      "usefulLifeYears": 50,
+      "normalRatePercent": 2.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "52",
+      "description": "Gerçekleştirilen İş ve Hizmetler: Toptan ve perakende satış ile kişisel yada profesyonel hizmetlerde kullanılan iktisadi kıymetler ile diğer sınıflara girmeyen iktisadi hizmet sektörleri ile ilgili iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "52.1",
+      "description": "Kişisel ve ev aletlerinin tamir ve bakımında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "52.2",
+      "description": "Eğitim hizmetleri (İlköğretim, ortaöğretim, yükseköğretim, özel kurslar ve yetişkinlerin eğitildiği kurs ve okullarda kullanılan iktisadi kıymetler sınıflama içinde yer almaktadır.)",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "52.3",
+      "description": "Sağlık hizmetleri",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "52.4",
+      "description": "Otomotiv ve benzeri motorlu araçlara ilişkin olarak verilen hizmetler (Motorlu araçlardan otomotiv, kamyon, kamyonet ve benzeri araçların satışı, bunların servis hizmetleri ve yedek parça hizmetlerinin verilmesinde kullanılan iktisadi kıymetler)",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "52.5",
+      "description": "Güvenlik hizmetleri",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "52.5.1",
+      "description": "Tabanca",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "52.6",
+      "description": "Tanıtım ve Dağıtımla İlgili Ticari Faaliyet ve Hizmetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "52.7",
+      "description": "Fotoğraf baskı ve hizmetlerinde kullanılan iktisadi kıymetler (Baskı, banyo ve bunlara benzer makine ve araç gereçler)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "52.7.1",
+      "description": "Minilab fotograf baskı makinesi",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "53.1",
+      "description": "Dolum hattında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "53.2",
+      "description": "Boru hatları (Eski harmanlama tankı arası boru hattı, soğutma kulesi boru hattı, vagon dolum- eski harmanlama boru hattı, gres kazan dairesi kızgın ve soğuk devre yağı boru hattı ve bunların benzerleri)",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "53.3",
+      "description": "Laboratuar ölçüm ve test cihazları",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "53.4",
+      "description": "Arıtma işlemlerinde kullanılan tesis, araç gereç ve bu işlerde kullanılan diğer iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "53.5",
+      "description": "Dolum adalarında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "53.6",
+      "description": "Hizmet Binaları, Tesis ve arazi düzenlemeleri (İskele ve eklentileri, kanal, havalandırma sistemleri, tanıtıcı amaçla kullanılan araçlar, köprü, kuyu, otopark, tanker, tank ve benzeri araç sahaları, sundurma, tel örgü, telefon ve su gibi şebeke hatları, topraklama sistemleri, yangın sistemi ve bunların benzerleri)",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "54",
+      "description": "İlk tesis ve taazzuv giderleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "55",
+      "description": "Gayri Maddi İktisadi Kıymetler: İmtiyaz hakları (Franchising), patent, formül, dizayn, örnek kalıp, teknik bilgi (Know-how), format, telif hakkı ve benzeri kalemler, lisans, kullanım hakkı ve izni veya devlet kurum ve kuruluşları tarafından verilen diğer haklar (İşletme hakkı gibi) ve bunların benzerleri",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "55.1",
+      "description": "Peştemallık",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "55.2",
+      "description": "Turizm amaçlı arazi tahsislerine ilişkin olarak ödenen altyapı katılım payı",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "56",
+      "description": "Özel maliyetler (Kira müddeti belli olmayanlar)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "57",
+      "description": "Araştırma-Geliştirme harcamaları**",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "58",
+      "description": "Konaklama işletmeleri ile lokanta-gazino, kahvehane, kıraathane, pavyon, kır bahçesi, pastane, bar ve emsali umumi istirahat ve toplantı yerlerinde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "58.1.1",
+      "description": "Işıklı",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "58.1.2",
+      "description": "Işıksız",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "58.2",
+      "description": "Mafsallı tenteler",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "59",
+      "description": "Turistik tesisler ve eğlence faaliyetleri",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "59.1",
+      "description": "Turistik tesislerde kullanılan porselen veya camdan yapılmış (Kristal hariç) her nevi mutfak ve servis takım ve malzemeleri",
+      "usefulLifeYears": 4,
+      "normalRatePercent": 25.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "59.2",
+      "description": "Turistik tesislerde kullanılan el, yüz ve banyo havluları, yatak çarşafları ve yastık kılıfları, masa örtüleri, plato ve her nevi peçeteler ve benzerleri",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "59.3",
+      "description": "Turizm Sektöründe Kullanılan Özel Araç-Gereçler: Deniz spor malzemeleri ve araçları (Bot, katamaran, sürat teknesi ve bunların motorları, jet ski, şişme deniz sporu oyun aletleri, parasailing v.b. ), kış spor malzemeleri, (Kayak ayakkabısı, kar motoru v.b.), golf aracı, kongre-konferans organizasyon ekipmanları (Ses sistemleri, projeksiyon cihazı v.b.), müzik aletleri (Piyano v.b.), sıcak hava balonları",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 458
+    },
+    {
+      "code": "59.4",
+      "description": "Eğlence ve Spor Aktiviteleri: Bowling salonları, bilardo salonları, havuzlar, plajlar, aquaparklar, lunaparklar, panayır alanları, sirkler, sergi alanları, tiyatrolar, konser alanları, stadyumlar ve minyatür golf sahaları, yamaç paraşütü alanları ve bunların benzerleri gibi işletme yada tesislerin işletilmesi yada ilgili hizmetlerin verilmesi sırasında giriş ücreti veya parayla yapılan ödemeler karşılığında eğlence hizmetlerinin gerçekleştirildiği yerlerde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "59.4.1",
+      "description": "Spor, fitnes ve rekreasyon faaliyetlerinde ve spor salonlarında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "59.5",
+      "description": "Toplu yemek üretiminde kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "60",
+      "description": "Tiyatro dekorları (Otel ve tatil köyleri animasyon ve gösterilerinde kullanılan dekorlar dahil)",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 333
+    },
+    {
+      "code": "61.1",
+      "description": "Dalyan ve voli mahalleri (Daimi olarak kullanılanlar)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "61.2",
+      "description": "Şamandıra tesisatı",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "61.3",
+      "description": "Salma ağları (balıkçılıkta avlanma amaçlı kullanılanlar)",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "61.4",
+      "description": "Sürütme aleti komple (Süngercilikte kullanılan)",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "61.5",
+      "description": "Dalış faaliyetlerinde kullanılan araç ve gereçler",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "61.6.1",
+      "description": "Tatlı su balıkçılığında kullanılan kafes, çapa, zincir, duba ve yemleme sistemleri",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "61.6.2",
+      "description": "Tatlı su balıkçılığında kullanılan ağlar, bağlantı sistemleri, sistem halatları ve yemleme borusu",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "61.6.3",
+      "description": "Deniz suyunda yapılan balıkçılık faaliyetinde kullanılan kafes, çapa, zincir, duba ve yemleme sistemleri",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "61.6.4",
+      "description": "Deniz suyunda yapılan balıkçılık faaliyetinde kullanılan ağlar, bağlantı sistemleri, sistem halatları ve yemleme borusu",
+      "usefulLifeYears": 3,
+      "normalRatePercent": 33.33,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "62",
+      "description": "Berber, kuaför, güzellik salonlarında kullanılan iktisadi kıymetler ve özel araç gereçler *",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "63",
+      "description": "İzolasyon malzemeleri imalatında kullanılan iktisadi kıymetler",
+      "usefulLifeYears": 12,
+      "normalRatePercent": 8.33,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "63.1",
+      "description": "Naylon film kaplama",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "64",
+      "description": "Sterilizasyon işlemlerinde kullanılan iktisadi kıymetler (Tıbbi ürün, ambalaj malzemeleri, laboratuar ürünleri, farmasötik, kozmetik ve bunların hammaddelerinin sterilizasyonunda ve gıda ve hayvan yemlerinin patojen mikroorganizmalarından arındırılmasında, arşivlerin ve antikaların korunması, polimerilerin modifikasyonu, çapraz bağlama, zincir moleküllerin kırılması işlemlerinde kullanılan iktisadi kıymetler ve bunların benzerleri)",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "64.1",
+      "description": "Sterilizasyon işlemlerinde kullanılan kaynak (radyoaktif kobalt)",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "65.1",
+      "description": "Savunma sanayiine ilişkin makine ve teçhizat imalatında kullanılan iktisadi kıymetler (35. numaralı sınıflamada ve başka bir sınıfta yer alan iktisadi kıymetler kapsam dışındadır.)",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "65.1.1",
+      "description": "Savunma sanayiine ilişkin makine ve teçhizat imalatında kullanılan özel araç gereçler",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "65.2",
+      "description": "Savunma sanayiine ilişkin makine ve teçhizat imalatı için kullanılan yan sanayi ürünlerini imal eden iktisadi kıymetler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "65.2.1",
+      "description": "Savunma sanayiine ilişkin makine ve teçhizat imalatı için kullanılan yan sanayi ürünlerinin imalatında kullanılan özel araç gereçler",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 339
+    },
+    {
+      "code": "66.1",
+      "description": "Fener cihazı, sis düdüğü, racon cihazı ve solar panel",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "66.2",
+      "description": "Fener kumanda tablosu, şarj regülatörü, şarj redresörü",
+      "usefulLifeYears": 2,
+      "normalRatePercent": 50.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "66.3",
+      "description": "Radar, radyofar ve seyir haritaları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 365
+    },
+    {
+      "code": "66.4",
+      "description": "Kara kutu ve hız gösterge sistemi",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "67.1",
+      "description": "Otomatik yoğunluk ölçer, parlama noktası tayin cihazı, bakır şerit korozyonu test aparatı, akma bulutlanma test cihazı, iletkenlik ölçüm cihazı, gaz kromotografisi, autosampler, dijital büret, saf su cihazı, nem tayin cihazı, cam tutucu, kinematik vizkozite ölçüm cihazı, mikro karbon kalıntı test cihazı, renk ölçüm cihazı, soğuk filtre tıkanma noktası test cihazı, hassas terazi, pipet seti, santrifiij, rekraktometre, membran filtre, sterilizatör ve benzeri laboratuar cihazları",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "67.2",
+      "description": "Esanjör, karıştırma tankı, deniz suyu reverse osmos sistemi, metanol ölçüm cihazı gibi makineler",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "67.3",
+      "description": "Üretim prosesi otomasyon makinesi",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "67.4",
+      "description": "Metil alkol tankı, reaktör",
+      "usefulLifeYears": 8,
+      "normalRatePercent": 12.5,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "67.5",
+      "description": "Dekantör, statik mikser, buharlaştırıcı rebolier, evaparsyon sistemi, gliserin stok tankı, separatör, kondenser, katalizör hazırlama tankı, kurutma, ara tank, sabunlaştırma tankı, ham asit yağ tankı, gliserin ağartma makinesi, su soğutma kulesi, vakum grubu, atık su artıma tesisi ve aerobik - anaerobik tanklar, kantar, kompresör, degazör gibi makineler",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "67.6",
+      "description": "Gliserin işleme kulesi, hammadde ve mamül tankı, buhar kazanı",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 389
+    },
+    {
+      "code": "68.1",
+      "description": "Akrilik camdan mamül su tüneli ve teçhizatı, ana tanklar",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "68.2",
+      "description": "Karantina bölümünde kullanılan ekipmanlar (akvaryum kompakt karantina tankları, sistem ekipmanları), yem hazırlama bölümünde kullanılan ekipmanlar (balık bakım teçhizatı), laboratuar ekipmanları, kaya, mercan ve yosunlar gibi akvaryum aksesuar ve ekipmanları",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "68.3",
+      "description": "Akvaryum filtre ekipmanları, soğutma ve ısıtma teçhizatı, akvaryum yaşam destek ünitesi için gerekli olan teçhizat",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 399
+    },
+    {
+      "code": "69.1",
+      "description": "Merdiven aracı, merdiven çekilir",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.2",
+      "description": "Konveyör aracı, konveyör",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.3",
+      "description": "Apron Otobüsü",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.4",
+      "description": "Deicing (buz çözme) aracı, foseptik aracı,su ikmal aracı, hasta nakil aracı, loader, air starter aracı, bakım platformu",
+      "usefulLifeYears": 7,
+      "normalRatePercent": 14.28,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.5",
+      "description": "Foseptik tankı, su ikmal tankı",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.6",
+      "description": "Towbar, towbarless, uçak traktörü",
+      "usefulLifeYears": 5,
+      "normalRatePercent": 20.0,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.7",
+      "description": "Air starter çekilir",
+      "usefulLifeYears": 6,
+      "normalRatePercent": 16.66,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.8",
+      "description": "Yayın ve anons sistemi, saat sistemi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.9",
+      "description": "Bagaj konveyör sistemi, 4 set yolcu köprüsü, havalandırma sistemleri,bina yönetim sistemi, aydınlatma otomasyon sistemi,Uçuş bilgi sistemi",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.10",
+      "description": "400 Hz güç sistemi, uçak yanaştırma sistemi, PCA Uçak Havalandırma Sistemi",
+      "usefulLifeYears": 20,
+      "normalRatePercent": 5.0,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.11",
+      "description": "Uçak park alanı ofis ekipmanı",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.12",
+      "description": "Yangın alarm ve güvenlik sistemi",
+      "usefulLifeYears": 15,
+      "normalRatePercent": 6.66,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.13",
+      "description": "Dahili telefon sistemi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 418
+    },
+    {
+      "code": "69.14",
+      "description": "Enerji otomasyon sistemi",
+      "usefulLifeYears": 10,
+      "normalRatePercent": 10.0,
+      "communiqueNumber": 333
+    }
+  ]
+}

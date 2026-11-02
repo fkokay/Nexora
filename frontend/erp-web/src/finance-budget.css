@@ -434,6 +434,10 @@ html[data-theme="dark"] .finance-budget-page .budget-ledger th { background: #20
 .finance-budget-page .budget-hero-copy > p:not(.eyebrow) { max-width: 760px; margin: 8px 0 0; color: #d7e6f5; line-height: 1.55; }
 .finance-budget-page .budget-hero-caption { display: flex; align-items: center; gap: 8px; margin-top: 16px; color: #bed4e8; font-size: 12px; }
 .finance-budget-page .budget-hero-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: #73d5b0; box-shadow: 0 0 0 4px rgb(115 213 176 / 14%); }
+#root .main-area .finance-budget-page > .budget-hero { background: linear-gradient(118deg, #12365f 0%, #174a78 62%, #1d5d8e 100%); color: #fff; border: 0; }
+#root .main-area .finance-budget-page > .budget-hero h1 { color: #fff !important; }
+#root .main-area .finance-budget-page > .budget-hero-copy > p:not(.eyebrow) { color: #d7e6f5 !important; }
+#root .main-area .finance-budget-page > .budget-hero .eyebrow { color: #86c4ff !important; }
 .finance-budget-page .budget-refresh { flex: 0 0 auto; min-height: 40px; padding: 0 15px; border: 1px solid rgb(255 255 255 / 30%); border-radius: 9px; background: rgb(255 255 255 / 10%); color: #fff; font: inherit; font-weight: 650; cursor: pointer; transition: background .16s ease, transform .16s ease; }
 .finance-budget-page .budget-refresh:hover:not(:disabled) { background: rgb(255 255 255 / 18%); transform: translateY(-1px); }
 .finance-budget-page .budget-refresh:disabled { cursor: wait; opacity: .7; }

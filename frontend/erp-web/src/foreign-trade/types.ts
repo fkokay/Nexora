@@ -1,0 +1,8 @@
+export type Direction = 'Import' | 'Export'
+export type TradeStatus = 'Draft' | 'Booked' | 'Shipped' | 'CustomsClearance' | 'Arrived' | 'Closed' | 'Cancelled'
+export type TradeOrder = { id: string; code: string; counterpartyName: string; orderDate: string; currencyCode: string; grandTotal: number; status: string; direction: Direction }
+export type TradeCase = { id: string; direction: Direction; status: TradeStatus; purchaseOrderId: string | null; salesOrderId: string | null; referenceCode: string; originCountryCode: string; destinationCountryCode: string; incotermsCode: string | null; harmonizedSystemCode: string | null; transportMode: string; carrierReference: string | null; customsReference: string | null; declaredValue: number; currencyCode: string; plannedShipDate: string | null; actualShipDate: string | null; plannedArrivalDate: string | null; actualArrivalDate: string | null; notes: string | null; updatedAt: string; inventoryPostingRequired: boolean; purchaseReceiptId: string | null; salesDeliveryId: string | null; inventoryDocumentLinkedAt: string | null }
+export type CasePage = { items: TradeCase[]; total: number }
+export type InventoryDocument = { id: string; code: string; documentDate: string; warehouseName: string; lineCount: number; isLinked: boolean }
+export type TradeCapabilities = { canCreate: boolean; canUpdate: boolean; canAdvance: boolean }
+export type Draft = { direction: Direction; orderId: string; referenceCode: string; originCountryCode: string; destinationCountryCode: string; incotermsCode: string; harmonizedSystemCode: string; transportMode: string; carrierReference: string; customsReference: string; declaredValue: string; plannedShipDate: string; plannedArrivalDate: string; notes: string }

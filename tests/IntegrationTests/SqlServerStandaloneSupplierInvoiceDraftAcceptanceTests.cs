@@ -191,6 +191,44 @@ public sealed class SqlServerStandaloneSupplierInvoiceDraftAcceptanceTests
             var inventoryDebit = await verify.JournalEntries.Where(x => x.TenantId == tenantId && x.SourceId == linkedDraft.Id)
                 .SelectMany(x => x.Lines).Where(x => x.AccountId == inventoryAccount.Id).SumAsync(x => x.Debit);
             Assert.Equal(47.20m, inventoryDebit);
+
+            var secondInvoice = new StandaloneSupplierInvoiceDraftCreateRequest(Guid.NewGuid(), supplier.Id,
+                "INV-R-002", new DateOnly(2026, 10, 26), null, "TRY", null, 72m, 0m, 0m, 72m,
+                [new StandaloneSupplierInvoiceDraftLineCreateRequest(1, "Material invoice part 2", 6m, "EA", 12m,
+                    72m, 0m, 0m, 72m, null, null, receiptLine.Id)]);
+            using var secondCreateResponse = await client.PostAsJsonAsync("/api/purchasing/standalone-invoices/", secondInvoice);
+            Assert.Equal(HttpStatusCode.Created, secondCreateResponse.StatusCode);
+            var secondDraft = await secondCreateResponse.Content.ReadFromJsonAsync<StandaloneSupplierInvoiceDraftDetail>();
+            Assert.NotNull(secondDraft);
+            using var secondPostResponse = await client.PostAsync($"/api/purchasing/standalone-invoices/{secondDraft.Id}/post", null);
+            Assert.True(secondPostResponse.StatusCode == HttpStatusCode.OK,
+                $"Expected 200 for second invoice against the same receipt but received {(int)secondPostResponse.StatusCode}: {await secondPostResponse.Content.ReadAsStringAsync()}");
+            var secondPosting = await secondPostResponse.Content.ReadFromJsonAsync<StandaloneSupplierInvoiceDraftPostingResult>();
+            Assert.NotNull(secondPosting);
+            using var secondReplayResponse = await client.PostAsync($"/api/purchasing/standalone-invoices/{secondDraft.Id}/post", null);
+            Assert.Equal(HttpStatusCode.OK, secondReplayResponse.StatusCode);
+            var secondReplay = await secondReplayResponse.Content.ReadFromJsonAsync<StandaloneSupplierInvoiceDraftPostingResult>();
+            Assert.NotNull(secondReplay);
+            Assert.Equal(secondPosting.JournalEntryId, secondReplay.JournalEntryId);
+            Assert.Equal(secondPosting.LedgerEntryId, secondReplay.LedgerEntryId);
+
+            var overbill = new StandaloneSupplierInvoiceDraftCreateRequest(Guid.NewGuid(), supplier.Id,
+                "INV-R-003", new DateOnly(2026, 10, 27), null, "TRY", null, 12m, 0m, 0m, 12m,
+                [new StandaloneSupplierInvoiceDraftLineCreateRequest(1, "Overbilled material", 1m, "EA", 12m,
+                    12m, 0m, 0m, 12m, null, null, receiptLine.Id)]);
+            using var overbillCreateResponse = await client.PostAsJsonAsync("/api/purchasing/standalone-invoices/", overbill);
+            Assert.Equal(HttpStatusCode.Created, overbillCreateResponse.StatusCode);
+            var overbillDraft = await overbillCreateResponse.Content.ReadFromJsonAsync<StandaloneSupplierInvoiceDraftDetail>();
+            Assert.NotNull(overbillDraft);
+            using var overbillPostResponse = await client.PostAsync($"/api/purchasing/standalone-invoices/{overbillDraft.Id}/post", null);
+            Assert.Equal(HttpStatusCode.Conflict, overbillPostResponse.StatusCode);
+
+            Assert.Equal(2, await verify.PurchaseInvoiceDrafts.CountAsync(x => x.TenantId == tenantId && x.Status == PurchaseInvoiceDraftStatus.Posted
+                && x.Lines.Any(line => line.StandalonePurchaseReceiptLineId == receiptLine.Id)));
+            Assert.Equal(2, await verify.InventoryCostAdjustments.CountAsync(x => x.TenantId == tenantId
+                && x.Lines.Any(line => line.StandalonePurchaseReceiptLineId == receiptLine.Id)));
+            Assert.Equal(2, await verify.JournalEntries.CountAsync(x => x.TenantId == tenantId
+                && (x.SourceId == linkedDraft.Id || x.SourceId == secondDraft.Id)));
         }
         finally
         {

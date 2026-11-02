@@ -46,8 +46,8 @@
 .advanced-grid-resize:hover,.advanced-grid-resize:active { background: #287ac640; }
 .advanced-grid-master { display: inline-flex; align-items: center; justify-content: center; width: 18px; vertical-align: middle; }
 .advanced-grid-master input,.advanced-grid-row-select input { margin: 0; accent-color: #1475c9; cursor: pointer; }
-.advanced-grid-row-select { white-space: nowrap; color: var(--grid-muted); }
-.advanced-grid-row-select > span { display: inline-flex; align-items: center; gap: 7px; }
+.advanced-grid-row-select { display: inline-flex; align-items: center; gap: 7px; margin-right: 9px; vertical-align: middle; white-space: nowrap; color: var(--grid-muted); }
+.advanced-grid-row-select > span { display: inline-block; min-width: 2ch; color: var(--grid-muted); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
 .advanced-grid-row-selected { background: #eaf4ff !important; }
 .advanced-grid-empty { padding: 28px 12px !important; color: var(--grid-muted); text-align: center !important; }
 .advanced-grid-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; min-width: 0; padding: 8px 10px; border: 1px solid var(--grid-border); border-top: 0; border-radius: 0 0 9px 9px; background: var(--erp-surface, #fff); color: var(--grid-muted); font-size: 10px; }
@@ -101,3 +101,79 @@ html[data-theme="dark"] .advanced-grid-row-selected { background: #203a54 !impor
   background: transparent;
   box-shadow: none;
 }
+
+/* Shared ERP list-table pattern: quiet filters, dense rows, and clear selection. */
+.app-shell:not(.standalone-studio) .advanced-grid { gap: 0; font-size: 12px; }
+.app-shell:not(.standalone-studio) .advanced-grid-toolbar {
+  gap: 8px;
+  padding: 8px;
+  border-color: #D7DEE7;
+  border-radius: 4px 4px 0 0;
+  background: #FFFFFF;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-search {
+  min-height: 36px;
+  border-color: #C7D0DC;
+  border-radius: 4px;
+  background: #FFFFFF;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-search:focus-within { border-color: #0A192F; outline: 1px solid #0A192F; }
+.app-shell:not(.standalone-studio) .advanced-grid-menu > summary,
+.app-shell:not(.standalone-studio) .advanced-grid-action,
+.app-shell:not(.standalone-studio) .advanced-grid-filter input,
+.app-shell:not(.standalone-studio) .advanced-grid-filter select,
+.app-shell:not(.standalone-studio) .advanced-grid-density select,
+.app-shell:not(.standalone-studio) .advanced-grid-column-setting select,
+.app-shell:not(.standalone-studio) .advanced-grid-logic select,
+.app-shell:not(.standalone-studio) .advanced-grid-filter-actions button,
+.app-shell:not(.standalone-studio) .advanced-grid-footer select {
+  border-color: #D7DEE7;
+  border-radius: 4px;
+  box-shadow: none;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-menu[open] > summary { border-color: #0A192F; box-shadow: none; }
+.app-shell:not(.standalone-studio) .advanced-grid-scroll {
+  border-color: #D7DEE7;
+  border-radius: 0 0 4px 4px;
+  background: #FFFFFF;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-table th,
+.app-shell:not(.standalone-studio) .advanced-grid-table td {
+  padding: 10px 12px;
+  border-bottom-color: #E2E7ED;
+  line-height: 1.35;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-table th {
+  background: #F3F4F6;
+  color: #526174;
+  font-size: 11px;
+  font-weight: 650;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-table td { color: #172B45; font-size: 12px; }
+.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr:hover > td { background: #FFF9E5; }
+.app-shell:not(.standalone-studio) .advanced-grid-row-selected,
+.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: #FFF4CC !important; }
+.app-shell:not(.standalone-studio) .advanced-grid-footer {
+  padding: 8px 12px;
+  border-color: #D7DEE7;
+  border-radius: 0 0 4px 4px;
+  background: #FFFFFF;
+  color: #526174;
+}
+.app-shell:not(.standalone-studio) .advanced-grid-footer button { border-radius: 4px; box-shadow: none; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-toolbar,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-scroll,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-footer { border-color: var(--erp-border); background: var(--erp-surface); color: var(--erp-text); }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-search,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-menu > summary,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-action,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-filter input,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-filter select,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-density select,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-column-setting select,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic select { border-color: var(--erp-border); background: var(--erp-surface); color: var(--erp-text); }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table th { background: #202A39; color: #C2CBD7; border-bottom-color: var(--erp-border); }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table td { color: var(--erp-text); border-bottom-color: var(--erp-border); }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table tbody tr:hover > td { background: #243247; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-row-selected,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: #3A3421 !important; }

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using AIERP.Platform.Infrastructure;
+using AIERP.Platform.Domain;
 
 public static class SalesDeliverySearchEndpoints
 {
@@ -15,14 +16,14 @@ public static class SalesDeliverySearchEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["İrsaliye araması 2–100 karakter olmalıdır."] });
 
             var query = db.SalesDeliveries.AsNoTracking()
-                .Where(x => x.TenantId == tenantId && (x.Code.Contains(term) || x.Order.Code.Contains(term)));
+                .Where(x => x.TenantId == tenantId && x.Status != SalesDeliveryStatus.Deleted && (x.Code.Contains(term) || (x.Order != null && x.Order.Code.Contains(term))));
             var totalCount = await query.CountAsync(ct);
             var items = await query.OrderByDescending(x => x.DeliveryDate).ThenByDescending(x => x.CreatedAt).ThenBy(x => x.Code)
                 .Take(10)
                 .Select(x => new
                 {
                     code = x.Code,
-                    orderCode = x.Order.Code,
+                    orderCode = x.Order == null ? null : x.Order.Code,
                     deliveryDate = x.DeliveryDate,
                     status = x.Status.ToString(),
                     lineCount = x.Lines.Count,
@@ -41,13 +42,13 @@ public static class SalesDeliverySearchEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["code"] = ["İrsaliye kodu 2–100 karakter olmalıdır."] });
 
             var matches = await db.SalesDeliveries.AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.Code.ToUpper() == term.ToUpper())
+                .Where(x => x.TenantId == tenantId && x.Status != SalesDeliveryStatus.Deleted && x.Code.ToUpper() == term.ToUpper())
                 .OrderBy(x => x.CreatedAt)
                 .Take(2)
                 .Select(x => new
                 {
                     code = x.Code,
-                    orderCode = x.Order.Code,
+                    orderCode = x.Order == null ? null : x.Order.Code,
                     deliveryDate = x.DeliveryDate,
                     status = x.Status.ToString(),
                     lineCount = x.Lines.Count,

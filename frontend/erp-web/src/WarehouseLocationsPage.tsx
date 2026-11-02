@@ -1,228 +1,510 @@
-import AdvancedDataGrid from './AdvancedDataGrid'
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { authenticatedFetch } from './authApi';
-import { Plus, RefreshCw, Search, ShieldCheck, Warehouse } from 'lucide-react'
-import ScreenViewGroupHeader from './ScreenViewGroupHeader'
-import SearchableRecordPicker from './SearchableRecordPicker'
-import './warehouse-locations.css'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+import { authenticatedFetch } from "./authApi";
+import "./warehouse-locations.css";
+import {
+  CreateLocationForm,
+  EditLocationModal,
+} from "./warehouse-locations/components/WarehouseLocationForms";
+import { WarehouseLocationOverview } from "./warehouse-locations/components/WarehouseLocationOverview";
+import {
+  LocationBalancePanel,
+  LocationListPanel,
+  ReconciliationPanel,
+} from "./warehouse-locations/components/WarehouseLocationPanels";
+import type {
+  Balance,
+  Location,
+  Reconciliation,
+  ScreenField,
+  WarehouseRow,
+} from "./warehouse-locations/types";
 
-type WarehouseRow = { id: string; code: string; name: string; isActive: boolean }
-type Location = { id: string; warehouseId: string; code: string; name: string; parentLocationId: string | null; isActive: boolean; rowVersion: string }
-type Balance = { stockItemId: string; stockItemCode: string; stockItemName: string; unitCode: string; quantity: number }
-type Reconciliation = { stockItemId: string; stockItemCode: string; stockItemName: string; unitCode: string; warehouseQuantity: number; locatedQuantity: number; unlocatedQuantity: number }
-type ScreenField = { key: string; label: string; visible: boolean; position: number; section?: string | null; fixed?: boolean }
-
-async function request<T>(url: string, token: string, init?: RequestInit): Promise<T> {
-  const response = await authenticatedFetch(url, token, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } })
+async function request<T>(
+  url: string,
+  token: string,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await authenticatedFetch(url, token, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
+  });
   if (!response.ok) {
-    const body = await response.json().catch(() => null) as { error?: string; detail?: string } | null
-    throw new Error(body?.error ?? body?.detail ?? `İstek başarısız (${response.status})`)
+    const body = (await response.json().catch(() => null)) as {
+      error?: string;
+      detail?: string;
+    } | null;
+    throw new Error(
+      body?.error ?? body?.detail ?? `İstek başarısız (${response.status})`,
+    );
   }
-  if (response.status === 204) return undefined as T
-  return response.json() as Promise<T>
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
 }
 
-export default function WarehouseLocationsPage({ token, role }: { token: string; role: string }) {
-  const [warehouses, setWarehouses] = useState<WarehouseRow[]>([])
-  const [warehouseId, setWarehouseId] = useState('')
-  const [locations, setLocations] = useState<Location[]>([])
-  const [selectedId, setSelectedId] = useState('')
-  const [balances, setBalances] = useState<Balance[]>([])
-  const [reconciliation, setReconciliation] = useState<Reconciliation[]>([])
-  const [search, setSearch] = useState('')
+export default function WarehouseLocationsPage({
+  token,
+  role,
+}: {
+  token: string;
+  role: string;
+}) {
+  const [warehouses, setWarehouses] = useState<WarehouseRow[]>([]);
+  const [warehouseId, setWarehouseId] = useState("");
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [balances, setBalances] = useState<Balance[]>([]);
+  const [reconciliation, setReconciliation] = useState<Reconciliation[]>([]);
+  const [search, setSearch] = useState("");
   const [balanceFields, setBalanceFields] = useState<ScreenField[]>([
-    { key: 'stockItemCode', label: 'Stok kodu', visible: true, position: 0 },
-    { key: 'stockItemName', label: 'Stok adı', visible: true, position: 1 },
-    { key: 'quantity', label: 'Konum miktarı', visible: true, position: 2 },
-    { key: 'unitCode', label: 'Birim', visible: true, position: 3 },
-  ])
+    { key: "stockItemCode", label: "Stok kodu", visible: true, position: 0 },
+    { key: "stockItemName", label: "Stok adı", visible: true, position: 1 },
+    { key: "quantity", label: "Konum miktarı", visible: true, position: 2 },
+    { key: "unitCode", label: "Birim", visible: true, position: 3 },
+  ]);
   const [locationFields, setLocationFields] = useState<ScreenField[]>([
-    { key: 'code', label: 'Konum kodu', visible: true, position: 0 },
-    { key: 'name', label: 'Konum adı', visible: true, position: 1 },
-    { key: 'parentLocation', label: 'Üst konum', visible: true, position: 2 },
-    { key: 'status', label: 'Durum', visible: true, position: 3 },
-    { key: 'actions', label: 'İşlem', visible: true, position: 4, fixed: true },
-  ])
-  const [reconciliationFields, setReconciliationFields] = useState<ScreenField[]>([
-    { key: 'stockItemCode', label: 'Stok kodu', visible: true, position: 0 },
-    { key: 'stockItemName', label: 'Stok adı', visible: true, position: 1 },
-    { key: 'warehouseQuantity', label: 'Depo bakiyesi', visible: true, position: 2 },
-    { key: 'locatedQuantity', label: 'Konumlandırılmış', visible: true, position: 3 },
-    { key: 'unlocatedQuantity', label: 'Konumu boş', visible: true, position: 4 },
-    { key: 'unitCode', label: 'Birim', visible: true, position: 5 },
-  ])
-  const [code, setCode] = useState('')
-  const [name, setName] = useState('')
-  const [parentLocationId, setParentLocationId] = useState('')
-  const [editing, setEditing] = useState<Location | null>(null)
-  const [editCode, setEditCode] = useState('')
-  const [editName, setEditName] = useState('')
-  const [editParentLocationId, setEditParentLocationId] = useState('')
-  const [editIsActive, setEditIsActive] = useState(true)
-  const [warehousesLoading, setWarehousesLoading] = useState(true)
-  const [loading, setLoading] = useState(true)
-  const [balancesLoading, setBalancesLoading] = useState(false)
-  const [balanceError, setBalanceError] = useState('')
-  const [reconciliationError, setReconciliationError] = useState('')
-  const [reconciliationLoading, setReconciliationLoading] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  const locationRequestId = useRef(0)
-  const balanceRequestId = useRef(0)
-  const reconciliationRequestId = useRef(0)
-  const selected = locations.find(location => location.id === selectedId) ?? null
-  const activeWarehouses = useMemo(() => warehouses.filter(warehouse => warehouse.isActive), [warehouses])
+    { key: "code", label: "Konum kodu", visible: true, position: 0 },
+    { key: "name", label: "Konum adı", visible: true, position: 1 },
+    { key: "parentLocation", label: "Üst konum", visible: true, position: 2 },
+    { key: "status", label: "Durum", visible: true, position: 3 },
+    { key: "actions", label: "İşlem", visible: true, position: 4, fixed: true },
+  ]);
+  const [reconciliationFields, setReconciliationFields] = useState<
+    ScreenField[]
+  >([
+    { key: "stockItemCode", label: "Stok kodu", visible: true, position: 0 },
+    { key: "stockItemName", label: "Stok adı", visible: true, position: 1 },
+    {
+      key: "warehouseQuantity",
+      label: "Depo bakiyesi",
+      visible: true,
+      position: 2,
+    },
+    {
+      key: "locatedQuantity",
+      label: "Konumlandırılmış",
+      visible: true,
+      position: 3,
+    },
+    {
+      key: "unlocatedQuantity",
+      label: "Konumu boş",
+      visible: true,
+      position: 4,
+    },
+    { key: "unitCode", label: "Birim", visible: true, position: 5 },
+  ]);
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [parentLocationId, setParentLocationId] = useState("");
+  const [editing, setEditing] = useState<Location | null>(null);
+  const [editCode, setEditCode] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editParentLocationId, setEditParentLocationId] = useState("");
+  const [editIsActive, setEditIsActive] = useState(true);
+  const [warehousesLoading, setWarehousesLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [balancesLoading, setBalancesLoading] = useState(false);
+  const [balanceError, setBalanceError] = useState("");
+  const [reconciliationError, setReconciliationError] = useState("");
+  const [reconciliationLoading, setReconciliationLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const locationRequestId = useRef(0);
+  const balanceRequestId = useRef(0);
+  const reconciliationRequestId = useRef(0);
+  const selected =
+    locations.find((location) => location.id === selectedId) ?? null;
   const filteredLocations = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase('tr-TR')
-    if (!term) return locations
-    return locations.filter(location => {
-      const parentCode = locations.find(row => row.id === location.parentLocationId)?.code ?? ''
-      return `${location.code} ${location.name} ${parentCode}`.toLocaleLowerCase('tr-TR').includes(term)
-    })
-  }, [locations, search])
-  const visibleBalanceFields = useMemo(() => balanceFields.filter(field => field.visible).sort((a, b) => a.position - b.position), [balanceFields])
-  const visibleLocationFields = useMemo(() => locationFields.filter(field => field.visible).sort((a, b) => a.position - b.position), [locationFields])
-  const visibleReconciliationFields = useMemo(() => reconciliationFields.filter(field => field.visible).sort((a, b) => a.position - b.position), [reconciliationFields])
+    const term = search.trim().toLocaleLowerCase("tr-TR");
+    if (!term) return locations;
+    return locations.filter((location) => {
+      const parentCode =
+        locations.find((row) => row.id === location.parentLocationId)?.code ??
+        "";
+      return `${location.code} ${location.name} ${parentCode}`
+        .toLocaleLowerCase("tr-TR")
+        .includes(term);
+    });
+  }, [locations, search]);
+  const visibleBalanceFields = useMemo(
+    () =>
+      balanceFields
+        .filter((field) => field.visible)
+        .sort((a, b) => a.position - b.position),
+    [balanceFields],
+  );
+  const visibleLocationFields = useMemo(
+    () =>
+      locationFields
+        .filter((field) => field.visible)
+        .sort((a, b) => a.position - b.position),
+    [locationFields],
+  );
+  const visibleReconciliationFields = useMemo(
+    () =>
+      reconciliationFields
+        .filter((field) => field.visible)
+        .sort((a, b) => a.position - b.position),
+    [reconciliationFields],
+  );
 
   const loadWarehouses = useCallback(async () => {
-    setError('')
-    setWarehousesLoading(true)
+    setError("");
+    setWarehousesLoading(true);
     try {
-      const rows = await request<WarehouseRow[]>('/api/warehouses/', token)
-      setWarehouses(rows)
-      setWarehouseId(current => current || rows.find(row => row.isActive)?.id || '')
-    } catch (e) { setError((e as Error).message) }
-    finally { setWarehousesLoading(false) }
-  }, [token])
+      const rows = await request<WarehouseRow[]>("/api/warehouses/", token);
+      setWarehouses(rows);
+      setWarehouseId(
+        (current) => current || rows.find((row) => row.isActive)?.id || "",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setWarehousesLoading(false);
+    }
+  }, [token]);
 
   const loadLocations = useCallback(async () => {
-    const requestId = ++locationRequestId.current
-    if (!warehouseId) { setLocations([]); setSelectedId(''); setBalances([]); setLoading(false); return }
-    setLoading(true); setError('')
+    const requestId = ++locationRequestId.current;
+    if (!warehouseId) {
+      setLocations([]);
+      setSelectedId("");
+      setBalances([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError("");
     try {
-      const rows = await request<Location[]>(`/api/warehouses/${warehouseId}/locations`, token)
+      const rows = await request<Location[]>(
+        `/api/warehouses/${warehouseId}/locations`,
+        token,
+      );
       if (requestId === locationRequestId.current) {
-        setLocations(rows)
-        setSelectedId(current => rows.some(row => row.id === current) ? current : rows.find(row => row.isActive)?.id ?? '')
+        setLocations(rows);
+        setSelectedId((current) =>
+          rows.some((row) => row.id === current)
+            ? current
+            : (rows.find((row) => row.isActive)?.id ?? ""),
+        );
       }
-    } catch (e) { if (requestId === locationRequestId.current) setError((e as Error).message) }
-    finally { if (requestId === locationRequestId.current) setLoading(false) }
-  }, [token, warehouseId])
+    } catch (e) {
+      if (requestId === locationRequestId.current)
+        setError((e as Error).message);
+    } finally {
+      if (requestId === locationRequestId.current) setLoading(false);
+    }
+  }, [token, warehouseId]);
 
-  const loadBalances = useCallback(async (locationId: string) => {
-    const requestId = ++balanceRequestId.current
-    if (!warehouseId || !locationId) { setBalances([]); setBalanceError(''); setBalancesLoading(false); return }
-    setBalances([]); setBalancesLoading(true); setBalanceError('')
-    try {
-      const result = await request<{ items: Balance[] }>(`/api/warehouses/${warehouseId}/locations/${locationId}/balances`, token)
-      if (requestId === balanceRequestId.current) setBalances(result.items)
-    } catch (e) { if (requestId === balanceRequestId.current) setBalanceError((e as Error).message) }
-    finally { if (requestId === balanceRequestId.current) setBalancesLoading(false) }
-  }, [token, warehouseId])
+  const loadBalances = useCallback(
+    async (locationId: string) => {
+      const requestId = ++balanceRequestId.current;
+      if (!warehouseId || !locationId) {
+        setBalances([]);
+        setBalanceError("");
+        setBalancesLoading(false);
+        return;
+      }
+      setBalances([]);
+      setBalancesLoading(true);
+      setBalanceError("");
+      try {
+        const result = await request<{ items: Balance[] }>(
+          `/api/warehouses/${warehouseId}/locations/${locationId}/balances`,
+          token,
+        );
+        if (requestId === balanceRequestId.current) setBalances(result.items);
+      } catch (e) {
+        if (requestId === balanceRequestId.current)
+          setBalanceError((e as Error).message);
+      } finally {
+        if (requestId === balanceRequestId.current) setBalancesLoading(false);
+      }
+    },
+    [token, warehouseId],
+  );
 
   const loadReconciliation = useCallback(async () => {
-    const requestId = ++reconciliationRequestId.current
-    if (!warehouseId) { setReconciliation([]); setReconciliationError(''); setReconciliationLoading(false); return }
-    setReconciliation([]); setReconciliationLoading(true); setReconciliationError('')
-    try {
-      const result = await request<{ items: Reconciliation[] }>(`/api/warehouses/${warehouseId}/location-reconciliation`, token)
-      if (requestId === reconciliationRequestId.current) setReconciliation(result.items)
-    } catch (e) { if (requestId === reconciliationRequestId.current) setReconciliationError((e as Error).message) }
-    finally { if (requestId === reconciliationRequestId.current) setReconciliationLoading(false) }
-  }, [token, warehouseId])
-
-  useEffect(() => { void loadWarehouses() }, [loadWarehouses])
-  useEffect(() => { void loadLocations() }, [loadLocations])
-  useEffect(() => { void loadBalances(selectedId) }, [loadBalances, selectedId])
-  useEffect(() => { void loadReconciliation() }, [loadReconciliation])
-  useEffect(() => {
-    let cancelled = false
-    void request<{ fields: ScreenField[] }>('/api/screen-views/warehouse-location-balances/active', token)
-      .then(view => { if (!cancelled && view.fields?.length) setBalanceFields(view.fields) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [token])
-  useEffect(() => {
-    let cancelled = false
-    void request<{ fields: ScreenField[] }>('/api/screen-views/inventory-warehouse-locations/active', token)
-      .then(view => { if (!cancelled && view.fields?.length) setLocationFields(view.fields) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [token])
-  useEffect(() => {
-    let cancelled = false
-    void request<{ fields: ScreenField[] }>('/api/screen-views/inventory-warehouse-reconciliation/active', token)
-      .then(view => { if (!cancelled && view.fields?.length) setReconciliationFields(view.fields) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [token])
-  useEffect(() => {
-    if (!editing) return
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !busy) setEditing(null)
+    const requestId = ++reconciliationRequestId.current;
+    if (!warehouseId) {
+      setReconciliation([]);
+      setReconciliationError("");
+      setReconciliationLoading(false);
+      return;
     }
-    window.addEventListener('keydown', handleEscape)
-    return () => window.removeEventListener('keydown', handleEscape)
-  }, [editing, busy])
+    setReconciliation([]);
+    setReconciliationLoading(true);
+    setReconciliationError("");
+    try {
+      const result = await request<{ items: Reconciliation[] }>(
+        `/api/warehouses/${warehouseId}/location-reconciliation`,
+        token,
+      );
+      if (requestId === reconciliationRequestId.current)
+        setReconciliation(result.items);
+    } catch (e) {
+      if (requestId === reconciliationRequestId.current)
+        setReconciliationError((e as Error).message);
+    } finally {
+      if (requestId === reconciliationRequestId.current)
+        setReconciliationLoading(false);
+    }
+  }, [token, warehouseId]);
+
+  useEffect(() => {
+    void loadWarehouses();
+  }, [loadWarehouses]);
+  useEffect(() => {
+    void loadLocations();
+  }, [loadLocations]);
+  useEffect(() => {
+    void loadBalances(selectedId);
+  }, [loadBalances, selectedId]);
+  useEffect(() => {
+    void loadReconciliation();
+  }, [loadReconciliation]);
+  useEffect(() => {
+    let cancelled = false;
+    void request<{ fields: ScreenField[] }>(
+      "/api/screen-views/warehouse-location-balances/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length) setBalanceFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    void request<{ fields: ScreenField[] }>(
+      "/api/screen-views/inventory-warehouse-locations/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length) setLocationFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    void request<{ fields: ScreenField[] }>(
+      "/api/screen-views/inventory-warehouse-reconciliation/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length)
+          setReconciliationFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+  useEffect(() => {
+    if (!editing) return;
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !busy) setEditing(null);
+    }
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [editing, busy]);
 
   async function refresh() {
-    await loadWarehouses()
-    await loadLocations()
-    if (selectedId) await loadBalances(selectedId)
-    await loadReconciliation()
+    await loadWarehouses();
+    await loadLocations();
+    if (selectedId) await loadBalances(selectedId);
+    await loadReconciliation();
   }
 
   async function createLocation(event: FormEvent) {
-    event.preventDefault()
-    if (!warehouseId) return
-    setBusy(true); setError(''); setNotice('')
+    event.preventDefault();
+    if (!warehouseId) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
     try {
-      const created = await request<Location>(`/api/warehouses/${warehouseId}/locations`, token, { method: 'POST', body: JSON.stringify({ code, name, parentLocationId: parentLocationId || null }) })
-      setLocations(current => [...current, created].sort((a, b) => a.code.localeCompare(b.code, 'tr')))
-      setSelectedId(created.id); setCode(''); setName(''); setParentLocationId(''); setSearch('')
-      setNotice('Depo konumu oluşturuldu.')
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+      const created = await request<Location>(
+        `/api/warehouses/${warehouseId}/locations`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            code,
+            name,
+            parentLocationId: parentLocationId || null,
+          }),
+        },
+      );
+      setLocations((current) =>
+        [...current, created].sort((a, b) =>
+          a.code.localeCompare(b.code, "tr"),
+        ),
+      );
+      setSelectedId(created.id);
+      setCode("");
+      setName("");
+      setParentLocationId("");
+      setSearch("");
+      setNotice("Depo konumu oluşturuldu.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function beginEdit(location: Location) {
-    setEditing(location); setEditCode(location.code); setEditName(location.name); setEditParentLocationId(location.parentLocationId ?? ''); setEditIsActive(location.isActive)
+    setEditing(location);
+    setEditCode(location.code);
+    setEditName(location.name);
+    setEditParentLocationId(location.parentLocationId ?? "");
+    setEditIsActive(location.isActive);
   }
 
   async function saveLocation(event: FormEvent) {
-    event.preventDefault()
-    if (!editing) return
-    setBusy(true); setError(''); setNotice('')
+    event.preventDefault();
+    if (!editing) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
     try {
-      const updated = await request<Location>(`/api/warehouses/${warehouseId}/locations/${editing.id}`, token, { method: 'PUT', body: JSON.stringify({ code: editCode, name: editName, parentLocationId: editParentLocationId || null, isActive: editIsActive, rowVersion: editing.rowVersion }) })
-      setLocations(current => current.map(row => row.id === updated.id ? updated : row).sort((a, b) => a.code.localeCompare(b.code, 'tr')))
-      setEditing(null)
-      setNotice('Depo konumu güncellendi.')
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+      const updated = await request<Location>(
+        `/api/warehouses/${warehouseId}/locations/${editing.id}`,
+        token,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            code: editCode,
+            name: editName,
+            parentLocationId: editParentLocationId || null,
+            isActive: editIsActive,
+            rowVersion: editing.rowVersion,
+          }),
+        },
+      );
+      setLocations((current) =>
+        current
+          .map((row) => (row.id === updated.id ? updated : row))
+          .sort((a, b) => a.code.localeCompare(b.code, "tr")),
+      );
+      setEditing(null);
+      setNotice("Depo konumu güncellendi.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
-  return <div className="warehouse-locations-page">
-    <div className="page-heading customer-heading"><div><p className="eyebrow">ERP CORE · STOK YERLEŞİMİ</p><h1>Depo konumları</h1><p className="muted">Ambar içindeki raf ve bölmeleri tanımlayın; konuma atanmış stok bakiyelerini izleyin.</p></div><div className="heading-actions"><button className="secondary" type="button" onClick={() => void refresh()} disabled={warehousesLoading || loading || balancesLoading || reconciliationLoading} aria-label="Depo, konum ve bakiyeleri yenile"><RefreshCw size={15} aria-hidden="true"/> Yenile</button></div></div>
-    {error && <div className="alert inline-alert" role="alert">{error}<button type="button" aria-label="Hata mesajını kapat" onClick={() => setError('')}>×</button></div>}
-    {notice && <div className="notice" role="status">{notice}<button type="button" onClick={() => setNotice('')}>Kapat</button></div>}
-    <section className="warehouse-location-kpis" aria-label="Depo yerleşimi özeti"><article><span>Depo</span><b>{warehouses.find(row => row.id === warehouseId)?.name ?? 'Seçilmedi'}</b><small>{activeWarehouses.length} aktif depo</small></article><article><span>Depo konumu</span><b>{locations.length}</b><small>{locations.filter(row => row.isActive).length} aktif raf veya bölme</small></article><article><span>Seçili konum bakiyesi</span><b>{balances.length}</b><small>{selected?`${selected.code} · ${selected.name}`:'Bir konum seçin'}</small></article><span className="tenant-scope"><ShieldCheck size={14}/>Firma kapsamlı</span></section>
-    <div className="customer-toolbar"><label className="warehouse-picker">Depo<SearchableRecordPicker options={warehouses.map(row=>({id:row.id,label:`${row.code} · ${row.name}`,description:row.isActive?'Aktif':'Pasif'}))} selectedId={warehouseId} onSelect={nextWarehouseId=>{setWarehouseId(nextWarehouseId);setSelectedId('');setLocations([]);setBalances([]);setBalanceError('');setLoading(Boolean(nextWarehouseId));setSearch('')}} title="Depo seçin" placeholder={warehousesLoading?'Depolar yükleniyor…':'Depo seçin'} searchPlaceholder="Depo kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen depo bulunamadı." disabled={warehousesLoading} clearable clearLabel="Depo seçimini kaldır"/></label><span className="date-pill">Firma kapsamlı · raf / bölme</span></div>
-    <div className="warehouse-location-layout">
-      <section className="panel warehouse-location-list-panel" aria-labelledby="warehouse-location-list-title" aria-busy={loading}>
-        <div className="panel-heading"><div><b id="warehouse-location-list-title">Raf ve bölmeler</b><small>{locations.filter(row => row.isActive).length} aktif · {locations.length} toplam</small></div></div>
-        <label className="warehouse-location-search"><Search size={16} aria-hidden="true"/><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Kod, ad veya üst konum ara" aria-label="Kod, ad veya üst konum ara" disabled={loading || locations.length === 0}/>{search && <button type="button" onClick={() => setSearch('')} aria-label="Aramayı temizle">×</button>}</label>
-        {loading ? <div className="empty-small" role="status" aria-live="polite">Konumlar yükleniyor…</div> : !warehouseId ? <div className="empty-small">Konumları görmek için önce bir depo seçin.</div> : locations.length === 0 ? <div className="empty-small">Bu depoda henüz konum yok. Kod ve ad vererek raf ya da bölme ekleyin.</div> : filteredLocations.length === 0 ? <div className="empty-small" role="status">“{search}” aramasıyla eşleşen konum bulunamadı.</div> : visibleLocationFields.length === 0 ? <div className="empty-small">Konum görünümünde açık sütun bulunmuyor.</div> : <div className="customer-table-wrap warehouse-location-table-wrap" role="region" aria-label="Depo raf ve bölme listesi" tabIndex={0}><AdvancedDataGrid className="customer-table" aria-label="Depo raf ve bölmeler"><thead><ScreenViewGroupHeader fields={visibleLocationFields}/><tr>{visibleLocationFields.map(field => <th scope="col" key={field.key}>{field.label}</th>)}</tr></thead><tbody>{filteredLocations.map(location => <tr key={location.id} className={selectedId === location.id ? 'selected' : undefined}>{visibleLocationFields.map(field => <td key={field.key}>{field.key === 'code' ? <button type="button" className="warehouse-location-select" aria-pressed={selectedId === location.id} onClick={() => setSelectedId(location.id)}><b>{location.code}</b></button> : field.key === 'name' ? location.name : field.key === 'parentLocation' ? (locations.find(row => row.id === location.parentLocationId)?.code ?? 'Üst düzey') : field.key === 'status' ? <span className={location.isActive ? 'warehouse-location-state is-active' : 'warehouse-location-state'}>{location.isActive ? 'Aktif' : 'Pasif'}</span> : field.key === 'actions' ? <div className="row-actions"><button type="button" className="secondary small-button" onClick={() => setSelectedId(location.id)}>Seç</button>{role === 'TenantAdmin' && <button type="button" className="row-action" disabled={busy} onClick={() => beginEdit(location)} aria-label={`${location.code} konumunu düzenle`}>Düzenle</button>}</div> : '—'}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>}
-      </section>
-      <section className="panel warehouse-location-detail" aria-labelledby="warehouse-location-balance-title" aria-busy={balancesLoading}><div className="panel-heading"><div><b id="warehouse-location-balance-title">{selected ? `${selected.code} · ${selected.name}` : 'Konum bakiyesi'}</b><small>{selected ? 'Bu konuma açıkça atanmış stok hareketlerinin net miktarı' : 'Bakiye görmek için bir konum seçin.'}</small></div><span className="tenant-scope"><Warehouse size={14} aria-hidden="true"/>{balances.length} stok satırı</span></div>{selected&&<div className="warehouse-record-summary"><div><small>Konum kodu</small><b>{selected.code}</b></div><div><small>Konum adı</small><b>{selected.name}</b></div><div><small>Üst konum</small><b>{selected.parentLocationId?locations.find(row=>row.id===selected.parentLocationId)?.code:"Üst düzey"}</b></div><span className={selected.isActive?"warehouse-location-state is-active":"warehouse-location-state"}>{selected.isActive?"Aktif":"Pasif"}</span>{role==="TenantAdmin"&&<button type="button" className="secondary" disabled={busy} onClick={()=>beginEdit(selected)}>Düzenle</button>}</div>}{balanceError ? <div className="empty-small" role="alert">{balanceError}</div> : !selected ? <div className="empty-small">Bir raf veya bölme seçin.</div> : balancesLoading ? <div className="empty-small" role="status" aria-live="polite">Konum bakiyesi yükleniyor…</div> : balances.length === 0 ? <div className="empty-small">Bu konumda stok bakiyesi bulunmuyor.</div> : visibleBalanceFields.length === 0 ? <div className="empty-small">Bakiye görünümünde açık sütun bulunmuyor.</div> : <div className="customer-table-wrap warehouse-location-table-wrap" role="region" aria-label="Konum stok bakiyesi tablosu" tabIndex={0}><AdvancedDataGrid  className="customer-table" aria-label={`${selected.code} konumundaki stok bakiyeleri`}><thead><ScreenViewGroupHeader fields={visibleBalanceFields}/><tr>{visibleBalanceFields.map(field => <th scope="col" key={field.key}>{field.label}</th>)}</tr></thead><tbody>{balances.map(row => <tr key={row.stockItemId}>{visibleBalanceFields.map(field => <td key={field.key}>{field.key === 'stockItemCode' ? <b>{row.stockItemCode}</b> : field.key === 'stockItemName' ? row.stockItemName : field.key === 'quantity' ? row.quantity.toLocaleString('tr-TR', { maximumFractionDigits: 4 }) : row.unitCode}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>}</section>
+  return (
+    <div className="warehouse-locations-page">
+      <WarehouseLocationOverview
+        warehouses={warehouses}
+        warehouseId={warehouseId}
+        locations={locations}
+        selected={selected}
+        balanceCount={balances.length}
+        warehousesLoading={warehousesLoading}
+        loading={loading}
+        balancesLoading={balancesLoading}
+        reconciliationLoading={reconciliationLoading}
+        error={error}
+        notice={notice}
+        onRefresh={() => void refresh()}
+        onDismissError={() => setError("")}
+        onDismissNotice={() => setNotice("")}
+        onWarehouseSelect={(nextWarehouseId) => {
+          setWarehouseId(nextWarehouseId);
+          setSelectedId("");
+          setLocations([]);
+          setBalances([]);
+          setBalanceError("");
+          setLoading(Boolean(nextWarehouseId));
+          setSearch("");
+        }}
+      />
+      <div className="warehouse-location-layout">
+        <LocationListPanel
+          locations={locations}
+          filteredLocations={filteredLocations}
+          visibleFields={visibleLocationFields}
+          selectedId={selectedId}
+          search={search}
+          loading={loading}
+          warehouseId={warehouseId}
+          busy={busy}
+          role={role}
+          onSearchChange={setSearch}
+          onSelect={setSelectedId}
+          onEdit={beginEdit}
+        />
+        <LocationBalancePanel
+          selected={selected}
+          locations={locations}
+          balances={balances}
+          visibleFields={visibleBalanceFields}
+          loading={balancesLoading}
+          error={balanceError}
+          role={role}
+          busy={busy}
+          onEdit={beginEdit}
+        />
+      </div>
+      <ReconciliationPanel
+        rows={reconciliation}
+        visibleFields={visibleReconciliationFields}
+        loading={reconciliationLoading}
+        error={reconciliationError}
+      />
+      {role === "TenantAdmin" && (
+        <CreateLocationForm
+          locations={locations}
+          warehouseId={warehouseId}
+          code={code}
+          name={name}
+          parentLocationId={parentLocationId}
+          busy={busy}
+          onCodeChange={setCode}
+          onNameChange={setName}
+          onParentChange={setParentLocationId}
+          onSubmit={(event) => void createLocation(event)}
+        />
+      )}
+      {editing && (
+        <EditLocationModal
+          editing={editing}
+          locations={locations}
+          editCode={editCode}
+          editName={editName}
+          editParentLocationId={editParentLocationId}
+          editIsActive={editIsActive}
+          busy={busy}
+          onEditCodeChange={setEditCode}
+          onEditNameChange={setEditName}
+          onEditParentChange={setEditParentLocationId}
+          onEditIsActiveChange={setEditIsActive}
+          onClose={() => setEditing(null)}
+          onSubmit={(event) => void saveLocation(event)}
+        />
+      )}
     </div>
-    <section className="panel warehouse-location-reconciliation" aria-labelledby="warehouse-location-reconciliation-title" aria-busy={reconciliationLoading}>
-      <div className="panel-heading"><div><b id="warehouse-location-reconciliation-title">Konumlandırma denetimi</b><small>Raf/konum ataması olmayan hareketler nedeniyle depo bakiyesiyle konum bakiyeleri arasındaki fark</small></div><span className="tenant-scope"><Warehouse size={14} aria-hidden="true"/>{reconciliation.length} stok kalemi</span></div>
-      <p className="warehouse-location-reconciliation-note">Konumu boş eski hareketler burada görünür; bu ekran geçmiş kayıtlara otomatik konum atamaz. Miktarlar kendi stok birimleri içinde karşılaştırılır.</p>
-      {reconciliationError ? <div className="empty-small" role="alert">{reconciliationError}</div> : reconciliationLoading ? <div className="empty-small" role="status" aria-live="polite">Depo ve konum bakiyeleri karşılaştırılıyor…</div> : reconciliation.length === 0 ? <div className="empty-small">Konumu boş hareket kaynaklı fark bulunmuyor.</div> : visibleReconciliationFields.length === 0 ? <div className="empty-small">Denetim görünümünde açık sütun bulunmuyor.</div> : <div className="customer-table-wrap warehouse-location-table-wrap" role="region" aria-label="Depo ve konum bakiyesi karşılaştırması" tabIndex={0}><AdvancedDataGrid className="customer-table" aria-label="Konumlandırma denetimi"><thead><ScreenViewGroupHeader fields={visibleReconciliationFields}/><tr>{visibleReconciliationFields.map(field => <th scope="col" key={field.key}>{field.label}</th>)}</tr></thead><tbody>{reconciliation.map(row => <tr key={row.stockItemId}>{visibleReconciliationFields.map(field => <td key={field.key}>{field.key === 'stockItemCode' ? <b>{row.stockItemCode}</b> : field.key === 'stockItemName' ? row.stockItemName : field.key === 'warehouseQuantity' ? row.warehouseQuantity.toLocaleString('tr-TR', { maximumFractionDigits: 4 }) : field.key === 'locatedQuantity' ? row.locatedQuantity.toLocaleString('tr-TR', { maximumFractionDigits: 4 }) : field.key === 'unlocatedQuantity' ? <span className="warehouse-unlocated-quantity">{row.unlocatedQuantity.toLocaleString('tr-TR', { maximumFractionDigits: 4 })}</span> : field.key === 'unitCode' ? row.unitCode : '—'}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>}
-    </section>
-    {role === 'TenantAdmin' && <form className="panel warehouse-location-form" onSubmit={event => void createLocation(event)}><div className="panel-heading"><div><b><Plus size={16}/> Konum oluştur</b><small>Kod depo içinde benzersiz olmalıdır. Üst konum seçerek hiyerarşi kurabilirsiniz.</small></div></div><div className="form-three"><label>Konum kodu<input value={code} onChange={event => setCode(event.target.value.toUpperCase())} required maxLength={40} placeholder="A-01-03"/></label><label>Konum adı<input value={name} onChange={event => setName(event.target.value)} required maxLength={120} placeholder="Raf 3 · Göz 1"/></label><label>Üst konum<select value={parentLocationId} onChange={event => setParentLocationId(event.target.value)}><option value="">Üst düzey konum</option>{locations.filter(row => row.isActive).map(row => <option key={row.id} value={row.id}>{row.code} · {row.name}</option>)}</select></label></div><div className="modal-foot"><span>TenantAdmin yetkisiyle kaydedilir ve audit izi oluşturulur.</span><button className="primary" disabled={busy || !warehouseId || !code.trim() || !name.trim()}><Plus size={15}/> Konumu kaydet</button></div></form>}
-    {editing && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setEditing(null) }}><form className="modal warehouse-location-edit-modal" role="dialog" aria-modal="true" aria-labelledby="warehouse-location-edit-title" onSubmit={event => void saveLocation(event)}><div className="modal-head"><div><p className="eyebrow">DEPO YERLEŞİMİ · DÜZENLE</p><h2 id="warehouse-location-edit-title">{editing.code} konumunu düzenle</h2></div><button type="button" className="icon-button" aria-label="Kapat" disabled={busy} onClick={() => setEditing(null)}>×</button></div><div className="form-two"><label>Konum kodu<input autoFocus value={editCode} onChange={event => setEditCode(event.target.value.toUpperCase())} required maxLength={40}/></label><label>Konum adı<input value={editName} onChange={event => setEditName(event.target.value)} required maxLength={120}/></label></div><label>Üst konum<select value={editParentLocationId} onChange={event => setEditParentLocationId(event.target.value)}><option value="">Üst düzey konum</option>{locations.filter(row => row.isActive && row.id !== editing.id).map(row => <option key={row.id} value={row.id}>{row.code} · {row.name}</option>)}</select></label><label className="warehouse-location-active"><input type="checkbox" checked={editIsActive} onChange={event => setEditIsActive(event.target.checked)}/> Konum aktif</label><div className="modal-foot"><span>Güncelleme sürüm denetimiyle ve audit iziyle kaydedilir.</span><div><button type="button" className="secondary" disabled={busy} onClick={() => setEditing(null)}>Vazgeç</button><button className="primary" disabled={busy || !editCode.trim() || !editName.trim()}>Değişiklikleri kaydet</button></div></div></form></div>}
-  </div>
+  );
 }

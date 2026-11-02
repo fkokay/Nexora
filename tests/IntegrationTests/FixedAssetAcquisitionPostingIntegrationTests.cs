@@ -39,6 +39,37 @@ public sealed class FixedAssetAcquisitionPostingIntegrationTests
     }
 
     [Fact]
+    public async Task Vuk_useful_life_catalog_is_authenticated_searchable_and_preserves_official_duplicate_codes()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var app = await StartAsync(tenantId);
+        using var client = Client(app, tenantId);
+
+        using var allResponse = await client.GetAsync("/api/fixed-assets/vuk-useful-life-catalog");
+        Assert.Equal(HttpStatusCode.OK, allResponse.StatusCode);
+        using var all = JsonDocument.Parse(await allResponse.Content.ReadAsStringAsync());
+        var entries = all.RootElement.GetProperty("entries").EnumerateArray().ToArray();
+        Assert.Equal(672, entries.Length);
+        Assert.Contains(entries, entry => entry.GetProperty("description").GetString()!.Contains("Atık su arıtma tesisi", StringComparison.Ordinal));
+        Assert.DoesNotContain(entries, entry => entry.GetProperty("description").GetString()!.Contains('\uFFFD'));
+        var repeatedCodeEntries = entries.Where(entry => entry.GetProperty("code").GetString() == "31.2.2.3").ToArray();
+        Assert.Equal(2, repeatedCodeEntries.Length);
+        Assert.Contains(repeatedCodeEntries, entry => entry.GetProperty("description").GetString()!.Contains("Sert metal kalıplar", StringComparison.Ordinal));
+        Assert.Contains(repeatedCodeEntries, entry => entry.GetProperty("description").GetString()!.Contains("Saç parça kalıpları", StringComparison.Ordinal));
+
+        using var searchResponse = await client.GetAsync("/api/fixed-assets/vuk-useful-life-catalog?q=Damızlık");
+        Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
+        using var search = JsonDocument.Parse(await searchResponse.Content.ReadAsStringAsync());
+        Assert.NotEmpty(search.RootElement.GetProperty("entries").EnumerateArray());
+
+        using var invalidQuery = await client.GetAsync($"/api/fixed-assets/vuk-useful-life-catalog?q={new string('x', 101)}");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidQuery.StatusCode);
+
+        using var unauthenticated = app.GetTestClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await unauthenticated.GetAsync("/api/fixed-assets/vuk-useful-life-catalog")).StatusCode);
+    }
+
+    [Fact]
     public async Task Asset_creation_persists_server_owned_vuk_snapshot_for_acquisition_year()
     {
         var tenantId = Guid.NewGuid();

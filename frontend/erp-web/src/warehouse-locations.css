@@ -22,6 +22,12 @@
 .warehouse-locations-page .warehouse-location-row{min-width:0}
 .warehouse-locations-page .warehouse-location-select b,.warehouse-locations-page .warehouse-location-select small{overflow-wrap:anywhere}
 .warehouse-locations-page .empty-small{line-height:1.55}
+.warehouse-locations-page .warehouse-location-layout .panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid var(--erp-border,#e7eaf1)}
+.warehouse-locations-page .warehouse-location-layout .panel-heading>div{display:grid;gap:4px;min-width:0}
+.warehouse-locations-page .warehouse-location-layout .panel-heading b,.warehouse-locations-page .warehouse-location-layout .panel-heading small{display:block;line-height:1.45}
+.warehouse-locations-page .warehouse-location-layout .panel-heading b{color:var(--erp-text,#25324a);font-size:12px}
+.warehouse-locations-page .warehouse-location-layout .panel-heading small{color:var(--erp-text-muted,#647087);font-size:10px}
+.warehouse-locations-page .warehouse-location-layout .empty-small{padding:18px 10px;color:var(--erp-text-muted,#647087);font-size:12px;line-height:1.55}
 .warehouse-locations-page .warehouse-location-form{margin-top:16px}
 .warehouse-locations-page .warehouse-location-form .panel-heading b{display:flex;align-items:center;gap:7px}
 .warehouse-location-edit-modal{display:grid;gap:14px}
@@ -79,6 +85,7 @@ html[data-theme="dark"] .warehouse-locations-page .panel-heading{border-color:va
 .warehouse-location-reconciliation .panel-heading b{font-size:12px;color:var(--erp-text,#25324a)}
 .warehouse-location-reconciliation .panel-heading small,.warehouse-location-reconciliation-note{font-size:10px;color:var(--erp-text-muted,#647087);line-height:1.5}
 .warehouse-location-reconciliation-note{margin:10px 0}
+.warehouse-location-reconciliation>.empty-small{margin:12px 0 0;padding:12px 14px;border:1px solid var(--erp-border,#e7eaf1);border-radius:8px;background:var(--erp-surface-soft,#f7f8fb);color:var(--erp-text-muted,#647087);font-size:12px;line-height:1.5}
 .warehouse-location-reconciliation .customer-table{min-width:700px}
 .warehouse-unlocated-quantity{color:#a6531b;font-weight:700}
 .warehouse-location-kpis article{display:grid;grid-template-columns:1fr auto;align-content:center;gap:3px 8px;min-width:0;min-height:60px;padding:10px 12px;background:var(--erp-surface,#fff);border:1px solid var(--erp-border,#dfe4ed);border-radius:8px}

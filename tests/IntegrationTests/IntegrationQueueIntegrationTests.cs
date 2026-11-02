@@ -171,7 +171,7 @@ public sealed class IntegrationQueueIntegrationTests
         var invoiceId = Guid.NewGuid();
         await using (var scope = app.Services.CreateAsyncScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
             var tenant = await db.Tenants.SingleAsync(x => x.Id == TenantA);
             var customer = new CustomerAccount { TenantId = TenantA, Tenant = tenant, Code = "C-1", Name = "Contoso", TaxNumber = "1234567890" };
             var quote = new SalesQuote { TenantId = TenantA, Tenant = tenant, Customer = customer, Code = "Q-1", QuoteDate = new DateOnly(2026, 10, 1), ValidUntil = new DateOnly(2026, 10, 31) };

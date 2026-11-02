@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
@@ -43,14 +44,18 @@ public sealed class FixedAssetDepreciationFiscalCloseSqlAcceptanceTests
                 new Tenant { Id = otherTenantId, Name = "Synthetic other tenant", Slug = $"fa-dep-other-{otherTenantId:N}", BaseCurrencyCode = "TRY" });
             var accumulated = Account(tenantId, "257", "Accumulated depreciation", LedgerAccountStatementSection.Asset);
             var expense = Account(tenantId, "770", "Depreciation expense", LedgerAccountStatementSection.Expense);
+            var taxAccumulated = Account(tenantId, "257-TAX", "Tax accumulated depreciation", LedgerAccountStatementSection.Asset);
+            var taxExpense = Account(tenantId, "770-TAX", "Tax depreciation expense", LedgerAccountStatementSection.Expense);
             var retainedEarnings = Account(tenantId, "570", "Retained earnings", LedgerAccountStatementSection.Equity);
             var cash = Account(tenantId, "100", "Cash", LedgerAccountStatementSection.Asset);
             var capital = Account(tenantId, "500", "Capital", LedgerAccountStatementSection.Equity);
             var revenue = Account(tenantId, "600", "Revenue", LedgerAccountStatementSection.Revenue);
-            seedDb.LedgerAccounts.AddRange(accumulated, expense, retainedEarnings, cash, capital, revenue);
+            seedDb.LedgerAccounts.AddRange(accumulated, expense, taxAccumulated, taxExpense, retainedEarnings, cash, capital, revenue);
             seedDb.LedgerAccountMappings.AddRange(
                 Mapping(tenantId, LedgerMappingKeys.FixedAssetAccumulatedDepreciation, accumulated),
-                Mapping(tenantId, LedgerMappingKeys.FixedAssetDepreciationExpense, expense));
+                Mapping(tenantId, LedgerMappingKeys.FixedAssetDepreciationExpense, expense),
+                Mapping(tenantId, LedgerMappingKeys.FixedAssetTaxAccumulatedDepreciation, taxAccumulated),
+                Mapping(tenantId, LedgerMappingKeys.FixedAssetTaxDepreciationExpense, taxExpense));
 
             var opening = new JournalEntry
             {
@@ -85,8 +90,24 @@ public sealed class FixedAssetDepreciationFiscalCloseSqlAcceptanceTests
             seedDb.JournalEntries.AddRange(opening, currentYearIncome);
 
             var asset = Asset(tenantId, "DEPRECIATION-CLOSED", new DateOnly(2025, 1, 1));
+            var taxAsset = Asset(tenantId, "TAX-DEPRECIATION-CLOSED", new DateOnly(2024, 12, 1));
+            taxAsset.VukUsefulLifeCode = "TEST-VUK";
+            taxAsset.VukUsefulLifeDescription = "Synthetic test profile";
+            taxAsset.VukUsefulLifeTableYear = 2025;
+            taxAsset.VukUsefulLifeCommuniqueNumber = 1;
+            taxAsset.VukUsefulLifeMonths = 60;
+            taxAsset.VukNormalDepreciationRatePercent = 20m;
+            taxAsset.VukTaxDepreciationStartDate = new DateOnly(2024, 12, 1);
+            var openTaxAsset = Asset(tenantId, "TAX-DEPRECIATION-OPEN", new DateOnly(2025, 1, 1));
+            openTaxAsset.VukUsefulLifeCode = "TEST-VUK";
+            openTaxAsset.VukUsefulLifeDescription = "Synthetic test profile";
+            openTaxAsset.VukUsefulLifeTableYear = 2025;
+            openTaxAsset.VukUsefulLifeCommuniqueNumber = 1;
+            openTaxAsset.VukUsefulLifeMonths = 60;
+            openTaxAsset.VukNormalDepreciationRatePercent = 20m;
+            openTaxAsset.VukTaxDepreciationStartDate = new DateOnly(2025, 12, 1);
             var otherTenantAsset = Asset(otherTenantId, "OTHER-TENANT-ASSET", new DateOnly(2025, 1, 1));
-            seedDb.FixedAssets.AddRange(asset, otherTenantAsset);
+            seedDb.FixedAssets.AddRange(asset, taxAsset, openTaxAsset, otherTenantAsset);
             await seedDb.SaveChangesAsync();
 
             var builder = WebApplication.CreateBuilder();
@@ -129,6 +150,49 @@ public sealed class FixedAssetDepreciationFiscalCloseSqlAcceptanceTests
             Assert.Equal(accumulatedBefore, await seedDb.FixedAssets.Where(x => x.TenantId == tenantId && x.Id == asset.Id)
                 .Select(x => x.AccumulatedDepreciationBase).SingleAsync());
 
+            var taxJournalSource = "FixedAssetTaxDepreciation";
+            var taxJournalSourceId = TaxDepreciationSourceId(taxAsset.Id, new DateOnly(2025, 1, 1));
+            var taxJournalCountBefore = await seedDb.JournalEntries.CountAsync(x => x.TenantId == tenantId && x.SourceType == taxJournalSource && x.SourceId == taxJournalSourceId);
+            var taxAuditCountBefore = await seedDb.AuditEvents.CountAsync(x => x.TenantId == tenantId && x.Action == "fixed-asset.tax-depreciation-posted");
+            using var rejectedTax = await client.PostAsJsonAsync($"/api/fixed-assets/{taxAsset.Id}/tax-depreciation-postings", new
+            {
+                periodStart = "2025-01-01"
+            });
+            Assert.Equal(HttpStatusCode.Conflict, rejectedTax.StatusCode);
+            Assert.Equal(taxJournalCountBefore, await seedDb.JournalEntries.CountAsync(x => x.TenantId == tenantId && x.SourceType == taxJournalSource && x.SourceId == taxJournalSourceId));
+            Assert.Equal(taxAuditCountBefore, await seedDb.AuditEvents.CountAsync(x => x.TenantId == tenantId && x.Action == "fixed-asset.tax-depreciation-posted"));
+            Assert.Equal(0m, await seedDb.FixedAssets.Where(x => x.TenantId == tenantId && x.Id == taxAsset.Id)
+                .Select(x => x.AccumulatedDepreciationBase).SingleAsync());
+
+            var openTaxMonth = new DateOnly(2026, 1, 1);
+            using var openTaxPosting = await client.PostAsJsonAsync($"/api/fixed-assets/{openTaxAsset.Id}/tax-depreciation-postings", new
+            {
+                periodStart = openTaxMonth.ToString("yyyy-MM-dd")
+            });
+            Assert.Equal(HttpStatusCode.Created, openTaxPosting.StatusCode);
+            using var openTaxPostingBody = JsonDocument.Parse(await openTaxPosting.Content.ReadAsStringAsync());
+            Assert.Equal(20m, openTaxPostingBody.RootElement.GetProperty("amountBase").GetDecimal());
+            Assert.False(openTaxPostingBody.RootElement.GetProperty("isStatutoryFiling").GetBoolean());
+
+            using var duplicateOpenTaxPosting = await client.PostAsJsonAsync($"/api/fixed-assets/{openTaxAsset.Id}/tax-depreciation-postings", new
+            {
+                periodStart = openTaxMonth.ToString("yyyy-MM-dd")
+            });
+            Assert.Equal(HttpStatusCode.Conflict, duplicateOpenTaxPosting.StatusCode);
+
+            var openTaxJournalSource = "FixedAssetTaxDepreciation";
+            var openTaxSourceId = TaxDepreciationSourceId(openTaxAsset.Id, openTaxMonth);
+            var openTaxJournal = await seedDb.JournalEntries.Include(x => x.Lines).SingleAsync(x => x.TenantId == tenantId &&
+                x.SourceType == openTaxJournalSource && x.SourceId == openTaxSourceId);
+            Assert.Equal(20m, openTaxJournal.Lines.Sum(x => x.Debit));
+            Assert.Equal(20m, openTaxJournal.Lines.Sum(x => x.Credit));
+            Assert.Equal(taxExpense.Id, openTaxJournal.Lines.Single(x => x.Debit > 0).AccountId);
+            Assert.Equal(taxAccumulated.Id, openTaxJournal.Lines.Single(x => x.Credit > 0).AccountId);
+            Assert.Equal(0m, await seedDb.FixedAssets.Where(x => x.TenantId == tenantId && x.Id == openTaxAsset.Id)
+                .Select(x => x.AccumulatedDepreciationBase).SingleAsync());
+            Assert.Equal(1, await seedDb.JournalEntries.CountAsync(x => x.TenantId == tenantId && x.SourceType == openTaxJournalSource && x.SourceId == openTaxSourceId));
+            Assert.Equal(1, await seedDb.AuditEvents.CountAsync(x => x.TenantId == tenantId && x.Action == "fixed-asset.tax-depreciation-posted"));
+
             using var crossTenant = await client.PostAsJsonAsync($"/api/fixed-assets/{otherTenantAsset.Id}/depreciation-postings", new
             {
                 periodStart = "2025-02-01"
@@ -154,4 +218,10 @@ public sealed class FixedAssetDepreciationFiscalCloseSqlAcceptanceTests
         TenantId = tenantId, AssetCode = code, Name = code, Category = "Equipment", AcquisitionDate = acquisitionDate,
         InServiceDate = acquisitionDate, AcquisitionCostBase = 1200m, ResidualValueBase = 0m, UsefulLifeMonths = 60
     };
+
+    private static Guid TaxDepreciationSourceId(Guid assetId, DateOnly month)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{assetId:N}:{month:yyyy-MM}"));
+        return new Guid(hash.AsSpan(0, 16));
+    }
 }

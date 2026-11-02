@@ -1,0 +1,275 @@
+.operational-definitions-page {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.operational-definitions-page > .page-heading {
+  margin: 0;
+}
+
+.op-definitions-panel {
+  padding: clamp(18px, 2vw, 26px);
+}
+
+.op-definitions-panel > .panel-heading {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.op-definitions-panel > .panel-heading h2 {
+  margin: 0 0 5px;
+  font-size: clamp(20px, 1.6vw, 24px);
+  letter-spacing: -.025em;
+}
+
+.op-definitions-panel > .panel-heading p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.op-definitions-panel .collection-form {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 82%, var(--background, #f5f7fb));
+}
+
+.op-definitions-panel .form-two {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 14px;
+  min-width: 0;
+}
+
+.op-definitions-panel .form-two label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.op-definitions-panel .form-two input,
+.op-definitions-panel .form-two select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.op-definitions-panel .form-two input:focus-visible,
+.op-definitions-panel .form-two select:focus-visible {
+  border-color: var(--primary, #0f6cbd);
+  outline: 3px solid color-mix(in srgb, var(--primary, #0f6cbd) 18%, transparent);
+  outline-offset: 1px;
+}
+
+.op-definitions-panel .modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.op-definitions-panel .modal-foot > span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.op-definitions-panel .modal-foot > div {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.op-definitions-panel .ledger-table {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.op-definitions-panel .ledger-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.op-definitions-panel .ledger-table th {
+  padding: 11px 14px;
+  background: color-mix(in srgb, var(--surface) 72%, var(--background, #f5f7fb));
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .045em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.op-definitions-panel .ledger-table td {
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.op-definitions-panel .ledger-table td[colspan] {
+  height: 76px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.customer-location-definitions-page {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.customer-location-definitions-page > .page-heading { margin: 0; }
+.customer-location-definitions-page > .panel { min-width: 0; padding: clamp(18px, 2vw, 26px); }
+.customer-location-definitions-page > .panel > .panel-heading { align-items: center; gap: 16px; }
+.customer-location-definitions-page > .panel > .panel-heading h2 { margin: 0 0 5px; font-size: clamp(18px, 1.45vw, 22px); }
+.customer-location-definitions-page > .panel > .panel-heading p { margin: 0; color: var(--muted); font-size: 11px; }
+.customer-location-definitions-page .collection-form {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 14px 0 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 82%, var(--background, #f5f7fb));
+}
+.customer-location-definitions-page .form-two {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 14px;
+}
+.customer-location-definitions-page .form-two > label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.customer-location-definitions-page .form-two input,
+.customer-location-definitions-page .form-two select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.customer-location-definitions-page .ledger-list { max-height: 400px; }
+.customer-location-definitions-page .ledger-list .customer-table { min-width: 680px; }
+.customer-location-definitions-page .ledger-list .customer-table th { position: sticky; top: 0; z-index: 1; }
+.customer-location-definitions-page .modal-foot > span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+@media (max-width: 760px) {
+  .op-definitions-panel { padding: 16px; }
+  .op-definitions-panel .collection-form { padding: 13px; }
+  .op-definitions-panel .form-two { grid-template-columns: 1fr; gap: 11px; }
+  .op-definitions-panel .modal-foot { align-items: stretch; flex-direction: column; }
+  .op-definitions-panel .modal-foot > div { justify-content: stretch; }
+  .op-definitions-panel .modal-foot > div > button { flex: 1 1 auto; justify-content: center; }
+  .op-definitions-panel .ledger-table { overflow-x: auto; }
+  .op-definitions-panel .ledger-table table { min-width: 520px; }
+  .customer-location-definitions-page > .panel { padding: 16px; }
+  .customer-location-definitions-page .form-two { grid-template-columns: minmax(0, 1fr); gap: 11px; }
+  .customer-location-definitions-page > .panel > .panel-heading { align-items: flex-start; }
+  .customer-location-definitions-page .ledger-list { max-height: 360px; }
+}
+
+/* Workplaces stay grouped with their form and register while warehouse setup is an adjacent path. */
+.operational-definitions-page { grid-template-columns: minmax(0, 1.4fr) minmax(250px, .8fr); align-items: start; gap: 14px; }
+.operational-definitions-page > .page-heading,
+.operational-definitions-page > .inline-alert,
+.operational-definitions-page > .notice,
+.operational-definitions-page > .op-definitions-address-panel { grid-column: 1 / -1; }
+.operational-definitions-page > .page-heading { align-items: center; gap: 16px; padding: 2px 2px 4px; }
+.operational-definitions-page > .page-heading > div { min-width: 0; }
+.operational-definitions-page > .page-heading h1 { max-width: 760px; margin-bottom: 5px; font-size: clamp(24px, 2.2vw, 30px); line-height: 1.18; }
+.operational-definitions-page > .page-heading .muted { max-width: 760px; margin: 0; line-height: 1.55; }
+.operational-definitions-page > .page-heading > button { flex: none; }
+.op-definitions-panel,
+.op-definitions-warehouse-panel,
+.op-definitions-address-panel { min-width: 0; padding: clamp(16px, 1.7vw, 22px); border-radius: 12px; box-shadow: 0 3px 14px rgb(25 48 78 / 4%); }
+.op-definitions-panel > .panel-heading { align-items: flex-start; margin-bottom: 14px; }
+.op-definitions-panel > .panel-heading h2,
+.op-definitions-warehouse-panel .panel-heading h2,
+.op-definitions-address-panel .panel-heading h2 { margin: 0 0 5px; font-size: 17px; line-height: 1.3; }
+.op-definitions-panel > .panel-heading p,
+.op-definitions-warehouse-panel .panel-heading p,
+.op-definitions-address-panel .panel-heading p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.op-definitions-panel .collection-form { padding: 13px; gap: 12px; }
+.op-definitions-panel .form-two { gap: 10px; }
+.op-definitions-panel .form-two label { font-size: 11px; }
+.op-definitions-panel .modal-foot { padding-top: 11px; }
+.op-definitions-panel .ledger-list { max-height: min(420px, 52vh); margin-top: 14px; overflow: auto; border: 1px solid var(--line); border-radius: 9px; }
+.op-definitions-panel .ledger-list .customer-table { min-width: 600px; margin: 0; }
+.op-definitions-panel .ledger-list .customer-table th { position: sticky; top: 0; z-index: 1; }
+.op-definitions-panel .ledger-list .customer-table td { vertical-align: middle; }
+.op-definitions-panel .ledger-list .customer-table td:last-child { white-space: nowrap; }
+.op-definitions-panel .ledger-list .table-empty { height: 88px; color: var(--muted); text-align: center; }
+.op-definitions-warehouse-panel { display: flex; flex-direction: column; justify-content: space-between; gap: 18px; min-height: 184px; background: linear-gradient(145deg, var(--surface), color-mix(in srgb, var(--surface) 90%, var(--primary, #0f6cbd))); }
+.op-definitions-warehouse-panel .panel-heading { align-items: flex-start; gap: 14px; }
+.op-definitions-warehouse-panel .panel-heading > div { min-width: 0; }
+.op-definitions-warehouse-panel .panel-heading > button { flex: none; justify-content: center; }
+.op-definitions-warehouse-note { padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.55; }
+.op-definitions-address-panel .panel-heading { align-items: center; gap: 16px; }
+.op-definitions-address-panel .panel-heading > button { flex: none; }
+
+@media (max-width: 960px) {
+  .operational-definitions-page { grid-template-columns: minmax(0, 1fr); }
+  .operational-definitions-page > .page-heading,
+  .operational-definitions-page > .inline-alert,
+  .operational-definitions-page > .notice,
+  .operational-definitions-page > .op-definitions-address-panel { grid-column: 1; }
+  .op-definitions-warehouse-panel { min-height: 0; }
+}
+
+@media (max-width: 560px) {
+  .operational-definitions-page { gap: 11px; }
+  .operational-definitions-page > .page-heading { align-items: flex-start; flex-direction: column; }
+  .operational-definitions-page > .page-heading > button { align-self: flex-end; }
+  .op-definitions-panel > .panel-heading,
+  .op-definitions-warehouse-panel .panel-heading,
+  .op-definitions-address-panel .panel-heading { flex-direction: column; align-items: stretch; }
+  .op-definitions-warehouse-panel .panel-heading > button,
+  .op-definitions-address-panel .panel-heading > button { width: 100%; }
+  .op-definitions-panel .ledger-list { max-height: 340px; }
+}

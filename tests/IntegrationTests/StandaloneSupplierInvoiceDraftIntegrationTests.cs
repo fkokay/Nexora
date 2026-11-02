@@ -96,6 +96,35 @@ public sealed class StandaloneSupplierInvoiceDraftIntegrationTests
         Assert.Equal(HttpStatusCode.Created, createdResponse.StatusCode);
         var created = await createdResponse.Content.ReadFromJsonAsync<StandaloneSupplierInvoiceDraftDetail>();
         Assert.NotNull(created);
+        var fiscalClose = new JournalEntry
+        {
+            TenantId = tenantId,
+            Code = "FY-CLOSE-20260101-20261231",
+            EntryDate = new DateOnly(2026, 12, 31),
+            Description = "Closed test period",
+            SourceType = "FiscalYearClose",
+            SourceId = Guid.NewGuid(),
+        };
+        await using (var closeScope = app.Services.CreateAsyncScope())
+        {
+            var closeDb = closeScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            closeDb.JournalEntries.Add(fiscalClose);
+            await closeDb.SaveChangesAsync();
+        }
+        using (var closedPeriodPost = await client.PostAsync($"/api/purchasing/standalone-invoices/{created.Id}/post", null))
+            Assert.Equal(HttpStatusCode.Conflict, closedPeriodPost.StatusCode);
+        await using (var closedPeriodCheckScope = app.Services.CreateAsyncScope())
+        {
+            var closedPeriodDb = closedPeriodCheckScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            Assert.False(await closedPeriodDb.JournalEntries.AnyAsync(x => x.TenantId == tenantId
+                && x.SourceType == "StandaloneInvoiceDraft" && x.SourceId == created.Id));
+            Assert.False(await closedPeriodDb.CustomerLedgerEntries.AnyAsync(x => x.TenantId == tenantId
+                && x.PurchaseInvoiceDraftId == created.Id));
+            Assert.False(await closedPeriodDb.InventoryCostAdjustments.AnyAsync(x => x.TenantId == tenantId
+                && x.PurchaseInvoiceDraftId == created.Id));
+            closedPeriodDb.JournalEntries.Remove(fiscalClose);
+            await closedPeriodDb.SaveChangesAsync();
+        }
         using var reservedResponse = await client.GetAsync($"/api/purchasing/standalone-invoices/receipts?supplierId={supplier.Id}&invoiceDate=2026-10-25");
         var reserved = await reservedResponse.Content.ReadFromJsonAsync<StandaloneSupplierInvoiceDraftReceiptOption[]>();
         Assert.NotNull(reserved);

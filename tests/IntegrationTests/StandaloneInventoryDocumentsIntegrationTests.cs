@@ -27,6 +27,7 @@ public sealed class StandaloneInventoryDocumentsIntegrationTests
         var customer = new CustomerAccount { TenantId = tenantId, Tenant = tenant, Code = "CUS-1", Name = "Customer", Type = CounterpartyType.Customer, CurrencyCode = "TRY" };
         var warehouse = new Warehouse { TenantId = tenantId, Tenant = tenant, Code = "MAIN", Name = "Main warehouse" };
         var item = new StockItem { TenantId = tenantId, Tenant = tenant, Code = "MAT-1", Name = "Material", UnitCode = "EA", TrackingMode = InventoryTrackingMode.None };
+        var invoiceField = new SalesInvoiceCustomFieldDefinition { TenantId = tenantId, Code = "CUSTOMER_REFERENCE", Label = "Müşteri referansı", DataType = CustomFieldDataType.Text, MaxLength = 40, IsRequired = true };
         var builder = WebApplication.CreateBuilder(); builder.WebHost.UseTestServer();
         builder.Services.AddDbContext<TenantDbContext>(o => o.UseInMemoryDatabase($"standalone-sales-doc-{tenantId:N}").ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
         builder.Services.AddAuthentication("standalone-test").AddScheme<AuthenticationSchemeOptions, StandaloneTestAuthHandler>("standalone-test", _ => { });
@@ -36,6 +37,7 @@ public sealed class StandaloneInventoryDocumentsIntegrationTests
         {
             var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>(); await db.Database.EnsureCreatedAsync();
             db.Tenants.Add(tenant); db.CustomerAccounts.Add(customer); db.Warehouses.Add(warehouse); db.StockItems.Add(item);
+            db.SalesInvoiceCustomFieldDefinitions.Add(invoiceField);
             db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = item.Id, EntryDate = new DateOnly(2026, 10, 28),
                 Direction = InventoryDirection.Receipt, Quantity = 5m, UnitCostBase = 10m, Description = "Opening test stock" });
             await db.SaveChangesAsync();
@@ -47,6 +49,9 @@ public sealed class StandaloneInventoryDocumentsIntegrationTests
             lines = new[] { new { stockItemId = item.Id, quantity = 2m, unitCode = "EA", trackingCode = (string?)null, expiryDate = (string?)null } }
         });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode); var body = await create.Content.ReadFromJsonAsync<JsonElement>(); var id = body.GetProperty("id").GetGuid();
+        var invoiceRequestWithoutRequiredField = new { invoiceDate = "2026-10-30", lines = new[] { new { lineNumber = 1, unitPrice = 25m, discountPercent = 0m, vatPercent = 20m } } };
+        var draftInvoice = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{id}/invoice", invoiceRequestWithoutRequiredField);
+        Assert.Equal(HttpStatusCode.Conflict, draftInvoice.StatusCode);
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
@@ -55,6 +60,29 @@ public sealed class StandaloneInventoryDocumentsIntegrationTests
         }
         var post = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{id}/post", new { }); Assert.Equal(HttpStatusCode.OK, post.StatusCode);
         var retry = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{id}/post", new { }); Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        var missingFieldInvoice = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{id}/invoice", invoiceRequestWithoutRequiredField);
+        Assert.Equal(HttpStatusCode.BadRequest, missingFieldInvoice.StatusCode);
+        var invoiceRequest = new { invoiceDate = "2026-10-30", customFields = new Dictionary<string, string?> { ["CUSTOMER_REFERENCE"] = "PO-42" }, lines = new[] { new { lineNumber = 1, unitPrice = 25m, discountPercent = 0m, vatPercent = 20m } } };
+        var invoiceResponse = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{id}/invoice", invoiceRequest);
+        Assert.Equal(HttpStatusCode.Created, invoiceResponse.StatusCode);
+        var invoiceBody = await invoiceResponse.Content.ReadFromJsonAsync<JsonElement>(); var invoiceId = invoiceBody.GetProperty("id").GetGuid();
+        var invoiceReplay = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{id}/invoice", invoiceRequest);
+        Assert.Equal(HttpStatusCode.OK, invoiceReplay.StatusCode);
+        Assert.Equal(invoiceId, (await invoiceReplay.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
+        var blockedVoid = await client.PostAsync($"/api/sales/standalone-deliveries/{id}/void", null);
+        Assert.Equal(HttpStatusCode.Conflict, blockedVoid.StatusCode);
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var invoice = await db.SalesInvoices.Include(x => x.Lines).SingleAsync(x => x.TenantId == tenantId && x.Id == invoiceId);
+            Assert.Equal(id, invoice.StandaloneDeliveryId); Assert.Equal(25m, invoice.Lines.Single().UnitPrice);
+            Assert.Equal(60m, invoice.GrandTotal);
+            Assert.Equal("PO-42", await db.SalesInvoiceCustomFieldValues.Where(x => x.TenantId == tenantId && x.InvoiceId == invoiceId && x.DefinitionId == invoiceField.Id).Select(x => x.Value).SingleAsync());
+            Assert.Equal("PO-42", await db.SalesInvoiceCustomFieldValueRevisions.Where(x => x.TenantId == tenantId && x.InvoiceId == invoiceId && x.DefinitionId == invoiceField.Id).Select(x => x.NewValue).SingleAsync());
+            Assert.Single(await db.CustomerLedgerEntries.Where(x => x.TenantId == tenantId && x.SalesInvoiceId == invoiceId).ToListAsync());
+            Assert.Equal(2, await db.InventoryTransactions.CountAsync(x => x.TenantId == tenantId));
+            invoice.Status = SalesInvoiceStatus.Voided; await db.SaveChangesAsync();
+        }
         var voided = await client.PostAsync($"/api/sales/standalone-deliveries/{id}/void", null); Assert.Equal(HttpStatusCode.OK, voided.StatusCode);
         await using (var scope = app.Services.CreateAsyncScope())
         {

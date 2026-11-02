@@ -25,6 +25,8 @@ Mevcut ürün, kanun oranlarını kendi başına uygulayan bir 2026 bordro motor
 
 ### Resmî kaynakta çözülmesi gereken bir tutarsızlık
 
+**2 Kasım 2026 kaynak kontrolü:** [ÇSGB'nin 2026 asgari ücret hesap PDF'inde](https://www.csgb.gov.tr/Media/gm2fekds/asgari-%C3%BCcret-2026.pdf) indirim uygulanmayan ayrı örnek %21,75 işveren SGK primi ve ayrıca %2 işveren işsizlik primiyle 40.874,63 TL toplam maliyet gösterir. Bu sonuç, [SGK prim tablosundaki](https://www.sgk.gov.tr/Content/Post/c7812ea8-5087-413f-aeb5-d3c1d153e11a/Isveren-Prim-Oranlari-2026-01-13-04-52-38) %12 + %7,5 + %2,25 + %2 bileşenleriyle ve sentetik referans dosyasıyla tutarlıdır. Aynı ÇSGB PDF'i imalat için 5 puan ve diğer sektörler için 2 puan indirimli örnekleri ayrı gösterir; bu örnekler firma uygunluğunu tek başına kanıtlamaz. Bu ek belge, aşağıdaki web sayfası dipnotu tutarsızlığını açıklamaz ve bordro motorunun diğer mevzuat/işyeri kabul eksiklerini kapatmaz.
+
 ÇSGB sayfasının işveren maliyeti tablosu indirim uygulanmayan durumda işveren SGK payını %21,75 ve işveren işsizlik payını ayrıca %2 gösteriyor; aynı sayfanın dipnotunda “indirim hakkı olmayan işverenler” için %20,75 ifadesi de yer alıyor. SGK’nın oran tablosu KVSK’yı %2,25 olarak listeliyor; standart toplam işveren oranı %23,75. ÇSGB tablodaki %21,75 değeri, %2,25 KVSK’dan 0,5 puanlık indirimli prim bileşeni olarak okunabilir; ancak dipnotun %20,75 değeriyle birlikte sayfadaki anlatım tutarlı değil. Bu denetim farkı mevzuat yorumuyla sessizce çözmüyor. Teşviksiz işveren tahakkuku için müşavir/SGK resmi açıklamasıyla teyit ve doğrulanmış örnek gerekir.
 
 ## Kod denetimi
