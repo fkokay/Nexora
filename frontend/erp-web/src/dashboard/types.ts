@@ -20,5 +20,10 @@ export type ErpDashboardSummary = {
   activeStockItemCount: number | null
   activeWarehouseCount: number | null
   topStockItems: ErpDashboardStockItem[]
+  canReadManufacturing: boolean
+  openManufacturingOrderCount: number | null
+  plannedManufacturingOrderCount: number | null
+  overdueManufacturingOrderCount: number | null
+  completedManufacturingOrderCountThisMonth: number | null
 }
 export type TrendMonth = { key: string; label: string; fullLabel: string; sales: number; purchase: number }

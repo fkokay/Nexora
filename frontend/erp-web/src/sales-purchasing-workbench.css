@@ -297,6 +297,29 @@ html[data-theme="dark"] .sales-detail-modal .advanced-grid-search input{backgrou
 html[data-theme="dark"] .sales-detail-modal .delivery-row b{color:var(--erp-text)}
 html[data-theme="dark"] .sales-detail-modal>.modal-foot{border-color:var(--erp-border)}
 
+/* Keep the order detail comfortable on desktop and prevent grid controls from wrapping awkwardly. */
+.modal.ledger-modal.sales-detail-modal{width:min(1040px,calc(100vw - 40px));max-height:calc(100dvh - 40px);padding:22px;overflow:auto;border:1px solid #d9e5f1;border-radius:14px;box-shadow:0 24px 72px #102a4350}
+.sales-detail-modal .ledger-list{min-width:0;overflow:auto}
+.sales-detail-modal .quote-detail-table{width:100%;min-width:860px;table-layout:fixed}
+.sales-detail-modal .advanced-grid-footer{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px 14px}
+.sales-detail-modal .advanced-grid-footer>span{min-width:0;white-space:nowrap}
+.sales-detail-modal .advanced-grid-footer>label{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.sales-detail-modal .advanced-grid-pagination{justify-self:end;white-space:nowrap}
+.sales-detail-modal .delivery-list:empty{display:none}
+@media(max-width:760px){
+  .modal.ledger-modal.sales-detail-modal{width:calc(100vw - 24px);max-height:calc(100dvh - 24px);padding:16px}
+  .sales-detail-modal .advanced-grid-footer{grid-template-columns:minmax(0,1fr) auto}
+  .sales-detail-modal .advanced-grid-footer>span{grid-column:1/-1}
+  .sales-detail-modal .advanced-grid-footer>label{justify-self:start}
+  .sales-detail-modal .advanced-grid-pagination{grid-column:2;grid-row:2}
+}
+@media(max-width:480px){
+  .modal.ledger-modal.sales-detail-modal{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);padding:12px}
+  .sales-detail-modal .advanced-grid-footer{grid-template-columns:minmax(0,1fr);justify-items:start}
+  .sales-detail-modal .advanced-grid-footer>span,.sales-detail-modal .advanced-grid-pagination{grid-column:1;grid-row:auto}
+  .sales-detail-modal .advanced-grid-footer>label{white-space:normal}
+}
+
 .sales-delivery-detail-modal{width:min(880px,calc(100vw - 36px));padding:24px;max-height:calc(100dvh - 36px);overflow:auto}
 .sales-delivery-detail-modal .modal-head{align-items:flex-start;margin-bottom:12px}
 .sales-delivery-detail-modal .modal-head h2{margin:0 0 8px;font:700 23px Manrope,sans-serif;letter-spacing:-.5px;color:#18324c}

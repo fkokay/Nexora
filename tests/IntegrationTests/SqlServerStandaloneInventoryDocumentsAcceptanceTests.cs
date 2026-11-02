@@ -86,6 +86,27 @@ public sealed class SqlServerStandaloneInventoryDocumentsAcceptanceTests
             Assert.True(postDeliveryResponse.StatusCode == HttpStatusCode.OK, await postDeliveryResponse.Content.ReadAsStringAsync());
             using var replayDeliveryResponse = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{deliveryId}/post", new { });
             Assert.Equal(HttpStatusCode.OK, replayDeliveryResponse.StatusCode);
+            var invoiceRequest = new
+            {
+                invoiceDate = "2026-10-29",
+                lines = new[] { new { lineNumber = 1, unitPrice = 25m, discountPercent = 0m, vatPercent = 20m } },
+            };
+            using var createInvoiceResponse = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{deliveryId}/invoice", invoiceRequest);
+            Assert.True(createInvoiceResponse.StatusCode == HttpStatusCode.Created, await createInvoiceResponse.Content.ReadAsStringAsync());
+            using var invoiceJson = await JsonDocument.ParseAsync(await createInvoiceResponse.Content.ReadAsStreamAsync());
+            var invoiceId = invoiceJson.RootElement.GetProperty("id").GetGuid();
+            using var replayInvoiceResponse = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{deliveryId}/invoice", invoiceRequest);
+            Assert.Equal(HttpStatusCode.OK, replayInvoiceResponse.StatusCode);
+            using var replayInvoiceJson = await JsonDocument.ParseAsync(await replayInvoiceResponse.Content.ReadAsStreamAsync());
+            Assert.Equal(invoiceId, replayInvoiceJson.RootElement.GetProperty("id").GetGuid());
+            using var blockedVoidDeliveryResponse = await client.PostAsync($"/api/sales/standalone-deliveries/{deliveryId}/void", null);
+            Assert.Equal(HttpStatusCode.Conflict, blockedVoidDeliveryResponse.StatusCode);
+            var invoice = await seed.SalesInvoices.Include(x => x.Lines).SingleAsync(x => x.TenantId == tenantId && x.Id == invoiceId);
+            Assert.Equal(deliveryId, invoice.StandaloneDeliveryId);
+            Assert.Equal(60m, invoice.GrandTotal);
+            Assert.Equal(2m, invoice.Lines.Single().Quantity);
+            invoice.Status = SalesInvoiceStatus.Voided;
+            await seed.SaveChangesAsync();
             using var voidDeliveryResponse = await client.PostAsync($"/api/sales/standalone-deliveries/{deliveryId}/void", null);
             Assert.Equal(HttpStatusCode.OK, voidDeliveryResponse.StatusCode);
 

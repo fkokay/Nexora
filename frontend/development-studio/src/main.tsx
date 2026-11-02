@@ -4,6 +4,8 @@ import App from './App'
 import './base.css'
 import './studio.css'
 import './studio-analytics.css'
+import './studio-reference.css'
+import './studio-dashboard-reference.css'
 
 // A deployment can replace fingerprinted chunks while an older Studio tab is
 // still open. Recover once from Vite's failed lazy-import event by loading the

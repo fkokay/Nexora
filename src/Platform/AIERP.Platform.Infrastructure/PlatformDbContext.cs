@@ -1745,13 +1745,12 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
         {
             e.HasKey(x => x.Id);
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
-            e.HasAlternateKey(x => new { x.TenantId, x.Id, x.OrderId });
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.RequestId }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.OrderId, x.Status, x.DeliveryDate });
             e.Property(x => x.Code).HasMaxLength(40);
             e.HasOne(x => x.Tenant).WithMany(x => x.SalesDeliveries).HasForeignKey(x => x.TenantId);
-            e.HasOne(x => x.Order).WithMany(x => x.Deliveries).HasForeignKey(x => new { x.TenantId, x.OrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Order).WithMany(x => x.Deliveries).HasForeignKey(x => new { x.TenantId, x.OrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<SalesDeliveryLine>(e =>
@@ -1766,8 +1765,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.Quantity).HasPrecision(18, 4);
             e.Property(x => x.EnteredQuantity).HasPrecision(18, 4);
             e.ToTable(t => t.HasCheckConstraint("CK_SalesDeliveryLines_QuantityPositive", "[Quantity] > 0"));
-            e.HasOne(x => x.Delivery).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.DeliveryId, x.OrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.OrderId }).OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(x => x.OrderLine).WithMany().HasForeignKey(x => new { x.TenantId, x.OrderId, x.OrderLineNumber }).HasPrincipalKey(x => new { x.TenantId, x.OrderId, x.LineNumber }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Delivery).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.DeliveryId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.OrderLine).WithMany().HasForeignKey(x => new { x.TenantId, x.OrderId, x.OrderLineNumber }).HasPrincipalKey(x => new { x.TenantId, x.OrderId, x.LineNumber }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Reservation).WithMany().HasForeignKey(x => new { x.TenantId, x.ReservationId, x.OrderId, x.OrderLineNumber })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id, x.OrderId, x.OrderLineNumber }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
         });
@@ -1776,7 +1775,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasKey(x => x.Id);
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
-            e.HasIndex(x => new { x.TenantId, x.DeliveryId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.DeliveryId }).IsUnique().HasFilter("[DeliveryId] IS NOT NULL");
             e.HasIndex(x => new { x.TenantId, x.InvoiceDate, x.CreatedAt });
             e.Property(x => x.Code).HasMaxLength(40);
             e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength();
@@ -1820,7 +1819,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
         {
             e.HasKey(x => x.Id);
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
-            e.HasIndex(x => new { x.TenantId, x.DeliveryLineId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.DeliveryLineId }).IsUnique().HasFilter("[DeliveryLineId] IS NOT NULL");
             e.Property(x => x.StockCode).HasMaxLength(64);
             e.Property(x => x.StockName).HasMaxLength(200);
             e.Property(x => x.UnitCode).HasMaxLength(8);
@@ -2933,6 +2932,8 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
         modelBuilder.Entity<InventoryTransaction>().Ignore(x => x.StandaloneSalesDeliveryLine);
         modelBuilder.Entity<InventoryTransaction>().Ignore(x => x.StandalonePurchaseReceiptLineId);
         modelBuilder.Entity<InventoryTransaction>().Ignore(x => x.StandalonePurchaseReceiptLine);
+        modelBuilder.Entity<SalesInvoice>().Ignore(x => x.StandaloneDeliveryId);
+        modelBuilder.Entity<SalesInvoiceLine>().Ignore(x => x.StandaloneDeliveryLineId);
         modelBuilder.Ignore<StandaloneSalesDelivery>();
         modelBuilder.Ignore<StandaloneSalesDeliveryLine>();
         modelBuilder.Ignore<StandalonePurchaseReceipt>();

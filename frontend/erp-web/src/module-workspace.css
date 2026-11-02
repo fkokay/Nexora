@@ -688,6 +688,71 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .global-search-edit-b
 /* Launcher type scale follows the supplied Nexora reference. */
 .module-launcher-company{height:38px;gap:9px;font-size:17px;max-width:300px}
 .module-launcher-company b{max-width:220px}
+
+/* Executive dashboard hierarchy */
+.app-shell:not(.standalone-studio) .dashboard-reference-layout{gap:16px}
+.app-shell:not(.standalone-studio) .dashboard-reference-heading{min-height:98px;padding:18px 20px;border:1px solid #dce5f0;border-left:4px solid #f3bd31;border-radius:10px;background:linear-gradient(110deg,#fff 0%,#f7faff 72%,#fff9e9 100%);box-shadow:0 4px 16px #16375b08}
+.dashboard-reference-heading h1{font-size:28px!important;letter-spacing:-.6px}
+.dashboard-reference-heading .eyebrow{font-size:10px;letter-spacing:1.1px;font-weight:750}
+.dashboard-reference-heading .muted{font-size:12px;line-height:1.5}
+.dashboard-reference-heading .erp-home-heading-actions .secondary{min-height:40px;border-radius:7px}
+.dashboard-reference-period{min-height:40px;border-radius:7px;background:#fff;font-size:11px}
+.dashboard-reference-kpis{gap:14px}
+.app-shell:not(.standalone-studio) .dashboard-reference-kpis>.metric-card{min-height:106px;grid-template-columns:46px minmax(0,1fr);column-gap:12px;padding:16px;border-radius:9px;box-shadow:0 3px 12px #16375b08;transition:transform .16s ease,box-shadow .16s ease}
+.app-shell:not(.standalone-studio) .dashboard-reference-kpis>.metric-card:hover{transform:translateY(-2px);box-shadow:0 8px 20px #16375b12}
+.dashboard-reference-kpis .metric-icon{width:44px;height:44px;border-radius:10px}
+.dashboard-reference-kpis .metric-card .metric-label{font-size:11px;font-weight:650}
+.dashboard-reference-kpis .metric-card strong{font-size:21px;letter-spacing:-.45px}
+.dashboard-reference-kpis .metric-card small{font-size:10px}
+.dashboard-reference-grid{grid-template-columns:minmax(0,1.35fr) minmax(300px,.9fr) minmax(250px,.72fr);gap:14px}
+.dashboard-reference-grid>.erp-home-panel,.dashboard-reference-right>.erp-home-panel{padding:16px;border-radius:9px;box-shadow:0 3px 14px #16375b07}
+.dashboard-reference-grid .erp-home-panel>header{min-height:34px;margin-bottom:12px}
+.dashboard-reference-grid .erp-home-panel>header h2{font-size:14px}
+.dashboard-reference-grid .erp-home-panel>header p{font-size:10px}
+.dashboard-reference-grid .secondary.compact{min-height:34px;padding:0 10px;border-radius:6px;font-size:10px}
+.dashboard-reference-trend,.dashboard-reference-stock{min-height:294px}
+.dashboard-trend-summary{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 0 10px}
+.dashboard-trend-summary>div{display:grid;gap:4px;padding:8px 10px;border:1px solid #e8edf4;border-radius:7px;background:#f8fafd}
+.dashboard-trend-summary span{display:flex;align-items:center;gap:6px;color:#66768c;font-size:9px}
+.dashboard-trend-summary span i{width:7px;height:7px;border-radius:2px}
+.dashboard-trend-summary span i.sales{background:#1e3a8a}.dashboard-trend-summary span i.purchase{background:#f2bb32}
+.dashboard-trend-summary b{color:#12233c;font-size:12px;font-variant-numeric:tabular-nums}
+.dashboard-trend{height:142px;grid-template-columns:74px minmax(0,1fr)}
+.dashboard-trend-axis{font-size:9px}
+.dashboard-trend-month small{font-size:9px}
+.dashboard-bar.sales{background:linear-gradient(180deg,#3158b9,#1e3a8a)}
+.dashboard-bar.purchase{background:linear-gradient(180deg,#ffd66c,#edac13)}
+.dashboard-chart-legend{margin-top:6px;font-size:10px}
+.dashboard-stock-layout{min-height:188px;grid-template-columns:128px minmax(0,1fr);gap:14px}
+.dashboard-stock-donut{width:120px;height:120px;box-shadow:inset 0 0 0 1px #e5ebf3}
+.dashboard-stock-donut:before{inset:16px}
+.dashboard-stock-donut b{font-size:18px}
+.dashboard-stock-donut small{font-size:9px}
+.dashboard-stock-legend{gap:12px}
+.dashboard-stock-legend>div{font-size:10px;gap:8px}
+.dashboard-stock-legend>div b{font-size:10px;font-variant-numeric:tabular-nums}
+.dashboard-stock-total{padding-top:11px;font-size:10px}
+.dashboard-stock-total b{font-size:12px}
+.dashboard-reference-orders,.dashboard-reference-stock-table{min-height:190px}
+.dashboard-reference-orders>header,.dashboard-reference-stock-table>header{padding:14px 15px 10px}
+.dashboard-reference-orders .erp-home-orders th,.dashboard-reference-stock-table .erp-home-orders th{height:36px;padding:0 10px;font-size:9px}
+.dashboard-reference-orders .erp-home-orders td,.dashboard-reference-stock-table .erp-home-orders td{height:40px;padding:0 10px;font-size:10px}
+.dashboard-shortcut-list{gap:7px}
+.dashboard-shortcut-list>button{min-height:50px;gap:10px;padding:7px;border-radius:7px}
+.dashboard-shortcut-list>button>span{width:34px;height:34px;border-radius:7px}
+.dashboard-shortcut-list>button b{font-size:10px}
+.dashboard-shortcut-list>button small{font-size:9px}
+.dashboard-reference-status{padding:15px!important}
+.dashboard-status-message{font-size:11px}
+.dashboard-reference-status>p{font-size:10px}
+@media(max-width:1400px){.dashboard-reference-grid{grid-template-columns:minmax(0,1.35fr) minmax(290px,.9fr)}.dashboard-reference-right{grid-column:1/-1;grid-row:3;grid-template-columns:minmax(0,1.4fr) minmax(260px,.8fr);align-items:start}}
+@media(max-width:760px){.app-shell:not(.standalone-studio) .dashboard-reference-heading{padding:15px;border-radius:8px}.dashboard-reference-heading h1{font-size:23px!important}.app-shell:not(.standalone-studio) .dashboard-reference-kpis>.metric-card{min-height:98px;padding:12px}.dashboard-reference-kpis .metric-card strong{font-size:17px}.dashboard-reference-grid>.erp-home-panel,.dashboard-reference-right>.erp-home-panel{padding:13px}.dashboard-reference-trend,.dashboard-reference-stock{min-height:unset}.dashboard-stock-layout{min-height:165px;grid-template-columns:110px minmax(0,1fr)}.dashboard-stock-donut{width:104px;height:104px}.dashboard-reference-right{grid-template-columns:1fr}}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .dashboard-reference-heading{background:linear-gradient(110deg,#111e31,#15243a 72%,#30291a);border-color:#2b3c53;border-left-color:#f3bd31}
+html[data-theme="dark"] .dashboard-trend-summary>div{background:#152238;border-color:#2b3c53}
+html[data-theme="dark"] .dashboard-trend-summary b{color:#edf3fb}
+html[data-theme="dark"] .dashboard-stock-donut:before{background:#17263a}
+html[data-theme="dark"] .dashboard-reference-grid>.erp-home-panel,html[data-theme="dark"] .dashboard-reference-right>.erp-home-panel{background:#111e31;border-color:#2b3c53}
+html[data-theme="dark"] .dashboard-shortcut-list>button{background:#152238;border-color:#2b3c53}
 .module-launcher-company-menu-heading{font-size:12px}
 .module-launcher-company-copy b{font-size:14px}
 .module-launcher-company-copy small,.module-launcher-company-menu p{font-size:12px}
@@ -1236,6 +1301,178 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .global-search-dialog
 }
 html[data-theme="dark"] #root .app-shell:not(.standalone-studio) .global-search-input-row::after { background: #30394d; }
 
+/* Global module search: clear search header, calm categories, and compact result rows. */
+#root .app-shell:not(.standalone-studio) .global-search-backdrop {
+  align-items: center;
+  padding: 24px;
+  background: rgb(10 25 47 / 48%) !important;
+  backdrop-filter: blur(6px) !important;
+}
+#root .app-shell:not(.standalone-studio) .global-search-dialog {
+  width: min(740px, calc(100vw - 40px));
+  max-height: min(82vh, 760px);
+  border: 1px solid #d8e2ee;
+  border-radius: 16px;
+  box-shadow: 0 30px 90px rgb(10 25 47 / 26%), 0 5px 16px rgb(10 25 47 / 9%) !important;
+}
+#root .app-shell:not(.standalone-studio) .global-search-input-row {
+  height: 66px;
+  flex: 0 0 66px;
+  gap: 13px;
+  padding: 0 18px;
+  border-bottom: 1px solid #e7edf4;
+  background: #fff;
+}
+#root .app-shell:not(.standalone-studio) .global-search-input-row::after { display: none; }
+#root .app-shell:not(.standalone-studio) .global-search-input-row:focus-within {
+  border-bottom-color: #e7edf4 !important;
+  box-shadow: inset 0 -2px #f5bd2e;
+}
+#root .app-shell:not(.standalone-studio) .global-search-input-row input {
+  min-height: 44px;
+  font-size: 15px;
+}
+#root .app-shell:not(.standalone-studio) .global-search-section-heading {
+  min-height: 50px;
+  padding: 7px 18px;
+  background: #fbfcfe;
+}
+#root .app-shell:not(.standalone-studio) .global-search-section-heading h3 {
+  color: #263c58;
+  font-size: 11px;
+  letter-spacing: .06em;
+}
+#root .app-shell:not(.standalone-studio) .global-search-edit-button {
+  min-height: 32px;
+  border-radius: 7px;
+}
+#root .app-shell:not(.standalone-studio) .workspace-search-groups {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  padding: 8px 14px 12px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+#root .app-shell:not(.standalone-studio) .workspace-search-group {
+  border-bottom: 1px solid #e8edf3;
+}
+#root .app-shell:not(.standalone-studio) .workspace-search-group > button {
+  height: 44px;
+  border-radius: 8px;
+  transition: background-color .14s ease;
+}
+#root .app-shell:not(.standalone-studio) .workspace-search-group > button[aria-expanded="true"] {
+  color: #152b45;
+}
+#root .app-shell:not(.standalone-studio) .workspace-search-group > button > small {
+  min-width: 26px;
+  min-height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0 7px;
+  background: #eef3f8;
+  font-weight: 650;
+}
+#root .app-shell:not(.standalone-studio) .global-search-dialog .workspace-search-group-items {
+  gap: 3px;
+  padding: 2px 0 10px 22px;
+}
+#root .app-shell:not(.standalone-studio) .global-search-dialog .workspace-search-group-items > button {
+  min-height: 50px;
+  border-radius: 9px;
+}
+#root .app-shell:not(.standalone-studio) .global-search-dialog footer {
+  min-height: 42px;
+  align-items: center;
+  padding: 8px 16px;
+  background: #fbfcfe;
+  border-top-color: #e7edf4;
+}
+html[data-theme="dark"] #root .app-shell:not(.standalone-studio) .global-search-input-row,
+html[data-theme="dark"] #root .app-shell:not(.standalone-studio) .global-search-section-heading,
+html[data-theme="dark"] #root .app-shell:not(.standalone-studio) .global-search-dialog footer {
+  background: #191e2d;
+  border-color: #30394d;
+}
+html[data-theme="dark"] #root .app-shell:not(.standalone-studio) .global-search-section-heading h3 { color: #e6eaf3; }
+html[data-theme="dark"] #root .app-shell:not(.standalone-studio) .workspace-search-group { border-bottom-color: #30394d; }
+html[data-theme="dark"] #root .app-shell:not(.standalone-studio) .workspace-search-group > button > small { background: #252e3e; color: #c1ccdc; }
+@media (max-width: 700px) {
+  #root .app-shell:not(.standalone-studio) .global-search-backdrop { align-items: flex-start; padding: 64px 8px 10px; }
+  #root .app-shell:not(.standalone-studio) .global-search-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 76px); border-radius: 13px; }
+  #root .app-shell:not(.standalone-studio) .global-search-section-heading { gap: 4px; padding-inline: 10px; }
+  #root .app-shell:not(.standalone-studio) .global-search-edit-button { padding-inline: 6px; font-size: 10px; }
+  #root .app-shell:not(.standalone-studio) .workspace-search-groups { padding-inline: 8px; }
+}
+
+/* The tenant chooser is rendered through a body portal, outside .app-shell. */
+.tenant-context-menu {
+  box-sizing: border-box;
+  display: grid;
+  gap: 6px;
+  max-height: min(70vh, 480px);
+  overflow: auto;
+  padding: 9px;
+  border: 1px solid #d8e2ee;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 46px rgb(13 31 54 / 22%);
+  color: #14243a;
+}
+.tenant-context-menu-heading {
+  padding: 4px 8px 6px;
+  color: #71839a;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .09em;
+  line-height: 1.4;
+}
+.tenant-context-menu > button {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: #fff;
+  color: #14243a;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.tenant-context-menu > button:hover { border-color: #e2eaf4; background: #f7f9fc; }
+.tenant-context-menu > button.active { border-color: #d6e3f2; background: #f1f6fc; }
+.tenant-context-menu > button:focus-visible { outline: 2px solid #1684d8; outline-offset: 2px; }
+.tenant-context-avatar {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d7e1ed;
+  border-radius: 9px;
+  background: #f5f8fc;
+  color: #142b48;
+  font-weight: 750;
+}
+.tenant-context-menu > button.active .tenant-context-avatar { border-color: #f0d77b; background: #fff6d8; }
+.tenant-context-menu > button > span:nth-child(2) { display: grid; flex: 1; gap: 4px; min-width: 0; }
+.tenant-context-menu b { overflow: hidden; color: #14243a; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-context-menu small { width: max-content; max-width: 100%; padding: 2px 7px; border: 1px solid #e2eaf4; border-radius: 999px; background: #fff; color: #71839a; font-size: 9px; line-height: 1.2; }
+.tenant-context-menu i { width: 23px; height: 23px; flex: 0 0 23px; display: grid; place-items: center; border-radius: 50%; background: #e8f7ef; color: #159451; font-size: 13px; font-style: normal; font-weight: 800; }
+html[data-theme="dark"] .tenant-context-menu { border-color: #34445c; background: #151f2f; color: #edf3fa; box-shadow: 0 18px 46px rgb(0 0 0 / 42%); }
+html[data-theme="dark"] .tenant-context-menu-heading { color: #a6b5ca; }
+html[data-theme="dark"] .tenant-context-menu > button { background: #151f2f; color: #edf3fa; }
+html[data-theme="dark"] .tenant-context-menu > button:hover { border-color: #34445c; background: #1d2a3d; }
+html[data-theme="dark"] .tenant-context-menu > button.active { border-color: #3a5676; background: #1c2c41; }
+html[data-theme="dark"] .tenant-context-avatar { border-color: #34445c; background: #1d2a3d; color: #edf3fa; }
+html[data-theme="dark"] .tenant-context-menu > button.active .tenant-context-avatar { border-color: #8a6c20; background: #3b321c; color: #ffe29a; }
+html[data-theme="dark"] .tenant-context-menu small { border-color: #34445c; background: #1d2a3d; color: #b7c4d8; }
+
 /* Company switcher: clearer hierarchy, selection state, and a softer floating surface. */
 .module-launcher-company-menu {
   top: calc(100% + 9px);
@@ -1348,3 +1585,16 @@ html[data-theme="dark"] .module-launcher-company-menu p { color: #aab8ca; }
 @keyframes company-menu-enter { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .module-launcher-company-menu { animation: none; } }
 @media (max-width: 420px) { .module-launcher-company-menu { width: min(320px, calc(100vw - 16px)); } }
+.sales-invoice-standalone { display: grid; gap: 16px; }
+.sales-invoice-standalone-lines { border: 1px solid var(--erp-border, #d5deeb); border-radius: 10px; padding: 14px; background: var(--erp-surface-soft, #f8fafc); }
+.sales-invoice-standalone-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.sales-invoice-standalone-line { display: grid; grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(90px, 1fr)) 36px; align-items: end; gap: 10px; padding: 12px 0; border-top: 1px solid var(--erp-border, #d5deeb); }
+.sales-invoice-standalone-line label { min-width: 0; }
+.sales-invoice-standalone-line .standalone-stock { min-width: 0; }
+.sales-invoice-standalone-line .customer-popup-trigger { width: 100%; }
+.sales-invoice-standalone .modal-foot { margin-top: 2px; }
+@media (max-width: 760px) {
+  .sales-invoice-standalone-line { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sales-invoice-standalone-line .standalone-stock { grid-column: 1 / -1; }
+  .sales-invoice-standalone-line .standalone-remove { justify-self: end; }
+}

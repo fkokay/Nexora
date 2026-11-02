@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FileText, Package, ShoppingCart, Wallet } from 'lucide-react'
+import { CircleAlert, CircleCheck, ClipboardList, Factory, FileText, Package, ShoppingCart, Wallet } from 'lucide-react'
 import type { ErpDashboardSummary, TrendMonth } from './dashboard/types'
 import DashboardHeader from './dashboard/components/DashboardHeader'
 import DashboardKpiGrid, { DashboardMetricCard } from './dashboard/components/DashboardKpiGrid'
@@ -70,6 +70,10 @@ export function DashboardPage({ tenantName, dashboardName, platformStatus, onNav
       <DashboardMetricCard icon={<FileText size={20}/>} label="Açık satış siparişi" value={loading ? '…' : summary?.canReadSalesOrders ? (summary.openSalesOrderCount ?? 0).toLocaleString('tr-TR') : '—'} note={loading ? 'Veriler yükleniyor' : summary?.canReadSalesOrders ? 'Sevk ve faturalama bekliyor' : 'Görüntüleme yetkisi yok'} tone="blue"/>
       <DashboardMetricCard icon={<Package size={20}/>} label={`Stok değeri · ${currency}`} value={loading ? '…' : summary?.canReadInventory ? money(summary.inventoryValueBase ?? 0) : '—'} note={loading ? 'Veriler yükleniyor' : summary?.canReadInventory ? `${summary.activeStockItemCount ?? 0} stok kartı · ${summary.activeWarehouseCount ?? 0} ambar` : 'Görüntüleme yetkisi yok'} tone="green"/>
       <DashboardMetricCard icon={<Wallet size={20}/>} label="Açık satın alma" value={loading ? '…' : summary?.canReadPurchaseOrders ? (summary.openPurchaseOrderCount ?? 0).toLocaleString('tr-TR') : '—'} note={loading ? 'Veriler yükleniyor' : summary?.canReadPurchaseOrders ? purchaseBase ? money(purchaseBase.amount) : purchaseBreakdown || 'İşlemde sipariş yok' : 'Görüntüleme yetkisi yok'} tone="red"/>
+      <DashboardMetricCard icon={<Factory size={20}/>} label="Devam eden üretim" value={loading ? '…' : summary?.canReadManufacturing ? (summary.openManufacturingOrderCount ?? 0).toLocaleString('tr-TR') : '—'} note={loading ? 'Veriler yükleniyor' : summary?.canReadManufacturing ? `${summary.plannedManufacturingOrderCount ?? 0} planlandı · ${Math.max(0, (summary.openManufacturingOrderCount ?? 0) - (summary.plannedManufacturingOrderCount ?? 0))} serbest bırakıldı` : 'Görüntüleme yetkisi yok'} tone="blue"/>
+      <DashboardMetricCard icon={<ClipboardList size={20}/>} label="Planlanan üretim emri" value={loading ? '…' : summary?.canReadManufacturing ? (summary.plannedManufacturingOrderCount ?? 0).toLocaleString('tr-TR') : '—'} note={loading ? 'Veriler yükleniyor' : summary?.canReadManufacturing ? 'Serbest bırakılmayı bekliyor' : 'Görüntüleme yetkisi yok'} tone="gold"/>
+      <DashboardMetricCard icon={<CircleAlert size={20}/>} label="Geciken üretim emri" value={loading ? '…' : summary?.canReadManufacturing ? (summary.overdueManufacturingOrderCount ?? 0).toLocaleString('tr-TR') : '—'} note={loading ? 'Veriler yükleniyor' : summary?.canReadManufacturing ? 'Plan tarihi geçmiş açık emirler' : 'Görüntüleme yetkisi yok'} tone="red"/>
+      <DashboardMetricCard icon={<CircleCheck size={20}/>} label="Bu ay tamamlanan üretim" value={loading ? '…' : summary?.canReadManufacturing ? (summary.completedManufacturingOrderCountThisMonth ?? 0).toLocaleString('tr-TR') : '—'} note={loading ? 'Veriler yükleniyor' : summary?.canReadManufacturing ? 'Tamamlanma tarihine göre' : 'Görüntüleme yetkisi yok'} tone="green"/>
     </DashboardKpiGrid>
 
     <div className="dashboard-reference-grid">

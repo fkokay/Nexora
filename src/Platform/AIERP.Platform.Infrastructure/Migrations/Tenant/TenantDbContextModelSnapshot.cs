@@ -14111,7 +14111,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<DateOnly>("DeliveryDate")
                         .HasColumnType("date");
 
-                    b.Property<Guid>("OrderId")
+                    b.Property<Guid?>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("RequestId")
@@ -14157,7 +14157,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<string>("EnteredUnitCode")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("OrderId")
+                    b.Property<Guid?>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("OrderLineNumber")
@@ -14192,8 +14192,6 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasColumnType("nvarchar(8)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "DeliveryId", "OrderId");
 
                     b.HasIndex("TenantId", "DeliveryId", "OrderLineNumber")
                         .IsUnique();
@@ -14231,7 +14229,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("DeliveryId")
+                    b.Property<Guid?>("DeliveryId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("DiscountTotal")
@@ -14245,7 +14243,10 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<DateOnly>("InvoiceDate")
                         .HasColumnType("date");
 
-                    b.Property<Guid>("OrderId")
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("StandaloneDeliveryId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Status")
@@ -14270,9 +14271,14 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasIndex("TenantId", "CustomerId");
 
                     b.HasIndex("TenantId", "DeliveryId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[DeliveryId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "OrderId");
+
+                    b.HasIndex("TenantId", "StandaloneDeliveryId")
+                        .IsUnique()
+                        .HasFilter("[StandaloneDeliveryId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "InvoiceDate", "CreatedAt");
 
@@ -14462,7 +14468,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("DeliveryLineId")
+                    b.Property<Guid?>("DeliveryLineId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("DiscountAmount")
@@ -14490,6 +14496,9 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("StandaloneDeliveryLineId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("StockCode")
                         .IsRequired()
@@ -14527,9 +14536,14 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "DeliveryLineId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[DeliveryLineId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "InvoiceId");
+
+                    b.HasIndex("TenantId", "StandaloneDeliveryLineId")
+                        .IsUnique()
+                        .HasFilter("[StandaloneDeliveryLineId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "StockItemId");
 
@@ -14577,7 +14591,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<DateOnly>("OrderDate")
                         .HasColumnType("date");
 
-                    b.Property<Guid>("QuoteId")
+                    b.Property<Guid?>("QuoteId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateOnly?>("RequestedDeliveryDate")
@@ -14605,7 +14619,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasIndex("TenantId", "CustomerId");
 
                     b.HasIndex("TenantId", "QuoteId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[QuoteId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "OrderDate", "CreatedAt");
 
@@ -19830,8 +19845,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .WithMany("Deliveries")
                         .HasForeignKey("TenantId", "OrderId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AIERP.Platform.Domain.Warehouse", "Warehouse")
                         .WithMany()
@@ -19851,16 +19865,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                 {
                     b.HasOne("AIERP.Platform.Domain.SalesDelivery", "Delivery")
                         .WithMany("Lines")
-                        .HasForeignKey("TenantId", "DeliveryId", "OrderId")
-                        .HasPrincipalKey("TenantId", "Id", "OrderId")
+                        .HasForeignKey("TenantId", "DeliveryId")
+                        .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("AIERP.Platform.Domain.SalesOrderLine", "OrderLine")
                         .WithMany()
                         .HasForeignKey("TenantId", "OrderId", "OrderLineNumber")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AIERP.Platform.Domain.SalesOrderReservation", "Reservation")
                         .WithMany()
@@ -19894,15 +19907,19 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .WithOne("Invoice")
                         .HasForeignKey("AIERP.Platform.Domain.SalesInvoice", "TenantId", "DeliveryId")
                         .HasPrincipalKey("AIERP.Platform.Domain.SalesDelivery", "TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AIERP.Platform.Domain.SalesOrder", "Order")
                         .WithMany()
                         .HasForeignKey("TenantId", "OrderId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AIERP.Platform.Domain.StandaloneSalesDelivery", null)
+                        .WithOne()
+                        .HasForeignKey("AIERP.Platform.Domain.SalesInvoice", "TenantId", "StandaloneDeliveryId")
+                        .HasPrincipalKey("AIERP.Platform.Domain.StandaloneSalesDelivery", "TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Customer");
 
@@ -19984,8 +20001,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .WithOne("InvoiceLine")
                         .HasForeignKey("AIERP.Platform.Domain.SalesInvoiceLine", "TenantId", "DeliveryLineId")
                         .HasPrincipalKey("AIERP.Platform.Domain.SalesDeliveryLine", "TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AIERP.Platform.Domain.SalesInvoice", "Invoice")
                         .WithMany("Lines")
@@ -19993,6 +20009,12 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.StandaloneSalesDeliveryLine", null)
+                        .WithOne()
+                        .HasForeignKey("AIERP.Platform.Domain.SalesInvoiceLine", "TenantId", "StandaloneDeliveryLineId")
+                        .HasPrincipalKey("AIERP.Platform.Domain.StandaloneSalesDeliveryLine", "TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AIERP.Platform.Domain.StockItem", null)
                         .WithMany()
@@ -20025,8 +20047,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .WithOne("Order")
                         .HasForeignKey("AIERP.Platform.Domain.SalesOrder", "TenantId", "QuoteId")
                         .HasPrincipalKey("AIERP.Platform.Domain.SalesQuote", "TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Customer");
 

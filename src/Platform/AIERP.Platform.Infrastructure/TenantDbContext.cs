@@ -70,6 +70,18 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.StorageLocation).WithMany().HasForeignKey(x => new { x.TenantId, x.StorageLocationId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<SalesInvoice>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.StandaloneDeliveryId }).IsUnique().HasFilter("[StandaloneDeliveryId] IS NOT NULL");
+            e.HasOne<StandaloneSalesDelivery>().WithOne().HasForeignKey<SalesInvoice>(x => new { x.TenantId, x.StandaloneDeliveryId })
+                .HasPrincipalKey<StandaloneSalesDelivery>(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesInvoiceLine>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.StandaloneDeliveryLineId }).IsUnique().HasFilter("[StandaloneDeliveryLineId] IS NOT NULL");
+            e.HasOne<StandaloneSalesDeliveryLine>().WithOne().HasForeignKey<SalesInvoiceLine>(x => new { x.TenantId, x.StandaloneDeliveryLineId })
+                .HasPrincipalKey<StandaloneSalesDeliveryLine>(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<StandalonePurchaseReceipt>(e =>
         {
             e.ToTable("StandalonePurchaseReceipts", t =>

@@ -15,8 +15,14 @@ function TrendChart({ months, currency, loading, canReadSales, canReadPurchases,
 }
 
 export default function DashboardTrendPanel({ months, currency, loading, canReadSales, canReadPurchases, money, onNavigate }: Props) {
+  const salesTotal = months.reduce((total, month) => total + month.sales, 0)
+  const purchaseTotal = months.reduce((total, month) => total + month.purchase, 0)
   return <section className="erp-home-panel dashboard-reference-trend">
     <header><div><h2>Satış ve satın alma trendi</h2><p>Son 6 ay · {currency}</p></div><button className="secondary compact" type="button" onClick={() => onNavigate('reports')}>Raporları aç <ArrowRight size={14}/></button></header>
+    <div className="dashboard-trend-summary" aria-label="Son altı ay toplamları">
+      <div><span><i className="sales"/> Satış toplamı</span><b>{loading ? '…' : canReadSales ? money(salesTotal) : '—'}</b></div>
+      <div><span><i className="purchase"/> Satın alma toplamı</span><b>{loading ? '…' : canReadPurchases ? money(purchaseTotal) : '—'}</b></div>
+    </div>
     <TrendChart months={months} currency={currency} loading={loading} canReadSales={canReadSales} canReadPurchases={canReadPurchases} money={money}/>
     <div className="dashboard-chart-legend"><span><i className="sales"/>Satış</span><span><i className="purchase"/>Satın Alma</span></div>
   </section>

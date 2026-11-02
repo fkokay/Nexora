@@ -27,7 +27,8 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     }
     const result = pageResults.find(item => item.page === nextPage)
     if (result?.selection) onSelectModule(result.selection)
-    const label = labelOverride || result?.label || (nextPage === 'modules' ? (locale === 'en' ? 'Module marketplace' : 'Modül pazaryeri') : nextPage.startsWith('module:') ? result?.label || nextPage.split(':').at(-1) || 'Modül' : nextPage.replace(/[-_]/g, ' '))
+    const pageLabel = nextPage === 'sales-order-create' ? (locale === 'en' ? 'New sales order' : 'Yeni Sipariş') : undefined
+    const label = labelOverride || pageLabel || result?.label || (nextPage === 'modules' ? (locale === 'en' ? 'Module marketplace' : 'Modül pazaryeri') : nextPage.startsWith('module:') ? result?.label || nextPage.split(':').at(-1) || 'Modül' : nextPage.replace(/[-_]/g, ' '))
     if (nextPage !== 'dashboard' && !moduleTabs.some(tab => tab.id === nextPage) && moduleTabs.length >= 12) {
       setNotice(locale === 'en' ? 'Close a workspace tab before opening another screen.' : 'Yeni ekran açmak için önce bir çalışma sekmesini kapatın.')
       return

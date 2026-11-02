@@ -199,15 +199,17 @@ public sealed record SalesDeliveryLineWriteRequest(int OrderLineNumber, decimal 
 public sealed record SalesDeliveryWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly DeliveryDate, IReadOnlyList<SalesDeliveryLineWriteRequest> Lines);
 public sealed record SalesDeliveryLineView(int OrderLineNumber, Guid StockItemId, string StockCode, string StockName,
     string UnitCode, decimal Quantity, decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? StorageLocationId = null);
-public sealed record SalesDeliverySummary(Guid Id, string Code, Guid OrderId, string OrderCode, Guid WarehouseId,
+public sealed record SalesDeliverySummary(Guid Id, string Code, Guid? OrderId, string? OrderCode, Guid WarehouseId,
     string WarehouseName, DateOnly DeliveryDate, SalesDeliveryStatus Status, int LineCount, DateTimeOffset CreatedAt,
     bool HasSalesInvoice = false, SalesInvoiceStatus? InvoiceStatus = null, Guid? InvoiceId = null);
-public sealed record SalesDeliveryView(Guid Id, string Code, Guid OrderId, string OrderCode, Guid WarehouseId,
+public sealed record SalesDeliveryView(Guid Id, string Code, Guid? OrderId, string? OrderCode, Guid WarehouseId,
     string WarehouseName, DateOnly DeliveryDate, SalesDeliveryStatus Status, DateTimeOffset CreatedAt,
     IReadOnlyList<SalesDeliveryLineView> Lines, bool HasSalesInvoice = false, SalesInvoiceStatus? InvoiceStatus = null, Guid? InvoiceId = null);
 public sealed record SalesDeliveryPage(IReadOnlyList<SalesDeliverySummary> Items, int Page, int PageSize, int TotalCount);
-public sealed record SalesInvoiceSummary(Guid Id, string Code, Guid DeliveryId, string DeliveryCode, Guid OrderId,
-    string OrderCode, Guid CustomerId, string CustomerName, DateOnly InvoiceDate, string CurrencyCode,
+public sealed record SalesDeliveryInvoiceLineWriteRequest(int OrderLineNumber, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20);
+public sealed record SalesDeliveryInvoiceWriteRequest(Guid CustomerId, DateOnly InvoiceDate, IReadOnlyList<SalesDeliveryInvoiceLineWriteRequest>? Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
+public sealed record SalesInvoiceSummary(Guid Id, string Code, Guid? DeliveryId, string? DeliveryCode, Guid? OrderId,
+    string? OrderCode, Guid CustomerId, string CustomerName, DateOnly InvoiceDate, string CurrencyCode,
     SalesInvoiceStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt);
 public sealed record SalesInvoiceCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record SalesInvoiceCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
@@ -222,14 +224,15 @@ public sealed record SalesInvoiceCustomFieldValueRestoreRequest(bool Confirmatio
 public sealed record SalesInvoiceLineView(Guid Id, int OrderLineNumber, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, Guid StockItemId);
-public sealed record SalesInvoiceView(Guid Id, string Code, Guid DeliveryId, string DeliveryCode, Guid OrderId,
-    string OrderCode, Guid CustomerId, string CustomerName, DateOnly InvoiceDate, string CurrencyCode,
+public sealed record SalesInvoiceView(Guid Id, string Code, Guid? DeliveryId, string? DeliveryCode, Guid? OrderId,
+    string? OrderCode, Guid CustomerId, string CustomerName, DateOnly InvoiceDate, string CurrencyCode,
     SalesInvoiceStatus Status, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal,
     Guid? LedgerEntryId, DateTimeOffset CreatedAt, IReadOnlyList<SalesInvoiceLineView> Lines,
     decimal PaidAmount = 0, decimal ReturnedAmount = 0, decimal OutstandingAmount = 0,
     IReadOnlyList<CustomerCollectionSummary>? Collections = null, IReadOnlyList<SalesReturnSummary>? Returns = null,
     IReadOnlyList<SalesInvoiceCustomFieldValueView>? CustomFields = null);
 public sealed record SalesInvoicePage(IReadOnlyList<SalesInvoiceSummary> Items, int Page, int PageSize, int TotalCount);
+public sealed record StandaloneSalesInvoiceWriteRequest(Guid RequestId, Guid CustomerId, Guid WarehouseId, DateOnly InvoiceDate, IReadOnlyList<SalesQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
 public sealed record CustomerCollectionWriteRequest(Guid RequestId, DateOnly CollectionDate, decimal Amount, string PaymentMethod, string? Reference = null, Guid? FinancialAccountId = null);
 public sealed record CustomerCollectionSummary(Guid Id, string Code, Guid CustomerId, string CustomerName,
     Guid SalesInvoiceId, string InvoiceCode, DateOnly CollectionDate, decimal Amount, string CurrencyCode,
@@ -306,7 +309,7 @@ public sealed record FxRevaluationVoucherView(Guid Id, string Code, DateOnly AsO
     DateTimeOffset CreatedAt, Guid? CreatedByUserId, decimal TotalDebit, decimal TotalCredit,
     IReadOnlyList<FxRevaluationVoucherLineView> Lines);
 public sealed record LedgerAccountWriteRequest(string Code, string Name, bool IsActive = true, string? StatementSection = null);
-public sealed record LedgerAccountView(Guid Id, string Code, string Name, bool IsActive, string StatementSection);
+public sealed record LedgerAccountView(Guid Id, string Code, string Name, bool IsActive, string StatementSection, bool HasMovements = false);
 public sealed record TenantBudgetLineWriteRequest(Guid AccountId, DateOnly PeriodStart, decimal PlannedAmount, string? Notes = null);
 public sealed record TenantBudgetPlanWriteRequest(string Name, int FiscalYear, IReadOnlyList<TenantBudgetLineWriteRequest> Lines,
     string CurrencyCode = "TRY", int Revision = 0);

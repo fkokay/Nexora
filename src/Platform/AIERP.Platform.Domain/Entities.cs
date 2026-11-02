@@ -2287,8 +2287,8 @@ public sealed class SalesDelivery
     public Guid TenantId { get; set; }
     public Guid RequestId { get; set; }
     public Tenant Tenant { get; set; } = null!;
-    public Guid OrderId { get; set; }
-    public SalesOrder Order { get; set; } = null!;
+    public Guid? OrderId { get; set; }
+    public SalesOrder? Order { get; set; }
     public Guid WarehouseId { get; set; }
     public Warehouse Warehouse { get; set; } = null!;
     public string Code { get; set; } = "";
@@ -2305,9 +2305,9 @@ public sealed class SalesDeliveryLine
     public Guid TenantId { get; set; }
     public Guid DeliveryId { get; set; }
     public SalesDelivery Delivery { get; set; } = null!;
-    public Guid OrderId { get; set; }
+    public Guid? OrderId { get; set; }
     public int OrderLineNumber { get; set; }
-    public SalesOrderLine OrderLine { get; set; } = null!;
+    public SalesOrderLine? OrderLine { get; set; }
     public Guid? ReservationId { get; set; }
     public SalesOrderReservation? Reservation { get; set; }
     public Guid StockItemId { get; set; }
@@ -2328,10 +2328,11 @@ public sealed class SalesInvoice
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
-    public Guid DeliveryId { get; set; }
-    public SalesDelivery Delivery { get; set; } = null!;
-    public Guid OrderId { get; set; }
-    public SalesOrder Order { get; set; } = null!;
+    public Guid? DeliveryId { get; set; }
+    public SalesDelivery? Delivery { get; set; }
+    public Guid? StandaloneDeliveryId { get; set; }
+    public Guid? OrderId { get; set; }
+    public SalesOrder? Order { get; set; }
     public Guid CustomerId { get; set; }
     public CustomerAccount Customer { get; set; } = null!;
     public string Code { get; set; } = "";
@@ -2356,8 +2357,9 @@ public sealed class SalesInvoiceLine
     public Guid TenantId { get; set; }
     public Guid InvoiceId { get; set; }
     public SalesInvoice Invoice { get; set; } = null!;
-    public Guid DeliveryLineId { get; set; }
-    public SalesDeliveryLine DeliveryLine { get; set; } = null!;
+    public Guid? DeliveryLineId { get; set; }
+    public SalesDeliveryLine? DeliveryLine { get; set; }
+    public Guid? StandaloneDeliveryLineId { get; set; }
     public int OrderLineNumber { get; set; }
     public Guid StockItemId { get; set; }
     public string StockCode { get; set; } = "";

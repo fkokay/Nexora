@@ -15,14 +15,14 @@ public static class SalesDeliverySearchEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["İrsaliye araması 2–100 karakter olmalıdır."] });
 
             var query = db.SalesDeliveries.AsNoTracking()
-                .Where(x => x.TenantId == tenantId && (x.Code.Contains(term) || x.Order.Code.Contains(term)));
+                .Where(x => x.TenantId == tenantId && (x.Code.Contains(term) || (x.Order != null && x.Order.Code.Contains(term))));
             var totalCount = await query.CountAsync(ct);
             var items = await query.OrderByDescending(x => x.DeliveryDate).ThenByDescending(x => x.CreatedAt).ThenBy(x => x.Code)
                 .Take(10)
                 .Select(x => new
                 {
                     code = x.Code,
-                    orderCode = x.Order.Code,
+                    orderCode = x.Order == null ? null : x.Order.Code,
                     deliveryDate = x.DeliveryDate,
                     status = x.Status.ToString(),
                     lineCount = x.Lines.Count,
@@ -47,7 +47,7 @@ public static class SalesDeliverySearchEndpoints
                 .Select(x => new
                 {
                     code = x.Code,
-                    orderCode = x.Order.Code,
+                    orderCode = x.Order == null ? null : x.Order.Code,
                     deliveryDate = x.DeliveryDate,
                     status = x.Status.ToString(),
                     lineCount = x.Lines.Count,

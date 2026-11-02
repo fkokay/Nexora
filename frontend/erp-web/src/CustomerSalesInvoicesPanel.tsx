@@ -6,8 +6,8 @@ import { FileText, RotateCcw, ShieldCheck, X } from 'lucide-react'
 type InvoiceSummary = {
   id: string
   code: string
-  deliveryCode: string
-  orderCode: string
+  deliveryCode: string | null
+  orderCode: string | null
   customerId: string
   customerName: string
   invoiceDate: string
@@ -94,7 +94,7 @@ export default function CustomerSalesInvoicesPanel({ token, customer, onClose, o
       {error && <div className="alert inline-alert" role="alert">{error}<button onClick={() => setError('')}><X size={15}/></button></div>}
       <div className="ledger-list customer-sales-invoices-list"><AdvancedDataGrid externalPagination className="customer-table" gridId="customer-sales-invoices"><thead><tr>{screenFields.filter(field => field.visible).map(field => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>
         {loading ? <tr><td colSpan={screenFields.filter(field => field.visible).length} className="table-empty">Faturalar yükleniyor…</td></tr> : items.length === 0 ? <tr><td colSpan={screenFields.filter(field => field.visible).length} className="table-empty">Bu müşteri için görüntülenebilir satış faturası yok.</td></tr> : items.map(invoice => <tr key={invoice.id}>
-          {screenFields.filter(field => field.visible).map(field => <td key={field.key}>{field.key === 'code' ? <span className="customer-code">{invoice.code}</span> : field.key === 'orderCode' ? invoice.orderCode : field.key === 'deliveryCode' ? invoice.deliveryCode : field.key === 'invoiceDate' ? invoice.invoiceDate.split('-').reverse().join('.') : field.key === 'lineCount' ? invoice.lineCount : field.key === 'grandTotal' ? `${invoice.grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${invoice.currencyCode}` : field.key === 'status' ? <span className={`quote-status ${invoice.status === 'Posted' ? 'accepted' : 'rejected'}`}>{invoice.status === 'Posted' ? 'Kesildi' : 'İptal'}</span> : field.key === 'actions' ? <button className="row-action" onClick={() => onOpenInvoice(invoice.id)}><RotateCcw size={14}/> Faturayı / iadeyi aç</button> : null}</td>)}
+          {screenFields.filter(field => field.visible).map(field => <td key={field.key}>{field.key === 'code' ? <span className="customer-code">{invoice.code}</span> : field.key === 'orderCode' ? invoice.orderCode||'—' : field.key === 'deliveryCode' ? invoice.deliveryCode||'—' : field.key === 'invoiceDate' ? invoice.invoiceDate.split('-').reverse().join('.') : field.key === 'lineCount' ? invoice.lineCount : field.key === 'grandTotal' ? `${invoice.grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${invoice.currencyCode}` : field.key === 'status' ? <span className={`quote-status ${invoice.status === 'Posted' ? 'accepted' : 'rejected'}`}>{invoice.status === 'Posted' ? 'Kesildi' : 'İptal'}</span> : field.key === 'actions' ? <button className="row-action" onClick={() => onOpenInvoice(invoice.id)}><RotateCcw size={14}/> Faturayı / iadeyi aç</button> : null}</td>)}
         </tr>)}
       </tbody></AdvancedDataGrid></div>
       <div className="table-pagination"><span>Sayfa {page} / {Math.max(1, Math.ceil(totalCount / 25))}</span><div><button type="button" className="secondary" disabled={loading || page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Önceki</button><button type="button" className="secondary" disabled={loading || page * 25 >= totalCount} onClick={() => setPage(value => value + 1)}>Sonraki</button></div></div>

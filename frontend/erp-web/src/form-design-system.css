@@ -123,6 +123,111 @@
   background: #f7f9fc;
 }
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { overflow: visible; }
+.app-shell:not(.standalone-studio) .inventory-create-page { width: 100%; padding: 12px 0 24px; }
+.app-shell:not(.standalone-studio) .inventory-create-page .customer-create-page-surface { width: 100%; max-width: none; }
+.app-shell:not(.standalone-studio) .inventory-create-page .customer-create-fields { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: clamp(16px, 2vw, 28px); }
+.app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section { min-height: 220px; }
+.app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section .form-two { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+.app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section .inventory-create-wide { grid-column: 1 / -1; }
+.app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section legend { display: flex; align-items: center; gap: 9px; }
+.app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section legend svg { color: #1768c4; }
+.app-shell:not(.standalone-studio) .inventory-item-create-fields--inventory .inventory-create-section { max-width: 980px; }
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections { display: grid; gap: 16px; }
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel { margin: 0; padding: 16px; border: 1px solid #d5dfeb; border-radius: 9px; background: #fff; }
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections .panel-heading { margin: -16px -16px 16px; padding: 13px 16px; border-bottom: 1px solid #e6edf5; }
+.app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid #d5dfeb; background: #fff; }
+.app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer > span { display: flex; align-items: center; gap: 7px; color: #64748b; font-size: 11px; }
+.app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer > div { display: flex; gap: 8px; }
+.app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer button { min-height: 40px; border-radius: 6px; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer { border-color: #30394d; background: #171d2b; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections .panel-heading { border-color: #30394d; }
+@media (max-width: 760px) {
+  .app-shell:not(.standalone-studio) .inventory-create-page { padding: 10px 10px 20px; }
+  .app-shell:not(.standalone-studio) .inventory-create-page .customer-create-fields { padding: 12px; }
+  .app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section .form-two { grid-template-columns: minmax(0, 1fr); }
+  .app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section .inventory-create-wide { grid-column: auto; }
+  .app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer { align-items: flex-start; flex-direction: column; }
+  .app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer > div { align-self: flex-end; }
+}
+
+/* Stock card unit conversion fields */
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .panel-heading > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .panel-heading b {
+  color: #24364d;
+  font-size: 13px;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .panel-heading small {
+  display: block;
+  color: #718096;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .form-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px 20px;
+  min-width: 0;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .form-two > label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  color: #24364d;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .form-two > label > input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e6edf5;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .modal-foot > span {
+  color: #718096;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .requests-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .requests-list > .empty-small {
+  padding: 18px 14px;
+  border: 1px dashed #d7e1ec;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #718096;
+  text-align: center;
+  font-size: 11px;
+}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .panel-heading b,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .form-two > label { color: #c7d1df; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .modal-foot { border-color: #30394d; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .requests-list > .empty-small { border-color: #39465c; background: #171d2b; color: #a5b2c4; }
+@media (max-width: 760px) {
+  .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .form-two { grid-template-columns: minmax(0, 1fr); }
+  .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .modal-foot { align-items: stretch; }
+  .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .modal-foot > button { align-self: flex-end; }
+}
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section {
   box-sizing: border-box;
   display: grid;
@@ -152,6 +257,9 @@
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section>p { margin: 0; color: #64748b; font-size: 11px; line-height: 1.5; }
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section>label,
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .form-two>label { display: grid; align-content: start; gap: 6px; min-width: 0; color: #24364d; font-size: 11px; font-weight: 600; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section>label,
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .form-two>label { position: relative; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .optional-label { position: absolute; top: 0; right: 0; line-height: 14px; }
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section :is(input, select, textarea) { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; padding: 0 10px; border: 1px solid #c9d2df; border-radius: 6px; background: #fff; color: #172b45; font-size: 12px; }
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section textarea { min-height: 82px; padding: 10px; }
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section :is(input, select, textarea):focus { outline: 0; border-color: #287fc2; box-shadow: 0 0 0 3px #287fc21c; }
@@ -185,6 +293,82 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page
   .customer-create-tabs button { padding: 0 12px; }
   .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { grid-template-columns: minmax(0, 1fr); padding: 12px; overflow: visible; }
 }
+
+/* Cari kartı tanımlama: form alanlarını daha belirgin ve dengeli bir düzene al. */
+.app-shell:not(.standalone-studio) .customer-create-page-surface {
+  border-color: #d5dfeb;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20, 42, 68, .045);
+}
+.app-shell:not(.standalone-studio) .customer-create-page-heading {
+  padding: 20px 24px;
+  border-radius: 10px 10px 0 0;
+}
+.app-shell:not(.standalone-studio) .customer-create-page-icon {
+  width: 56px;
+  height: 56px;
+  border: 1px solid #f2dfa0;
+  background: linear-gradient(145deg, #fff5d5, #ffedb0);
+  color: #9a6a00;
+}
+.app-shell:not(.standalone-studio) .customer-create-page-actions .primary {
+  box-shadow: 0 2px 5px rgba(170, 123, 0, .14);
+}
+.app-shell:not(.standalone-studio) .customer-create-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-inline: 20px;
+}
+.app-shell:not(.standalone-studio) .customer-create-tabs button {
+  position: relative;
+  margin-bottom: -1px;
+  border-radius: 7px 7px 0 0;
+  transition: color .15s ease, background .15s ease;
+}
+.app-shell:not(.standalone-studio) .customer-create-tabs button:hover { background: #f7f9fc; color: #1768b5; }
+.app-shell:not(.standalone-studio) .customer-create-tabs button[aria-current="page"] { background: #fffaf0; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { gap: 16px; padding: 20px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  background: #fff;
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-tabs button { flex: 0 0 auto; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section { scroll-margin-top: 64px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .form-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section {
+  gap: 14px;
+  padding: 0 18px 18px;
+  border-radius: 9px;
+  box-shadow: 0 1px 3px rgba(20, 42, 68, .025);
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section legend {
+  width: calc(100% + 36px);
+  margin-left: -18px;
+  padding: 13px 18px;
+  border-radius: 8px 8px 0 0;
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section :is(input, select, textarea) { border-radius: 7px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section :is(input, select, textarea):hover { border-color: #aebed0; }
+.app-shell:not(.standalone-studio) .customer-create-page-error { border-radius: 8px; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page-icon { border-color: #554a2b; background: #3b321b; color: #ffd76a; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-tabs button:hover,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-tabs button[aria-current="page"] { background: #242b3b; }
+@media (max-width: 760px) {
+  .app-shell:not(.standalone-studio) .customer-create-page-heading { padding: 16px; }
+  .app-shell:not(.standalone-studio) .customer-create-tabs { flex-wrap: nowrap; overflow-x: auto; }
+  .app-shell:not(.standalone-studio) .customer-create-tabs button { flex: 0 0 auto; padding-inline: 12px; }
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { padding: 14px; }
+}
+@media (min-width: 761px) and (max-width: 1120px) {
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 520px) {
   .customer-create-breadcrumbs { gap: 6px; font-size: 10px; }
   .customer-create-page-icon { width: 42px; height: 42px; }
@@ -195,4 +379,96 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page
   .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section { padding: 0 12px 12px; }
   .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section legend { width: calc(100% + 24px); margin-left: -12px; padding: 10px 12px; }
   .customer-create-section .form-two { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Full-width customer card form layout. */
+.app-shell:not(.standalone-studio) .customer-create-page {
+  width: 100%;
+  padding: 12px 0 24px;
+}
+.app-shell:not(.standalone-studio) .customer-create-page-surface {
+  width: 100%;
+  max-width: none;
+  border-radius: 8px;
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  padding: clamp(16px, 2vw, 28px);
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields--contact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields--contact .customer-create-section { height: 100%; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .form-two { gap: 16px 20px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section { padding-bottom: 22px; }
+@media (max-width: 900px) {
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields--contact { grid-template-columns: minmax(0, 1fr); }
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields--contact .customer-create-section { height: auto; }
+}
+@media (max-width: 760px) {
+  .app-shell:not(.standalone-studio) .customer-create-page { padding: 10px 10px 20px; }
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { padding: 12px; }
+}
+
+/* Shared form group: floating legend participates in normal layout instead of
+   cutting a gap in the native fieldset outline. Use erp-form-group on new groups. */
+.app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group {
+  --form-group-border: #d5dfeb;
+  --form-group-heading: #f5f8fc;
+  --form-group-text: #183552;
+  --form-group-icon: #1768c4;
+  --form-group-inset: 18px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 var(--form-group-inset) 20px;
+  gap: 16px;
+  border: 1px solid var(--form-group-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: none;
+}
+.app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group > legend {
+  float: left;
+  position: static;
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: calc(100% + 2 * var(--form-group-inset));
+  max-width: none;
+  min-height: 48px;
+  margin: 0 calc(-1 * var(--form-group-inset));
+  padding: 12px var(--form-group-inset);
+  border: 0;
+  border-bottom: 1px solid var(--form-group-border);
+  border-radius: 9px 9px 0 0;
+  background: var(--form-group-heading);
+  color: var(--form-group-text);
+  box-shadow: none;
+  font: 600 14px/1.5 Inter, system-ui, sans-serif;
+}
+.app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group > legend svg {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--form-group-icon);
+}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group {
+  --form-group-border: #3a465b;
+  --form-group-heading: #20293a;
+  --form-group-text: #e6edf5;
+  --form-group-icon: #8fc5f4;
+  background: #182130;
+}
+@media (max-width: 520px) {
+  .app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group {
+    --form-group-inset: 14px;
+  }
 }

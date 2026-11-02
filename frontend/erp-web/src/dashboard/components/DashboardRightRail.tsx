@@ -1,10 +1,11 @@
-import { Bell, ChevronRight, FileText, Package, Users, Zap, Plus } from 'lucide-react'
+import { Bell, ChevronRight, Factory, FileText, Package, Users, Zap, Plus } from 'lucide-react'
 
 type Props = { platformStatus: string; platformLabel: string; onNavigate: (page: string) => void }
 const shortcuts = [
   { page: 'sales-invoices', title: 'Satış faturası', note: 'Yeni fatura oluştur', icon: FileText },
   { page: 'sales-purchase-invoices', title: 'Alış faturası', note: 'Tedarikçi faturası kaydet', icon: FileText },
   { page: 'inventory-stock', title: 'Stok hareketleri', note: 'Mal kabul ve stok hareketleri', icon: Package },
+  { page: 'manufacturing-orders', title: 'Üretim emirleri', note: 'Planları ve üretimi izleyin', icon: Factory },
   { page: 'customers', title: 'Cari kart', note: 'Müşteri veya tedarikçi ekle', icon: Users },
   { page: 'reports', title: 'Raporlar', note: 'Detaylı raporları görüntüle', icon: FileText },
   { page: 'sales-orders', title: 'Yeni satış siparişi', note: 'Sipariş oluştur', icon: Plus },

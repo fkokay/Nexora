@@ -1,0 +1,67 @@
+/* Analytics uses real filtered counts; chart decoration never invents values. */
+.studio-root.studio-section-analytics .studio-product-tabs {display:none}
+.studio-root.studio-dashboard-reference .studio-analytics-page {display:grid;gap:18px}
+.studio-root.studio-dashboard-reference .studio-analytics-heading {position:relative;isolation:isolate;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:150px;padding:25px 28px;border:1px solid #d8ccff;border-radius:18px;background:radial-gradient(ellipse at 70% 0,#b79aff50,transparent 60%),linear-gradient(110deg,#faf8ff,#eee6ff);box-shadow:inset 0 0 0 2px #ffffffcc,0 4px 8px #55409113}
+.studio-root.studio-dashboard-reference .studio-analytics-heading>div {position:relative;z-index:1;min-width:0}
+.studio-root.studio-dashboard-reference .studio-analytics-kicker {color:#6833ee;font-size:11px;letter-spacing:.6px}
+.studio-root.studio-dashboard-reference .studio-analytics-heading h1 {margin:11px 0 8px;color:#17183b;font-size:34px;font-weight:800;letter-spacing:-1px}
+.studio-root.studio-dashboard-reference .studio-analytics-heading p {margin:0;color:#5d618b;font-size:12px;line-height:1.6}
+.studio-analytics-illustration {position:absolute;left:55%;top:50%;transform:translate(-30%,-50%);width:285px;height:170px;pointer-events:none}
+.studio-root.studio-dashboard-reference .studio-analytics-filters {display:flex;gap:12px;align-items:center}
+.studio-root.studio-dashboard-reference .studio-analytics-filters label {display:flex;align-items:center;gap:9px;min-height:43px;padding:0 14px;border:1px solid #d1c6f7;border-radius:11px;background:#ffffffdf;box-shadow:0 3px 5px #6046b80e;color:#585182}
+.studio-root.studio-dashboard-reference .studio-analytics-filters select {min-height:41px;max-width:200px;padding:0 22px 0 0;border:0;background:transparent;color:#393259;font-size:12px;cursor:pointer}
+.studio-root.studio-dashboard-reference .studio-analytics-filters label:focus-within {outline:2px solid #9b76ef;outline-offset:2px}
+.studio-root.studio-dashboard-reference .studio-analytics-kpis {gap:16px}
+.studio-root.studio-dashboard-reference .studio-analytics-kpis article {display:grid;grid-template-columns:50px minmax(0,1fr);align-content:center;gap:7px 17px;min-height:112px;padding:18px;border:1px solid #dfddf6;border-radius:16px;background:linear-gradient(130deg,#fff,#fbfaff);box-shadow:0 3px 5px #5747870d;overflow:hidden}
+.studio-root.studio-dashboard-reference .studio-analytics-kpis article>span {grid-column:1;grid-row:1/4;width:50px;height:54px;align-self:start;border-radius:15px;background:#f1e6ff;color:#8549f5}
+.studio-root.studio-dashboard-reference .studio-analytics-kpis article>span.green {background:#dff9ed;color:#1da273}
+.studio-root.studio-dashboard-reference .studio-analytics-kpis article>span.orange {background:#fff0d9;color:#fa9b17}
+.studio-root.studio-dashboard-reference .studio-analytics-kpis article>small {position:static;grid-column:2;color:#48486e;font-size:11px}
+.studio-root.studio-dashboard-reference .studio-analytics-kpis article>strong {grid-column:2;margin:0;color:#16183a;font-size:26px}
+.studio-root.studio-dashboard-reference .studio-analytics-kpis article>p {grid-column:2;max-width:calc(100% - 42px);min-width:0;margin:0;display:block;color:#7b7ca0;font-size:10px;line-height:1.5}
+.studio-root.studio-dashboard-reference .studio-analytics-kpis article>p svg {display:none}
+.studio-root.studio-dashboard-reference .studio-analytics-kpis article>p b {color:#149c6d}
+.studio-analytics-sparkline {position:absolute;right:12px;bottom:14px;width:66px;height:40px;color:#9254fc}
+.studio-analytics-kpis article:nth-child(3) .studio-analytics-sparkline {color:#22ba87}
+.studio-analytics-kpis article:nth-child(4) .studio-analytics-sparkline {color:#f4a51c}
+.studio-root.studio-dashboard-reference .studio-analytics-main-grid {grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:18px}
+.studio-root.studio-dashboard-reference .studio-analytics-lower-grid {grid-template-columns:minmax(0,.85fr) minmax(0,1.5fr);gap:18px}
+.studio-root.studio-dashboard-reference .studio-analytics-card {min-width:0;min-height:240px;padding:22px 24px;border:1px solid #dddbf5;border-radius:17px;background:linear-gradient(130deg,#fff,#fcfbff);box-shadow:0 3px 5px #594b9010,0 6px 20px #69539708}
+.studio-root.studio-dashboard-reference .studio-analytics-card>header {display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}
+.studio-root.studio-dashboard-reference .studio-analytics-card>header>div>span {color:#7134f6;font-size:10px;font-weight:750;letter-spacing:.5px}
+.studio-root.studio-dashboard-reference .studio-analytics-card>header h2 {margin:7px 0 6px;color:#202143;font-size:18px;font-weight:750;letter-spacing:-.4px}
+.studio-root.studio-dashboard-reference .studio-analytics-card>header p {margin:0;color:#747799;font-size:11px;line-height:1.5}
+.studio-root.studio-dashboard-reference .studio-analytics-card>header>svg {color:#8444ff;flex:none}
+.studio-trend-plot {display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px}
+.studio-trend-scale {display:flex;flex-direction:column;justify-content:space-between;padding:3px 0 24px;color:#8281a2;font-size:10px;text-align:right}
+.studio-root.studio-dashboard-reference .studio-advanced-chart {height:155px;gap:14px;background:repeating-linear-gradient(to top,transparent 0,transparent 31px,#e9e5f6 32px,#e9e5f6 33px)}
+.studio-root.studio-dashboard-reference .studio-advanced-column>span {width:min(70%,58px);border-radius:6px 6px 0 0;background:transparent}
+.studio-root.studio-dashboard-reference .studio-advanced-column i {min-height:0;border-radius:5px 5px 0 0;background:linear-gradient(#a36aff,#6222ef)}
+.studio-root.studio-dashboard-reference .studio-advanced-column>b {color:#5d498e;font-size:11px}
+.studio-root.studio-dashboard-reference .studio-advanced-column>small {color:#757496;font-size:10px}
+.studio-root.studio-dashboard-reference .studio-status-chart {gap:18px;padding-top:12px;border-top:1px solid #ece8f7}
+.studio-root.studio-dashboard-reference .studio-status-row>div {margin-bottom:11px;color:#4c496e;font-size:12px}
+.studio-root.studio-dashboard-reference .studio-status-row>div>span:before {display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:#965eff;box-shadow:0 0 0 4px #efe5ff;content:''}
+.studio-root.studio-dashboard-reference .studio-status-row>i {height:10px;border-radius:8px;background:#eee8fb}
+.studio-root.studio-dashboard-reference .studio-status-row>i>span {border-radius:8px;background:linear-gradient(90deg,#a067ff,#6321f2)}
+.studio-root.studio-dashboard-reference .studio-project-workload {padding-top:10px;gap:20px;border-top:1px solid #eeeaf7}
+.studio-root.studio-dashboard-reference .studio-workload-rank {padding:5px 7px;border-radius:7px;background:#ede6ff;color:#7548dc;font-size:11px}
+.studio-root.studio-dashboard-reference .studio-workload-name {font-size:12px;color:#575476;gap:10px}
+.studio-root.studio-dashboard-reference .studio-workload-name>i {height:7px;background:#e8e2fa}
+.studio-root.studio-dashboard-reference .studio-workload-name>i>b {background:linear-gradient(90deg,#a16bff,#6626ed)}
+.studio-root.studio-dashboard-reference .studio-project-workload>div>strong {color:#514673;font-size:12px}
+.studio-root.studio-dashboard-reference .studio-analytics-table-wrap {max-width:100%;overflow-x:auto;border-radius:9px}
+.studio-root.studio-dashboard-reference .studio-analytics-table-wrap table {width:100%;min-width:520px;border-collapse:collapse}
+.studio-root.studio-dashboard-reference .studio-analytics-table-wrap th {padding:10px;background:#f0edf9;color:#646181;font-size:10px;text-align:left;border-bottom:1px solid #e8e3f6}
+.studio-root.studio-dashboard-reference .studio-analytics-table-wrap td {padding:12px 10px;color:#69678a;font-size:10px;border-bottom:1px solid #ece8f7;white-space:nowrap}
+.studio-root.studio-dashboard-reference .studio-analytics-table-wrap td:first-child {display:flex;align-items:center;gap:10px;min-width:200px;white-space:normal}
+.studio-root.studio-dashboard-reference .studio-analytics-table-wrap td:first-child svg {flex:none;color:#8746f7}
+.studio-root.studio-dashboard-reference .studio-analytics-table-wrap td b {display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:330px;font-weight:600;color:#49476b}
+.studio-root.studio-dashboard-reference .studio-analytics-status {padding:5px 9px;border-radius:20px;border:0;background:#eee5ff;color:#7849e1;font-size:10px}
+.studio-root.studio-dashboard-reference .studio-analytics-status.status-completed {background:#def8eb;color:#20865c}
+.studio-root.studio-dashboard-reference .studio-chart-empty {min-height:140px;color:#9b82d5}
+.studio-root.studio-dashboard-reference .studio-chart-empty>b {color:#676183;font-size:13px}
+.studio-root.studio-dashboard-reference .studio-chart-empty>span {color:#918ba7;font-size:11px}
+@media(max-width:1350px){.studio-analytics-illustration {display:none}.studio-root.studio-dashboard-reference .studio-analytics-heading {flex-wrap:wrap}.studio-root.studio-dashboard-reference .studio-analytics-kpis {grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1100px){.studio-root.studio-dashboard-reference .studio-analytics-main-grid,.studio-root.studio-dashboard-reference .studio-analytics-lower-grid {grid-template-columns:minmax(0,1fr)}}
+@media(max-width:680px){.studio-root.studio-dashboard-reference .studio-analytics-heading {padding:20px;align-items:stretch}.studio-root.studio-dashboard-reference .studio-analytics-heading h1 {font-size:30px}.studio-root.studio-dashboard-reference .studio-analytics-filters {flex-wrap:wrap;flex-direction:row;gap:10px}.studio-root.studio-dashboard-reference .studio-analytics-filters label {flex:1;min-width:0;padding-inline:10px}.studio-root.studio-dashboard-reference .studio-analytics-filters select {width:100%;min-width:0;max-width:100%;font-size:11px}.studio-root.studio-dashboard-reference .studio-analytics-kpis {grid-template-columns:minmax(0,1fr)}.studio-root.studio-dashboard-reference .studio-analytics-card {padding:18px}.studio-root.studio-dashboard-reference .studio-advanced-chart {gap:6px}.studio-root.studio-dashboard-reference .studio-advanced-column>small {font-size:9px}.studio-root.studio-dashboard-reference .studio-analytics-kpis article>p {max-width:calc(100% - 40px)}}

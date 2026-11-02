@@ -1335,7 +1335,7 @@ public static class ManufacturingEndpoints
             nodes.Add(new MrpDemandNode(demand.StockItemId, demand.Quantity, demand.RequiredByDate ?? planDate, 0, [demand.StockItemId], "Ek talep"));
         if (request.IncludeOpenSalesOrders)
         {
-            var delivered = await db.SalesDeliveryLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.Delivery.Status == SalesDeliveryStatus.Posted)
+            var delivered = await db.SalesDeliveryLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId != null && x.Delivery.Status == SalesDeliveryStatus.Posted)
                 .GroupBy(x => new { x.OrderId, x.OrderLineNumber }).Select(g => new { g.Key.OrderId, g.Key.OrderLineNumber, Quantity = g.Sum(x => x.Quantity) })
                 .ToDictionaryAsync(x => (x.OrderId, x.OrderLineNumber), x => x.Quantity, ct);
             var salesLines = await db.SalesOrderLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.Order.Status == SalesOrderStatus.Open)

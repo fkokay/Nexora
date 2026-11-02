@@ -8,8 +8,9 @@ export async function api<T>(url: string, token?: string, init?: RequestInit): P
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: string; title?: string; traceId?: string; errors?: Record<string, string[]> } | null
     const validation = Object.values(payload?.errors ?? {}).flat().join(' ')
-    const trace = payload?.traceId ? ` İz kimliği: ${payload.traceId}.` : ''
-    throw new Error(response.status === 401 ? 'Oturum geçersiz. Yeniden giriş yapın.' : response.status === 403 ? 'Bu işlem için yetkiniz yok.' : (payload?.error || validation || payload?.title || `İstek başarısız (${response.status}).`) + trace)
+    const message = payload?.error || validation || payload?.title || `İstek başarısız (${response.status}).`
+    const trace = payload?.traceId && !message.includes(payload.traceId) ? ` İz kimliği: ${payload.traceId}.` : ''
+    throw new Error(response.status === 401 ? 'Oturum geçersiz. Yeniden giriş yapın.' : response.status === 403 ? 'Bu işlem için yetkiniz yok.' : message + trace)
   }
   if (init?.method && !['GET','HEAD'].includes(init.method.toUpperCase())) window.dispatchEvent(new CustomEvent('nexora:workspace-clean'))
   if (response.status === 204) return undefined as T

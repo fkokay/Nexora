@@ -109,8 +109,8 @@ export function WorkspacePageRouter({page,token,tenant,locale,dashboard,platform
   if(page==='workflows')return <WorkflowPage token={token} role={tenant.role}/>
   if(page==='custom-forms')return <CustomFormsPage token={token} role={tenant.role}/>
   if(page.startsWith('module:')&&selectedModuleMenu)return <TenantModuleScreen token={token} selection={selectedModuleMenu}/>
-  if(page==='customers')return <CustomersPage token={token} role={tenant.role} initialSearch={initialCustomerSearch} onOpenSalesInvoice={onOpenSalesInvoice} onOpenPurchaseInvoices={onOpenPurchaseInvoices}/>
-  if(page==='crm-opportunities')return <CrmOpportunitiesPage token={token}/>
+  if(page==='customers'||page==='customer-create')return <CustomersPage token={token} role={tenant.role} initialSearch={initialCustomerSearch} initialCreate={page==='customer-create'} onNavigate={onNavigate} onOpenSalesInvoice={onOpenSalesInvoice} onOpenPurchaseInvoices={onOpenPurchaseInvoices}/>
+  if(page==='crm-opportunities'||page==='crm-opportunity-create')return <CrmOpportunitiesPage token={token} initialCreate={page==='crm-opportunity-create'} onNavigate={onNavigate}/>
   if(page==='fixed-assets')return <FixedAssetsPage token={token} locale={locale}/>
   if(page==='human-resources')return <HumanResourcesPage token={token} role={tenant.role} locale={locale}/>
   if(page==='manufacturing-cost-variance')return <ManufacturingCostVariancePage token={token}/>
@@ -136,6 +136,7 @@ export function WorkspacePageRouter({page,token,tenant,locale,dashboard,platform
   if(page==='sales-requests')return <SalesRequestsPage {...salesPageProps}/>
   if(page==='sales-purchase-quotes')return <PurchaseSupplierQuotesScreenPage {...salesPageProps}/>
   if(page==='sales-orders')return <SalesOrdersPage {...salesPageProps}/>
+  if(page==='sales-order-create')return <SalesOrdersPage {...salesPageProps} createOrderPage/>
   if(page==='sales-invoice-create')return <SalesInvoicesPage {...salesPageProps} openInvoiceCreate/>
   if(page==='sales-invoices')return <SalesInvoicesPage {...salesPageProps}/>
   if(page==='sales-deliveries')return <SalesDeliveriesScreenPage {...salesPageProps}/>
@@ -153,7 +154,7 @@ export function WorkspacePageRouter({page,token,tenant,locale,dashboard,platform
   if(page==='finance-cash-flow')return <CashFlowPage token={token} role={tenant.role}/>
   if(page==='finance-fx')return <FxSettingsPage token={token} role={tenant.role}/>
   if(page==='finance-ledger')return <LedgerOverviewPage token={token} role={tenant.role} onNavigate={onNavigate}/>
-  if(page==='finance-ledger-chart'||page==='finance-journal-vouchers'||page==='finance-trial-balance'||page==='finance-balance-sheet'||page==='finance-journal-ledger')return <LedgerOverviewPage token={token} role={tenant.role} section={page as AppTypes.FinancePageKey} onNavigate={onNavigate}/>
+  if(page==='finance-ledger-chart'||page==='finance-ledger-mappings'||page==='finance-journal-vouchers'||page==='finance-trial-balance'||page==='finance-balance-sheet'||page==='finance-journal-ledger')return <LedgerOverviewPage token={token} role={tenant.role} section={page as AppTypes.FinancePageKey} onNavigate={onNavigate}/>
   if(page==='finance-exposure')return <FxExposurePage token={token} role={tenant.role}/>
   if(page==='finance-maturities')return <MaturityTrackingPage token={token} role={tenant.role}/>
   if(page==='finance-credit-facilities')return <CreditFacilitiesPage token={token} role={tenant.role} onNavigate={onNavigate}/>
