@@ -9524,6 +9524,45 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<int>("UsefulLifeMonths")
                         .HasColumnType("int");
 
+                    b.Property<int?>("VukCommuniqueNumber")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("VukDepreciationLowerLimitTry")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("VukNormalDepreciationRatePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("VukSourceUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateOnly?>("VukTaxDepreciationStartDate")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("VukTaxYear")
+                        .HasColumnType("int");
+
+                    b.Property<string>("VukUsefulLifeCode")
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<int?>("VukUsefulLifeCommuniqueNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("VukUsefulLifeDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("VukUsefulLifeMonths")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("VukUsefulLifeTableYear")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "AssetCode")
@@ -9538,6 +9577,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("FixedAssets", t =>
                         {
                             t.HasCheckConstraint("CK_FixedAssets_CostAndLife", "[AcquisitionCostBase] > 0 AND [ResidualValueBase] >= 0 AND [ResidualValueBase] < [AcquisitionCostBase] AND [UsefulLifeMonths] BETWEEN 1 AND 1200 AND [InServiceDate] >= [AcquisitionDate] AND [AccumulatedDepreciationBase] >= 0 AND [AccumulatedDepreciationBase] <= [AcquisitionCostBase] - [ResidualValueBase]");
+
+                            t.HasCheckConstraint("CK_FixedAssets_VukUsefulLifeProfile", "([VukUsefulLifeCode] IS NULL AND [VukUsefulLifeDescription] IS NULL AND [VukUsefulLifeTableYear] IS NULL AND [VukUsefulLifeCommuniqueNumber] IS NULL AND [VukUsefulLifeMonths] IS NULL AND [VukNormalDepreciationRatePercent] IS NULL AND [VukTaxDepreciationStartDate] IS NULL) OR ([VukUsefulLifeCode] IS NOT NULL AND [VukUsefulLifeDescription] IS NOT NULL AND [VukUsefulLifeTableYear] IS NOT NULL AND [VukUsefulLifeCommuniqueNumber] IS NOT NULL AND [VukUsefulLifeMonths] BETWEEN 1 AND 1200 AND [VukNormalDepreciationRatePercent] > 0 AND [VukNormalDepreciationRatePercent] <= 100 AND [VukTaxDepreciationStartDate] IS NOT NULL AND [VukTaxDepreciationStartDate] >= [AcquisitionDate])");
                         });
                 });
 
@@ -10458,6 +10499,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<int>("EndMinuteOfDay")
                         .HasColumnType("int");
 
+                    b.Property<int?>("EndSecondOfDay")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("ManufacturingOrderOperationId")
                         .HasColumnType("uniqueidentifier");
 
@@ -10465,6 +10509,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("date");
 
                     b.Property<int>("StartMinuteOfDay")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StartSecondOfDay")
                         .HasColumnType("int");
 
                     b.Property<Guid>("TenantId")
@@ -10485,6 +10532,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("ManufacturingCapacityAllocations", t =>
                         {
                             t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_Minutes", "[AllocatedMinutes] > 0");
+
+                            t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_SecondRange", "([StartSecondOfDay] IS NULL AND [EndSecondOfDay] IS NULL) OR ([StartSecondOfDay] IS NOT NULL AND [EndSecondOfDay] IS NOT NULL AND [StartSecondOfDay] BETWEEN 0 AND 86399 AND [EndSecondOfDay] BETWEEN 1 AND 86400 AND [EndSecondOfDay] > [StartSecondOfDay])");
 
                             t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_TimeRange", "[StartMinuteOfDay] BETWEEN 0 AND 1439 AND [EndMinuteOfDay] BETWEEN 1 AND 1440 AND [EndMinuteOfDay] > [StartMinuteOfDay]");
                         });
@@ -10687,10 +10736,16 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<int?>("ScheduledEndMinuteOfDay")
                         .HasColumnType("int");
 
+                    b.Property<int?>("ScheduledEndSecondOfDay")
+                        .HasColumnType("int");
+
                     b.Property<DateOnly?>("ScheduledStartDate")
                         .HasColumnType("date");
 
                     b.Property<int?>("ScheduledStartMinuteOfDay")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ScheduledStartSecondOfDay")
                         .HasColumnType("int");
 
                     b.Property<int>("Sequence")
@@ -10759,6 +10814,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_ManufacturingOrderOperations_MinutesAndCost", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutes] >= 0 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0 AND [PlannedCostBase] >= 0");
 
                             t.HasCheckConstraint("CK_ManufacturingOrderOperations_PlannedEnergy", "[PlannedEnergyQuantityKwh] >= 0 AND [PlannedEnergyCostPerKwhBase] >= 0 AND [PlannedEnergyCostBase] >= 0");
+
+                            t.HasCheckConstraint("CK_ManufacturingOrderOperations_SecondRange", "([ScheduledStartSecondOfDay] IS NULL OR [ScheduledStartSecondOfDay] BETWEEN 0 AND 86399) AND ([ScheduledEndSecondOfDay] IS NULL OR [ScheduledEndSecondOfDay] BETWEEN 1 AND 86400)");
                         });
                 });
 
@@ -12031,6 +12088,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             Action = "execute",
                             Description = "execute · Tenant workplace, branch and factory definitions",
                             ResourceType = "erp.organizational-definitions"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-locations.read",
+                            Action = "read",
+                            Description = "read · Customer address province and district definitions",
+                            ResourceType = "erp.customer-locations"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-locations.create",
+                            Action = "create",
+                            Description = "create · Customer address province and district definitions",
+                            ResourceType = "erp.customer-locations"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-locations.update",
+                            Action = "update",
+                            Description = "update · Customer address province and district definitions",
+                            ResourceType = "erp.customer-locations"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-locations.delete",
+                            Action = "delete",
+                            Description = "delete · Customer address province and district definitions",
+                            ResourceType = "erp.customer-locations"
+                        },
+                        new
+                        {
+                            Code = "erp.customer-locations.execute",
+                            Action = "execute",
+                            Description = "execute · Customer address province and district definitions",
+                            ResourceType = "erp.customer-locations"
                         },
                         new
                         {
@@ -15753,7 +15845,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<DateOnly>("DeliveryDate")
                         .HasColumnType("date");
 
-                    b.Property<Guid>("OrderId")
+                    b.Property<Guid?>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("RequestId")
@@ -15799,7 +15891,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<string>("EnteredUnitCode")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("OrderId")
+                    b.Property<Guid?>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("OrderLineNumber")
@@ -15834,8 +15926,6 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("nvarchar(8)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "DeliveryId", "OrderId");
 
                     b.HasIndex("TenantId", "DeliveryId", "OrderLineNumber")
                         .IsUnique();
@@ -15873,7 +15963,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("DeliveryId")
+                    b.Property<Guid?>("DeliveryId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("DiscountTotal")
@@ -15887,7 +15977,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<DateOnly>("InvoiceDate")
                         .HasColumnType("date");
 
-                    b.Property<Guid>("OrderId")
+                    b.Property<Guid?>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Status")
@@ -15912,7 +16002,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("TenantId", "CustomerId");
 
                     b.HasIndex("TenantId", "DeliveryId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[DeliveryId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "OrderId");
 
@@ -16104,7 +16195,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("DeliveryLineId")
+                    b.Property<Guid?>("DeliveryLineId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("DiscountAmount")
@@ -16169,7 +16260,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "DeliveryLineId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[DeliveryLineId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "InvoiceId");
 
@@ -16219,7 +16311,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<DateOnly>("OrderDate")
                         .HasColumnType("date");
 
-                    b.Property<Guid>("QuoteId")
+                    b.Property<Guid?>("QuoteId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateOnly?>("RequestedDeliveryDate")
@@ -16247,7 +16339,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("TenantId", "CustomerId");
 
                     b.HasIndex("TenantId", "QuoteId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[QuoteId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "OrderDate", "CreatedAt");
 
@@ -21699,8 +21792,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .WithMany("Deliveries")
                         .HasForeignKey("TenantId", "OrderId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AIERP.Platform.Domain.Warehouse", "Warehouse")
                         .WithMany()
@@ -21720,16 +21812,15 @@ namespace AIERP.Platform.Infrastructure.Migrations
                 {
                     b.HasOne("AIERP.Platform.Domain.SalesDelivery", "Delivery")
                         .WithMany("Lines")
-                        .HasForeignKey("TenantId", "DeliveryId", "OrderId")
-                        .HasPrincipalKey("TenantId", "Id", "OrderId")
+                        .HasForeignKey("TenantId", "DeliveryId")
+                        .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("AIERP.Platform.Domain.SalesOrderLine", "OrderLine")
                         .WithMany()
                         .HasForeignKey("TenantId", "OrderId", "OrderLineNumber")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AIERP.Platform.Domain.SalesOrderReservation", "Reservation")
                         .WithMany()
@@ -21763,15 +21854,13 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .WithOne("Invoice")
                         .HasForeignKey("AIERP.Platform.Domain.SalesInvoice", "TenantId", "DeliveryId")
                         .HasPrincipalKey("AIERP.Platform.Domain.SalesDelivery", "TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AIERP.Platform.Domain.SalesOrder", "Order")
                         .WithMany()
                         .HasForeignKey("TenantId", "OrderId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Customer");
 
@@ -21853,8 +21942,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .WithOne("InvoiceLine")
                         .HasForeignKey("AIERP.Platform.Domain.SalesInvoiceLine", "TenantId", "DeliveryLineId")
                         .HasPrincipalKey("AIERP.Platform.Domain.SalesDeliveryLine", "TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AIERP.Platform.Domain.SalesInvoice", "Invoice")
                         .WithMany("Lines")
@@ -21894,8 +21982,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .WithOne("Order")
                         .HasForeignKey("AIERP.Platform.Domain.SalesOrder", "TenantId", "QuoteId")
                         .HasPrincipalKey("AIERP.Platform.Domain.SalesQuote", "TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Customer");
 

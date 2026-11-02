@@ -115,7 +115,7 @@ public static class SalesPlanningInquiryEndpoints
                     DiscountTotals = g.GroupBy(x => x.CurrencyCode).OrderBy(currency => currency.Key)
                         .Select(currency => new CurrencyAmount(currency.Key, currency.Sum(x => x.DiscountAmount))).ToArray() });
             var scopedQuoteIds = applicationRows.Select(x => x.QuoteId).Distinct().ToArray();
-            IQueryable<SalesOrder> linkedOrderQuery = db.SalesOrders.AsNoTracking().Where(x => x.TenantId == tenantId && scopedQuoteIds.Contains(x.QuoteId)
+            IQueryable<SalesOrder> linkedOrderQuery = db.SalesOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId != null && scopedQuoteIds.Contains(x.QuoteId.Value)
                     && x.Status != SalesOrderStatus.Cancelled);
             if (Guid.TryParse(user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier), out var orderReaderId)
                 && !string.IsNullOrWhiteSpace(user.FindFirstValue("role")))
@@ -135,7 +135,7 @@ public static class SalesPlanningInquiryEndpoints
                     "erp.sales-orders.read", "erp.sales-orders", linkedOrderQuery, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? linkedOrderQuery;
             }
             var linkedOrders = await linkedOrderQuery
-                .Select(x => new { x.QuoteId, x.CurrencyCode, x.GrandTotal }).ToListAsync(ct);
+                .Select(x => new { QuoteId = x.QuoteId!.Value, x.CurrencyCode, x.GrandTotal }).ToListAsync(ct);
             var rows = campaignRows.Select(x =>
             {
                 summaries.TryGetValue(x.Id, out var summary);

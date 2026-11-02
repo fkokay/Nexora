@@ -26,6 +26,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
     public DbSet<PayrollWorkplaceCalendar> PayrollWorkplaceCalendars => Set<PayrollWorkplaceCalendar>();
     public DbSet<PayrollEmployeeWorkCalendarOverride> PayrollEmployeeWorkCalendarOverrides => Set<PayrollEmployeeWorkCalendarOverride>();
     public DbSet<PayrollPriorEmployerTaxBaseDeclaration> PayrollPriorEmployerTaxBaseDeclarations => Set<PayrollPriorEmployerTaxBaseDeclaration>();
+    public DbSet<CreditSecurityAlertDismissal> CreditSecurityAlertDismissals => Set<CreditSecurityAlertDismissal>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -68,6 +69,18 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.HasOne(x => x.Delivery).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.DeliveryId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.StorageLocation).WithMany().HasForeignKey(x => new { x.TenantId, x.StorageLocationId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesInvoice>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.StandaloneDeliveryId }).IsUnique().HasFilter("[StandaloneDeliveryId] IS NOT NULL");
+            e.HasOne<StandaloneSalesDelivery>().WithOne().HasForeignKey<SalesInvoice>(x => new { x.TenantId, x.StandaloneDeliveryId })
+                .HasPrincipalKey<StandaloneSalesDelivery>(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesInvoiceLine>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.StandaloneDeliveryLineId }).IsUnique().HasFilter("[StandaloneDeliveryLineId] IS NOT NULL");
+            e.HasOne<StandaloneSalesDeliveryLine>().WithOne().HasForeignKey<SalesInvoiceLine>(x => new { x.TenantId, x.StandaloneDeliveryLineId })
+                .HasPrincipalKey<StandaloneSalesDeliveryLine>(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<StandalonePurchaseReceipt>(e =>
         {
@@ -386,5 +399,16 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
         foreach (var type in studioEntities) modelBuilder.Ignore(type);
         modelBuilder.ApplyConfiguration(new CommercialContractEntityConfiguration());
         modelBuilder.ApplyConfiguration(new CommercialContractStatusTransitionConfiguration());
+        modelBuilder.Entity<CreditSecurityAlertDismissal>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.UserId, x.CreditFacilitySecurityId, x.AlertStatus }).IsUnique();
+            e.Property(x => x.AlertStatus).HasMaxLength(16).IsRequired();
+            e.HasOne(x => x.CreditFacilitySecurity).WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.CreditFacilitySecurityId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.ToTable(t => t.HasCheckConstraint("CK_CreditSecurityAlertDismissals_AlertStatus", "[AlertStatus] IN ('Expired','Expiring')"));
+        });
     }
 }

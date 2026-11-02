@@ -37,6 +37,45 @@ public sealed class FinanceCreditFacilityIntegrationTests
         Assert.Equal("TEM-001", item.GetProperty("code").GetString());
         var securityId = item.GetProperty("id").GetGuid();
 
+        var userA = Guid.Parse("11111111-aaaa-aaaa-aaaa-111111111111");
+        var userB = Guid.Parse("22222222-bbbb-bbbb-bbbb-222222222222");
+        client.DefaultRequestHeaders.Add("X-Test-User", userA.ToString());
+        using var dismiss = await client.PostAsync($"/api/finance/credit-facilities/securities/{securityId}/alerts/Expiring/dismiss", null);
+        Assert.Equal(HttpStatusCode.NoContent, dismiss.StatusCode);
+        using var dismissedAlerts = await client.GetAsync("/api/finance/credit-facilities/securities/alerts?expiryWithinDays=30");
+        using var dismissedJson = JsonDocument.Parse(await dismissedAlerts.Content.ReadAsStringAsync());
+        Assert.Equal(0, dismissedJson.RootElement.GetProperty("expiringCount").GetInt32());
+        Assert.Empty(dismissedJson.RootElement.GetProperty("items").EnumerateArray());
+        using var duplicateDismiss = await client.PostAsync($"/api/finance/credit-facilities/securities/{securityId}/alerts/Expiring/dismiss", null);
+        Assert.Equal(HttpStatusCode.NoContent, duplicateDismiss.StatusCode);
+
+        using var otherUser = app.GetTestClient();
+        otherUser.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        otherUser.DefaultRequestHeaders.Add("X-Test-User", userB.ToString());
+        using var otherUserAlerts = await otherUser.GetAsync("/api/finance/credit-facilities/securities/alerts?expiryWithinDays=30");
+        using var otherUserJson = JsonDocument.Parse(await otherUserAlerts.Content.ReadAsStringAsync());
+        Assert.Equal(1, otherUserJson.RootElement.GetProperty("expiringCount").GetInt32());
+        Assert.Single(otherUserJson.RootElement.GetProperty("items").EnumerateArray());
+        using var otherTenant = app.GetTestClient();
+        otherTenant.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        otherTenant.DefaultRequestHeaders.Add("X-Test-User", userA.ToString());
+        using var crossTenantDismiss = await otherTenant.PostAsync($"/api/finance/credit-facilities/securities/{securityId}/alerts/Expiring/dismiss", null);
+        Assert.Equal(HttpStatusCode.NotFound, crossTenantDismiss.StatusCode);
+        using var invalidDismiss = await client.PostAsync($"/api/finance/credit-facilities/securities/{securityId}/alerts/invalid/dismiss", null);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidDismiss.StatusCode);
+
+        await using (var expiryScope = app.Services.CreateAsyncScope())
+        {
+            var expiryDb = expiryScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var security = await expiryDb.CreditFacilitySecurities.SingleAsync(x => x.TenantId == TenantA && x.Id == securityId);
+            security.ExpiryDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+            await expiryDb.SaveChangesAsync();
+        }
+        using var transitionedAlerts = await client.GetAsync("/api/finance/credit-facilities/securities/alerts?expiryWithinDays=30");
+        using var transitionedJson = JsonDocument.Parse(await transitionedAlerts.Content.ReadAsStringAsync());
+        Assert.Equal(1, transitionedJson.RootElement.GetProperty("expiredCount").GetInt32());
+        Assert.Equal("Expired", Assert.Single(transitionedJson.RootElement.GetProperty("items").EnumerateArray()).GetProperty("alert").GetString());
+
         using var exposure = await client.GetAsync("/api/finance/credit-facilities/exposure-summary");
         Assert.Equal(HttpStatusCode.OK, exposure.StatusCode);
         using var exposureJson = JsonDocument.Parse(await exposure.Content.ReadAsStringAsync());
@@ -82,6 +121,106 @@ public sealed class FinanceCreditFacilityIntegrationTests
         var calledCurrency = Assert.Single(calledExposureJson.RootElement.GetProperty("currencies").EnumerateArray());
         Assert.Equal(25000m, calledCurrency.GetProperty("calledAmount").GetDecimal());
         Assert.Equal(0m, calledCurrency.GetProperty("activeCollateral").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Effective_interest_preview_uses_drawdowns_payments_and_transaction_cost_without_posting_journal()
+    {
+        await using var app = await StartApplicationAsync();
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var drawdownDate = new DateOnly(2026, 1, 1);
+            db.CreditFacilitySchedules.RemoveRange(db.CreditFacilitySchedules.Where(x => x.TenantId == TenantA && x.CreditFacilityId == FacilityA));
+            db.CreditFacilityMovements.Add(new CreditFacilityMovement
+            {
+                TenantId = TenantA, CreditFacilityId = FacilityA, Type = CreditFacilityMovementType.Drawdown,
+                TransactionDate = drawdownDate, PrincipalAmount = 1000m, RequestId = Guid.NewGuid(),
+                FinancialAccountTransaction = new FinancialAccountTransaction
+                {
+                    TenantId = TenantA, FinancialAccountId = AccountA, CurrencyCode = "TRY", TransactionDate = drawdownDate,
+                    Direction = FinancialDirection.Inflow, CashFlowCategory = CashFlowCategory.Financing, Amount = 1000m,
+                    Description = "EIR test drawdown"
+                }
+            });
+            db.CreditFacilitySchedules.Add(new CreditFacilitySchedule
+            {
+                TenantId = TenantA, CreditFacilityId = FacilityA, DueDate = new DateOnly(2027, 1, 1),
+                PrincipalAmount = 1000m, InterestAmount = 100m, FeeAmount = 0m
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        using var preview = await client.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/effective-interest-preview", new
+        {
+            initialTransactionCosts = 50m
+        });
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        using var json = JsonDocument.Parse(await preview.Content.ReadAsStringAsync());
+        var result = json.RootElement;
+        Assert.Equal(15.789474m, result.GetProperty("effectiveAnnualRatePercent").GetDecimal());
+        Assert.Equal(50m, result.GetProperty("initialTransactionCosts").GetDecimal());
+        Assert.Contains("fişi oluşturmaz", result.GetProperty("note").GetString(), StringComparison.OrdinalIgnoreCase);
+        var finalRow = Assert.Single(result.GetProperty("rows").EnumerateArray());
+        Assert.Equal(950m, finalRow.GetProperty("openingAmortizedCost").GetDecimal());
+        Assert.Equal(150m, finalRow.GetProperty("effectiveInterestExpense").GetDecimal());
+        Assert.Equal(1100m, finalRow.GetProperty("cashPayment").GetDecimal());
+        Assert.Equal(0m, finalRow.GetProperty("closingAmortizedCost").GetDecimal());
+
+        using var otherTenant = app.GetTestClient();
+        otherTenant.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var foreign = await otherTenant.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/effective-interest-preview", new { initialTransactionCosts = 0m });
+        Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
+        using var invalid = await client.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/effective-interest-preview", new { initialTransactionCosts = -1m });
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+
+    [Fact]
+    public async Task Security_alert_summary_is_tenant_scoped_bounded_and_excludes_released_securities()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(3));
+        var request = new CreditFacilitySecurityCreateRequest(CreditSecurityType.Guarantee, "ALERT-OLD", "Banka A", "Nexora Demo",
+            1000m, "TRY", 0m, today.AddDays(-30), today.AddDays(-1), null);
+        using var expiredCreate = await client.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/securities", request);
+        Assert.Equal(HttpStatusCode.Created, expiredCreate.StatusCode);
+        using var expiringCreate = await client.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/securities",
+            request with { Code = "ALERT-SOON", ExpiryDate = today.AddDays(5) });
+        Assert.Equal(HttpStatusCode.Created, expiringCreate.StatusCode);
+        using var releasedCreate = await client.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/securities",
+            request with { Code = "ALERT-RELEASED", ExpiryDate = today.AddDays(2) });
+        Assert.Equal(HttpStatusCode.Created, releasedCreate.StatusCode);
+        using var releasedJson = JsonDocument.Parse(await releasedCreate.Content.ReadAsStringAsync());
+        using var released = await client.PutAsJsonAsync(
+            $"/api/finance/credit-facilities/{FacilityA}/securities/{releasedJson.RootElement.GetProperty("id").GetGuid()}/status",
+            new CreditFacilitySecurityStatusRequest("Released"));
+        Assert.Equal(HttpStatusCode.NoContent, released.StatusCode);
+
+        using var summary = await client.GetAsync("/api/finance/credit-facilities/securities/alerts?expiryWithinDays=30");
+        Assert.Equal(HttpStatusCode.OK, summary.StatusCode);
+        using var summaryJson = JsonDocument.Parse(await summary.Content.ReadAsStringAsync());
+        Assert.Equal(1, summaryJson.RootElement.GetProperty("expiredCount").GetInt32());
+        Assert.Equal(1, summaryJson.RootElement.GetProperty("expiringCount").GetInt32());
+        var items = summaryJson.RootElement.GetProperty("items").EnumerateArray().ToArray();
+        Assert.Equal(2, items.Length);
+        Assert.Equal("ALERT-OLD", items[0].GetProperty("code").GetString());
+        Assert.Equal("Expired", items[0].GetProperty("alert").GetString());
+        Assert.Equal("ALERT-SOON", items[1].GetProperty("code").GetString());
+        Assert.Equal("Expiring", items[1].GetProperty("alert").GetString());
+
+        using var invalidRange = await client.GetAsync("/api/finance/credit-facilities/securities/alerts?expiryWithinDays=366");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidRange.StatusCode);
+        using var clientB = app.GetTestClient();
+        clientB.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var foreignSummary = await clientB.GetAsync("/api/finance/credit-facilities/securities/alerts");
+        using var foreignJson = JsonDocument.Parse(await foreignSummary.Content.ReadAsStringAsync());
+        Assert.Equal(0, foreignJson.RootElement.GetProperty("expiredCount").GetInt32());
+        Assert.Equal(0, foreignJson.RootElement.GetProperty("expiringCount").GetInt32());
+        Assert.Empty(foreignJson.RootElement.GetProperty("items").EnumerateArray());
     }
 
     [Theory]

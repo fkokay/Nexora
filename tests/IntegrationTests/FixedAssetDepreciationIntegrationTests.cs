@@ -30,7 +30,14 @@ public sealed class FixedAssetDepreciationIntegrationTests
             InServiceDate = new DateOnly(2025, 1, 1),
             AcquisitionCostBase = 1000m,
             ResidualValueBase = 0m,
-            UsefulLifeMonths = 3
+            UsefulLifeMonths = 3,
+            VukUsefulLifeCode = "TEST-VUK",
+            VukUsefulLifeDescription = "Test profile",
+            VukUsefulLifeTableYear = DateTime.UtcNow.Year,
+            VukUsefulLifeCommuniqueNumber = 1,
+            VukUsefulLifeMonths = 60,
+            VukNormalDepreciationRatePercent = 20m,
+            VukTaxDepreciationStartDate = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1).AddMonths(-1)
         };
         var databaseName = $"fixed-asset-depreciation-{Guid.NewGuid():N}";
         var builder = WebApplication.CreateBuilder();
@@ -46,6 +53,8 @@ public sealed class FixedAssetDepreciationIntegrationTests
 
         Guid expenseId;
         Guid accumulatedId;
+        Guid taxExpenseId;
+        Guid taxAccumulatedId;
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
@@ -55,12 +64,18 @@ public sealed class FixedAssetDepreciationIntegrationTests
                 new Tenant { Id = otherTenantId, Name = "Other tenant", Slug = $"depreciation-{otherTenantId:N}" });
             var expense = new LedgerAccount { TenantId = tenantId, Code = "FA-EXP", Name = "Depreciation expense" };
             var accumulated = new LedgerAccount { TenantId = tenantId, Code = "FA-ACC", Name = "Accumulated depreciation" };
+            var taxExpense = new LedgerAccount { TenantId = tenantId, Code = "FA-TAX-EXP", Name = "Tax depreciation expense" };
+            var taxAccumulated = new LedgerAccount { TenantId = tenantId, Code = "FA-TAX-ACC", Name = "Tax accumulated depreciation" };
             expenseId = expense.Id;
             accumulatedId = accumulated.Id;
-            db.LedgerAccounts.AddRange(expense, accumulated);
+            taxExpenseId = taxExpense.Id;
+            taxAccumulatedId = taxAccumulated.Id;
+            db.LedgerAccounts.AddRange(expense, accumulated, taxExpense, taxAccumulated);
             db.LedgerAccountMappings.AddRange(
                 new LedgerAccountMapping { TenantId = tenantId, MappingKey = LedgerMappingKeys.FixedAssetDepreciationExpense, AccountId = expense.Id },
-                new LedgerAccountMapping { TenantId = tenantId, MappingKey = LedgerMappingKeys.FixedAssetAccumulatedDepreciation, AccountId = accumulated.Id });
+                new LedgerAccountMapping { TenantId = tenantId, MappingKey = LedgerMappingKeys.FixedAssetAccumulatedDepreciation, AccountId = accumulated.Id },
+                new LedgerAccountMapping { TenantId = tenantId, MappingKey = LedgerMappingKeys.FixedAssetTaxDepreciationExpense, AccountId = taxExpense.Id },
+                new LedgerAccountMapping { TenantId = tenantId, MappingKey = LedgerMappingKeys.FixedAssetTaxAccumulatedDepreciation, AccountId = taxAccumulated.Id });
             db.FixedAssets.Add(asset);
             await db.SaveChangesAsync();
         }
@@ -106,6 +121,21 @@ public sealed class FixedAssetDepreciationIntegrationTests
         using var aprilBody = JsonDocument.Parse(await april.Content.ReadAsStringAsync());
         Assert.Equal(333.34m, aprilBody.RootElement.GetProperty("amountBase").GetDecimal());
 
+        var taxMonth = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+        using var taxPosting = await client.PostAsJsonAsync($"/api/fixed-assets/{asset.Id}/tax-depreciation-postings", new { periodStart = taxMonth.ToString("yyyy-MM-dd") });
+        Assert.Equal(HttpStatusCode.Created, taxPosting.StatusCode);
+        using var taxPostingBody = JsonDocument.Parse(await taxPosting.Content.ReadAsStringAsync());
+        Assert.Equal(16.67m, taxPostingBody.RootElement.GetProperty("amountBase").GetDecimal());
+        Assert.False(taxPostingBody.RootElement.GetProperty("isStatutoryFiling").GetBoolean());
+        using var duplicateTaxPosting = await client.PostAsJsonAsync($"/api/fixed-assets/{asset.Id}/tax-depreciation-postings", new { periodStart = taxMonth.ToString("yyyy-MM-dd") });
+        Assert.Equal(HttpStatusCode.Conflict, duplicateTaxPosting.StatusCode);
+        using var taxScheduleResponse = await client.GetAsync($"/api/fixed-assets/{asset.Id}/tax-depreciation-schedule?through={taxMonth.AddMonths(1).AddDays(-1):yyyy-MM-dd}");
+        Assert.Equal(HttpStatusCode.OK, taxScheduleResponse.StatusCode);
+        using var taxSchedule = JsonDocument.Parse(await taxScheduleResponse.Content.ReadAsStringAsync());
+        var postedTaxRow = taxSchedule.RootElement.GetProperty("rows").EnumerateArray().Single(row => row.GetProperty("periodStart").GetString() == taxMonth.ToString("yyyy-MM-dd"));
+        Assert.True(postedTaxRow.GetProperty("isPosted").GetBoolean());
+        Assert.Equal(16.67m, postedTaxRow.GetProperty("amountBase").GetDecimal());
+
         using var foreignClient = app.GetTestClient();
         foreignClient.DefaultRequestHeaders.Add("X-Test-Tenant", otherTenantId.ToString("D"));
         Assert.Equal(HttpStatusCode.NotFound, (await foreignClient.GetAsync($"/api/fixed-assets/{asset.Id}/depreciation-schedule")).StatusCode);
@@ -131,5 +161,17 @@ public sealed class FixedAssetDepreciationIntegrationTests
         Assert.Equal(3, depreciationJournals.Count);
         Assert.Equal(1000m, depreciationJournals.Sum(x => x.Lines.Sum(line => line.Debit)));
         Assert.Equal(1000m, depreciationJournals.Sum(x => x.Lines.Sum(line => line.Credit)));
+        var taxJournal = await verifyDb.JournalEntries.Include(x => x.Lines).SingleAsync(x => x.TenantId == tenantId &&
+            x.SourceType == "FixedAssetTaxDepreciation" && x.SourceId == TaxDepreciationSourceId(asset.Id, taxMonth));
+        Assert.Equal(16.67m, taxJournal.Lines.Sum(line => line.Debit));
+        Assert.Equal(taxExpenseId, taxJournal.Lines.Single(line => line.Debit > 0).AccountId);
+        Assert.Equal(taxAccumulatedId, taxJournal.Lines.Single(line => line.Credit > 0).AccountId);
+        Assert.Equal(1000m, (await verifyDb.FixedAssets.SingleAsync(x => x.TenantId == tenantId && x.Id == asset.Id)).AccumulatedDepreciationBase);
+    }
+
+    private static Guid TaxDepreciationSourceId(Guid assetId, DateOnly month)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{assetId:N}:{month:yyyy-MM}"));
+        return new Guid(hash.AsSpan(0, 16));
     }
 }

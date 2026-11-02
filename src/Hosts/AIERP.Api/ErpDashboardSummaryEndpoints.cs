@@ -47,8 +47,29 @@ internal static class ErpDashboardSummaryEndpoints
             var canReadPurchaseInvoices = await CanRead("erp.purchase-invoices.read", collectionRowsFiltered: true);
             var canReadWarehouses = await CanRead("erp.warehouses.read");
             var canReadStockItems = await CanRead("erp.stock-items.read");
+            var canReadManufacturing = await CanRead("erp.manufacturing.read");
 
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var utcNow = DateTimeOffset.UtcNow;
+            var today = DateOnly.FromDateTime(utcNow.UtcDateTime);
+            int? openManufacturingOrderCount = null;
+            int? plannedManufacturingOrderCount = null;
+            int? overdueManufacturingOrderCount = null;
+            int? completedManufacturingOrderCountThisMonth = null;
+            if (canReadManufacturing)
+            {
+                var activeOrders = db.ManufacturingOrders.AsNoTracking().Where(x => x.TenantId == tenantId
+                    && (x.Status == ManufacturingOrderStatus.Planned || x.Status == ManufacturingOrderStatus.Released));
+                openManufacturingOrderCount = await activeOrders.CountAsync(ct);
+                plannedManufacturingOrderCount = await activeOrders.CountAsync(x => x.Status == ManufacturingOrderStatus.Planned, ct);
+                overdueManufacturingOrderCount = await activeOrders.CountAsync(x => x.PlannedDate < today, ct);
+
+                var monthStartUtc = new DateTimeOffset(utcNow.Year, utcNow.Month, 1, 0, 0, 0, TimeSpan.Zero);
+                var nextMonthStartUtc = monthStartUtc.AddMonths(1);
+                completedManufacturingOrderCountThisMonth = await db.ManufacturingOrders.AsNoTracking()
+                    .CountAsync(x => x.TenantId == tenantId && x.Status == ManufacturingOrderStatus.Completed
+                        && x.CompletedAt >= monthStartUtc && x.CompletedAt < nextMonthStartUtc, ct);
+            }
+
             var currentMonth = new DateOnly(today.Year, today.Month, 1);
             var firstMonth = currentMonth.AddMonths(-5);
             var nextMonth = currentMonth.AddMonths(1);
@@ -221,7 +242,9 @@ internal static class ErpDashboardSummaryEndpoints
                 canReadSalesOrders, openSalesOrderCount, recentSalesOrders,
                 canReadPurchaseInvoices, monthlyPurchases,
                 canReadPurchaseOrders, openPurchaseOrderCount, openPurchaseTotals,
-                canReadInventory, inventoryValueBase, activeStockItemCount, activeWarehouseCount, topStockItems));
+                canReadInventory, inventoryValueBase, activeStockItemCount, activeWarehouseCount, topStockItems,
+                canReadManufacturing, openManufacturingOrderCount, plannedManufacturingOrderCount,
+                overdueManufacturingOrderCount, completedManufacturingOrderCountThisMonth));
         }).RequireAuthorization();
     }
 
@@ -244,7 +267,9 @@ public sealed record ErpDashboardSummaryView(string BaseCurrencyCode,
     bool CanReadPurchaseInvoices, IReadOnlyList<ErpDashboardMonthTotal> MonthlyPurchaseInvoices,
     bool CanReadPurchaseOrders, int? OpenPurchaseOrderCount, IReadOnlyList<ErpDashboardCurrencyTotal> OpenPurchaseOrderTotals,
     bool CanReadInventory, decimal? InventoryValueBase, int? ActiveStockItemCount, int? ActiveWarehouseCount,
-    IReadOnlyList<ErpDashboardStockItem> TopStockItems);
+    IReadOnlyList<ErpDashboardStockItem> TopStockItems,
+    bool CanReadManufacturing, int? OpenManufacturingOrderCount, int? PlannedManufacturingOrderCount,
+    int? OverdueManufacturingOrderCount, int? CompletedManufacturingOrderCountThisMonth);
 
 public sealed record ErpDashboardCurrencyTotal(string CurrencyCode, decimal Amount, int Count);
 public sealed record ErpDashboardMonthTotal(int Year, int Month, decimal Amount);

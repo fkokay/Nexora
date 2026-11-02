@@ -73,6 +73,7 @@ services:
       AIService__BaseUrl: http://ai-service:8080
       IntegrationQueue__EncryptionKey: ${INTEGRATION_QUEUE_ENCRYPTION_KEY:?Set INTEGRATION_QUEUE_ENCRYPTION_KEY in .env}
       AI__SettingsEncryptionKey: ${AI_SETTINGS_ENCRYPTION_KEY:-}
+      AI__LiveEvaluation__Enabled: ${AI_LIVE_EVALUATION_ENABLED:-false}
       Bootstrap__Email: ${BOOTSTRAP_EMAIL:-}
       Platform__SuperAdminEmail: ${PLATFORM_SUPER_ADMIN_EMAIL:-}
       Bootstrap__Password: ${BOOTSTRAP_PASSWORD:-}

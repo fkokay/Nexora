@@ -369,6 +369,22 @@ studio.MapPut("/{requestId:guid}", async (Guid requestId, UpdateRequest body, Cl
     await db.SaveChangesAsync();
     return Results.Ok(new RequestView(request.Id, request.Title, request.Description, request.Status, request.CreatedAt, request.ProjectId, project?.Name, true));
 });
+studio.MapDelete("/{requestId:guid}", async (Guid requestId, ClaimsPrincipal user, AIStudioDbContext db) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    var request = await db.DevelopmentRequests.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == requestId);
+    if (request is null) return Results.NotFound();
+    if (!user.IsInRole("TenantAdmin") && request.CreatedByUserId != userId) return Results.Forbid();
+    if (request.Status != "Submitted") return Results.Conflict(new { error = "Yalnızca henüz işleme alınmamış talepler silinebilir." });
+
+    var linkedWorkspaces = await db.DevelopmentWorkspaceRequests
+        .Where(x => x.TenantId == tenantId && x.DevelopmentRequestId == requestId).ToListAsync();
+    foreach (var workspace in linkedWorkspaces) workspace.DevelopmentRequestId = null;
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.request.deleted", Resource = request.Id.ToString() });
+    db.DevelopmentRequests.Remove(request);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
 var projects = app.MapGroup("/studio/projects").RequireAuthorization();
 app.MapGet("/studio/modules/active", async (ClaimsPrincipal user, PlatformDbContext platformDb, CancellationToken cancellationToken) =>
 {
@@ -1123,6 +1139,37 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         object? postBody = null;
         switch (name)
         {
+            case "search_general_ledger_accounts":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) || termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantLedgerAccountTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("General-ledger account search requires a 2–100 character term.");
+                if (!await ERPAssistantLedgerAccountTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+                path = QueryHelpers.AddQueryString("/api/finance/general-ledger/accounts/assistant-search", "term", term);
+                break;
+            }
+            case "search_general_ledger_account_balances":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 3 || !arguments.RootElement.TryGetProperty("term", out var termElement) || termElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.String ||
+                    !arguments.RootElement.TryGetProperty("to", out var toElement) || toElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantLedgerAccountTools.TryValidateBalanceQuery(termElement.GetString(), fromElement.GetString(), toElement.GetString(),
+                        out var term, out var from, out var to))
+                    throw new ArgumentException("General-ledger balance search requires a 2–100 character term and a valid period of at most 365 days.");
+                if (!await ERPAssistantLedgerAccountTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+                path = QueryHelpers.AddQueryString("/api/finance/general-ledger/accounts/assistant-balances", new Dictionary<string, string?>
+                {
+                    ["term"] = term, ["from"] = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                    ["to"] = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                });
+                break;
+            }
             case "search_stock_items":
             {
                 var props = arguments.RootElement.EnumerateObject().ToArray();
@@ -1474,6 +1521,24 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
                     throw new ERPAssistantAccessDeniedException(name);
 
                 path = QueryHelpers.AddQueryString("/api/manufacturing/orders/search", new Dictionary<string, string?>
+                {
+                    ["q"] = term
+                });
+                break;
+            }
+            case "search_manufacturing_work_centers":
+            {
+                var props = arguments.RootElement.EnumerateObject().ToArray();
+                if (props.Length != 1 || !arguments.RootElement.TryGetProperty("term", out var termElement) ||
+                    termElement.ValueKind != JsonValueKind.String ||
+                    !ERPAssistantWorkCenterTools.TryValidateSearchTerm(termElement.GetString(), out var term))
+                    throw new ArgumentException("Work-center search requires a 2–100 character term.");
+
+                if (!await ERPAssistantWorkCenterTools.IsReadAllowedAsync(tenantId, userId,
+                        user.FindFirstValue("role") ?? "", sourceAuthorizer, ct))
+                    throw new ERPAssistantAccessDeniedException(name);
+
+                path = QueryHelpers.AddQueryString("/api/manufacturing/work-centers/search", new Dictionary<string, string?>
                 {
                     ["q"] = term
                 });
@@ -2021,6 +2086,10 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
             customerAccountSelection.TryRememberUniqueSearchResult(result.RootElement);
             return JsonSerializer.Serialize(new { totalCount = result.RootElement.GetProperty("totalCount").GetInt32(), returned = items.Length, items });
         }
+        if (name == "search_general_ledger_accounts")
+            return ERPAssistantLedgerAccountTools.SummarizeAccounts(result.RootElement);
+        if (name == "search_general_ledger_account_balances")
+            return ERPAssistantLedgerAccountTools.SummarizeBalances(result.RootElement);
         if (name is "get_customer_balance" or "get_supplier_balance") return JsonSerializer.Serialize(result.RootElement);
         if (name == "get_exchange_rate")
         {
@@ -2075,6 +2144,7 @@ app.MapPost("/api/ai/erp-assistant", async (ERPAssistantQuestion body, ClaimsPri
         if (name == "search_purchase_invoices") return ERPAssistantInvoiceTools.SummarizePurchaseInvoices(result.RootElement);
         if (name == "search_purchase_invoice_details") return ERPAssistantInvoiceTools.SummarizePurchaseInvoiceDetails(result.RootElement);
         if (name == "search_manufacturing_orders") return ERPAssistantManufacturingTools.SummarizeOrders(result.RootElement);
+        if (name == "search_manufacturing_work_centers") return ERPAssistantWorkCenterTools.SummarizeSearchResult(result.RootElement);
         if (name == "search_sales_deliveries") return ERPAssistantSalesDeliveryTools.SummarizeDeliveries(result.RootElement);
         if (name == "get_sales_delivery_details") return ERPAssistantSalesDeliveryTools.SummarizeDeliveryDetails(result.RootElement);
         if (name == "search_purchase_receipts") return ERPAssistantPurchaseReceiptTools.SummarizeReceipts(result.RootElement);

@@ -2,7 +2,7 @@ namespace AIERP.Platform.Domain;
 
 public enum FixedAssetStatus { Active = 1, Disposed = 2 }
 
-/// <summary>Book asset record. Tax depreciation and statutory classifications are intentionally out of scope.</summary>
+/// <summary>Book asset record with an optional immutable accountant-confirmed tax-depreciation profile snapshot.</summary>
 public sealed class FixedAsset
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -20,6 +20,15 @@ public sealed class FixedAsset
     public decimal? VukDepreciationLowerLimitTry { get; set; }
     public int? VukCommuniqueNumber { get; set; }
     public string? VukSourceUrl { get; set; }
+    /// <summary>Accountant-selected VUK useful-life row, captured immutably with the acquisition.</summary>
+    public string? VukUsefulLifeCode { get; set; }
+    public string? VukUsefulLifeDescription { get; set; }
+    public int? VukUsefulLifeTableYear { get; set; }
+    public int? VukUsefulLifeCommuniqueNumber { get; set; }
+    public int? VukUsefulLifeMonths { get; set; }
+    public decimal? VukNormalDepreciationRatePercent { get; set; }
+    /// <summary>Accountant-approved tax depreciation commencement date for this asset class.</summary>
+    public DateOnly? VukTaxDepreciationStartDate { get; set; }
     public Guid? SupplierAccountId { get; set; }
     /// <summary>Optional purchase invoice that is the accounting source for this acquisition.</summary>
     public Guid? PurchaseInvoiceId { get; set; }

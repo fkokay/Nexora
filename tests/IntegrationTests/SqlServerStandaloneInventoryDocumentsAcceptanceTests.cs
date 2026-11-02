@@ -12,6 +12,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -23,12 +25,18 @@ namespace AIERP.Api.IntegrationTests;
 public sealed class SqlServerStandaloneInventoryDocumentsAcceptanceTests
 {
     [SqlServerAcceptanceFact]
-    public async Task Orderless_sales_delivery_and_purchase_receipt_post_idempotently_and_reverse_stock()
+    public Task Orderless_sales_delivery_and_purchase_receipt_post_idempotently_and_reverse_stock() => RunOrderlessFlowAsync(useMigrations: false);
+
+    [SqlServerAcceptanceFact]
+    public Task Orderless_sales_and_purchase_flow_works_after_tenant_schema_upgrade() => RunOrderlessFlowAsync(useMigrations: true);
+
+    private static async Task RunOrderlessFlowAsync(bool useMigrations)
     {
         var configuredConnection = Environment.GetEnvironmentVariable("AIERP_REPORT_TEST_SQL_CONNECTION_STRING");
         Assert.False(string.IsNullOrWhiteSpace(configuredConnection));
         var suffix = Guid.NewGuid().ToString("N");
-        var connection = DatabaseConnection(configuredConnection!, $"AIERP_OrderlessTenant_{suffix}");
+        var databaseName = $"AIERP_OrderlessTenant_{suffix}";
+        var connection = DatabaseConnection(configuredConnection!, databaseName);
         var tenantId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var tenant = new Tenant { Id = tenantId, Name = "Orderless acceptance", Slug = $"orderless-{tenantId:N}" };
@@ -41,8 +49,23 @@ public sealed class SqlServerStandaloneInventoryDocumentsAcceptanceTests
         var databaseCreated = false;
         try
         {
-            databaseCreated = await seed.Database.EnsureCreatedAsync();
-            Assert.True(databaseCreated);
+            if (useMigrations)
+            {
+                var masterConnection = DatabaseConnection(configuredConnection!, "master");
+                await using var sql = new SqlConnection(masterConnection);
+                await sql.OpenAsync();
+                await using var createDatabase = sql.CreateCommand();
+                // The identifier contains only our fixed prefix and a freshly generated GUID.
+                createDatabase.CommandText = $"CREATE DATABASE [{databaseName}]";
+                await createDatabase.ExecuteNonQueryAsync();
+                databaseCreated = true;
+                await seed.GetService<IMigrator>().MigrateAsync("20261031180715_AddCreditSecurityAlertDismissals");
+            }
+            else
+            {
+                databaseCreated = await seed.Database.EnsureCreatedAsync();
+                Assert.True(databaseCreated);
+            }
             seed.Tenants.Add(tenant);
             seed.CustomerAccounts.AddRange(customer, supplier);
             seed.Warehouses.Add(warehouse);
@@ -53,6 +76,17 @@ public sealed class SqlServerStandaloneInventoryDocumentsAcceptanceTests
                 Direction = InventoryDirection.Receipt, Quantity = 5m, UnitCostBase = 10m, Description = "Synthetic opening stock",
             });
             await seed.SaveChangesAsync();
+
+            if (useMigrations)
+            {
+                await seed.Database.MigrateAsync();
+                Assert.Empty(await seed.Database.GetPendingMigrationsAsync());
+                seed.ChangeTracker.Clear();
+                Assert.Equal("Customer", await seed.CustomerAccounts.AsNoTracking()
+                    .Where(x => x.TenantId == tenantId && x.Id == customer.Id).Select(x => x.Name).SingleAsync());
+                Assert.Equal(5m, await seed.InventoryTransactions.AsNoTracking()
+                    .Where(x => x.TenantId == tenantId && x.StockItemId == item.Id).SumAsync(x => x.Quantity));
+            }
 
             var builder = WebApplication.CreateBuilder();
             builder.WebHost.UseTestServer();
@@ -86,6 +120,27 @@ public sealed class SqlServerStandaloneInventoryDocumentsAcceptanceTests
             Assert.True(postDeliveryResponse.StatusCode == HttpStatusCode.OK, await postDeliveryResponse.Content.ReadAsStringAsync());
             using var replayDeliveryResponse = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{deliveryId}/post", new { });
             Assert.Equal(HttpStatusCode.OK, replayDeliveryResponse.StatusCode);
+            var invoiceRequest = new
+            {
+                invoiceDate = "2026-10-29",
+                lines = new[] { new { lineNumber = 1, unitPrice = 25m, discountPercent = 0m, vatPercent = 20m } },
+            };
+            using var createInvoiceResponse = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{deliveryId}/invoice", invoiceRequest);
+            Assert.True(createInvoiceResponse.StatusCode == HttpStatusCode.Created, await createInvoiceResponse.Content.ReadAsStringAsync());
+            using var invoiceJson = await JsonDocument.ParseAsync(await createInvoiceResponse.Content.ReadAsStreamAsync());
+            var invoiceId = invoiceJson.RootElement.GetProperty("id").GetGuid();
+            using var replayInvoiceResponse = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{deliveryId}/invoice", invoiceRequest);
+            Assert.Equal(HttpStatusCode.OK, replayInvoiceResponse.StatusCode);
+            using var replayInvoiceJson = await JsonDocument.ParseAsync(await replayInvoiceResponse.Content.ReadAsStreamAsync());
+            Assert.Equal(invoiceId, replayInvoiceJson.RootElement.GetProperty("id").GetGuid());
+            using var blockedVoidDeliveryResponse = await client.PostAsync($"/api/sales/standalone-deliveries/{deliveryId}/void", null);
+            Assert.Equal(HttpStatusCode.Conflict, blockedVoidDeliveryResponse.StatusCode);
+            var invoice = await seed.SalesInvoices.Include(x => x.Lines).SingleAsync(x => x.TenantId == tenantId && x.Id == invoiceId);
+            Assert.Equal(deliveryId, invoice.StandaloneDeliveryId);
+            Assert.Equal(60m, invoice.GrandTotal);
+            Assert.Equal(2m, invoice.Lines.Single().Quantity);
+            invoice.Status = SalesInvoiceStatus.Voided;
+            await seed.SaveChangesAsync();
             using var voidDeliveryResponse = await client.PostAsync($"/api/sales/standalone-deliveries/{deliveryId}/void", null);
             Assert.Equal(HttpStatusCode.OK, voidDeliveryResponse.StatusCode);
 

@@ -11,6 +11,253 @@ public static partial class HumanResourcesEndpoints
     public static void MapPayrollVoucherDraftEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/hr/payroll/runs").WithTags("İnsan Kaynakları").RequireAuthorization();
+        group.MapPost("/{id:guid}/calculations/{calculationId:guid}/post-voucher", async (
+            Guid id, Guid calculationId, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(user.FindFirstValue("tenant_id"), out var tenantId) ||
+                !Guid.TryParse(user.FindFirstValue("sub"), out var userId)) return Results.Forbid();
+            if (!string.Equals(user.FindFirstValue("role"), "TenantAdmin", StringComparison.Ordinal)) return Results.Forbid();
+
+            const string sourceType = "PayrollCalculation";
+            var run = await db.PayrollRunSnapshots.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            var calculation = await db.PayrollRunCalculations.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.RunId == id && x.Id == calculationId, ct);
+            if (run is null || calculation is null) return Results.NotFound();
+            var prior = await db.JournalEntries.AsNoTracking().Include(x => x.Lines)
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == sourceType && x.SourceId == calculationId, ct);
+            if (prior is not null) return Results.Ok(ToPostedVoucherView(prior));
+            if (calculation.Status != "Finalized")
+                return Results.Conflict(new { error = "Yevmiye kaydı için bordro hesabı önce ikinci yetkili onayından geçip kesinleşmelidir." });
+            if (calculation.RunSnapshotSha256 != run.SnapshotSha256 ||
+                !PayrollSnapshotHashMatches(run.SnapshotJson, run.SnapshotSha256) ||
+                !PayrollSnapshotHashMatches(calculation.ResultJson, calculation.ResultSha256))
+                return Results.Conflict(new { error = "Bordro girdisi veya sonuç özeti doğrulanamadı." });
+
+            PayrollFormulaResultEnvelope? envelope;
+            try { envelope = JsonSerializer.Deserialize<PayrollFormulaResultEnvelope>(calculation.ResultJson); }
+            catch (JsonException) { envelope = null; }
+            if (envelope is null || envelope.RunId != run.Id || envelope.RunSnapshotSha256 != run.SnapshotSha256 ||
+                envelope.IsOfficialPayrollResult || envelope.Employees.Count == 0)
+                return Results.Conflict(new { error = "Deftere aktarılabilir, doğrulanmış bir iç bordro sonucu bulunamadı." });
+
+            await using var transaction = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(ct)
+                : null;
+            if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId, ct)) return Results.NotFound();
+            prior = await db.JournalEntries.AsNoTracking().Include(x => x.Lines)
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == sourceType && x.SourceId == calculationId, ct);
+            if (prior is not null)
+            {
+                if (transaction is not null) await transaction.CommitAsync(ct);
+                return Results.Ok(ToPostedVoucherView(prior));
+            }
+
+            var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, run.PeriodEnd, ct);
+            if (closedPeriod is { } closed)
+                return Results.Conflict(new { error = $"{closed.FromDate:yyyy-MM-dd}–{closed.ToDate:yyyy-MM-dd} dönemi kapalı; bordro yevmiyesi kaydedilmedi." });
+
+            var accounts = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+                .ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase, ct);
+            var mappedNetPayId = await db.LedgerAccountMappings.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.MappingKey == LedgerMappingKeys.PayrollNetPayPayable)
+                .Select(x => (Guid?)x.AccountId).SingleOrDefaultAsync(ct);
+            var netPayAccount = mappedNetPayId is { } netPayId
+                ? await db.LedgerAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == netPayId && x.IsActive, ct)
+                : null;
+            if (netPayAccount is null || netPayAccount.StatementSection != LedgerAccountStatementSection.Liability)
+                return Results.Conflict(new { error = "Aktif borç hesabı sınıfındaki net ücret ödeme borcu eşlemesi eksik." });
+
+            var journalEntryId = Guid.NewGuid();
+            var lines = new List<JournalEntryLine>();
+            decimal debits = 0m, credits = 0m;
+            foreach (var employee in envelope.Employees)
+            {
+                if (employee.Components.Any(x => x.Amount < 0m || x.Amount > 1_000_000_000_000m || x.Unit != "TRY"))
+                    return Results.Conflict(new { error = "Bordro satırlarında geçersiz tutar veya TRY dışı birim var." });
+                var earnings = employee.Components.Where(x => x.Category == "earning").ToArray();
+                var deductions = employee.Components.Where(x => x.Category == "deduction").ToArray();
+                var employerCosts = employee.Components.Where(x => x.Category == "employerCost").ToArray();
+                var gross = Money(earnings.Sum(x => x.Amount));
+                var withheld = Money(deductions.Sum(x => x.Amount));
+                var net = Money(gross - withheld);
+                if (Money(employee.GrossEarnings) != gross || Money(employee.EmployeeDeductions) != withheld ||
+                    Money(employee.NetPay) != net || net < 0m)
+                    return Results.Conflict(new { error = "Çalışan brüt, kesinti ve net tutarları bordro kalemleriyle mutabık değil." });
+
+                foreach (var component in earnings)
+                {
+                    if (!TryMappedAccount(component, "accountingAccount", LedgerAccountStatementSection.Expense, out var account))
+                        return Results.Conflict(new { error = $"'{component.Label}' kazanç kalemi için etkin gider hesabı eşlemesi eksik veya geçersiz." });
+                    Add(account, employee.PersonnelCode, component.Label, Money(component.Amount), 0m);
+                }
+                foreach (var component in deductions)
+                {
+                    if (!TryMappedAccount(component, "accountingAccount", LedgerAccountStatementSection.Liability, out var account))
+                        return Results.Conflict(new { error = $"'{component.Label}' çalışan kesintisi için etkin borç hesabı eşlemesi eksik veya geçersiz." });
+                    Add(account, employee.PersonnelCode, component.Label, 0m, Money(component.Amount));
+                }
+                foreach (var component in employerCosts)
+                {
+                    if (!TryMappedAccount(component, "accountingAccount", LedgerAccountStatementSection.Expense, out var expense) ||
+                        !TryMappedAccount(component, "employerLiabilityAccount", LedgerAccountStatementSection.Liability, out var liability))
+                        return Results.Conflict(new { error = $"'{component.Label}' işveren maliyeti için etkin gider ve borç hesabı eşlemeleri eksik veya geçersiz." });
+                    Add(expense, employee.PersonnelCode, component.Label + " · işveren gideri", Money(component.Amount), 0m);
+                    Add(liability, employee.PersonnelCode, component.Label + " · işveren borcu", 0m, Money(component.Amount));
+                }
+                Add(netPayAccount, employee.PersonnelCode, "Net ücret ödeme borcu", 0m, net);
+            }
+
+            if (debits <= 0m || debits != credits)
+                return Results.Conflict(new { error = $"Bordro fişi dengelenmedi (borç {debits:N2}, alacak {credits:N2}); hesap eşlemelerini ve formül kalemlerini inceleyin." });
+
+            var entry = new JournalEntry
+            {
+                Id = journalEntryId,
+                TenantId = tenantId,
+                Code = $"PAY-{calculation.Id:N}",
+                EntryDate = run.PeriodEnd,
+                Description = $"İç bordro yevmiyesi · {run.PeriodStart:yyyy-MM}",
+                SourceType = sourceType,
+                SourceId = calculation.Id,
+                CreatedByUserId = userId,
+                Lines = lines
+            };
+            db.JournalEntries.Add(entry);
+            db.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = tenantId, UserId = userId,
+                Action = "hr.payroll-run.accounting-voucher-posted",
+                Resource = $"{run.Id:D}/{calculation.Id:D}/{calculation.ResultSha256}/{entry.Id:D}"
+            });
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                if (transaction is not null) await transaction.CommitAsync(ct);
+            }
+            catch (DbUpdateException)
+            {
+                if (transaction is not null) await transaction.RollbackAsync(ct);
+                var raced = await db.JournalEntries.AsNoTracking().Include(x => x.Lines)
+                    .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == sourceType && x.SourceId == calculationId, ct);
+                if (raced is not null) return Results.Ok(ToPostedVoucherView(raced));
+                throw;
+            }
+            return Results.Created($"/api/finance/general-ledger/entries/{entry.Id:D}", ToPostedVoucherView(entry, idempotent: false));
+
+            bool TryMappedAccount(PayrollFormulaComponentResult component, string mappingType,
+                LedgerAccountStatementSection section, out LedgerAccount account)
+            {
+                account = null!;
+                return component.MappingCodes.TryGetValue(mappingType, out var code) &&
+                    !string.IsNullOrWhiteSpace(code) && !StringComparer.OrdinalIgnoreCase.Equals(code, "EXCLUDED") &&
+                    accounts.TryGetValue(code, out account!) && account.StatementSection == section;
+            }
+
+            void Add(LedgerAccount account, string personnelCode, string description, decimal debit, decimal credit)
+            {
+                if (debit == 0m && credit == 0m) return;
+                debits += debit;
+                credits += credit;
+                lines.Add(new JournalEntryLine
+                {
+                    TenantId = tenantId, JournalEntryId = journalEntryId, AccountId = account.Id,
+                    LineNumber = lines.Count + 1, Description = $"{personnelCode} · {description}"[..Math.Min(240, personnelCode.Length + description.Length + 3)],
+                    Debit = debit, Credit = credit
+                });
+            }
+        });
+
+        group.MapPost("/{id:guid}/calculations/{calculationId:guid}/reverse-voucher", async (
+            Guid id, Guid calculationId, ManualJournalEntryReverseRequest request, ClaimsPrincipal user,
+            TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(user.FindFirstValue("tenant_id"), out var tenantId) ||
+                !Guid.TryParse(user.FindFirstValue("sub"), out var userId) ||
+                !string.Equals(user.FindFirstValue("role"), "TenantAdmin", StringComparison.Ordinal)) return Results.Forbid();
+            var reason = request.Reason?.Trim() ?? string.Empty;
+            if (reason.Length is 0 or > 240)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["reason"] = ["Ters kayıt gerekçesi 1–240 karakter olmalıdır."] });
+
+            var run = await db.PayrollRunSnapshots.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            var calculation = await db.PayrollRunCalculations.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.RunId == id && x.Id == calculationId, ct);
+            if (run is null || calculation is null) return Results.NotFound();
+            if (calculation.Status != "Finalized")
+                return Results.Conflict(new { error = "Yalnızca kesinleşmiş iç bordro yevmiyesi ters çevrilebilir." });
+
+            await using var transaction = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(ct)
+                : null;
+            if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId, ct)) return Results.NotFound();
+            var original = await db.JournalEntries.Include(x => x.Lines)
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == "PayrollCalculation" && x.SourceId == calculationId, ct);
+            if (original is null) return Results.Conflict(new { error = "Bu kesinleşmiş bordro sonucu için yevmiye kaydı bulunamadı." });
+
+            var existing = await db.JournalEntries.AsNoTracking().Include(x => x.Lines)
+                .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == "ManualReversal" && x.SourceId == original.Id, ct);
+            if (existing is not null)
+            {
+                if (transaction is not null) await transaction.CommitAsync(ct);
+                return Results.Ok(ToPostedVoucherView(existing));
+            }
+            if (request.EntryDate < original.EntryDate)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["entryDate"] = ["Ters kayıt tarihi asıl bordro fişinden önce olamaz."] });
+            var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.EntryDate, ct);
+            if (closedPeriod is { } closed)
+                return Results.Conflict(new { error = $"{closed.FromDate:yyyy-MM-dd}–{closed.ToDate:yyyy-MM-dd} dönemi kapalı; bordro ters kaydı eklenmedi." });
+            if (original.Lines.Count < 2)
+                return Results.Conflict(new { error = "Ters çevrilecek bordro fişinde yeterli yevmiye satırı bulunamadı." });
+
+            var reversalId = Guid.NewGuid();
+            var description = $"Bordro ters kayıt · {original.Code} · {reason}";
+            if (description.Length > 240) description = description[..240];
+            var reversal = new JournalEntry
+            {
+                Id = reversalId,
+                TenantId = tenantId,
+                Code = $"YV-{reversalId:N}",
+                EntryDate = request.EntryDate,
+                Description = description,
+                SourceType = "ManualReversal",
+                SourceId = original.Id,
+                CreatedByUserId = userId,
+                Lines = original.Lines.OrderBy(x => x.LineNumber).Select(line => new JournalEntryLine
+                {
+                    TenantId = tenantId,
+                    JournalEntryId = reversalId,
+                    AccountId = line.AccountId,
+                    LineNumber = line.LineNumber,
+                    Description = description,
+                    Debit = line.Credit,
+                    Credit = line.Debit
+                }).ToList()
+            };
+            db.JournalEntries.Add(reversal);
+            db.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                Action = "hr.payroll-run.accounting-voucher-reversed",
+                Resource = $"{run.Id:D}/{calculation.Id:D}/{original.Id:D}/{reversal.Id:D}/{reason}"
+            });
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                if (transaction is not null) await transaction.CommitAsync(ct);
+            }
+            catch (DbUpdateException)
+            {
+                if (transaction is not null) await transaction.RollbackAsync(ct);
+                var raced = await db.JournalEntries.AsNoTracking().Include(x => x.Lines)
+                    .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == "ManualReversal" && x.SourceId == original.Id, ct);
+                if (raced is not null) return Results.Ok(ToPostedVoucherView(raced));
+                throw;
+            }
+            return Results.Created($"/api/finance/general-ledger/entries/{reversal.Id:D}", ToPostedVoucherView(reversal, idempotent: false));
+        });
+
         group.MapGet("/{id:guid}/calculations/{calculationId:guid}/voucher-draft", async (
             Guid id, Guid calculationId, ClaimsPrincipal user, IPlatformPermissionAuthorizer authorizer,
             TenantDbContext db, CancellationToken ct) =>
@@ -125,4 +372,21 @@ public static partial class HumanResourcesEndpoints
             }
         });
     }
+
+    private static decimal Money(decimal value) => decimal.Round(value, 2, MidpointRounding.AwayFromZero);
+
+    private static object ToPostedVoucherView(JournalEntry entry, bool idempotent = true) => new
+    {
+        journalEntryId = entry.Id,
+        entry.Code,
+        entry.EntryDate,
+        entry.Description,
+        entry.SourceType,
+        entry.SourceId,
+        totalDebit = entry.Lines.Sum(x => x.Debit),
+        totalCredit = entry.Lines.Sum(x => x.Credit),
+        lineCount = entry.Lines.Count,
+        idempotent,
+        officialPayrollResult = false
+    };
 }

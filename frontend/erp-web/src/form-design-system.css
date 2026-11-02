@@ -1,0 +1,474 @@
+/* Shared ERP form layout: grouped cards, stable field rhythm and visible focus. */
+.app-shell:not(.standalone-studio) :is(.customer-create-modal,.customer-edit-modal){width:min(1560px,calc(100vw - 48px));height:calc(100dvh - 32px);max-height:calc(100dvh - 32px);padding:22px 26px 18px;border:1px solid var(--nexora-border);border-radius:6px;background:#fff;box-shadow:none}
+.app-shell:not(.standalone-studio) :is(.customer-create-modal,.customer-edit-modal)>.modal-head h2{color:var(--nexora-navy);font-size:25px}
+.app-shell:not(.standalone-studio) :is(.customer-create-modal,.customer-edit-modal)>.modal-head .eyebrow{color:var(--nexora-muted)}
+.app-shell:not(.standalone-studio) :is(.customer-create-modal,.customer-edit-modal)>.modal-sub{color:var(--nexora-muted);font-size:13px}
+.app-shell:not(.standalone-studio) :is(.customer-create-fields,.customer-edit-fields){grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:14px;overflow:auto}
+.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section){min-width:0;padding:15px 16px 17px;border:1px solid var(--nexora-border);border-radius:6px;background:#fff;gap:13px}
+.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) legend{padding:0 5px;color:var(--nexora-navy);font:700 15px/1.3 Inter,system-ui,sans-serif}
+.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section)>label,.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) .form-two>label{gap:6px;color:#24364D;font-size:12px;font-weight:600}
+.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) :is(input,select,textarea){min-height:40px;padding:0 10px;border:1px solid #C9D2DF;border-radius:5px;background:#fff;color:var(--nexora-text);font-size:13px;box-shadow:none}
+.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) textarea{min-height:78px;padding:10px;resize:vertical}
+.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) :is(input,select,textarea):focus{outline:0;border-color:var(--nexora-blue);box-shadow:0 0 0 2px #2563EB22}
+.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) :is(input,select,textarea):user-invalid{border-color:#DC2626}
+.app-shell:not(.standalone-studio) .customer-create-section .form-two,.app-shell:not(.standalone-studio) .customer-edit-section .form-two{gap:12px 16px}
+.app-shell:not(.standalone-studio) .customer-create-section small,.app-shell:not(.standalone-studio) .customer-edit-section small{font-size:11px;color:var(--nexora-muted)}
+.app-shell:not(.standalone-studio) .customer-create-form>.modal-foot,.app-shell:not(.standalone-studio) .customer-edit-footer{padding:13px 0 0;border-top:1px solid var(--nexora-border)}
+.app-shell:not(.standalone-studio) .customer-create-form>.modal-foot .primary,.app-shell:not(.standalone-studio) .customer-edit-footer .primary{min-height:42px;padding:0 18px;background:var(--nexora-gold);border:1px solid #DBA927;border-radius:5px;color:var(--nexora-navy);box-shadow:none;font-weight:700}
+.app-shell:not(.standalone-studio) .customer-create-form>.modal-foot .secondary,.app-shell:not(.standalone-studio) .customer-edit-footer .secondary{min-height:42px;border-radius:5px}
+.customer-create-form{gap:14px}
+.customer-create-tabs{display:flex;align-items:center;gap:4px;min-height:42px;overflow:auto;border-bottom:1px solid var(--nexora-border)}
+.customer-create-tabs button{height:42px;flex:none;padding:0 14px;border:0;border-bottom:3px solid transparent;background:#fff;color:#42536B;font-size:12px;font-weight:600;white-space:nowrap}
+.customer-create-tabs button[aria-current=page]{border-bottom-color:var(--nexora-gold);color:var(--nexora-navy)}
+@media(max-width:760px){.app-shell:not(.standalone-studio) :is(.customer-create-modal,.customer-edit-modal){width:calc(100vw - 16px);height:calc(100dvh - 16px);max-height:calc(100dvh - 16px);padding:16px}.app-shell:not(.standalone-studio) :is(.customer-create-fields,.customer-edit-fields){grid-template-columns:minmax(0,1fr)}.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) .form-two{grid-template-columns:minmax(0,1fr)}}.app-shell:not(.standalone-studio) .modal-backdrop:has(.inventory-item-form-modal){position:fixed;inset:102px 0 0;z-index:35;display:flex;align-items:stretch;justify-content:center;padding:10px 18px;background:#F8F9FA!important;backdrop-filter:none!important}
+.app-shell:not(.standalone-studio) .inventory-item-form-modal{width:min(1560px,100%);height:100%;max-height:100%;overflow:auto;padding:0 20px 16px;border:1px solid var(--nexora-border);border-radius:6px;background:#fff;box-shadow:none}
+.app-shell:not(.standalone-studio) .inventory-item-form-modal>.modal-head{position:sticky;top:0;z-index:2;margin:0 -20px 16px;padding:14px 20px;background:#fff;border-bottom:1px solid var(--nexora-border)}
+.app-shell:not(.standalone-studio) .inventory-item-form-modal>.modal-head h2{color:var(--nexora-navy);font-size:22px}
+.app-shell:not(.standalone-studio) .inventory-item-form-modal form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:14px 20px}
+.app-shell:not(.standalone-studio) .inventory-item-form-modal form>.form-two{display:contents}
+.app-shell:not(.standalone-studio) .inventory-item-form-modal form>label{display:grid;align-content:start;gap:6px;color:#24364D;font-size:12px;font-weight:600}
+.app-shell:not(.standalone-studio) .inventory-item-form-modal form :is(input,select,textarea){width:100%;min-height:40px;padding:0 10px;border:1px solid #C9D2DF;border-radius:5px;background:#fff;color:var(--nexora-text);font-size:13px;box-shadow:none}
+.app-shell:not(.standalone-studio) .inventory-item-form-modal form :is(input,select,textarea):focus{outline:0;border-color:var(--nexora-blue);box-shadow:0 0 0 2px #2563EB22}
+.app-shell:not(.standalone-studio) .inventory-item-form-modal form>section.panel{grid-column:1/-1;margin:0!important;padding:14px;border:1px solid var(--nexora-border);border-radius:6px;background:#fff;box-shadow:none}
+.app-shell:not(.standalone-studio) .inventory-item-form-modal .modal-foot{grid-column:1/-1;align-items:center;border-top:1px solid var(--nexora-border)}
+.app-shell:not(.standalone-studio) .inventory-item-form-modal .modal-foot .primary{background:var(--nexora-gold);color:var(--nexora-navy);border-radius:5px;box-shadow:none}
+@media(max-width:720px){.app-shell:not(.standalone-studio) .modal-backdrop:has(.inventory-item-form-modal){inset:102px 0 0;padding:5px}.app-shell:not(.standalone-studio) .inventory-item-form-modal form{grid-template-columns:minmax(0,1fr)}.app-shell:not(.standalone-studio) .inventory-item-form-modal form>section.panel,.app-shell:not(.standalone-studio) .inventory-item-form-modal .modal-foot{grid-column:1}}
+
+/* Customer creation is a workspace page, styled after the standard ERP form reference. */
+.app-shell:not(.standalone-studio) .customer-create-page {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 16px clamp(16px, 2.6vw, 34px) 30px;
+  overflow: visible;
+  background: #f6f8fb;
+  color: #0a192f;
+}
+.customer-create-breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  width: min(1600px, 100%);
+  margin: 0 auto 14px;
+  color: #687990;
+  font-size: 12px;
+}
+.customer-create-breadcrumbs b { color: #172b45; font-weight: 700; }
+.customer-create-page-surface {
+  box-sizing: border-box;
+  display: block;
+  width: min(1600px, 100%);
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  margin: 0 auto;
+  padding: 0;
+  overflow: visible;
+  border: 1px solid #dce4ed;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: none;
+}
+.customer-create-page-heading {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-width: 0;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+}
+.customer-create-page-heading::before {
+  position: absolute;
+  inset: 16px auto 16px 0;
+  width: 5px;
+  border-radius: 0 4px 4px 0;
+  background: #f6c23e;
+  content: '';
+}
+.customer-create-page-title { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.customer-create-page-icon { display: grid; width: 52px; height: 52px; place-items: center; flex: none; border-radius: 11px; background: #fff2c5; color: #0a192f; }
+.customer-create-page-title .eyebrow { margin: 0 0 4px; color: #1672b8; font-size: 9px; font-weight: 750; letter-spacing: .1em; }
+.customer-create-page-title h1 { margin: 0 0 4px; color: #0a192f; font: 750 clamp(22px, 2vw, 28px)/1.2 Manrope, Inter, sans-serif; letter-spacing: -.035em; }
+.customer-create-page-title p:last-child { margin: 0; color: #64748b; font-size: 12px; line-height: 1.5; }
+.customer-create-page-actions { display: flex; align-items: center; justify-content: flex-end; flex: none; flex-wrap: wrap; gap: 8px; }
+.customer-create-page-actions button { min-height: 40px; border-radius: 6px; font-size: 12px; }
+.customer-create-page-actions .primary { border-color: #e5b52e; background: #f6c23e; color: #0a192f; }
+.customer-create-page-error { margin: 12px 20px 0; }
+.customer-create-form { display: flex; flex: none; min-width: 0; min-height: 0; flex-direction: column; gap: 0; }
+.customer-create-tabs {
+  position: relative;
+  min-height: 50px;
+  padding: 0 20px;
+  border-bottom: 1px solid #dce4ed;
+  background: #fff;
+}
+.customer-create-tabs button { height: 50px; padding: 0 18px; color: #334155; font-size: 12px; }
+.customer-create-tabs button[aria-current="page"] { border-bottom-width: 3px; border-bottom-color: #f6c23e; color: #0a192f; font-weight: 700; }
+.customer-create-fields {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+  padding: 18px 20px;
+  overflow: visible;
+  background: #f7f9fc;
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { overflow: visible; }
+.app-shell:not(.standalone-studio) .inventory-create-page { width: 100%; padding: 12px 0 24px; }
+.app-shell:not(.standalone-studio) .inventory-create-page .customer-create-page-surface { width: 100%; max-width: none; }
+.app-shell:not(.standalone-studio) .inventory-create-page .customer-create-fields { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: clamp(16px, 2vw, 28px); }
+.app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section { min-height: 220px; }
+.app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section .form-two { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+.app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section .inventory-create-wide { grid-column: 1 / -1; }
+.app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section legend { display: flex; align-items: center; gap: 9px; }
+.app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section legend svg { color: #1768c4; }
+.app-shell:not(.standalone-studio) .inventory-item-create-fields--inventory .inventory-create-section { max-width: 980px; }
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections { display: grid; gap: 16px; }
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel { margin: 0; padding: 16px; border: 1px solid #d5dfeb; border-radius: 9px; background: #fff; }
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections .panel-heading { margin: -16px -16px 16px; padding: 13px 16px; border-bottom: 1px solid #e6edf5; }
+.app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid #d5dfeb; background: #fff; }
+.app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer > span { display: flex; align-items: center; gap: 7px; color: #64748b; font-size: 11px; }
+.app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer > div { display: flex; gap: 8px; }
+.app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer button { min-height: 40px; border-radius: 6px; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer { border-color: #30394d; background: #171d2b; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections .panel-heading { border-color: #30394d; }
+@media (max-width: 760px) {
+  .app-shell:not(.standalone-studio) .inventory-create-page { padding: 10px 10px 20px; }
+  .app-shell:not(.standalone-studio) .inventory-create-page .customer-create-fields { padding: 12px; }
+  .app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section .form-two { grid-template-columns: minmax(0, 1fr); }
+  .app-shell:not(.standalone-studio) .inventory-create-page .inventory-create-section .inventory-create-wide { grid-column: auto; }
+  .app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer { align-items: flex-start; flex-direction: column; }
+  .app-shell:not(.standalone-studio) .inventory-item-create-form .customer-create-form-footer > div { align-self: flex-end; }
+}
+
+/* Stock card unit conversion fields */
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .panel-heading > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .panel-heading b {
+  color: #24364d;
+  font-size: 13px;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .panel-heading small {
+  display: block;
+  color: #718096;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .form-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px 20px;
+  min-width: 0;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .form-two > label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  color: #24364d;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .form-two > label > input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e6edf5;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .modal-foot > span {
+  color: #718096;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .requests-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .requests-list > .empty-small {
+  padding: 18px 14px;
+  border: 1px dashed #d7e1ec;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #718096;
+  text-align: center;
+  font-size: 11px;
+}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .panel-heading b,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .form-two > label { color: #c7d1df; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .modal-foot { border-color: #30394d; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .requests-list > .empty-small { border-color: #39465c; background: #171d2b; color: #a5b2c4; }
+@media (max-width: 760px) {
+  .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .form-two { grid-template-columns: minmax(0, 1fr); }
+  .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .modal-foot { align-items: stretch; }
+  .app-shell:not(.standalone-studio) .inventory-create-extra-sections > .panel > .modal-foot > button { align-self: flex-end; }
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section {
+  box-sizing: border-box;
+  display: grid;
+  align-content: start;
+  gap: 13px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 16px 16px;
+  border: 1px solid #dce4ed;
+  border-radius: 8px;
+  background: #fff;
+  scroll-margin-top: 120px;
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% + 32px);
+  margin-left: -16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #edf1f6;
+  background: #f4f7fb;
+  color: #172b45;
+  font: 700 14px/1.3 Manrope, Inter, sans-serif;
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section legend svg { flex: none; color: #1768c4; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section>p { margin: 0; color: #64748b; font-size: 11px; line-height: 1.5; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section>label,
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .form-two>label { display: grid; align-content: start; gap: 6px; min-width: 0; color: #24364d; font-size: 11px; font-weight: 600; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section>label,
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .form-two>label { position: relative; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .optional-label { position: absolute; top: 0; right: 0; line-height: 14px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section :is(input, select, textarea) { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; padding: 0 10px; border: 1px solid #c9d2df; border-radius: 6px; background: #fff; color: #172b45; font-size: 12px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section textarea { min-height: 82px; padding: 10px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section :is(input, select, textarea):focus { outline: 0; border-color: #287fc2; box-shadow: 0 0 0 3px #287fc21c; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .form-two { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section small,
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .optional-label { color: #8391a4; font-size: 10px; font-weight: 400; }
+html[data-theme="dark"] .customer-create-page { background: #111827; color: #e6edf5; }
+html[data-theme="dark"] .customer-create-breadcrumbs { color: #a9b7c9; }
+html[data-theme="dark"] .customer-create-breadcrumbs b,
+html[data-theme="dark"] .customer-create-page-title h1 { color: #edf3fb; }
+html[data-theme="dark"] .customer-create-page-surface,
+html[data-theme="dark"] .customer-create-page-heading,
+html[data-theme="dark"] .customer-create-tabs { border-color: #30394d; background: #171d2b; }
+html[data-theme="dark"] .customer-create-page-title>div>p:last-child { color: #a9b7c9; }
+html[data-theme="dark"] .customer-create-page-icon { background: #3b321b; color: #ffd76a; }
+html[data-theme="dark"] .customer-create-fields { background: #111827; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section { border-color: #30394d; background: #171d2b; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section legend { border-color: #30394d; background: #20293a; color: #e6edf5; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section legend svg { color: #8fc5f4; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section>label,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .form-two>label { color: #c7d1df; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section :is(input, select, textarea) { border-color: #3a4559; background: #111827; color: #edf3fb; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section small,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .optional-label { color: #9aa9bd; }
+@media (max-width: 760px) {
+  .app-shell:not(.standalone-studio) .customer-create-page { padding: 12px 12px 24px; }
+  .customer-create-page-heading { align-items: flex-start; flex-direction: column; padding: 16px; }
+  .customer-create-page-actions { width: 100%; }
+  .customer-create-page-actions button { flex: 1; justify-content: center; }
+  .customer-create-tabs { padding: 0 10px; }
+  .customer-create-tabs button { padding: 0 12px; }
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { grid-template-columns: minmax(0, 1fr); padding: 12px; overflow: visible; }
+}
+
+/* Cari kartı tanımlama: form alanlarını daha belirgin ve dengeli bir düzene al. */
+.app-shell:not(.standalone-studio) .customer-create-page-surface {
+  border-color: #d5dfeb;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20, 42, 68, .045);
+}
+.app-shell:not(.standalone-studio) .customer-create-page-heading {
+  padding: 20px 24px;
+  border-radius: 10px 10px 0 0;
+}
+.app-shell:not(.standalone-studio) .customer-create-page-icon {
+  width: 56px;
+  height: 56px;
+  border: 1px solid #f2dfa0;
+  background: linear-gradient(145deg, #fff5d5, #ffedb0);
+  color: #9a6a00;
+}
+.app-shell:not(.standalone-studio) .customer-create-page-actions .primary {
+  box-shadow: 0 2px 5px rgba(170, 123, 0, .14);
+}
+.app-shell:not(.standalone-studio) .customer-create-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-inline: 20px;
+}
+.app-shell:not(.standalone-studio) .customer-create-tabs button {
+  position: relative;
+  margin-bottom: -1px;
+  border-radius: 7px 7px 0 0;
+  transition: color .15s ease, background .15s ease;
+}
+.app-shell:not(.standalone-studio) .customer-create-tabs button:hover { background: #f7f9fc; color: #1768b5; }
+.app-shell:not(.standalone-studio) .customer-create-tabs button[aria-current="page"] { background: #fffaf0; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { gap: 16px; padding: 20px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  background: #fff;
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-tabs button { flex: 0 0 auto; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section { scroll-margin-top: 64px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .form-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section {
+  gap: 14px;
+  padding: 0 18px 18px;
+  border-radius: 9px;
+  box-shadow: 0 1px 3px rgba(20, 42, 68, .025);
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section legend {
+  width: calc(100% + 36px);
+  margin-left: -18px;
+  padding: 13px 18px;
+  border-radius: 8px 8px 0 0;
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section :is(input, select, textarea) { border-radius: 7px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section :is(input, select, textarea):hover { border-color: #aebed0; }
+.app-shell:not(.standalone-studio) .customer-create-page-error { border-radius: 8px; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page-icon { border-color: #554a2b; background: #3b321b; color: #ffd76a; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-tabs button:hover,
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-tabs button[aria-current="page"] { background: #242b3b; }
+@media (max-width: 760px) {
+  .app-shell:not(.standalone-studio) .customer-create-page-heading { padding: 16px; }
+  .app-shell:not(.standalone-studio) .customer-create-tabs { flex-wrap: nowrap; overflow-x: auto; }
+  .app-shell:not(.standalone-studio) .customer-create-tabs button { flex: 0 0 auto; padding-inline: 12px; }
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { padding: 14px; }
+}
+@media (min-width: 761px) and (max-width: 1120px) {
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .customer-create-breadcrumbs { gap: 6px; font-size: 10px; }
+  .customer-create-page-icon { width: 42px; height: 42px; }
+  .customer-create-page-title { gap: 11px; }
+  .customer-create-page-title h1 { font-size: 21px; }
+  .customer-create-tabs { overflow-x: auto; }
+  .customer-create-tabs button { padding: 0 10px; font-size: 11px; }
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section { padding: 0 12px 12px; }
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section legend { width: calc(100% + 24px); margin-left: -12px; padding: 10px 12px; }
+  .customer-create-section .form-two { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Full-width customer card form layout. */
+.app-shell:not(.standalone-studio) .customer-create-page {
+  width: 100%;
+  padding: 12px 0 24px;
+}
+.app-shell:not(.standalone-studio) .customer-create-page-surface {
+  width: 100%;
+  max-width: none;
+  border-radius: 8px;
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  padding: clamp(16px, 2vw, 28px);
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields--contact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields--contact .customer-create-section { height: 100%; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section .form-two { gap: 16px 20px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section { padding-bottom: 22px; }
+@media (max-width: 900px) {
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields--contact { grid-template-columns: minmax(0, 1fr); }
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields--contact .customer-create-section { height: auto; }
+}
+@media (max-width: 760px) {
+  .app-shell:not(.standalone-studio) .customer-create-page { padding: 10px 10px 20px; }
+  .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields { padding: 12px; }
+}
+
+/* Shared form group: floating legend participates in normal layout instead of
+   cutting a gap in the native fieldset outline. Use erp-form-group on new groups. */
+.app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group {
+  --form-group-border: #d5dfeb;
+  --form-group-heading: #f5f8fc;
+  --form-group-text: #183552;
+  --form-group-icon: #1768c4;
+  --form-group-inset: 18px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 var(--form-group-inset) 20px;
+  gap: 16px;
+  border: 1px solid var(--form-group-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: none;
+}
+.app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group > legend {
+  float: left;
+  position: static;
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: calc(100% + 2 * var(--form-group-inset));
+  max-width: none;
+  min-height: 48px;
+  margin: 0 calc(-1 * var(--form-group-inset));
+  padding: 12px var(--form-group-inset);
+  border: 0;
+  border-bottom: 1px solid var(--form-group-border);
+  border-radius: 9px 9px 0 0;
+  background: var(--form-group-heading);
+  color: var(--form-group-text);
+  box-shadow: none;
+  font: 600 14px/1.5 Inter, system-ui, sans-serif;
+}
+.app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group > legend svg {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--form-group-icon);
+}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group {
+  --form-group-border: #3a465b;
+  --form-group-heading: #20293a;
+  --form-group-text: #e6edf5;
+  --form-group-icon: #8fc5f4;
+  background: #182130;
+}
+@media (max-width: 520px) {
+  .app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group {
+    --form-group-inset: 14px;
+  }
+}

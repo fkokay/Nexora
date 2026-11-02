@@ -1,0 +1,86 @@
+/* Reference Studio shell. Colors are scoped so project dialogs keep their own layout. */
+.studio-ide-page.studio-file-explorer {
+  --studio-bg: #090e24;
+  --studio-panel: #10162c;
+  --studio-line: #283254;
+  --studio-text: #f2f4ff;
+  --studio-muted: #a8b0cc;
+  grid-template-columns: 60px clamp(240px, 20vw, 330px) minmax(0, 1fr);
+  grid-template-rows: 62px 0 auto auto minmax(0, 1fr) auto;
+  background: var(--studio-bg);
+  color: var(--studio-text);
+  font-family: Inter, 'DM Sans', system-ui, sans-serif;
+}
+.studio-ide-page.studio-file-explorer > .modal-head {padding: 10px 24px; border-bottom: 1px solid var(--studio-line); background: #090e20; color: var(--studio-text)}
+.studio-ide-page .studio-explorer-eyebrow {color: #f3f5ff; font-size: 12px; letter-spacing: 0; text-transform: none}
+.studio-ide-page .studio-explorer-eyebrow > svg {color: #ffca28}
+.studio-ide-page .studio-explorer-eyebrow > span {color: #9da8cd; font-size: 9px}
+.studio-ide-page #workspace-explorer-title {color: var(--studio-text)}
+.studio-ide-page .studio-explorer-branch {border-color: #313a5d; border-radius: 20px; background: #202742; color: #dddff6}
+.studio-ide-page .studio-workbench-tools {display: flex; gap: 8px; padding: 8px 12px; overflow-x: auto; border-bottom: 1px solid var(--studio-line); background: #0b1025}
+.studio-ide-page .studio-workbench-tools::before {display: none}
+.studio-ide-page .studio-workbench-group {display: flex; flex-wrap: wrap; align-content: start; gap: 7px; padding: 12px 15px; border: 1px solid #28365b; border-radius: 13px; background: linear-gradient(135deg, #131a33, #0c1226); box-shadow: inset 0 1px #ffffff05}
+.studio-ide-page .studio-workbench-group:last-child {flex: 1; border-right: 1px solid #28365b; padding-right: 15px}
+.studio-ide-page .studio-workbench-group > span {flex: 0 0 100%; margin: 0 0 1px; color: #bdc7e0; font-size: 10px; letter-spacing: .9px}
+.studio-ide-page .studio-workbench-group > button {min-height: 42px; padding: 0 13px; border: 1px solid #303a63; border-radius: 8px; background: linear-gradient(#222a49, #1b223c); color: #eef0ff; font-size: 12px; font-weight: 600; box-shadow: inset 0 1px #ffffff06}
+.studio-ide-page .studio-workbench-group > button > svg {color: #d6dbff}
+.studio-ide-page .studio-workbench-group > button:hover:not(:disabled) {border-color: #6571b6; background: #2a3456}
+.studio-ide-page .studio-workbench-group:first-child > button.is-active {border-color: #297ee2; background: linear-gradient(125deg, #1877d5, #2259bb); color: white}
+.studio-ide-page .studio-vscode-activity-bar {width: 60px; gap: 10px; padding-top: 18px; border-color: var(--studio-line); background: #10162a}
+.studio-ide-page .studio-vscode-activity-bar > button {width: 44px; height: 44px; border-left: 0; border-radius: 9px; color: #c7cee6}
+.studio-ide-page .studio-vscode-activity-bar > button.active {background: linear-gradient(135deg, #2679cc, #214b99); box-shadow: inset 0 1px #8cbaff5c; color: white}
+.studio-ide-page .studio-vscode-explorer-sidebar {background: linear-gradient(150deg, #0b1021, #11182c); border-right: 1px solid var(--studio-line); color: var(--studio-text)}
+.studio-ide-page .studio-vscode-explorer-heading {min-height: 86px; padding: 17px 16px; gap: 8px}
+.studio-ide-page .studio-vscode-explorer-heading > div > span {color: #aeb7d1; font-size: 10px; letter-spacing: 1px}
+.studio-ide-page .studio-vscode-explorer-heading > div > b {margin-top: 6px; color: white; font-size: 16px}
+.studio-ide-page .studio-vscode-explorer-actions {flex-direction: column; align-items: stretch}
+.studio-ide-page .studio-vscode-explorer-actions > button {min-height: 32px; padding-inline: 10px; border-color: #2878cd; background: #205cb3; color: white; font-size: 11px}
+.studio-ide-page .studio-vscode-explorer-actions > small {background: #222b47; color: #cbd3ec}
+.studio-ide-page .studio-vscode-tree-search {margin: 8px 16px 15px; min-height: 42px; padding-inline: 12px; border-color: #303a5b; border-radius: 8px; background: #20283f; color: #c7d1f0}
+.studio-ide-page .studio-vscode-tree-search input {font-size: 12px; color: white}
+.studio-ide-page .studio-vscode-tree {padding: 0 12px 16px; gap: 3px}
+.studio-ide-page .studio-vscode-tree-item {height: 30px; padding-inline: 9px; border-radius: 6px; color: #e8ecfc; font-size: 12px}
+.studio-ide-page .studio-vscode-tree-item.directory > svg:first-child {color: #ffca28}
+.studio-ide-page .studio-vscode-tree-item:hover:not(:disabled), .studio-ide-page .studio-vscode-tree-item.is-active {background: #202d50; color: white}
+.studio-ide-page .studio-vscode-main {background: var(--studio-bg); grid-template-rows: 42px 44px minmax(0, 1fr) auto}
+.studio-ide-page .studio-vscode-main:has(.studio-vscode-welcome) {grid-template-rows: 42px 0 minmax(0, 1fr) auto}
+.studio-ide-page .studio-vscode-main:has(.studio-vscode-welcome) > .studio-explorer-location {visibility: hidden; min-height: 0; padding: 0; border: 0; overflow: hidden}
+.studio-ide-page .studio-vscode-tab-strip {background: #0a1023; border-color: #3b387e}
+.studio-ide-page .studio-vscode-tab {border: 1px solid #3a3982; border-bottom: 0; border-radius: 11px 11px 0 0; background: linear-gradient(#33358b, #252769); color: white; font-size: 12px; font-weight: 600}
+.studio-ide-page .studio-vscode-tab-branch {color: #a5afd2}
+.studio-ide-page .studio-vscode-welcome {position: relative; display: flex; align-items: stretch; justify-content: center; gap: 28px; overflow: auto; padding: clamp(28px, 4vw, 70px); text-align: left; background: radial-gradient(ellipse at 85% 80%, #33239b35, transparent 60%), radial-gradient(ellipse at 0% 100%, #184eaf25, transparent 50%), #0a1025; color: #f0f2ff}
+.studio-welcome-hero {display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(210px, .85fr); align-items: center; gap: 10px; width: 100%; max-width: 1200px; margin-inline: auto}
+.studio-welcome-copy {min-width: 0}
+.studio-ide-page .studio-vscode-welcome-eyebrow {margin-bottom: 16px; font-size: 11px; letter-spacing: 2px; color: #ae85ff}
+.studio-ide-page .studio-vscode-welcome h1 {margin-bottom: 20px; font-size: clamp(26px, 2.6vw, 43px); line-height: 1.22; font-weight: 750; letter-spacing: -1.3px; color: #f5f6ff}
+.studio-ide-page .studio-vscode-welcome h1 span {color: #ffcb2d}
+.studio-welcome-copy > p:last-of-type {color: #aeb8d2; font-size: clamp(13px, 1.1vw, 17px); line-height: 1.65}
+.studio-welcome-illustration {width: 100%; max-width: 490px; height: auto; filter: drop-shadow(0 22px 35px #4330e32b)}
+.studio-ide-page .studio-vscode-welcome-actions {gap: 14px; flex-wrap: wrap; margin-top: 28px}
+.studio-ide-page .studio-vscode-welcome-actions > button {display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 48px; padding: 0 20px; border: 1px solid #8995b4; border-radius: 9px; background: #11182e; color: white; font-size: 13px; font-weight: 650}
+.studio-ide-page .studio-vscode-welcome-actions > button:first-child {border-color: #f4bb20; background: linear-gradient(120deg, #ffd333, #ffc01c); color: #111932; box-shadow: 0 5px 22px #f3ba1610}
+.studio-welcome-quick {width: 100%; max-width: 1200px; margin-inline: auto; border-top: 1px solid #3a446d; padding-top: 15px}
+.studio-welcome-quick h2 {margin: 0 0 16px; color: #e7ebfd; font-size: 14px; font-weight: 650}
+.studio-welcome-quick-grid {display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px}
+.studio-welcome-quick-grid > button {display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 80px; padding: 16px; border: 1px solid #2a3558; border-radius: 12px; background: linear-gradient(120deg, #202740, #1b2445); text-align: left; color: white; transition: border-color .15s, background .15s}
+.studio-welcome-quick-grid > button:hover:not(:disabled) {border-color: #7664c8; background: #293254}
+.studio-welcome-quick-grid > button:disabled {opacity: .45; cursor: wait}
+.studio-welcome-quick-grid > button > span:last-child {display: grid; gap: 7px; min-width: 0}
+.studio-welcome-quick-grid b {font-size: 12px; font-weight: 650}
+.studio-welcome-quick-grid small {color: #aeb8d2; font-size: 10px; line-height: 1.4}
+.studio-quick-icon {display: grid; place-items: center; flex: 0 0 42px; height: 42px; border-radius: 11px}
+.studio-quick-icon.gold {background: #e9b92816; color: #ffcc32}
+.studio-quick-icon.violet {background: #9365ed25; color: #bd91ff}
+.studio-quick-icon.green {background: #3ab98c18; color: #4bdeab}
+.studio-quick-icon.blue {background: #257ce724; color: #52adff}
+.studio-ide-page .studio-vscode-welcome-shortcuts {margin-top: 10px; gap: 16px}
+.studio-ide-page .studio-vscode-welcome-shortcuts > span {gap: 12px; padding: 0; border: 0; background: transparent; font-size: 11px}
+.studio-ide-page .studio-vscode-welcome-shortcuts kbd {padding: 7px 10px; border: 1px solid #333c60; border-radius: 6px; background: #202942; color: #e1e6fb; font-size: 11px}
+.studio-ide-page .studio-vscode-welcome-shortcuts small {color: #bdc6e0; font-size: 10px}
+.studio-ide-page .studio-vscode-statusbar {min-height: 30px; padding: 6px 15px; border-color: #333c6e; background: linear-gradient(90deg, #172443, #292464); color: #e0e6ff; font-size: 10px}
+.studio-ide-page button:focus-visible {outline: 2px solid #8cbcff; outline-offset: 3px}
+@media (max-width: 1350px) { .studio-welcome-quick-grid {grid-template-columns: repeat(2, minmax(0, 1fr))} .studio-ide-page .studio-vscode-welcome {gap: 22px; padding: 28px} .studio-welcome-hero {grid-template-columns: minmax(0, 1.1fr) minmax(180px, .8fr)} }
+@media (max-width: 960px) { .studio-ide-page.studio-file-explorer {grid-template-columns: 48px 220px minmax(0, 1fr)} .studio-ide-page .studio-vscode-activity-bar {width: 48px} .studio-welcome-hero {grid-template-columns: minmax(0, 1fr)} .studio-welcome-illustration {display: none} .studio-ide-page .studio-workbench-group {padding: 9px} .studio-ide-page .studio-workbench-group > button {min-height: 35px; font-size: 11px} }
+@media (max-width: 760px) { .studio-ide-page.studio-file-explorer {grid-template-columns: 44px minmax(0, 1fr); grid-template-rows: 62px 0 auto auto 180px minmax(450px, 1fr) auto; overflow-y: auto; grid-template-areas: 'header header' 'intro intro' 'tools tools' 'error error' 'activity sidebar' 'activity workbench' 'footer footer'} .studio-ide-page .studio-vscode-explorer-sidebar {min-height: 0; height: 180px; max-height: 180px} .studio-ide-page .studio-vscode-activity-bar {width: 44px} .studio-ide-page .studio-vscode-activity-bar > button {width: 36px; height: 38px} .studio-ide-page .studio-vscode-main {min-height: 450px} .studio-ide-page .studio-vscode-welcome {padding: 24px 18px; justify-content: start} .studio-ide-page .studio-workbench-group {flex-wrap: nowrap; align-items: center} .studio-ide-page .studio-workbench-group > span {flex-basis: auto; font-size: 9px} .studio-ide-page .studio-vscode-statusbar {flex-wrap: wrap; gap: 8px} }
+@media (max-width: 480px) { .studio-welcome-quick-grid {grid-template-columns: minmax(0, 1fr)} .studio-ide-page .studio-vscode-welcome-actions > button {width: 100%} }
+@media (prefers-reduced-motion: reduce) { .studio-ide-page * {scroll-behavior: auto; transition: none; animation: none} }

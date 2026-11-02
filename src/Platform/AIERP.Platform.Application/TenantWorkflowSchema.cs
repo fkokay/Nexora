@@ -46,10 +46,10 @@ public static partial class TenantWorkflowSchema
         && code.Trim().Length <= 40 && WorkflowCodeRegex().IsMatch(code.Trim());
 
     public static TenantWorkflowDecisionResult Decide(string status, IReadOnlyList<TenantWorkflowStep> steps, int currentStepIndex,
-        Guid actorUserId, Guid startedByUserId, string actorRole, string decision)
+        Guid actorUserId, Guid startedByUserId, string actorRole, string decision, bool allowRequesterDecision = false)
     {
         if (status != "Pending") return new(false, status, currentStepIndex, false, "Only pending workflows can be decided.");
-        if (actorUserId == startedByUserId) return new(false, status, currentStepIndex, false, "The requester cannot decide their own workflow.");
+        if (actorUserId == startedByUserId && !allowRequesterDecision) return new(false, status, currentStepIndex, false, "The requester cannot decide their own workflow.");
         if (steps.Count == 0 || currentStepIndex < 0 || currentStepIndex >= steps.Count)
             return new(false, status, currentStepIndex, false, "The current workflow step is invalid.");
         if (actorRole != "TenantAdmin" && actorRole != steps[currentStepIndex].ApproverRole)

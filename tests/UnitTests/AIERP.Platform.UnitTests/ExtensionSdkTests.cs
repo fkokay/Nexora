@@ -1228,6 +1228,21 @@ public sealed class ExtensionSdkTests
     }
 
     [Theory]
+    [InlineData("GET", "/api/location-definitions/admin", "/api/location-definitions/admin", "read")]
+    [InlineData("POST", "/api/location-definitions/provinces", "/api/location-definitions/provinces", "create")]
+    [InlineData("PUT", "/api/location-definitions/districts/12", "/api/location-definitions/districts/{id:int}", "update")]
+    public void PlatformPermissionCatalog_ResolvesCustomerLocationDefinitionRoutes(string method, string path, string routePattern, string action)
+    {
+        var resolved = PlatformPermissionCatalog.TryResolve(path, method, routePattern, new Dictionary<string, string?>(),
+            Guid.NewGuid(), Guid.NewGuid(), "TenantAdmin", out var permission);
+
+        Assert.True(resolved);
+        Assert.NotNull(permission);
+        Assert.Equal("erp.customer-locations", permission.Permission.ResourceType);
+        Assert.Equal(action, permission.Permission.Action);
+    }
+
+    [Theory]
     [InlineData("POST", "/api/reports/run", "/api/reports/run")]
     [InlineData("POST", "/api/reports/export", "/api/reports/export")]
     [InlineData("POST", "/api/reports/9a3e8a5c-7d35-4a0b-bb41-59cc4c6d4561/run", "/api/reports/{reportId:guid}/run")]

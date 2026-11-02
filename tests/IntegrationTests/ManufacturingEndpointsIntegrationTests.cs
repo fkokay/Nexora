@@ -16,6 +16,58 @@ namespace AIERP.Api.IntegrationTests;
 
 public sealed class ManufacturingEndpointsIntegrationTests
 {
+    [Fact]
+    public async Task Scheduling_places_subminute_operations_in_seconds_without_overlap()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var centerResponse = await client.PostAsJsonAsync("/api/manufacturing/work-centers/", new
+        {
+            code = "WC-SECONDS", name = "Seconds", capacityMinutesPerDay = 60, laborCostPerHourBase = 0m, overheadCostPerHourBase = 0m
+        });
+        Assert.Equal(HttpStatusCode.Created, centerResponse.StatusCode);
+        using var center = JsonDocument.Parse(await centerResponse.Content.ReadAsStringAsync());
+        var bomResponse = await client.PostAsJsonAsync("/api/manufacturing/boms/", new
+        {
+            code = "BOM-SECONDS", name = "Seconds", productStockItemId = ProductId, outputQuantity = 1m,
+            lines = new[] { new { componentStockItemId = ComponentId, quantity = 1m, scrapPercent = 0m, standardUnitCostBase = 1m } },
+            operations = new[] { new { sequence = 1, workCenterId = center.RootElement.GetProperty("id").GetGuid(), setupMinutes = 0m, runMinutesPerOutputUnit = 0.01m } }
+        });
+        Assert.Equal(HttpStatusCode.Created, bomResponse.StatusCode);
+        using var bom = JsonDocument.Parse(await bomResponse.Content.ReadAsStringAsync());
+        var bomId = bom.RootElement.GetProperty("id").GetGuid();
+        var planned = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        var firstResponse = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-SECONDS-1", bomId, 1m, planned));
+        var secondResponse = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-SECONDS-2", bomId, 1m, planned));
+        Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, secondResponse.StatusCode);
+        using var first = JsonDocument.Parse(await firstResponse.Content.ReadAsStringAsync());
+        using var second = JsonDocument.Parse(await secondResponse.Content.ReadAsStringAsync());
+        var firstScheduled = await client.PostAsJsonAsync($"/api/manufacturing/orders/{first.RootElement.GetProperty("id").GetGuid()}/schedule", new { });
+        var secondScheduled = await client.PostAsJsonAsync($"/api/manufacturing/orders/{second.RootElement.GetProperty("id").GetGuid()}/schedule", new { });
+        Assert.Equal(HttpStatusCode.OK, firstScheduled.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondScheduled.StatusCode);
+        using var firstResult = JsonDocument.Parse(await firstScheduled.Content.ReadAsStringAsync());
+        using var secondResult = JsonDocument.Parse(await secondScheduled.Content.ReadAsStringAsync());
+        var firstSlot = firstResult.RootElement.GetProperty("operations")[0].GetProperty("capacityDays")[0];
+        var secondSlot = secondResult.RootElement.GetProperty("operations")[0].GetProperty("capacityDays")[0];
+        Assert.Equal(1, firstSlot.GetProperty("endSecondOfDay").GetInt32() - firstSlot.GetProperty("startSecondOfDay").GetInt32());
+        Assert.Equal(firstSlot.GetProperty("endSecondOfDay").GetInt32(), secondSlot.GetProperty("startSecondOfDay").GetInt32());
+    }
+
+    [Fact]
+    public void Scheduling_start_date_uses_Istanbul_calendar_and_respects_future_planned_date()
+    {
+        var beforeMidnight = new DateTimeOffset(2026, 10, 21, 20, 59, 59, TimeSpan.Zero);
+        var afterMidnight = new DateTimeOffset(2026, 10, 21, 21, 0, 0, TimeSpan.Zero);
+        var earlierPlan = new DateOnly(2026, 10, 20);
+
+        Assert.Equal(new DateOnly(2026, 10, 21), ManufacturingEndpoints.SchedulingStartDate(beforeMidnight, earlierPlan));
+        Assert.Equal(new DateOnly(2026, 10, 22), ManufacturingEndpoints.SchedulingStartDate(afterMidnight, earlierPlan));
+        Assert.Equal(new DateOnly(2026, 10, 23), ManufacturingEndpoints.SchedulingStartDate(afterMidnight, new DateOnly(2026, 10, 23)));
+    }
+
     private static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid TenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid UserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -67,6 +119,42 @@ public sealed class ManufacturingEndpointsIntegrationTests
         using var otherTenant = JsonDocument.Parse(await (await client.GetAsync("/api/manufacturing/orders/search?q=MO-SEARCH")).Content.ReadAsStringAsync());
         Assert.Equal(0, otherTenant.RootElement.GetProperty("totalCount").GetInt32());
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/manufacturing/orders/search?q=x")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Work_center_search_is_tenant_scoped_bounded_and_omits_costs_and_internal_ids()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/manufacturing/work-centers/search?q=WC-LOOKUP")).StatusCode);
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+
+        for (var index = 1; index <= 12; index++)
+        {
+            var created = await client.PostAsJsonAsync("/api/manufacturing/work-centers/", new
+            {
+                code = $"WC-LOOKUP-{index:000}", name = $"Lookup center {index}", capacityMinutesPerDay = 420,
+                laborCostPerHourBase = 1250.50m, overheadCostPerHourBase = 300.25m
+            });
+            Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        }
+
+        using (var search = JsonDocument.Parse(await (await client.GetAsync("/api/manufacturing/work-centers/search?q=wc-lookup")).Content.ReadAsStringAsync()))
+        {
+            Assert.Equal(12, search.RootElement.GetProperty("totalCount").GetInt32());
+            Assert.Equal(10, search.RootElement.GetProperty("items").GetArrayLength());
+            var first = search.RootElement.GetProperty("items")[0];
+            Assert.Equal("WC-LOOKUP-001", first.GetProperty("code").GetString());
+            Assert.False(first.TryGetProperty("id", out _));
+            Assert.False(first.TryGetProperty("laborCostPerHourBase", out _));
+            Assert.False(first.TryGetProperty("overheadCostPerHourBase", out _));
+        }
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        using var otherTenant = JsonDocument.Parse(await (await client.GetAsync("/api/manufacturing/work-centers/search?q=WC-LOOKUP")).Content.ReadAsStringAsync());
+        Assert.Equal(0, otherTenant.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/manufacturing/work-centers/search?q=x")).StatusCode);
     }
 
     [Fact]
@@ -824,9 +912,11 @@ public sealed class ManufacturingEndpointsIntegrationTests
         var approval = Assert.Single(instances, x => x.GetProperty("subjectId").GetGuid() == purchaseRequestId);
         var workflowInstanceId = approval.GetProperty("id").GetGuid();
         Assert.Equal("Pending", approval.GetProperty("status").GetString());
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"/api/workflows/instances/{workflowInstanceId}/decision",
             new { decision = "Approved", comment = "Self approval must fail" })).StatusCode);
 
+        client.DefaultRequestHeaders.Remove("X-Test-Role");
         client.DefaultRequestHeaders.Add("X-Test-User", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         var approved = await client.PostAsJsonAsync($"/api/workflows/instances/{workflowInstanceId}/decision",
             new { decision = "Approved", comment = "MRP shortage reviewed" });
@@ -1081,6 +1171,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         using var scheduledSecondJson = JsonDocument.Parse(await scheduledSecond.Content.ReadAsStringAsync());
         var firstOp = scheduledFirstJson.RootElement.GetProperty("operations")[0];
         var secondOp = scheduledSecondJson.RootElement.GetProperty("operations")[0];
+        Assert.Equal(155m, firstOp.GetProperty("plannedCostBase").GetDecimal());
         Assert.Equal(2, firstOp.GetProperty("capacityDays").GetArrayLength());
         var allDays = firstOp.GetProperty("capacityDays").EnumerateArray().Concat(secondOp.GetProperty("capacityDays").EnumerateArray()).ToArray();
         Assert.All(allDays, x => Assert.True(x.GetProperty("minutes").GetDecimal() <= 60m));

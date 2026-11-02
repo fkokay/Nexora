@@ -610,6 +610,8 @@ public static class LedgerMappingKeys
     public const string InventoryReversalOffset = "inventory.reversal-offset";
     public const string FixedAssetDepreciationExpense = "fixed-assets.depreciation-expense";
     public const string FixedAssetAccumulatedDepreciation = "fixed-assets.accumulated-depreciation";
+    public const string FixedAssetTaxDepreciationExpense = "fixed-assets.tax-depreciation-expense";
+    public const string FixedAssetTaxAccumulatedDepreciation = "fixed-assets.tax-accumulated-depreciation";
     public const string FixedAssetCost = "fixed-assets.cost";
     public const string FixedAssetDisposalProceeds = "fixed-assets.disposal-proceeds";
     public const string FixedAssetDisposalGain = "fixed-assets.disposal-gain";
@@ -1048,6 +1050,8 @@ public sealed class ManufacturingOrderOperation
     public DateOnly? ScheduledEndDate { get; set; }
     public int? ScheduledStartMinuteOfDay { get; set; }
     public int? ScheduledEndMinuteOfDay { get; set; }
+    public int? ScheduledStartSecondOfDay { get; set; }
+    public int? ScheduledEndSecondOfDay { get; set; }
 }
 
 /// <summary>Order-time snapshot of the machine eligibility matrix for a routed operation.</summary>
@@ -1069,6 +1073,8 @@ public sealed class ManufacturingCapacityAllocation
     public decimal AllocatedMinutes { get; set; }
     public int StartMinuteOfDay { get; set; }
     public int EndMinuteOfDay { get; set; }
+    public int? StartSecondOfDay { get; set; }
+    public int? EndSecondOfDay { get; set; }
 }
 
 public sealed class ManufacturingOrderLine
@@ -2029,8 +2035,8 @@ public sealed class SalesPromotionApplication
 public sealed class SalesQuoteLine
 {
     public Guid TenantId { get; set; }
-    public Guid QuoteId { get; set; }
-    public SalesQuote Quote { get; set; } = null!;
+    public Guid? QuoteId { get; set; }
+    public SalesQuote? Quote { get; set; }
     public int LineNumber { get; set; }
     public Guid StockItemId { get; set; }
     public StockItem StockItem { get; set; } = null!;
@@ -2108,8 +2114,8 @@ public sealed class SalesOrder
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
-    public Guid QuoteId { get; set; }
-    public SalesQuote Quote { get; set; } = null!;
+    public Guid? QuoteId { get; set; }
+    public SalesQuote? Quote { get; set; }
     public Guid CustomerId { get; set; }
     public CustomerAccount Customer { get; set; } = null!;
     public string Code { get; set; } = "";
@@ -2277,7 +2283,7 @@ public sealed class SalesOrderReservation
     public DateTimeOffset? ReleasedAt { get; set; }
 }
 
-public enum SalesDeliveryStatus { Posted = 1, Voided = 2 }
+public enum SalesDeliveryStatus { Posted = 1, Voided = 2, Deleted = 3 }
 
 public sealed class SalesDelivery
 {
@@ -2285,8 +2291,8 @@ public sealed class SalesDelivery
     public Guid TenantId { get; set; }
     public Guid RequestId { get; set; }
     public Tenant Tenant { get; set; } = null!;
-    public Guid OrderId { get; set; }
-    public SalesOrder Order { get; set; } = null!;
+    public Guid? OrderId { get; set; }
+    public SalesOrder? Order { get; set; }
     public Guid WarehouseId { get; set; }
     public Warehouse Warehouse { get; set; } = null!;
     public string Code { get; set; } = "";
@@ -2303,9 +2309,9 @@ public sealed class SalesDeliveryLine
     public Guid TenantId { get; set; }
     public Guid DeliveryId { get; set; }
     public SalesDelivery Delivery { get; set; } = null!;
-    public Guid OrderId { get; set; }
+    public Guid? OrderId { get; set; }
     public int OrderLineNumber { get; set; }
-    public SalesOrderLine OrderLine { get; set; } = null!;
+    public SalesOrderLine? OrderLine { get; set; }
     public Guid? ReservationId { get; set; }
     public SalesOrderReservation? Reservation { get; set; }
     public Guid StockItemId { get; set; }
@@ -2326,10 +2332,11 @@ public sealed class SalesInvoice
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
-    public Guid DeliveryId { get; set; }
-    public SalesDelivery Delivery { get; set; } = null!;
-    public Guid OrderId { get; set; }
-    public SalesOrder Order { get; set; } = null!;
+    public Guid? DeliveryId { get; set; }
+    public SalesDelivery? Delivery { get; set; }
+    public Guid? StandaloneDeliveryId { get; set; }
+    public Guid? OrderId { get; set; }
+    public SalesOrder? Order { get; set; }
     public Guid CustomerId { get; set; }
     public CustomerAccount Customer { get; set; } = null!;
     public string Code { get; set; } = "";
@@ -2354,8 +2361,9 @@ public sealed class SalesInvoiceLine
     public Guid TenantId { get; set; }
     public Guid InvoiceId { get; set; }
     public SalesInvoice Invoice { get; set; } = null!;
-    public Guid DeliveryLineId { get; set; }
-    public SalesDeliveryLine DeliveryLine { get; set; } = null!;
+    public Guid? DeliveryLineId { get; set; }
+    public SalesDeliveryLine? DeliveryLine { get; set; }
+    public Guid? StandaloneDeliveryLineId { get; set; }
     public int OrderLineNumber { get; set; }
     public Guid StockItemId { get; set; }
     public string StockCode { get; set; } = "";
@@ -2580,6 +2588,18 @@ public sealed class CreditFacilitySecurity
     public CreditSecurityStatus Status { get; set; } = CreditSecurityStatus.Active;
     public string? Notes { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Per-user dismissal state for a tenant-scoped facility security expiry alert.</summary>
+public sealed class CreditSecurityAlertDismissal
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid UserId { get; set; }
+    public Guid CreditFacilitySecurityId { get; set; }
+    public CreditFacilitySecurity CreditFacilitySecurity { get; set; } = null!;
+    public string AlertStatus { get; set; } = "Expiring";
+    public DateTimeOffset DismissedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class CreditFacilitySchedule

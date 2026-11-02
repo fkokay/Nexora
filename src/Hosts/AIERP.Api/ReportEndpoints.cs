@@ -546,15 +546,14 @@ public static class ReportEndpoints
         var ordersQuery = db.ManufacturingOrders.AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.PlannedDate >= from && x.PlannedDate <= to);
         var totalCount = await ordersQuery.CountAsync(ct);
-        if (totalCount > 1000)
-            return Results.Problem("Dönem en fazla 1.000 üretim emri içerebilir. Tarih aralığını daraltın.", statusCode: StatusCodes.Status413PayloadTooLarge);
 
         var baseCurrencyCode = await platformDb.Tenants.AsNoTracking().Where(x => x.Id == tenantId)
             .Select(x => x.BaseCurrencyCode).SingleOrDefaultAsync(ct);
         if (baseCurrencyCode is null) return Results.Forbid();
-        var allOrders = await ordersQuery.OrderBy(x => x.PlannedDate).ThenBy(x => x.Code)
+        var pageOrders = await ordersQuery.OrderBy(x => x.PlannedDate).ThenBy(x => x.Code)
+            .Skip((page - 1) * pageSize).Take(pageSize)
             .Include(x => x.Operations).Include(x => x.Lines).AsSplitQuery().ToListAsync(ct);
-        var orderIds = allOrders.Select(x => x.Id).ToArray();
+        var orderIds = pageOrders.Select(x => x.Id).ToArray();
         var materialCosts = new Dictionary<Guid, (int MovementCount, int UnknownCostCount, decimal? NetCostBase)>();
         var productStockItemByOrder = new Dictionary<Guid, Guid>();
         if (orderIds.Length > 0)
@@ -588,7 +587,7 @@ public static class ReportEndpoints
             }
         }
 
-        var details = allOrders.Select(order =>
+        var details = pageOrders.Select(order =>
         {
             var plannedLabor = decimal.Round(order.Operations.Sum(operation => (operation.SetupMinutes + operation.RunMinutes) / 60m * operation.LaborCostPerHourBase), 4, MidpointRounding.AwayFromZero);
             var plannedOverhead = decimal.Round(order.Operations.Sum(operation => (operation.SetupMinutes + operation.RunMinutes) / 60m * operation.OverheadCostPerHourBase), 4, MidpointRounding.AwayFromZero);
@@ -616,7 +615,7 @@ public static class ReportEndpoints
                 // but legacy/unlinked movements prevent proving that it is complete for an order.
                 null, null);
         }).ToArray();
-        var pageRows = details.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
+        var pageRows = details;
         var pageTotals = new ManufacturingCostVarianceTotals(pageRows.Length,
             pageRows.Sum(x => x.PlannedLaborBase), pageRows.All(x => x.ActualLaborBase is not null) ? pageRows.Sum(x => x.ActualLaborBase!.Value) : null,
             pageRows.Sum(x => x.PlannedOverheadBase), pageRows.All(x => x.ActualOverheadBase is not null) ? pageRows.Sum(x => x.ActualOverheadBase!.Value) : null,
@@ -2282,7 +2281,8 @@ public static class ReportEndpoints
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
         IQueryable<SalesDelivery> query = db.SalesDeliveries.AsNoTracking().Where(x => x.TenantId == tenantId)
-            .Include(x => x.Order).ThenInclude(x => x.Customer).Include(x => x.Warehouse).Include(x => x.Invoice).Include(x => x.Lines);
+            .Include(x => x.Order).ThenInclude(x => x!.Customer).Include(x => x.Warehouse)
+            .Include(x => x.Invoice).ThenInclude(x => x!.Customer).Include(x => x.Lines);
         foreach (var filter in report.Filters)
             if (!TryApplySalesDeliveryFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -2301,7 +2301,8 @@ public static class ReportEndpoints
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
         IQueryable<SalesDelivery> query = db.SalesDeliveries.AsNoTracking().Where(x => x.TenantId == tenantId)
-            .Include(x => x.Order).ThenInclude(x => x.Customer).Include(x => x.Warehouse).Include(x => x.Invoice).Include(x => x.Lines);
+            .Include(x => x.Order).ThenInclude(x => x!.Customer).Include(x => x.Warehouse)
+            .Include(x => x.Invoice).ThenInclude(x => x!.Customer).Include(x => x.Lines);
         foreach (var filter in report.Filters)
             if (!TryApplySalesDeliveryFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -4258,11 +4259,16 @@ public static class ReportEndpoints
             case "code":
                 query = filter.Operator == "contains" ? query.Where(x => x.Code.Contains(value)) : query.Where(x => x.Code == value); return true;
             case "orderCode":
-                query = filter.Operator == "contains" ? query.Where(x => x.Order.Code.Contains(value)) : query.Where(x => x.Order.Code == value); return true;
+                if (filter.Operator == "isNull") { query = query.Where(x => x.Order == null); return true; }
+                query = filter.Operator == "contains" ? query.Where(x => x.Order != null && x.Order.Code.Contains(value)) : query.Where(x => x.Order != null && x.Order.Code == value); return true;
             case "customerCode":
-                query = filter.Operator == "contains" ? query.Where(x => x.Order.Customer.Code.Contains(value)) : query.Where(x => x.Order.Customer.Code == value); return true;
+                query = filter.Operator == "contains"
+                    ? query.Where(x => (x.Order != null && x.Order.Customer.Code.Contains(value)) || (x.Invoice != null && x.Invoice.Customer.Code.Contains(value)))
+                    : query.Where(x => (x.Order != null && x.Order.Customer.Code == value) || (x.Invoice != null && x.Invoice.Customer.Code == value)); return true;
             case "customerName":
-                query = filter.Operator == "contains" ? query.Where(x => x.Order.Customer.Name.Contains(value)) : query.Where(x => x.Order.Customer.Name == value); return true;
+                query = filter.Operator == "contains"
+                    ? query.Where(x => (x.Order != null && x.Order.Customer.Name.Contains(value)) || (x.Invoice != null && x.Invoice.Customer.Name.Contains(value)))
+                    : query.Where(x => (x.Order != null && x.Order.Customer.Name == value) || (x.Invoice != null && x.Invoice.Customer.Name == value)); return true;
             case "warehouseCode":
                 query = filter.Operator == "contains" ? query.Where(x => x.Warehouse.Code.Contains(value)) : query.Where(x => x.Warehouse.Code == value); return true;
             case "warehouseName":
@@ -4698,9 +4704,9 @@ public static class ReportEndpoints
     private static IQueryable<SalesDelivery> ApplySalesDeliverySort(IQueryable<SalesDelivery> query, string field, bool descending) => (field, descending) switch
     {
         ("code", false) => query.OrderBy(x => x.Code).ThenBy(x => x.Id), ("code", true) => query.OrderByDescending(x => x.Code).ThenBy(x => x.Id),
-        ("orderCode", false) => query.OrderBy(x => x.Order.Code).ThenBy(x => x.Id), ("orderCode", true) => query.OrderByDescending(x => x.Order.Code).ThenBy(x => x.Id),
-        ("customerCode", false) => query.OrderBy(x => x.Order.Customer.Code).ThenBy(x => x.Id), ("customerCode", true) => query.OrderByDescending(x => x.Order.Customer.Code).ThenBy(x => x.Id),
-        ("customerName", false) => query.OrderBy(x => x.Order.Customer.Name).ThenBy(x => x.Id), ("customerName", true) => query.OrderByDescending(x => x.Order.Customer.Name).ThenBy(x => x.Id),
+        ("orderCode", false) => query.OrderBy(x => x.Order == null ? null : x.Order.Code).ThenBy(x => x.Id), ("orderCode", true) => query.OrderByDescending(x => x.Order == null ? null : x.Order.Code).ThenBy(x => x.Id),
+        ("customerCode", false) => query.OrderBy(x => x.Order != null ? x.Order.Customer.Code : x.Invoice == null ? null : x.Invoice.Customer.Code).ThenBy(x => x.Id), ("customerCode", true) => query.OrderByDescending(x => x.Order != null ? x.Order.Customer.Code : x.Invoice == null ? null : x.Invoice.Customer.Code).ThenBy(x => x.Id),
+        ("customerName", false) => query.OrderBy(x => x.Order != null ? x.Order.Customer.Name : x.Invoice == null ? null : x.Invoice.Customer.Name).ThenBy(x => x.Id), ("customerName", true) => query.OrderByDescending(x => x.Order != null ? x.Order.Customer.Name : x.Invoice == null ? null : x.Invoice.Customer.Name).ThenBy(x => x.Id),
         ("warehouseCode", false) => query.OrderBy(x => x.Warehouse.Code).ThenBy(x => x.Id), ("warehouseCode", true) => query.OrderByDescending(x => x.Warehouse.Code).ThenBy(x => x.Id),
         ("warehouseName", false) => query.OrderBy(x => x.Warehouse.Name).ThenBy(x => x.Id), ("warehouseName", true) => query.OrderByDescending(x => x.Warehouse.Name).ThenBy(x => x.Id),
         ("deliveryDate", false) => query.OrderBy(x => x.DeliveryDate).ThenBy(x => x.Id), ("deliveryDate", true) => query.OrderByDescending(x => x.DeliveryDate).ThenBy(x => x.Id),
@@ -4714,7 +4720,7 @@ public static class ReportEndpoints
 
     private static object? ReadSalesDeliveryValue(SalesDelivery x, string code) => code switch
     {
-        "code" => x.Code, "orderCode" => x.Order.Code, "customerCode" => x.Order.Customer.Code, "customerName" => x.Order.Customer.Name,
+        "code" => x.Code, "orderCode" => x.Order?.Code, "customerCode" => x.Order?.Customer.Code ?? x.Invoice?.Customer.Code, "customerName" => x.Order?.Customer.Name ?? x.Invoice?.Customer.Name,
         "warehouseCode" => x.Warehouse.Code, "warehouseName" => x.Warehouse.Name, "deliveryDate" => x.DeliveryDate,
         "status" => x.Status.ToString(), "lineCount" => x.Lines.Count, "totalQuantity" => x.Lines.Sum(line => line.Quantity),
         "invoiceCode" => x.Invoice?.Code, "createdAt" => x.CreatedAt, _ => null

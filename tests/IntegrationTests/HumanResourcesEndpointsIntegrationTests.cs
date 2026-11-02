@@ -661,6 +661,100 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         Assert.Contains("DRAFT,\"2026-01-31\",\"A-001\",\"Synthetic <employee>\",\"Net ücret ödeme borcu\",\"335.01\",0.00,1234.57,\"TRY\"", voucherDraft);
         Assert.Equal(0, await finalDb.JournalEntries.CountAsync(x => x.TenantId == TenantA));
 
+        SetIdentity(client, TenantA, EmployeeUserA, "Employee");
+        using var unauthorizedPost = await client.PostAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/post-voucher", content: null);
+        Assert.Equal(HttpStatusCode.Forbidden, unauthorizedPost.StatusCode);
+        Assert.Equal(0, await finalDb.JournalEntries.CountAsync(x => x.TenantId == TenantA));
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+        using var postVoucherResponse = await client.PostAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/post-voucher", content: null);
+        Assert.Equal(HttpStatusCode.Created, postVoucherResponse.StatusCode);
+        var postedVoucher = await postVoucherResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var journalEntryId = postedVoucher.GetProperty("journalEntryId").GetGuid();
+        Assert.False(postedVoucher.GetProperty("idempotent").GetBoolean());
+        Assert.Equal(1234.57m, postedVoucher.GetProperty("totalDebit").GetDecimal());
+        Assert.Equal(1234.57m, postedVoucher.GetProperty("totalCredit").GetDecimal());
+        Assert.False(postedVoucher.GetProperty("officialPayrollResult").GetBoolean());
+
+        using var replayPostResponse = await client.PostAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/post-voucher", content: null);
+        Assert.Equal(HttpStatusCode.OK, replayPostResponse.StatusCode);
+        var replayedVoucher = await replayPostResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(journalEntryId, replayedVoucher.GetProperty("journalEntryId").GetGuid());
+        Assert.True(replayedVoucher.GetProperty("idempotent").GetBoolean());
+        using var mismatchedRunReplay = await client.PostAsync(
+            $"/api/hr/payroll/runs/{Guid.NewGuid():D}/calculations/{calculationId:D}/post-voucher", content: null);
+        Assert.Equal(HttpStatusCode.NotFound, mismatchedRunReplay.StatusCode);
+        await using (var postedScope = app.Services.CreateAsyncScope())
+        {
+            var postedDb = postedScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var journal = await postedDb.JournalEntries.Include(x => x.Lines)
+                .SingleAsync(x => x.TenantId == TenantA && x.SourceType == "PayrollCalculation" && x.SourceId == calculationId);
+            Assert.Equal(2, journal.Lines.Count);
+            Assert.Equal(1234.57m, journal.Lines.Sum(x => x.Debit));
+            Assert.Equal(1234.57m, journal.Lines.Sum(x => x.Credit));
+            Assert.Contains(postedDb.AuditEvents, x => x.TenantId == TenantA && x.UserId == Admin &&
+                x.Action == "hr.payroll-run.accounting-voucher-posted");
+        }
+
+        SetIdentity(client, TenantA, EmployeeUserA, "Employee");
+        using var unauthorizedReversal = await client.PostAsJsonAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/reverse-voucher",
+            new ManualJournalEntryReverseRequest(new DateOnly(2026, 2, 1), "Correction"));
+        Assert.Equal(HttpStatusCode.Forbidden, unauthorizedReversal.StatusCode);
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+        var closedPeriodId = Guid.NewGuid();
+        await using (var closedPeriodScope = app.Services.CreateAsyncScope())
+        {
+            var closeDb = closedPeriodScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            closeDb.JournalEntries.Add(new JournalEntry
+            {
+                Id = closedPeriodId, TenantId = TenantA, Code = "FY-CLOSE-20260201-20260201",
+                EntryDate = new DateOnly(2026, 2, 1), Description = "Synthetic closed-period acceptance fixture",
+                SourceType = "FiscalYearClose", SourceId = Guid.NewGuid()
+            });
+            await closeDb.SaveChangesAsync();
+        }
+        using var closedPeriodReversal = await client.PostAsJsonAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/reverse-voucher",
+            new ManualJournalEntryReverseRequest(new DateOnly(2026, 2, 1), "Payroll correction"));
+        Assert.Equal(HttpStatusCode.Conflict, closedPeriodReversal.StatusCode);
+        await using (var closeCleanupScope = app.Services.CreateAsyncScope())
+        {
+            var closeDb = closeCleanupScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var syntheticClose = await closeDb.JournalEntries.SingleAsync(x => x.TenantId == TenantA && x.Id == closedPeriodId);
+            closeDb.JournalEntries.Remove(syntheticClose);
+            await closeDb.SaveChangesAsync();
+        }
+        using var reverseVoucherResponse = await client.PostAsJsonAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/reverse-voucher",
+            new ManualJournalEntryReverseRequest(new DateOnly(2026, 2, 1), "Payroll correction"));
+        Assert.Equal(HttpStatusCode.Created, reverseVoucherResponse.StatusCode);
+        var reversal = await reverseVoucherResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var reversalEntryId = reversal.GetProperty("journalEntryId").GetGuid();
+        Assert.Equal(1234.57m, reversal.GetProperty("totalDebit").GetDecimal());
+        Assert.Equal(1234.57m, reversal.GetProperty("totalCredit").GetDecimal());
+        Assert.Equal("ManualReversal", reversal.GetProperty("sourceType").GetString());
+
+        using var replayReversalResponse = await client.PostAsJsonAsync(
+            $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/reverse-voucher",
+            new ManualJournalEntryReverseRequest(new DateOnly(2026, 2, 1), "Payroll correction"));
+        Assert.Equal(HttpStatusCode.OK, replayReversalResponse.StatusCode);
+        var replayedReversal = await replayReversalResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(reversalEntryId, replayedReversal.GetProperty("journalEntryId").GetGuid());
+        await using (var reversalScope = app.Services.CreateAsyncScope())
+        {
+            var reversalDb = reversalScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var reversalJournal = await reversalDb.JournalEntries.Include(x => x.Lines)
+                .SingleAsync(x => x.TenantId == TenantA && x.SourceType == "ManualReversal" && x.SourceId == journalEntryId);
+            Assert.Equal(2, reversalJournal.Lines.Count);
+            Assert.Equal(1234.57m, reversalJournal.Lines.Sum(x => x.Debit));
+            Assert.Equal(1234.57m, reversalJournal.Lines.Sum(x => x.Credit));
+            Assert.Contains(reversalDb.AuditEvents, x => x.TenantId == TenantA && x.UserId == Admin &&
+                x.Action == "hr.payroll-run.accounting-voucher-reversed");
+        }
+
         using var packageResponse = await client.GetAsync(
             $"/api/hr/payroll/runs/{runId:D}/calculations/{calculationId:D}/manual-package");
         Assert.Equal(HttpStatusCode.OK, packageResponse.StatusCode);

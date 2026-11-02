@@ -3,6 +3,7 @@ using System.Security.Claims;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -13,6 +14,24 @@ public static class TenantSelectionEndpoints
 {
     private const string StudioRefreshCookieName = "aierp.studio.refresh";
     private const string StudioCookieTransportHeader = "X-Studio-Session";
+
+    public static RouteGroupBuilder MapAccessibleTenantsEndpoint(this RouteGroupBuilder auth)
+    {
+        auth.MapGet("/tenants", async (ClaimsPrincipal principal, PlatformDbContext db, CancellationToken cancellationToken) =>
+        {
+            if (!Guid.TryParse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub), out var userId))
+                return Results.Unauthorized();
+
+            var tenants = await db.TenantMemberships.AsNoTracking()
+                .Where(membership => membership.UserId == userId && membership.User.IsActive && membership.Tenant.IsActive)
+                .OrderBy(membership => membership.Tenant.Name)
+                .Select(membership => new TenantSummary(membership.TenantId, membership.Tenant.Name, membership.Tenant.Slug, membership.Role))
+                .ToListAsync(cancellationToken);
+
+            return Results.Ok(tenants);
+        }).RequireAuthorization(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+        return auth;
+    }
 
     public static RouteGroupBuilder MapRefreshEndpoint(this RouteGroupBuilder auth)
     {

@@ -1,0 +1,138 @@
+/* Shared Studio dashboard theme, scoped away from the full-screen IDE. */
+.studio-root.studio-dashboard-reference {--studio-ink:#111539;--studio-muted:#647098;--studio-line:#dce0f7;background:radial-gradient(ellipse at 80% 5%,#e9e7ff85,transparent 55%),#f3f6ff;color:var(--studio-ink)}
+.studio-root.studio-dashboard-reference .studio-sidebar {width:252px;padding:20px 15px 14px;background:radial-gradient(ellipse at 100% 65%,#3527844a,transparent 70%),linear-gradient(160deg,#0d1734,#141c43);border-right:1px solid #243252;color:#fff}
+.studio-root.studio-dashboard-reference .studio-app-brand {gap:11px;padding:0 5px;color:#fff;font-size:20px;letter-spacing:-.6px}
+.studio-root.studio-dashboard-reference .studio-app-brand strong {color:#ad7bff}
+.studio-root.studio-dashboard-reference .brand-mark.small {width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ab69ff,#5825ef);box-shadow:0 4px 18px #6724ef45}
+.studio-root.studio-dashboard-reference .studio-sidebar-tenant {margin:25px 0 27px;padding:11px;border:1px solid #354363;border-radius:9px;background:#ffffff05}
+.studio-root.studio-dashboard-reference .studio-tenant-avatar {width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,#fff,#deedff);color:#117be9}
+.studio-root.studio-dashboard-reference .studio-sidebar-tenant b {color:#fff;font-size:12px}
+.studio-root.studio-dashboard-reference .studio-sidebar-tenant small {color:#bdc7e3;font-size:10px}
+.studio-root.studio-dashboard-reference .studio-nav-label {padding-left:12px;color:#b6bfd9;font-size:10px;letter-spacing:1px}
+.studio-root.studio-dashboard-reference .studio-side-nav {gap:5px}
+.studio-root.studio-dashboard-reference .studio-nav-link {height:42px;padding:0 12px;border-radius:8px;color:#e6eaff;font-size:12px;gap:12px}
+.studio-root.studio-dashboard-reference .studio-nav-link>svg {color:#cdd4f0;width:20px;height:20px}
+.studio-root.studio-dashboard-reference .studio-nav-link.active {background:linear-gradient(110deg,#4c43d8,#7133ea);color:#fff;box-shadow:inset 0 1px #bda5ff38,0 3px 9px #080c2429}
+.studio-root.studio-dashboard-reference .studio-nav-link.active:before {display:none}
+.studio-root.studio-dashboard-reference .studio-nav-link.active>svg {color:#fff}
+.studio-root.studio-dashboard-reference .studio-nav-link:hover {background:#ffffff0e;color:#fff}
+.studio-root.studio-dashboard-reference .studio-nav-link.active:hover {background:linear-gradient(110deg,#5950e6,#8042f0)}
+.studio-root.studio-dashboard-reference .studio-nav-count {height:24px;min-width:26px;border-radius:7px;background:#9096d42b;color:#e8eaff;font-size:11px}
+.studio-root.studio-dashboard-reference .studio-nav-action {border:1px solid #414d73;background:#8b97d314}
+.studio-root.studio-dashboard-reference .studio-sidebar-note {margin-top:auto;padding:16px;border:1px solid #7663df75;border-radius:13px;background:linear-gradient(130deg,#4c4b9c60,#27204f);box-shadow:inset 0 1px #b99cff22}
+.studio-root.studio-dashboard-reference .studio-note-icon {width:39px;height:39px;border-color:#a77bff66;border-radius:11px;background:linear-gradient(130deg,#9161fc,#5926d5);color:#fff}
+.studio-root.studio-dashboard-reference .studio-sidebar-note>b {color:#fff;font-size:14px}
+.studio-root.studio-dashboard-reference .studio-sidebar-note>p {color:#d2d9ef;font-size:11px;line-height:1.5}
+.studio-root.studio-dashboard-reference .studio-sidebar-note>span:last-child {color:#44d9a4;font-size:10px}
+.studio-root.studio-dashboard-reference .studio-sidebar-profile {border-color:#727ca345;margin-top:16px;padding-top:18px}
+.studio-root.studio-dashboard-reference .studio-profile-avatar {width:40px;height:40px;background:linear-gradient(130deg,#39b7ff,#0763e8);font-size:16px}
+.studio-root.studio-dashboard-reference .studio-sidebar-profile b {color:#fff;font-size:12px}
+.studio-root.studio-dashboard-reference .studio-sidebar-profile small {color:#cad1e7;font-size:10px}
+.studio-root.studio-dashboard-reference .studio-sidebar-profile .icon-button {color:#d6dcff;background:#ffffff08}
+.studio-root.studio-dashboard-reference .studio-dashboard-content {margin-left:252px}
+.studio-root.studio-dashboard-reference .studio-dashboard-topbar {min-height:60px;padding:10px 32px;background:#ffffffb8;border-bottom:1px solid #dce0f7;backdrop-filter:blur(16px)}
+.studio-root.studio-dashboard-reference .studio-topbar-crumb {gap:14px;color:#657096;font-size:12px}
+.studio-root.studio-dashboard-reference .studio-topbar-crumb b {color:#171b42}
+.studio-root.studio-dashboard-reference .studio-topbar-status {color:#535e89;font-size:11px}
+.studio-root.studio-dashboard-reference .studio-topbar-logout {min-height:36px;padding:0 15px;border:1px solid #cdd3ed;border-radius:9px;background:#fff;color:#24294f;font-size:11px;box-shadow:0 2px 3px #30267e0a}
+.studio-root.studio-dashboard-reference .studio-main.studio-dashboard-main {width:100%;max-width:1800px;padding:26px 32px 40px}
+.studio-root.studio-dashboard-reference.studio-section-overview .studio-product-tabs,.studio-root.studio-dashboard-reference.studio-section-projects .studio-product-tabs {display:none}
+.studio-root.studio-dashboard-reference .studio-hero.studio-overview-heading {position:relative;display:flex;justify-content:space-between;gap:22px;min-height:154px;padding:24px 28px;margin-bottom:18px;border:1px solid #d9d3fa;border-radius:16px;background:radial-gradient(ellipse at 40% 0%,#d9ceff95,transparent 65%),linear-gradient(110deg,#f9f8ff,#fff);box-shadow:inset 0 0 0 2px #ffffffbb,0 3px 5px #554b9e10,0 12px 28px #4b3e9010}
+.studio-root.studio-dashboard-reference .studio-overview-copy {position:relative;z-index:1;max-width:58%;min-width:0}
+.studio-root.studio-dashboard-reference .studio-hero-kicker {font-size:11px;letter-spacing:1px;color:#6030f2}
+.studio-root.studio-dashboard-reference .studio-hero h1 {margin:12px 0 8px;color:#111238;font-size:34px;line-height:1.15;letter-spacing:-1.1px}
+.studio-root.studio-dashboard-reference .studio-overview-copy>p {margin:0;color:#505988;font-size:12px;line-height:1.6}
+.studio-dashboard-hero-art {position:absolute;left:49%;top:50%;width:300px;height:195px;transform:translate(-15%,-50%);object-fit:contain;pointer-events:none}
+.studio-root.studio-dashboard-reference .studio-hero-actions {position:relative;z-index:1;gap:12px;flex:none;margin:0}
+.studio-root.studio-dashboard-reference .studio-hero-actions .primary,.studio-root.studio-dashboard-reference .studio-hero-actions .secondary {height:44px;padding-inline:18px;border-radius:10px;font-size:12px;white-space:nowrap}
+.studio-root.studio-dashboard-reference .primary {border:1px solid #6232ed;background:linear-gradient(110deg,#8750f4,#4c1bf0);color:#fff;box-shadow:0 3px 6px #622de922}
+.studio-root.studio-dashboard-reference .primary:hover:not(:disabled) {background:linear-gradient(110deg,#955dff,#6131ff)}
+.studio-root.studio-dashboard-reference .secondary {border-color:#d4d7f0;border-radius:8px;background:#fff;color:#252b59}
+.studio-root.studio-dashboard-reference .studio-metrics {gap:15px;margin:0 0 22px}
+.studio-root.studio-dashboard-reference .studio-metric-card {min-height:108px;padding:16px 18px;gap:16px;border:1px solid #e0e2f7;border-radius:14px;background:linear-gradient(130deg,#fff,#fcfcff);box-shadow:0 3px 4px #49418b0b,0 8px 22px #5b4aa108}
+.studio-root.studio-dashboard-reference .studio-metric-card:first-child {border-left-color:#55aaff}
+.studio-root.studio-dashboard-reference .studio-metric-icon {width:52px;height:56px;border-radius:14px}
+.studio-root.studio-dashboard-reference .studio-metric-icon.violet {background:#efe8ff;color:#8747f8}
+.studio-root.studio-dashboard-reference .studio-metric-icon.blue {background:#e1f0ff;color:#087fff}
+.studio-root.studio-dashboard-reference .studio-metric-icon.green {background:#dcfbef;color:#05af86}
+.studio-root.studio-dashboard-reference .studio-metric-icon.amber {background:#fff1d4;color:#ff9c00}
+.studio-root.studio-dashboard-reference .studio-metric-card>div {gap:6px}
+.studio-root.studio-dashboard-reference .studio-metric-card>div>small {color:#343b69;font-size:11px}
+.studio-root.studio-dashboard-reference .studio-metric-card>div>b {color:#111638;font-size:25px}
+.studio-root.studio-dashboard-reference .studio-metric-card>div>span {color:#65709a;font-size:10px}
+.studio-root.studio-dashboard-reference .studio-metric-accent {display:none}
+.studio-root.studio-dashboard-reference .studio-live-pill {right:12px;bottom:auto;top:12px;padding:5px 8px;border-radius:20px;background:#d6fbea;color:#078e64;font-size:9px;letter-spacing:0}
+.studio-root.studio-dashboard-reference .studio-dashboard-grid {grid-template-columns:minmax(0,1fr) 340px;gap:22px}
+.studio-root.studio-dashboard-reference .studio-overview-shortcuts {gap:22px}
+.studio-root.studio-dashboard-reference .studio-overview-shortcut {position:relative;overflow:hidden;min-height:120px;padding:24px;gap:20px;grid-template-columns:60px minmax(0,1fr) 34px;border:1px solid #dcdcf8;border-radius:17px;background:linear-gradient(115deg,#fff 42%,#f0edff);box-shadow:inset 0 0 0 2px #fff,0 5px 18px #564b9910}
+.studio-root.studio-dashboard-reference .studio-overview-shortcut:nth-child(2) {background:linear-gradient(115deg,#fff 42%,#fff3e8)}
+.studio-root.studio-dashboard-reference .studio-overview-shortcut:after {content:'';position:absolute;right:100px;bottom:-35px;width:110px;height:110px;border:8px solid #b7a0ff55;border-radius:18px;background:linear-gradient(150deg,#ddd3ff,#b3a1f444);transform:rotate(-12deg);box-shadow:20px -12px 0 #ddd2ff50;pointer-events:none}
+.studio-root.studio-dashboard-reference .studio-overview-shortcut:nth-child(2):after {border-color:#ffca7b55;background:#ffe1b666;box-shadow:20px -12px 0 #ffdcac55}
+.studio-root.studio-dashboard-reference .studio-overview-shortcut>span {position:relative;z-index:1}
+.studio-root.studio-dashboard-reference .studio-overview-shortcut-icon {width:60px;height:60px;border:0;border-radius:17px;background:#eee9ff;color:#9265ff}
+.studio-root.studio-dashboard-reference .studio-overview-shortcut-icon.requests {background:#fff0d2;color:#ffa20b}
+.studio-root.studio-dashboard-reference .studio-overview-shortcut small {color:#7437fa;font-size:9px;letter-spacing:1px}
+.studio-root.studio-dashboard-reference .studio-overview-shortcut b {color:#111738;font-size:19px;letter-spacing:-.5px}
+.studio-root.studio-dashboard-reference .studio-overview-shortcut i {color:#606b95;font-size:12px}
+.studio-root.studio-dashboard-reference .studio-overview-shortcut>svg {position:relative;z-index:1;width:34px;height:34px;padding:8px;border:1px solid #d6d6f5;border-radius:9px;background:white;color:#312667}
+.studio-root.studio-dashboard-reference .studio-dashboard-rail {gap:14px}
+.studio-root.studio-dashboard-reference .studio-rail-card,.studio-root.studio-dashboard-reference .studio-help-card {border:1px solid #d7dcf7;border-radius:15px;background:linear-gradient(130deg,#fff,#fbfcff);box-shadow:0 3px 5px #40347d0a,0 7px 18px #5f4d9410}
+.studio-root.studio-dashboard-reference .studio-rail-card {padding:17px}
+.studio-root.studio-dashboard-reference .studio-rail-icon,.studio-root.studio-dashboard-reference .studio-rail-icon.blue {background:#e9eaff;color:#4e42ff;border-radius:9px}
+.studio-root.studio-dashboard-reference .studio-rail-heading small {color:#5830f6;font-size:9px;letter-spacing:1px}
+.studio-root.studio-dashboard-reference .studio-rail-heading b {color:#121837;font-size:15px}
+.studio-root.studio-dashboard-reference .studio-flow-step {border-color:#ececfa}
+.studio-root.studio-dashboard-reference .studio-flow-step>span {border:0;background:#eeebff;color:#6436fb;font-size:12px}
+.studio-root.studio-dashboard-reference .studio-flow-step b,.studio-root.studio-dashboard-reference .studio-activity-row b {color:#24294e;font-size:12px}
+.studio-root.studio-dashboard-reference .studio-flow-step small,.studio-root.studio-dashboard-reference .studio-activity-row small {color:#6b729b;font-size:10px}
+.studio-root.studio-dashboard-reference .studio-rail-foot {color:#646d94;font-size:10px}
+.studio-root.studio-dashboard-reference .studio-rail-foot svg {color:#7541f7}
+.studio-root.studio-dashboard-reference .studio-activity-row time {color:#777fa4;font-size:9px}
+.studio-root.studio-dashboard-reference .studio-help-card b {color:#1c2246;font-size:13px}
+.studio-root.studio-dashboard-reference .studio-help-card p {font-size:11px;color:#646d96;line-height:1.55}
+.studio-root.studio-dashboard-reference .studio-help-card>span {color:#7636fb;background:#f1eaff}
+.studio-root.studio-dashboard-reference .studio-boundary {margin-top:24px;padding:16px 20px;border:1px solid #d8d5f7;border-radius:14px;background:#ffffffa8;color:#56618a;font-size:11px;line-height:1.6}
+.studio-root.studio-dashboard-reference.studio-section-overview .studio-boundary {margin-top:24px}
+.studio-root.studio-dashboard-reference .studio-projects-panel {padding:24px;border:1px solid #e0dff7;border-radius:18px;background:linear-gradient(130deg,#fff,#fcfcff);box-shadow:0 7px 25px #5041900b}
+.studio-root.studio-dashboard-reference .studio-projects-panel>.panel-heading {gap:16px;padding:0 6px 22px;margin:0 0 18px;flex-wrap:wrap;border-bottom:1px solid #e4e3f6}
+.studio-root.studio-dashboard-reference .studio-projects-panel .panel-heading h3 {font-size:23px;color:#171b43;letter-spacing:-.6px}
+.studio-root.studio-dashboard-reference .studio-projects-panel .panel-heading p {font-size:12px;color:#747ea3}
+.studio-root.studio-dashboard-reference .studio-projects-panel>.panel-heading .primary,.studio-root.studio-dashboard-reference .studio-projects-panel>.panel-heading .secondary {min-height:42px;padding-inline:18px;border-radius:9px;font-size:12px}
+.studio-root.studio-dashboard-reference .studio-projects-panel>.panel-heading .primary {background:linear-gradient(110deg,#8750f4,#4c1bf0);color:#fff}
+.studio-root.studio-dashboard-reference .studio-project-table-wrap {overflow:auto;border:1px solid #e5e6fa;border-radius:12px}
+.studio-root.studio-dashboard-reference .studio-project-table {min-width:850px}
+.studio-root.studio-dashboard-reference .studio-project-table th {padding:15px 16px;background:linear-gradient(100deg,#f4f2ff,#f0f1fc);color:#4f5687;border-color:#e6e6f8;font-size:10px;letter-spacing:.8px}
+.studio-root.studio-dashboard-reference .studio-project-table td {padding:18px 16px;border-color:#e8e8f8;color:#414c77;font-size:12px}
+.studio-root.studio-dashboard-reference .studio-project-name>span {width:42px;height:42px;border-radius:12px;background:#e6edff;color:#5842ff}
+.studio-root.studio-dashboard-reference .studio-project-name b {font-size:14px;color:#171c43}
+.studio-root.studio-dashboard-reference .studio-project-name small {max-width:310px;color:#707aa1;font-size:11px;margin-top:5px}
+.studio-root.studio-dashboard-reference .studio-project-table code {padding:7px 10px;border:0;border-radius:9px;background:#edf0ff;color:#535e98;font-size:11px}
+.studio-root.studio-dashboard-reference .studio-project-access {display:inline-block;padding:7px 10px;border-radius:9px;background:#f1eaff;color:#7345cf;font-size:11px;white-space:nowrap}
+.studio-root.studio-dashboard-reference .studio-project-github {padding:7px 10px;border-radius:9px;background:#fff4df;color:#996900;font-size:11px}
+.studio-root.studio-dashboard-reference .studio-project-github.is-connected {background:#def9ec;color:#148951}
+.studio-root.studio-dashboard-reference .studio-project-commands {gap:7px}
+.studio-root.studio-dashboard-reference .studio-project-commands .secondary {min-height:36px;padding-inline:11px;border:1px solid #d4d6f0;border-radius:9px;background:#fff;color:#303763;font-size:10px;box-shadow:0 2px 3px #3d2c8b0b}
+.studio-root.studio-dashboard-reference .studio-projects-panel>.boundary-note {padding:16px 18px;margin-top:18px;border:1px solid #ddd5ff;border-radius:13px;background:linear-gradient(110deg,#faf7ff,#f0edff);color:#5d618c;font-size:11px;line-height:1.6}
+.studio-root.studio-dashboard-reference .studio-projects-panel>.boundary-note svg {color:#7844ff}
+.studio-root.studio-dashboard-reference button:focus-visible,.studio-root.studio-dashboard-reference a:focus-visible {outline:3px solid #9b7cff;outline-offset:3px}
+@media(min-width:1500px) { .studio-root.studio-dashboard-reference .studio-overview-copy {max-width:50%} .studio-root.studio-dashboard-reference .studio-dashboard-hero-art {left:58%;width:340px;height:220px} }
+@media(max-width:1250px) { .studio-root.studio-dashboard-reference .studio-dashboard-hero-art {display:none} .studio-root.studio-dashboard-reference .studio-overview-copy {max-width:none} .studio-root.studio-dashboard-reference .studio-hero.studio-overview-heading {flex-wrap:wrap} .studio-root.studio-dashboard-reference .studio-dashboard-grid {grid-template-columns:minmax(0,1fr) 290px} .studio-root.studio-dashboard-reference .studio-metrics {grid-template-columns:repeat(2,minmax(0,1fr))} .studio-root.studio-dashboard-reference .studio-overview-shortcut:after {opacity:.35;right:60px} }
+@media(max-width:1020px) { .studio-root.studio-dashboard-reference .studio-dashboard-grid {grid-template-columns:minmax(0,1fr)} .studio-root.studio-dashboard-reference .studio-dashboard-rail {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start} .studio-root.studio-dashboard-reference .studio-overview-shortcut {min-height:110px} }
+@media(max-width:760px) { .studio-root.studio-dashboard-reference .studio-sidebar {width:200px;padding-inline:10px} .studio-root.studio-dashboard-reference .studio-dashboard-content {margin-left:200px} .studio-root.studio-dashboard-reference .studio-app-brand {font-size:16px} .studio-root.studio-dashboard-reference .studio-main.studio-dashboard-main {padding:18px} .studio-root.studio-dashboard-reference .studio-dashboard-topbar {padding:12px 18px} .studio-root.studio-dashboard-reference .studio-topbar-status {display:none} .studio-root.studio-dashboard-reference .studio-hero.studio-overview-heading {padding:22px} .studio-root.studio-dashboard-reference .studio-hero-actions {flex-wrap:wrap} .studio-root.studio-dashboard-reference .studio-metric-card {padding:13px;gap:10px} .studio-root.studio-dashboard-reference .studio-metric-icon {width:38px;height:42px} .studio-root.studio-dashboard-reference .studio-dashboard-rail {grid-template-columns:minmax(0,1fr)} .studio-root.studio-dashboard-reference .studio-projects-panel {padding:16px} }
+@media(max-width:580px) { .studio-root.studio-dashboard-reference .studio-sidebar {position:relative;width:100%;padding:16px;gap:6px} .studio-root.studio-dashboard-reference .studio-dashboard-content {margin-left:0} .studio-root.studio-dashboard-reference .studio-sidebar-tenant {margin:10px 0} .studio-root.studio-dashboard-reference .studio-side-nav {display:flex;flex-wrap:wrap} .studio-root.studio-dashboard-reference .studio-nav-link {width:auto;flex:1;white-space:nowrap} .studio-root.studio-dashboard-reference .studio-nav-label-spaced {margin-top:12px} .studio-root.studio-dashboard-reference .studio-sidebar-note,.studio-root.studio-dashboard-reference .studio-sidebar-profile {display:none} .studio-root.studio-dashboard-reference .studio-nav-action {width:100%} .studio-root.studio-dashboard-reference .studio-metrics {grid-template-columns:minmax(0,1fr)} .studio-root.studio-dashboard-reference .studio-overview-shortcut {padding:18px;gap:12px;grid-template-columns:44px minmax(0,1fr) 28px} .studio-root.studio-dashboard-reference .studio-overview-shortcut-icon {width:44px;height:46px} .studio-root.studio-dashboard-reference .studio-overview-shortcut b {font-size:17px} .studio-root.studio-dashboard-reference .studio-overview-shortcut i {font-size:11px} .studio-root.studio-dashboard-reference .studio-projects-panel>.panel-heading>div:last-child {flex-wrap:wrap} .studio-root.studio-dashboard-reference .studio-hero h1 {font-size:30px} }
+
+.studio-root.studio-dashboard-reference .studio-hero.studio-overview-heading {overflow:hidden}
+.studio-root.studio-dashboard-reference .studio-overview-heading .studio-hero-actions .primary {background:linear-gradient(110deg,#8750f4,#4c1bf0);border-color:#6232ed;color:#fff}
+.studio-root.studio-dashboard-reference .studio-overview-heading .studio-hero-kicker {color:#6030f2}
+.studio-root.studio-dashboard-reference .studio-sidebar .studio-nav-link.active {background:linear-gradient(110deg,#4c43d8,#7133ea);color:#fff}
+.studio-root.studio-dashboard-reference .studio-sidebar .studio-app-brand strong {color:#ad7bff}
+.studio-root.studio-dashboard-reference .studio-sidebar .studio-sidebar-tenant {background:#ffffff05}
+
+/* Keep the illustration between the copy and actions without cropping it. */
+.studio-root.studio-dashboard-reference .studio-dashboard-hero-art {left:58%;width:270px;height:150px;transform:translate(-50%,-50%)}
+@media(min-width:1500px){.studio-root.studio-dashboard-reference .studio-dashboard-hero-art {width:300px;height:160px}}
+@media(max-width:1250px){.studio-root.studio-dashboard-reference .studio-dashboard-hero-art {display:none}}
+
+.studio-root.studio-dashboard-reference .studio-projects-panel>.notice {display:block;min-width:0;max-width:100%;overflow-wrap:anywhere;line-height:1.6}
+.studio-root.studio-dashboard-reference .studio-projects-panel>.notice code {white-space:normal;overflow-wrap:anywhere}
+.studio-root.studio-dashboard-reference .studio-projects-page-content {min-width:0}
