@@ -280,6 +280,16 @@ app.MapGet("/health", async (PlatformDbContext db, CancellationToken cancellatio
     }
 });
 var auth = app.MapGroup("/api/auth").WithTags("Authentication");
+auth.MapGet("/tenants", async (ClaimsPrincipal principal, PlatformDbContext db, CancellationToken cancellationToken) =>
+{
+    if (!Guid.TryParse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub), out var userId)) return Results.Unauthorized();
+    var memberships = await db.TenantMemberships.AsNoTracking()
+        .Where(m => m.UserId == userId && m.User.IsActive && m.Tenant.IsActive)
+        .OrderBy(m => m.Tenant.Name)
+        .Select(m => new TenantSummary(m.TenantId, m.Tenant.Name, m.Tenant.Slug, m.Role))
+        .ToListAsync(cancellationToken);
+    return Results.Ok(memberships);
+}).RequireAuthorization();
 auth.MapPost("/login", async (LoginRequest request, PlatformDbContext db, IConfiguration config) =>
 {
     if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password)) return Results.BadRequest(new { error = "Email and password are required." });

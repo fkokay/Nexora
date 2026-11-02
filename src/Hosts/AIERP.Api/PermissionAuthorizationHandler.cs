@@ -14,7 +14,8 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
     protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PermissionRequirement requirement)
     {
         if (context.Resource is not HttpContext http || context.User.Identity?.IsAuthenticated != true) return;
-        if (string.Equals(http.Request.Path.Value, "/api/auth/select-tenant", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(http.Request.Path.Value, "/api/auth/tenants", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(http.Request.Path.Value, "/api/auth/select-tenant", StringComparison.OrdinalIgnoreCase))
         {
             context.Succeed(requirement);
             return;
