@@ -1,357 +1,11178 @@
-import { useEffect, useRef, useState, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react'
-import { ArrowLeft, ArrowUpRight, CheckCircle2, ChevronDown, ChevronRight, Code2, FileCode, FlaskConical, Folder, FolderTree, GitBranch, Grid2X2, History, List, MessageCircle, Play, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react'
-import { api, authorizedFetch } from './api'
-import { UiDesignPlanPreview, type UiDesignPlan } from './UIDesigner'
-import { DatabaseEngineer } from './DatabaseEngineer'
-import { ModuleSourceMappings } from './ModuleSourceMappings'
-import { WorkspaceCodeEditor } from './WorkspaceCodeEditor'
-import { moduleStarterFiles } from './moduleStarterFiles'
-import './ui-designer-workflow.css'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type KeyboardEvent,
+  type SetStateAction,
+} from "react";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Code2,
+  FileCode,
+  FlaskConical,
+  Folder,
+  FolderTree,
+  GitBranch,
+  Grid2X2,
+  History,
+  List,
+  MessageCircle,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
+import { api, authorizedFetch } from "./api";
+import { UiDesignPlanPreview, type UiDesignPlan } from "./UIDesigner";
+import { DatabaseEngineer } from "./DatabaseEngineer";
+import { ModuleSourceMappings } from "./ModuleSourceMappings";
+import { WorkspaceCodeEditor } from "./WorkspaceCodeEditor";
+import { moduleStarterFiles } from "./moduleStarterFiles";
+import "./ui-designer-workflow.css";
 
-const maxManualWorkspaceFileBytes = 900 * 1024
-type Tenant = { id:string; name:string; slug:string; role:string }
-type DevelopmentProject = { id:string; name:string; repositoryUrl:string; defaultBranch:string; accessLevel:string; createdAt:string; githubAuthorized:boolean }
-type DevelopmentRequest = { id:string; title:string; description:string; status:string; createdAt:string; projectId:string|null; projectName:string|null }
+const maxManualWorkspaceFileBytes = 900 * 1024;
+type Tenant = { id: string; name: string; slug: string; role: string };
+type DevelopmentProject = {
+  id: string;
+  name: string;
+  repositoryUrl: string;
+  defaultBranch: string;
+  accessLevel: string;
+  createdAt: string;
+  githubAuthorized: boolean;
+};
+type DevelopmentRequest = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  createdAt: string;
+  projectId: string | null;
+  projectName: string | null;
+};
 
-type ProjectMember = { userId: string; email: string; accessLevel: 'Viewer'|'Contributor'|'Maintainer'; grantedAt: string }
-type WorkspaceRequest = { id:string; projectId:string; developmentRequestId:string|null; developmentRequestTitle:string|null; developmentRequestDescription:string|null; requestedByUserId:string; branchName:string; workspaceBranchName:string|null; status:'PendingApproval'|'Approved'|'Rejected'|'Cancelled'|'Provisioning'|'ProvisioningFailed'|'Ready'|'Archived'; createdAt:string; reviewedByUserId:string|null; reviewedAt:string|null; reviewNote:string|null; canReview:boolean; canCancel:boolean; canDelete:boolean; commitSha:string|null; provisioningError:string|null; provisionedAt:string|null }
-type PendingWorkspaceApproval = { id:string; projectId:string; projectName:string; requestedByUserId:string; requesterEmail:string; branchName:string; createdAt:string; reviewNote:string|null; developmentRequestTitle:string|null; developmentRequestDescription:string|null }
-type PendingWorkspaceApprovalsPage = { items:PendingWorkspaceApproval[]; nextOffset:number|null }
-type WorkspaceFileEntry = { name:string; path:string; kind:'Directory'|'File'|'Link'; sizeBytes:number|null }
-type WorkspaceFileListing = { path:string; entries:WorkspaceFileEntry[]; nextOffset:number|null }
-type WorkspaceFileSearchResult = { scannedEntries:number; truncated:boolean; entries:WorkspaceFileEntry[] }
-type WorkspaceFileContent = { path:string; content:string; sizeBytes:number; sha256:string }
-type WorkspaceAnalysis = { scannedFiles:number; truncated:boolean; technologies:{name:string;fileCount:number}[]; entryPoints:string[] }
-type WorkspaceSearchResult = { scannedFiles:number; truncated:boolean; matches:{path:string;line:number;excerpt:string}[] }
-type SourceAnalysisResult = { answer:string; sourceCount:number }
-type WorkspaceTestDiscovery = { scannedFiles:number; truncated:boolean; targets:{path:string;ecosystem:string;evidence:string;suggestedCommand:string;canTest?:boolean;canBuild?:boolean}[] }
-type WorkspaceTestRunStatus = { jobId:string; targetPath:string; commitSha:string; snapshotSha256:string; hasUncommittedChanges:boolean; status:string; message:string|null; success:boolean|null; exitCode:number|null; durationMilliseconds:number; output:string; completedAt:string|null }
-type SandboxErrorAnalysisResponse = { jobId:string; analysis:{summary:string;likelyCause:string;recommendedActions:string[];limitations:string[]}; triage:{category:string;summary:string;sourceRepairCandidate:boolean;nextStep:string}; operation:'test'|'build'; targetPath:string; status:string; commitSha:string; outputWasRedacted:boolean; sourceOutputPersisted:boolean }
-type AITestPlan = { summary:string; scenarios:{title:string;category:string;objective:string;steps:string[];expectedResult:string;priority:string}[]; assumptions:string[]; risks:string[] }
-type SavedAITestPlan = { id:string; workspaceRequestId:string; branchName:string; commitSha:string; summary:string; createdAt:string; createdByUserId:string; canDelete:boolean }
-type SavedAITestPlanDetail = { metadata:SavedAITestPlan; plan:AITestPlan }
-type ArchitecturePlan = { summary:string; affectedAreas:string[]; steps:{title:string;description:string;files:string[]}[]; assumptions:string[]; risks:string[] }
-type SavedArchitecturePlan = { id:string; workspaceRequestId:string; branchName:string; commitSha:string; summary:string; createdAt:string; createdByUserId:string; canDelete:boolean }
-type SavedArchitecturePlanDetail = { metadata:SavedArchitecturePlan; plan:ArchitecturePlan }
-type StudioConversation = { id:string; title:string; workspaceRequestId:string; createdAt:string; updatedAt:string; createdByUserId:string; canDelete:boolean }
-type StudioConversationMessage = { id:string; role:'user'|'assistant'; content:string; createdAt:string }
-type StudioChatCodeChangePreview = { summary:string; risks:string[]; changes:{filePath:string;sourceSha256:string;patches:{findText:string;replaceText:string;notes:string[]}[]}[]; userMessage:StudioConversationMessage; assistantMessage:StudioConversationMessage }
-type StudioKnowledgeDocument = { id:string; path:string; contentSha256:string; commitSha:string; indexedAt:string; embeddingModel:string|null; characterCount:number }
-type StudioKnowledgeAutoRefresh = { enabled:boolean; allFiles?:boolean; paths:string[]; lastRefreshedAt:string|null }
-type ApprovedHistoryCandidate = { id:string; branchName:string; commitSha:string; testTargetPath:string; testCompletedAt:string; approvedAt:string; developmentRequestTitle:string|null }
-type CodeSuggestionPreview = { filePath:string; sourceSha256:string; originalContent:string; summary:string; proposedContent:string; notes:string[]; createNewFile:boolean }
-type MultiFileCodeSuggestionPreview = { summary:string; risks:string[]; changes:{filePath:string;sourceSha256:string;originalContent:string;proposedContent:string;notes:string[]}[] }
-type AppliedCodeSuggestion = { filePath:string; sha256:string }
-type WorkspaceChange = { id:string; path:string; originalSha256:string; appliedSha256:string; appliedAt:string; isRestored:boolean; isCurrent:boolean; wasCreated:boolean }
-type WorkspaceChanges = { changes:WorkspaceChange[]; truncated:boolean }
-type WorkspaceCommitResult = { workspaceId:string; branchName:string; parentCommitSha:string; commitSha:string; files:string[] }
-type WorkspaceGitStatus = { branchName:string; headCommitSha:string; totalChangedFiles:number; truncated:boolean; files:{path:string;status:string}[] }
-type ReleaseCandidate = { id:string; workspaceRequestId:string; branchName:string; commitSha:string; testJobId:string; testTargetPath:string; testSnapshotSha256:string; testCompletedAt:string; createdAt:string; createdByUserId:string; decision:string|null; reviewNote:string|null; reviewedAt:string|null; reviewedByUserId:string|null; canReview:boolean; githubPullRequestNumber:number|null; githubPullRequestUrl:string|null; githubPullRequestState:string|null }
-type ReleaseVersion = { id:string; releaseCandidateId:string; version:string; commitSha:string; createdAt:string; createdByUserId:string }
-type ReleasePackage = { id:string; releaseVersionId:string; version:string; commitSha:string; testSnapshotSha256:string; packageSha256:string; fileName:string; sizeBytes:number; createdAt:string; createdByUserId:string }
-type ReleaseDeployment = { id:string; releasePackageId:string; rollbackOfDeploymentId:string|null; rollbackTargetDeploymentId:string|null; canRestoreDatabase:boolean; environment:string; provider:string; status:string; packageSha256:string; commitSha:string; environmentUrl:string|null; createdAt:string; startedAt:string|null; completedAt:string|null; failureCode:string|null; version:string }
-type StagingDeploymentOperation = { deployment:ReleaseDeployment; bootstrapEmail:string; bootstrapPassword:string }
-type ProductionApproval = { id:string; stagingDeploymentId:string; releasePackageId:string; version:string; status:string; stagingUrl:string|null; requestNote:string; reviewNote:string|null; requestedByUserId:string; reviewedByUserId:string|null; createdAt:string; reviewedAt:string|null; productionDeploymentStarted:boolean; productionDeploymentId:string|null; productionDeploymentStatus:string|null; productionEnvironmentUrl:string|null }
-type PullRequestDraft = { title:string; body:string; risks:string[]; limitations:string[]; sourceBranch:string; baseBranch:string; commitSha:string; testTargetPath:string; testCompletedAt:string; remotePullRequestCreated:boolean }
-type PublishedPullRequest = { pullNumber:number; htmlUrl:string; state:string; draft:boolean; created:boolean; branchName:string; baseBranch:string; commitSha:string; pushed:boolean }
-type WorkspaceGitDiff = { path:string; status:string; baseContent:string; currentContent:string; baseSha256:string; currentSha256:string; headCommitSha:string }
-type StudioCodeReview = { summary:string; findings:{severity:'Critical'|'High'|'Medium'|'Low'|'Info';title:string;detail:string;recommendation:string}[]; limitations:string[] }
-type StudioCodeReviewThread = { id:string; path:string; lineNumber:number; headCommitSha:string; status:'Open'|'Resolved'; createdByUserId:string; createdAt:string; updatedAt:string; rowVersion:string; isStale:boolean; comments:{id:string;createdByUserId:string;body:string;createdAt:string;githubAuthorLogin?:string|null}[] }
-type WorkspaceChangeDiff = { id:string; path:string; originalContent:string; currentContent:string; originalSha256:string; appliedSha256:string; appliedAt:string; isRestored:boolean; isCurrent:boolean; wasCreated:boolean }
-type RestoredWorkspaceChange = { changeId:string; path:string; sha256:string }
-type UiDesignPreview = { filePath:string; sourceSha256:string; summary:string; plan:UiDesignPlan; proposedContent:string }
+type ProjectMember = {
+  userId: string;
+  email: string;
+  accessLevel: "Viewer" | "Contributor" | "Maintainer";
+  grantedAt: string;
+};
+type WorkspaceRequest = {
+  id: string;
+  projectId: string;
+  developmentRequestId: string | null;
+  developmentRequestTitle: string | null;
+  developmentRequestDescription: string | null;
+  requestedByUserId: string;
+  branchName: string;
+  workspaceBranchName: string | null;
+  status:
+    | "PendingApproval"
+    | "Approved"
+    | "Rejected"
+    | "Cancelled"
+    | "Provisioning"
+    | "ProvisioningFailed"
+    | "Ready"
+    | "Archived";
+  createdAt: string;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  canReview: boolean;
+  canCancel: boolean;
+  canDelete: boolean;
+  commitSha: string | null;
+  provisioningError: string | null;
+  provisionedAt: string | null;
+};
+type PendingWorkspaceApproval = {
+  id: string;
+  projectId: string;
+  projectName: string;
+  requestedByUserId: string;
+  requesterEmail: string;
+  branchName: string;
+  createdAt: string;
+  reviewNote: string | null;
+  developmentRequestTitle: string | null;
+  developmentRequestDescription: string | null;
+};
+type PendingWorkspaceApprovalsPage = {
+  items: PendingWorkspaceApproval[];
+  nextOffset: number | null;
+};
+type WorkspaceFileEntry = {
+  name: string;
+  path: string;
+  kind: "Directory" | "File" | "Link";
+  sizeBytes: number | null;
+};
+type WorkspaceFileListing = {
+  path: string;
+  entries: WorkspaceFileEntry[];
+  nextOffset: number | null;
+};
+type WorkspaceFileSearchResult = {
+  scannedEntries: number;
+  truncated: boolean;
+  entries: WorkspaceFileEntry[];
+};
+type WorkspaceFileContent = {
+  path: string;
+  content: string;
+  sizeBytes: number;
+  sha256: string;
+};
+type WorkspaceAnalysis = {
+  scannedFiles: number;
+  truncated: boolean;
+  technologies: { name: string; fileCount: number }[];
+  entryPoints: string[];
+};
+type WorkspaceSearchResult = {
+  scannedFiles: number;
+  truncated: boolean;
+  matches: { path: string; line: number; excerpt: string }[];
+};
+type SourceAnalysisResult = { answer: string; sourceCount: number };
+type WorkspaceTestDiscovery = {
+  scannedFiles: number;
+  truncated: boolean;
+  targets: {
+    path: string;
+    ecosystem: string;
+    evidence: string;
+    suggestedCommand: string;
+    canTest?: boolean;
+    canBuild?: boolean;
+  }[];
+};
+type WorkspaceTestRunStatus = {
+  jobId: string;
+  targetPath: string;
+  commitSha: string;
+  snapshotSha256: string;
+  hasUncommittedChanges: boolean;
+  status: string;
+  message: string | null;
+  success: boolean | null;
+  exitCode: number | null;
+  durationMilliseconds: number;
+  output: string;
+  completedAt: string | null;
+};
+type SandboxErrorAnalysisResponse = {
+  jobId: string;
+  analysis: {
+    summary: string;
+    likelyCause: string;
+    recommendedActions: string[];
+    limitations: string[];
+  };
+  triage: {
+    category: string;
+    summary: string;
+    sourceRepairCandidate: boolean;
+    nextStep: string;
+  };
+  operation: "test" | "build";
+  targetPath: string;
+  status: string;
+  commitSha: string;
+  outputWasRedacted: boolean;
+  sourceOutputPersisted: boolean;
+};
+type AITestPlan = {
+  summary: string;
+  scenarios: {
+    title: string;
+    category: string;
+    objective: string;
+    steps: string[];
+    expectedResult: string;
+    priority: string;
+  }[];
+  assumptions: string[];
+  risks: string[];
+};
+type SavedAITestPlan = {
+  id: string;
+  workspaceRequestId: string;
+  branchName: string;
+  commitSha: string;
+  summary: string;
+  createdAt: string;
+  createdByUserId: string;
+  canDelete: boolean;
+};
+type SavedAITestPlanDetail = { metadata: SavedAITestPlan; plan: AITestPlan };
+type ArchitecturePlan = {
+  summary: string;
+  affectedAreas: string[];
+  steps: { title: string; description: string; files: string[] }[];
+  assumptions: string[];
+  risks: string[];
+};
+type SavedArchitecturePlan = {
+  id: string;
+  workspaceRequestId: string;
+  branchName: string;
+  commitSha: string;
+  summary: string;
+  createdAt: string;
+  createdByUserId: string;
+  canDelete: boolean;
+};
+type SavedArchitecturePlanDetail = {
+  metadata: SavedArchitecturePlan;
+  plan: ArchitecturePlan;
+};
+type StudioConversation = {
+  id: string;
+  title: string;
+  workspaceRequestId: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserId: string;
+  canDelete: boolean;
+};
+type StudioConversationMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+};
+type StudioChatCodeChangePreview = {
+  summary: string;
+  risks: string[];
+  changes: {
+    filePath: string;
+    sourceSha256: string;
+    patches: { findText: string; replaceText: string; notes: string[] }[];
+  }[];
+  userMessage: StudioConversationMessage;
+  assistantMessage: StudioConversationMessage;
+};
+type StudioKnowledgeDocument = {
+  id: string;
+  path: string;
+  contentSha256: string;
+  commitSha: string;
+  indexedAt: string;
+  embeddingModel: string | null;
+  characterCount: number;
+};
+type StudioKnowledgeAutoRefresh = {
+  enabled: boolean;
+  allFiles?: boolean;
+  paths: string[];
+  lastRefreshedAt: string | null;
+};
+type ApprovedHistoryCandidate = {
+  id: string;
+  branchName: string;
+  commitSha: string;
+  testTargetPath: string;
+  testCompletedAt: string;
+  approvedAt: string;
+  developmentRequestTitle: string | null;
+};
+type CodeSuggestionPreview = {
+  filePath: string;
+  sourceSha256: string;
+  originalContent: string;
+  summary: string;
+  proposedContent: string;
+  notes: string[];
+  createNewFile: boolean;
+};
+type MultiFileCodeSuggestionPreview = {
+  summary: string;
+  risks: string[];
+  changes: {
+    filePath: string;
+    sourceSha256: string;
+    originalContent: string;
+    proposedContent: string;
+    notes: string[];
+  }[];
+};
+type AppliedCodeSuggestion = { filePath: string; sha256: string };
+type WorkspaceChange = {
+  id: string;
+  path: string;
+  originalSha256: string;
+  appliedSha256: string;
+  appliedAt: string;
+  isRestored: boolean;
+  isCurrent: boolean;
+  wasCreated: boolean;
+};
+type WorkspaceChanges = { changes: WorkspaceChange[]; truncated: boolean };
+type WorkspaceCommitResult = {
+  workspaceId: string;
+  branchName: string;
+  parentCommitSha: string;
+  commitSha: string;
+  files: string[];
+};
+type WorkspaceGitStatus = {
+  branchName: string;
+  headCommitSha: string;
+  totalChangedFiles: number;
+  truncated: boolean;
+  files: { path: string; status: string }[];
+};
+type ReleaseCandidate = {
+  id: string;
+  workspaceRequestId: string;
+  branchName: string;
+  commitSha: string;
+  testJobId: string;
+  testTargetPath: string;
+  testSnapshotSha256: string;
+  testCompletedAt: string;
+  createdAt: string;
+  createdByUserId: string;
+  decision: string | null;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  reviewedByUserId: string | null;
+  canReview: boolean;
+  githubPullRequestNumber: number | null;
+  githubPullRequestUrl: string | null;
+  githubPullRequestState: string | null;
+};
+type ReleaseVersion = {
+  id: string;
+  releaseCandidateId: string;
+  version: string;
+  commitSha: string;
+  createdAt: string;
+  createdByUserId: string;
+};
+type ReleasePackage = {
+  id: string;
+  releaseVersionId: string;
+  version: string;
+  commitSha: string;
+  testSnapshotSha256: string;
+  packageSha256: string;
+  fileName: string;
+  sizeBytes: number;
+  createdAt: string;
+  createdByUserId: string;
+};
+type ReleaseDeployment = {
+  id: string;
+  releasePackageId: string;
+  rollbackOfDeploymentId: string | null;
+  rollbackTargetDeploymentId: string | null;
+  canRestoreDatabase: boolean;
+  environment: string;
+  provider: string;
+  status: string;
+  packageSha256: string;
+  commitSha: string;
+  environmentUrl: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  failureCode: string | null;
+  version: string;
+};
+type StagingDeploymentOperation = {
+  deployment: ReleaseDeployment;
+  bootstrapEmail: string;
+  bootstrapPassword: string;
+};
+type ProductionApproval = {
+  id: string;
+  stagingDeploymentId: string;
+  releasePackageId: string;
+  version: string;
+  status: string;
+  stagingUrl: string | null;
+  requestNote: string;
+  reviewNote: string | null;
+  requestedByUserId: string;
+  reviewedByUserId: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+  productionDeploymentStarted: boolean;
+  productionDeploymentId: string | null;
+  productionDeploymentStatus: string | null;
+  productionEnvironmentUrl: string | null;
+};
+type PullRequestDraft = {
+  title: string;
+  body: string;
+  risks: string[];
+  limitations: string[];
+  sourceBranch: string;
+  baseBranch: string;
+  commitSha: string;
+  testTargetPath: string;
+  testCompletedAt: string;
+  remotePullRequestCreated: boolean;
+};
+type PublishedPullRequest = {
+  pullNumber: number;
+  htmlUrl: string;
+  state: string;
+  draft: boolean;
+  created: boolean;
+  branchName: string;
+  baseBranch: string;
+  commitSha: string;
+  pushed: boolean;
+};
+type WorkspaceGitDiff = {
+  path: string;
+  status: string;
+  baseContent: string;
+  currentContent: string;
+  baseSha256: string;
+  currentSha256: string;
+  headCommitSha: string;
+};
+type StudioCodeReview = {
+  summary: string;
+  findings: {
+    severity: "Critical" | "High" | "Medium" | "Low" | "Info";
+    title: string;
+    detail: string;
+    recommendation: string;
+  }[];
+  limitations: string[];
+};
+type StudioCodeReviewThread = {
+  id: string;
+  path: string;
+  lineNumber: number;
+  headCommitSha: string;
+  status: "Open" | "Resolved";
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+  rowVersion: string;
+  isStale: boolean;
+  comments: {
+    id: string;
+    createdByUserId: string;
+    body: string;
+    createdAt: string;
+    githubAuthorLogin?: string | null;
+  }[];
+};
+type WorkspaceChangeDiff = {
+  id: string;
+  path: string;
+  originalContent: string;
+  currentContent: string;
+  originalSha256: string;
+  appliedSha256: string;
+  appliedAt: string;
+  isRestored: boolean;
+  isCurrent: boolean;
+  wasCreated: boolean;
+};
+type RestoredWorkspaceChange = {
+  changeId: string;
+  path: string;
+  sha256: string;
+};
+type UiDesignPreview = {
+  filePath: string;
+  sourceSha256: string;
+  summary: string;
+  plan: UiDesignPlan;
+  proposedContent: string;
+};
 
-function linkedDevelopmentContext(title:string|null,description:string|null) {
-  return [title,description].filter(Boolean).join('\n\n').slice(0,2000)
+function linkedDevelopmentContext(
+  title: string | null,
+  description: string | null,
+) {
+  return [title, description].filter(Boolean).join("\n\n").slice(0, 2000);
 }
 
-function CodeSuggestionDiff({original,proposed}:{original:string;proposed:string}) {
-  const before=original.split(/\r?\n/),after=proposed.split(/\r?\n/)
-  if(before.length*after.length>250_000||before.length+after.length>3000)return <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:12}}><section className="panel"><div className="panel-heading"><b>{original===''?'Önceki içerik · boş dosya':'Önceki dosya içeriği'}</b></div><pre style={{maxHeight:360,overflow:'auto',padding:12,background:'#0b1020',color:'#dce5ff',borderRadius:10,whiteSpace:'pre',fontSize:12}}><code>{original}</code></pre></section><section className="panel"><div className="panel-heading"><b>{proposed===''?'Güncel içerik · boş':'Güncel dosya içeriği'}</b></div><pre style={{maxHeight:360,overflow:'auto',padding:12,background:'#0b1020',color:'#dce5ff',borderRadius:10,whiteSpace:'pre',fontSize:12}}><code>{proposed}</code></pre></section></div>
-  const lcs=Array.from({length:before.length+1},()=>new Uint32Array(after.length+1))
-  for(let i=before.length-1;i>=0;i--)for(let j=after.length-1;j>=0;j--)lcs[i][j]=before[i]===after[j]?lcs[i+1][j+1]+1:Math.max(lcs[i+1][j],lcs[i][j+1])
-  const rows:{kind:'same'|'add'|'remove';text:string;line:number}[]=[];let i=0,j=0
-  while(i<before.length||j<after.length){if(i<before.length&&j<after.length&&before[i]===after[j]){rows.push({kind:'same',text:before[i],line:i+1});i++;j++}else if(j<after.length&&(i===before.length||lcs[i][j+1]>=lcs[i+1][j])){rows.push({kind:'add',text:after[j],line:j+1});j++}else{rows.push({kind:'remove',text:before[i],line:i+1});i++}}
-  return <section className="panel"><div className="panel-heading"><b>Satır diff’i</b><small>Yeşil: eklendi · Kırmızı: kaldırıldı</small></div><pre style={{maxHeight:450,overflow:'auto',padding:12,background:'#0b1020',color:'#dce5ff',borderRadius:10,whiteSpace:'pre',fontSize:12}}><code>{rows.map((row,index)=><span key={index} style={{display:'block',background:row.kind==='add'?'rgba(34,197,94,.18)':row.kind==='remove'?'rgba(239,68,68,.18)':'transparent',color:row.kind==='add'?'#86efac':row.kind==='remove'?'#fca5a5':'#dce5ff'}}>{row.kind==='add'?'+':row.kind==='remove'?'-':' '} {String(row.line).padStart(4,' ')} │ {row.text||' '}</span>)}</code></pre></section>
-}
-
-function updateWorkspaceRoute(projectId?:string,requestId?:string,directoryPath?:string,openFilePath?:string){const url=new URL(window.location.href);if(projectId&&requestId){url.searchParams.set('studioProject',projectId);url.searchParams.set('studioWorkspace',requestId);if(directoryPath)url.searchParams.set('studioPath',directoryPath);else url.searchParams.delete('studioPath');if(openFilePath)url.searchParams.set('studioFile',openFilePath);else url.searchParams.delete('studioFile')}else{url.searchParams.delete('studioProject');url.searchParams.delete('studioWorkspace');url.searchParams.delete('studioPath');url.searchParams.delete('studioFile')}window.history.replaceState(null,'',url.toString())}
-
-export function StudioProjects({token,tenant,projects,setProjects,refreshProjects}:{token:string;tenant:Tenant;projects:DevelopmentProject[];setProjects:Dispatch<SetStateAction<DevelopmentProject[]>>;refreshProjects:()=>Promise<DevelopmentProject[]>}) {
-  const [members,setMembers]=useState<ProjectMember[]>([]),[pendingApprovals,setPendingApprovals]=useState<PendingWorkspaceApproval[]>([]),[pendingApprovalsOffset,setPendingApprovalsOffset]=useState(0),[pendingApprovalsNextOffset,setPendingApprovalsNextOffset]=useState<number|null>(null),[approvalQueueLoading,setApprovalQueueLoading]=useState(false)
-  const [showCreate,setShowCreate]=useState(false),[accessProject,setAccessProject]=useState<DevelopmentProject|null>(null)
-  const [moduleMappingProject,setModuleMappingProject]=useState<DevelopmentProject|null>(null)
-  const [workspaceProject,setWorkspaceProject]=useState<DevelopmentProject|null>(null),[workspaceRequests,setWorkspaceRequests]=useState<WorkspaceRequest[]>([]),[workspaceBranches,setWorkspaceBranches]=useState<string[]>([]),[branchesLoading,setBranchesLoading]=useState(false),[branchesAvailable,setBranchesAvailable]=useState(false),[branchListError,setBranchListError]=useState(''),[customWorkspaceBranch,setCustomWorkspaceBranch]=useState(false),[projectDevelopmentRequests,setProjectDevelopmentRequests]=useState<DevelopmentRequest[]>([]),[selectedDevelopmentRequestId,setSelectedDevelopmentRequestId]=useState('')
-  const [fileWorkspace,setFileWorkspace]=useState<WorkspaceRequest|null>(null),[fileListing,setFileListing]=useState<WorkspaceFileListing|null>(null),[fileContent,setFileContent]=useState<WorkspaceFileContent|null>(null),[filePath,setFilePath]=useState(''),[fileLoading,setFileLoading]=useState(false),[workspaceFileFilter,setWorkspaceFileFilter]=useState(''),[workspaceFileSearchResult,setWorkspaceFileSearchResult]=useState<WorkspaceFileSearchResult|null>(null),[workspaceFileSearchLoading,setWorkspaceFileSearchLoading]=useState(false)
-  const [manualFileEditing,setManualFileEditing]=useState(false),[manualFileContent,setManualFileContent]=useState(''),[manualFilePath,setManualFilePath]=useState(''),[manualFileCreating,setManualFileCreating]=useState(false),[manualFileSaving,setManualFileSaving]=useState(false)
-  const workspaceExplorerRef=useRef<HTMLDivElement>(null),workspaceExplorerCloseRef=useRef<HTMLButtonElement>(null)
-  const workspaceRestoreRef=useRef('')
-
-  const [multiFileSelecting,setMultiFileSelecting]=useState(false),[multiFilePaths,setMultiFilePaths]=useState<string[]>([]),[multiDeveloperWorkspace,setMultiDeveloperWorkspace]=useState<WorkspaceRequest|null>(null),[multiFileRequest,setMultiFileRequest]=useState(''),[multiFileConsent,setMultiFileConsent]=useState(false),[multiFileSuggestion,setMultiFileSuggestion]=useState<MultiFileCodeSuggestionPreview|null>(null),[multiFileApplied,setMultiFileApplied]=useState<string[]>([]),[multiFileLoading,setMultiFileLoading]=useState(false)
-  const [repairMode,setRepairMode]=useState<{operation:'test'|'build';targetPath:string}|null>(null),[repairPathsDraft,setRepairPathsDraft]=useState('')
-  const [workspaceAnalysis,setWorkspaceAnalysis]=useState<WorkspaceAnalysis|null>(null),[analysisWorkspace,setAnalysisWorkspace]=useState<WorkspaceRequest|null>(null),[analysisLoading,setAnalysisLoading]=useState(false),[inventoryLayout,setInventoryLayout]=useState<'grid'|'list'>('grid'),[analysisCompletedAt,setAnalysisCompletedAt]=useState<string|null>(null)
-  const [testDiscovery,setTestDiscovery]=useState<WorkspaceTestDiscovery|null>(null),[testDiscoveryWorkspace,setTestDiscoveryWorkspace]=useState<WorkspaceRequest|null>(null),[testDiscoveryLoading,setTestDiscoveryLoading]=useState(false),[testExecution,setTestExecution]=useState<WorkspaceTestRunStatus|null>(null),[testExecutionTarget,setTestExecutionTarget]=useState(''),[testExecutionLoading,setTestExecutionLoading]=useState(false),[buildExecution,setBuildExecution]=useState<WorkspaceTestRunStatus|null>(null),[buildExecutionTarget,setBuildExecutionTarget]=useState(''),[buildExecutionWorkspaceId,setBuildExecutionWorkspaceId]=useState<string|null>(null),[buildExecutionLoading,setBuildExecutionLoading]=useState(false),[testPlan,setTestPlan]=useState<AITestPlan|null>(null),[testRequest,setTestRequest]=useState(''),[testAIConsent,setTestAIConsent]=useState(false),[testPlanLoading,setTestPlanLoading]=useState(false),[testPlanSaveLoading,setTestPlanSaveLoading]=useState(false),[testPlanSavedId,setTestPlanSavedId]=useState<string|null>(null),[savedTestPlans,setSavedTestPlans]=useState<SavedAITestPlan[]>([])
-  const [architectWorkspace,setArchitectWorkspace]=useState<WorkspaceRequest|null>(null),[architectPlan,setArchitectPlan]=useState<ArchitecturePlan|null>(null),[architectRequest,setArchitectRequest]=useState(''),[architectConsent,setArchitectConsent]=useState(false),[architectLoading,setArchitectLoading]=useState(false)
-  const [developerWorkspace,setDeveloperWorkspace]=useState<WorkspaceRequest|null>(null),[developerFile,setDeveloperFile]=useState<WorkspaceFileContent|null>(null),[developerRequest,setDeveloperRequest]=useState(''),[developerConsent,setDeveloperConsent]=useState(false),[developerLoading,setDeveloperLoading]=useState(false),[developerSuggestion,setDeveloperSuggestion]=useState<CodeSuggestionPreview|null>(null),[developerApplyApproval,setDeveloperApplyApproval]=useState(false),[developerApplied,setDeveloperApplied]=useState(false)
-  const [developerIsNewFile,setDeveloperIsNewFile]=useState(false),[developerNewPath,setDeveloperNewPath]=useState('')
-  const [uiDesignerWorkspace,setUiDesignerWorkspace]=useState<WorkspaceRequest|null>(null),[uiDesignRequest,setUiDesignRequest]=useState(''),[uiDesignPath,setUiDesignPath]=useState(''),[uiDesignConsent,setUiDesignConsent]=useState(false),[uiDesignResult,setUiDesignResult]=useState<UiDesignPreview|null>(null),[uiDesignLoading,setUiDesignLoading]=useState(false),[uiDesignApplyApproval,setUiDesignApplyApproval]=useState(false),[uiDesignApplied,setUiDesignApplied]=useState(false)
-  const [changeWorkspace,setChangeWorkspace]=useState<WorkspaceRequest|null>(null),[workspaceChanges,setWorkspaceChanges]=useState<WorkspaceChanges|null>(null),[changeDiff,setChangeDiff]=useState<WorkspaceChangeDiff|null>(null),[changeLoading,setChangeLoading]=useState(false),[restoreApproval,setRestoreApproval]=useState(false)
-  const [gitStatusWorkspace,setGitStatusWorkspace]=useState<WorkspaceRequest|null>(null),[workspaceGitStatus,setWorkspaceGitStatus]=useState<WorkspaceGitStatus|null>(null),[gitStatusLoading,setGitStatusLoading]=useState(false),[releaseCandidates,setReleaseCandidates]=useState<ReleaseCandidate[]>([]),[releaseCandidateSaving,setReleaseCandidateSaving]=useState(false),[releaseVersions,setReleaseVersions]=useState<ReleaseVersion[]>([]),[releasePackages,setReleasePackages]=useState<ReleasePackage[]>([]),[releasePackageLoading,setReleasePackageLoading]=useState<string|null>(null),[releasePackageDownloadLoading,setReleasePackageDownloadLoading]=useState<string|null>(null),[releaseDeployments,setReleaseDeployments]=useState<ReleaseDeployment[]>([]),[productionDeployments,setProductionDeployments]=useState<ReleaseDeployment[]>([]),[productionApprovals,setProductionApprovals]=useState<ProductionApproval[]>([]),[releaseDeploymentLoading,setReleaseDeploymentLoading]=useState(false),[stagingCredentials,setStagingCredentials]=useState<StagingDeploymentOperation|null>(null),[pullRequestDraft,setPullRequestDraft]=useState<{candidateId:string;draft:PullRequestDraft}|null>(null),[pullRequestDraftLoading,setPullRequestDraftLoading]=useState(false),[publishedPullRequest,setPublishedPullRequest]=useState<PublishedPullRequest|null>(null),[pullRequestPublishLoading,setPullRequestPublishLoading]=useState(false),[pullRequestReadyLoading,setPullRequestReadyLoading]=useState<string|null>(null)
-  const [sourceSearchWorkspace,setSourceSearchWorkspace]=useState<WorkspaceRequest|null>(null),[sourceSearchQuery,setSourceSearchQuery]=useState(''),[sourceSearchResult,setSourceSearchResult]=useState<WorkspaceSearchResult|null>(null),[sourceSearchLoading,setSourceSearchLoading]=useState(false),[selectedSourceMatches,setSelectedSourceMatches]=useState<string[]>([]),[sourceAnalysisQuestion,setSourceAnalysisQuestion]=useState(''),[sourceAnalysisConsent,setSourceAnalysisConsent]=useState(false),[sourceAnalysisLoading,setSourceAnalysisLoading]=useState(false),[sourceAnalysisResult,setSourceAnalysisResult]=useState<SourceAnalysisResult|null>(null)
-  const [workspaceGitDiff,setWorkspaceGitDiff]=useState<WorkspaceGitDiff|null>(null),[gitDiffTarget,setGitDiffTarget]=useState<string|null>(null),[gitDiffLoading,setGitDiffLoading]=useState(false),[codeReview,setCodeReview]=useState<StudioCodeReview|null>(null),[codeReviewConsent,setCodeReviewConsent]=useState(false),[codeReviewLoading,setCodeReviewLoading]=useState(false)
-  const [reviewThreads,setReviewThreads]=useState<StudioCodeReviewThread[]>([]),[reviewLine,setReviewLine]=useState('1'),[reviewDraft,setReviewDraft]=useState(''),[reviewReplyThread,setReviewReplyThread]=useState<string|null>(null),[reviewReplyDraft,setReviewReplyDraft]=useState(''),[reviewSaving,setReviewSaving]=useState(false)
-  const [chatWorkspace,setChatWorkspace]=useState<WorkspaceRequest|null>(null),[studioConversations,setStudioConversations]=useState<StudioConversation[]>([]),[chatConversation,setChatConversation]=useState<StudioConversation|null>(null),[chatMessages,setChatMessages]=useState<StudioConversationMessage[]>([]),[chatTitle,setChatTitle]=useState(''),[chatDraft,setChatDraft]=useState(''),[chatAIConsent,setChatAIConsent]=useState(false),[chatKnowledgeConsent,setChatKnowledgeConsent]=useState(false),[chatSourceSharingConsent,setChatSourceSharingConsent]=useState(false),[chatLoading,setChatLoading]=useState(false),[chatStreamingText,setChatStreamingText]=useState(''),[chatCodeChangeLoading,setChatCodeChangeLoading]=useState(false),[chatCodeChange,setChatCodeChange]=useState<StudioChatCodeChangePreview|null>(null),[chatCodeChangeApplied,setChatCodeChangeApplied]=useState<string[]>([])
-  const [knowledgeDocs,setKnowledgeDocs]=useState<StudioKnowledgeDocument[]>([]),[knowledgePaths,setKnowledgePaths]=useState<string[]>([]),[knowledgeHistoryCandidates,setKnowledgeHistoryCandidates]=useState<ApprovedHistoryCandidate[]>([]),[knowledgeHistoryIds,setKnowledgeHistoryIds]=useState<string[]>([]),[knowledgeLoading,setKnowledgeLoading]=useState(false),[knowledgeAutoRefresh,setKnowledgeAutoRefresh]=useState<StudioKnowledgeAutoRefresh>({enabled:false,allFiles:false,paths:[],lastRefreshedAt:null}),[enableKnowledgeAutoRefresh,setEnableKnowledgeAutoRefresh]=useState(false),[knowledgePanelExpanded,setKnowledgePanelExpanded]=useState(false),[knowledgeDrawerOpen,setKnowledgeDrawerOpen]=useState(false)
-  const [architectSavedPlanId,setArchitectSavedPlanId]=useState<string|null>(null),[savedArchitecturePlans,setSavedArchitecturePlans]=useState<SavedArchitecturePlan[]>([]),[showPlanHistory,setShowPlanHistory]=useState(false)
-  const [aiDockOpen,setAiDockOpen]=useState(false)
-  const [aiToolsViewOpen,setAiToolsViewOpen]=useState(false)
-  const [aiToolsCategory,setAiToolsCategory]=useState('Tümü')
-  const [aiToolsQuery,setAiToolsQuery]=useState('')
-  const [moduleFilesLoading,setModuleFilesLoading]=useState(false)
-  const [name,setName]=useState(''),[repositoryUrl,setRepositoryUrl]=useState(''),[defaultBranch,setDefaultBranch]=useState('main')
-  const [memberEmail,setMemberEmail]=useState(''),[accessLevel,setAccessLevel]=useState<ProjectMember['accessLevel']>('Viewer'),[workspaceBranch,setWorkspaceBranch]=useState(''),[reviewNote,setReviewNote]=useState('')
-  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
-  const [aiConfigured,setAiConfigured]=useState<boolean|null>(null)
-  const [sandboxErrorAnalysis,setSandboxErrorAnalysis]=useState<SandboxErrorAnalysisResponse|null>(null),[sandboxErrorAnalysisLoading,setSandboxErrorAnalysisLoading]=useState(false)
-  const [workspaceCommitLoading,setWorkspaceCommitLoading]=useState(false)
-  useEffect(()=>{const query=workspaceFileFilter.trim();if(!fileWorkspace||!query){setWorkspaceFileSearchResult(null);setWorkspaceFileSearchLoading(false);return}let active=true;setWorkspaceFileSearchResult(null);setWorkspaceFileSearchLoading(true);const timer=window.setTimeout(()=>{void api<WorkspaceFileSearchResult>(`/studio/projects/${fileWorkspace.projectId}/workspace-requests/${fileWorkspace.id}/files/search?query=${encodeURIComponent(query)}`,token).then(result=>{if(active)setWorkspaceFileSearchResult(result)}).catch(e=>{if(active){setWorkspaceFileSearchResult({scannedEntries:0,truncated:false,entries:[]});setError((e as Error).message)}}).finally(()=>{if(active)setWorkspaceFileSearchLoading(false)})},250);return()=>{active=false;window.clearTimeout(timer)}},[workspaceFileFilter,fileWorkspace,token])
-  const moduleCodeForWorkspace=(request:WorkspaceRequest|null)=>{
-    const code=/\bModül kodu:\s*([a-z][a-z0-9]*(?:[.-][a-z0-9]+)*)/i.exec(request?.developmentRequestDescription??'')?.[1]?.toLowerCase()??''
-    return /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(code)?code:''
-  }
-  const moduleStarterForWorkspace=(request:WorkspaceRequest|null)=>/\bModül şablonu:\s*(greeting|price|text-summary)\b/i.exec(request?.developmentRequestDescription??'')?.[1]?.toLowerCase()??''
-  const moduleDisplayNameForWorkspace=(request:WorkspaceRequest|null)=>/\bModül adı:\s*([^\r\n]+)/i.exec(request?.developmentRequestDescription??'')?.[1]?.trim()||moduleCodeForWorkspace(request)||'Yeni modül'
-  const moduleWorkspaceCode=moduleCodeForWorkspace(fileWorkspace)
-  const moduleWorkspacePath=moduleWorkspaceCode?`modules/${moduleWorkspaceCode}`:''
-  const moduleStarterId=moduleStarterForWorkspace(fileWorkspace)
-  const moduleTemplateFiles=moduleStarterFiles(moduleStarterId,moduleWorkspaceCode,moduleDisplayNameForWorkspace(fileWorkspace))
-  const isInsideModuleWorkspace=(path:string)=>Boolean(moduleWorkspacePath&&(path===moduleWorkspacePath||path.startsWith(`${moduleWorkspacePath}/`)))
-  const visibleWorkspaceEntries=(workspaceFileFilter.trim()?(workspaceFileSearchResult?.entries??[]):(fileListing?.entries??[])).filter(entry=>{
-    if(!moduleWorkspacePath)return true
-    if(workspaceFileFilter.trim())return isInsideModuleWorkspace(entry.path)
-    if(filePath==='')return entry.path==='modules'&&entry.kind==='Directory'
-    if(filePath==='modules')return entry.path===moduleWorkspacePath
-    return isInsideModuleWorkspace(filePath)?isInsideModuleWorkspace(entry.path):false
-  })
-  async function loadPendingApprovals(offset=0){setApprovalQueueLoading(true);try{const page=await api<PendingWorkspaceApprovalsPage>(`/studio/workspace-requests/pending?offset=${offset}`,token);if(page.items.length===0&&offset>0){await loadPendingApprovals(Math.max(0,offset-100));return}setPendingApprovals(page.items);setPendingApprovalsOffset(offset);setPendingApprovalsNextOffset(page.nextOffset)}catch(e){setError((e as Error).message)}finally{setApprovalQueueLoading(false)}}
-  async function load(){try{await refreshProjects();await loadPendingApprovals()}catch(e){setError((e as Error).message)}}
-  async function refreshProjectStatus(){setBusy(true);setError('');try{const latest=await refreshProjects();const connected=latest.find(project=>project.githubAuthorized);setNotice(connected?'GitHub bağlantı durumu sunucudan yenilendi.':'Sunucu yanıtında yetkilendirilmiş proje görünmüyor.')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  useEffect(()=>{void loadPendingApprovals();void api<{aiConfigured:boolean}>('/studio/capabilities',token).then(status=>setAiConfigured(status.aiConfigured)).catch(()=>setAiConfigured(null));const url=new URL(window.location.href);const result=url.searchParams.get('github');if(!result)return;const messages:Record<string,string>={connected:'GitHub yetkisi bu projeye bağlandı.',expired:'GitHub yetkilendirme bağlantısının süresi doldu. Yeniden deneyin.',invalid:'GitHub yetkilendirmesi doğrulanamadı.', 'not-authorized':'Projeye yetki veren kullanıcı artık proje Maintainer’ı değil.',unsupported:'Yalnız GitHub HTTPS depoları bağlanabilir.','not-configured':'GitHub App sunucu yapılandırması eksik. Platform yöneticisiyle iletişime geçin.','repository-access-denied':'GitHub App kurulumu bu depoya erişemiyor. Kurulumda doğru depoyu seçin.','setup-failed':'GitHub kurulumu sunucuya kaydedilemedi. Studio yöneticinizden sunucu günlüklerini kontrol etmesini isteyin ve yeniden deneyin.'};setNotice(messages[result]??'GitHub yetkilendirmesi tamamlanamadı.');if(result==='connected'){const projectId=url.searchParams.get('projectId')?.toLowerCase();if(projectId){void load().then(()=>{setProjects(current=>current.map(project=>project.id.toLowerCase()===projectId?{...project,githubAuthorized:true}:project));setWorkspaceProject(current=>current?.id.toLowerCase()===projectId?{...current,githubAuthorized:true}:current)})}}url.searchParams.delete('github');url.searchParams.delete('projectId');window.history.replaceState(null,'',url.toString())},[token])
-  async function createProject(e:FormEvent){e.preventDefault();setBusy(true);setError('');setNotice('');try{await api<DevelopmentProject>('/studio/projects/',token,{method:'POST',body:JSON.stringify({name,repositoryUrl,defaultBranch})});setName('');setRepositoryUrl('');setDefaultBranch('main');setShowCreate(false);setNotice('Proje kaydedildi. Bu aşamada depo içeriği okunmuyor veya çalıştırılmıyor.');await load()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function openAccess(project:DevelopmentProject){setAccessProject(project);setError('');try{setMembers(await api<ProjectMember[]>(`/studio/projects/${project.id}/members`,token))}catch(e){setError((e as Error).message)}}
-  async function grantAccess(e:FormEvent){e.preventDefault();if(!accessProject)return;setBusy(true);setError('');try{await api<ProjectMember>(`/studio/projects/${accessProject.id}/members`,token,{method:'POST',body:JSON.stringify({email:memberEmail,accessLevel})});setMemberEmail('');setNotice('Proje erişimi güncellendi.');setMembers(await api<ProjectMember[]>(`/studio/projects/${accessProject.id}/members`,token))}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function revokeAccess(member:ProjectMember){if(!accessProject||!window.confirm(`${member.email} kullanıcısının proje erişimi kaldırılsın mı?`))return;setBusy(true);setError('');try{await api(`/studio/projects/${accessProject.id}/members/${member.userId}`,token,{method:'DELETE'});setMembers(await api<ProjectMember[]>(`/studio/projects/${accessProject.id}/members`,token));setNotice('Proje erişimi kaldırıldı.')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function loadProjectBranches(project:DevelopmentProject){setBranchesLoading(true);setBranchListError('');try{const branchList=await api<{defaultBranch:string;branches:string[]}>(`/studio/projects/${project.id}/branches`,token);const branches=[...new Set(branchList.branches)];if(!branches.includes(branchList.defaultBranch))throw new Error('Remote default branch is not in the repository branch list.');setWorkspaceBranches(branches);setWorkspaceBranch(branchList.defaultBranch);const refreshedProject={...project,defaultBranch:branchList.defaultBranch};setWorkspaceProject(current=>current?.id===project.id?refreshedProject:current);setProjects(current=>current.map(item=>item.id===project.id?{...item,defaultBranch:branchList.defaultBranch}:item));setBranchesAvailable(true);setBranchListError('')}catch(e){setBranchesAvailable(false);setCustomWorkspaceBranch(true);setWorkspaceBranch('');setBranchListError((e as Error).message)}finally{setBranchesLoading(false)}}
-  async function openWorkspace(project:DevelopmentProject){setWorkspaceProject(project);setWorkspaceBranch('');setSelectedDevelopmentRequestId('');setWorkspaceBranches([]);setBranchesAvailable(false);setBranchListError('');setCustomWorkspaceBranch(false);setBranchesLoading(true);setReviewNote('');setError('');try{const [requests,plans,developmentRequests]=await Promise.all([api<WorkspaceRequest[]>(`/studio/projects/${project.id}/workspace-requests`,token),api<SavedArchitecturePlan[]>(`/studio/projects/${project.id}/architecture-plans`,token),api<DevelopmentRequest[]>(`/studio/requests/?projectId=${project.id}`,token)]);setWorkspaceRequests(requests);setSavedArchitecturePlans(plans);setProjectDevelopmentRequests(developmentRequests);await loadProjectBranches(project)}catch(e){setError((e as Error).message)}finally{setBranchesLoading(false)}}
-  async function connectProjectGitHub(){if(!workspaceProject)return;setBusy(true);setError('');try{const result=await api<{authorizationUrl:string}>(`/studio/projects/${workspaceProject.id}/github/authorization`,token,{method:'POST'});window.location.assign(result.authorizationUrl)}catch(e){setError((e as Error).message);setBusy(false)}}
-  async function disconnectProjectGitHub(){if(!workspaceProject||!window.confirm('Bu projenin GitHub App bağlantısı kaldırılsın mı?'))return;setBusy(true);setError('');try{await api<void>(`/studio/projects/${workspaceProject.id}/github/authorization`,token,{method:'DELETE'});const updated={...workspaceProject,githubAuthorized:false};setWorkspaceProject(updated);setProjects(current=>current.map(item=>item.id===updated.id?updated:item));setNotice('GitHub bağlantısı kaldırıldı.')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function createWorkspaceRequest(e:FormEvent){e.preventDefault();if(!workspaceProject)return;setBusy(true);setError('');try{await api<WorkspaceRequest>(`/studio/projects/${workspaceProject.id}/workspace-requests`,token,{method:'POST',body:JSON.stringify({branchName:workspaceBranch,developmentRequestId:selectedDevelopmentRequestId||null})});setNotice('İzole çalışma alanı talebi ve geliştirme bağlamı onaya gönderildi.');setWorkspaceRequests(await api<WorkspaceRequest[]>(`/studio/projects/${workspaceProject.id}/workspace-requests`,token))}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function reviewWorkspaceRequest(request:WorkspaceRequest,outcome:'Approve'|'Reject'){if(!workspaceProject)return;setBusy(true);setError('');try{await api<WorkspaceRequest>(`/studio/workspace-requests/${request.id}/review`,token,{method:'POST',body:JSON.stringify({outcome,note:reviewNote||null})});setWorkspaceRequests(await api<WorkspaceRequest[]>(`/studio/projects/${workspaceProject.id}/workspace-requests`,token));await loadPendingApprovals(pendingApprovalsOffset);setNotice(outcome==='Approve'?'Çalışma alanı talebi onaylandı.':'Çalışma alanı talebi reddedildi.')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function reviewPendingApproval(request:PendingWorkspaceApproval,outcome:'Approve'|'Reject'){if(outcome==='Reject'&&!reviewNote.trim()){setError('Ret için kısa bir gerekçe girin.');return}setBusy(true);setError('');try{await api<WorkspaceRequest>(`/studio/workspace-requests/${request.id}/review`,token,{method:'POST',body:JSON.stringify({outcome,note:reviewNote.trim()||null})});const refreshOffset=pendingApprovals.length===1&&pendingApprovalsOffset>0?pendingApprovalsOffset-100:pendingApprovalsOffset;await loadPendingApprovals(refreshOffset);if(workspaceProject?.id===request.projectId)setWorkspaceRequests(await api<WorkspaceRequest[]>(`/studio/projects/${request.projectId}/workspace-requests`,token));setReviewNote('');setNotice(outcome==='Approve'?'Çalışma alanı talebi onaylandı.':'Çalışma alanı talebi reddedildi.')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function cancelWorkspaceRequest(request:WorkspaceRequest){if(!workspaceProject||!window.confirm(`${request.branchName} dalı için bekleyen çalışma alanı talebi iptal edilsin mi?`))return;setBusy(true);setError('');try{await api<WorkspaceRequest>(`/studio/workspace-requests/${request.id}/cancel`,token,{method:'POST'});setWorkspaceRequests(await api<WorkspaceRequest[]>(`/studio/projects/${workspaceProject.id}/workspace-requests`,token));setNotice('Çalışma alanı talebi iptal edildi ve denetim kaydına yazıldı.')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function archiveWorkspaceRequest(request:WorkspaceRequest){if(!workspaceProject||!request.canDelete||request.status==='Provisioning')return;if(!window.confirm(`"${request.branchName}" çalışma alanı talebi etkin listeden silinsin mi? Denetim geçmişi ve izole çalışma alanındaki dosyalar korunur.`))return;setBusy(true);setError('');try{await api<void>(`/studio/workspace-requests/${request.id}/archive`,token,{method:'POST'});setWorkspaceRequests(current=>current.filter(item=>item.id!==request.id));setNotice('Çalışma alanı talebi etkin listeden kaldırıldı; denetim geçmişi ve dosyalar korundu.')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function provisionWorkspace(request:WorkspaceRequest){if(!workspaceProject)return;setBusy(true);setError('');try{await api<WorkspaceRequest>(`/studio/workspace-requests/${request.id}/provision`,token,{method:'POST'});setWorkspaceRequests(await api<WorkspaceRequest[]>(`/studio/projects/${workspaceProject.id}/workspace-requests`,token));setNotice('İzole checkout oluşturuldu. Kaynak kodu henüz çalıştırılmadı.')}catch(e){setError((e as Error).message);setWorkspaceRequests(await api<WorkspaceRequest[]>(`/studio/projects/${workspaceProject.id}/workspace-requests`,token).catch(()=>workspaceRequests))}finally{setBusy(false)}}
-  async function ensureWorkspaceBranch(request:WorkspaceRequest){if(!workspaceProject)return;setBusy(true);setError('');try{const updated=await api<WorkspaceRequest>(`/studio/workspace-requests/${request.id}/working-branch`,token,{method:'POST'});setWorkspaceRequests(current=>current.map(item=>item.id===updated.id?updated:item));setNotice(`İzole çalışma dalı ${updated.workspaceBranchName} oluşturuldu; checkout içeriği korunarak ${updated.commitSha} commit’inden devam ediyor.`)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
-  async function loadWorkspaceFiles(request:WorkspaceRequest,path:string,offset=0){if(!workspaceProject)return;if(offset===0)setWorkspaceFileFilter('');setFileLoading(true);setFileContent(null);setError('');try{const query=`path=${encodeURIComponent(path)}&offset=${offset}`;setFileListing(await api<WorkspaceFileListing>(`/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/files?${query}`,token));setFileWorkspace(request);setFilePath(path);updateWorkspaceRoute(workspaceProject.id,request.id,path);setKnowledgePaths([]);setKnowledgeHistoryIds([]);setEnableKnowledgeAutoRefresh(false);void api<{documents:StudioKnowledgeDocument[];autoRefresh:StudioKnowledgeAutoRefresh}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/knowledge`,token).then(result=>{setKnowledgeDocs(result.documents);setKnowledgeAutoRefresh(result.autoRefresh)}).catch(()=>{setKnowledgeDocs([]);setKnowledgeAutoRefresh({enabled:false,paths:[],lastRefreshedAt:null})});if(workspaceProject.accessLevel!=='Viewer')void api<{items:ApprovedHistoryCandidate[]}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/knowledge/approved-history`,token).then(result=>setKnowledgeHistoryCandidates(result.items)).catch(()=>setKnowledgeHistoryCandidates([]))}catch(e){setError((e as Error).message)}finally{setFileLoading(false)}}
-  async function loadModuleStarterIntoWorkspace(){if(!workspaceProject||!fileWorkspace||workspaceProject.accessLevel==='Viewer'||moduleFilesLoading||moduleTemplateFiles.length===0)return;const moduleRoot=`modules/${moduleWorkspaceCode}`;setModuleFilesLoading(true);setError('');try{const existing=new Set<string>();for(const directory of ['modules',moduleRoot,`${moduleRoot}/src`]){try{const listing=await api<WorkspaceFileListing>(`/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/files?path=${encodeURIComponent(directory)}&offset=0`,token);for(const entry of listing.entries)existing.add(entry.path)}catch{/* A missing module directory is expected for a new module. */}}const missing=moduleTemplateFiles.filter(file=>!existing.has(file.path));if(!missing.length){setNotice('Bu modülün başlangıç dosyaları çalışma alanında zaten var.');await loadWorkspaceFiles(fileWorkspace,moduleRoot);return}if(!window.confirm(`${missing.map(file=>file.path).join('\n')} dosyaları izole çalışma alanına eklenecek. Var olan dosyalar değiştirilmez; kod çalıştırılmaz. Devam edilsin mi?`))return;for(const file of missing){await api<AppliedCodeSuggestion>(`/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/apply-code-suggestion`,token,{method:'POST',body:JSON.stringify({filePath:file.path,expectedSha256:'',proposedContent:file.content,approvalConfirmed:true,createNewFile:true,manualEdit:true})})}setNotice(`${missing.length} modül başlangıç dosyası onayınızla eklendi.`);await loadWorkspaceFiles(fileWorkspace,moduleRoot)}catch(e){setError((e as Error).message);await loadWorkspaceFiles(fileWorkspace,moduleRoot)}finally{setModuleFilesLoading(false)}}
-  async function indexSelectedKnowledge(){if(!workspaceProject||!fileWorkspace||(knowledgePaths.length===0&&knowledgeHistoryIds.length===0)||knowledgeLoading)return;if(!window.confirm(`${knowledgePaths.length} dosya ve ${knowledgeHistoryIds.length} onaylanmış geliştirme geçmişi kaydı tenant'a ait AI Studio bilgi tabanında saklanacak ve seçili AI sağlayıcısına anlamsal indeksleme için gönderilecek.${enableKnowledgeAutoRefresh?` Seçilen ${knowledgePaths.length} dosya, bilgi tabanı seçilen sonraki sohbetlerde tekrar kullanılmadan önce workspace içinden otomatik yenilenecek.`:''} Yalnızca seçtikleriniz paylaşılır. Devam edilsin mi?`))return;setKnowledgeLoading(true);setError('');try{const result=await api<{indexed:number;indexedHistory:number;semanticIndexed:number;retrievalMode:'semantic'|'keyword';skippedUnchanged:number}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/knowledge`,token,{method:'POST',body:JSON.stringify({paths:knowledgePaths,approvedHistoryCandidateIds:knowledgeHistoryIds,aiSharingConfirmed:true,enableAutoRefresh:enableKnowledgeAutoRefresh})});const current=await api<{documents:StudioKnowledgeDocument[];autoRefresh:StudioKnowledgeAutoRefresh}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/knowledge`,token);setKnowledgeDocs(current.documents);setKnowledgeAutoRefresh(current.autoRefresh);setKnowledgePaths([]);setKnowledgeHistoryIds([]);setEnableKnowledgeAutoRefresh(false);setNotice(`${result.indexed} kaynak indekslendi (${result.indexedHistory} onaylı geçmiş kaydı); ${result.semanticIndexed} anlamsal aramaya hazır; ${result.skippedUnchanged} değişmemiş kaynak atlandı.`)}catch(e){setError((e as Error).message)}finally{setKnowledgeLoading(false)}}
-  async function revokeKnowledgeAutoRefresh(){if(!workspaceProject||!fileWorkspace||!window.confirm('Bu workspace için otomatik bilgi tabanı yenileme izni kaldırılsın mı?'))return;setKnowledgeLoading(true);setError('');try{await api(`/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/knowledge/auto-refresh`,token,{method:'DELETE'});setKnowledgeAutoRefresh({enabled:false,paths:[],lastRefreshedAt:null});setNotice('Otomatik yenileme izni kaldırıldı. Mevcut bilgi tabanı kayıtları silinmedi.')}catch(e){setError((e as Error).message)}finally{setKnowledgeLoading(false)}}
-  async function enableKnowledgeAutoRefreshAll(){if(!workspaceProject||!fileWorkspace||knowledgeLoading)return;if(!window.confirm(`Her sohbet mesajı öncesinde bu izole workspace içindeki desteklenen kaynak kodunda ilgili arama yapılacak; güvenli eşleşmeler tenant'ta seçili AI sağlayıcısına gönderilecek. Bu izin bu workspace için kalıcıdır; ERP kayıtları, sır dosyaları ve ikili dosyalar kapsam dışıdır. Açmak istiyor musunuz?`))return;setKnowledgeLoading(true);setError('');try{await api(`/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/knowledge/auto-refresh-all`,token,{method:'POST',body:JSON.stringify({confirmed:true})});setKnowledgeAutoRefresh({enabled:true,allFiles:true,paths:[],lastRefreshedAt:new Date().toISOString()});setNotice('Bu workspace için kalıcı AI erişimi açıldı. İlgili kaynak alıntıları her sohbet öncesinde otomatik aranıp kullanılacak.')}catch(e){setError((e as Error).message)}finally{setKnowledgeLoading(false)}}
-  async function deleteKnowledgeDocument(document:StudioKnowledgeDocument){if(!workspaceProject||!fileWorkspace||!window.confirm(`${document.path} dosyasının bu sürümünü bilgi tabanından silmek istiyor musunuz?`))return;try{await api(`/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/knowledge/${document.id}`,token,{method:'DELETE'});setKnowledgeDocs(current=>current.filter(item=>item.path!==document.path));setKnowledgeAutoRefresh(current=>{const paths=current.paths.filter(path=>path!==document.path);return {...current,paths,enabled:current.enabled&&paths.length>0}})}catch(e){setError((e as Error).message)}}
-  async function loadWorkspaceFile(request:WorkspaceRequest,path:string){if(!workspaceProject)return;setFileLoading(true);setFileContent(null);setError('');try{setFileContent(await api<WorkspaceFileContent>(`/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/file-content?path=${encodeURIComponent(path)}`,token));updateWorkspaceRoute(workspaceProject.id,request.id,filePath,path)}catch(e){setError((e as Error).message)}finally{setFileLoading(false)}}
-  function startManualFileEdit(){if(!fileWorkspace||!fileContent||workspaceProject?.accessLevel==='Viewer')return;setManualFilePath(fileContent.path);setManualFileContent(fileContent.content);setManualFileCreating(false);setManualFileEditing(true);setError('')}
-  function startManualNewFile(request:WorkspaceRequest){if(!workspaceProject||workspaceProject.accessLevel==='Viewer')return;const moduleRoot=moduleCodeForWorkspace(request)?`modules/${moduleCodeForWorkspace(request)}`:'';const modulePathIsOpen=Boolean(moduleRoot&&(filePath===moduleRoot||filePath.startsWith(`${moduleRoot}/`)));const path=moduleRoot?(modulePathIsOpen?`${filePath}/NewFile.rs`:`${moduleRoot}/src/lib.rs`):(filePath?`${filePath}/NewComponent.tsx`:'NewComponent.tsx');setFileWorkspace(request);setFileContent({path,content:'',sizeBytes:0,sha256:''});setManualFilePath(path);setManualFileContent('');setManualFileCreating(true);setManualFileEditing(true);setError('')}
-  async function saveManualFile(contentOverride?:string){const contentToSave=contentOverride??manualFileContent;if(!workspaceProject||!fileWorkspace||!fileContent||!manualFileEditing||manualFileSaving)return;const path=manualFileCreating?manualFilePath:fileContent.path;if(!window.confirm(`Manuel kod ${path} dosyasına izole workspace içinde uygulanacak. Güncel dosya değişmişse işlem durdurulur. Kod çalıştırılmayacak. Devam edilsin mi?`))return;setManualFileSaving(true);setError('');try{const applied=await api<AppliedCodeSuggestion>(`/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/apply-code-suggestion`,token,{method:'POST',body:JSON.stringify({filePath:path,expectedSha256:fileContent.sha256,proposedContent:contentToSave,approvalConfirmed:true,createNewFile:manualFileCreating,manualEdit:true})});const sizeBytes=new TextEncoder().encode(contentToSave).length;setFileContent({path,content:contentToSave,sizeBytes,sha256:applied.sha256});setManualFileEditing(false);setManualFileCreating(false);setNotice(`Manuel kod ${path} dosyasına onayla kaydedildi. Kod çalıştırılmadı.`);if(manualFileCreating){const query=`path=${encodeURIComponent(filePath)}&offset=0`;setFileListing(await api<WorkspaceFileListing>(`/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/files?${query}`,token))}if(changeWorkspace?.id===fileWorkspace.id)await loadWorkspaceChanges(fileWorkspace)}catch(e){setError((e as Error).message)}finally{setManualFileSaving(false)}}
-
-
-  function hasUnsavedManualFileChanges(){return manualFileEditing&&(manualFileCreating?manualFileContent.length>0||manualFilePath!==fileContent?.path:manualFileContent!==fileContent?.content)}
-  function cancelManualFileEdit(){if(hasUnsavedManualFileChanges()&&!window.confirm('Kaydedilmemiş manuel kod değişiklikleri kaybolacak. Düzenlemeyi iptal etmek istiyor musunuz?'))return;setManualFileEditing(false);setManualFileCreating(false)}
-  function closeWorkspaceFileExplorer(){if(hasUnsavedManualFileChanges()&&!window.confirm('Kaydedilmemiş manuel kod değişiklikleri kaybolacak. Dosya gezginini kapatmak istiyor musunuz?'))return;updateWorkspaceRoute();setFileWorkspace(null);setFileListing(null);setFileContent(null);setManualFileEditing(false);setManualFileCreating(false)}
-  function handleWorkspaceExplorerKeyDown(e:KeyboardEvent<HTMLDivElement>){if(e.key==='Escape'){e.preventDefault();closeWorkspaceFileExplorer()}}
-  useEffect(()=>{if(!fileWorkspace)return;const previousOverflow=document.body.style.overflow;document.body.style.overflow="hidden";const frame=window.requestAnimationFrame(()=>{if(!manualFileEditing)workspaceExplorerCloseRef.current?.focus()});return()=>{window.cancelAnimationFrame(frame);document.body.style.overflow=previousOverflow}},[fileWorkspace,manualFileEditing])
-  useEffect(()=>{const url=new URL(window.location.href);const projectId=url.searchParams.get('studioProject')||'';const requestId=url.searchParams.get('studioWorkspace')||'';if(!projectId||!requestId||!token||projects.length===0)return;const restoreKey=`${projectId}:${requestId}`;if(workspaceRestoreRef.current===restoreKey)return;workspaceRestoreRef.current=restoreKey;const project=projects.find(item=>item.id.toLowerCase()===projectId.toLowerCase());if(!project){updateWorkspaceRoute();return}const directoryPath=(url.searchParams.get('studioPath')||'').slice(0,500);const openFilePath=(url.searchParams.get('studioFile')||'').slice(0,500);setWorkspaceProject(project);setFileLoading(true);setError('');void api<WorkspaceRequest[]>(`/studio/projects/${project.id}/workspace-requests`,token).then(async requests=>{const request=requests.find(item=>item.id.toLowerCase()===requestId.toLowerCase());if(!request)throw new Error('Bu çalışma alanı artık erişilebilir değil.');setWorkspaceRequests(requests);setFileWorkspace(request);const query=`path=${encodeURIComponent(directoryPath)}&offset=0`;const knowledgePath=`/studio/projects/${project.id}/workspace-requests/${request.id}/knowledge`;const [listing,knowledge,history,file]=await Promise.all([api<WorkspaceFileListing>(`/studio/projects/${project.id}/workspace-requests/${request.id}/files?${query}`,token),api<{documents:StudioKnowledgeDocument[];autoRefresh:StudioKnowledgeAutoRefresh}>(knowledgePath,token),project.accessLevel==='Viewer'?Promise.resolve({items:[] as ApprovedHistoryCandidate[]}):api<{items:ApprovedHistoryCandidate[]}>(`${knowledgePath}/approved-history`,token),openFilePath?api<WorkspaceFileContent>(`/studio/projects/${project.id}/workspace-requests/${request.id}/file-content?path=${encodeURIComponent(openFilePath)}`,token):Promise.resolve(null)]);setFileListing(listing);setFilePath(directoryPath);setKnowledgeDocs(knowledge.documents);setKnowledgeAutoRefresh(knowledge.autoRefresh);setKnowledgeHistoryCandidates(history.items);setFileContent(file);setManualFileEditing(false);setManualFileCreating(false)}).catch(error=>setError((error as Error).message)).finally(()=>setFileLoading(false))},[projects,token])
-
-
-
-  async function loadWorkspaceAnalysis(request:WorkspaceRequest){if(!workspaceProject)return;setAnalysisLoading(true);setError('');setWorkspaceAnalysis(null);setAnalysisWorkspace(request);try{setWorkspaceAnalysis(await api<WorkspaceAnalysis>(`/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/analysis`,token));setAnalysisCompletedAt(new Date().toISOString())}catch(e){setError((e as Error).message)}finally{setAnalysisLoading(false)}}
-  async function searchWorkspaceSource(e:FormEvent){e.preventDefault();if(!workspaceProject||!sourceSearchWorkspace||!sourceSearchQuery.trim())return;setSourceSearchLoading(true);setError('');setSelectedSourceMatches([]);setSourceAnalysisResult(null);setSourceAnalysisConsent(false);try{setSourceSearchResult(await api<WorkspaceSearchResult>(`/studio/projects/${workspaceProject.id}/workspace-requests/${sourceSearchWorkspace.id}/search?query=${encodeURIComponent(sourceSearchQuery.trim())}`,token))}catch(e){setError((e as Error).message)}finally{setSourceSearchLoading(false)}}
-  async function analyzeSelectedSource(e:FormEvent){e.preventDefault();if(!workspaceProject||!sourceSearchWorkspace||!sourceSearchResult||!sourceAnalysisConsent||!sourceAnalysisQuestion.trim())return;const sources=sourceSearchResult.matches.filter((match,index)=>selectedSourceMatches.includes(`${match.path}:${match.line}:${index}`));if(!sources.length)return;setSourceAnalysisLoading(true);setError('');setSourceAnalysisResult(null);try{setSourceAnalysisResult(await api<SourceAnalysisResult>(`/studio/projects/${workspaceProject.id}/workspace-requests/${sourceSearchWorkspace.id}/source-analysis`,token,{method:'POST',body:JSON.stringify({question:sourceAnalysisQuestion.trim(),sources,aiSharingConfirmed:sourceAnalysisConsent})}));setSourceAnalysisConsent(false)}catch(e){setError((e as Error).message)}finally{setSourceAnalysisLoading(false)}}
-  async function discoverWorkspaceTests(request:WorkspaceRequest){if(!workspaceProject)return;setTestDiscoveryLoading(true);setError('');setTestExecution(null);setTestExecutionTarget('');setTestDiscovery(null);setTestPlan(null);setTestAIConsent(false);setTestRequest('');setTestPlanSavedId(null);setTestDiscoveryWorkspace(request);try{const [discovery,plans]=await Promise.all([api<WorkspaceTestDiscovery>(`/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/test-discovery`,token),api<SavedAITestPlan[]>(`/studio/projects/${workspaceProject.id}/test-plans?workspaceRequestId=${request.id}`,token)]);setTestDiscovery(discovery);setSavedTestPlans(plans)}catch(e){setError((e as Error).message)}finally{setTestDiscoveryLoading(false)}}
-  async function runWorkspaceTest(target:WorkspaceTestDiscovery['targets'][number]) {
-    if(!workspaceProject||!testDiscoveryWorkspace||testExecutionLoading)return
-    const isNode=target.ecosystem==='Node.js'
-    const isPython=target.ecosystem==='Python'
-    const isGo=target.ecosystem==='Go'
-    const isRust=target.ecosystem==='Rust'
-    const executionLabel=isNode?'Node.js yerleşik testleri':isPython?'Python pytest testleri':isGo?'Go testleri':isRust?'Rust testleri':'.NET testleri'
-    const limitation=isNode?'node --test çalışır; npm scriptleri çağrılmaz ve paket bağımlılıkları kurulmaz.':isPython?'Yalnız imajdaki pytest kullanılır; proje bağımlılıkları kurulmaz.':isGo?'Yalnız Go standart kütüphanesi kullanılır; go.mod bağımlılıkları kurulmaz.':isRust?'Yalnız bağımsız Cargo paketleri çalışır; crate bağımlılıkları ve Cargo workspace desteği yoktur.':'dotnet restore yalnız sandbox paket önbelleğini kullanır.'
-    if(!window.confirm(`“${target.path}”${executionLabel} ağsız ve kaynak sınırları uygulanmış sandbox içinde çalıştırılacak. ${limitation} Devam edilsin mi?`))return
-    setTestExecutionLoading(true);setTestExecutionTarget(target.path);setError('');setTestExecution(null)
-    try {
-      const created=await api<{jobId:string;commitSha:string;snapshotSha256:string;hasUncommittedChanges:boolean}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-runs`,token,{method:'POST',body:JSON.stringify({targetPath:target.path,executionConfirmed:true})})
-      let status:WorkspaceTestRunStatus={jobId:created.jobId,targetPath:target.path,commitSha:created.commitSha,snapshotSha256:created.snapshotSha256,hasUncommittedChanges:created.hasUncommittedChanges,status:'Queued',message:'Sandbox işi bekliyor.',success:null,exitCode:null,durationMilliseconds:0,output:'',completedAt:null}
-      setTestExecution(status)
-      for(let i=0;i<50;i++) {
-        await new Promise(resolve=>setTimeout(resolve,2000))
-        status=await api<WorkspaceTestRunStatus>(`/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-runs/${created.jobId}`,token)
-        setTestExecution(status)
-        if(['Passed','Failed','TimedOut','QueueExpired','DependencyUnavailable','Rejected','SandboxError'].includes(status.status))break
-      }
-    } catch(e) { setError((e as Error).message) } finally { setTestExecutionLoading(false) }
-  }
-  async function runWorkspaceBuild(target:WorkspaceTestDiscovery['targets'][number]){if(!workspaceProject||!testDiscoveryWorkspace||buildExecutionLoading)return;const buildCommand=target.ecosystem==='.NET'?'dotnet build --no-restore':target.ecosystem==='Node.js'?'node --check (JavaScript files; no execution)':target.ecosystem==='Python'?'python3 -m py_compile (selected file)':target.ecosystem==='Go'?'go build -mod=readonly ./... (offline)':target.ecosystem==='Rust'?'cargo build --offline':'fixed sandbox build';const limitation=target.ecosystem==='.NET'?'Paketler yalnız onaylı çevrimdışı önbellekten geri yüklenebilir.':target.ecosystem==='Go'?'Yalnız standart kütüphane modülleri desteklenir.':target.ecosystem==='Rust'?'Yalnız bağımsız, harici bağımlılığı olmayan Cargo paketleri desteklenir.':'Paket yüklenmez ve proje komut dosyaları çalıştırılmaz.';if(!window.confirm(`“${target.path}” ${buildCommand} ile ağsız ve kaynak sınırları uygulanmış sandbox içinde işlenecek. ${limitation} Devam edilsin mi?`))return;setBuildExecutionLoading(true);setBuildExecutionTarget(target.path);setBuildExecutionWorkspaceId(testDiscoveryWorkspace.id);setError('');setBuildExecution(null);try{const created=await api<{jobId:string;commitSha:string;snapshotSha256:string;hasUncommittedChanges:boolean}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/build-runs`,token,{method:'POST',body:JSON.stringify({targetPath:target.path,executionConfirmed:true})});let status:WorkspaceTestRunStatus={jobId:created.jobId,targetPath:target.path,commitSha:created.commitSha,snapshotSha256:created.snapshotSha256,hasUncommittedChanges:created.hasUncommittedChanges,status:'Queued',message:'Sandbox build işi bekliyor.',success:null,exitCode:null,durationMilliseconds:0,output:'',completedAt:null};setBuildExecution(status);for(let i=0;i<50;i++){await new Promise(resolve=>setTimeout(resolve,2000));status=await api<WorkspaceTestRunStatus>(`/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/build-runs/${created.jobId}`,token);setBuildExecution(status);if(['Built','BuildFailed','TimedOut','QueueExpired','DependencyUnavailable','Rejected','SandboxError'].includes(status.status))break}}catch(e){setError((e as Error).message)}finally{setBuildExecutionLoading(false)}}
-  async function pollWorkspaceBuildRun(){if(!workspaceProject||!buildExecutionWorkspaceId||!buildExecution||buildExecutionLoading)return;setBuildExecutionLoading(true);setError('');try{let status=buildExecution;for(let i=0;i<50;i++){await new Promise(resolve=>setTimeout(resolve,2000));status=await api<WorkspaceTestRunStatus>(`/studio/projects/${workspaceProject.id}/workspace-requests/${buildExecutionWorkspaceId}/build-runs/${buildExecution.jobId}`,token);setBuildExecution(status);if(['Built','BuildFailed','TimedOut','QueueExpired','DependencyUnavailable','Rejected','SandboxError'].includes(status.status))break}}catch(e){setError((e as Error).message)}finally{setBuildExecutionLoading(false)}}
-  async function pollWorkspaceTestRun(){if(!workspaceProject||!testDiscoveryWorkspace||!testExecution||testExecutionLoading)return;setTestExecutionLoading(true);setError('');try{let status=testExecution;for(let i=0;i<50;i++){await new Promise(resolve=>setTimeout(resolve,2000));status=await api<WorkspaceTestRunStatus>(`/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-runs/${testExecution.jobId}`,token);setTestExecution(status);if(['Passed','Failed','TimedOut','QueueExpired','DependencyUnavailable','Rejected','SandboxError'].includes(status.status))break}}catch(e){setError((e as Error).message)}finally{setTestExecutionLoading(false)}}
-  async function analyzeSandboxFailure(operation:'test'|'build',workspaceRequestId:string,job:WorkspaceTestRunStatus){if(!workspaceProject||sandboxErrorAnalysisLoading)return;if(!window.confirm('Sandbox durum ve çıktısının hassas değerleri maskelenerek hata analizi için OpenAI’ye gönderilmesini onaylıyor musunuz? Ham çıktı veritabanında saklanmaz.'))return;setSandboxErrorAnalysisLoading(true);setError('');setSandboxErrorAnalysis(null);try{setSandboxErrorAnalysis(await api<SandboxErrorAnalysisResponse>(`/studio/projects/${workspaceProject.id}/workspace-requests/${workspaceRequestId}/sandbox-error-analysis/${job.jobId}`,token,{method:'POST',body:JSON.stringify({operation,aiSharingConfirmed:true})}))}catch(e){setError((e as Error).message)}finally{setSandboxErrorAnalysisLoading(false)}}
-  function beginSandboxRepair(){if(!testDiscoveryWorkspace||!sandboxErrorAnalysis?.triage.sourceRepairCandidate)return;setRepairMode({operation:sandboxErrorAnalysis.operation,targetPath:sandboxErrorAnalysis.targetPath});setRepairPathsDraft('');setMultiFilePaths([]);setMultiDeveloperWorkspace(testDiscoveryWorkspace);setMultiFileRequest([`Repair the ${sandboxErrorAnalysis.operation} failure for ${sandboxErrorAnalysis.targetPath} at commit ${sandboxErrorAnalysis.commitSha}.`,sandboxErrorAnalysis.analysis.summary,`Likely cause: ${sandboxErrorAnalysis.analysis.likelyCause}`,'Recommended actions:',...sandboxErrorAnalysis.analysis.recommendedActions.map((action,index)=>`${index+1}. ${action}`)].join('\n').slice(0,2000));setMultiFileConsent(false);setMultiFileSuggestion(null);setMultiFileApplied([]);setError('')}
-  async function rerunAfterSandboxRepair(){if(!repairMode||!multiFileSuggestion||multiFileApplied.length!==multiFileSuggestion.changes.length||(workspaceProject?.accessLevel!=='TenantAdmin'&&workspaceProject?.accessLevel!=='Maintainer'))return;const target=testDiscovery?.targets.find(item=>item.path===repairMode.targetPath);if(!target){setError('Onarım test hedefi artık keşif sonuçlarında bulunmuyor. Test merkezinden hedefi yeniden keşfedin.');return}const operation=repairMode.operation;setMultiDeveloperWorkspace(null);setSandboxErrorAnalysis(null);setRepairMode(null);if(operation==='test')void runWorkspaceTest(target);else void runWorkspaceBuild(target)}
-  async function createAITestPlan(e:FormEvent){e.preventDefault();if(!workspaceProject||!testDiscoveryWorkspace||!testAIConsent||!testRequest.trim())return;setTestPlanLoading(true);setError('');setTestPlan(null);setTestPlanSavedId(null);try{setTestPlan(await api<AITestPlan>(`/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-plan`,token,{method:'POST',body:JSON.stringify({request:testRequest,aiSharingConfirmed:testAIConsent})}))}catch(e){setError((e as Error).message)}finally{setTestPlanLoading(false)}}
-  async function saveAITestPlan(){if(!workspaceProject||!testDiscoveryWorkspace||!testPlan)return;setTestPlanSaveLoading(true);setError('');try{const saved=await api<SavedAITestPlan>(`/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-plans`,token,{method:'POST',body:JSON.stringify({plan:testPlan})});setTestPlanSavedId(saved.id);setSavedTestPlans(current=>[saved,...current.filter(x=>x.id!==saved.id)].slice(0,50));setNotice('AI Tester senaryo taslağı proje geçmişine kaydedildi; özgün talep metni saklanmadı.')}catch(e){setError((e as Error).message)}finally{setTestPlanSaveLoading(false)}}
-  async function openSavedAITestPlan(saved:SavedAITestPlan){if(!workspaceProject)return;setTestPlanLoading(true);setError('');try{const detail=await api<SavedAITestPlanDetail>(`/studio/projects/${workspaceProject.id}/test-plans/${saved.id}`,token);setTestPlan(detail.plan);setTestPlanSavedId(saved.id);setTestRequest('');setTestAIConsent(false)}catch(e){setError((e as Error).message)}finally{setTestPlanLoading(false)}}
-  async function deleteSavedAITestPlan(saved:SavedAITestPlan){if(!workspaceProject||!saved.canDelete)return;if(!window.confirm(`“${saved.summary}” test planını kalıcı olarak silmek istiyor musunuz?`))return;setError('');try{await api<void>(`/studio/projects/${workspaceProject.id}/test-plans/${saved.id}`,token,{method:'DELETE',body:JSON.stringify({confirm:true})});setSavedTestPlans(current=>current.filter(x=>x.id!==saved.id));if(testPlanSavedId===saved.id){setTestPlanSavedId(null);setTestPlan(null)}setNotice('Test planı silindi; silme olayı denetim kaydına eklendi.')}catch(e){setError((e as Error).message)}}
-  function startCodeSuggestion(){if(!fileWorkspace||!fileContent)return;setDeveloperWorkspace(fileWorkspace);setDeveloperFile(fileContent);setDeveloperIsNewFile(false);setDeveloperNewPath('');setDeveloperRequest(linkedDevelopmentContext(fileWorkspace.developmentRequestTitle,fileWorkspace.developmentRequestDescription));setDeveloperConsent(false);setDeveloperSuggestion(null);setDeveloperApplyApproval(false);setDeveloperApplied(false);setError('')}
-  function startNewCodeSuggestion(request:WorkspaceRequest){if(!workspaceProject)return;const moduleRoot=moduleCodeForWorkspace(request)?`modules/${moduleCodeForWorkspace(request)}`:'';const modulePathIsOpen=Boolean(moduleRoot&&(filePath===moduleRoot||filePath.startsWith(`${moduleRoot}/`)));const suggestedPath=moduleRoot?(modulePathIsOpen?`${filePath}/NewFile.rs`:`${moduleRoot}/src/lib.rs`):(filePath?`${filePath}/NewComponent.tsx`:'NewComponent.tsx');setDeveloperWorkspace(request);setDeveloperFile({path:suggestedPath,content:'',sizeBytes:0,sha256:''});setDeveloperIsNewFile(true);setDeveloperNewPath(suggestedPath);setDeveloperRequest(linkedDevelopmentContext(request.developmentRequestTitle,request.developmentRequestDescription));setDeveloperConsent(false);setDeveloperSuggestion(null);setDeveloperApplyApproval(false);setDeveloperApplied(false);setFileContent(null);setError('')}
-  function startUiDesigner(request:WorkspaceRequest){if(!workspaceProject||workspaceProject.accessLevel==='Viewer')return;const suggestedPath=filePath?`${filePath}/DesignedScreen.tsx`:'src/screens/DesignedScreen.tsx';setUiDesignerWorkspace(request);setUiDesignRequest(linkedDevelopmentContext(request.developmentRequestTitle,request.developmentRequestDescription));setUiDesignPath(suggestedPath);setUiDesignConsent(false);setUiDesignResult(null);setUiDesignApplyApproval(false);setUiDesignApplied(false);setError('')}
-  async function createUiDesign(e:FormEvent){e.preventDefault();if(!workspaceProject||!uiDesignerWorkspace||!uiDesignConsent)return;setUiDesignLoading(true);setError('');setUiDesignResult(null);setUiDesignApplyApproval(false);setUiDesignApplied(false);try{setUiDesignResult(await api<UiDesignPreview>(`/studio/projects/${workspaceProject.id}/workspace-requests/${uiDesignerWorkspace.id}/ui-design`,token,{method:'POST',body:JSON.stringify({request:uiDesignRequest,targetFilePath:uiDesignPath,aiSharingConfirmed:true})}))}catch(e){setError((e as Error).message)}finally{setUiDesignLoading(false)}}
-  async function applyUiDesign(){if(!workspaceProject||!uiDesignerWorkspace||!uiDesignResult||!uiDesignApplyApproval||uiDesignApplied)return;if(!window.confirm(`${uiDesignResult.filePath} ekran taslağı önizlemeden üretildi ve yalnızca yeni dosya olarak izole workspace’e yazılacak. Kod çalıştırılmayacak. Onaylıyor musunuz?`))return;setUiDesignLoading(true);setError('');try{const applied=await api<AppliedCodeSuggestion>(`/studio/projects/${workspaceProject.id}/workspace-requests/${uiDesignerWorkspace.id}/apply-code-suggestion`,token,{method:'POST',body:JSON.stringify({filePath:uiDesignResult.filePath,expectedSha256:uiDesignResult.sourceSha256,proposedContent:uiDesignResult.proposedContent,approvalConfirmed:true,createNewFile:true})});setUiDesignApplied(true);setUiDesignApplyApproval(false);setFileContent({path:applied.filePath,content:uiDesignResult.proposedContent,sizeBytes:new TextEncoder().encode(uiDesignResult.proposedContent).length,sha256:applied.sha256});setNotice('AI UI Designer ekranını onayınızla yeni dosya olarak workspace’e ekledi. Kod çalıştırılmadı.');if(fileWorkspace?.id===uiDesignerWorkspace.id){const parentPath=uiDesignResult.filePath.split('/').slice(0,-1).join('/');const query=`path=${encodeURIComponent(parentPath)}&offset=0`;setFilePath(parentPath);setFileListing(await api<WorkspaceFileListing>(`/studio/projects/${workspaceProject.id}/workspace-requests/${uiDesignerWorkspace.id}/files?${query}`,token))}if(changeWorkspace?.id===uiDesignerWorkspace.id)await loadWorkspaceChanges(uiDesignerWorkspace)}catch(e){setError((e as Error).message)}finally{setUiDesignLoading(false)}}
-  async function createCodeSuggestion(e:FormEvent){e.preventDefault();if(!workspaceProject||!developerWorkspace||!developerFile||!developerConsent)return;const targetPath=developerIsNewFile?developerNewPath:developerFile.path;setDeveloperLoading(true);setError('');setDeveloperSuggestion(null);setDeveloperApplyApproval(false);setDeveloperApplied(false);try{setDeveloperSuggestion(await api<CodeSuggestionPreview>(`/studio/projects/${workspaceProject.id}/workspace-requests/${developerWorkspace.id}/code-suggestion`,token,{method:'POST',body:JSON.stringify({request:developerRequest,filePath:targetPath,sourceSharingConfirmed:developerConsent,createNewFile:developerIsNewFile})}))}catch(e){setError((e as Error).message)}finally{setDeveloperLoading(false)}}
-  function startMultiFileSuggestion(request:WorkspaceRequest){if(!workspaceProject||multiFilePaths.length<2||multiFilePaths.length>5)return;setMultiDeveloperWorkspace(request);setMultiFileRequest(linkedDevelopmentContext(request.developmentRequestTitle,request.developmentRequestDescription));setMultiFileConsent(false);setMultiFileSuggestion(null);setMultiFileApplied([]);setMultiFileSelecting(false);setFileWorkspace(null);setError('')}
-  async function createMultiFileSuggestion(e:FormEvent){e.preventDefault();if(!workspaceProject||!multiDeveloperWorkspace||!multiFileConsent)return;const paths=repairMode?repairPathsDraft.split(/\r?\n|,/).map(path=>path.trim()).filter(Boolean):multiFilePaths;if(paths.length<(repairMode?1:2)||paths.length>5||new Set(paths).size!==paths.length){setError(repairMode?'1–5 farklı kaynak dosya yolu girin.':'2–5 farklı kaynak dosya seçin.');return}setMultiFilePaths(paths);setMultiFileLoading(true);setError('');setMultiFileSuggestion(null);setMultiFileApplied([]);try{if(paths.length===1){const result=await api<CodeSuggestionPreview>(`/studio/projects/${workspaceProject.id}/workspace-requests/${multiDeveloperWorkspace.id}/code-suggestion`,token,{method:'POST',body:JSON.stringify({request:multiFileRequest,filePath:paths[0],sourceSharingConfirmed:multiFileConsent})});setMultiFileSuggestion({summary:result.summary,changes:[{filePath:result.filePath,sourceSha256:result.sourceSha256,originalContent:result.originalContent,proposedContent:result.proposedContent,notes:result.notes}],risks:[]})}else{setMultiFileSuggestion(await api<MultiFileCodeSuggestionPreview>(`/studio/projects/${workspaceProject.id}/workspace-requests/${multiDeveloperWorkspace.id}/multi-file-code-suggestion`,token,{method:'POST',body:JSON.stringify({request:multiFileRequest,filePaths:paths,sourceSharingConfirmed:multiFileConsent})}))}}catch(e){setError((e as Error).message)}finally{setMultiFileLoading(false)}}
-  async function applyMultiFileSuggestion(change:MultiFileCodeSuggestionPreview['changes'][number]){if(!workspaceProject||!multiDeveloperWorkspace||multiFileApplied.includes(change.filePath)||!window.confirm(`Yalnız ${change.filePath} dosyasındaki değişiklik açık onayla izole workspace'e uygulansın mı? Kod çalıştırılmaz.`))return;setMultiFileLoading(true);setError('');try{await api<AppliedCodeSuggestion>(`/studio/projects/${workspaceProject.id}/workspace-requests/${multiDeveloperWorkspace.id}/apply-code-suggestion`,token,{method:'POST',body:JSON.stringify({filePath:change.filePath,expectedSha256:change.sourceSha256,proposedContent:change.proposedContent,approvalConfirmed:true})});setMultiFileApplied(current=>[...current,change.filePath]);setNotice(`${change.filePath} için onaylı öneri uygulandı. Diğer dosyalar ayrıca onaylanmalı.`);if(changeWorkspace?.id===multiDeveloperWorkspace.id)await loadWorkspaceChanges(multiDeveloperWorkspace)}catch(e){setError((e as Error).message)}finally{setMultiFileLoading(false)}}
-  async function applyCodeSuggestion(){if(!workspaceProject||!developerWorkspace||!developerSuggestion||!developerApplyApproval||developerApplied)return;setDeveloperLoading(true);setError('');try{const applied=await api<AppliedCodeSuggestion>(`/studio/projects/${workspaceProject.id}/workspace-requests/${developerWorkspace.id}/apply-code-suggestion`,token,{method:'POST',body:JSON.stringify({filePath:developerSuggestion.filePath,expectedSha256:developerSuggestion.sourceSha256,proposedContent:developerSuggestion.proposedContent,approvalConfirmed:developerApplyApproval,createNewFile:developerSuggestion.createNewFile})});setDeveloperApplied(true);setDeveloperApplyApproval(false);setFileContent(current=>developerSuggestion.createNewFile?({path:applied.filePath,content:developerSuggestion.proposedContent,sizeBytes:new TextEncoder().encode(developerSuggestion.proposedContent).length,sha256:applied.sha256}):current&&current.path===applied.filePath?({...current,content:developerSuggestion.proposedContent,sizeBytes:new TextEncoder().encode(developerSuggestion.proposedContent).length,sha256:applied.sha256}):current);setNotice('AI önerisi açık onayınızla izole çalışma alanına uygulandı. Kod çalıştırılmadı.');if(developerSuggestion.createNewFile&&fileWorkspace?.id===developerWorkspace.id){const query=`path=${encodeURIComponent(filePath)}&offset=0`;setFileListing(await api<WorkspaceFileListing>(`/studio/projects/${workspaceProject.id}/workspace-requests/${developerWorkspace.id}/files?${query}`,token))}if(changeWorkspace?.id===developerWorkspace.id)await loadWorkspaceChanges(developerWorkspace)}catch(e){setError((e as Error).message)}finally{setDeveloperLoading(false)}}
-
-  async function loadWorkspaceChanges(request:WorkspaceRequest){if(!workspaceProject)return;setChangeLoading(true);setError('');setChangeWorkspace(request);setWorkspaceChanges(null);setChangeDiff(null);setRestoreApproval(false);try{setWorkspaceChanges(await api<WorkspaceChanges>('/studio/projects/'+workspaceProject.id+'/workspace-requests/'+request.id+'/changes',token))}catch(e){setError((e as Error).message)}finally{setChangeLoading(false)}}
-  async function commitApprovedWorkspaceChanges(){if(!workspaceProject||!gitStatusWorkspace||!workspaceGitStatus||workspaceCommitLoading)return;if(workspaceGitStatus.truncated||workspaceGitStatus.totalChangedFiles!==workspaceGitStatus.files.length){setError('Git değişiklik listesi eksik; commit için önce durumu yenileyin.');return}setWorkspaceCommitLoading(true);setError('');try{const changes=await api<WorkspaceChanges>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/changes`,token);if(changes.truncated){setError('Studio değişiklik geçmişi kesilmiş; commit durduruldu.');return}const current=[...changes.changes].filter(x=>x.isCurrent&&!x.isRestored).sort((a,b)=>b.appliedAt.localeCompare(a.appliedAt));const latestByPath=new Map<string,WorkspaceChange>();for(const change of current)if(!latestByPath.has(change.path))latestByPath.set(change.path,change);const paths=workspaceGitStatus.files.map(x=>x.path).sort();if(paths.length===0||paths.some(path=>!latestByPath.has(path))){setError('Çalışma ağacındaki bütün dosyalar güncel Studio onay kayıtlarıyla eşleşmiyor; commit durduruldu.');return}const message=window.prompt('İzole dal için tek satırlık commit mesajı girin (8–160 karakter).','Apply approved Studio changes');if(message===null)return;if(!message.trim()||message.trim().length<8||message.trim().length>160||/[\r\n\t]/.test(message)){setError('Commit mesajı tek satır ve 8–160 karakter olmalıdır.');return}if(!window.confirm(`Yalnızca şu onaylı dosyalar ${workspaceGitStatus.branchName} dalına commit edilecek. Uzak depoya push yapılmayacak.\n\n${paths.join('\n')}`))return;const result=await api<WorkspaceCommitResult>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/commit-approved-changes`,token,{method:'POST',body:JSON.stringify({changeIds:paths.map(path=>latestByPath.get(path)!.id),expectedHeadCommitSha:workspaceGitStatus.headCommitSha,message:message.trim(),approvalConfirmed:true})});setWorkspaceGitStatus(current=>current?({...current,headCommitSha:result.commitSha,totalChangedFiles:0,truncated:false,files:[]}):current);setReleaseCandidates([]);setNotice(`Commit oluşturuldu: ${result.commitSha.slice(0,12)}. ${result.files.length} onaylı dosya commit edildi; uzak depoya push yapılmadı.`)}catch(e){setError((e as Error).message)}finally{setWorkspaceCommitLoading(false)}}
-  async function loadWorkspaceGitStatus(request:WorkspaceRequest){if(!workspaceProject)return;setGitStatusLoading(true);setError('');setGitStatusWorkspace(request);setWorkspaceGitStatus(null);setReleaseCandidates([]);setReleaseVersions([]);setReleasePackages([]);setReleaseDeployments([]);setProductionDeployments([]);setProductionApprovals([]);setStagingCredentials(null);try{const [status,candidates,versions,packages,deployments,promotions,productionHistory]=await Promise.all([api<WorkspaceGitStatus>('/studio/projects/'+workspaceProject.id+'/workspace-requests/'+request.id+'/git-status',token),api<ReleaseCandidate[]>('/studio/projects/'+workspaceProject.id+'/workspace-requests/'+request.id+'/release-candidates',token),api<ReleaseVersion[]>('/studio/projects/'+workspaceProject.id+'/workspace-requests/'+request.id+'/release-versions',token),api<ReleasePackage[]>('/studio/projects/'+workspaceProject.id+'/workspace-requests/'+request.id+'/release-packages',token),api<ReleaseDeployment[]>('/studio/projects/'+workspaceProject.id+'/workspace-requests/'+request.id+'/release-deployments',token),api<ProductionApproval[]>('/studio/projects/'+workspaceProject.id+'/production-approvals',token),api<ReleaseDeployment[]>('/studio/projects/'+workspaceProject.id+'/production-deployments',token)]);setWorkspaceGitStatus(status);setReleaseCandidates(candidates);setReleaseVersions(versions);setReleasePackages(packages);setReleaseDeployments(deployments);setProductionApprovals(promotions);setProductionDeployments(productionHistory)}catch(e){setError((e as Error).message)}finally{setGitStatusLoading(false)}}
-  async function createReleaseCandidate(){if(!workspaceProject||!gitStatusWorkspace||!workspaceGitStatus||!testExecution||releaseCandidateSaving)return;setReleaseCandidateSaving(true);setError('');try{const created=await api<ReleaseCandidate>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates`,token,{method:'POST',body:JSON.stringify({testJobId:testExecution.jobId})});setReleaseCandidates(current=>[created,...current.filter(item=>item.id!==created.id)]);setNotice('Sürüm adayı kaydedildi. Paket üretilmedi ve dağıtım başlatılmadı.')}catch(e){setError((e as Error).message)}finally{setReleaseCandidateSaving(false)}}
-  async function createPullRequestDraft(candidate:ReleaseCandidate){if(!workspaceProject||!gitStatusWorkspace||candidate.decision!=='Approved'||pullRequestDraftLoading)return;const summary=window.prompt('Değişikliklerin kısa özeti (1–1500 karakter). Kaynak kod veya sır eklemeyin.');if(summary===null)return;if(!summary.trim()){setError('Değişiklik özeti boş olamaz.');return}if(!window.confirm(`Bu özet ile proje/dal adı, commit kimliği ve başarılı sandbox test metadata'sı PR taslağı oluşturmak için OpenAI'ye gönderilecek. Kaynak kodu ve test çıktısı gönderilmez. Onaylıyor musunuz?`))return;setPullRequestDraftLoading(true);setError('');setPullRequestDraft(null);try{const draft=await api<PullRequestDraft>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/pull-request-draft`,token,{method:'POST',body:JSON.stringify({changeSummary:summary.trim(),aiSharingConfirmed:true})});setPullRequestDraft({candidateId:candidate.id,draft})}catch(e){setError((e as Error).message)}finally{setPullRequestDraftLoading(false)}}
-  async function publishPullRequest(candidate:ReleaseCandidate){if(!workspaceProject||!gitStatusWorkspace||!pullRequestDraft||pullRequestDraft.candidateId!==candidate.id||candidate.decision!=='Approved'||pullRequestPublishLoading)return;const draft=pullRequestDraft.draft;if(!window.confirm(`GitHub'a yalnız ${draft.commitSha.slice(0,12)} commit'ini içeren ${draft.sourceBranch} dalı push edilecek ve ${draft.baseBranch} tabanına draft PR oluşturulacak. Mevcut remote dal farklıysa üzerine yazılmaz. Onaylıyor musunuz?`))return;setPullRequestPublishLoading(true);setError('');setPublishedPullRequest(null);try{const result=await api<PublishedPullRequest>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/publish-pull-request`,token,{method:'POST',body:JSON.stringify({githubInstallationId:0,title:draft.title,body:draft.body,confirmation:true})});setPublishedPullRequest(result);setReleaseCandidates(await api<ReleaseCandidate[]>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates`,token));setNotice(result.created?'Draft pull request GitHub’da oluşturuldu.':'Aynı dal ve taban için açık PR bulundu; mevcut PR açıldı.')}catch(e){setError((e as Error).message)}finally{setPullRequestPublishLoading(false)}}
-  async function submitGitHubReview(candidate:ReleaseCandidate,event:'COMMENT'|'APPROVE'|'REQUEST_CHANGES'){if(!workspaceProject||!gitStatusWorkspace||!candidate.githubPullRequestNumber)return;const labels={COMMENT:'Yorum',APPROVE:'Onay',REQUEST_CHANGES:'Değişiklik isteği'};const body=window.prompt(`${labels[event]} açıklamasını girin (1–4000 karakter).`);if(body===null)return;if(!body.trim()){setError('GitHub inceleme açıklaması boş olamaz.');return}if(!window.confirm(`Bu ${labels[event].toLocaleLowerCase('tr-TR')} yorumu GitHub PR #${candidate.githubPullRequestNumber} üzerinde yayınlanacak. Devam edilsin mi?`))return;setError('');try{await api(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/pull-request-review`,token,{method:'POST',body:JSON.stringify({event,body:body.trim()})});setNotice(`GitHub PR #${candidate.githubPullRequestNumber} incelemesi gönderildi.`)}catch(e){setError((e as Error).message)}}
-  async function requestGitHubReviewers(candidate:ReleaseCandidate){if(!workspaceProject||!gitStatusWorkspace||!candidate.githubPullRequestNumber)return;const input=window.prompt('İnceleme isteği gönderilecek GitHub kullanıcı adlarını virgülle ayırarak girin (en fazla 10).');if(input===null)return;const reviewers=input.split(',').map(value=>value.trim()).filter(Boolean);if(reviewers.length<1||reviewers.length>10){setError('1–10 GitHub kullanıcı adı girmelisiniz.');return}if(!window.confirm(`${reviewers.join(', ')} kullanıcılara PR #${candidate.githubPullRequestNumber} inceleme talebi gönderilecek. Devam edilsin mi?`))return;setError('');try{await api(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/request-reviewers`,token,{method:'POST',body:JSON.stringify({reviewers})});setNotice('GitHub PR inceleme talebi gönderildi.')}catch(e){setError((e as Error).message)}}
-  async function markGitHubPullRequestReady(candidate:ReleaseCandidate){if(!workspaceProject||!gitStatusWorkspace||!candidate.githubPullRequestNumber||candidate.decision!=='Approved'||candidate.githubPullRequestState!=='draft'||pullRequestReadyLoading)return;if(!window.confirm(`Bağımsız Studio onayı alınmış ${candidate.commitSha.slice(0,12)} commit’ine bağlı GitHub draft PR #${candidate.githubPullRequestNumber} incelemeye açılacak ve GitHub inceleme bildirimleri gönderilecek. Devam edilsin mi?`))return;setPullRequestReadyLoading(candidate.id);setError('');try{const result=await api<{state:string;htmlUrl:string}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/mark-pull-request-ready`,token,{method:'POST'});setReleaseCandidates(current=>current.map(item=>item.id===candidate.id?{...item,githubPullRequestState:result.state}:item));setNotice(`GitHub PR #${candidate.githubPullRequestNumber} incelemeye hazır; bağımsız onay ve commit eşleşmesi doğrulandı.`)}catch(e){setError((e as Error).message)}finally{setPullRequestReadyLoading(null)}}
-  async function syncGitHubReviewComments(candidate:ReleaseCandidate){if(!workspaceProject||!gitStatusWorkspace||!candidate.githubPullRequestNumber)return;if(!window.confirm(`Bu çalışma alanındaki ${candidate.commitSha.slice(0,12)} commit’ine bağlı, henüz aktarılmamış dosya yorumları GitHub PR #${candidate.githubPullRequestNumber} üzerine yayınlanacak. Devam edilsin mi?`))return;setError('');try{const result=await api<{synced:number}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/sync-review-comments`,token,{method:'POST'});setNotice(`${result.synced} yerel yorum GitHub’a aktarıldı.`)}catch(e){setError((e as Error).message)}}
-  async function importGitHubReviewComments(candidate:ReleaseCandidate){if(!workspaceProject||!gitStatusWorkspace||!candidate.githubPullRequestNumber)return;if(!window.confirm(`GitHub PR #${candidate.githubPullRequestNumber} üzerindeki dosya inceleme yorumları bu workspace’e salt okunur şekilde alınacak. Devam edilsin mi?`))return;setError('');try{const result=await api<{imported:number;skipped:number;truncated:boolean}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/sync-github-review-comments`,token,{method:'POST'});setNotice(`${result.imported} GitHub yorumu içe aktarıldı${result.skipped?`; ${result.skipped} konumu doğrulanamadığı için atlandı`:''}${result.truncated?' (ilk 500 yorum)':''}.`)}catch(e){setError((e as Error).message)}}
-  async function assignReleaseVersion(candidate:ReleaseCandidate){if(!workspaceProject||!gitStatusWorkspace||candidate.decision!=='Approved'||releaseVersions.some(x=>x.releaseCandidateId===candidate.id))return;const version=window.prompt('Bu onaylı adaya SemVer sürüm numarası ata (örn. 1.2.3 veya 1.2.3-rc.1).');if(version===null)return;if(!window.confirm(`${version.trim()} numarası bu projede benzersiz ve değiştirilemez sürüm kimliği olarak kaydedilecek. Dağıtım veya paket oluşturulmayacak. Onaylıyor musunuz?`))return;setError('');try{const created=await api<ReleaseVersion>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/version`,token,{method:'POST',body:JSON.stringify({version:version.trim(),confirmation:true})});setReleaseVersions(current=>[created,...current]);setNotice(`${created.version} sürüm numarası atandı; kayıt değiştirilemez ve henüz yayınlanmadı.`)}catch(e){setError((e as Error).message)}}
-  async function createReleasePackage(version:ReleaseVersion){if(!workspaceProject||!gitStatusWorkspace||releasePackageLoading)return;if(!window.confirm(`${version.version} sürümü için onaylı commit ve başarılı sandbox testinden doğrulanmış ZIP paketi oluşturulsun mu? Bu işlem dağıtım başlatmaz.`))return;setReleasePackageLoading(version.id);setError('');try{const created=await api<ReleasePackage>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-versions/${version.id}/package`,token,{method:'POST',body:JSON.stringify({confirmation:true})});setReleasePackages(current=>[created,...current.filter(item=>item.id!==created.id)]);setNotice(`${created.version} paketi üretildi ve SHA-256 ile kaydedildi. Dağıtım başlatılmadı.`)}catch(e){setError((e as Error).message)}finally{setReleasePackageLoading(null)}}
-  async function downloadReleasePackage(pkg:ReleasePackage){if(!workspaceProject||!gitStatusWorkspace||releasePackageDownloadLoading)return;setReleasePackageDownloadLoading(pkg.id);setError('');try{const response=await authorizedFetch(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-packages/${pkg.id}/download`,token);if(!response.ok){const body=await response.json().catch(()=>null);throw new Error(body?.error||body?.title||`İndirme başarısız (${response.status}).`)}const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=pkg.fileName;link.click();URL.revokeObjectURL(url)}catch(e){setError((e as Error).message)}finally{setReleasePackageDownloadLoading(null)}}
-  async function deployStaging(pkg:{id:string;version:string;commitSha:string},rollbackTargetDeploymentId?:string){if(!workspaceProject||!gitStatusWorkspace||releaseDeploymentLoading)return;const active=releaseDeployments.filter(item=>item.environment==='Staging'&&item.status==='Succeeded').sort((a,b)=>(b.completedAt??b.createdAt).localeCompare(a.completedAt??a.createdAt))[0]??null;const description=rollbackTargetDeploymentId?`Rollback: ${pkg.version} (${pkg.commitSha.slice(0,12)}) eski sürümü aynı staging veritabanı üzerinde devreye alınacak.`:`${pkg.version} sürümü yerel Docker Compose staging ortamına kurulacak.`;if(!window.confirm(`${description}\n\nYalnız bu bilgisayarda localhost üzerinden erişilir. İlk kurulumda staging yönetici parolası bir kez gösterilir. Devam edilsin mi?`))return;setReleaseDeploymentLoading(true);setError('');setStagingCredentials(null);try{const operation=await api<StagingDeploymentOperation>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-packages/${pkg.id}/deployments/staging`,token,{method:'POST',body:JSON.stringify({idempotencyKey:crypto.randomUUID(),confirmation:true,expectedActiveDeploymentId:active?.id??null,rollbackTargetDeploymentId:rollbackTargetDeploymentId??null})});setStagingCredentials(operation);setReleaseDeployments(current=>[operation.deployment,...current.filter(item=>item.id!==operation.deployment.id)]);setNotice(`Staging hazır: ${operation.deployment.environmentUrl}`)}catch(e){setError((e as Error).message)}finally{setReleaseDeploymentLoading(false)}}
-  async function deployProduction(approval:ProductionApproval){if(!workspaceProject||releaseDeploymentLoading||tenant.role!=='TenantAdmin')return;const active=releaseDeployments.filter(item=>item.environment==='Production'&&item.status==='Succeeded').sort((a,b)=>(b.completedAt??b.createdAt).localeCompare(a.completedAt??a.createdAt))[0]??null;if(!window.confirm(`${approval.version} sürümü onaylı yerel Docker Compose production ortamına kurulacak. Servis yalnız localhost üzerinden erişilir; production SQL verisi sürümler arasında korunur ve güncelleme öncesi yedeklenir. Dağıtım başlatılsın mı?`))return;if(!window.confirm('Ayrı migration adımı onaylanıyor. Bekleyen SQL Server şema migration’ları production veritabanına uygulanacak. Başarısız güncellemede Deployer önceki uygulama sürümünü yeniden başlatmayı dener ve Compose başarılı olursa sağlık kontrolü yapar; sonucu yalnız Deployer loglarına yazar. Gerekirse production dağıtım geçmişindeki TenantAdmin geri yükleme kontrolü, o sürüm öncesindeki veritabanı ve uygulama paketini birlikte kurtarır; yedekten sonraki kayıtlar kaybolur. Devam edilsin mi?'))return;setReleaseDeploymentLoading(true);setError('');setStagingCredentials(null);try{const operation=await api<StagingDeploymentOperation>(`/studio/projects/${workspaceProject.id}/production-approvals/${approval.id}/deploy`,token,{method:'POST',body:JSON.stringify({idempotencyKey:approval.id,confirmation:true,migrationConfirmation:true,expectedActiveDeploymentId:active?.id??null})});setStagingCredentials(operation);setReleaseDeployments(current=>[operation.deployment,...current.filter(item=>item.id!==operation.deployment.id)]);setProductionApprovals(current=>current.map(item=>item.id===approval.id?{...item,productionDeploymentStarted:true,productionDeploymentId:operation.deployment.id,productionDeploymentStatus:operation.deployment.status,productionEnvironmentUrl:operation.deployment.environmentUrl}:item));setNotice(`Production hazır: ${operation.deployment.environmentUrl}`)}catch(e){setError((e as Error).message)}finally{setReleaseDeploymentLoading(false)}}
-  async function restoreProductionDatabase(deployment:ReleaseDeployment){if(!workspaceProject||releaseDeploymentLoading||tenant.role!=="TenantAdmin"||!deployment.canRestoreDatabase)return;const expectedActiveDeploymentId=deployment.status==="Failed"?(deployment.rollbackOfDeploymentId??deployment.rollbackTargetDeploymentId):deployment.id;if(!expectedActiveDeploymentId)return;if(!window.confirm(`Etkin production veritabanı ${deployment.version} sürümü öncesi alınan doğrulanmış yedekten geri yüklenecek. Bu yedekten sonra oluşan ERP kayıtları kaybolur. Önceki uygulama sürümü de yeniden başlatılacak. Devam edilsin mi?`))return;const confirmationText=window.prompt(`Geri yüklemeyi onaylamak için şu metni aynen yazın:\nRESTORE ${deployment.id.replaceAll('-','')}`);if(confirmationText!==`RESTORE ${deployment.id.replaceAll('-','')}`){setError('Geri yükleme metni eşleşmedi; işlem başlatılmadı.');return}setReleaseDeploymentLoading(true);setError('');try{const result=await api<StagingDeploymentOperation>(`/studio/projects/${workspaceProject.id}/production-deployments/restore`,token,{method:'POST',body:JSON.stringify({idempotencyKey:crypto.randomUUID(),expectedActiveDeploymentId,backupDeploymentId:deployment.id,confirmation:true,confirmationText})});setProductionDeployments(current=>[{...result.deployment,canRestoreDatabase:true},...current.map(item=>item.id===expectedActiveDeploymentId?{...item,status:'Superseded',canRestoreDatabase:false}:item)]);setNotice(`Production veritabanı ve uygulaması ${result.deployment.version} sürümüne geri yüklendi.`)}catch(e){setError((e as Error).message)}finally{setReleaseDeploymentLoading(false)}}  async function requestProductionApproval(deployment:ReleaseDeployment){if(!workspaceProject||releaseDeploymentLoading)return;const note=window.prompt('Üretim onay gerekçesini yazın (1–1000 karakter). Bu işlem canlıya yayın yapmaz.');if(note===null)return;if(!note.trim()){setError('Onay talebi gerekçesi boş olamaz.');return}if(!window.confirm('Başarılı staging sürümü TenantAdmin bağımsız incelemesine gönderilecek. Canlı üretime dağıtım BAŞLATILMAYACAK. Devam edilsin mi?'))return;setReleaseDeploymentLoading(true);setError('');try{const approval=await api<ProductionApproval>(`/studio/projects/${workspaceProject.id}/release-deployments/${deployment.id}/production-approval`,token,{method:'POST',body:JSON.stringify({confirmation:true,note})});setProductionApprovals(current=>[approval,...current.filter(item=>item.id!==approval.id)]);setNotice('Üretim onay talebi kaydedildi. Canlı dağıtım başlatılmadı.')}catch(e){setError((e as Error).message)}finally{setReleaseDeploymentLoading(false)}}
-  async function reviewProductionApproval(approval:ProductionApproval,decision:'Approved'|'Rejected'){if(!workspaceProject||tenant.role!=='TenantAdmin')return;const note=window.prompt(decision==='Approved'?'Üretim onay notunu yazın (1–1000 karakter).':'Üretim ret gerekçesini yazın (1–1000 karakter).');if(note===null)return;if(!note.trim()){setError('İnceleme notu boş olamaz.');return}try{const updated=await api<ProductionApproval>(`/studio/projects/${workspaceProject.id}/production-approvals/${approval.id}/review`,token,{method:'POST',body:JSON.stringify({decision,note})});setProductionApprovals(current=>current.map(item=>item.id===updated.id?updated:item));setNotice(decision==='Approved'?'Üretim onayı kaydedildi. Canlı dağıtım başlatılmadı.':'Üretim onay talebi reddedildi.')}catch(e){setError((e as Error).message)}}
-  async function destroyStaging(deployment:ReleaseDeployment){if(!workspaceProject||releaseDeploymentLoading||!window.confirm(`Yerel staging Compose servisleri, SQL veritabanı ve workspace verileri kalıcı olarak silinecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`))return;setReleaseDeploymentLoading(true);setError('');try{const removed=await api<ReleaseDeployment>(`/studio/projects/${workspaceProject.id}/release-deployments/${deployment.id}/staging`,token,{method:'DELETE',body:JSON.stringify({confirmation:true})});setReleaseDeployments(current=>current.map(item=>item.id===removed.id?removed:item));setNotice('Staging servisleri ve veritabanı silindi.')}catch(e){setError((e as Error).message)}finally{setReleaseDeploymentLoading(false)}}
-  async function reviewReleaseCandidate(candidate:ReleaseCandidate,decision:'Approved'|'Rejected'){if(!workspaceProject||!gitStatusWorkspace)return;const note=window.prompt(decision==='Approved'?'Onay gerekçesini yazın (1–1000 karakter).':'Ret gerekçesini yazın (1–1000 karakter).');if(note===null)return;if(!note.trim()){setError('İnceleme notu boş olamaz.');return}setError('');try{const review=await api<{decision:string;note:string;createdAt:string;reviewedByUserId:string}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/review`,token,{method:'POST',body:JSON.stringify({decision,note})});setReleaseCandidates(current=>current.map(item=>item.id===candidate.id?{...item,decision:review.decision,reviewNote:review.note,reviewedAt:review.createdAt,reviewedByUserId:review.reviewedByUserId,canReview:false}:item));setNotice(decision==='Approved'?'Sürüm adayı yetkili tarafından onaylandı. Dağıtım başlatılmadı.':'Sürüm adayı reddedildi; karar geçmişe kaydedildi.')}catch(e){setError((e as Error).message)}}
-  async function loadCodeReviewThreads(path:string){if(!workspaceProject||!gitStatusWorkspace)return;const result=await api<{threads:StudioCodeReviewThread[]}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/review-threads`,token);setReviewThreads(result.threads.filter(thread=>thread.path===path))}
-  async function openWorkspaceGitDiff(path:string){if(!workspaceProject||!gitStatusWorkspace)return;setGitDiffTarget(path);setGitDiffLoading(true);setError('');setWorkspaceGitDiff(null);setCodeReview(null);setCodeReviewConsent(false);setReviewThreads([]);setReviewLine('1');setReviewDraft('');setReviewReplyThread(null);setReviewReplyDraft('');try{const diff=await api<WorkspaceGitDiff>('/studio/projects/'+workspaceProject.id+'/workspace-requests/'+gitStatusWorkspace.id+'/git-diff?path='+encodeURIComponent(path),token);setWorkspaceGitDiff(diff);await loadCodeReviewThreads(path)}catch(e){setError((e as Error).message)}finally{setGitDiffLoading(false)}}
-  async function createCodeReviewThread(e:FormEvent){e.preventDefault();if(!workspaceProject||!gitStatusWorkspace||!workspaceGitDiff||!gitDiffTarget||!reviewDraft.trim())return;setReviewSaving(true);setError('');try{await api(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/review-threads`,token,{method:'POST',body:JSON.stringify({path:gitDiffTarget,lineNumber:Number(reviewLine),expectedHeadCommitSha:workspaceGitDiff.headCommitSha,body:reviewDraft.trim()})});setReviewDraft('');await loadCodeReviewThreads(gitDiffTarget)}catch(e){setError((e as Error).message)}finally{setReviewSaving(false)}}
-  async function replyToCodeReviewThread(e:FormEvent){e.preventDefault();if(!workspaceProject||!gitStatusWorkspace||!gitDiffTarget||!reviewReplyThread||!reviewReplyDraft.trim())return;setReviewSaving(true);setError('');try{await api(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/review-threads/${reviewReplyThread}/comments`,token,{method:'POST',body:JSON.stringify({body:reviewReplyDraft.trim()})});setReviewReplyDraft('');setReviewReplyThread(null);await loadCodeReviewThreads(gitDiffTarget)}catch(e){setError((e as Error).message)}finally{setReviewSaving(false)}}
-  async function setCodeReviewThreadResolved(thread:StudioCodeReviewThread,resolved:boolean){if(!workspaceProject||!gitStatusWorkspace||!gitDiffTarget)return;setReviewSaving(true);setError('');try{await api(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/review-threads/${thread.id}/status`,token,{method:'POST',body:JSON.stringify({resolved,expectedRowVersion:thread.rowVersion})});await loadCodeReviewThreads(gitDiffTarget)}catch(e){setError((e as Error).message)}finally{setReviewSaving(false)}}
-  async function reviewWorkspaceDiff(e:FormEvent){e.preventDefault();if(!workspaceProject||!gitStatusWorkspace||!workspaceGitDiff||!codeReviewConsent)return;setCodeReviewLoading(true);setError('');setCodeReview(null);try{setCodeReview(await api<StudioCodeReview>(`/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/code-review`,token,{method:'POST',body:JSON.stringify({path:workspaceGitDiff.path,aiSharingConfirmed:codeReviewConsent})}))}catch(e){setError((e as Error).message)}finally{setCodeReviewConsent(false);setCodeReviewLoading(false)}}
-  async function openStudioChat(request:WorkspaceRequest){if(!workspaceProject)return;setChatWorkspace(request);setStudioConversations([]);setChatConversation(null);setChatMessages([]);setChatTitle('');setChatDraft('');setChatAIConsent(false);setChatKnowledgeConsent(false);setChatSourceSharingConsent(false);setChatCodeChange(null);setChatCodeChangeApplied([]);setError('');setChatLoading(true);void api<{autoRefresh:StudioKnowledgeAutoRefresh}>(`/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/knowledge`,token).then(result=>setKnowledgeAutoRefresh(result.autoRefresh)).catch(()=>setKnowledgeAutoRefresh({enabled:false,allFiles:false,paths:[],lastRefreshedAt:null}));try{const conversations=await api<StudioConversation[]>(`/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/conversations`,token);setStudioConversations(conversations);if(conversations[0]){setChatConversation(conversations[0]);setChatMessages(await api<StudioConversationMessage[]>(`/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/conversations/${conversations[0].id}/messages`,token))}else{await createStudioConversation(undefined,request)}}catch(e){setError((e as Error).message)}finally{setChatLoading(false)}}
-  async function createStudioConversation(e?:FormEvent,requestOverride?:WorkspaceRequest){e?.preventDefault();const targetWorkspace=requestOverride??chatWorkspace;if(!workspaceProject||!targetWorkspace)return;setChatLoading(true);setError('');try{const conversation=await api<StudioConversation>(`/studio/projects/${workspaceProject.id}/workspace-requests/${targetWorkspace.id}/conversations`,token,{method:'POST',body:JSON.stringify({title:chatTitle.trim()||'Yeni sohbet'})});setStudioConversations(current=>[conversation,...current]);setChatConversation(conversation);setChatMessages([]);setChatCodeChange(null);setChatCodeChangeApplied([]);setChatSourceSharingConsent(false);setChatTitle('')}catch(e){setError((e as Error).message)}finally{setChatLoading(false)}}
-  async function selectStudioConversation(conversation:StudioConversation){if(!workspaceProject||!chatWorkspace)return;setChatLoading(true);setError('');setChatConversation(conversation);setChatCodeChange(null);setChatCodeChangeApplied([]);setChatSourceSharingConsent(false);try{setChatMessages(await api<StudioConversationMessage[]>(`/studio/projects/${workspaceProject.id}/workspace-requests/${chatWorkspace.id}/conversations/${conversation.id}/messages`,token))}catch(e){setError((e as Error).message)}finally{setChatLoading(false)}}
-  async function deleteStudioConversation(){if(!workspaceProject||!chatWorkspace||!chatConversation?.canDelete||!window.confirm(`“${chatConversation.title}” sohbeti ve mesaj geçmişi silinsin mi? Bu işlem geri alınamaz.`))return;setChatLoading(true);setError('');try{await api<void>(`/studio/projects/${workspaceProject.id}/workspace-requests/${chatWorkspace.id}/conversations/${chatConversation.id}`,token,{method:'DELETE',body:JSON.stringify({confirm:true})});setStudioConversations(current=>current.filter(item=>item.id!==chatConversation.id));setChatConversation(null);setChatMessages([]);setNotice('Sohbet ve mesaj geçmişi silindi. Denetim kaydı yalnızca silme olayını içerir.')}catch(e){setError((e as Error).message)}finally{setChatLoading(false)}}
-  async function sendStudioChatMessage(e:FormEvent){e.preventDefault();if(!workspaceProject||!chatWorkspace||!chatConversation||!chatAIConsent||!chatDraft.trim())return;if(/\b(?:adını\s+değiştir|olarak\s+değiştir|düzelt|uygula|koda\s+ekle|kodu\s+güncelle|rename|fix|apply|implement)\b/i.test(chatDraft.trim())){await createStudioChatCodeChange(e);return}setChatLoading(true);setChatStreamingText('');setError('');const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),70_000);try{const response=await authorizedFetch(`/studio/projects/${workspaceProject.id}/workspace-requests/${chatWorkspace.id}/conversations/${chatConversation.id}/messages`,token,{method:'POST',signal:controller.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({content:chatDraft.trim(),aiSharingConfirmed:chatAIConsent,includeKnowledgeBase:chatKnowledgeConsent||Boolean(knowledgeAutoRefresh.allFiles)})});if(!response.ok){const payload=await response.json().catch(()=>null) as {error?:string;detail?:string;title?:string}|null;throw new Error(payload?.error||payload?.detail||payload?.title||`İstek başarısız (${response.status}).`)}if(!response.body)throw new Error('Sohbet yanıt akışı alınamadı.');const reader=response.body.getReader();const decoder=new TextDecoder();let buffer='',completed=false;const handleFrame=(frame:string)=>{const data=frame.split(/\r?\n/).filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('\n');if(!data)return;const event=JSON.parse(data) as {type:string;content?:string;message?:string;userMessage?:StudioConversationMessage;assistantMessage?:StudioConversationMessage};if(event.type==='delta'&&event.content)setChatStreamingText(current=>current+event.content);else if(event.type==='error')throw new Error(event.message||'AI sohbet yanıtı alınamadı.');else if(event.type==='complete'&&event.userMessage&&event.assistantMessage){const reply={userMessage:event.userMessage,assistantMessage:event.assistantMessage};setChatMessages(current=>[...current,reply.userMessage,reply.assistantMessage].slice(-100));setStudioConversations(current=>current.map(item=>item.id===chatConversation.id?({...item,updatedAt:reply.assistantMessage.createdAt}):item).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));setChatDraft('');setChatAIConsent(false);setChatKnowledgeConsent(false);setChatStreamingText('');completed=true}};while(true){const {value,done}=await reader.read();buffer+=decoder.decode(value??new Uint8Array(),{stream:!done});let separator;while((separator=buffer.search(/\r?\n\r?\n/))>=0){const frame=buffer.slice(0,separator);const boundary=buffer.slice(separator).match(/^\r?\n\r?\n/)?.[0].length??2;buffer=buffer.slice(separator+boundary);handleFrame(frame)}if(done)break}if(!completed)throw new Error('AI yanıt akışı tamamlanmadan kesildi. Yeniden deneyin.')}catch(e){setChatStreamingText('');setError(controller.signal.aborted?'AI sağlayıcısı 60 saniye içinde yanıt vermedi. Model erişilebilirliğini kontrol edin veya daha hızlı bir NVIDIA modeli seçin.':(e as Error).message)}finally{clearTimeout(timeout);setChatLoading(false)}}
-  async function createStudioChatCodeChange(e:FormEvent){e.preventDefault();if(!workspaceProject||!chatWorkspace||!chatConversation||!chatAIConsent||!chatDraft.trim()||chatCodeChangeLoading)return;if(chatDraft.trim().length>2000){setError('Kod değişikliği isteği en fazla 2000 karakter olabilir.');return}if(!knowledgeAutoRefresh.allFiles&&!chatSourceSharingConsent){setError('İlgili kaynak dosyalarını AI Developer’a göndermek için onay verin.');return}setChatCodeChangeLoading(true);setError('');setChatCodeChange(null);setChatCodeChangeApplied([]);try{const result=await api<StudioChatCodeChangePreview>(`/studio/projects/${workspaceProject.id}/workspace-requests/${chatWorkspace.id}/conversations/${chatConversation.id}/code-changes`,token,{method:'POST',body:JSON.stringify({request:chatDraft.trim(),aiSharingConfirmed:chatAIConsent,sourceSharingConfirmed:chatSourceSharingConsent})});setChatCodeChange(result);setChatMessages(current=>[...current,result.userMessage,result.assistantMessage].slice(-100));setStudioConversations(current=>current.map(item=>item.id===chatConversation.id?({...item,updatedAt:result.assistantMessage.createdAt}):item).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));setChatDraft('');setChatAIConsent(false);setChatSourceSharingConsent(false)}catch(e){setError((e as Error).message)}finally{setChatCodeChangeLoading(false)}}
-  async function applyStudioChatCodeChange(change:StudioChatCodeChangePreview['changes'][number]){if(!workspaceProject||!chatWorkspace||chatCodeChangeApplied.includes(change.filePath)||!window.confirm(`AI önerisi ${change.filePath} dosyasına yalnızca bu izole çalışma alanında uygulansın mı? Dosyanın güncel özeti eşleşmezse işlem durdurulur. Kod çalıştırılmaz ve uzak depoya gönderilmez.`))return;setChatCodeChangeLoading(true);setError('');try{await api<AppliedCodeSuggestion>(`/studio/projects/${workspaceProject.id}/workspace-requests/${chatWorkspace.id}/apply-code-patches`,token,{method:'POST',body:JSON.stringify({filePath:change.filePath,expectedSha256:change.sourceSha256,patches:change.patches.map(patch=>({findText:patch.findText,replaceText:patch.replaceText,notes:patch.notes})),approvalConfirmed:true})});setChatCodeChangeApplied(current=>[...current,change.filePath]);setNotice(`${change.filePath} AI Asistanı önerisiyle izole çalışma alanına uygulandı. Kod çalıştırılmadı.`);if(changeWorkspace?.id===chatWorkspace.id)await loadWorkspaceChanges(chatWorkspace)}catch(e){setError((e as Error).message)}finally{setChatCodeChangeLoading(false)}}
-  async function openWorkspaceChange(change:WorkspaceChange){if(!workspaceProject||!changeWorkspace)return;setChangeLoading(true);setError('');setRestoreApproval(false);try{setChangeDiff(await api<WorkspaceChangeDiff>('/studio/projects/'+workspaceProject.id+'/workspace-requests/'+changeWorkspace.id+'/changes/'+change.id,token))}catch(e){setError((e as Error).message)}finally{setChangeLoading(false)}}
-  async function restoreWorkspaceChange(){if(!workspaceProject||!changeWorkspace||!changeDiff||!restoreApproval||!changeDiff.isCurrent||changeDiff.isRestored)return;setChangeLoading(true);setError('');try{const restored=await api<RestoredWorkspaceChange>('/studio/projects/'+workspaceProject.id+'/workspace-requests/'+changeWorkspace.id+'/changes/'+changeDiff.id+'/restore',token,{method:'POST',body:JSON.stringify({expectedSha256:changeDiff.appliedSha256,approvalConfirmed:restoreApproval})});setChangeDiff(current=>current?({...current,currentContent:current.originalContent,isCurrent:false,isRestored:true}):current);setFileContent(current=>current&&current.path===restored.path?(changeDiff.wasCreated?null:{...current,content:changeDiff.originalContent,sizeBytes:new TextEncoder().encode(changeDiff.originalContent).length,sha256:restored.sha256}):current);setRestoreApproval(false);setWorkspaceChanges(await api<WorkspaceChanges>('/studio/projects/'+workspaceProject.id+'/workspace-requests/'+changeWorkspace.id+'/changes',token));setNotice(changeDiff.wasCreated?'AI tarafından oluşturulan dosya, onayla çalışma alanından kaldırıldı. Kod çalıştırılmadı.':'Değişiklik kaydedilmiş önceki dosya içeriğine geri alındı. Kod çalıştırılmadı.');if(changeDiff.wasCreated&&fileWorkspace?.id===changeWorkspace.id){const query=`path=${encodeURIComponent(filePath)}&offset=0`;setFileListing(await api<WorkspaceFileListing>(`/studio/projects/${workspaceProject.id}/workspace-requests/${changeWorkspace.id}/files?${query}`,token))}}catch(e){setError((e as Error).message)}finally{setChangeLoading(false)}}
-  async function createArchitecturePlan(e:FormEvent){e.preventDefault();if(!workspaceProject||!architectWorkspace||!architectConsent)return;setArchitectLoading(true);setError('');setArchitectPlan(null);setArchitectSavedPlanId(null);try{setArchitectPlan(await api<ArchitecturePlan>(`/studio/projects/${workspaceProject.id}/workspace-requests/${architectWorkspace.id}/architecture-plan`,token,{method:'POST',body:JSON.stringify({request:architectRequest})}))}catch(e){setError((e as Error).message)}finally{setArchitectLoading(false)}}
-  async function saveArchitecturePlan(){if(!workspaceProject||!architectWorkspace||!architectPlan)return;setArchitectLoading(true);setError('');try{const saved=await api<SavedArchitecturePlan>(`/studio/projects/${workspaceProject.id}/architecture-plans`,token,{method:'POST',body:JSON.stringify({workspaceRequestId:architectWorkspace.id,plan:architectPlan})});setArchitectSavedPlanId(saved.id);setSavedArchitecturePlans(current=>[saved,...current.filter(x=>x.id!==saved.id)].slice(0,50));setNotice('Mimari plan bu proje için saklandı. Özgün talep metni kaydedilmedi.')}catch(e){setError((e as Error).message)}finally{setArchitectLoading(false)}}
-  async function openSavedArchitecturePlan(saved:SavedArchitecturePlan){if(!workspaceProject)return;const request=workspaceRequests.find(x=>x.id===saved.workspaceRequestId);if(!request){setError('Planın çalışma alanı isteği bulunamadı.');return}setArchitectLoading(true);setError('');try{const detail=await api<SavedArchitecturePlanDetail>(`/studio/projects/${workspaceProject.id}/architecture-plans/${saved.id}`,token);setArchitectWorkspace(request);setArchitectPlan(detail.plan);setArchitectSavedPlanId(saved.id);setArchitectRequest('');setArchitectConsent(false);setShowPlanHistory(false)}catch(e){setError((e as Error).message)}finally{setArchitectLoading(false)}}
-  async function deleteSavedArchitecturePlan(saved:SavedArchitecturePlan){if(!workspaceProject||!saved.canDelete)return;if(!window.confirm(`“${saved.summary}” mimari planını kalıcı olarak silmek istiyor musunuz?`))return;setError('');try{await api<void>(`/studio/projects/${workspaceProject.id}/architecture-plans/${saved.id}`,token,{method:'DELETE',body:JSON.stringify({confirm:true})});setSavedArchitecturePlans(current=>current.filter(x=>x.id!==saved.id));if(architectSavedPlanId===saved.id){setArchitectSavedPlanId(null);setArchitectPlan(null)}setNotice('Mimari plan silindi; silme olayı denetim kaydına eklendi.')}catch(e){setError((e as Error).message)}}
-  const aiToolCategories=['Tümü','Kod üretimi','Analiz','İyileştirme','Dokümantasyon','Veri & ERP','Özel araçlar']
-  const canEditWorkspace=Boolean(workspaceProject&&workspaceProject.accessLevel!=='Viewer')
-  const aiToolCards=[
-    {id:'file',title:'AI dosya oluştur',category:'Kod üretimi',description:'İhtiyacınıza göre yeni bir kod dosyası için gözden geçirilebilir öneri hazırlayın.',tags:['Kod üretimi','Öneri'],icon:Sparkles,disabled:!canEditWorkspace,action:()=>{setAiToolsViewOpen(false);startNewCodeSuggestion(fileWorkspace!)}},
-    {id:'ui',title:'UI tasarla',category:'Kod üretimi',description:'Yeni bir ekran taslağı oluşturun; değişiklikleri çalışma alanına uygulamadan önce inceleyin.',tags:['UI / UX','React'],icon:Code2,disabled:!canEditWorkspace,action:()=>{setAiToolsViewOpen(false);startUiDesigner(fileWorkspace!)}},
-    {id:'analysis',title:'Hata analiz et',category:'Analiz',description:'Kaynak kod içinde hata veya teknik konu arayın ve eşleşmeleri inceleyin.',tags:['Analiz','Kod arama'],icon:ShieldCheck,disabled:false,action:()=>{setAiToolsViewOpen(false);setSourceSearchWorkspace(fileWorkspace!);setSourceSearchQuery('');setSourceSearchResult(null);setSelectedSourceMatches([]);setSourceAnalysisResult(null);setSourceAnalysisQuestion('');setSourceAnalysisConsent(false);setError('')}},
-    {id:'data',title:'Veri modeli oluştur',category:'Veri & ERP',description:'ERP veri modeli hakkında mühendis asistanıyla çalışın; öneriler ayrı onay gerektirir.',tags:['ERP','Veri tabanı'],icon:Folder,disabled:!canEditWorkspace,action:()=>{setAiToolsViewOpen(false);setAiDockOpen(true)}},
-    {id:'docs',title:'Dokümantasyon yaz',category:'Dokümantasyon',description:'Proje hakkında AI sohbetinde teknik dokümantasyon taslağı hazırlayın.',tags:['Dokümantasyon','Markdown'],icon:FileCode,disabled:!fileWorkspace?.workspaceBranchName,action:()=>{setAiToolsViewOpen(false);void openStudioChat(fileWorkspace!)}},
-    {id:'improve',title:'Kodu iyileştir',category:'İyileştirme',description:'Seçili kaynak dosya için iyileştirme önerisi üretin ve farkları gözden geçirin.',tags:['İyileştirme','Refactor'],icon:Code2,disabled:!fileContent||!canEditWorkspace||!(/\.(cs|csx|razor|ts|tsx|js|jsx|html|css|scss|sql|py|go|rs|java)$/i.test(fileContent?.path??'')),action:()=>{setAiToolsViewOpen(false);startCodeSuggestion()}},
-    {id:'architect',title:'Mimariyi planla',category:'Özel araçlar',description:'İstek için teknik plan, etki alanı ve inceleme adımları oluşturun.',tags:['Mimari','Planlama'],icon:Sparkles,disabled:!canEditWorkspace,action:()=>{setAiToolsViewOpen(false);setArchitectWorkspace(fileWorkspace!);setArchitectPlan(null);setArchitectRequest(linkedDevelopmentContext(fileWorkspace!.developmentRequestTitle,fileWorkspace!.developmentRequestDescription));setArchitectConsent(false);setError('')}}
-  ]
-  const filteredAiToolCards=aiToolCards.filter(card=>(aiToolsCategory==='Tümü'||card.category===aiToolsCategory)&&`${card.title} ${card.category} ${card.description} ${card.tags.join(' ')}`.toLocaleLowerCase('tr-TR').includes(aiToolsQuery.trim().toLocaleLowerCase('tr-TR')))
-  return <>
-    {pendingApprovals.length>0&&<section className="panel" style={{marginTop:20}}><div className="panel-heading"><div><h3>Onay kuyruğu</h3><p>Yetkili olduğunuz projelerde bekleyen çalışma alanı talepleri</p></div><span className="request-status"><i/>{pendingApprovals.length} gösteriliyor</span></div>{error&&<div className="alert">{error}</div>}{pendingApprovals.map(request=><article className="request-row expanded" key={request.id}><div className="request-symbol"><Code2 size={17}/></div><div className="request-info"><b>{request.projectName} · {request.branchName}</b><small>{request.requesterEmail} · {new Date(request.createdAt).toLocaleString('tr-TR',{dateStyle:'medium',timeStyle:'short'})}</small>{request.developmentRequestTitle&&<small>Talep: {request.developmentRequestTitle}</small>}{request.developmentRequestDescription&&<small>{request.developmentRequestDescription}</small>}</div><div style={{display:'flex',gap:6}}><button className="secondary small-button" disabled={busy} onClick={()=>void reviewPendingApproval(request,'Approve')}>Onayla</button><button className="secondary small-button" disabled={busy||!reviewNote.trim()} onClick={()=>void reviewPendingApproval(request,'Reject')}>Reddet</button></div></article>)}{approvalQueueLoading&&<div className="empty-small">Onay kuyruğu yükleniyor…</div>}<div className="modal-foot"><span>{pendingApprovalsOffset+1}–{pendingApprovalsOffset+pendingApprovals.length} kayıt</span><div>{pendingApprovalsOffset>0&&<button className="secondary small-button" disabled={approvalQueueLoading||busy} onClick={()=>void loadPendingApprovals(Math.max(0,pendingApprovalsOffset-100))}>Önceki</button>}{pendingApprovalsNextOffset!==null&&<button className="secondary small-button" disabled={approvalQueueLoading||busy} onClick={()=>void loadPendingApprovals(pendingApprovalsNextOffset)}>Sonraki</button>}</div></div><label className="review-note-field"><span>Ret gerekçesi</span><small>Gerekçe inceleme geçmişine kaydedilir.</small><textarea value={reviewNote} onChange={e=>setReviewNote(e.target.value)} maxLength={500} rows={2} placeholder="Ret kararının kısa gerekçesini yazın…"/></label><div className="boundary-note"><ShieldCheck size={17}/><span>Talep sahibi kendi talebini inceleyemez. İnceleme kararı kilitli kayıt üzerinde kaydedilir ve denetlenir.</span></div></section>}
-    <div className="panel studio-projects-panel" style={{marginTop:20}}>
-      <div className="panel-heading"><div><h3>Yetkilendirilmiş projeler</h3><p>Depo adresleri ve çalışma erişimleri · {projects.length} proje</p></div><div style={{display:'flex',gap:8}}><button className="secondary small-button" disabled={busy} onClick={()=>void refreshProjectStatus()}>Bağlantı durumunu yenile</button>{tenant.role==='TenantAdmin'&&<button className="primary small-button" onClick={()=>setShowCreate(true)}><Plus size={15}/> Proje kaydet</button>}</div></div>
-      {error&&<div className="alert">{error}</div>}{notice&&<div className="notice">{notice}</div>}{aiConfigured===false&&<div className="notice"><b>AI sağlayıcısı yapılandırılmadı.</b> AI özelliklerini açmak için Docker ortamına <code>OPENAI_API_KEY</code> ekleyip <code>ai-service</code> servisini yeniden başlatın. Anahtar tarayıcıya gönderilmez.</div>}
-      {projects.length?<div className="studio-project-table-wrap"><table className="studio-project-table"><thead><tr><th>Proje / depo</th><th>Varsayılan dal</th><th>Erişim</th><th>GitHub bağlantısı</th><th>Komutlar</th></tr></thead><tbody>{projects.map(project=><tr key={project.id}><td><div className="studio-project-name"><span><Code2 size={16}/></span><div><b>{project.name}</b><small title={project.repositoryUrl}>{project.repositoryUrl}</small></div></div></td><td><code>{project.defaultBranch}</code></td><td><span className="studio-project-access">{project.accessLevel==='TenantAdmin'?'Yönetici':project.accessLevel==='Maintainer'?'Bakım sorumlusu':project.accessLevel==='Contributor'?'Katılımcı':'Görüntüleyici'}</span></td><td><span className={`studio-project-github ${project.githubAuthorized?'is-connected':'is-pending'}`}><i/>{project.githubAuthorized?'Bağlı':'Yetki gerekli'}</span></td><td><div className="studio-project-commands"><button className="secondary small-button" onClick={()=>void openWorkspace(project)}><Folder size={14}/>Çalışma alanı</button>{(project.accessLevel==='Maintainer'||project.accessLevel==='TenantAdmin')&&<><button className="secondary small-button" onClick={()=>void openAccess(project)}><ShieldCheck size={14}/>Erişimler</button><button className="secondary small-button" onClick={()=>setModuleMappingProject(project)}><Code2 size={14}/>Modül kaynağı</button></>}</div></td></tr>)}</tbody></table></div>:<div className="empty-small"><div><b>Henüz erişilebilir proje yok</b><small>Tenant yöneticisi güvenli depo bağlantısı kaydedebilir.</small></div></div>}
-      <div className="boundary-note"><ShieldCheck size={17}/><span><b>Sınırlı depo keşfi</b>Onaylı checkout için Project Explorer dosya adlarını ve türlerini listeler. Git kimlik bilgisi alınmaz; metin önizlemesi salt okunurdur ve kod çalıştırılmaz.</span></div>
-    </div>
-    {showCreate&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowCreate(false)}}><div className="modal"><div className="modal-head"><div><p className="eyebrow">AI DEVELOPMENT STUDIO</p><h2>Proje kaydet</h2></div><button className="icon-button" onClick={()=>setShowCreate(false)}><X size={19}/></button></div><p className="muted modal-sub">HTTPS depo adresini kaydedin. Kaynak checkout yalnızca yetkili çalışma alanı talebi onaylandıktan sonra yapılır.</p>{error&&<div className="alert">{error}</div>}<form onSubmit={createProject}><label>Proje adı<input value={name} onChange={e=>setName(e.target.value)} required maxLength={120} placeholder="Örn. Nexora ERP"/></label><label>HTTPS depo adresi<input type="url" value={repositoryUrl} onChange={e=>setRepositoryUrl(e.target.value)} required maxLength={2048} placeholder="https://github.com/organizasyon/proje.git"/></label><label>Varsayılan dal<input value={defaultBranch} onChange={e=>setDefaultBranch(e.target.value)} required maxLength={256}/></label><div className="modal-foot"><span><ShieldCheck size={14}/> Yalnız tenant yöneticisi kaydedebilir</span><div><button type="button" className="secondary" onClick={()=>setShowCreate(false)}>Vazgeç</button><button disabled={busy} className="primary">{busy?'Kaydediliyor…':'Projeyi kaydet'} <span>→</span></button></div></div></form></div></div>}
-    {accessProject&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setAccessProject(null)}}><div className="modal"><div className="modal-head"><div><p className="eyebrow">PROJE YETKİLERİ</p><h2>{accessProject.name}</h2></div><button className="icon-button" onClick={()=>setAccessProject(null)}><X size={19}/></button></div><p className="muted modal-sub">Yalnızca seçili tenant’ın etkin üyelerine proje rolü verilebilir.</p>{error&&<div className="alert">{error}</div>}<div className="requests-list">{members.map(member=><article className="request-row" key={member.userId}><div className="request-info"><b>{member.email}</b><small>{member.accessLevel}</small></div><button className="secondary small-button" disabled={busy} onClick={()=>void revokeAccess(member)}>Erişimi kaldır</button></article>)}</div><form onSubmit={grantAccess} style={{marginTop:16}}><label>Firma üyesi e-postası<input type="email" value={memberEmail} onChange={e=>setMemberEmail(e.target.value)} required placeholder="kullanici@firma.com"/></label><label>Proje rolü<select value={accessLevel} onChange={e=>setAccessLevel(e.target.value as ProjectMember['accessLevel'])}><option value="Viewer">Viewer · Görüntüleme</option><option value="Contributor">Contributor · Çalışma</option><option value="Maintainer">Maintainer · Erişim yönetimi</option></select></label><div className="modal-foot"><span><ShieldCheck size={14}/> Değişiklik denetim kaydına yazılır</span><div><button type="button" className="secondary" onClick={()=>setAccessProject(null)}>Kapat</button><button disabled={busy} className="primary">{busy?'Kaydediliyor…':'Erişim ver'} <span>→</span></button></div></div></form></div></div>}
-    {workspaceProject&&<section className="studio-workspace-screen"><div className="studio-workspace-page"><nav className="studio-workspace-nav"><button type="button" className="studio-workspace-back" onClick={()=>setWorkspaceProject(null)}><ArrowLeft size={16}/> Projelere dön</button><span>AI Development Studio <ChevronRight size={13}/> Projeler <ChevronRight size={13}/> Çalışma alanı</span></nav><header className="studio-workspace-hero"><div className="studio-workspace-hero-copy"><p className="eyebrow">İZOLE ÇALIŞMA ALANI</p><h1>{workspaceProject.name}</h1><p>Seçtiğiniz dal başlangıç noktasıdır. Onaydan sonra Runner her talep için ayrı bir yerel AI çalışma dalı açar; uzak depoya push yapılmaz.</p><div className="studio-workspace-meta"><span><Code2 size={14}/>{workspaceProject.repositoryUrl}</span><span><span className="studio-workspace-meta-dot"/>Başlangıç dalı: <b>{workspaceProject.defaultBranch}</b></span></div></div><span className="studio-workspace-access">{workspaceProject.accessLevel==='TenantAdmin'?'Yönetici':workspaceProject.accessLevel==='Maintainer'?'Bakım sorumlusu':workspaceProject.accessLevel==='Contributor'?'Katılımcı':'Görüntüleyici'}</span></header><main className="studio-workspace-content"><section className="studio-workspace-intro"><div><p className="eyebrow">YENİ TALEP</p><h2>Çalışma alanı oluştur</h2><p>Bir başlangıç dalı seçin ve isterseniz geliştirme talebine bağlayın.</p></div></section>{!workspaceProject.githubAuthorized&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>GitHub depo erişimi</b>{workspaceProject.githubAuthorized?'Bu proje GitHub App ile yetkilendirildi.':'Özel depolar için GitHub App yetkilendirmesi gerekir.'}</span>{(workspaceProject.accessLevel==='TenantAdmin'||workspaceProject.accessLevel==='Maintainer')&&<div style={{display:'flex',gap:6}}>{!workspaceProject.githubAuthorized&&workspaceProject.repositoryUrl.startsWith('https://github.com/')&&<button type="button" className="primary small-button" disabled={busy} onClick={()=>void connectProjectGitHub()}>GitHub ile yetkilendir</button>}{workspaceProject.githubAuthorized&&<button type="button" className="secondary small-button" disabled={busy} onClick={()=>void disconnectProjectGitHub()}>Bağlantıyı kaldır</button>}</div>}</div>}{error&&<div className="alert">{error}</div>}<div className="studio-workspace-layout">{(workspaceProject.accessLevel==='TenantAdmin'||workspaceProject.accessLevel==='Contributor'||workspaceProject.accessLevel==='Maintainer')&&<section className="studio-workspace-create-card"><form onSubmit={createWorkspaceRequest}><label>Çalışma dalı<select aria-label="Çalışma dalı seçin" value={customWorkspaceBranch?'__custom':workspaceBranch} disabled={branchesLoading} onChange={e=>{if(e.target.value==='__custom'){setCustomWorkspaceBranch(true);setWorkspaceBranch('')}else{setCustomWorkspaceBranch(false);setWorkspaceBranch(e.target.value)}}}>{workspaceBranches.map(branch=><option value={branch} key={branch}>{branch}</option>)}<option value="__custom">Başka bir dal adı gir…</option></select>{customWorkspaceBranch&&<input aria-label="Yeni çalışma dalı adı" value={workspaceBranch} onChange={e=>setWorkspaceBranch(e.target.value)} required maxLength={256} placeholder="feature/cari-hesaplar"/>}<small>{branchesLoading?'Git dalları yükleniyor…':branchesAvailable?`${workspaceBranches.length} dal seçilebilir; başka dal adı da girebilirsiniz.`:(branchListError||'Depo dalları şu anda alınamadı; varsayılan dalı seçebilir veya başka dal adı girebilirsiniz.')}</small></label>{!branchesAvailable&&!branchesLoading&&<button type="button" className="secondary small-button" disabled={busy} onClick={()=>void loadProjectBranches(workspaceProject)}>Dalları yeniden yükle</button>}<label>Bağlı geliştirme talebi<select value={selectedDevelopmentRequestId} onChange={e=>setSelectedDevelopmentRequestId(e.target.value)}><option value="">Bağımsız çalışma alanı</option>{projectDevelopmentRequests.map(item=><option value={item.id} key={item.id}>{item.title}</option>)}</select><small>Seçilen talep, onay sırasında ve AI Architect/Developer araçlarında bağlam olarak görünür.</small></label><div className="modal-foot"><span><ShieldCheck size={14}/> Onay bekleyen talep oluşturulur</span><button className="primary" disabled={busy||!workspaceBranch.trim()||(!customWorkspaceBranch&&!workspaceBranches.includes(workspaceBranch))}>{busy?'Gönderiliyor…':'Çalışma alanı iste'} <span>→</span></button></div></form></section>}<section className="studio-workspace-requests"><div className="list-toolbar"><div><h3>Çalışma alanı talepleri</h3><p>{workspaceRequests.length} kayıt</p></div><button className="secondary small-button" onClick={()=>setShowPlanHistory(true)}>Plan geçmişi ({savedArchitecturePlans.length})</button></div><div className="requests-list">{workspaceRequests.length?workspaceRequests.map(request=><article className="request-row expanded workspace-request-row" key={request.id}><div className="request-symbol"><Code2 size={17}/></div><div className="request-info workspace-launch-area" role={request.status==='Ready'?'button':undefined} tabIndex={request.status==='Ready'?0:undefined} title={request.status==='Ready'?'IDE çalışma alanını aç':undefined} onClick={()=>{if(request.status==='Ready')void loadWorkspaceFiles(request,'')}} onKeyDown={event=>{if(request.status==='Ready'&&(event.key==='Enter'||event.key===' ')){event.preventDefault();void loadWorkspaceFiles(request,'')}}}><div className="workspace-request-heading"><b>{request.workspaceBranchName?`${request.branchName} → ${request.workspaceBranchName}`:request.branchName}</b><span className={`workspace-request-status workspace-request-status-${request.status.toLowerCase()}`}>{request.status==='PendingApproval'?'Onay bekliyor':request.status==='Approved'?'Onaylandı':request.status==='Provisioning'?'Hazırlanıyor':request.status==='ProvisioningFailed'?'Başarısız':request.status==='Cancelled'?'İptal edildi':request.status==='Ready'?'Hazır':request.status==='Rejected'?'Reddedildi':'Reddedildi'}</span></div>{request.developmentRequestTitle&&<small>Talep: {request.developmentRequestTitle}</small>}<small>{new Date(request.createdAt).toLocaleString('tr-TR',{dateStyle:'medium',timeStyle:'short'})}{request.reviewNote?' · '+request.reviewNote:''}{request.provisioningError?' · '+request.provisioningError:''}{request.commitSha?' · '+request.commitSha:''}{request.provisionedAt?' · '+new Date(request.provisionedAt).toLocaleString('tr-TR',{dateStyle:'medium',timeStyle:'short'}):''}{request.status==='PendingApproval'&&!request.canReview?' · farklı yetkili onayı bekleniyor':''}</small></div>{request.status==='PendingApproval'&&(request.canReview||request.canCancel)&&<div style={{display:'flex',gap:6}}>{request.canReview&&<><button className="secondary small-button" disabled={busy} onClick={()=>void reviewWorkspaceRequest(request,'Approve')}>Onayla</button><button className="secondary small-button" disabled={busy} onClick={()=>void reviewWorkspaceRequest(request,'Reject')}>Reddet</button></>}{request.canCancel&&<button className="secondary small-button" disabled={busy} onClick={()=>void cancelWorkspaceRequest(request)}>Talebi iptal et</button>}</div>}{request.canDelete&&request.status!=='Provisioning'&&<button type="button" className="secondary small-button workspace-request-delete" disabled={busy} onClick={()=>void archiveWorkspaceRequest(request)} title="Talebi etkin listeden sil">Sil</button>}{(request.status==='Approved'||request.status==='ProvisioningFailed')&&(workspaceProject.accessLevel==='TenantAdmin'||workspaceProject.accessLevel==='Maintainer')&&<button className="secondary small-button" disabled={busy} onClick={()=>void provisionWorkspace(request)}>{request.status==='ProvisioningFailed'?'Yeniden dene':'Checkout oluştur'}</button>}{request.status==='Ready'&&<div className="workspace-request-actions">{request.workspaceBranchName===null&&(workspaceProject.accessLevel==='TenantAdmin'||workspaceProject.accessLevel==='Maintainer')&&<button className="secondary small-button" disabled={busy} onClick={()=>void ensureWorkspaceBranch(request)}>İzole dal oluştur</button>}<button type="button" className="primary small-button" disabled={fileLoading} onClick={()=>void loadWorkspaceFiles(request,'')}><Code2 size={14}/> IDE’yi aç <ChevronRight size={14}/></button></div>}</article>):<div className="empty-small"><div><b>Bekleyen çalışma alanı talebi yok</b><small>Yeni talepler onay kuyruğunda görünür.</small></div></div>}</div></section></div>{workspaceRequests.some(x=>x.status==='PendingApproval'&&x.canReview)&&<label className="review-note-field"><span>Ret gerekçesi</span><small>Gerekçe inceleme geçmişine kaydedilir.</small><textarea value={reviewNote} onChange={e=>setReviewNote(e.target.value)} maxLength={500} rows={2} placeholder="Ret kararının kısa gerekçesini yazın…"/></label>}<div className="boundary-note"><ShieldCheck size={17}/><span><b>Yetkili onay</b>Yetkili onaydan sonra Runner seçilen kaynak dalından ayrı bir yerel çalışma dalı oluşturur. Bu dal şimdilik yalnız izole checkout içinde bulunur; push/PR ve kod çalıştırma yapılmaz.</span></div></main></div></section>}
-    {gitStatusWorkspace&&<div className="modal-backdrop studio-git-status-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setGitStatusWorkspace(null);setWorkspaceGitStatus(null)}}}><div className="modal"><div className="modal-head"><div><p className="eyebrow">SÜRÜM HAZIRLIĞI</p><h2>{workspaceProject?.name} / {workspaceGitStatus?.branchName??gitStatusWorkspace.branchName}</h2></div><button className="icon-button" onClick={()=>{setGitStatusWorkspace(null);setWorkspaceGitStatus(null)}}><X size={19}/></button></div><p className="muted modal-sub">Git durumu ve başarılı sandbox test kanıtı doğrulanır. Yetkili kullanıcılar koşullar sağlanınca denetlenebilir bir sürüm adayı kaydedebilir. Paket üretimi ve dağıtım bu adımda yapılmaz.</p>{error&&<div className="alert">{error}</div>}{gitStatusLoading?<div className="empty-small">Git durumu okunuyor…</div>:workspaceGitStatus&&<>{(()=>{const clean=workspaceGitStatus.totalChangedFiles===0&&!workspaceGitStatus.truncated;const testCurrent=testDiscoveryWorkspace?.id===gitStatusWorkspace.id&&testExecution?.status==='Passed'&&testExecution.commitSha===workspaceGitStatus.headCommitSha&&!testExecution.hasUncommittedChanges;const ready=clean&&testCurrent;const canManage=workspaceProject?.accessLevel==='TenantAdmin'||workspaceProject?.accessLevel==='Maintainer';const alreadySaved=!!testExecution&&releaseCandidates.some(item=>item.testJobId===testExecution.jobId);return <><section className="panel" style={{marginBottom:14}}><div className="panel-heading"><div><b>{ready?'İnsan incelemesine hazır':'Hazırlık koşulları tamamlanmadı'}</b><small>{workspaceGitStatus.branchName} · HEAD {workspaceGitStatus.headCommitSha.slice(0,12)}</small></div><ShieldCheck size={18}/></div><div className="requests-list"><article className="request-row"><div className="request-info"><b>{clean?'Çalışma ağacı temiz':'Çalışma ağacında değişiklik var veya liste kesildi'}</b><small>{workspaceGitStatus.totalChangedFiles} değişen dosya{workspaceGitStatus.truncated?' · durum listesi eksik':''}</small></div></article><article className="request-row"><div className="request-info"><b>{testCurrent?'Aynı commit için test başarılı':'Güncel commit için başarılı test kanıtı yok'}</b><small>{testDiscoveryWorkspace?.id===gitStatusWorkspace.id&&testExecution?`${testExecution.status} · HEAD ${testExecution.commitSha.slice(0,12)}${testExecution.hasUncommittedChanges?' · değişiklik içeren snapshot':''}`:'Bu oturumda bu çalışma alanına ait test sonucu yok'}</small></div></article></div>{ready&&canManage&&!alreadySaved&&<div className="modal-foot"><span>Test kanıtı sunucuda yeniden doğrulanır.</span><button className="primary" disabled={releaseCandidateSaving} onClick={()=>void createReleaseCandidate()}>{releaseCandidateSaving?'Kaydediliyor…':'Sürüm adayını kaydet'}</button></div>}{!clean&&canManage&&workspaceGitStatus.totalChangedFiles>0&&<div className="modal-foot"><span>Yalnız güncel Studio onay kayıtları commit edilebilir.</span><button className="secondary" disabled={workspaceCommitLoading||workspaceGitStatus.truncated} onClick={()=>void commitApprovedWorkspaceChanges()}>{workspaceCommitLoading?'Commit hazırlanıyor…':'Onaylı değişiklikleri commit et'}</button></div>}<div className="boundary-note"><ShieldCheck size={17}/><span><b>Kontrollü kayıt</b>Aday kaydı HEAD, dal ve test özetiyle denetim geçmişine yazılır. Uzak depo değişmez; paket ve dağıtım adımları çalışmaz.</span></div></section>{releaseCandidates.length>0&&<section className="panel" style={{marginBottom:14}}><div className="panel-heading"><div><b>Kaydedilmiş sürüm adayları</b><small>Son {releaseCandidates.length} kayıt · veritabanında saklanır</small></div></div><div className="requests-list">{releaseCandidates.map(candidate=><article className="request-row" key={candidate.id}><div className="request-symbol"><ShieldCheck size={17}/></div><div className="request-info"><b>{candidate.branchName} · {candidate.commitSha.slice(0,12)}</b><small>{candidate.testTargetPath} · test {new Date(candidate.testCompletedAt).toLocaleString('tr-TR',{dateStyle:'medium',timeStyle:'short'})}</small><small>Aday {new Date(candidate.createdAt).toLocaleString('tr-TR',{dateStyle:'medium',timeStyle:'short'})} · SHA-256 {candidate.testSnapshotSha256.slice(0,12)}</small><small>{candidate.decision=== 'Approved'?'Onaylandı':candidate.decision=== 'Rejected'?'Reddedildi':'Yetkili incelemesi bekliyor'}{candidate.reviewedAt?` · ${new Date(candidate.reviewedAt).toLocaleString('tr-TR',{dateStyle:'medium',timeStyle:'short'})}`:''}</small>{candidate.reviewNote&&<small>Karar notu: {candidate.reviewNote}</small>}{candidate.githubPullRequestUrl&&<small>GitHub PR #{candidate.githubPullRequestNumber} | {candidate.githubPullRequestState} | <a href={candidate.githubPullRequestUrl} target="_blank" rel="noreferrer">Open PR</a></small>}{releaseVersions.find(item=>item.releaseCandidateId===candidate.id)&&<small>SemVer: {releaseVersions.find(item=>item.releaseCandidateId===candidate.id)!.version} · atanan commit {releaseVersions.find(item=>item.releaseCandidateId===candidate.id)!.commitSha.slice(0,12)}</small>}{releaseVersions.find(item=>item.releaseCandidateId===candidate.id)&&(()=>{const version=releaseVersions.find(item=>item.releaseCandidateId===candidate.id)!;const pkg=releasePackages.find(item=>item.releaseVersionId===version.id);return <section className="panel" style={{gridColumn:"1 / -1",marginTop:8}}><div className="panel-heading"><div><b>{version.version} · sürüm paketi</b><small>Onaylı commit ve başarılı sandbox test kanıtı kullanılır. Paket oluşturma dağıtım başlatmaz.</small></div>{!pkg&&(workspaceProject?.accessLevel==="Maintainer"||workspaceProject?.accessLevel==="TenantAdmin")&&<button className="secondary small-button" disabled={releasePackageLoading!==null} onClick={()=>void createReleasePackage(version)}>{releasePackageLoading===version.id?"Paket oluşturuluyor…":"Paket oluştur"}</button>}</div>{pkg&&<div className="request-row"><div className="request-info"><b>{pkg.fileName} · {(pkg.sizeBytes/1024/1024).toFixed(2)} MiB</b><small>SHA-256 {pkg.packageSha256}</small><small>Commit {pkg.commitSha.slice(0,12)} · test snapshot {pkg.testSnapshotSha256.slice(0,12)} · {new Date(pkg.createdAt).toLocaleString("tr-TR")}</small></div><button className="secondary small-button" disabled={releasePackageDownloadLoading!==null} onClick={()=>void downloadReleasePackage(pkg)}>{releasePackageDownloadLoading===pkg.id?"İndiriliyor…":"Paketi indir"}</button></div>}{pkg&&(workspaceProject?.accessLevel==="Maintainer"||workspaceProject?.accessLevel==="TenantAdmin")&&<div className="modal-foot"><span>Bağımsız onaylı paket; localhost staging’e yayınlanabilir.</span><button className="primary small-button" disabled={releaseDeploymentLoading} onClick={()=>void deployStaging(pkg)}>{releaseDeploymentLoading?"Yayınlanıyor…":"Yerel staging’e yayınla"}</button></div>}</section>})()}</div>{releaseDeployments.length>0&&<section className="panel" style={{marginTop:12}}><div className="panel-heading"><div><b>Yerel staging dağıtımları</b><small>Docker Compose · yalnız localhost · son {releaseDeployments.length} kayıt</small></div><button className="secondary small-button" disabled={gitStatusLoading} onClick={()=>void loadWorkspaceGitStatus(gitStatusWorkspace!)}>Yenile</button></div>{stagingCredentials&&stagingCredentials.bootstrapEmail&&<div className="notice"><b>{stagingCredentials.deployment.environment==='Production'?'Production ilk giriş bilgileri · bu kez gösteriliyor':'Staging ilk giriş bilgileri · bu kez gösteriliyor'}</b><br/>E-posta: <code>{stagingCredentials.bootstrapEmail}</code><br/>Parola: <code>{stagingCredentials.bootstrapPassword}</code><br/><a href={stagingCredentials.deployment.environmentUrl??"#"} target="_blank" rel="noreferrer">{stagingCredentials.deployment.environmentUrl}</a><br/><small>Parolayı şimdi güvenli bir yere kaydedin. Tekrar gösterilmez.</small></div>}<div className="requests-list">{releaseDeployments.filter(deployment=>deployment.environment==="Staging").map(deployment=>{const active=deployment.status==="Succeeded";const packageInfo=releasePackages.find(item=>item.id===deployment.releasePackageId);return <article className="request-row" key={deployment.id}><div className="request-symbol"><ShieldCheck size={17}/></div><div className="request-info"><b>{packageInfo?.version??deployment.version??deployment.commitSha.slice(0,12)} · {deployment.status}</b><small>{deployment.environmentUrl??"Staging URL yok"} · {new Date(deployment.createdAt).toLocaleString("tr-TR")}</small><small>SHA-256 {deployment.packageSha256} · {deployment.failureCode??"Docker Compose"}</small></div>{deployment.environmentUrl&&<a className="secondary small-button" href={deployment.environmentUrl} target="_blank" rel="noreferrer">Aç</a>}{active&&<><button className="secondary small-button" disabled={releaseDeploymentLoading} onClick={()=>{const pkg=releasePackages.find(item=>item.id===deployment.releasePackageId)??{id:deployment.releasePackageId,version:deployment.version,commitSha:deployment.commitSha};void deployStaging(pkg)}}>Yeniden dağıt</button><button className="secondary small-button danger-action" disabled={releaseDeploymentLoading} onClick={()=>void destroyStaging(deployment)}>Staging’i sil</button>{!productionApprovals.some(item=>item.stagingDeploymentId===deployment.id)&&<button className="secondary small-button" disabled={releaseDeploymentLoading} onClick={()=>void requestProductionApproval(deployment)}>Üretim onay talebi</button>}</>}{!active&&deployment.status==="Superseded"&&<button className="secondary small-button" disabled={releaseDeploymentLoading} onClick={()=>{const pkg=releasePackages.find(item=>item.id===deployment.releasePackageId);if(pkg)void deployStaging(pkg,deployment.id)}}>Bu sürüme dön</button>}</article>})}</div><section className="panel" style={{marginTop:14}}><div className="panel-heading"><div><b>Üretim geçişi · onay kaydı</b><small>Hedef: bu makinede Docker Compose · yalnız localhost</small></div></div><p className="muted">Onaylı staging paketi ayrı kullanıcı ve migration onayından sonra production Compose stack’ine alınabilir. Stack localhost’a bağlıdır; SQL verisi ayrı kalıcı hacimde korunur ve güncelleme öncesi yedeklenir.</p><div className="requests-list">{productionApprovals.map(approval=><article className="request-row" key={approval.id}><div className="request-symbol"><ShieldCheck size={17}/></div><div className="request-info"><b>{approval.version||approval.releasePackageId.slice(0,12)} · {approval.status==='AwaitingReview'?'İnceleme bekliyor':approval.status==='Approved'?'Onaylandı':'Reddedildi'}</b><small>Staging {approval.stagingUrl??'URL yok'} · {new Date(approval.createdAt).toLocaleString('tr-TR')}</small><small>Talep: {approval.requestNote}</small>{approval.reviewNote&&<small>İnceleme: {approval.reviewNote}</small>}<small>Canlı dağıtım: {approval.productionDeploymentStatus==='Succeeded'?'Başarılı':approval.productionDeploymentStatus==='Failed'?'Başarısız':approval.productionDeploymentStatus??'Başlamadı'}</small>{approval.productionEnvironmentUrl&&<small>Production URL: {approval.productionEnvironmentUrl}</small>}</div>{tenant.role==='TenantAdmin'&&approval.status==='AwaitingReview'&&<><button className="secondary small-button" onClick={()=>void reviewProductionApproval(approval,'Approved')}>Onayla</button><button className="secondary small-button danger-action" onClick={()=>void reviewProductionApproval(approval,'Rejected')}>Reddet</button></>}{tenant.role==='TenantAdmin'&&approval.status==='Approved'&&(!approval.productionDeploymentStatus||approval.productionDeploymentStatus==='Failed')&&<button className="primary small-button" disabled={releaseDeploymentLoading} onClick={()=>void deployProduction(approval)}>{releaseDeploymentLoading?'Dağıtılıyor…':approval.productionDeploymentStatus==='Failed'?'Tekrar dene':'Production’a yayınla'}</button>}</article>)}{productionApprovals.length===0&&<div className="empty-small">Henüz üretim onay talebi yok.</div>}</div><div className="panel-heading" style={{marginTop:20}}><div><b>Production dağıtım geçmişi</b><small>{productionDeployments.length} kayıt · en çok 100 kayıt gösterilir</small></div></div><div className="requests-list">{productionDeployments.map(deployment=><article className="request-row" key={deployment.id}><div className="request-info"><b>{deployment.version} · {deployment.status==='Succeeded'?'Başarılı':deployment.status==='Superseded'?'Önceki sürüm':deployment.status==='Failed'?'Başarısız':deployment.status}</b><small>{deployment.commitSha.slice(0,12)} · {new Date(deployment.completedAt??deployment.createdAt).toLocaleString('tr-TR')}</small>{deployment.environmentUrl&&<small>{deployment.environmentUrl}</small>}</div>{tenant.role==='TenantAdmin'&&deployment.canRestoreDatabase&&<button className="secondary danger-action small-button" disabled={releaseDeploymentLoading} onClick={()=>void restoreProductionDatabase(deployment)}>Yedeğe ve önceki sürüme dön</button>}</article>)}</div>{productionDeployments.length===0&&<div className="empty-small">Henüz production dağıtımı yok.</div>}</section><div className="boundary-note"><ShieldCheck size={17}/><span><b>Rollback davranışı</b>Eski uygulama sürümü aynı staging SQL veritabanıyla yeniden başlatılır. Veritabanı şeması otomatik geri alınmaz; yıkıcı migration’lar için ayrıca yedek gerekir.</span></div></section>}{candidate.githubPullRequestNumber&&(workspaceProject?.accessLevel==='Maintainer'||workspaceProject?.accessLevel==='TenantAdmin')&&<div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{candidate.githubPullRequestState==='draft'&&candidate.decision==='Approved'&&<button className="secondary small-button" disabled={pullRequestReadyLoading===candidate.id} onClick={()=>void markGitHubPullRequestReady(candidate)}>{pullRequestReadyLoading===candidate.id?'Hazırlanıyor…':'İncelemeye hazırla'}</button>}<button className="secondary small-button" onClick={()=>void submitGitHubReview(candidate,'COMMENT')}>GitHub comment</button><button className="secondary small-button" onClick={()=>void requestGitHubReviewers(candidate)}>Request reviewers</button><button className="secondary small-button" onClick={()=>void submitGitHubReview(candidate,'APPROVE')}>GitHub approve</button><button className="secondary small-button" onClick={()=>void submitGitHubReview(candidate,'REQUEST_CHANGES')}>Request changes</button><button className="secondary small-button" onClick={()=>void syncGitHubReviewComments(candidate)}>Sync local comments</button><button className="secondary small-button" onClick={()=>void importGitHubReviewComments(candidate)}>Import GitHub comments</button></div>}{candidate.canReview&&<div style={{display:'flex',gap:6}}><button className="secondary small-button" onClick={()=>void reviewReleaseCandidate(candidate,'Approved')}>Onayla</button><button className="secondary small-button danger-action" onClick={()=>void reviewReleaseCandidate(candidate,'Rejected')}>Reddet</button></div>}{candidate.decision==='Approved'&&(workspaceProject?.accessLevel==='Maintainer'||workspaceProject?.accessLevel==='TenantAdmin')&&!releaseVersions.some(item=>item.releaseCandidateId===candidate.id)&&<button className="secondary small-button" onClick={()=>void assignReleaseVersion(candidate)}>Sürüm ata</button>}{candidate.decision==='Approved'&&(workspaceProject?.accessLevel==='Maintainer'||workspaceProject?.accessLevel==='TenantAdmin')&&<button className="secondary small-button" disabled={pullRequestDraftLoading} onClick={()=>void createPullRequestDraft(candidate)}>{pullRequestDraftLoading?'Taslak hazırlanıyor…':'PR taslağı hazırla'}</button>}{pullRequestDraft?.candidateId===candidate.id&&<section className="panel" style={{gridColumn:'1 / -1'}}><div className="panel-heading"><div><b>{pullRequestDraft.draft.title}</b><small>{pullRequestDraft.draft.sourceBranch} → {pullRequestDraft.draft.baseBranch} · HEAD {pullRequestDraft.draft.commitSha.slice(0,12)}</small></div><button className="secondary small-button" onClick={()=>void navigator.clipboard.writeText(`${pullRequestDraft.draft.title}\n\n${pullRequestDraft.draft.body}`)}>Başlık ve açıklamayı kopyala</button><button className="primary small-button" disabled={pullRequestPublishLoading} onClick={()=>void publishPullRequest(candidate)}>{pullRequestPublishLoading?'GitHub’a gönderiliyor…':'Push edip draft PR oluştur'}</button><small>Yayın için yöneticinin GitHub App anahtarını yapılandırması gerekir. Installation ID gizli bilgi değildir.</small></div><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',fontFamily:'inherit'}}>{pullRequestDraft.draft.body}</pre>{pullRequestDraft.draft.risks.length>0&&<small>Riskler: {pullRequestDraft.draft.risks.join(' · ')}</small>}{pullRequestDraft.draft.limitations.length>0&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>Sınırlamalar</b>{pullRequestDraft.draft.limitations.join(' · ')}</span></div>}<div className="notice">Taslak hazırlandı. Uzak depoya gönderilmedi ve PR oluşturulmadı.</div>{publishedPullRequest?.commitSha===pullRequestDraft.draft.commitSha&&<div className="notice">{publishedPullRequest.pushed?'Commit GitHub’a gönderildi. ':'Uzak dal zaten günceldi. '}<a href={publishedPullRequest.htmlUrl} target="_blank" rel="noreferrer">Draft PR #{publishedPullRequest.pullNumber}’i aç</a></div>}</section>}</article>)}</div></section>}</>})()}<div className="panel-heading"><div><b>{workspaceGitStatus.totalChangedFiles.toLocaleString('tr-TR')} değişen dosya</b><small>HEAD {workspaceGitStatus.headCommitSha.slice(0,12)}</small></div></div>{workspaceGitStatus.truncated&&<div className="notice">İlk 200 dosya gösteriliyor.</div>}<div className="requests-list">{workspaceGitStatus.files.map((file,index)=><article className="request-row" key={`${file.path}-${index}`}><div className="request-symbol"><FileCode size={17}/></div><div className="request-info"><b>{file.path}</b><small>{file.status}</small></div><button className="secondary small-button" disabled={gitDiffLoading} onClick={()=>void openWorkspaceGitDiff(file.path)}>Diff</button></article>)}{workspaceGitStatus.files.length===0&&<div className="empty-small">Çalışma ağacında değişiklik yok.</div>}</div></>}<div className="boundary-note"><ShieldCheck size={17}/><span><b>Dosya adlarıyla sınırlı inceleme</b>Git durum çıktısı sınırlı sayıda yol döndürür; kaynak içerikleri AI’ye aktarılmaz.</span></div><div className="modal-foot"><span>{workspaceGitStatus?.branchName??gitStatusWorkspace.branchName} · {workspaceGitStatus?.totalChangedFiles??0} dosya</span><button className="secondary" onClick={()=>{setGitStatusWorkspace(null);setWorkspaceGitStatus(null)}}>Kapat</button></div></div></div>}    {chatWorkspace&&workspaceProject&&<div className="modal-backdrop studio-chat-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setChatWorkspace(null);setChatConversation(null);setChatMessages([])}}}>
-  <div className="modal studio-chat-modal">
-    <header className="modal-head studio-chat-header">
-      <div className="studio-chat-heading">
-        <span className="studio-chat-mark"><Code2 size={18}/></span>
-        <div className="studio-chat-title">
-          <p className="eyebrow studio-chat-eyebrow">AI DEVELOPMENT STUDIO <span>·</span> GÖREV SOHBETİ</p>
-          <h2>{workspaceProject.name}</h2>
-          <span className="studio-workspace-ref" title={chatWorkspace.workspaceBranchName??''}>{chatWorkspace.workspaceBranchName??'Çalışma alanı'}</span>
-        </div>
-      </div>
-      <div className="studio-chat-header-actions">
-        {workspaceProject.accessLevel!=='Viewer'&&<button type="button" className="secondary studio-new-chat-button" disabled={chatLoading} onClick={()=>void createStudioConversation()}><Plus size={15}/> Yeni sohbet</button>}
-        <button className="icon-button" aria-label="Sohbet penceresini kapat" onClick={()=>{setChatWorkspace(null);setChatConversation(null);setChatMessages([])}}><X size={19}/></button>
-      </div>
-    </header>
-    <p className="muted modal-sub studio-chat-description">Bu proje ve çalışma alanına özel bir sohbet ortamıdır. Kaynak dosyaları ve ERP kayıtları burada paylaşılabilir; AI asistanı ile geliştirme adımları yürütülebilir.</p>
-    {error&&<div className="alert">{error}</div>}
-    <div className="studio-chat-layout">
-      <section className="panel studio-message-panel">
-        <div className="panel-heading studio-section-heading studio-message-heading">
-          <div className="studio-message-heading-copy">
-            {studioConversations.length>1?<select aria-label="Sohbet seç" value={chatConversation?.id??''} onChange={e=>{const selected=studioConversations.find(item=>item.id===e.target.value);if(selected)void selectStudioConversation(selected)}}>{studioConversations.map(conversation=><option key={conversation.id} value={conversation.id}>{conversation.title}</option>)}</select>:<b>{chatConversation?.title??'Görev sohbeti'}</b>}
-            <small>{chatConversation?`${chatMessages.length} mesaj · ${chatWorkspace.workspaceBranchName??'çalışma alanı'}`:'Sohbet hazırlanıyor…'}</small>
+function CodeSuggestionDiff({
+  original,
+  proposed,
+}: {
+  original: string;
+  proposed: string;
+}) {
+  const before = original.split(/\r?\n/),
+    after = proposed.split(/\r?\n/);
+  if (
+    before.length * after.length > 250_000 ||
+    before.length + after.length > 3000
+  )
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))",
+          gap: 12,
+        }}
+      >
+        <section className="panel">
+          <div className="panel-heading">
+            <b>
+              {original === ""
+                ? "Önceki içerik · boş dosya"
+                : "Önceki dosya içeriği"}
+            </b>
           </div>
-          {chatConversation?.canDelete&&<button className="secondary small-button danger-action" disabled={chatLoading} onClick={()=>void deleteStudioConversation()}>Sohbeti sil</button>}
+          <pre
+            style={{
+              maxHeight: 360,
+              overflow: "auto",
+              padding: 12,
+              background: "#0b1020",
+              color: "#dce5ff",
+              borderRadius: 10,
+              whiteSpace: "pre",
+              fontSize: 12,
+            }}
+          >
+            <code>{original}</code>
+          </pre>
+        </section>
+        <section className="panel">
+          <div className="panel-heading">
+            <b>
+              {proposed === "" ? "Güncel içerik · boş" : "Güncel dosya içeriği"}
+            </b>
+          </div>
+          <pre
+            style={{
+              maxHeight: 360,
+              overflow: "auto",
+              padding: 12,
+              background: "#0b1020",
+              color: "#dce5ff",
+              borderRadius: 10,
+              whiteSpace: "pre",
+              fontSize: 12,
+            }}
+          >
+            <code>{proposed}</code>
+          </pre>
+        </section>
+      </div>
+    );
+  const lcs = Array.from(
+    { length: before.length + 1 },
+    () => new Uint32Array(after.length + 1),
+  );
+  for (let i = before.length - 1; i >= 0; i--)
+    for (let j = after.length - 1; j >= 0; j--)
+      lcs[i][j] =
+        before[i] === after[j]
+          ? lcs[i + 1][j + 1] + 1
+          : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+  const rows: {
+    kind: "same" | "add" | "remove";
+    text: string;
+    line: number;
+  }[] = [];
+  let i = 0,
+    j = 0;
+  while (i < before.length || j < after.length) {
+    if (i < before.length && j < after.length && before[i] === after[j]) {
+      rows.push({ kind: "same", text: before[i], line: i + 1 });
+      i++;
+      j++;
+    } else if (
+      j < after.length &&
+      (i === before.length || lcs[i][j + 1] >= lcs[i + 1][j])
+    ) {
+      rows.push({ kind: "add", text: after[j], line: j + 1 });
+      j++;
+    } else {
+      rows.push({ kind: "remove", text: before[i], line: i + 1 });
+      i++;
+    }
+  }
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <b>Satır diff’i</b>
+        <small>Yeşil: eklendi · Kırmızı: kaldırıldı</small>
+      </div>
+      <pre
+        style={{
+          maxHeight: 450,
+          overflow: "auto",
+          padding: 12,
+          background: "#0b1020",
+          color: "#dce5ff",
+          borderRadius: 10,
+          whiteSpace: "pre",
+          fontSize: 12,
+        }}
+      >
+        <code>
+          {rows.map((row, index) => (
+            <span
+              key={index}
+              style={{
+                display: "block",
+                background:
+                  row.kind === "add"
+                    ? "rgba(34,197,94,.18)"
+                    : row.kind === "remove"
+                      ? "rgba(239,68,68,.18)"
+                      : "transparent",
+                color:
+                  row.kind === "add"
+                    ? "#86efac"
+                    : row.kind === "remove"
+                      ? "#fca5a5"
+                      : "#dce5ff",
+              }}
+            >
+              {row.kind === "add" ? "+" : row.kind === "remove" ? "-" : " "}{" "}
+              {String(row.line).padStart(4, " ")} │ {row.text || " "}
+            </span>
+          ))}
+        </code>
+      </pre>
+    </section>
+  );
+}
+
+function updateWorkspaceRoute(
+  projectId?: string,
+  requestId?: string,
+  directoryPath?: string,
+  openFilePath?: string,
+) {
+  const url = new URL(window.location.href);
+  if (projectId && requestId) {
+    url.searchParams.set("studioProject", projectId);
+    url.searchParams.set("studioWorkspace", requestId);
+    if (directoryPath) url.searchParams.set("studioPath", directoryPath);
+    else url.searchParams.delete("studioPath");
+    if (openFilePath) url.searchParams.set("studioFile", openFilePath);
+    else url.searchParams.delete("studioFile");
+  } else {
+    url.searchParams.delete("studioProject");
+    url.searchParams.delete("studioWorkspace");
+    url.searchParams.delete("studioPath");
+    url.searchParams.delete("studioFile");
+  }
+  window.history.replaceState(null, "", url.toString());
+}
+
+export function StudioProjects({
+  token,
+  tenant,
+  projects,
+  setProjects,
+  refreshProjects,
+}: {
+  token: string;
+  tenant: Tenant;
+  projects: DevelopmentProject[];
+  setProjects: Dispatch<SetStateAction<DevelopmentProject[]>>;
+  refreshProjects: () => Promise<DevelopmentProject[]>;
+}) {
+  const [members, setMembers] = useState<ProjectMember[]>([]),
+    [pendingApprovals, setPendingApprovals] = useState<
+      PendingWorkspaceApproval[]
+    >([]),
+    [pendingApprovalsOffset, setPendingApprovalsOffset] = useState(0),
+    [pendingApprovalsNextOffset, setPendingApprovalsNextOffset] = useState<
+      number | null
+    >(null),
+    [approvalQueueLoading, setApprovalQueueLoading] = useState(false);
+  const [showCreate, setShowCreate] = useState(false),
+    [accessProject, setAccessProject] = useState<DevelopmentProject | null>(
+      null,
+    );
+  const [moduleMappingProject, setModuleMappingProject] =
+    useState<DevelopmentProject | null>(null);
+  const [workspaceProject, setWorkspaceProject] =
+      useState<DevelopmentProject | null>(null),
+    [workspaceRequests, setWorkspaceRequests] = useState<WorkspaceRequest[]>(
+      [],
+    ),
+    [workspaceBranches, setWorkspaceBranches] = useState<string[]>([]),
+    [branchesLoading, setBranchesLoading] = useState(false),
+    [branchesAvailable, setBranchesAvailable] = useState(false),
+    [branchListError, setBranchListError] = useState(""),
+    [customWorkspaceBranch, setCustomWorkspaceBranch] = useState(false),
+    [projectDevelopmentRequests, setProjectDevelopmentRequests] = useState<
+      DevelopmentRequest[]
+    >([]),
+    [selectedDevelopmentRequestId, setSelectedDevelopmentRequestId] =
+      useState("");
+  const [fileWorkspace, setFileWorkspace] = useState<WorkspaceRequest | null>(
+      null,
+    ),
+    [fileListing, setFileListing] = useState<WorkspaceFileListing | null>(null),
+    [fileContent, setFileContent] = useState<WorkspaceFileContent | null>(null),
+    [filePath, setFilePath] = useState(""),
+    [fileLoading, setFileLoading] = useState(false),
+    [workspaceFileFilter, setWorkspaceFileFilter] = useState(""),
+    [workspaceFileSearchResult, setWorkspaceFileSearchResult] =
+      useState<WorkspaceFileSearchResult | null>(null),
+    [workspaceFileSearchLoading, setWorkspaceFileSearchLoading] =
+      useState(false);
+  const [manualFileEditing, setManualFileEditing] = useState(false),
+    [manualFileContent, setManualFileContent] = useState(""),
+    [manualFilePath, setManualFilePath] = useState(""),
+    [manualFileCreating, setManualFileCreating] = useState(false),
+    [manualFileSaving, setManualFileSaving] = useState(false);
+  const workspaceExplorerRef = useRef<HTMLDivElement>(null),
+    workspaceExplorerCloseRef = useRef<HTMLButtonElement>(null);
+  const workspaceRestoreRef = useRef("");
+
+  const [multiFileSelecting, setMultiFileSelecting] = useState(false),
+    [multiFilePaths, setMultiFilePaths] = useState<string[]>([]),
+    [multiDeveloperWorkspace, setMultiDeveloperWorkspace] =
+      useState<WorkspaceRequest | null>(null),
+    [multiFileRequest, setMultiFileRequest] = useState(""),
+    [multiFileConsent, setMultiFileConsent] = useState(false),
+    [multiFileSuggestion, setMultiFileSuggestion] =
+      useState<MultiFileCodeSuggestionPreview | null>(null),
+    [multiFileApplied, setMultiFileApplied] = useState<string[]>([]),
+    [multiFileLoading, setMultiFileLoading] = useState(false);
+  const [repairMode, setRepairMode] = useState<{
+      operation: "test" | "build";
+      targetPath: string;
+    } | null>(null),
+    [repairPathsDraft, setRepairPathsDraft] = useState("");
+  const [workspaceAnalysis, setWorkspaceAnalysis] =
+      useState<WorkspaceAnalysis | null>(null),
+    [analysisWorkspace, setAnalysisWorkspace] =
+      useState<WorkspaceRequest | null>(null),
+    [analysisLoading, setAnalysisLoading] = useState(false),
+    [inventoryLayout, setInventoryLayout] = useState<"grid" | "list">("grid"),
+    [analysisCompletedAt, setAnalysisCompletedAt] = useState<string | null>(
+      null,
+    );
+  const [testDiscovery, setTestDiscovery] =
+      useState<WorkspaceTestDiscovery | null>(null),
+    [testDiscoveryWorkspace, setTestDiscoveryWorkspace] =
+      useState<WorkspaceRequest | null>(null),
+    [testDiscoveryLoading, setTestDiscoveryLoading] = useState(false),
+    [testExecution, setTestExecution] = useState<WorkspaceTestRunStatus | null>(
+      null,
+    ),
+    [testExecutionTarget, setTestExecutionTarget] = useState(""),
+    [testExecutionLoading, setTestExecutionLoading] = useState(false),
+    [buildExecution, setBuildExecution] =
+      useState<WorkspaceTestRunStatus | null>(null),
+    [buildExecutionTarget, setBuildExecutionTarget] = useState(""),
+    [buildExecutionWorkspaceId, setBuildExecutionWorkspaceId] = useState<
+      string | null
+    >(null),
+    [buildExecutionLoading, setBuildExecutionLoading] = useState(false),
+    [testPlan, setTestPlan] = useState<AITestPlan | null>(null),
+    [testRequest, setTestRequest] = useState(""),
+    [testAIConsent, setTestAIConsent] = useState(false),
+    [testPlanLoading, setTestPlanLoading] = useState(false),
+    [testPlanSaveLoading, setTestPlanSaveLoading] = useState(false),
+    [testPlanSavedId, setTestPlanSavedId] = useState<string | null>(null),
+    [savedTestPlans, setSavedTestPlans] = useState<SavedAITestPlan[]>([]);
+  const [architectWorkspace, setArchitectWorkspace] =
+      useState<WorkspaceRequest | null>(null),
+    [architectPlan, setArchitectPlan] = useState<ArchitecturePlan | null>(null),
+    [architectRequest, setArchitectRequest] = useState(""),
+    [architectConsent, setArchitectConsent] = useState(false),
+    [architectLoading, setArchitectLoading] = useState(false);
+  const [developerWorkspace, setDeveloperWorkspace] =
+      useState<WorkspaceRequest | null>(null),
+    [developerFile, setDeveloperFile] = useState<WorkspaceFileContent | null>(
+      null,
+    ),
+    [developerRequest, setDeveloperRequest] = useState(""),
+    [developerConsent, setDeveloperConsent] = useState(false),
+    [developerLoading, setDeveloperLoading] = useState(false),
+    [developerSuggestion, setDeveloperSuggestion] =
+      useState<CodeSuggestionPreview | null>(null),
+    [developerApplyApproval, setDeveloperApplyApproval] = useState(false),
+    [developerApplied, setDeveloperApplied] = useState(false);
+  const [developerIsNewFile, setDeveloperIsNewFile] = useState(false),
+    [developerNewPath, setDeveloperNewPath] = useState("");
+  const [uiDesignerWorkspace, setUiDesignerWorkspace] =
+      useState<WorkspaceRequest | null>(null),
+    [uiDesignRequest, setUiDesignRequest] = useState(""),
+    [uiDesignPath, setUiDesignPath] = useState(""),
+    [uiDesignConsent, setUiDesignConsent] = useState(false),
+    [uiDesignResult, setUiDesignResult] = useState<UiDesignPreview | null>(
+      null,
+    ),
+    [uiDesignLoading, setUiDesignLoading] = useState(false),
+    [uiDesignApplyApproval, setUiDesignApplyApproval] = useState(false),
+    [uiDesignApplied, setUiDesignApplied] = useState(false);
+  const [changeWorkspace, setChangeWorkspace] =
+      useState<WorkspaceRequest | null>(null),
+    [workspaceChanges, setWorkspaceChanges] = useState<WorkspaceChanges | null>(
+      null,
+    ),
+    [changeDiff, setChangeDiff] = useState<WorkspaceChangeDiff | null>(null),
+    [changeLoading, setChangeLoading] = useState(false),
+    [restoreApproval, setRestoreApproval] = useState(false);
+  const [gitStatusWorkspace, setGitStatusWorkspace] =
+      useState<WorkspaceRequest | null>(null),
+    [workspaceGitStatus, setWorkspaceGitStatus] =
+      useState<WorkspaceGitStatus | null>(null),
+    [gitStatusLoading, setGitStatusLoading] = useState(false),
+    [releaseCandidates, setReleaseCandidates] = useState<ReleaseCandidate[]>(
+      [],
+    ),
+    [releaseCandidateSaving, setReleaseCandidateSaving] = useState(false),
+    [releaseVersions, setReleaseVersions] = useState<ReleaseVersion[]>([]),
+    [releasePackages, setReleasePackages] = useState<ReleasePackage[]>([]),
+    [releasePackageLoading, setReleasePackageLoading] = useState<string | null>(
+      null,
+    ),
+    [releasePackageDownloadLoading, setReleasePackageDownloadLoading] =
+      useState<string | null>(null),
+    [releaseDeployments, setReleaseDeployments] = useState<ReleaseDeployment[]>(
+      [],
+    ),
+    [productionDeployments, setProductionDeployments] = useState<
+      ReleaseDeployment[]
+    >([]),
+    [productionApprovals, setProductionApprovals] = useState<
+      ProductionApproval[]
+    >([]),
+    [releaseDeploymentLoading, setReleaseDeploymentLoading] = useState(false),
+    [stagingCredentials, setStagingCredentials] =
+      useState<StagingDeploymentOperation | null>(null),
+    [pullRequestDraft, setPullRequestDraft] = useState<{
+      candidateId: string;
+      draft: PullRequestDraft;
+    } | null>(null),
+    [pullRequestDraftLoading, setPullRequestDraftLoading] = useState(false),
+    [publishedPullRequest, setPublishedPullRequest] =
+      useState<PublishedPullRequest | null>(null),
+    [pullRequestPublishLoading, setPullRequestPublishLoading] = useState(false),
+    [pullRequestReadyLoading, setPullRequestReadyLoading] = useState<
+      string | null
+    >(null);
+  const [sourceSearchWorkspace, setSourceSearchWorkspace] =
+      useState<WorkspaceRequest | null>(null),
+    [sourceSearchQuery, setSourceSearchQuery] = useState(""),
+    [sourceSearchResult, setSourceSearchResult] =
+      useState<WorkspaceSearchResult | null>(null),
+    [sourceSearchLoading, setSourceSearchLoading] = useState(false),
+    [selectedSourceMatches, setSelectedSourceMatches] = useState<string[]>([]),
+    [sourceAnalysisQuestion, setSourceAnalysisQuestion] = useState(""),
+    [sourceAnalysisConsent, setSourceAnalysisConsent] = useState(false),
+    [sourceAnalysisLoading, setSourceAnalysisLoading] = useState(false),
+    [sourceAnalysisResult, setSourceAnalysisResult] =
+      useState<SourceAnalysisResult | null>(null);
+  const [workspaceGitDiff, setWorkspaceGitDiff] =
+      useState<WorkspaceGitDiff | null>(null),
+    [gitDiffTarget, setGitDiffTarget] = useState<string | null>(null),
+    [gitDiffLoading, setGitDiffLoading] = useState(false),
+    [codeReview, setCodeReview] = useState<StudioCodeReview | null>(null),
+    [codeReviewConsent, setCodeReviewConsent] = useState(false),
+    [codeReviewLoading, setCodeReviewLoading] = useState(false);
+  const [reviewThreads, setReviewThreads] = useState<StudioCodeReviewThread[]>(
+      [],
+    ),
+    [reviewLine, setReviewLine] = useState("1"),
+    [reviewDraft, setReviewDraft] = useState(""),
+    [reviewReplyThread, setReviewReplyThread] = useState<string | null>(null),
+    [reviewReplyDraft, setReviewReplyDraft] = useState(""),
+    [reviewSaving, setReviewSaving] = useState(false);
+  const [chatWorkspace, setChatWorkspace] = useState<WorkspaceRequest | null>(
+      null,
+    ),
+    [studioConversations, setStudioConversations] = useState<
+      StudioConversation[]
+    >([]),
+    [chatConversation, setChatConversation] =
+      useState<StudioConversation | null>(null),
+    [chatMessages, setChatMessages] = useState<StudioConversationMessage[]>([]),
+    [chatTitle, setChatTitle] = useState(""),
+    [chatDraft, setChatDraft] = useState(""),
+    [chatAIConsent, setChatAIConsent] = useState(false),
+    [chatKnowledgeConsent, setChatKnowledgeConsent] = useState(false),
+    [chatSourceSharingConsent, setChatSourceSharingConsent] = useState(false),
+    [chatLoading, setChatLoading] = useState(false),
+    [chatStreamingText, setChatStreamingText] = useState(""),
+    [chatCodeChangeLoading, setChatCodeChangeLoading] = useState(false),
+    [chatCodeChange, setChatCodeChange] =
+      useState<StudioChatCodeChangePreview | null>(null),
+    [chatCodeChangeApplied, setChatCodeChangeApplied] = useState<string[]>([]);
+  const [knowledgeDocs, setKnowledgeDocs] = useState<StudioKnowledgeDocument[]>(
+      [],
+    ),
+    [knowledgePaths, setKnowledgePaths] = useState<string[]>([]),
+    [knowledgeHistoryCandidates, setKnowledgeHistoryCandidates] = useState<
+      ApprovedHistoryCandidate[]
+    >([]),
+    [knowledgeHistoryIds, setKnowledgeHistoryIds] = useState<string[]>([]),
+    [knowledgeLoading, setKnowledgeLoading] = useState(false),
+    [knowledgeAutoRefresh, setKnowledgeAutoRefresh] =
+      useState<StudioKnowledgeAutoRefresh>({
+        enabled: false,
+        allFiles: false,
+        paths: [],
+        lastRefreshedAt: null,
+      }),
+    [enableKnowledgeAutoRefresh, setEnableKnowledgeAutoRefresh] =
+      useState(false),
+    [knowledgePanelExpanded, setKnowledgePanelExpanded] = useState(false),
+    [knowledgeDrawerOpen, setKnowledgeDrawerOpen] = useState(false);
+  const [architectSavedPlanId, setArchitectSavedPlanId] = useState<
+      string | null
+    >(null),
+    [savedArchitecturePlans, setSavedArchitecturePlans] = useState<
+      SavedArchitecturePlan[]
+    >([]),
+    [showPlanHistory, setShowPlanHistory] = useState(false);
+  const [aiDockOpen, setAiDockOpen] = useState(false);
+  const [aiToolsViewOpen, setAiToolsViewOpen] = useState(false);
+  const [aiToolsCategory, setAiToolsCategory] = useState("Tümü");
+  const [aiToolsQuery, setAiToolsQuery] = useState("");
+  const [moduleFilesLoading, setModuleFilesLoading] = useState(false);
+  const [name, setName] = useState(""),
+    [repositoryUrl, setRepositoryUrl] = useState(""),
+    [defaultBranch, setDefaultBranch] = useState("main");
+  const [memberEmail, setMemberEmail] = useState(""),
+    [accessLevel, setAccessLevel] =
+      useState<ProjectMember["accessLevel"]>("Viewer"),
+    [workspaceBranch, setWorkspaceBranch] = useState(""),
+    [reviewNote, setReviewNote] = useState("");
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState("");
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
+  const [sandboxErrorAnalysis, setSandboxErrorAnalysis] =
+      useState<SandboxErrorAnalysisResponse | null>(null),
+    [sandboxErrorAnalysisLoading, setSandboxErrorAnalysisLoading] =
+      useState(false);
+  const [workspaceCommitLoading, setWorkspaceCommitLoading] = useState(false);
+  useEffect(() => {
+    const query = workspaceFileFilter.trim();
+    if (!fileWorkspace || !query) {
+      setWorkspaceFileSearchResult(null);
+      setWorkspaceFileSearchLoading(false);
+      return;
+    }
+    let active = true;
+    setWorkspaceFileSearchResult(null);
+    setWorkspaceFileSearchLoading(true);
+    const timer = window.setTimeout(() => {
+      void api<WorkspaceFileSearchResult>(
+        `/studio/projects/${fileWorkspace.projectId}/workspace-requests/${fileWorkspace.id}/files/search?query=${encodeURIComponent(query)}`,
+        token,
+      )
+        .then((result) => {
+          if (active) setWorkspaceFileSearchResult(result);
+        })
+        .catch((e) => {
+          if (active) {
+            setWorkspaceFileSearchResult({
+              scannedEntries: 0,
+              truncated: false,
+              entries: [],
+            });
+            setError((e as Error).message);
+          }
+        })
+        .finally(() => {
+          if (active) setWorkspaceFileSearchLoading(false);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [workspaceFileFilter, fileWorkspace, token]);
+  const moduleCodeForWorkspace = (request: WorkspaceRequest | null) => {
+    const code =
+      /\bModül kodu:\s*([a-z][a-z0-9]*(?:[.-][a-z0-9]+)*)/i
+        .exec(request?.developmentRequestDescription ?? "")?.[1]
+        ?.toLowerCase() ?? "";
+    return /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(code) ? code : "";
+  };
+  const moduleStarterForWorkspace = (request: WorkspaceRequest | null) =>
+    /\bModül şablonu:\s*(greeting|price|text-summary)\b/i
+      .exec(request?.developmentRequestDescription ?? "")?.[1]
+      ?.toLowerCase() ?? "";
+  const moduleDisplayNameForWorkspace = (request: WorkspaceRequest | null) =>
+    /\bModül adı:\s*([^\r\n]+)/i
+      .exec(request?.developmentRequestDescription ?? "")?.[1]
+      ?.trim() ||
+    moduleCodeForWorkspace(request) ||
+    "Yeni modül";
+  const moduleWorkspaceCode = moduleCodeForWorkspace(fileWorkspace);
+  const moduleWorkspacePath = moduleWorkspaceCode
+    ? `modules/${moduleWorkspaceCode}`
+    : "";
+  const moduleStarterId = moduleStarterForWorkspace(fileWorkspace);
+  const moduleTemplateFiles = moduleStarterFiles(
+    moduleStarterId,
+    moduleWorkspaceCode,
+    moduleDisplayNameForWorkspace(fileWorkspace),
+  );
+  const isInsideModuleWorkspace = (path: string) =>
+    Boolean(
+      moduleWorkspacePath &&
+        (path === moduleWorkspacePath ||
+          path.startsWith(`${moduleWorkspacePath}/`)),
+    );
+  const visibleWorkspaceEntries = (
+    workspaceFileFilter.trim()
+      ? (workspaceFileSearchResult?.entries ?? [])
+      : (fileListing?.entries ?? [])
+  ).filter((entry) => {
+    if (!moduleWorkspacePath) return true;
+    if (workspaceFileFilter.trim()) return isInsideModuleWorkspace(entry.path);
+    if (filePath === "")
+      return entry.path === "modules" && entry.kind === "Directory";
+    if (filePath === "modules") return entry.path === moduleWorkspacePath;
+    return isInsideModuleWorkspace(filePath)
+      ? isInsideModuleWorkspace(entry.path)
+      : false;
+  });
+  async function loadPendingApprovals(offset = 0) {
+    setApprovalQueueLoading(true);
+    try {
+      const page = await api<PendingWorkspaceApprovalsPage>(
+        `/studio/workspace-requests/pending?offset=${offset}`,
+        token,
+      );
+      if (page.items.length === 0 && offset > 0) {
+        await loadPendingApprovals(Math.max(0, offset - 100));
+        return;
+      }
+      setPendingApprovals(page.items);
+      setPendingApprovalsOffset(offset);
+      setPendingApprovalsNextOffset(page.nextOffset);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setApprovalQueueLoading(false);
+    }
+  }
+  async function load() {
+    try {
+      await refreshProjects();
+      await loadPendingApprovals();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function refreshProjectStatus() {
+    setBusy(true);
+    setError("");
+    try {
+      const latest = await refreshProjects();
+      const connected = latest.find((project) => project.githubAuthorized);
+      setNotice(
+        connected
+          ? "GitHub bağlantı durumu sunucudan yenilendi."
+          : "Sunucu yanıtında yetkilendirilmiş proje görünmüyor.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  useEffect(() => {
+    void loadPendingApprovals();
+    void api<{ aiConfigured: boolean }>("/studio/capabilities", token)
+      .then((status) => setAiConfigured(status.aiConfigured))
+      .catch(() => setAiConfigured(null));
+    const url = new URL(window.location.href);
+    const result = url.searchParams.get("github");
+    if (!result) return;
+    const messages: Record<string, string> = {
+      connected: "GitHub yetkisi bu projeye bağlandı.",
+      expired:
+        "GitHub yetkilendirme bağlantısının süresi doldu. Yeniden deneyin.",
+      invalid: "GitHub yetkilendirmesi doğrulanamadı.",
+      "not-authorized":
+        "Projeye yetki veren kullanıcı artık proje Maintainer’ı değil.",
+      unsupported: "Yalnız GitHub HTTPS depoları bağlanabilir.",
+      "not-configured":
+        "GitHub App sunucu yapılandırması eksik. Platform yöneticisiyle iletişime geçin.",
+      "repository-access-denied":
+        "GitHub App kurulumu bu depoya erişemiyor. Kurulumda doğru depoyu seçin.",
+      "setup-failed":
+        "GitHub kurulumu sunucuya kaydedilemedi. Studio yöneticinizden sunucu günlüklerini kontrol etmesini isteyin ve yeniden deneyin.",
+    };
+    setNotice(messages[result] ?? "GitHub yetkilendirmesi tamamlanamadı.");
+    if (result === "connected") {
+      const projectId = url.searchParams.get("projectId")?.toLowerCase();
+      if (projectId) {
+        void load().then(() => {
+          setProjects((current) =>
+            current.map((project) =>
+              project.id.toLowerCase() === projectId
+                ? { ...project, githubAuthorized: true }
+                : project,
+            ),
+          );
+          setWorkspaceProject((current) =>
+            current?.id.toLowerCase() === projectId
+              ? { ...current, githubAuthorized: true }
+              : current,
+          );
+        });
+      }
+    }
+    url.searchParams.delete("github");
+    url.searchParams.delete("projectId");
+    window.history.replaceState(null, "", url.toString());
+  }, [token]);
+  async function createProject(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await api<DevelopmentProject>("/studio/projects/", token, {
+        method: "POST",
+        body: JSON.stringify({ name, repositoryUrl, defaultBranch }),
+      });
+      setName("");
+      setRepositoryUrl("");
+      setDefaultBranch("main");
+      setShowCreate(false);
+      setNotice(
+        "Proje kaydedildi. Bu aşamada depo içeriği okunmuyor veya çalıştırılmıyor.",
+      );
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function openAccess(project: DevelopmentProject) {
+    setAccessProject(project);
+    setError("");
+    try {
+      setMembers(
+        await api<ProjectMember[]>(
+          `/studio/projects/${project.id}/members`,
+          token,
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function grantAccess(e: FormEvent) {
+    e.preventDefault();
+    if (!accessProject) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api<ProjectMember>(
+        `/studio/projects/${accessProject.id}/members`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ email: memberEmail, accessLevel }),
+        },
+      );
+      setMemberEmail("");
+      setNotice("Proje erişimi güncellendi.");
+      setMembers(
+        await api<ProjectMember[]>(
+          `/studio/projects/${accessProject.id}/members`,
+          token,
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function revokeAccess(member: ProjectMember) {
+    if (
+      !accessProject ||
+      !window.confirm(
+        `${member.email} kullanıcısının proje erişimi kaldırılsın mı?`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(
+        `/studio/projects/${accessProject.id}/members/${member.userId}`,
+        token,
+        { method: "DELETE" },
+      );
+      setMembers(
+        await api<ProjectMember[]>(
+          `/studio/projects/${accessProject.id}/members`,
+          token,
+        ),
+      );
+      setNotice("Proje erişimi kaldırıldı.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function loadProjectBranches(project: DevelopmentProject) {
+    setBranchesLoading(true);
+    setBranchListError("");
+    try {
+      const branchList = await api<{
+        defaultBranch: string;
+        branches: string[];
+      }>(`/studio/projects/${project.id}/branches`, token);
+      const branches = [...new Set(branchList.branches)];
+      if (!branches.includes(branchList.defaultBranch))
+        throw new Error(
+          "Remote default branch is not in the repository branch list.",
+        );
+      setWorkspaceBranches(branches);
+      setWorkspaceBranch(branchList.defaultBranch);
+      const refreshedProject = {
+        ...project,
+        defaultBranch: branchList.defaultBranch,
+      };
+      setWorkspaceProject((current) =>
+        current?.id === project.id ? refreshedProject : current,
+      );
+      setProjects((current) =>
+        current.map((item) =>
+          item.id === project.id
+            ? { ...item, defaultBranch: branchList.defaultBranch }
+            : item,
+        ),
+      );
+      setBranchesAvailable(true);
+      setBranchListError("");
+    } catch (e) {
+      setBranchesAvailable(false);
+      setCustomWorkspaceBranch(true);
+      setWorkspaceBranch("");
+      setBranchListError((e as Error).message);
+    } finally {
+      setBranchesLoading(false);
+    }
+  }
+  async function openWorkspace(project: DevelopmentProject) {
+    setWorkspaceProject(project);
+    setWorkspaceBranch("");
+    setSelectedDevelopmentRequestId("");
+    setWorkspaceBranches([]);
+    setBranchesAvailable(false);
+    setBranchListError("");
+    setCustomWorkspaceBranch(false);
+    setBranchesLoading(true);
+    setReviewNote("");
+    setError("");
+    try {
+      const [requests, plans, developmentRequests] = await Promise.all([
+        api<WorkspaceRequest[]>(
+          `/studio/projects/${project.id}/workspace-requests`,
+          token,
+        ),
+        api<SavedArchitecturePlan[]>(
+          `/studio/projects/${project.id}/architecture-plans`,
+          token,
+        ),
+        api<DevelopmentRequest[]>(
+          `/studio/requests/?projectId=${project.id}`,
+          token,
+        ),
+      ]);
+      setWorkspaceRequests(requests);
+      setSavedArchitecturePlans(plans);
+      setProjectDevelopmentRequests(developmentRequests);
+      await loadProjectBranches(project);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBranchesLoading(false);
+    }
+  }
+  async function connectProjectGitHub() {
+    if (!workspaceProject) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<{ authorizationUrl: string }>(
+        `/studio/projects/${workspaceProject.id}/github/authorization`,
+        token,
+        { method: "POST" },
+      );
+      window.location.assign(result.authorizationUrl);
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  }
+  async function disconnectProjectGitHub() {
+    if (
+      !workspaceProject ||
+      !window.confirm("Bu projenin GitHub App bağlantısı kaldırılsın mı?")
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      await api<void>(
+        `/studio/projects/${workspaceProject.id}/github/authorization`,
+        token,
+        { method: "DELETE" },
+      );
+      const updated = { ...workspaceProject, githubAuthorized: false };
+      setWorkspaceProject(updated);
+      setProjects((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setNotice("GitHub bağlantısı kaldırıldı.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function createWorkspaceRequest(e: FormEvent) {
+    e.preventDefault();
+    if (!workspaceProject) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api<WorkspaceRequest>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            branchName: workspaceBranch,
+            developmentRequestId: selectedDevelopmentRequestId || null,
+          }),
+        },
+      );
+      setNotice(
+        "İzole çalışma alanı talebi ve geliştirme bağlamı onaya gönderildi.",
+      );
+      setWorkspaceRequests(
+        await api<WorkspaceRequest[]>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests`,
+          token,
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function reviewWorkspaceRequest(
+    request: WorkspaceRequest,
+    outcome: "Approve" | "Reject",
+  ) {
+    if (!workspaceProject) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api<WorkspaceRequest>(
+        `/studio/workspace-requests/${request.id}/review`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ outcome, note: reviewNote || null }),
+        },
+      );
+      setWorkspaceRequests(
+        await api<WorkspaceRequest[]>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests`,
+          token,
+        ),
+      );
+      await loadPendingApprovals(pendingApprovalsOffset);
+      setNotice(
+        outcome === "Approve"
+          ? "Çalışma alanı talebi onaylandı."
+          : "Çalışma alanı talebi reddedildi.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function reviewPendingApproval(
+    request: PendingWorkspaceApproval,
+    outcome: "Approve" | "Reject",
+  ) {
+    if (outcome === "Reject" && !reviewNote.trim()) {
+      setError("Ret için kısa bir gerekçe girin.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await api<WorkspaceRequest>(
+        `/studio/workspace-requests/${request.id}/review`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ outcome, note: reviewNote.trim() || null }),
+        },
+      );
+      const refreshOffset =
+        pendingApprovals.length === 1 && pendingApprovalsOffset > 0
+          ? pendingApprovalsOffset - 100
+          : pendingApprovalsOffset;
+      await loadPendingApprovals(refreshOffset);
+      if (workspaceProject?.id === request.projectId)
+        setWorkspaceRequests(
+          await api<WorkspaceRequest[]>(
+            `/studio/projects/${request.projectId}/workspace-requests`,
+            token,
+          ),
+        );
+      setReviewNote("");
+      setNotice(
+        outcome === "Approve"
+          ? "Çalışma alanı talebi onaylandı."
+          : "Çalışma alanı talebi reddedildi.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function cancelWorkspaceRequest(request: WorkspaceRequest) {
+    if (
+      !workspaceProject ||
+      !window.confirm(
+        `${request.branchName} dalı için bekleyen çalışma alanı talebi iptal edilsin mi?`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      await api<WorkspaceRequest>(
+        `/studio/workspace-requests/${request.id}/cancel`,
+        token,
+        { method: "POST" },
+      );
+      setWorkspaceRequests(
+        await api<WorkspaceRequest[]>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests`,
+          token,
+        ),
+      );
+      setNotice(
+        "Çalışma alanı talebi iptal edildi ve denetim kaydına yazıldı.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function archiveWorkspaceRequest(request: WorkspaceRequest) {
+    if (
+      !workspaceProject ||
+      !request.canDelete ||
+      request.status === "Provisioning"
+    )
+      return;
+    if (
+      !window.confirm(
+        `"${request.branchName}" çalışma alanı talebi etkin listeden silinsin mi? Denetim geçmişi ve izole çalışma alanındaki dosyalar korunur.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      await api<void>(
+        `/studio/workspace-requests/${request.id}/archive`,
+        token,
+        { method: "POST" },
+      );
+      setWorkspaceRequests((current) =>
+        current.filter((item) => item.id !== request.id),
+      );
+      setNotice(
+        "Çalışma alanı talebi etkin listeden kaldırıldı; denetim geçmişi ve dosyalar korundu.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function provisionWorkspace(request: WorkspaceRequest) {
+    if (!workspaceProject) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api<WorkspaceRequest>(
+        `/studio/workspace-requests/${request.id}/provision`,
+        token,
+        { method: "POST" },
+      );
+      setWorkspaceRequests(
+        await api<WorkspaceRequest[]>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests`,
+          token,
+        ),
+      );
+      setNotice(
+        "İzole checkout oluşturuldu. Kaynak kodu henüz çalıştırılmadı.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+      setWorkspaceRequests(
+        await api<WorkspaceRequest[]>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests`,
+          token,
+        ).catch(() => workspaceRequests),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function ensureWorkspaceBranch(request: WorkspaceRequest) {
+    if (!workspaceProject) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await api<WorkspaceRequest>(
+        `/studio/workspace-requests/${request.id}/working-branch`,
+        token,
+        { method: "POST" },
+      );
+      setWorkspaceRequests((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setNotice(
+        `İzole çalışma dalı ${updated.workspaceBranchName} oluşturuldu; checkout içeriği korunarak ${updated.commitSha} commit’inden devam ediyor.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function loadWorkspaceFiles(
+    request: WorkspaceRequest,
+    path: string,
+    offset = 0,
+  ) {
+    if (!workspaceProject) return;
+    if (offset === 0) setWorkspaceFileFilter("");
+    setFileLoading(true);
+    setFileContent(null);
+    setError("");
+    try {
+      const query = `path=${encodeURIComponent(path)}&offset=${offset}`;
+      setFileListing(
+        await api<WorkspaceFileListing>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/files?${query}`,
+          token,
+        ),
+      );
+      setFileWorkspace(request);
+      setFilePath(path);
+      updateWorkspaceRoute(workspaceProject.id, request.id, path);
+      setKnowledgePaths([]);
+      setKnowledgeHistoryIds([]);
+      setEnableKnowledgeAutoRefresh(false);
+      void api<{
+        documents: StudioKnowledgeDocument[];
+        autoRefresh: StudioKnowledgeAutoRefresh;
+      }>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/knowledge`,
+        token,
+      )
+        .then((result) => {
+          setKnowledgeDocs(result.documents);
+          setKnowledgeAutoRefresh(result.autoRefresh);
+        })
+        .catch(() => {
+          setKnowledgeDocs([]);
+          setKnowledgeAutoRefresh({
+            enabled: false,
+            paths: [],
+            lastRefreshedAt: null,
+          });
+        });
+      if (workspaceProject.accessLevel !== "Viewer")
+        void api<{ items: ApprovedHistoryCandidate[] }>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/knowledge/approved-history`,
+          token,
+        )
+          .then((result) => setKnowledgeHistoryCandidates(result.items))
+          .catch(() => setKnowledgeHistoryCandidates([]));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setFileLoading(false);
+    }
+  }
+  async function loadModuleStarterIntoWorkspace() {
+    if (
+      !workspaceProject ||
+      !fileWorkspace ||
+      workspaceProject.accessLevel === "Viewer" ||
+      moduleFilesLoading ||
+      moduleTemplateFiles.length === 0
+    )
+      return;
+    const moduleRoot = `modules/${moduleWorkspaceCode}`;
+    setModuleFilesLoading(true);
+    setError("");
+    try {
+      const existing = new Set<string>();
+      for (const directory of ["modules", moduleRoot, `${moduleRoot}/src`]) {
+        try {
+          const listing = await api<WorkspaceFileListing>(
+            `/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/files?path=${encodeURIComponent(directory)}&offset=0`,
+            token,
+          );
+          for (const entry of listing.entries) existing.add(entry.path);
+        } catch {
+          /* A missing module directory is expected for a new module. */
+        }
+      }
+      const missing = moduleTemplateFiles.filter(
+        (file) => !existing.has(file.path),
+      );
+      if (!missing.length) {
+        setNotice("Bu modülün başlangıç dosyaları çalışma alanında zaten var.");
+        await loadWorkspaceFiles(fileWorkspace, moduleRoot);
+        return;
+      }
+      if (
+        !window.confirm(
+          `${missing.map((file) => file.path).join("\n")} dosyaları izole çalışma alanına eklenecek. Var olan dosyalar değiştirilmez; kod çalıştırılmaz. Devam edilsin mi?`,
+        )
+      )
+        return;
+      for (const file of missing) {
+        await api<AppliedCodeSuggestion>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/apply-code-suggestion`,
+          token,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              filePath: file.path,
+              expectedSha256: "",
+              proposedContent: file.content,
+              approvalConfirmed: true,
+              createNewFile: true,
+              manualEdit: true,
+            }),
+          },
+        );
+      }
+      setNotice(
+        `${missing.length} modül başlangıç dosyası onayınızla eklendi.`,
+      );
+      await loadWorkspaceFiles(fileWorkspace, moduleRoot);
+    } catch (e) {
+      setError((e as Error).message);
+      await loadWorkspaceFiles(fileWorkspace, moduleRoot);
+    } finally {
+      setModuleFilesLoading(false);
+    }
+  }
+  async function indexSelectedKnowledge() {
+    if (
+      !workspaceProject ||
+      !fileWorkspace ||
+      (knowledgePaths.length === 0 && knowledgeHistoryIds.length === 0) ||
+      knowledgeLoading
+    )
+      return;
+    if (
+      !window.confirm(
+        `${knowledgePaths.length} dosya ve ${knowledgeHistoryIds.length} onaylanmış geliştirme geçmişi kaydı tenant'a ait AI Studio bilgi tabanında saklanacak ve seçili AI sağlayıcısına anlamsal indeksleme için gönderilecek.${enableKnowledgeAutoRefresh ? ` Seçilen ${knowledgePaths.length} dosya, bilgi tabanı seçilen sonraki sohbetlerde tekrar kullanılmadan önce workspace içinden otomatik yenilenecek.` : ""} Yalnızca seçtikleriniz paylaşılır. Devam edilsin mi?`,
+      )
+    )
+      return;
+    setKnowledgeLoading(true);
+    setError("");
+    try {
+      const result = await api<{
+        indexed: number;
+        indexedHistory: number;
+        semanticIndexed: number;
+        retrievalMode: "semantic" | "keyword";
+        skippedUnchanged: number;
+      }>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/knowledge`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            paths: knowledgePaths,
+            approvedHistoryCandidateIds: knowledgeHistoryIds,
+            aiSharingConfirmed: true,
+            enableAutoRefresh: enableKnowledgeAutoRefresh,
+          }),
+        },
+      );
+      const current = await api<{
+        documents: StudioKnowledgeDocument[];
+        autoRefresh: StudioKnowledgeAutoRefresh;
+      }>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/knowledge`,
+        token,
+      );
+      setKnowledgeDocs(current.documents);
+      setKnowledgeAutoRefresh(current.autoRefresh);
+      setKnowledgePaths([]);
+      setKnowledgeHistoryIds([]);
+      setEnableKnowledgeAutoRefresh(false);
+      setNotice(
+        `${result.indexed} kaynak indekslendi (${result.indexedHistory} onaylı geçmiş kaydı); ${result.semanticIndexed} anlamsal aramaya hazır; ${result.skippedUnchanged} değişmemiş kaynak atlandı.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setKnowledgeLoading(false);
+    }
+  }
+  async function revokeKnowledgeAutoRefresh() {
+    if (
+      !workspaceProject ||
+      !fileWorkspace ||
+      !window.confirm(
+        "Bu workspace için otomatik bilgi tabanı yenileme izni kaldırılsın mı?",
+      )
+    )
+      return;
+    setKnowledgeLoading(true);
+    setError("");
+    try {
+      await api(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/knowledge/auto-refresh`,
+        token,
+        { method: "DELETE" },
+      );
+      setKnowledgeAutoRefresh({
+        enabled: false,
+        paths: [],
+        lastRefreshedAt: null,
+      });
+      setNotice(
+        "Otomatik yenileme izni kaldırıldı. Mevcut bilgi tabanı kayıtları silinmedi.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setKnowledgeLoading(false);
+    }
+  }
+  async function enableKnowledgeAutoRefreshAll() {
+    if (!workspaceProject || !fileWorkspace || knowledgeLoading) return;
+    if (
+      !window.confirm(
+        `Her sohbet mesajı öncesinde bu izole workspace içindeki desteklenen kaynak kodunda ilgili arama yapılacak; güvenli eşleşmeler tenant'ta seçili AI sağlayıcısına gönderilecek. Bu izin bu workspace için kalıcıdır; ERP kayıtları, sır dosyaları ve ikili dosyalar kapsam dışıdır. Açmak istiyor musunuz?`,
+      )
+    )
+      return;
+    setKnowledgeLoading(true);
+    setError("");
+    try {
+      await api(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/knowledge/auto-refresh-all`,
+        token,
+        { method: "POST", body: JSON.stringify({ confirmed: true }) },
+      );
+      setKnowledgeAutoRefresh({
+        enabled: true,
+        allFiles: true,
+        paths: [],
+        lastRefreshedAt: new Date().toISOString(),
+      });
+      setNotice(
+        "Bu workspace için kalıcı AI erişimi açıldı. İlgili kaynak alıntıları her sohbet öncesinde otomatik aranıp kullanılacak.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setKnowledgeLoading(false);
+    }
+  }
+  async function deleteKnowledgeDocument(document: StudioKnowledgeDocument) {
+    if (
+      !workspaceProject ||
+      !fileWorkspace ||
+      !window.confirm(
+        `${document.path} dosyasının bu sürümünü bilgi tabanından silmek istiyor musunuz?`,
+      )
+    )
+      return;
+    try {
+      await api(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/knowledge/${document.id}`,
+        token,
+        { method: "DELETE" },
+      );
+      setKnowledgeDocs((current) =>
+        current.filter((item) => item.path !== document.path),
+      );
+      setKnowledgeAutoRefresh((current) => {
+        const paths = current.paths.filter((path) => path !== document.path);
+        return {
+          ...current,
+          paths,
+          enabled: current.enabled && paths.length > 0,
+        };
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function loadWorkspaceFile(request: WorkspaceRequest, path: string) {
+    if (!workspaceProject) return;
+    setFileLoading(true);
+    setFileContent(null);
+    setError("");
+    try {
+      setFileContent(
+        await api<WorkspaceFileContent>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/file-content?path=${encodeURIComponent(path)}`,
+          token,
+        ),
+      );
+      updateWorkspaceRoute(workspaceProject.id, request.id, filePath, path);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setFileLoading(false);
+    }
+  }
+  function startManualFileEdit() {
+    if (
+      !fileWorkspace ||
+      !fileContent ||
+      workspaceProject?.accessLevel === "Viewer"
+    )
+      return;
+    setManualFilePath(fileContent.path);
+    setManualFileContent(fileContent.content);
+    setManualFileCreating(false);
+    setManualFileEditing(true);
+    setError("");
+  }
+  function startManualNewFile(request: WorkspaceRequest) {
+    if (!workspaceProject || workspaceProject.accessLevel === "Viewer") return;
+    const moduleRoot = moduleCodeForWorkspace(request)
+      ? `modules/${moduleCodeForWorkspace(request)}`
+      : "";
+    const modulePathIsOpen = Boolean(
+      moduleRoot &&
+        (filePath === moduleRoot || filePath.startsWith(`${moduleRoot}/`)),
+    );
+    const path = moduleRoot
+      ? modulePathIsOpen
+        ? `${filePath}/NewFile.rs`
+        : `${moduleRoot}/src/lib.rs`
+      : filePath
+        ? `${filePath}/NewComponent.tsx`
+        : "NewComponent.tsx";
+    setFileWorkspace(request);
+    setFileContent({ path, content: "", sizeBytes: 0, sha256: "" });
+    setManualFilePath(path);
+    setManualFileContent("");
+    setManualFileCreating(true);
+    setManualFileEditing(true);
+    setError("");
+  }
+  async function saveManualFile(contentOverride?: string) {
+    const contentToSave = contentOverride ?? manualFileContent;
+    if (
+      !workspaceProject ||
+      !fileWorkspace ||
+      !fileContent ||
+      !manualFileEditing ||
+      manualFileSaving
+    )
+      return;
+    const path = manualFileCreating ? manualFilePath : fileContent.path;
+    if (
+      !window.confirm(
+        `Manuel kod ${path} dosyasına izole workspace içinde uygulanacak. Güncel dosya değişmişse işlem durdurulur. Kod çalıştırılmayacak. Devam edilsin mi?`,
+      )
+    )
+      return;
+    setManualFileSaving(true);
+    setError("");
+    try {
+      const applied = await api<AppliedCodeSuggestion>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/apply-code-suggestion`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            filePath: path,
+            expectedSha256: fileContent.sha256,
+            proposedContent: contentToSave,
+            approvalConfirmed: true,
+            createNewFile: manualFileCreating,
+            manualEdit: true,
+          }),
+        },
+      );
+      const sizeBytes = new TextEncoder().encode(contentToSave).length;
+      setFileContent({
+        path,
+        content: contentToSave,
+        sizeBytes,
+        sha256: applied.sha256,
+      });
+      setManualFileEditing(false);
+      setManualFileCreating(false);
+      setNotice(
+        `Manuel kod ${path} dosyasına onayla kaydedildi. Kod çalıştırılmadı.`,
+      );
+      if (manualFileCreating) {
+        const query = `path=${encodeURIComponent(filePath)}&offset=0`;
+        setFileListing(
+          await api<WorkspaceFileListing>(
+            `/studio/projects/${workspaceProject.id}/workspace-requests/${fileWorkspace.id}/files?${query}`,
+            token,
+          ),
+        );
+      }
+      if (changeWorkspace?.id === fileWorkspace.id)
+        await loadWorkspaceChanges(fileWorkspace);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setManualFileSaving(false);
+    }
+  }
+
+  function hasUnsavedManualFileChanges() {
+    return (
+      manualFileEditing &&
+      (manualFileCreating
+        ? manualFileContent.length > 0 || manualFilePath !== fileContent?.path
+        : manualFileContent !== fileContent?.content)
+    );
+  }
+  function cancelManualFileEdit() {
+    if (
+      hasUnsavedManualFileChanges() &&
+      !window.confirm(
+        "Kaydedilmemiş manuel kod değişiklikleri kaybolacak. Düzenlemeyi iptal etmek istiyor musunuz?",
+      )
+    )
+      return;
+    setManualFileEditing(false);
+    setManualFileCreating(false);
+  }
+  function closeWorkspaceFileExplorer() {
+    if (
+      hasUnsavedManualFileChanges() &&
+      !window.confirm(
+        "Kaydedilmemiş manuel kod değişiklikleri kaybolacak. Dosya gezginini kapatmak istiyor musunuz?",
+      )
+    )
+      return;
+    updateWorkspaceRoute();
+    setFileWorkspace(null);
+    setFileListing(null);
+    setFileContent(null);
+    setManualFileEditing(false);
+    setManualFileCreating(false);
+  }
+  function handleWorkspaceExplorerKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeWorkspaceFileExplorer();
+    }
+  }
+  useEffect(() => {
+    if (!fileWorkspace) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const frame = window.requestAnimationFrame(() => {
+      if (!manualFileEditing) workspaceExplorerCloseRef.current?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [fileWorkspace, manualFileEditing]);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const projectId = url.searchParams.get("studioProject") || "";
+    const requestId = url.searchParams.get("studioWorkspace") || "";
+    if (!projectId || !requestId || !token || projects.length === 0) return;
+    const restoreKey = `${projectId}:${requestId}`;
+    if (workspaceRestoreRef.current === restoreKey) return;
+    workspaceRestoreRef.current = restoreKey;
+    const project = projects.find(
+      (item) => item.id.toLowerCase() === projectId.toLowerCase(),
+    );
+    if (!project) {
+      updateWorkspaceRoute();
+      return;
+    }
+    const directoryPath = (url.searchParams.get("studioPath") || "").slice(
+      0,
+      500,
+    );
+    const openFilePath = (url.searchParams.get("studioFile") || "").slice(
+      0,
+      500,
+    );
+    setWorkspaceProject(project);
+    setFileLoading(true);
+    setError("");
+    void api<WorkspaceRequest[]>(
+      `/studio/projects/${project.id}/workspace-requests`,
+      token,
+    )
+      .then(async (requests) => {
+        const request = requests.find(
+          (item) => item.id.toLowerCase() === requestId.toLowerCase(),
+        );
+        if (!request)
+          throw new Error("Bu çalışma alanı artık erişilebilir değil.");
+        setWorkspaceRequests(requests);
+        setFileWorkspace(request);
+        const query = `path=${encodeURIComponent(directoryPath)}&offset=0`;
+        const knowledgePath = `/studio/projects/${project.id}/workspace-requests/${request.id}/knowledge`;
+        const [listing, knowledge, history, file] = await Promise.all([
+          api<WorkspaceFileListing>(
+            `/studio/projects/${project.id}/workspace-requests/${request.id}/files?${query}`,
+            token,
+          ),
+          api<{
+            documents: StudioKnowledgeDocument[];
+            autoRefresh: StudioKnowledgeAutoRefresh;
+          }>(knowledgePath, token),
+          project.accessLevel === "Viewer"
+            ? Promise.resolve({ items: [] as ApprovedHistoryCandidate[] })
+            : api<{ items: ApprovedHistoryCandidate[] }>(
+                `${knowledgePath}/approved-history`,
+                token,
+              ),
+          openFilePath
+            ? api<WorkspaceFileContent>(
+                `/studio/projects/${project.id}/workspace-requests/${request.id}/file-content?path=${encodeURIComponent(openFilePath)}`,
+                token,
+              )
+            : Promise.resolve(null),
+        ]);
+        setFileListing(listing);
+        setFilePath(directoryPath);
+        setKnowledgeDocs(knowledge.documents);
+        setKnowledgeAutoRefresh(knowledge.autoRefresh);
+        setKnowledgeHistoryCandidates(history.items);
+        setFileContent(file);
+        setManualFileEditing(false);
+        setManualFileCreating(false);
+      })
+      .catch((error) => setError((error as Error).message))
+      .finally(() => setFileLoading(false));
+  }, [projects, token]);
+
+  async function loadWorkspaceAnalysis(request: WorkspaceRequest) {
+    if (!workspaceProject) return;
+    setAnalysisLoading(true);
+    setError("");
+    setWorkspaceAnalysis(null);
+    setAnalysisWorkspace(request);
+    try {
+      setWorkspaceAnalysis(
+        await api<WorkspaceAnalysis>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/analysis`,
+          token,
+        ),
+      );
+      setAnalysisCompletedAt(new Date().toISOString());
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }
+  async function searchWorkspaceSource(e: FormEvent) {
+    e.preventDefault();
+    if (
+      !workspaceProject ||
+      !sourceSearchWorkspace ||
+      !sourceSearchQuery.trim()
+    )
+      return;
+    setSourceSearchLoading(true);
+    setError("");
+    setSelectedSourceMatches([]);
+    setSourceAnalysisResult(null);
+    setSourceAnalysisConsent(false);
+    try {
+      setSourceSearchResult(
+        await api<WorkspaceSearchResult>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${sourceSearchWorkspace.id}/search?query=${encodeURIComponent(sourceSearchQuery.trim())}`,
+          token,
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSourceSearchLoading(false);
+    }
+  }
+  async function analyzeSelectedSource(e: FormEvent) {
+    e.preventDefault();
+    if (
+      !workspaceProject ||
+      !sourceSearchWorkspace ||
+      !sourceSearchResult ||
+      !sourceAnalysisConsent ||
+      !sourceAnalysisQuestion.trim()
+    )
+      return;
+    const sources = sourceSearchResult.matches.filter((match, index) =>
+      selectedSourceMatches.includes(`${match.path}:${match.line}:${index}`),
+    );
+    if (!sources.length) return;
+    setSourceAnalysisLoading(true);
+    setError("");
+    setSourceAnalysisResult(null);
+    try {
+      setSourceAnalysisResult(
+        await api<SourceAnalysisResult>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${sourceSearchWorkspace.id}/source-analysis`,
+          token,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              question: sourceAnalysisQuestion.trim(),
+              sources,
+              aiSharingConfirmed: sourceAnalysisConsent,
+            }),
+          },
+        ),
+      );
+      setSourceAnalysisConsent(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSourceAnalysisLoading(false);
+    }
+  }
+  async function discoverWorkspaceTests(request: WorkspaceRequest) {
+    if (!workspaceProject) return;
+    setTestDiscoveryLoading(true);
+    setError("");
+    setTestExecution(null);
+    setTestExecutionTarget("");
+    setTestDiscovery(null);
+    setTestPlan(null);
+    setTestAIConsent(false);
+    setTestRequest("");
+    setTestPlanSavedId(null);
+    setTestDiscoveryWorkspace(request);
+    try {
+      const [discovery, plans] = await Promise.all([
+        api<WorkspaceTestDiscovery>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/test-discovery`,
+          token,
+        ),
+        api<SavedAITestPlan[]>(
+          `/studio/projects/${workspaceProject.id}/test-plans?workspaceRequestId=${request.id}`,
+          token,
+        ),
+      ]);
+      setTestDiscovery(discovery);
+      setSavedTestPlans(plans);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setTestDiscoveryLoading(false);
+    }
+  }
+  async function runWorkspaceTest(
+    target: WorkspaceTestDiscovery["targets"][number],
+  ) {
+    if (!workspaceProject || !testDiscoveryWorkspace || testExecutionLoading)
+      return;
+    const isNode = target.ecosystem === "Node.js";
+    const isPython = target.ecosystem === "Python";
+    const isGo = target.ecosystem === "Go";
+    const isRust = target.ecosystem === "Rust";
+    const executionLabel = isNode
+      ? "Node.js yerleşik testleri"
+      : isPython
+        ? "Python pytest testleri"
+        : isGo
+          ? "Go testleri"
+          : isRust
+            ? "Rust testleri"
+            : ".NET testleri";
+    const limitation = isNode
+      ? "node --test çalışır; npm scriptleri çağrılmaz ve paket bağımlılıkları kurulmaz."
+      : isPython
+        ? "Yalnız imajdaki pytest kullanılır; proje bağımlılıkları kurulmaz."
+        : isGo
+          ? "Yalnız Go standart kütüphanesi kullanılır; go.mod bağımlılıkları kurulmaz."
+          : isRust
+            ? "Yalnız bağımsız Cargo paketleri çalışır; crate bağımlılıkları ve Cargo workspace desteği yoktur."
+            : "dotnet restore yalnız sandbox paket önbelleğini kullanır.";
+    if (
+      !window.confirm(
+        `“${target.path}”${executionLabel} ağsız ve kaynak sınırları uygulanmış sandbox içinde çalıştırılacak. ${limitation} Devam edilsin mi?`,
+      )
+    )
+      return;
+    setTestExecutionLoading(true);
+    setTestExecutionTarget(target.path);
+    setError("");
+    setTestExecution(null);
+    try {
+      const created = await api<{
+        jobId: string;
+        commitSha: string;
+        snapshotSha256: string;
+        hasUncommittedChanges: boolean;
+      }>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-runs`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            targetPath: target.path,
+            executionConfirmed: true,
+          }),
+        },
+      );
+      let status: WorkspaceTestRunStatus = {
+        jobId: created.jobId,
+        targetPath: target.path,
+        commitSha: created.commitSha,
+        snapshotSha256: created.snapshotSha256,
+        hasUncommittedChanges: created.hasUncommittedChanges,
+        status: "Queued",
+        message: "Sandbox işi bekliyor.",
+        success: null,
+        exitCode: null,
+        durationMilliseconds: 0,
+        output: "",
+        completedAt: null,
+      };
+      setTestExecution(status);
+      for (let i = 0; i < 50; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        status = await api<WorkspaceTestRunStatus>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-runs/${created.jobId}`,
+          token,
+        );
+        setTestExecution(status);
+        if (
+          [
+            "Passed",
+            "Failed",
+            "TimedOut",
+            "QueueExpired",
+            "DependencyUnavailable",
+            "Rejected",
+            "SandboxError",
+          ].includes(status.status)
+        )
+          break;
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setTestExecutionLoading(false);
+    }
+  }
+  async function runWorkspaceBuild(
+    target: WorkspaceTestDiscovery["targets"][number],
+  ) {
+    if (!workspaceProject || !testDiscoveryWorkspace || buildExecutionLoading)
+      return;
+    const buildCommand =
+      target.ecosystem === ".NET"
+        ? "dotnet build --no-restore"
+        : target.ecosystem === "Node.js"
+          ? "node --check (JavaScript files; no execution)"
+          : target.ecosystem === "Python"
+            ? "python3 -m py_compile (selected file)"
+            : target.ecosystem === "Go"
+              ? "go build -mod=readonly ./... (offline)"
+              : target.ecosystem === "Rust"
+                ? "cargo build --offline"
+                : "fixed sandbox build";
+    const limitation =
+      target.ecosystem === ".NET"
+        ? "Paketler yalnız onaylı çevrimdışı önbellekten geri yüklenebilir."
+        : target.ecosystem === "Go"
+          ? "Yalnız standart kütüphane modülleri desteklenir."
+          : target.ecosystem === "Rust"
+            ? "Yalnız bağımsız, harici bağımlılığı olmayan Cargo paketleri desteklenir."
+            : "Paket yüklenmez ve proje komut dosyaları çalıştırılmaz.";
+    if (
+      !window.confirm(
+        `“${target.path}” ${buildCommand} ile ağsız ve kaynak sınırları uygulanmış sandbox içinde işlenecek. ${limitation} Devam edilsin mi?`,
+      )
+    )
+      return;
+    setBuildExecutionLoading(true);
+    setBuildExecutionTarget(target.path);
+    setBuildExecutionWorkspaceId(testDiscoveryWorkspace.id);
+    setError("");
+    setBuildExecution(null);
+    try {
+      const created = await api<{
+        jobId: string;
+        commitSha: string;
+        snapshotSha256: string;
+        hasUncommittedChanges: boolean;
+      }>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/build-runs`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            targetPath: target.path,
+            executionConfirmed: true,
+          }),
+        },
+      );
+      let status: WorkspaceTestRunStatus = {
+        jobId: created.jobId,
+        targetPath: target.path,
+        commitSha: created.commitSha,
+        snapshotSha256: created.snapshotSha256,
+        hasUncommittedChanges: created.hasUncommittedChanges,
+        status: "Queued",
+        message: "Sandbox build işi bekliyor.",
+        success: null,
+        exitCode: null,
+        durationMilliseconds: 0,
+        output: "",
+        completedAt: null,
+      };
+      setBuildExecution(status);
+      for (let i = 0; i < 50; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        status = await api<WorkspaceTestRunStatus>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/build-runs/${created.jobId}`,
+          token,
+        );
+        setBuildExecution(status);
+        if (
+          [
+            "Built",
+            "BuildFailed",
+            "TimedOut",
+            "QueueExpired",
+            "DependencyUnavailable",
+            "Rejected",
+            "SandboxError",
+          ].includes(status.status)
+        )
+          break;
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBuildExecutionLoading(false);
+    }
+  }
+  async function pollWorkspaceBuildRun() {
+    if (
+      !workspaceProject ||
+      !buildExecutionWorkspaceId ||
+      !buildExecution ||
+      buildExecutionLoading
+    )
+      return;
+    setBuildExecutionLoading(true);
+    setError("");
+    try {
+      let status = buildExecution;
+      for (let i = 0; i < 50; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        status = await api<WorkspaceTestRunStatus>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${buildExecutionWorkspaceId}/build-runs/${buildExecution.jobId}`,
+          token,
+        );
+        setBuildExecution(status);
+        if (
+          [
+            "Built",
+            "BuildFailed",
+            "TimedOut",
+            "QueueExpired",
+            "DependencyUnavailable",
+            "Rejected",
+            "SandboxError",
+          ].includes(status.status)
+        )
+          break;
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBuildExecutionLoading(false);
+    }
+  }
+  async function pollWorkspaceTestRun() {
+    if (
+      !workspaceProject ||
+      !testDiscoveryWorkspace ||
+      !testExecution ||
+      testExecutionLoading
+    )
+      return;
+    setTestExecutionLoading(true);
+    setError("");
+    try {
+      let status = testExecution;
+      for (let i = 0; i < 50; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        status = await api<WorkspaceTestRunStatus>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-runs/${testExecution.jobId}`,
+          token,
+        );
+        setTestExecution(status);
+        if (
+          [
+            "Passed",
+            "Failed",
+            "TimedOut",
+            "QueueExpired",
+            "DependencyUnavailable",
+            "Rejected",
+            "SandboxError",
+          ].includes(status.status)
+        )
+          break;
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setTestExecutionLoading(false);
+    }
+  }
+  async function analyzeSandboxFailure(
+    operation: "test" | "build",
+    workspaceRequestId: string,
+    job: WorkspaceTestRunStatus,
+  ) {
+    if (!workspaceProject || sandboxErrorAnalysisLoading) return;
+    if (
+      !window.confirm(
+        "Sandbox durum ve çıktısının hassas değerleri maskelenerek hata analizi için OpenAI’ye gönderilmesini onaylıyor musunuz? Ham çıktı veritabanında saklanmaz.",
+      )
+    )
+      return;
+    setSandboxErrorAnalysisLoading(true);
+    setError("");
+    setSandboxErrorAnalysis(null);
+    try {
+      setSandboxErrorAnalysis(
+        await api<SandboxErrorAnalysisResponse>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${workspaceRequestId}/sandbox-error-analysis/${job.jobId}`,
+          token,
+          {
+            method: "POST",
+            body: JSON.stringify({ operation, aiSharingConfirmed: true }),
+          },
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSandboxErrorAnalysisLoading(false);
+    }
+  }
+  function beginSandboxRepair() {
+    if (
+      !testDiscoveryWorkspace ||
+      !sandboxErrorAnalysis?.triage.sourceRepairCandidate
+    )
+      return;
+    setRepairMode({
+      operation: sandboxErrorAnalysis.operation,
+      targetPath: sandboxErrorAnalysis.targetPath,
+    });
+    setRepairPathsDraft("");
+    setMultiFilePaths([]);
+    setMultiDeveloperWorkspace(testDiscoveryWorkspace);
+    setMultiFileRequest(
+      [
+        `Repair the ${sandboxErrorAnalysis.operation} failure for ${sandboxErrorAnalysis.targetPath} at commit ${sandboxErrorAnalysis.commitSha}.`,
+        sandboxErrorAnalysis.analysis.summary,
+        `Likely cause: ${sandboxErrorAnalysis.analysis.likelyCause}`,
+        "Recommended actions:",
+        ...sandboxErrorAnalysis.analysis.recommendedActions.map(
+          (action, index) => `${index + 1}. ${action}`,
+        ),
+      ]
+        .join("\n")
+        .slice(0, 2000),
+    );
+    setMultiFileConsent(false);
+    setMultiFileSuggestion(null);
+    setMultiFileApplied([]);
+    setError("");
+  }
+  async function rerunAfterSandboxRepair() {
+    if (
+      !repairMode ||
+      !multiFileSuggestion ||
+      multiFileApplied.length !== multiFileSuggestion.changes.length ||
+      (workspaceProject?.accessLevel !== "TenantAdmin" &&
+        workspaceProject?.accessLevel !== "Maintainer")
+    )
+      return;
+    const target = testDiscovery?.targets.find(
+      (item) => item.path === repairMode.targetPath,
+    );
+    if (!target) {
+      setError(
+        "Onarım test hedefi artık keşif sonuçlarında bulunmuyor. Test merkezinden hedefi yeniden keşfedin.",
+      );
+      return;
+    }
+    const operation = repairMode.operation;
+    setMultiDeveloperWorkspace(null);
+    setSandboxErrorAnalysis(null);
+    setRepairMode(null);
+    if (operation === "test") void runWorkspaceTest(target);
+    else void runWorkspaceBuild(target);
+  }
+  async function createAITestPlan(e: FormEvent) {
+    e.preventDefault();
+    if (
+      !workspaceProject ||
+      !testDiscoveryWorkspace ||
+      !testAIConsent ||
+      !testRequest.trim()
+    )
+      return;
+    setTestPlanLoading(true);
+    setError("");
+    setTestPlan(null);
+    setTestPlanSavedId(null);
+    try {
+      setTestPlan(
+        await api<AITestPlan>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-plan`,
+          token,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              request: testRequest,
+              aiSharingConfirmed: testAIConsent,
+            }),
+          },
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setTestPlanLoading(false);
+    }
+  }
+  async function saveAITestPlan() {
+    if (!workspaceProject || !testDiscoveryWorkspace || !testPlan) return;
+    setTestPlanSaveLoading(true);
+    setError("");
+    try {
+      const saved = await api<SavedAITestPlan>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-plans`,
+        token,
+        { method: "POST", body: JSON.stringify({ plan: testPlan }) },
+      );
+      setTestPlanSavedId(saved.id);
+      setSavedTestPlans((current) =>
+        [saved, ...current.filter((x) => x.id !== saved.id)].slice(0, 50),
+      );
+      setNotice(
+        "AI Tester senaryo taslağı proje geçmişine kaydedildi; özgün talep metni saklanmadı.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setTestPlanSaveLoading(false);
+    }
+  }
+  async function openSavedAITestPlan(saved: SavedAITestPlan) {
+    if (!workspaceProject) return;
+    setTestPlanLoading(true);
+    setError("");
+    try {
+      const detail = await api<SavedAITestPlanDetail>(
+        `/studio/projects/${workspaceProject.id}/test-plans/${saved.id}`,
+        token,
+      );
+      setTestPlan(detail.plan);
+      setTestPlanSavedId(saved.id);
+      setTestRequest("");
+      setTestAIConsent(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setTestPlanLoading(false);
+    }
+  }
+  async function deleteSavedAITestPlan(saved: SavedAITestPlan) {
+    if (!workspaceProject || !saved.canDelete) return;
+    if (
+      !window.confirm(
+        `“${saved.summary}” test planını kalıcı olarak silmek istiyor musunuz?`,
+      )
+    )
+      return;
+    setError("");
+    try {
+      await api<void>(
+        `/studio/projects/${workspaceProject.id}/test-plans/${saved.id}`,
+        token,
+        { method: "DELETE", body: JSON.stringify({ confirm: true }) },
+      );
+      setSavedTestPlans((current) => current.filter((x) => x.id !== saved.id));
+      if (testPlanSavedId === saved.id) {
+        setTestPlanSavedId(null);
+        setTestPlan(null);
+      }
+      setNotice("Test planı silindi; silme olayı denetim kaydına eklendi.");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  function startCodeSuggestion() {
+    if (!fileWorkspace || !fileContent) return;
+    setDeveloperWorkspace(fileWorkspace);
+    setDeveloperFile(fileContent);
+    setDeveloperIsNewFile(false);
+    setDeveloperNewPath("");
+    setDeveloperRequest(
+      linkedDevelopmentContext(
+        fileWorkspace.developmentRequestTitle,
+        fileWorkspace.developmentRequestDescription,
+      ),
+    );
+    setDeveloperConsent(false);
+    setDeveloperSuggestion(null);
+    setDeveloperApplyApproval(false);
+    setDeveloperApplied(false);
+    setError("");
+  }
+  function startNewCodeSuggestion(request: WorkspaceRequest) {
+    if (!workspaceProject) return;
+    const moduleRoot = moduleCodeForWorkspace(request)
+      ? `modules/${moduleCodeForWorkspace(request)}`
+      : "";
+    const modulePathIsOpen = Boolean(
+      moduleRoot &&
+        (filePath === moduleRoot || filePath.startsWith(`${moduleRoot}/`)),
+    );
+    const suggestedPath = moduleRoot
+      ? modulePathIsOpen
+        ? `${filePath}/NewFile.rs`
+        : `${moduleRoot}/src/lib.rs`
+      : filePath
+        ? `${filePath}/NewComponent.tsx`
+        : "NewComponent.tsx";
+    setDeveloperWorkspace(request);
+    setDeveloperFile({
+      path: suggestedPath,
+      content: "",
+      sizeBytes: 0,
+      sha256: "",
+    });
+    setDeveloperIsNewFile(true);
+    setDeveloperNewPath(suggestedPath);
+    setDeveloperRequest(
+      linkedDevelopmentContext(
+        request.developmentRequestTitle,
+        request.developmentRequestDescription,
+      ),
+    );
+    setDeveloperConsent(false);
+    setDeveloperSuggestion(null);
+    setDeveloperApplyApproval(false);
+    setDeveloperApplied(false);
+    setFileContent(null);
+    setError("");
+  }
+  function startUiDesigner(request: WorkspaceRequest) {
+    if (!workspaceProject || workspaceProject.accessLevel === "Viewer") return;
+    const suggestedPath = filePath
+      ? `${filePath}/DesignedScreen.tsx`
+      : "src/screens/DesignedScreen.tsx";
+    setUiDesignerWorkspace(request);
+    setUiDesignRequest(
+      linkedDevelopmentContext(
+        request.developmentRequestTitle,
+        request.developmentRequestDescription,
+      ),
+    );
+    setUiDesignPath(suggestedPath);
+    setUiDesignConsent(false);
+    setUiDesignResult(null);
+    setUiDesignApplyApproval(false);
+    setUiDesignApplied(false);
+    setError("");
+  }
+  async function createUiDesign(e: FormEvent) {
+    e.preventDefault();
+    if (!workspaceProject || !uiDesignerWorkspace || !uiDesignConsent) return;
+    setUiDesignLoading(true);
+    setError("");
+    setUiDesignResult(null);
+    setUiDesignApplyApproval(false);
+    setUiDesignApplied(false);
+    try {
+      setUiDesignResult(
+        await api<UiDesignPreview>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${uiDesignerWorkspace.id}/ui-design`,
+          token,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              request: uiDesignRequest,
+              targetFilePath: uiDesignPath,
+              aiSharingConfirmed: true,
+            }),
+          },
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setUiDesignLoading(false);
+    }
+  }
+  async function applyUiDesign() {
+    if (
+      !workspaceProject ||
+      !uiDesignerWorkspace ||
+      !uiDesignResult ||
+      !uiDesignApplyApproval ||
+      uiDesignApplied
+    )
+      return;
+    if (
+      !window.confirm(
+        `${uiDesignResult.filePath} ekran taslağı önizlemeden üretildi ve yalnızca yeni dosya olarak izole workspace’e yazılacak. Kod çalıştırılmayacak. Onaylıyor musunuz?`,
+      )
+    )
+      return;
+    setUiDesignLoading(true);
+    setError("");
+    try {
+      const applied = await api<AppliedCodeSuggestion>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${uiDesignerWorkspace.id}/apply-code-suggestion`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            filePath: uiDesignResult.filePath,
+            expectedSha256: uiDesignResult.sourceSha256,
+            proposedContent: uiDesignResult.proposedContent,
+            approvalConfirmed: true,
+            createNewFile: true,
+          }),
+        },
+      );
+      setUiDesignApplied(true);
+      setUiDesignApplyApproval(false);
+      setFileContent({
+        path: applied.filePath,
+        content: uiDesignResult.proposedContent,
+        sizeBytes: new TextEncoder().encode(uiDesignResult.proposedContent)
+          .length,
+        sha256: applied.sha256,
+      });
+      setNotice(
+        "AI UI Designer ekranını onayınızla yeni dosya olarak workspace’e ekledi. Kod çalıştırılmadı.",
+      );
+      if (fileWorkspace?.id === uiDesignerWorkspace.id) {
+        const parentPath = uiDesignResult.filePath
+          .split("/")
+          .slice(0, -1)
+          .join("/");
+        const query = `path=${encodeURIComponent(parentPath)}&offset=0`;
+        setFilePath(parentPath);
+        setFileListing(
+          await api<WorkspaceFileListing>(
+            `/studio/projects/${workspaceProject.id}/workspace-requests/${uiDesignerWorkspace.id}/files?${query}`,
+            token,
+          ),
+        );
+      }
+      if (changeWorkspace?.id === uiDesignerWorkspace.id)
+        await loadWorkspaceChanges(uiDesignerWorkspace);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setUiDesignLoading(false);
+    }
+  }
+  async function createCodeSuggestion(e: FormEvent) {
+    e.preventDefault();
+    if (
+      !workspaceProject ||
+      !developerWorkspace ||
+      !developerFile ||
+      !developerConsent
+    )
+      return;
+    const targetPath = developerIsNewFile
+      ? developerNewPath
+      : developerFile.path;
+    setDeveloperLoading(true);
+    setError("");
+    setDeveloperSuggestion(null);
+    setDeveloperApplyApproval(false);
+    setDeveloperApplied(false);
+    try {
+      setDeveloperSuggestion(
+        await api<CodeSuggestionPreview>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${developerWorkspace.id}/code-suggestion`,
+          token,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              request: developerRequest,
+              filePath: targetPath,
+              sourceSharingConfirmed: developerConsent,
+              createNewFile: developerIsNewFile,
+            }),
+          },
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeveloperLoading(false);
+    }
+  }
+  function startMultiFileSuggestion(request: WorkspaceRequest) {
+    if (
+      !workspaceProject ||
+      multiFilePaths.length < 2 ||
+      multiFilePaths.length > 5
+    )
+      return;
+    setMultiDeveloperWorkspace(request);
+    setMultiFileRequest(
+      linkedDevelopmentContext(
+        request.developmentRequestTitle,
+        request.developmentRequestDescription,
+      ),
+    );
+    setMultiFileConsent(false);
+    setMultiFileSuggestion(null);
+    setMultiFileApplied([]);
+    setMultiFileSelecting(false);
+    setFileWorkspace(null);
+    setError("");
+  }
+  async function createMultiFileSuggestion(e: FormEvent) {
+    e.preventDefault();
+    if (!workspaceProject || !multiDeveloperWorkspace || !multiFileConsent)
+      return;
+    const paths = repairMode
+      ? repairPathsDraft
+          .split(/\r?\n|,/)
+          .map((path) => path.trim())
+          .filter(Boolean)
+      : multiFilePaths;
+    if (
+      paths.length < (repairMode ? 1 : 2) ||
+      paths.length > 5 ||
+      new Set(paths).size !== paths.length
+    ) {
+      setError(
+        repairMode
+          ? "1–5 farklı kaynak dosya yolu girin."
+          : "2–5 farklı kaynak dosya seçin.",
+      );
+      return;
+    }
+    setMultiFilePaths(paths);
+    setMultiFileLoading(true);
+    setError("");
+    setMultiFileSuggestion(null);
+    setMultiFileApplied([]);
+    try {
+      if (paths.length === 1) {
+        const result = await api<CodeSuggestionPreview>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${multiDeveloperWorkspace.id}/code-suggestion`,
+          token,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              request: multiFileRequest,
+              filePath: paths[0],
+              sourceSharingConfirmed: multiFileConsent,
+            }),
+          },
+        );
+        setMultiFileSuggestion({
+          summary: result.summary,
+          changes: [
+            {
+              filePath: result.filePath,
+              sourceSha256: result.sourceSha256,
+              originalContent: result.originalContent,
+              proposedContent: result.proposedContent,
+              notes: result.notes,
+            },
+          ],
+          risks: [],
+        });
+      } else {
+        setMultiFileSuggestion(
+          await api<MultiFileCodeSuggestionPreview>(
+            `/studio/projects/${workspaceProject.id}/workspace-requests/${multiDeveloperWorkspace.id}/multi-file-code-suggestion`,
+            token,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                request: multiFileRequest,
+                filePaths: paths,
+                sourceSharingConfirmed: multiFileConsent,
+              }),
+            },
+          ),
+        );
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setMultiFileLoading(false);
+    }
+  }
+  async function applyMultiFileSuggestion(
+    change: MultiFileCodeSuggestionPreview["changes"][number],
+  ) {
+    if (
+      !workspaceProject ||
+      !multiDeveloperWorkspace ||
+      multiFileApplied.includes(change.filePath) ||
+      !window.confirm(
+        `Yalnız ${change.filePath} dosyasındaki değişiklik açık onayla izole workspace'e uygulansın mı? Kod çalıştırılmaz.`,
+      )
+    )
+      return;
+    setMultiFileLoading(true);
+    setError("");
+    try {
+      await api<AppliedCodeSuggestion>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${multiDeveloperWorkspace.id}/apply-code-suggestion`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            filePath: change.filePath,
+            expectedSha256: change.sourceSha256,
+            proposedContent: change.proposedContent,
+            approvalConfirmed: true,
+          }),
+        },
+      );
+      setMultiFileApplied((current) => [...current, change.filePath]);
+      setNotice(
+        `${change.filePath} için onaylı öneri uygulandı. Diğer dosyalar ayrıca onaylanmalı.`,
+      );
+      if (changeWorkspace?.id === multiDeveloperWorkspace.id)
+        await loadWorkspaceChanges(multiDeveloperWorkspace);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setMultiFileLoading(false);
+    }
+  }
+  async function applyCodeSuggestion() {
+    if (
+      !workspaceProject ||
+      !developerWorkspace ||
+      !developerSuggestion ||
+      !developerApplyApproval ||
+      developerApplied
+    )
+      return;
+    setDeveloperLoading(true);
+    setError("");
+    try {
+      const applied = await api<AppliedCodeSuggestion>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${developerWorkspace.id}/apply-code-suggestion`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            filePath: developerSuggestion.filePath,
+            expectedSha256: developerSuggestion.sourceSha256,
+            proposedContent: developerSuggestion.proposedContent,
+            approvalConfirmed: developerApplyApproval,
+            createNewFile: developerSuggestion.createNewFile,
+          }),
+        },
+      );
+      setDeveloperApplied(true);
+      setDeveloperApplyApproval(false);
+      setFileContent((current) =>
+        developerSuggestion.createNewFile
+          ? {
+              path: applied.filePath,
+              content: developerSuggestion.proposedContent,
+              sizeBytes: new TextEncoder().encode(
+                developerSuggestion.proposedContent,
+              ).length,
+              sha256: applied.sha256,
+            }
+          : current && current.path === applied.filePath
+            ? {
+                ...current,
+                content: developerSuggestion.proposedContent,
+                sizeBytes: new TextEncoder().encode(
+                  developerSuggestion.proposedContent,
+                ).length,
+                sha256: applied.sha256,
+              }
+            : current,
+      );
+      setNotice(
+        "AI önerisi açık onayınızla izole çalışma alanına uygulandı. Kod çalıştırılmadı.",
+      );
+      if (
+        developerSuggestion.createNewFile &&
+        fileWorkspace?.id === developerWorkspace.id
+      ) {
+        const query = `path=${encodeURIComponent(filePath)}&offset=0`;
+        setFileListing(
+          await api<WorkspaceFileListing>(
+            `/studio/projects/${workspaceProject.id}/workspace-requests/${developerWorkspace.id}/files?${query}`,
+            token,
+          ),
+        );
+      }
+      if (changeWorkspace?.id === developerWorkspace.id)
+        await loadWorkspaceChanges(developerWorkspace);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeveloperLoading(false);
+    }
+  }
+
+  async function loadWorkspaceChanges(request: WorkspaceRequest) {
+    if (!workspaceProject) return;
+    setChangeLoading(true);
+    setError("");
+    setChangeWorkspace(request);
+    setWorkspaceChanges(null);
+    setChangeDiff(null);
+    setRestoreApproval(false);
+    try {
+      setWorkspaceChanges(
+        await api<WorkspaceChanges>(
+          "/studio/projects/" +
+            workspaceProject.id +
+            "/workspace-requests/" +
+            request.id +
+            "/changes",
+          token,
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChangeLoading(false);
+    }
+  }
+  async function commitApprovedWorkspaceChanges() {
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      !workspaceGitStatus ||
+      workspaceCommitLoading
+    )
+      return;
+    if (
+      workspaceGitStatus.truncated ||
+      workspaceGitStatus.totalChangedFiles !== workspaceGitStatus.files.length
+    ) {
+      setError(
+        "Git değişiklik listesi eksik; commit için önce durumu yenileyin.",
+      );
+      return;
+    }
+    setWorkspaceCommitLoading(true);
+    setError("");
+    try {
+      const changes = await api<WorkspaceChanges>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/changes`,
+        token,
+      );
+      if (changes.truncated) {
+        setError("Studio değişiklik geçmişi kesilmiş; commit durduruldu.");
+        return;
+      }
+      const current = [...changes.changes]
+        .filter((x) => x.isCurrent && !x.isRestored)
+        .sort((a, b) => b.appliedAt.localeCompare(a.appliedAt));
+      const latestByPath = new Map<string, WorkspaceChange>();
+      for (const change of current)
+        if (!latestByPath.has(change.path))
+          latestByPath.set(change.path, change);
+      const paths = workspaceGitStatus.files.map((x) => x.path).sort();
+      if (paths.length === 0 || paths.some((path) => !latestByPath.has(path))) {
+        setError(
+          "Çalışma ağacındaki bütün dosyalar güncel Studio onay kayıtlarıyla eşleşmiyor; commit durduruldu.",
+        );
+        return;
+      }
+      const message = window.prompt(
+        "İzole dal için tek satırlık commit mesajı girin (8–160 karakter).",
+        "Apply approved Studio changes",
+      );
+      if (message === null) return;
+      if (
+        !message.trim() ||
+        message.trim().length < 8 ||
+        message.trim().length > 160 ||
+        /[\r\n\t]/.test(message)
+      ) {
+        setError("Commit mesajı tek satır ve 8–160 karakter olmalıdır.");
+        return;
+      }
+      if (
+        !window.confirm(
+          `Yalnızca şu onaylı dosyalar ${workspaceGitStatus.branchName} dalına commit edilecek. Uzak depoya push yapılmayacak.\n\n${paths.join("\n")}`,
+        )
+      )
+        return;
+      const result = await api<WorkspaceCommitResult>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/commit-approved-changes`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            changeIds: paths.map((path) => latestByPath.get(path)!.id),
+            expectedHeadCommitSha: workspaceGitStatus.headCommitSha,
+            message: message.trim(),
+            approvalConfirmed: true,
+          }),
+        },
+      );
+      setWorkspaceGitStatus((current) =>
+        current
+          ? {
+              ...current,
+              headCommitSha: result.commitSha,
+              totalChangedFiles: 0,
+              truncated: false,
+              files: [],
+            }
+          : current,
+      );
+      setReleaseCandidates([]);
+      setNotice(
+        `Commit oluşturuldu: ${result.commitSha.slice(0, 12)}. ${result.files.length} onaylı dosya commit edildi; uzak depoya push yapılmadı.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setWorkspaceCommitLoading(false);
+    }
+  }
+  async function loadWorkspaceGitStatus(request: WorkspaceRequest) {
+    if (!workspaceProject) return;
+    setGitStatusLoading(true);
+    setError("");
+    setGitStatusWorkspace(request);
+    setWorkspaceGitStatus(null);
+    setReleaseCandidates([]);
+    setReleaseVersions([]);
+    setReleasePackages([]);
+    setReleaseDeployments([]);
+    setProductionDeployments([]);
+    setProductionApprovals([]);
+    setStagingCredentials(null);
+    try {
+      const [
+        status,
+        candidates,
+        versions,
+        packages,
+        deployments,
+        promotions,
+        productionHistory,
+      ] = await Promise.all([
+        api<WorkspaceGitStatus>(
+          "/studio/projects/" +
+            workspaceProject.id +
+            "/workspace-requests/" +
+            request.id +
+            "/git-status",
+          token,
+        ),
+        api<ReleaseCandidate[]>(
+          "/studio/projects/" +
+            workspaceProject.id +
+            "/workspace-requests/" +
+            request.id +
+            "/release-candidates",
+          token,
+        ),
+        api<ReleaseVersion[]>(
+          "/studio/projects/" +
+            workspaceProject.id +
+            "/workspace-requests/" +
+            request.id +
+            "/release-versions",
+          token,
+        ),
+        api<ReleasePackage[]>(
+          "/studio/projects/" +
+            workspaceProject.id +
+            "/workspace-requests/" +
+            request.id +
+            "/release-packages",
+          token,
+        ),
+        api<ReleaseDeployment[]>(
+          "/studio/projects/" +
+            workspaceProject.id +
+            "/workspace-requests/" +
+            request.id +
+            "/release-deployments",
+          token,
+        ),
+        api<ProductionApproval[]>(
+          "/studio/projects/" + workspaceProject.id + "/production-approvals",
+          token,
+        ),
+        api<ReleaseDeployment[]>(
+          "/studio/projects/" + workspaceProject.id + "/production-deployments",
+          token,
+        ),
+      ]);
+      setWorkspaceGitStatus(status);
+      setReleaseCandidates(candidates);
+      setReleaseVersions(versions);
+      setReleasePackages(packages);
+      setReleaseDeployments(deployments);
+      setProductionApprovals(promotions);
+      setProductionDeployments(productionHistory);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setGitStatusLoading(false);
+    }
+  }
+  async function createReleaseCandidate() {
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      !workspaceGitStatus ||
+      !testExecution ||
+      releaseCandidateSaving
+    )
+      return;
+    setReleaseCandidateSaving(true);
+    setError("");
+    try {
+      const created = await api<ReleaseCandidate>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ testJobId: testExecution.jobId }),
+        },
+      );
+      setReleaseCandidates((current) => [
+        created,
+        ...current.filter((item) => item.id !== created.id),
+      ]);
+      setNotice(
+        "Sürüm adayı kaydedildi. Paket üretilmedi ve dağıtım başlatılmadı.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReleaseCandidateSaving(false);
+    }
+  }
+  async function createPullRequestDraft(candidate: ReleaseCandidate) {
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      candidate.decision !== "Approved" ||
+      pullRequestDraftLoading
+    )
+      return;
+    const summary = window.prompt(
+      "Değişikliklerin kısa özeti (1–1500 karakter). Kaynak kod veya sır eklemeyin.",
+    );
+    if (summary === null) return;
+    if (!summary.trim()) {
+      setError("Değişiklik özeti boş olamaz.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Bu özet ile proje/dal adı, commit kimliği ve başarılı sandbox test metadata'sı PR taslağı oluşturmak için OpenAI'ye gönderilecek. Kaynak kodu ve test çıktısı gönderilmez. Onaylıyor musunuz?`,
+      )
+    )
+      return;
+    setPullRequestDraftLoading(true);
+    setError("");
+    setPullRequestDraft(null);
+    try {
+      const draft = await api<PullRequestDraft>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/pull-request-draft`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            changeSummary: summary.trim(),
+            aiSharingConfirmed: true,
+          }),
+        },
+      );
+      setPullRequestDraft({ candidateId: candidate.id, draft });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setPullRequestDraftLoading(false);
+    }
+  }
+  async function publishPullRequest(candidate: ReleaseCandidate) {
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      !pullRequestDraft ||
+      pullRequestDraft.candidateId !== candidate.id ||
+      candidate.decision !== "Approved" ||
+      pullRequestPublishLoading
+    )
+      return;
+    const draft = pullRequestDraft.draft;
+    if (
+      !window.confirm(
+        `GitHub'a yalnız ${draft.commitSha.slice(0, 12)} commit'ini içeren ${draft.sourceBranch} dalı push edilecek ve ${draft.baseBranch} tabanına draft PR oluşturulacak. Mevcut remote dal farklıysa üzerine yazılmaz. Onaylıyor musunuz?`,
+      )
+    )
+      return;
+    setPullRequestPublishLoading(true);
+    setError("");
+    setPublishedPullRequest(null);
+    try {
+      const result = await api<PublishedPullRequest>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/publish-pull-request`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            githubInstallationId: 0,
+            title: draft.title,
+            body: draft.body,
+            confirmation: true,
+          }),
+        },
+      );
+      setPublishedPullRequest(result);
+      setReleaseCandidates(
+        await api<ReleaseCandidate[]>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates`,
+          token,
+        ),
+      );
+      setNotice(
+        result.created
+          ? "Draft pull request GitHub’da oluşturuldu."
+          : "Aynı dal ve taban için açık PR bulundu; mevcut PR açıldı.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setPullRequestPublishLoading(false);
+    }
+  }
+  async function submitGitHubReview(
+    candidate: ReleaseCandidate,
+    event: "COMMENT" | "APPROVE" | "REQUEST_CHANGES",
+  ) {
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      !candidate.githubPullRequestNumber
+    )
+      return;
+    const labels = {
+      COMMENT: "Yorum",
+      APPROVE: "Onay",
+      REQUEST_CHANGES: "Değişiklik isteği",
+    };
+    const body = window.prompt(
+      `${labels[event]} açıklamasını girin (1–4000 karakter).`,
+    );
+    if (body === null) return;
+    if (!body.trim()) {
+      setError("GitHub inceleme açıklaması boş olamaz.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Bu ${labels[event].toLocaleLowerCase("tr-TR")} yorumu GitHub PR #${candidate.githubPullRequestNumber} üzerinde yayınlanacak. Devam edilsin mi?`,
+      )
+    )
+      return;
+    setError("");
+    try {
+      await api(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/pull-request-review`,
+        token,
+        { method: "POST", body: JSON.stringify({ event, body: body.trim() }) },
+      );
+      setNotice(
+        `GitHub PR #${candidate.githubPullRequestNumber} incelemesi gönderildi.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function requestGitHubReviewers(candidate: ReleaseCandidate) {
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      !candidate.githubPullRequestNumber
+    )
+      return;
+    const input = window.prompt(
+      "İnceleme isteği gönderilecek GitHub kullanıcı adlarını virgülle ayırarak girin (en fazla 10).",
+    );
+    if (input === null) return;
+    const reviewers = input
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (reviewers.length < 1 || reviewers.length > 10) {
+      setError("1–10 GitHub kullanıcı adı girmelisiniz.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `${reviewers.join(", ")} kullanıcılara PR #${candidate.githubPullRequestNumber} inceleme talebi gönderilecek. Devam edilsin mi?`,
+      )
+    )
+      return;
+    setError("");
+    try {
+      await api(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/request-reviewers`,
+        token,
+        { method: "POST", body: JSON.stringify({ reviewers }) },
+      );
+      setNotice("GitHub PR inceleme talebi gönderildi.");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function markGitHubPullRequestReady(candidate: ReleaseCandidate) {
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      !candidate.githubPullRequestNumber ||
+      candidate.decision !== "Approved" ||
+      candidate.githubPullRequestState !== "draft" ||
+      pullRequestReadyLoading
+    )
+      return;
+    if (
+      !window.confirm(
+        `Bağımsız Studio onayı alınmış ${candidate.commitSha.slice(0, 12)} commit’ine bağlı GitHub draft PR #${candidate.githubPullRequestNumber} incelemeye açılacak ve GitHub inceleme bildirimleri gönderilecek. Devam edilsin mi?`,
+      )
+    )
+      return;
+    setPullRequestReadyLoading(candidate.id);
+    setError("");
+    try {
+      const result = await api<{ state: string; htmlUrl: string }>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/mark-pull-request-ready`,
+        token,
+        { method: "POST" },
+      );
+      setReleaseCandidates((current) =>
+        current.map((item) =>
+          item.id === candidate.id
+            ? { ...item, githubPullRequestState: result.state }
+            : item,
+        ),
+      );
+      setNotice(
+        `GitHub PR #${candidate.githubPullRequestNumber} incelemeye hazır; bağımsız onay ve commit eşleşmesi doğrulandı.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setPullRequestReadyLoading(null);
+    }
+  }
+  async function syncGitHubReviewComments(candidate: ReleaseCandidate) {
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      !candidate.githubPullRequestNumber
+    )
+      return;
+    if (
+      !window.confirm(
+        `Bu çalışma alanındaki ${candidate.commitSha.slice(0, 12)} commit’ine bağlı, henüz aktarılmamış dosya yorumları GitHub PR #${candidate.githubPullRequestNumber} üzerine yayınlanacak. Devam edilsin mi?`,
+      )
+    )
+      return;
+    setError("");
+    try {
+      const result = await api<{ synced: number }>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/sync-review-comments`,
+        token,
+        { method: "POST" },
+      );
+      setNotice(`${result.synced} yerel yorum GitHub’a aktarıldı.`);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function importGitHubReviewComments(candidate: ReleaseCandidate) {
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      !candidate.githubPullRequestNumber
+    )
+      return;
+    if (
+      !window.confirm(
+        `GitHub PR #${candidate.githubPullRequestNumber} üzerindeki dosya inceleme yorumları bu workspace’e salt okunur şekilde alınacak. Devam edilsin mi?`,
+      )
+    )
+      return;
+    setError("");
+    try {
+      const result = await api<{
+        imported: number;
+        skipped: number;
+        truncated: boolean;
+      }>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/sync-github-review-comments`,
+        token,
+        { method: "POST" },
+      );
+      setNotice(
+        `${result.imported} GitHub yorumu içe aktarıldı${result.skipped ? `; ${result.skipped} konumu doğrulanamadığı için atlandı` : ""}${result.truncated ? " (ilk 500 yorum)" : ""}.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function assignReleaseVersion(candidate: ReleaseCandidate) {
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      candidate.decision !== "Approved" ||
+      releaseVersions.some((x) => x.releaseCandidateId === candidate.id)
+    )
+      return;
+    const version = window.prompt(
+      "Bu onaylı adaya SemVer sürüm numarası ata (örn. 1.2.3 veya 1.2.3-rc.1).",
+    );
+    if (version === null) return;
+    if (
+      !window.confirm(
+        `${version.trim()} numarası bu projede benzersiz ve değiştirilemez sürüm kimliği olarak kaydedilecek. Dağıtım veya paket oluşturulmayacak. Onaylıyor musunuz?`,
+      )
+    )
+      return;
+    setError("");
+    try {
+      const created = await api<ReleaseVersion>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/version`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ version: version.trim(), confirmation: true }),
+        },
+      );
+      setReleaseVersions((current) => [created, ...current]);
+      setNotice(
+        `${created.version} sürüm numarası atandı; kayıt değiştirilemez ve henüz yayınlanmadı.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function createReleasePackage(version: ReleaseVersion) {
+    if (!workspaceProject || !gitStatusWorkspace || releasePackageLoading)
+      return;
+    if (
+      !window.confirm(
+        `${version.version} sürümü için onaylı commit ve başarılı sandbox testinden doğrulanmış ZIP paketi oluşturulsun mu? Bu işlem dağıtım başlatmaz.`,
+      )
+    )
+      return;
+    setReleasePackageLoading(version.id);
+    setError("");
+    try {
+      const created = await api<ReleasePackage>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-versions/${version.id}/package`,
+        token,
+        { method: "POST", body: JSON.stringify({ confirmation: true }) },
+      );
+      setReleasePackages((current) => [
+        created,
+        ...current.filter((item) => item.id !== created.id),
+      ]);
+      setNotice(
+        `${created.version} paketi üretildi ve SHA-256 ile kaydedildi. Dağıtım başlatılmadı.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReleasePackageLoading(null);
+    }
+  }
+  async function downloadReleasePackage(pkg: ReleasePackage) {
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      releasePackageDownloadLoading
+    )
+      return;
+    setReleasePackageDownloadLoading(pkg.id);
+    setError("");
+    try {
+      const response = await authorizedFetch(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-packages/${pkg.id}/download`,
+        token,
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(
+          body?.error ||
+            body?.title ||
+            `İndirme başarısız (${response.status}).`,
+        );
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = pkg.fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReleasePackageDownloadLoading(null);
+    }
+  }
+  async function deployStaging(
+    pkg: { id: string; version: string; commitSha: string },
+    rollbackTargetDeploymentId?: string,
+  ) {
+    if (!workspaceProject || !gitStatusWorkspace || releaseDeploymentLoading)
+      return;
+    const active =
+      releaseDeployments
+        .filter(
+          (item) =>
+            item.environment === "Staging" && item.status === "Succeeded",
+        )
+        .sort((a, b) =>
+          (b.completedAt ?? b.createdAt).localeCompare(
+            a.completedAt ?? a.createdAt,
+          ),
+        )[0] ?? null;
+    const description = rollbackTargetDeploymentId
+      ? `Rollback: ${pkg.version} (${pkg.commitSha.slice(0, 12)}) eski sürümü aynı staging veritabanı üzerinde devreye alınacak.`
+      : `${pkg.version} sürümü yerel Docker Compose staging ortamına kurulacak.`;
+    if (
+      !window.confirm(
+        `${description}\n\nYalnız bu bilgisayarda localhost üzerinden erişilir. İlk kurulumda staging yönetici parolası bir kez gösterilir. Devam edilsin mi?`,
+      )
+    )
+      return;
+    setReleaseDeploymentLoading(true);
+    setError("");
+    setStagingCredentials(null);
+    try {
+      const operation = await api<StagingDeploymentOperation>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-packages/${pkg.id}/deployments/staging`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            idempotencyKey: crypto.randomUUID(),
+            confirmation: true,
+            expectedActiveDeploymentId: active?.id ?? null,
+            rollbackTargetDeploymentId: rollbackTargetDeploymentId ?? null,
+          }),
+        },
+      );
+      setStagingCredentials(operation);
+      setReleaseDeployments((current) => [
+        operation.deployment,
+        ...current.filter((item) => item.id !== operation.deployment.id),
+      ]);
+      setNotice(`Staging hazır: ${operation.deployment.environmentUrl}`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReleaseDeploymentLoading(false);
+    }
+  }
+  async function deployProduction(approval: ProductionApproval) {
+    if (
+      !workspaceProject ||
+      releaseDeploymentLoading ||
+      tenant.role !== "TenantAdmin"
+    )
+      return;
+    const active =
+      releaseDeployments
+        .filter(
+          (item) =>
+            item.environment === "Production" && item.status === "Succeeded",
+        )
+        .sort((a, b) =>
+          (b.completedAt ?? b.createdAt).localeCompare(
+            a.completedAt ?? a.createdAt,
+          ),
+        )[0] ?? null;
+    if (
+      !window.confirm(
+        `${approval.version} sürümü onaylı yerel Docker Compose production ortamına kurulacak. Servis yalnız localhost üzerinden erişilir; production SQL verisi sürümler arasında korunur ve güncelleme öncesi yedeklenir. Dağıtım başlatılsın mı?`,
+      )
+    )
+      return;
+    if (
+      !window.confirm(
+        "Ayrı migration adımı onaylanıyor. Bekleyen SQL Server şema migration’ları production veritabanına uygulanacak. Başarısız güncellemede Deployer önceki uygulama sürümünü yeniden başlatmayı dener ve Compose başarılı olursa sağlık kontrolü yapar; sonucu yalnız Deployer loglarına yazar. Gerekirse production dağıtım geçmişindeki TenantAdmin geri yükleme kontrolü, o sürüm öncesindeki veritabanı ve uygulama paketini birlikte kurtarır; yedekten sonraki kayıtlar kaybolur. Devam edilsin mi?",
+      )
+    )
+      return;
+    setReleaseDeploymentLoading(true);
+    setError("");
+    setStagingCredentials(null);
+    try {
+      const operation = await api<StagingDeploymentOperation>(
+        `/studio/projects/${workspaceProject.id}/production-approvals/${approval.id}/deploy`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            idempotencyKey: approval.id,
+            confirmation: true,
+            migrationConfirmation: true,
+            expectedActiveDeploymentId: active?.id ?? null,
+          }),
+        },
+      );
+      setStagingCredentials(operation);
+      setReleaseDeployments((current) => [
+        operation.deployment,
+        ...current.filter((item) => item.id !== operation.deployment.id),
+      ]);
+      setProductionApprovals((current) =>
+        current.map((item) =>
+          item.id === approval.id
+            ? {
+                ...item,
+                productionDeploymentStarted: true,
+                productionDeploymentId: operation.deployment.id,
+                productionDeploymentStatus: operation.deployment.status,
+                productionEnvironmentUrl: operation.deployment.environmentUrl,
+              }
+            : item,
+        ),
+      );
+      setNotice(`Production hazır: ${operation.deployment.environmentUrl}`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReleaseDeploymentLoading(false);
+    }
+  }
+  async function restoreProductionDatabase(deployment: ReleaseDeployment) {
+    if (
+      !workspaceProject ||
+      releaseDeploymentLoading ||
+      tenant.role !== "TenantAdmin" ||
+      !deployment.canRestoreDatabase
+    )
+      return;
+    const expectedActiveDeploymentId =
+      deployment.status === "Failed"
+        ? (deployment.rollbackOfDeploymentId ??
+          deployment.rollbackTargetDeploymentId)
+        : deployment.id;
+    if (!expectedActiveDeploymentId) return;
+    if (
+      !window.confirm(
+        `Etkin production veritabanı ${deployment.version} sürümü öncesi alınan doğrulanmış yedekten geri yüklenecek. Bu yedekten sonra oluşan ERP kayıtları kaybolur. Önceki uygulama sürümü de yeniden başlatılacak. Devam edilsin mi?`,
+      )
+    )
+      return;
+    const confirmationText = window.prompt(
+      `Geri yüklemeyi onaylamak için şu metni aynen yazın:\nRESTORE ${deployment.id.replaceAll("-", "")}`,
+    );
+    if (confirmationText !== `RESTORE ${deployment.id.replaceAll("-", "")}`) {
+      setError("Geri yükleme metni eşleşmedi; işlem başlatılmadı.");
+      return;
+    }
+    setReleaseDeploymentLoading(true);
+    setError("");
+    try {
+      const result = await api<StagingDeploymentOperation>(
+        `/studio/projects/${workspaceProject.id}/production-deployments/restore`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            idempotencyKey: crypto.randomUUID(),
+            expectedActiveDeploymentId,
+            backupDeploymentId: deployment.id,
+            confirmation: true,
+            confirmationText,
+          }),
+        },
+      );
+      setProductionDeployments((current) => [
+        { ...result.deployment, canRestoreDatabase: true },
+        ...current.map((item) =>
+          item.id === expectedActiveDeploymentId
+            ? { ...item, status: "Superseded", canRestoreDatabase: false }
+            : item,
+        ),
+      ]);
+      setNotice(
+        `Production veritabanı ve uygulaması ${result.deployment.version} sürümüne geri yüklendi.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReleaseDeploymentLoading(false);
+    }
+  }
+  async function requestProductionApproval(deployment: ReleaseDeployment) {
+    if (!workspaceProject || releaseDeploymentLoading) return;
+    const note = window.prompt(
+      "Üretim onay gerekçesini yazın (1–1000 karakter). Bu işlem canlıya yayın yapmaz.",
+    );
+    if (note === null) return;
+    if (!note.trim()) {
+      setError("Onay talebi gerekçesi boş olamaz.");
+      return;
+    }
+    if (
+      !window.confirm(
+        "Başarılı staging sürümü TenantAdmin bağımsız incelemesine gönderilecek. Canlı üretime dağıtım BAŞLATILMAYACAK. Devam edilsin mi?",
+      )
+    )
+      return;
+    setReleaseDeploymentLoading(true);
+    setError("");
+    try {
+      const approval = await api<ProductionApproval>(
+        `/studio/projects/${workspaceProject.id}/release-deployments/${deployment.id}/production-approval`,
+        token,
+        { method: "POST", body: JSON.stringify({ confirmation: true, note }) },
+      );
+      setProductionApprovals((current) => [
+        approval,
+        ...current.filter((item) => item.id !== approval.id),
+      ]);
+      setNotice("Üretim onay talebi kaydedildi. Canlı dağıtım başlatılmadı.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReleaseDeploymentLoading(false);
+    }
+  }
+  async function reviewProductionApproval(
+    approval: ProductionApproval,
+    decision: "Approved" | "Rejected",
+  ) {
+    if (!workspaceProject || tenant.role !== "TenantAdmin") return;
+    const note = window.prompt(
+      decision === "Approved"
+        ? "Üretim onay notunu yazın (1–1000 karakter)."
+        : "Üretim ret gerekçesini yazın (1–1000 karakter).",
+    );
+    if (note === null) return;
+    if (!note.trim()) {
+      setError("İnceleme notu boş olamaz.");
+      return;
+    }
+    try {
+      const updated = await api<ProductionApproval>(
+        `/studio/projects/${workspaceProject.id}/production-approvals/${approval.id}/review`,
+        token,
+        { method: "POST", body: JSON.stringify({ decision, note }) },
+      );
+      setProductionApprovals((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setNotice(
+        decision === "Approved"
+          ? "Üretim onayı kaydedildi. Canlı dağıtım başlatılmadı."
+          : "Üretim onay talebi reddedildi.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function destroyStaging(deployment: ReleaseDeployment) {
+    if (
+      !workspaceProject ||
+      releaseDeploymentLoading ||
+      !window.confirm(
+        `Yerel staging Compose servisleri, SQL veritabanı ve workspace verileri kalıcı olarak silinecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`,
+      )
+    )
+      return;
+    setReleaseDeploymentLoading(true);
+    setError("");
+    try {
+      const removed = await api<ReleaseDeployment>(
+        `/studio/projects/${workspaceProject.id}/release-deployments/${deployment.id}/staging`,
+        token,
+        { method: "DELETE", body: JSON.stringify({ confirmation: true }) },
+      );
+      setReleaseDeployments((current) =>
+        current.map((item) => (item.id === removed.id ? removed : item)),
+      );
+      setNotice("Staging servisleri ve veritabanı silindi.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReleaseDeploymentLoading(false);
+    }
+  }
+  async function reviewReleaseCandidate(
+    candidate: ReleaseCandidate,
+    decision: "Approved" | "Rejected",
+  ) {
+    if (!workspaceProject || !gitStatusWorkspace) return;
+    const note = window.prompt(
+      decision === "Approved"
+        ? "Onay gerekçesini yazın (1–1000 karakter)."
+        : "Ret gerekçesini yazın (1–1000 karakter).",
+    );
+    if (note === null) return;
+    if (!note.trim()) {
+      setError("İnceleme notu boş olamaz.");
+      return;
+    }
+    setError("");
+    try {
+      const review = await api<{
+        decision: string;
+        note: string;
+        createdAt: string;
+        reviewedByUserId: string;
+      }>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/release-candidates/${candidate.id}/review`,
+        token,
+        { method: "POST", body: JSON.stringify({ decision, note }) },
+      );
+      setReleaseCandidates((current) =>
+        current.map((item) =>
+          item.id === candidate.id
+            ? {
+                ...item,
+                decision: review.decision,
+                reviewNote: review.note,
+                reviewedAt: review.createdAt,
+                reviewedByUserId: review.reviewedByUserId,
+                canReview: false,
+              }
+            : item,
+        ),
+      );
+      setNotice(
+        decision === "Approved"
+          ? "Sürüm adayı yetkili tarafından onaylandı. Dağıtım başlatılmadı."
+          : "Sürüm adayı reddedildi; karar geçmişe kaydedildi.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function loadCodeReviewThreads(path: string) {
+    if (!workspaceProject || !gitStatusWorkspace) return;
+    const result = await api<{ threads: StudioCodeReviewThread[] }>(
+      `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/review-threads`,
+      token,
+    );
+    setReviewThreads(result.threads.filter((thread) => thread.path === path));
+  }
+  async function openWorkspaceGitDiff(path: string) {
+    if (!workspaceProject || !gitStatusWorkspace) return;
+    setGitDiffTarget(path);
+    setGitDiffLoading(true);
+    setError("");
+    setWorkspaceGitDiff(null);
+    setCodeReview(null);
+    setCodeReviewConsent(false);
+    setReviewThreads([]);
+    setReviewLine("1");
+    setReviewDraft("");
+    setReviewReplyThread(null);
+    setReviewReplyDraft("");
+    try {
+      const diff = await api<WorkspaceGitDiff>(
+        "/studio/projects/" +
+          workspaceProject.id +
+          "/workspace-requests/" +
+          gitStatusWorkspace.id +
+          "/git-diff?path=" +
+          encodeURIComponent(path),
+        token,
+      );
+      setWorkspaceGitDiff(diff);
+      await loadCodeReviewThreads(path);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setGitDiffLoading(false);
+    }
+  }
+  async function createCodeReviewThread(e: FormEvent) {
+    e.preventDefault();
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      !workspaceGitDiff ||
+      !gitDiffTarget ||
+      !reviewDraft.trim()
+    )
+      return;
+    setReviewSaving(true);
+    setError("");
+    try {
+      await api(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/review-threads`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            path: gitDiffTarget,
+            lineNumber: Number(reviewLine),
+            expectedHeadCommitSha: workspaceGitDiff.headCommitSha,
+            body: reviewDraft.trim(),
+          }),
+        },
+      );
+      setReviewDraft("");
+      await loadCodeReviewThreads(gitDiffTarget);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReviewSaving(false);
+    }
+  }
+  async function replyToCodeReviewThread(e: FormEvent) {
+    e.preventDefault();
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      !gitDiffTarget ||
+      !reviewReplyThread ||
+      !reviewReplyDraft.trim()
+    )
+      return;
+    setReviewSaving(true);
+    setError("");
+    try {
+      await api(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/review-threads/${reviewReplyThread}/comments`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ body: reviewReplyDraft.trim() }),
+        },
+      );
+      setReviewReplyDraft("");
+      setReviewReplyThread(null);
+      await loadCodeReviewThreads(gitDiffTarget);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReviewSaving(false);
+    }
+  }
+  async function setCodeReviewThreadResolved(
+    thread: StudioCodeReviewThread,
+    resolved: boolean,
+  ) {
+    if (!workspaceProject || !gitStatusWorkspace || !gitDiffTarget) return;
+    setReviewSaving(true);
+    setError("");
+    try {
+      await api(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/review-threads/${thread.id}/status`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            resolved,
+            expectedRowVersion: thread.rowVersion,
+          }),
+        },
+      );
+      await loadCodeReviewThreads(gitDiffTarget);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReviewSaving(false);
+    }
+  }
+  async function reviewWorkspaceDiff(e: FormEvent) {
+    e.preventDefault();
+    if (
+      !workspaceProject ||
+      !gitStatusWorkspace ||
+      !workspaceGitDiff ||
+      !codeReviewConsent
+    )
+      return;
+    setCodeReviewLoading(true);
+    setError("");
+    setCodeReview(null);
+    try {
+      setCodeReview(
+        await api<StudioCodeReview>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/code-review`,
+          token,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              path: workspaceGitDiff.path,
+              aiSharingConfirmed: codeReviewConsent,
+            }),
+          },
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setCodeReviewConsent(false);
+      setCodeReviewLoading(false);
+    }
+  }
+  async function openStudioChat(request: WorkspaceRequest) {
+    if (!workspaceProject) return;
+    setChatWorkspace(request);
+    setStudioConversations([]);
+    setChatConversation(null);
+    setChatMessages([]);
+    setChatTitle("");
+    setChatDraft("");
+    setChatAIConsent(false);
+    setChatKnowledgeConsent(false);
+    setChatSourceSharingConsent(false);
+    setChatCodeChange(null);
+    setChatCodeChangeApplied([]);
+    setError("");
+    setChatLoading(true);
+    void api<{ autoRefresh: StudioKnowledgeAutoRefresh }>(
+      `/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/knowledge`,
+      token,
+    )
+      .then((result) => setKnowledgeAutoRefresh(result.autoRefresh))
+      .catch(() =>
+        setKnowledgeAutoRefresh({
+          enabled: false,
+          allFiles: false,
+          paths: [],
+          lastRefreshedAt: null,
+        }),
+      );
+    try {
+      const conversations = await api<StudioConversation[]>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/conversations`,
+        token,
+      );
+      setStudioConversations(conversations);
+      if (conversations[0]) {
+        setChatConversation(conversations[0]);
+        setChatMessages(
+          await api<StudioConversationMessage[]>(
+            `/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/conversations/${conversations[0].id}/messages`,
+            token,
+          ),
+        );
+      } else {
+        await createStudioConversation(undefined, request);
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+  async function createStudioConversation(
+    e?: FormEvent,
+    requestOverride?: WorkspaceRequest,
+  ) {
+    e?.preventDefault();
+    const targetWorkspace = requestOverride ?? chatWorkspace;
+    if (!workspaceProject || !targetWorkspace) return;
+    setChatLoading(true);
+    setError("");
+    try {
+      const conversation = await api<StudioConversation>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${targetWorkspace.id}/conversations`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ title: chatTitle.trim() || "Yeni sohbet" }),
+        },
+      );
+      setStudioConversations((current) => [conversation, ...current]);
+      setChatConversation(conversation);
+      setChatMessages([]);
+      setChatCodeChange(null);
+      setChatCodeChangeApplied([]);
+      setChatSourceSharingConsent(false);
+      setChatTitle("");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+  async function selectStudioConversation(conversation: StudioConversation) {
+    if (!workspaceProject || !chatWorkspace) return;
+    setChatLoading(true);
+    setError("");
+    setChatConversation(conversation);
+    setChatCodeChange(null);
+    setChatCodeChangeApplied([]);
+    setChatSourceSharingConsent(false);
+    try {
+      setChatMessages(
+        await api<StudioConversationMessage[]>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${chatWorkspace.id}/conversations/${conversation.id}/messages`,
+          token,
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+  async function deleteStudioConversation() {
+    if (
+      !workspaceProject ||
+      !chatWorkspace ||
+      !chatConversation?.canDelete ||
+      !window.confirm(
+        `“${chatConversation.title}” sohbeti ve mesaj geçmişi silinsin mi? Bu işlem geri alınamaz.`,
+      )
+    )
+      return;
+    setChatLoading(true);
+    setError("");
+    try {
+      await api<void>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${chatWorkspace.id}/conversations/${chatConversation.id}`,
+        token,
+        { method: "DELETE", body: JSON.stringify({ confirm: true }) },
+      );
+      setStudioConversations((current) =>
+        current.filter((item) => item.id !== chatConversation.id),
+      );
+      setChatConversation(null);
+      setChatMessages([]);
+      setNotice(
+        "Sohbet ve mesaj geçmişi silindi. Denetim kaydı yalnızca silme olayını içerir.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+  async function sendStudioChatMessage(e: FormEvent) {
+    e.preventDefault();
+    if (
+      !workspaceProject ||
+      !chatWorkspace ||
+      !chatConversation ||
+      !chatAIConsent ||
+      !chatDraft.trim()
+    )
+      return;
+    if (
+      /\b(?:adını\s+değiştir|olarak\s+değiştir|düzelt|uygula|koda\s+ekle|kodu\s+güncelle|rename|fix|apply|implement)\b/i.test(
+        chatDraft.trim(),
+      )
+    ) {
+      await createStudioChatCodeChange(e);
+      return;
+    }
+    setChatLoading(true);
+    setChatStreamingText("");
+    setError("");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 70_000);
+    try {
+      const response = await authorizedFetch(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${chatWorkspace.id}/conversations/${chatConversation.id}/messages`,
+        token,
+        {
+          method: "POST",
+          signal: controller.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: chatDraft.trim(),
+            aiSharingConfirmed: chatAIConsent,
+            includeKnowledgeBase:
+              chatKnowledgeConsent || Boolean(knowledgeAutoRefresh.allFiles),
+          }),
+        },
+      );
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+          detail?: string;
+          title?: string;
+        } | null;
+        throw new Error(
+          payload?.error ||
+            payload?.detail ||
+            payload?.title ||
+            `İstek başarısız (${response.status}).`,
+        );
+      }
+      if (!response.body) throw new Error("Sohbet yanıt akışı alınamadı.");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "",
+        completed = false;
+      const handleFrame = (frame: string) => {
+        const data = frame
+          .split(/\r?\n/)
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim())
+          .join("\n");
+        if (!data) return;
+        const event = JSON.parse(data) as {
+          type: string;
+          content?: string;
+          message?: string;
+          userMessage?: StudioConversationMessage;
+          assistantMessage?: StudioConversationMessage;
+        };
+        if (event.type === "delta" && event.content)
+          setChatStreamingText((current) => current + event.content);
+        else if (event.type === "error")
+          throw new Error(event.message || "AI sohbet yanıtı alınamadı.");
+        else if (
+          event.type === "complete" &&
+          event.userMessage &&
+          event.assistantMessage
+        ) {
+          const reply = {
+            userMessage: event.userMessage,
+            assistantMessage: event.assistantMessage,
+          };
+          setChatMessages((current) =>
+            [...current, reply.userMessage, reply.assistantMessage].slice(-100),
+          );
+          setStudioConversations((current) =>
+            current
+              .map((item) =>
+                item.id === chatConversation.id
+                  ? { ...item, updatedAt: reply.assistantMessage.createdAt }
+                  : item,
+              )
+              .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+          );
+          setChatDraft("");
+          setChatAIConsent(false);
+          setChatKnowledgeConsent(false);
+          setChatStreamingText("");
+          completed = true;
+        }
+      };
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+        let separator;
+        while ((separator = buffer.search(/\r?\n\r?\n/)) >= 0) {
+          const frame = buffer.slice(0, separator);
+          const boundary =
+            buffer.slice(separator).match(/^\r?\n\r?\n/)?.[0].length ?? 2;
+          buffer = buffer.slice(separator + boundary);
+          handleFrame(frame);
+        }
+        if (done) break;
+      }
+      if (!completed)
+        throw new Error(
+          "AI yanıt akışı tamamlanmadan kesildi. Yeniden deneyin.",
+        );
+    } catch (e) {
+      setChatStreamingText("");
+      setError(
+        controller.signal.aborted
+          ? "AI sağlayıcısı 60 saniye içinde yanıt vermedi. Model erişilebilirliğini kontrol edin veya daha hızlı bir NVIDIA modeli seçin."
+          : (e as Error).message,
+      );
+    } finally {
+      clearTimeout(timeout);
+      setChatLoading(false);
+    }
+  }
+  async function createStudioChatCodeChange(e: FormEvent) {
+    e.preventDefault();
+    if (
+      !workspaceProject ||
+      !chatWorkspace ||
+      !chatConversation ||
+      !chatAIConsent ||
+      !chatDraft.trim() ||
+      chatCodeChangeLoading
+    )
+      return;
+    if (chatDraft.trim().length > 2000) {
+      setError("Kod değişikliği isteği en fazla 2000 karakter olabilir.");
+      return;
+    }
+    if (!knowledgeAutoRefresh.allFiles && !chatSourceSharingConsent) {
+      setError(
+        "İlgili kaynak dosyalarını AI Developer’a göndermek için onay verin.",
+      );
+      return;
+    }
+    setChatCodeChangeLoading(true);
+    setError("");
+    setChatCodeChange(null);
+    setChatCodeChangeApplied([]);
+    try {
+      const result = await api<StudioChatCodeChangePreview>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${chatWorkspace.id}/conversations/${chatConversation.id}/code-changes`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            request: chatDraft.trim(),
+            aiSharingConfirmed: chatAIConsent,
+            sourceSharingConfirmed: chatSourceSharingConsent,
+          }),
+        },
+      );
+      setChatCodeChange(result);
+      setChatMessages((current) =>
+        [...current, result.userMessage, result.assistantMessage].slice(-100),
+      );
+      setStudioConversations((current) =>
+        current
+          .map((item) =>
+            item.id === chatConversation.id
+              ? { ...item, updatedAt: result.assistantMessage.createdAt }
+              : item,
+          )
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+      );
+      setChatDraft("");
+      setChatAIConsent(false);
+      setChatSourceSharingConsent(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChatCodeChangeLoading(false);
+    }
+  }
+  async function applyStudioChatCodeChange(
+    change: StudioChatCodeChangePreview["changes"][number],
+  ) {
+    if (
+      !workspaceProject ||
+      !chatWorkspace ||
+      chatCodeChangeApplied.includes(change.filePath) ||
+      !window.confirm(
+        `AI önerisi ${change.filePath} dosyasına yalnızca bu izole çalışma alanında uygulansın mı? Dosyanın güncel özeti eşleşmezse işlem durdurulur. Kod çalıştırılmaz ve uzak depoya gönderilmez.`,
+      )
+    )
+      return;
+    setChatCodeChangeLoading(true);
+    setError("");
+    try {
+      await api<AppliedCodeSuggestion>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${chatWorkspace.id}/apply-code-patches`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            filePath: change.filePath,
+            expectedSha256: change.sourceSha256,
+            patches: change.patches.map((patch) => ({
+              findText: patch.findText,
+              replaceText: patch.replaceText,
+              notes: patch.notes,
+            })),
+            approvalConfirmed: true,
+          }),
+        },
+      );
+      setChatCodeChangeApplied((current) => [...current, change.filePath]);
+      setNotice(
+        `${change.filePath} AI Asistanı önerisiyle izole çalışma alanına uygulandı. Kod çalıştırılmadı.`,
+      );
+      if (changeWorkspace?.id === chatWorkspace.id)
+        await loadWorkspaceChanges(chatWorkspace);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChatCodeChangeLoading(false);
+    }
+  }
+  async function openWorkspaceChange(change: WorkspaceChange) {
+    if (!workspaceProject || !changeWorkspace) return;
+    setChangeLoading(true);
+    setError("");
+    setRestoreApproval(false);
+    try {
+      setChangeDiff(
+        await api<WorkspaceChangeDiff>(
+          "/studio/projects/" +
+            workspaceProject.id +
+            "/workspace-requests/" +
+            changeWorkspace.id +
+            "/changes/" +
+            change.id,
+          token,
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChangeLoading(false);
+    }
+  }
+  async function restoreWorkspaceChange() {
+    if (
+      !workspaceProject ||
+      !changeWorkspace ||
+      !changeDiff ||
+      !restoreApproval ||
+      !changeDiff.isCurrent ||
+      changeDiff.isRestored
+    )
+      return;
+    setChangeLoading(true);
+    setError("");
+    try {
+      const restored = await api<RestoredWorkspaceChange>(
+        "/studio/projects/" +
+          workspaceProject.id +
+          "/workspace-requests/" +
+          changeWorkspace.id +
+          "/changes/" +
+          changeDiff.id +
+          "/restore",
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            expectedSha256: changeDiff.appliedSha256,
+            approvalConfirmed: restoreApproval,
+          }),
+        },
+      );
+      setChangeDiff((current) =>
+        current
+          ? {
+              ...current,
+              currentContent: current.originalContent,
+              isCurrent: false,
+              isRestored: true,
+            }
+          : current,
+      );
+      setFileContent((current) =>
+        current && current.path === restored.path
+          ? changeDiff.wasCreated
+            ? null
+            : {
+                ...current,
+                content: changeDiff.originalContent,
+                sizeBytes: new TextEncoder().encode(changeDiff.originalContent)
+                  .length,
+                sha256: restored.sha256,
+              }
+          : current,
+      );
+      setRestoreApproval(false);
+      setWorkspaceChanges(
+        await api<WorkspaceChanges>(
+          "/studio/projects/" +
+            workspaceProject.id +
+            "/workspace-requests/" +
+            changeWorkspace.id +
+            "/changes",
+          token,
+        ),
+      );
+      setNotice(
+        changeDiff.wasCreated
+          ? "AI tarafından oluşturulan dosya, onayla çalışma alanından kaldırıldı. Kod çalıştırılmadı."
+          : "Değişiklik kaydedilmiş önceki dosya içeriğine geri alındı. Kod çalıştırılmadı.",
+      );
+      if (changeDiff.wasCreated && fileWorkspace?.id === changeWorkspace.id) {
+        const query = `path=${encodeURIComponent(filePath)}&offset=0`;
+        setFileListing(
+          await api<WorkspaceFileListing>(
+            `/studio/projects/${workspaceProject.id}/workspace-requests/${changeWorkspace.id}/files?${query}`,
+            token,
+          ),
+        );
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChangeLoading(false);
+    }
+  }
+  async function createArchitecturePlan(e: FormEvent) {
+    e.preventDefault();
+    if (!workspaceProject || !architectWorkspace || !architectConsent) return;
+    setArchitectLoading(true);
+    setError("");
+    setArchitectPlan(null);
+    setArchitectSavedPlanId(null);
+    try {
+      setArchitectPlan(
+        await api<ArchitecturePlan>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${architectWorkspace.id}/architecture-plan`,
+          token,
+          {
+            method: "POST",
+            body: JSON.stringify({ request: architectRequest }),
+          },
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setArchitectLoading(false);
+    }
+  }
+  async function saveArchitecturePlan() {
+    if (!workspaceProject || !architectWorkspace || !architectPlan) return;
+    setArchitectLoading(true);
+    setError("");
+    try {
+      const saved = await api<SavedArchitecturePlan>(
+        `/studio/projects/${workspaceProject.id}/architecture-plans`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            workspaceRequestId: architectWorkspace.id,
+            plan: architectPlan,
+          }),
+        },
+      );
+      setArchitectSavedPlanId(saved.id);
+      setSavedArchitecturePlans((current) =>
+        [saved, ...current.filter((x) => x.id !== saved.id)].slice(0, 50),
+      );
+      setNotice(
+        "Mimari plan bu proje için saklandı. Özgün talep metni kaydedilmedi.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setArchitectLoading(false);
+    }
+  }
+  async function openSavedArchitecturePlan(saved: SavedArchitecturePlan) {
+    if (!workspaceProject) return;
+    const request = workspaceRequests.find(
+      (x) => x.id === saved.workspaceRequestId,
+    );
+    if (!request) {
+      setError("Planın çalışma alanı isteği bulunamadı.");
+      return;
+    }
+    setArchitectLoading(true);
+    setError("");
+    try {
+      const detail = await api<SavedArchitecturePlanDetail>(
+        `/studio/projects/${workspaceProject.id}/architecture-plans/${saved.id}`,
+        token,
+      );
+      setArchitectWorkspace(request);
+      setArchitectPlan(detail.plan);
+      setArchitectSavedPlanId(saved.id);
+      setArchitectRequest("");
+      setArchitectConsent(false);
+      setShowPlanHistory(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setArchitectLoading(false);
+    }
+  }
+  async function deleteSavedArchitecturePlan(saved: SavedArchitecturePlan) {
+    if (!workspaceProject || !saved.canDelete) return;
+    if (
+      !window.confirm(
+        `“${saved.summary}” mimari planını kalıcı olarak silmek istiyor musunuz?`,
+      )
+    )
+      return;
+    setError("");
+    try {
+      await api<void>(
+        `/studio/projects/${workspaceProject.id}/architecture-plans/${saved.id}`,
+        token,
+        { method: "DELETE", body: JSON.stringify({ confirm: true }) },
+      );
+      setSavedArchitecturePlans((current) =>
+        current.filter((x) => x.id !== saved.id),
+      );
+      if (architectSavedPlanId === saved.id) {
+        setArchitectSavedPlanId(null);
+        setArchitectPlan(null);
+      }
+      setNotice("Mimari plan silindi; silme olayı denetim kaydına eklendi.");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  const aiToolCategories = [
+    "Tümü",
+    "Kod üretimi",
+    "Analiz",
+    "İyileştirme",
+    "Dokümantasyon",
+    "Veri & ERP",
+    "Özel araçlar",
+  ];
+  const canEditWorkspace = Boolean(
+    workspaceProject && workspaceProject.accessLevel !== "Viewer",
+  );
+  const aiToolCards = [
+    {
+      id: "file",
+      title: "AI dosya oluştur",
+      category: "Kod üretimi",
+      description:
+        "İhtiyacınıza göre yeni bir kod dosyası için gözden geçirilebilir öneri hazırlayın.",
+      tags: ["Kod üretimi", "Öneri"],
+      icon: Sparkles,
+      disabled: !canEditWorkspace,
+      action: () => {
+        setAiToolsViewOpen(false);
+        startNewCodeSuggestion(fileWorkspace!);
+      },
+    },
+    {
+      id: "ui",
+      title: "UI tasarla",
+      category: "Kod üretimi",
+      description:
+        "Yeni bir ekran taslağı oluşturun; değişiklikleri çalışma alanına uygulamadan önce inceleyin.",
+      tags: ["UI / UX", "React"],
+      icon: Code2,
+      disabled: !canEditWorkspace,
+      action: () => {
+        setAiToolsViewOpen(false);
+        startUiDesigner(fileWorkspace!);
+      },
+    },
+    {
+      id: "analysis",
+      title: "Hata analiz et",
+      category: "Analiz",
+      description:
+        "Kaynak kod içinde hata veya teknik konu arayın ve eşleşmeleri inceleyin.",
+      tags: ["Analiz", "Kod arama"],
+      icon: ShieldCheck,
+      disabled: false,
+      action: () => {
+        setAiToolsViewOpen(false);
+        setSourceSearchWorkspace(fileWorkspace!);
+        setSourceSearchQuery("");
+        setSourceSearchResult(null);
+        setSelectedSourceMatches([]);
+        setSourceAnalysisResult(null);
+        setSourceAnalysisQuestion("");
+        setSourceAnalysisConsent(false);
+        setError("");
+      },
+    },
+    {
+      id: "data",
+      title: "Veri modeli oluştur",
+      category: "Veri & ERP",
+      description:
+        "ERP veri modeli hakkında mühendis asistanıyla çalışın; öneriler ayrı onay gerektirir.",
+      tags: ["ERP", "Veri tabanı"],
+      icon: Folder,
+      disabled: !canEditWorkspace,
+      action: () => {
+        setAiToolsViewOpen(false);
+        setAiDockOpen(true);
+      },
+    },
+    {
+      id: "docs",
+      title: "Dokümantasyon yaz",
+      category: "Dokümantasyon",
+      description:
+        "Proje hakkında AI sohbetinde teknik dokümantasyon taslağı hazırlayın.",
+      tags: ["Dokümantasyon", "Markdown"],
+      icon: FileCode,
+      disabled: !fileWorkspace?.workspaceBranchName,
+      action: () => {
+        setAiToolsViewOpen(false);
+        void openStudioChat(fileWorkspace!);
+      },
+    },
+    {
+      id: "improve",
+      title: "Kodu iyileştir",
+      category: "İyileştirme",
+      description:
+        "Seçili kaynak dosya için iyileştirme önerisi üretin ve farkları gözden geçirin.",
+      tags: ["İyileştirme", "Refactor"],
+      icon: Code2,
+      disabled:
+        !fileContent ||
+        !canEditWorkspace ||
+        !/\.(cs|csx|razor|ts|tsx|js|jsx|html|css|scss|sql|py|go|rs|java)$/i.test(
+          fileContent?.path ?? "",
+        ),
+      action: () => {
+        setAiToolsViewOpen(false);
+        startCodeSuggestion();
+      },
+    },
+    {
+      id: "architect",
+      title: "Mimariyi planla",
+      category: "Özel araçlar",
+      description:
+        "İstek için teknik plan, etki alanı ve inceleme adımları oluşturun.",
+      tags: ["Mimari", "Planlama"],
+      icon: Sparkles,
+      disabled: !canEditWorkspace,
+      action: () => {
+        setAiToolsViewOpen(false);
+        setArchitectWorkspace(fileWorkspace!);
+        setArchitectPlan(null);
+        setArchitectRequest(
+          linkedDevelopmentContext(
+            fileWorkspace!.developmentRequestTitle,
+            fileWorkspace!.developmentRequestDescription,
+          ),
+        );
+        setArchitectConsent(false);
+        setError("");
+      },
+    },
+  ];
+  const filteredAiToolCards = aiToolCards.filter(
+    (card) =>
+      (aiToolsCategory === "Tümü" || card.category === aiToolsCategory) &&
+      `${card.title} ${card.category} ${card.description} ${card.tags.join(" ")}`
+        .toLocaleLowerCase("tr-TR")
+        .includes(aiToolsQuery.trim().toLocaleLowerCase("tr-TR")),
+  );
+  return (
+    <>
+      {pendingApprovals.length > 0 && (
+        <section className="panel" style={{ marginTop: 20 }}>
+          <div className="panel-heading">
+            <div>
+              <h3>Onay kuyruğu</h3>
+              <p>
+                Yetkili olduğunuz projelerde bekleyen çalışma alanı talepleri
+              </p>
+            </div>
+            <span className="request-status">
+              <i />
+              {pendingApprovals.length} gösteriliyor
+            </span>
+          </div>
+          {error && <div className="alert">{error}</div>}
+          {pendingApprovals.map((request) => (
+            <article className="request-row expanded" key={request.id}>
+              <div className="request-symbol">
+                <Code2 size={17} />
+              </div>
+              <div className="request-info">
+                <b>
+                  {request.projectName} · {request.branchName}
+                </b>
+                <small>
+                  {request.requesterEmail} ·{" "}
+                  {new Date(request.createdAt).toLocaleString("tr-TR", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </small>
+                {request.developmentRequestTitle && (
+                  <small>Talep: {request.developmentRequestTitle}</small>
+                )}
+                {request.developmentRequestDescription && (
+                  <small>{request.developmentRequestDescription}</small>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  className="secondary small-button"
+                  disabled={busy}
+                  onClick={() => void reviewPendingApproval(request, "Approve")}
+                >
+                  Onayla
+                </button>
+                <button
+                  className="secondary small-button"
+                  disabled={busy || !reviewNote.trim()}
+                  onClick={() => void reviewPendingApproval(request, "Reject")}
+                >
+                  Reddet
+                </button>
+              </div>
+            </article>
+          ))}
+          {approvalQueueLoading && (
+            <div className="empty-small">Onay kuyruğu yükleniyor…</div>
+          )}
+          <div className="modal-foot">
+            <span>
+              {pendingApprovalsOffset + 1}–
+              {pendingApprovalsOffset + pendingApprovals.length} kayıt
+            </span>
+            <div>
+              {pendingApprovalsOffset > 0 && (
+                <button
+                  className="secondary small-button"
+                  disabled={approvalQueueLoading || busy}
+                  onClick={() =>
+                    void loadPendingApprovals(
+                      Math.max(0, pendingApprovalsOffset - 100),
+                    )
+                  }
+                >
+                  Önceki
+                </button>
+              )}
+              {pendingApprovalsNextOffset !== null && (
+                <button
+                  className="secondary small-button"
+                  disabled={approvalQueueLoading || busy}
+                  onClick={() =>
+                    void loadPendingApprovals(pendingApprovalsNextOffset)
+                  }
+                >
+                  Sonraki
+                </button>
+              )}
+            </div>
+          </div>
+          <label className="review-note-field">
+            <span>Ret gerekçesi</span>
+            <small>Gerekçe inceleme geçmişine kaydedilir.</small>
+            <textarea
+              value={reviewNote}
+              onChange={(e) => setReviewNote(e.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="Ret kararının kısa gerekçesini yazın…"
+            />
+          </label>
+          <div className="boundary-note">
+            <ShieldCheck size={17} />
+            <span>
+              Talep sahibi kendi talebini inceleyemez. İnceleme kararı kilitli
+              kayıt üzerinde kaydedilir ve denetlenir.
+            </span>
+          </div>
+        </section>
+      )}
+      <div className="panel studio-projects-panel" style={{ marginTop: 20 }}>
+        <div className="panel-heading">
+          <div>
+            <h3>Yetkilendirilmiş projeler</h3>
+            <p>
+              Depo adresleri ve çalışma erişimleri · {projects.length} proje
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="secondary small-button"
+              disabled={busy}
+              onClick={() => void refreshProjectStatus()}
+            >
+              Bağlantı durumunu yenile
+            </button>
+            {tenant.role === "TenantAdmin" && (
+              <button
+                className="primary small-button"
+                onClick={() => setShowCreate(true)}
+              >
+                <Plus size={15} /> Proje kaydet
+              </button>
+            )}
+          </div>
         </div>
-        {error&&<div className="alert studio-chat-error" role="alert">{error}</div>}
-        <div className="studio-message-list">
-          {chatLoading&&!chatMessages.length&&!chatStreamingText?<div className="studio-chat-empty"><span className="studio-empty-icon"><Code2 size={20}/></span><b>AI sağlayıcısından yanıt bekleniyor (en fazla 60 sn)…</b></div>:chatMessages.map(message=><article key={message.id} className={`studio-message ${message.role==='user'?'user':'assistant'}`}>
-            <div className="studio-message-meta"><b>{message.role==='user'?'Siz':'AI Studio'}</b><small>{new Date(message.createdAt).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</small></div>
-            <div className="studio-message-content">{message.content}</div>
-          </article>)}{chatLoading&&chatStreamingText&&<article className="studio-message assistant"><div className="studio-message-meta"><b>AI Studio</b><small>Yanıt yazılıyor…</small></div><div className="studio-message-content">{chatStreamingText}</div></article>}
-          {!chatMessages.length&&!chatLoading&&<div className="studio-chat-empty"><span className="studio-empty-icon"><Code2 size={20}/></span><b>{chatConversation?'Henüz mesaj yok':'Geliştirme sohbetinize başlayın'}</b><small>{chatConversation?'Bu konuşmaya proje sorunuzla ilk mesajı gönderin.':'Proje ve çalışma alanınızla ilgili sorunuzu yazın.'}</small></div>}
+        {error && <div className="alert">{error}</div>}
+        {notice && <div className="notice">{notice}</div>}
+        {aiConfigured === false && (
+          <div className="notice">
+            <b>AI sağlayıcısı yapılandırılmadı.</b> AI özelliklerini açmak için
+            Docker ortamına <code>OPENAI_API_KEY</code> ekleyip{" "}
+            <code>ai-service</code> servisini yeniden başlatın. Anahtar
+            tarayıcıya gönderilmez.
+          </div>
+        )}
+        {projects.length ? (
+          <div className="studio-project-table-wrap">
+            <table className="studio-project-table">
+              <thead>
+                <tr>
+                  <th>Proje / depo</th>
+                  <th>Varsayılan dal</th>
+                  <th>Erişim</th>
+                  <th>GitHub bağlantısı</th>
+                  <th>Komutlar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((project) => (
+                  <tr key={project.id}>
+                    <td>
+                      <div className="studio-project-name">
+                        <span>
+                          <Code2 size={16} />
+                        </span>
+                        <div>
+                          <b>{project.name}</b>
+                          <small title={project.repositoryUrl}>
+                            {project.repositoryUrl}
+                          </small>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <code>{project.defaultBranch}</code>
+                    </td>
+                    <td>
+                      <span className="studio-project-access">
+                        {project.accessLevel === "TenantAdmin"
+                          ? "Yönetici"
+                          : project.accessLevel === "Maintainer"
+                            ? "Bakım sorumlusu"
+                            : project.accessLevel === "Contributor"
+                              ? "Katılımcı"
+                              : "Görüntüleyici"}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={`studio-project-github ${project.githubAuthorized ? "is-connected" : "is-pending"}`}
+                      >
+                        <i />
+                        {project.githubAuthorized ? "Bağlı" : "Yetki gerekli"}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="studio-project-commands">
+                        <button
+                          className="secondary small-button"
+                          onClick={() => void openWorkspace(project)}
+                        >
+                          <Folder size={14} />
+                          Çalışma alanı
+                        </button>
+                        {(project.accessLevel === "Maintainer" ||
+                          project.accessLevel === "TenantAdmin") && (
+                          <>
+                            <button
+                              className="secondary small-button"
+                              onClick={() => void openAccess(project)}
+                            >
+                              <ShieldCheck size={14} />
+                              Erişimler
+                            </button>
+                            <button
+                              className="secondary small-button"
+                              onClick={() => setModuleMappingProject(project)}
+                            >
+                              <Code2 size={14} />
+                              Modül kaynağı
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty-small">
+            <div>
+              <b>Henüz erişilebilir proje yok</b>
+              <small>
+                Tenant yöneticisi güvenli depo bağlantısı kaydedebilir.
+              </small>
+            </div>
+          </div>
+        )}
+        <div className="boundary-note">
+          <ShieldCheck size={17} />
+          <span>
+            <b>Sınırlı depo keşfi</b>Onaylı checkout için Project Explorer dosya
+            adlarını ve türlerini listeler. Git kimlik bilgisi alınmaz; metin
+            önizlemesi salt okunurdur ve kod çalıştırılmaz.
+          </span>
         </div>
-        {chatCodeChange&&<section className="panel" style={{marginTop:12}}><div className="panel-heading"><div><b>AI Asistanı değişiklik taslağı</b><small>{chatCodeChange.changes.length} dosya · izole workspace · henüz uygulanmadı</small></div><button type="button" className="secondary small-button" onClick={()=>{setChatCodeChange(null);setChatCodeChangeApplied([])}}>Taslağı kapat</button></div><div className="notice">{chatCodeChange.summary}</div>{chatCodeChange.risks.length>0&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>AI risk notları</b>{chatCodeChange.risks.join(' · ')}</span></div>}{chatCodeChange.changes.map(change=><section className="panel" key={change.filePath} style={{marginTop:12}}><div className="panel-heading"><div><b>{change.filePath}</b><small>Kaynak özeti {change.sourceSha256.slice(0,12)} · dosya yazımı ayrı onay ister</small></div><button type="button" className="primary small-button" disabled={chatCodeChangeLoading||chatCodeChangeApplied.includes(change.filePath)} onClick={()=>void applyStudioChatCodeChange(change)}>{chatCodeChangeApplied.includes(change.filePath)?'Uygulandı':'Bu dosyayı uygula'}</button></div>{change.patches.map((patch,index)=><div key={`${change.filePath}-${index}`} className="panel" style={{marginTop:8}}><div className="panel-heading"><b>Değişiklik {index+1}</b></div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:8}}><pre style={{maxHeight:180,overflow:'auto',padding:10,background:'#fff3f3',whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}><code>{patch.findText}</code></pre><pre style={{maxHeight:180,overflow:'auto',padding:10,background:'#effaf3',whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}><code>{patch.replaceText}</code></pre></div>{patch.notes.length>0&&<small>{patch.notes.join(' · ')}</small>}</div>)}</section>)}<div className="boundary-note" style={{marginTop:12}}><ShieldCheck size={17}/><span><b>İzole workspace sınırları</b>Her dosya ayrı onaylanır; dosya taslak oluşturulduktan sonra değişmişse uygulama durur. Kod çalıştırılmaz ve uzak depoya push yapılmaz.</span></div></section>}
-        {chatConversation&&workspaceProject.accessLevel!=='Viewer'&&<form className="studio-chat-compose" onSubmit={sendStudioChatMessage}>
-          <label htmlFor="studio-chat-message">Mesaj</label>
-          <textarea id="studio-chat-message" value={chatDraft} onChange={e=>setChatDraft(e.target.value)} maxLength={4000} rows={3} required placeholder="Bu dalda sıradaki güvenli geliştirme adımı ne olmalı?"/>
-          <label className="studio-chat-consent"><input type="checkbox" checked={chatAIConsent} onChange={e=>setChatAIConsent(e.target.checked)} required/><span>Bu mesajın (yapıştırdığım içerikler dahil), önceki sohbet mesajlarının ve proje/dal adının seçili AI sağlayıcısına gönderilmesini onaylıyorum. {knowledgeAutoRefresh.allFiles?"Bu workspace için kalıcı kaynak paylaşım izni açıktır.":"Runner kaynak dosyalarını veya ERP kayıtlarını otomatik eklemez."}</span></label>{knowledgeAutoRefresh.allFiles?<div className="studio-chat-consent"><ShieldCheck size={16}/><span>Kalıcı proje erişimi açık; sorularda ilgili kaynak alıntıları otomatik aranır. Kod değişikliği taslağı için de dosyalar bu izin kapsamında taranır.</span></div>:<><label className="studio-chat-consent"><input type="checkbox" checked={chatKnowledgeConsent} onChange={e=>setChatKnowledgeConsent(e.target.checked)}/><span>Bu mesaj için, ayrıca seçip indekslediğim proje dosyalarından ilgili alıntıları AI sağlayıcısına gönder (ayrı onay).</span></label><label className="studio-chat-consent"><input type="checkbox" checked={chatSourceSharingConsent} onChange={e=>setChatSourceSharingConsent(e.target.checked)}/><span>Kod değişikliği taslağı istersem, ilgili workspace kaynak dosyalarının AI Developer'a gönderilmesini onaylıyorum.</span></label></>}
-          <div className="studio-chat-compose-footer"><span>Değişiklik isteğinde AI dosyaları bulup diff taslağı çıkarır; workspace’e yazma dosya başına onaylanır.</span><div style={{display:'flex',gap:8}}><button type="button" className="secondary" disabled={chatLoading||chatCodeChangeLoading||!chatAIConsent||!chatDraft.trim()||(!knowledgeAutoRefresh.allFiles&&!chatSourceSharingConsent)} onClick={createStudioChatCodeChange}>{chatCodeChangeLoading?'Dosyalar inceleniyor…':'Değişiklik taslağı oluştur'}</button><button className="primary" disabled={chatLoading||chatCodeChangeLoading||!chatAIConsent||!chatDraft.trim()}>{chatLoading?'Yanıt bekleniyor…':'Gönder'} <span aria-hidden="true">→</span></button></div></div>
-        </form>}
-      </section>
-    </div>
-  </div>
-</div>}    {gitDiffTarget&&gitStatusWorkspace&&<div className="modal-backdrop" style={{zIndex:70}} onMouseDown={e=>{if(e.target===e.currentTarget){setGitDiffTarget(null);setWorkspaceGitDiff(null)}}}><div className="modal" style={{maxWidth:1000}}><div className="modal-head"><div><p className="eyebrow">GIT DIFF · SALT OKUNUR</p><h2>{gitDiffTarget}</h2></div><button className="icon-button" onClick={()=>{setGitDiffTarget(null);setWorkspaceGitDiff(null)}}><X size={19}/></button></div><p className="muted modal-sub">HEAD ile çalışma ağacındaki metin karşılaştırması. İçerik yalnızca görüntülenir; AI’ye gönderilmez ve uygulanmaz.</p>{gitDiffLoading?<div className="empty-small">Diff okunuyor…</div>:workspaceGitDiff&&<><div className="panel-heading"><div><b>{workspaceGitDiff.status}</b><small>HEAD {workspaceGitDiff.headCommitSha.slice(0,12)} · dosya başına en fazla 900 KiB</small></div></div><CodeSuggestionDiff original={workspaceGitDiff.baseContent} proposed={workspaceGitDiff.currentContent}/>{workspaceProject?.accessLevel!=='Viewer'&&<form onSubmit={reviewWorkspaceDiff} style={{marginTop:16}}><label style={{display:'flex',alignItems:'flex-start',gap:9}}><input type="checkbox" checked={codeReviewConsent} onChange={e=>setCodeReviewConsent(e.target.checked)} required style={{width:16,marginTop:3}}/><span>Bu dosyanın önceki ve güncel içeriğinin (toplam en fazla 20 KiB) OpenAI’ye gönderilmesini onaylıyorum. İnceleme sonucu saklanmaz ve değişiklik uygulamaz.</span></label><button className="primary" style={{marginTop:10}} disabled={codeReviewLoading||!codeReviewConsent||aiConfigured===false}>{codeReviewLoading?'Diff inceleniyor…':'AI ile bu diff’i incele'}</button></form>}{codeReview&&<section className="panel" style={{marginTop:16}}><div className="panel-heading"><div><b>AI inceleme · kod çalıştırılmadı</b><small>Yalnızca seçili dosya ve gösterilen dal diff’i kullanıldı</small></div></div><div className="notice">{codeReview.summary}</div>{codeReview.findings.map((finding,i)=><article className="request-row expanded" key={i}><div className="request-info"><b>{finding.severity} · {finding.title}</b><small>{finding.detail}</small><small>Öneri: {finding.recommendation}</small></div></article>)}{codeReview.findings.length===0&&<div className="empty-small">Bu sınırlı diff içinde doğrulanabilir bir bulgu üretilmedi.</div>}{codeReview.limitations.length>0&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>Sınırlamalar</b>{codeReview.limitations.join(' · ')}</span></div>}</section>}</>}{workspaceGitDiff&&<section className="panel" style={{marginTop:16}}><div className="panel-heading"><div><b>Takım kod incelemesi</b><small>{reviewThreads.filter(thread=>thread.status==='Open').length} açık başlık · commit {workspaceGitDiff.headCommitSha.slice(0,12)}</small></div></div>{reviewThreads.map(thread=><article className="request-row expanded" key={thread.id}><div className="request-info"><b>Satır {thread.lineNumber} · {thread.status==='Open'?'Açık':'Çözüldü'}</b><small>{thread.createdByUserId.slice(0,8)} · {new Date(thread.createdAt).toLocaleString('tr-TR')}</small>{thread.isStale&&<small className="alert">Bu başlık eski commit’e bağlı; güncel diff’e yeniden sabitleyin.</small>}{thread.comments.map(comment=><div key={comment.id} style={{borderLeft:'2px solid #dedcf4',padding:'6px 0 6px 10px',marginTop:7}}><small>{comment.githubAuthorLogin?`@${comment.githubAuthorLogin}`:comment.createdByUserId.slice(0,8)} · {new Date(comment.createdAt).toLocaleString('tr-TR')}</small><div style={{whiteSpace:'pre-wrap'}}>{comment.body}</div></div>)}<div style={{display:'flex',gap:8,marginTop:8}}>{thread.status==='Open'&&<button type="button" className="secondary small-button" onClick={()=>{setReviewReplyThread(thread.id);setReviewReplyDraft('')}}>Yanıtla</button>}<button type="button" className="secondary small-button" disabled={reviewSaving} onClick={()=>void setCodeReviewThreadResolved(thread,thread.status==='Open')}>{thread.status==='Open'?'Çözüldü işaretle':'Yeniden aç'}</button></div>{reviewReplyThread===thread.id&&<form onSubmit={replyToCodeReviewThread} style={{marginTop:10}}><label>Yanıt<textarea value={reviewReplyDraft} onChange={e=>setReviewReplyDraft(e.target.value)} required maxLength={4000} rows={2}/></label><button className="primary" disabled={reviewSaving||!reviewReplyDraft.trim()}>{reviewSaving?'Kaydediliyor…':'Yanıtı ekle'}</button></form>}</div></article>)}{reviewThreads.length===0&&<div className="empty-small">Bu dosyada henüz inceleme yorumu yok.</div>}{workspaceProject?.accessLevel!=='Viewer'&&<form onSubmit={createCodeReviewThread} style={{marginTop:12}}><div className="panel-heading"><div><b>Satıra yorum ekle</b><small>Yorum güncel commit ve değişmiş dosya üzerinde sabitlenir.</small></div></div><label>Satır numarası<input type="number" min={1} max={Math.max(1,workspaceGitDiff.currentContent.split(/\r?\n/).length,workspaceGitDiff.baseContent.split(/\r?\n/).length)} value={reviewLine} onChange={e=>setReviewLine(e.target.value)} required/></label><label>Yorum<textarea value={reviewDraft} onChange={e=>setReviewDraft(e.target.value)} required maxLength={4000} rows={3} placeholder="Bu satırla ilgili soruyu veya öneriyi yazın"/></label><button className="primary" disabled={reviewSaving||!reviewDraft.trim()||!reviewLine}>{reviewSaving?'Kaydediliyor…':'Yorumu başlat'}</button></form>}<div className="boundary-note"><ShieldCheck size={17}/><span><b>İnsan incelemesi</b>Yorumlar tenant, proje ve workspace ile sınırlandırılır. Yorum eklemek kodu değiştirmez veya commit etmez.</span></div></section>}{error&&<div className="alert">{error}</div>}<div className="modal-foot"><span>Salt okunur diff</span><button className="secondary" onClick={()=>{setGitDiffTarget(null);setWorkspaceGitDiff(null)}}>Kapat</button></div></div></div>}    {changeWorkspace&&<div className="modal-backdrop studio-change-history-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setChangeWorkspace(null);setChangeDiff(null)}}}><div className="modal" style={{maxWidth:1000}}><div className="modal-head"><div><p className="eyebrow">İZOLE WORKSPACE · DEĞİŞİKLİK GEÇMİŞİ</p><h2>{workspaceProject?.name} / {changeWorkspace.branchName}</h2></div><button className="icon-button" onClick={()=>{setChangeWorkspace(null);setChangeDiff(null)}}><X size={19}/></button></div><p className="muted modal-sub">Onaylanmış dosya önerileri checkout dışında saklanan önceki baytlarla izlenir. Geri alma kod çalıştırmaz ve yalnızca dosya aynı durumdaysa uygulanır.</p>{error&&<div className="alert">{error}</div>}{changeLoading&&<div className="empty-small">Geçmiş yükleniyor…</div>}{workspaceChanges?.truncated&&<div className="notice">En yeni 100 kayıt gösteriliyor; geçmiş listesi sınırlandırıldı.</div>}{workspaceChanges&&workspaceChanges.changes.length===0&&!changeLoading&&<div className="empty-small">Bu çalışma alanında henüz onaylı dosya değişikliği yok.</div>}{workspaceChanges?.changes.map(change=><article className="request-row expanded" key={change.id}><div className="request-symbol"><FileCode size={17}/></div><div className="request-info"><b>{change.path}</b>{change.wasCreated&&<small>Yeni dosya</small>}<small>{new Date(change.appliedAt).toLocaleString('tr-TR',{dateStyle:'medium',timeStyle:'short'})} · {change.isRestored?'Geri alındı':change.isCurrent?'Geçerli dosya sürümü':'Daha yeni bir değişiklik var'}</small></div><button className="secondary small-button" disabled={changeLoading} onClick={()=>void openWorkspaceChange(change)}>Diff’i aç</button></article>)}{changeDiff&&<section className="panel" style={{marginTop:16}}><div className="panel-heading"><div><b>{changeDiff.path}</b>{changeDiff.wasCreated&&<small>Yeni dosya</small>}<small>{changeDiff.isRestored?'Bu kayıt geri alınmış':changeDiff.isCurrent?'Dosya bu değişikliğin sürümünde':'Dosyada daha yeni bir sürüm var'}</small></div></div><CodeSuggestionDiff original={changeDiff.originalContent} proposed={changeDiff.currentContent}/>{changeDiff.isCurrent&&!changeDiff.isRestored&&<><label style={{display:'flex',alignItems:'flex-start',gap:10,marginTop:14}}><input type="checkbox" checked={restoreApproval} onChange={e=>setRestoreApproval(e.target.checked)} style={{width:18,marginTop:3}}/><span><b>{changeDiff.wasCreated?"Oluşturulan dosyayı kaldır":"Önceki içeriği geri koy"}</b> {changeDiff.wasCreated?"Bu onay, AI önerisiyle oluşturulan dosyanın silinmesini sağlar.":"Bu kayıttan hemen önceki dosya baytlarının geri yüklenmesini onaylıyorum."}</span></label><div className="modal-foot"><span>Dosya özeti eşleşmezse geri alma reddedilir.</span><button className="secondary danger-action" disabled={changeLoading||!restoreApproval} onClick={()=>void restoreWorkspaceChange()}>{changeLoading?'Geri alınıyor…':'Onayla ve geri al'}</button></div></>}{!changeDiff.isCurrent&&!changeDiff.isRestored&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>Eski kayıt</b>Dosyada daha yeni bir sürüm bulundu. Bu kayıt üzerine yazmayacak; güncel değişikliği açın.</span></div>}</section>}<div className="modal-foot"><span>{workspaceChanges?.changes.length??0} kayıt · geçmiş en fazla 200 uygulamayı tutar.</span><button className="secondary" onClick={()=>{setChangeWorkspace(null);setChangeDiff(null)}}>Kapat</button></div></div></div>}
-    {multiDeveloperWorkspace&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget&&!multiFileLoading)setMultiDeveloperWorkspace(null)}}><div className="modal" style={{maxWidth:1100}}><div className="modal-head"><div><p className="eyebrow">AI DEVELOPER · ÇOKLU DOSYA TASLAĞI</p><h2>{multiFilePaths.length} dosyada koordineli öneri</h2></div><button className="icon-button" disabled={multiFileLoading} onClick={()=>setMultiDeveloperWorkspace(null)}><X size={19}/></button></div><p className="muted modal-sub">Yalnız seçtiğiniz kaynak dosyaları ve talebiniz OpenAI’ye gönderilir. Öneriler dosya başına ayrı diff olarak incelenir; hiçbiri otomatik uygulanmaz.</p>{error&&<div className="alert">{error}</div>}{!multiFileSuggestion&&<form onSubmit={createMultiFileSuggestion}>{repairMode&&<label>Onarılacak kaynak dosyaları<textarea value={repairPathsDraft} onChange={e=>setRepairPathsDraft(e.target.value)} required maxLength={2500} rows={3} placeholder="src/Services/Example.cs`nsrc/Tests/ExampleTests.cs"/><small>Hata çözümüyle ilgili dosyaların yollarını girin. 1–5 dosya; yalnızca bu seçili içerikler paylaşılır.</small></label>}<label>{repairMode?"Hata analizi ve onarım talebi":"İstenen geliştirme"}<textarea value={multiFileRequest} onChange={e=>setMultiFileRequest(e.target.value)} required maxLength={2000} rows={4} placeholder="Örn. API yanıt sözleşmesini ve ona bağlı UI modelini birlikte güncelle"/></label><label style={{display:'flex',alignItems:'flex-start',gap:10,marginTop:12}}><input type="checkbox" checked={multiFileConsent} onChange={e=>setMultiFileConsent(e.target.checked)} required style={{width:18,marginTop:3}}/><span>{repairMode?"Yukarıda belirttiğim 1–5 dosya ile hata analizi ve onarım talebimin OpenAI’ye gönderilmesini onaylıyorum.":`Seçtiğim ${multiFilePaths.length} dosyanın içeriğinin (toplam en fazla 64 KiB) ve talebimin OpenAI’ye gönderilmesini onaylıyorum.`}</span></label><div className="modal-foot"><span>{repairMode?"En çok 5 dosya · diff incelemesi ve her dosya için ayrı uygulama onayı gerekir.":"En fazla 5 dosya · toplam kaynak 64 KiB · otomatik uygulama kapalı"}</span><button className="primary" disabled={multiFileLoading||!multiFileConsent}>{multiFileLoading?'Öneri hazırlanıyor…':repairMode?'Onarım diff’i oluştur':'Koordineli öneri oluştur'}</button></div></form>}{multiFileSuggestion&&<><div className="notice">{multiFileSuggestion.summary}</div>{multiFileSuggestion.risks.length>0&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>AI risk notları</b>{multiFileSuggestion.risks.join(' · ')}</span></div>}{multiFileSuggestion.changes.map(change=><section className="panel" key={change.filePath} style={{marginTop:14}}><div className="panel-heading"><div><b>{change.filePath}</b><small>Kaynak SHA-256: {change.sourceSha256.slice(0,12)} · uygulama için ayrı onay gerekir</small></div><button className="secondary small-button" disabled={multiFileLoading||multiFileApplied.includes(change.filePath)} onClick={()=>void applyMultiFileSuggestion(change)}>{multiFileApplied.includes(change.filePath)?'Uygulandı':'Bu dosyayı uygula'}</button></div><CodeSuggestionDiff original={change.originalContent} proposed={change.proposedContent}/>{change.notes.length>0&&<small>{change.notes.join(' · ')}</small>}</section>)}<div className="modal-foot"><span>{multiFileApplied.length}/{multiFileSuggestion.changes.length} dosya uygulandı; her dosya ayrı onaylandı.</span><div>{repairMode&&multiFileApplied.length===multiFileSuggestion.changes.length&&(workspaceProject?.accessLevel==="TenantAdmin"||workspaceProject?.accessLevel==="Maintainer")&&<button className="primary" disabled={multiFileLoading} onClick={()=>void rerunAfterSandboxRepair()}>{repairMode.operation==="test"?"Onaylı değişikliklerle testi yeniden çalıştır":"Onaylı değişikliklerle build’i yeniden çalıştır"}</button>}{repairMode&&multiFileApplied.length===multiFileSuggestion.changes.length&&workspaceProject?.accessLevel!=="TenantAdmin"&&workspaceProject?.accessLevel!=="Maintainer"&&<small>Değişiklikler uygulandı; sandbox testini yeniden çalıştırmak için Maintainer veya TenantAdmin onayı gerekir.</small>}<button className="secondary" onClick={()=>{setMultiDeveloperWorkspace(null);setMultiFileSuggestion(null);setRepairMode(null)}}>Kapat</button></div></div></>}</div></div>}{developerWorkspace&&developerFile&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setDeveloperWorkspace(null);setDeveloperFile(null);setDeveloperSuggestion(null)}}}><div className="modal" style={{maxWidth:1000}}><div className="modal-head"><div><p className="eyebrow">AI DEVELOPER · İNCELEME TASLAĞI</p><h2>{developerFile.path}</h2></div><button className="icon-button" onClick={()=>{setDeveloperWorkspace(null);setDeveloperFile(null);setDeveloperSuggestion(null)}}><X size={19}/></button></div><p className="muted modal-sub">AI yalnızca seçtiğiniz bu dosyayı ve talebinizi alır. Öneri diff olarak gösterilir; çalışma alanına yazılmaz ve kod çalıştırılmaz.</p>{error&&<div className="alert">{error}</div>}<form onSubmit={createCodeSuggestion}>{developerIsNewFile&&<label>Yeni kaynak dosya yolu<input value={developerNewPath} onChange={e=>setDeveloperNewPath(e.target.value)} required maxLength={500}/></label>}<label>İstenen değişiklik<textarea value={developerRequest} onChange={e=>setDeveloperRequest(e.target.value)} required maxLength={2000} rows={3} placeholder="Örn. doğrulama mesajını Türkçeleştir"/></label><label style={{display:'flex',alignItems:'flex-start',gap:10}}><input type="checkbox" checked={developerConsent} onChange={e=>setDeveloperConsent(e.target.checked)} required style={{width:18,marginTop:3}}/><span>{developerIsNewFile?`Bu yeni dosya yolu ve talebim OpenAI API’ye gönderilecek: ${developerNewPath}. Mevcut kaynak içeriği paylaşılmıyor.`:`Bu dosyanın kaynak içeriğinin (${developerFile.path}, en fazla 32 KiB) talebimle birlikte OpenAI API’ye gönderilmesini onaylıyorum.`}</span></label><div className="modal-foot"><span>Kaynak paylaşımı kayıt altına alınır; dosya değişmez.</span><button className="primary" disabled={developerLoading||!developerConsent}>{developerLoading?'Öneri hazırlanıyor…':'Kod önerisi oluştur'}</button></div></form>{developerSuggestion&&<><div className="section-title"><div><h3>{developerSuggestion.summary}</h3><p>{developerSuggestion.filePath} · yalnızca öneri</p></div></div><CodeSuggestionDiff original={developerSuggestion.originalContent} proposed={developerSuggestion.proposedContent}/>{developerSuggestion.notes.length>0&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>İnceleme notları</b>{developerSuggestion.notes.join(' · ')}</span></div>}{!developerApplied&&<label style={{display:'flex',alignItems:'flex-start',gap:10,marginTop:14}}><input type="checkbox" checked={developerApplyApproval} onChange={e=>setDeveloperApplyApproval(e.target.checked)} style={{width:18,marginTop:3}}/><span><b>Öneriyi onayla</b> {developerSuggestion.filePath} dosyasını bu izole checkout içinde önerilen içerikle değiştirmeyi onaylıyorum. Mevcut dosyanın özeti eşleşmezse değişiklik uygulanmaz.</span></label>}<div className="modal-foot"><span>{developerApplied?'Değişiklik uygulandı; build veya kod çalıştırma yapılmadı.':'Uygulama ayrı onay gerektirir ve eski dosya özeti kontrol edilir.'}</span><button type="button" className="primary" disabled={developerLoading||developerApplied||!developerApplyApproval} onClick={()=>void applyCodeSuggestion()}>{developerLoading?'Uygulanıyor…':developerApplied?'Çalışma alanına uygulandı':'Onayla ve dosyaya uygula'}</button></div></>}</div></div>}
-    {showPlanHistory&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowPlanHistory(false)}}><div className="modal"><div className="modal-head"><div><p className="eyebrow">AI ARCHITECT</p><h2>Kaydedilen planlar</h2></div><button className="icon-button" onClick={()=>setShowPlanHistory(false)}><X size={19}/></button></div><p className="muted modal-sub">Bu projede açıkça kaydedilmiş mimari planlar. Her kayıt dal ve commit bilgisine bağlıdır.</p>{savedArchitecturePlans.length?savedArchitecturePlans.map(saved=><article className="request-row expanded" key={saved.id}><div className="request-symbol"><Code2 size={17}/></div><div className="request-info"><b>{saved.summary}</b><small>{saved.branchName} · {saved.commitSha.slice(0,12)} · {new Date(saved.createdAt).toLocaleString('tr-TR',{dateStyle:'medium',timeStyle:'short'})}</small></div><div style={{display:"flex",gap:6}}><button className="secondary small-button" disabled={architectLoading} onClick={()=>void openSavedArchitecturePlan(saved)}>Planı aç</button>{saved.canDelete&&<button className="secondary small-button" disabled={architectLoading} title="Planı sil" aria-label="Planı sil" onClick={()=>void deleteSavedArchitecturePlan(saved)}><Trash2 size={14}/></button>}</div></article>):<div className="empty-state"><div className="empty-icon"><Code2 size={22}/></div><h3>Henüz kaydedilmiş plan yok</h3><p>AI Architect planını oluşturduktan sonra “Planı projeye kaydet” düğmesiyle geçmişe ekleyebilirsiniz.</p></div>}<div className="modal-foot"><span>Özgün talep metni bu kayıtlara eklenmez.</span><button className="secondary" onClick={()=>setShowPlanHistory(false)}>Kapat</button></div></div></div>}
-    {architectWorkspace&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setArchitectWorkspace(null);setArchitectPlan(null)}}}><div className="modal"><div className="modal-head"><div><p className="eyebrow">AI ARCHITECT · TASLAK</p><h2>{workspaceProject?.name}</h2></div><button className="icon-button" onClick={()=>{setArchitectWorkspace(null);setArchitectPlan(null)}}><X size={19}/></button></div><p className="muted modal-sub">AI Architect yalnız talebini ve proje haritası metadata’sını kullanarak incelenebilir bir plan hazırlar. Kaynak dosya içeriği gönderilmez; kod değiştirilmez.</p>{error&&<div className="alert">{error}</div>}{!architectPlan&&<form onSubmit={createArchitecturePlan}><label>İstenen geliştirme<textarea value={architectRequest} onChange={e=>setArchitectRequest(e.target.value)} required maxLength={2000} rows={4} placeholder="Örn. Satış siparişlerine sevkiyat önceliği ekle"/></label><label style={{display:'flex',alignItems:'flex-start',gap:9,marginTop:12}}><input type="checkbox" checked={architectConsent} onChange={e=>setArchitectConsent(e.target.checked)} required style={{width:16,marginTop:3}}/><span>Talep metnimin ve proje adı, dal, dosya türü sayımları ile giriş dosyası yollarından oluşan haritanın OpenAI’ye gönderilmesini onaylıyorum. Kaynak kod gönderilmez.</span></label><div className="modal-foot"><span>AI çıktısı öneri taslağıdır; değişiklik uygulamaz.</span><button className="primary" disabled={architectLoading||!architectConsent}>{architectLoading?'Plan hazırlanıyor…':'Mimari plan hazırla'} <span>→</span></button></div></form>}{architectPlan&&<><div className="notice">{architectPlan.summary}</div><h3>Etkilenen alanlar</h3><div className="requests-list">{architectPlan.affectedAreas.map((x,i)=><article className="request-row" key={i}><div className="request-info"><b>{x}</b></div></article>)}</div><h3 style={{marginTop:16}}>Uygulama adımları</h3><div className="requests-list">{architectPlan.steps.map((step,i)=><article className="request-row expanded" key={i}><div className="request-info"><b>{i+1}. {step.title}</b><small>{step.description}</small>{step.files.length>0&&<small>Dosyalar: {step.files.join(', ')}</small>}</div></article>)}</div><h3 style={{marginTop:16}}>Varsayımlar ve riskler</h3><div className="requests-list">{[...architectPlan.assumptions.map(x=>({kind:'Varsayım',text:x})),...architectPlan.risks.map(x=>({kind:'Risk',text:x}))].map((x,i)=><article className="request-row" key={i}><div className="request-info"><b>{x.kind}</b><small>{x.text}</small></div></article>)}</div><div className="modal-foot"><span>{architectSavedPlanId?"Bu plan proje geçmişinde kayıtlı; otomatik uygulanmadı.":"Planı kaydetmek özgün talep metnini saklamaz ve planı uygulamaz."}</span><div>{!architectSavedPlanId&&<button className="primary" disabled={architectLoading} onClick={()=>void saveArchitecturePlan()}>{architectLoading?"Kaydediliyor…":"Planı projeye kaydet"}</button>}<button className="secondary" onClick={()=>{setArchitectPlan(null);setArchitectSavedPlanId(null);setArchitectConsent(false)}}>Yeni plan</button></div></div></>}<div className="boundary-note"><ShieldCheck size={17}/><span><b>İnsan incelemesi gerekli</b>Plan yalnızca öneridir. Kod üretimi, test ve yayınlama bu aşamada kapalıdır.</span></div></div></div>}{analysisWorkspace&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setAnalysisWorkspace(null);setWorkspaceAnalysis(null)}}}><div className="modal studio-inventory-modal"><div className="modal-head"><div className="studio-inventory-hero-icon"><GitBranch size={27}/></div><div className="studio-inventory-hero-copy"><p className="eyebrow">KOD ÇALIŞMA ALANI ENVANTERİ</p><h2>{workspaceProject?.name} / Proje haritası</h2><p>{analysisWorkspace.branchName} dalının kod yapısını, dosya türlerini ve solution girişlerini tek ekranda görüntüleyin.</p></div><button className="icon-button" aria-label="Proje haritasını kapat" onClick={()=>{setAnalysisWorkspace(null);setWorkspaceAnalysis(null)}}><X size={19}/></button></div><p className="muted modal-sub studio-inventory-intro">Dosya içerikleri okunmaz; yalnızca yapı, tür ve sayısal bilgiler analiz edilir.</p>{error&&<div className="alert">{error}</div>}{analysisLoading?<div className="empty-small">Dosya envanteri çıkarılıyor…</div>:workspaceAnalysis&&<><section className="studio-inventory-summary" aria-label="Envanter özeti"><span className="studio-inventory-summary-icon"><Folder size={23}/></span><div className="studio-inventory-file-total"><strong>{workspaceAnalysis.scannedFiles.toLocaleString('tr-TR')}</strong><span>dosya tarandı</span></div><div className="studio-inventory-scan-state"><span className={`studio-inventory-status${workspaceAnalysis.truncated?' is-partial':''}`}><i/>{workspaceAnalysis.truncated?'Kısmi envanter':'Envanter tamamlandı'}</span><small>{analysisCompletedAt?`Son tarama: ${new Date(analysisCompletedAt).toLocaleString('tr-TR',{dateStyle:'medium',timeStyle:'short'})}`:'Envanter hazır'}</small></div><button className="secondary studio-inventory-rescan" disabled={analysisLoading} onClick={()=>void loadWorkspaceAnalysis(analysisWorkspace)}><RefreshCw size={15}/>{analysisLoading?'Taranıyor…':'Yeniden tara'}</button></section><section className="studio-inventory-section"><div className="studio-inventory-section-heading"><div className="studio-inventory-heading-title"><span><Code2 size={20}/></span><div><h3>Teknoloji ve dosya türleri</h3><p>Workspace içinde tespit edilen dosya türlerinin dağılımı.</p></div></div><div className="studio-inventory-view-switch" role="group" aria-label="Dosya türü görünümü"><button className={inventoryLayout==='grid'?'active':''} aria-label="Kart görünümü" aria-pressed={inventoryLayout==='grid'} onClick={()=>setInventoryLayout('grid')}><Grid2X2 size={16}/></button><button className={inventoryLayout==='list'?'active':''} aria-label="Liste görünümü" aria-pressed={inventoryLayout==='list'} onClick={()=>setInventoryLayout('list')}><List size={17}/></button></div></div><div className={`studio-inventory-type-grid ${inventoryLayout==='list'?'is-list':''}`}>{workspaceAnalysis.technologies.map(item=>{const percent=workspaceAnalysis.scannedFiles?item.fileCount/workspaceAnalysis.scannedFiles*100:0;return <article className="studio-inventory-type-card" key={item.name}><span className="studio-inventory-type-icon"><FileCode size={17}/></span><div className="studio-inventory-type-copy"><b>{item.name}</b><span>{item.fileCount.toLocaleString('tr-TR')} dosya</span><div className="studio-inventory-progress"><i style={{width:`${Math.max(percent,1)}%`}}/></div></div><small>{percent.toLocaleString('tr-TR',{maximumFractionDigits:1})}%</small></article>})}</div>{!workspaceAnalysis.technologies.length&&<div className="empty-small">Envanterde tanınan dosya türü bulunamadı.</div>}</section><section className="studio-inventory-section studio-inventory-entry-section"><div className="studio-inventory-section-heading"><div className="studio-inventory-heading-title"><span><FolderTree size={20}/></span><div><h3>Solution ve proje girişleri</h3><p>Workspace içindeki solution ve proje manifestleri.</p></div></div><span className="studio-inventory-count">{workspaceAnalysis.entryPoints.length} kayıt</span></div><div className="studio-inventory-entry-list">{workspaceAnalysis.entryPoints.map(path=>{const isSolution=path.toLowerCase().endsWith('.sln');return <article className="studio-inventory-entry" key={path}><FileCode size={18}/><div className="studio-inventory-entry-copy"><b>{path.split(/[\/]/).pop()}</b><span>{path.startsWith('/')?path:`/${path}`}</span></div><span className="studio-inventory-entry-kind">{isSolution?'Solution':'Project'}</span><ArrowUpRight size={17}/></article>})}{!workspaceAnalysis.entryPoints.length&&<div className="empty-small">Tanınan bir solution veya proje manifesti bulunamadı.</div>}</div></section></>}<div className="boundary-note studio-inventory-boundary"><ShieldCheck size={17}/><span><b>Salt okunur teknik envanter</b>Bu harita dosya adlarından hesaplanır; yapay zekâ yorumu değildir. Kod, bağımlılık betikleri veya testler çalıştırılmaz.</span></div></div></div>}{testDiscoveryWorkspace&&<div className="modal-backdrop studio-test-discovery-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setTestDiscoveryWorkspace(null);setTestDiscovery(null)}}}><div className="modal studio-test-discovery-modal"><div className="modal-head studio-test-discovery-header"><div className="studio-test-discovery-heading"><span className="studio-test-discovery-mark"><FlaskConical size={23}/></span><div><p className="eyebrow">TEST CENTER <i>·</i> GÜVENLİ KURULUM</p><h2>{workspaceProject?.name} / Test ve build hedefleri</h2></div></div><button className="icon-button" aria-label="Kapat" onClick={()=>{setTestDiscoveryWorkspace(null);setTestDiscovery(null)}}><X size={19}/></button></div><p className="muted modal-sub">{testDiscoveryWorkspace.branchName} dalındaki proje manifestleri ve test dosyaları incelenir. Keşif salt okunurdur; Maintainer veya TenantAdmin seçilmiş hedefi ayrı onayla yalıtılmış sandbox içinde çalıştırabilir.</p>{error&&<div className="alert">{error}</div>}{testDiscoveryLoading?<div className="empty-small">Test ve build hedefleri taranıyor…</div>:testDiscovery&&<><div className="studio-test-discovery-summary"><div className="studio-test-discovery-file-count"><span className="studio-test-discovery-summary-icon"><Folder size={24}/></span><div><b>{testDiscovery.scannedFiles.toLocaleString('tr-TR')}</b><small>dosya incelendi</small></div></div><div className="studio-test-discovery-scan-status"><span className={testDiscovery.truncated?'is-partial':''}><CheckCircle2 size={16}/>{testDiscovery.truncated?'Kısmi analiz':'Analiz tamamlandı'}</span><small>{testDiscovery.truncated?'Güvenlik sınırına ulaşıldı; sonuç kısmi.':'Manifest okuma sınırı: 64 KiB'}</small></div></div><div className="requests-list studio-test-discovery-targets">{testDiscovery.targets.map((target,i)=><article className="request-row expanded studio-test-target-card" key={`${target.path}-${i}`}><div className="request-symbol"><FileCode size={17}/></div><div className="request-info"><b>{target.ecosystem} · {target.path}</b><small>{target.evidence}</small><small>Öneri: <code>{target.suggestedCommand}</code> · yalnızca test keşfi yapıldı</small></div>{target.canTest!==false&&(target.ecosystem==='.NET'&&target.path.toLowerCase().endsWith('.csproj')||target.ecosystem==='Node.js'&&target.path.toLowerCase().endsWith('package.json')||target.ecosystem==='Python'&&target.path.toLowerCase().endsWith('.py')||target.ecosystem==='Go'&&target.path.toLowerCase().endsWith('_test.go')||target.ecosystem==='Rust'&&target.path.toLowerCase().endsWith('cargo.toml'))&&(workspaceProject?.accessLevel==='TenantAdmin'||workspaceProject?.accessLevel==='Maintainer')&&<button className="secondary small-button" disabled={testExecutionLoading} onClick={()=>void runWorkspaceTest(target)}>{testExecutionLoading&&testExecutionTarget===target.path?'Test çalışıyor…':target.ecosystem==='Node.js'?'Yalıtılmış Node testi çalıştır':target.ecosystem==='Python'?'Yalıtılmış Python testi çalıştır':target.ecosystem==='Go'?'Yalıtılmış Go testi çalıştır':target.ecosystem==='Rust'?'Yalıtılmış Rust testi çalıştır':'Yalıtılmış .NET testi çalıştır'}</button>}{target.canBuild&&(workspaceProject?.accessLevel==="TenantAdmin"||workspaceProject?.accessLevel==="Maintainer")&&<button className="secondary small-button" disabled={buildExecutionLoading} onClick={()=>void runWorkspaceBuild(target)}>{buildExecutionLoading&&buildExecutionTarget===target.path?"Build çalışıyor…":`Yalıtılmış ${target.ecosystem} build çalıştır`}</button>}</article>)}{testDiscovery.targets.length===0&&<div className="empty-small">Desteklenen bir test hedefi bulunamadı.</div>}</div>{testExecution&&<section className="panel" style={{marginTop:14}}><div className="panel-heading"><div><b>{testExecutionTarget} · {testExecution.status}</b><small>HEAD {testExecution.commitSha.slice(0,12)} · Snapshot {testExecution.snapshotSha256.slice(0,12)} · {testExecution.hasUncommittedChanges?"kirli snapshot":"HEAD snapshot"} · {testExecution.message??"Sandbox sonucu"}{testExecution.completedAt?` · ${new Date(testExecution.completedAt).toLocaleString("tr-TR")}`:""}</small></div><small>{testExecution.durationMilliseconds?`${Math.round(testExecution.durationMilliseconds/1000)} sn`:""}</small></div>{testExecution.output&&<pre style={{maxHeight:260,overflow:"auto",padding:12,background:"#0b1020",color:"#dce5ff",borderRadius:10,whiteSpace:"pre-wrap",fontSize:12}}><code>{testExecution.output}</code></pre>}{testExecution.status==="DependencyUnavailable"&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>Çevrimdışı bağımlılık sınırı</b>{testExecutionTarget.toLowerCase().endsWith('package.json')?'Node.js paket bağımlılıkları sandboxa alınmadı; yalnız yerleşik node:test dosyaları çalışabilir.':testExecutionTarget.toLowerCase().endsWith('.py')?'Gerekli Python modülü imajdaki pytest ortamında yok.':testExecutionTarget.toLowerCase().endsWith('_test.go')?'Go modülü harici bağımlılık bildiriyor veya standart dışı paket bulunamadı.':testExecutionTarget.toLowerCase().endsWith('cargo.toml')?'Rust manifesti bağımlılık veya workspace içeriyor; ağsız sandbox yalnız bağımsız paketleri destekler.':'Gerekli NuGet paketleri sandbox önbelleğinde bulunamadı.'} Sandbox internete erişmez; bu test çalıştırmasında paket kaynağına bağlanılmadı.</span></div>}{testExecution.status!=="Passed"&&testExecution.status!=="Queued"&&workspaceProject?.accessLevel!=='Viewer'&&<button className="secondary small-button" disabled={sandboxErrorAnalysisLoading} onClick={()=>void analyzeSandboxFailure('test',testDiscoveryWorkspace!.id,testExecution)}>{sandboxErrorAnalysisLoading?'Analiz ediliyor…':'AI ile hata analizi'}</button>}{testExecution.status==="Queued"&&!testExecutionLoading&&<button className="secondary small-button" onClick={()=>void pollWorkspaceTestRun()}>Durumu yenile</button>}</section>}{buildExecution&&buildExecutionWorkspaceId===testDiscoveryWorkspace?.id&&<section className="panel" style={{marginTop:14}}><div className="panel-heading"><div><b>{buildExecutionTarget} · {buildExecution.status}</b><small>HEAD {buildExecution.commitSha.slice(0,12)} · Snapshot {buildExecution.snapshotSha256.slice(0,12)} · {buildExecution.message??"Sandbox build sonucu"}{buildExecution.completedAt?` · ${new Date(buildExecution.completedAt).toLocaleString("tr-TR")}`:""}</small></div><small>{buildExecution.durationMilliseconds?`${Math.round(buildExecution.durationMilliseconds/1000)} sn`:""}</small></div>{buildExecution.output&&<pre style={{maxHeight:260,overflow:"auto",padding:12,background:"#0b1020",color:"#dce5ff",borderRadius:10,whiteSpace:"pre-wrap",fontSize:12}}><code>{buildExecution.output}</code></pre>}{buildExecution.status!=="Built"&&buildExecution.status!=="Queued"&&workspaceProject?.accessLevel!=='Viewer'&&<button className="secondary small-button" disabled={sandboxErrorAnalysisLoading} onClick={()=>void analyzeSandboxFailure('build',buildExecutionWorkspaceId!,buildExecution)}>{sandboxErrorAnalysisLoading?'Analiz ediliyor…':'AI ile hata analizi'}</button>}{buildExecution.status==="Queued"&&!buildExecutionLoading&&<button className="secondary small-button" onClick={()=>void pollWorkspaceBuildRun()}>Build durumunu yenile</button>}</section>}{sandboxErrorAnalysis&&<section className="panel" style={{marginTop:14}}><div className="panel-heading"><div><b>AI sandbox hata analizi · {sandboxErrorAnalysis.operation}</b><small>{sandboxErrorAnalysis.targetPath} · {sandboxErrorAnalysis.status} · commit {sandboxErrorAnalysis.commitSha.slice(0,12)}</small></div></div><div className="notice">{sandboxErrorAnalysis.analysis.summary}<br/><b>Olası neden:</b> {sandboxErrorAnalysis.analysis.likelyCause}</div><div className="boundary-note"><ShieldCheck size={17}/><span><b>{sandboxErrorAnalysis.triage.sourceRepairCandidate?"Kaynak onarımı değerlendirilebilir":"Kod onarımı önerilmiyor"}</b>{sandboxErrorAnalysis.triage.summary} {sandboxErrorAnalysis.triage.nextStep}</span></div><div className="requests-list">{sandboxErrorAnalysis.analysis.recommendedActions.map((action,index)=><article className="request-row" key={index}><div className="request-info"><b>{index+1}. öneri</b><small>{action}</small></div></article>)}</div>{sandboxErrorAnalysis.analysis.limitations.length>0&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>Sınırlar</b>{sandboxErrorAnalysis.analysis.limitations.join(' · ')}</span></div>}<div className="boundary-note"><ShieldCheck size={17}/><span><b>Paylaşım ve saklama</b>Çıktı OpenAI’ye gönderilmeden önce maskelendi; ham sandbox çıktısı AIStudioDB’ye kaydedilmedi. Öneriler otomatik uygulanmaz.</span></div>{sandboxErrorAnalysis.triage.sourceRepairCandidate&&<button type="button" className="primary small-button" style={{marginTop:12}} disabled={workspaceProject?.accessLevel==='Viewer'} onClick={beginSandboxRepair}>AI ile onarım taslağı oluştur</button>}{!sandboxErrorAnalysis.triage.sourceRepairCandidate&&<div className="notice">Bu sonuç altyapı veya paket kaynağı kaynaklı görünüyor. Kaynak kod onarımı açılmadı.</div>}</section>}</>}{testDiscovery&&savedTestPlans.length>0&&<section className="panel" style={{marginTop:16}}><div className="panel-heading"><div><b>Kayıtlı test planları</b><small>Bu workspace için son {savedTestPlans.length} taslak</small></div></div><div className="requests-list">{savedTestPlans.map(saved=><article className="request-row" key={saved.id}><div className="request-info"><b>{saved.summary}</b><small>{saved.branchName} · {saved.commitSha.slice(0,12)} · {new Date(saved.createdAt).toLocaleString('tr-TR')}</small></div><div style={{display:"flex",gap:6}}><button type="button" className="secondary small-button" disabled={testPlanLoading} onClick={()=>void openSavedAITestPlan(saved)}>Görüntüle</button>{saved.canDelete&&<button type="button" className="secondary small-button" title="Planı sil" aria-label="Planı sil" onClick={()=>void deleteSavedAITestPlan(saved)}><Trash2 size={14}/></button>}</div></article>)}</div></section>}{testDiscovery&&workspaceProject?.accessLevel!=='Viewer'&&<form onSubmit={createAITestPlan} style={{marginTop:18}}><h3>AI Tester · senaryo taslağı</h3><label>Test edilmesi gereken davranış<textarea value={testRequest} onChange={e=>setTestRequest(e.target.value)} required maxLength={2000} rows={3} placeholder="Örn. Aynı workspace talebinin iki kez onaylanması checkout'u çoğaltmamalı"/></label><label style={{display:'flex',alignItems:'flex-start',gap:9,marginTop:12}}><input type="checkbox" checked={testAIConsent} onChange={e=>setTestAIConsent(e.target.checked)} required style={{width:16,marginTop:3}}/><span>Talep metnimin, proje/dal adının ve test hedeflerinin sınırlı metadata özetinin OpenAI’ye gönderilmesini onaylıyorum. Kaynak kod paylaşılmaz.</span></label><div className="modal-foot"><span>Senaryo taslağı kod çalıştırmaz; .NET test hedefleri için yalıtılmış çalıştırma ayrı onay ister.</span><button className="primary" disabled={testPlanLoading||!testAIConsent}>{testPlanLoading?'Senaryolar hazırlanıyor…':'AI test senaryoları hazırla'}</button></div></form>}{testPlan&&<section className="panel" style={{marginTop:16}}><div className="panel-heading"><div><b>AI Tester taslağı</b><small>İnsan incelemesi gerekli · çalıştırılmadı</small></div></div><div className="notice">{testPlan.summary}</div><div className="requests-list">{testPlan.scenarios.map((scenario,i)=><article className="request-row expanded" key={i}><div className="request-info"><b>{i+1}. {scenario.title}</b><small>{scenario.category} · Öncelik: {scenario.priority}</small><small>{scenario.objective}</small><small>Adımlar: {scenario.steps.join(' → ')}</small><small>Beklenen: {scenario.expectedResult}</small></div></article>)}</div>{(testPlan.assumptions.length>0||testPlan.risks.length>0)&&<div className="boundary-note"><ShieldCheck size={17}/><span><b>Varsayımlar ve riskler</b>{[...testPlan.assumptions.map(x=>`Varsayım: ${x}`),...testPlan.risks.map(x=>`Risk: ${x}`)].join(' · ')}</span></div>}<div className="modal-foot"><span>{testPlanSavedId?"Proje geçmişinde kayıtlı; özgün talep saklanmadı.":"Plan henüz kaydedilmedi."}</span>{!testPlanSavedId&&workspaceProject?.accessLevel!=='Viewer'&&<button className="primary" disabled={testPlanSaveLoading} onClick={()=>void saveAITestPlan()}>{testPlanSaveLoading?"Kaydediliyor…":"Planı proje geçmişine kaydet"}</button>}</div></section>}<div className="boundary-note"><ShieldCheck size={17}/><span><b>Ağsız test sandboxı</b>Test keşfi salt okunur. Test ve .NET build çalıştırma yalnız Maintainer veya TenantAdmin tarafından açık onayla başlatılır; kaynak snapshotını değiştirmez, dış ağa erişmez ve süre/CPU/bellek/PID sınırlarına tabidir. Şimdilik .NET, Python pytest, Node.js yerleşik, standart kütüphane kullanan Go ve bağımlılıksız Rust testleri çalıştırılır; proje paketleri kurulmaz, npm scriptleri çağrılmaz.</span></div></div></div>}{fileWorkspace&&<div className="studio-ide-page studio-file-explorer" ref={workspaceExplorerRef} role="main" aria-labelledby="workspace-explorer-title" tabIndex={-1} onKeyDown={handleWorkspaceExplorerKeyDown}><div className="modal-head"><div><p className="eyebrow studio-explorer-eyebrow"><FolderTree size={14}/> Nexora AI Development Studio <span>İZOLE ÇALIŞMA ALANI</span></p><h2 id="workspace-explorer-title"><span>{workspaceProject?.name}</span><code className="studio-explorer-branch">{fileWorkspace.branchName}</code></h2></div><button ref={workspaceExplorerCloseRef} type="button" className="icon-button" aria-label="Dosya gezginini kapat" onClick={closeWorkspaceFileExplorer}><X size={19}/></button></div><p className="muted modal-sub studio-explorer-intro">Kod, AI sohbeti, arama, test ve sürüm hazırlığı aynı izole çalışma alanında.</p><div className="studio-workbench-tools" role="toolbar" aria-label="Çalışma alanı araçları">
-<div className="studio-workbench-group" role="group" aria-label="Dosyalar"><span>Dosyalar</span><button type="button" className="is-active" aria-label="Dosya gezginini aç" onClick={()=>{setFileContent(null);setError('')}}><FolderTree size={15}/> Explorer</button></div>
-<div className="studio-workbench-group studio-ai-dock-toggle-group" role="group" aria-label="Yapay zekâ"><span>Yapay zekâ</span><button type="button" className={aiToolsViewOpen?'is-active':''} aria-expanded={aiToolsViewOpen} aria-controls="studio-ai-tools-page" onClick={()=>{setAiToolsViewOpen(value=>!value);setAiDockOpen(false)}}><Sparkles size={15}/> AI araçları <ChevronRight size={13} className={aiToolsViewOpen?'is-expanded':''}/></button></div>
-<div className="studio-workbench-group" role="group" aria-label="İnceleme"><span>İnceleme</span><button type="button" title="Çoklu dosya seçimi" className={multiFileSelecting?'is-active':''} onClick={()=>{setMultiFileSelecting(value=>!value);setMultiFilePaths([])}}><FileCode size={15}/> {multiFileSelecting?'Seçimi kapat':'Çoklu seç'}</button><button type="button" onClick={()=>{setSourceSearchWorkspace(fileWorkspace);setSourceSearchQuery('');setSourceSearchResult(null);setSelectedSourceMatches([]);setSourceAnalysisResult(null);setSourceAnalysisQuestion('');setSourceAnalysisConsent(false);setError('')}}><Search size={15}/> Kod ara</button><button type="button" disabled={analysisLoading} onClick={()=>void loadWorkspaceAnalysis(fileWorkspace)}><FolderTree size={15}/> Proje haritası</button><button type="button" disabled={testDiscoveryLoading} onClick={()=>void discoverWorkspaceTests(fileWorkspace)}><Play size={15}/> Test ve build</button></div>
-<div className="studio-workbench-group" role="group" aria-label="Sürüm"><span>Sürüm</span><button type="button" disabled={gitStatusLoading} onClick={()=>void loadWorkspaceGitStatus(fileWorkspace)}><GitBranch size={15}/> Durum</button><button type="button" disabled={changeLoading} onClick={()=>void loadWorkspaceChanges(fileWorkspace)}><History size={15}/> Geçmiş</button></div>
-<div className="studio-workbench-group" role="group" aria-label="Bilgi tabanı"><span>Bilgi tabanı</span><button type="button" className={knowledgeDrawerOpen?'is-active':''} title="Proje bilgi tabanını aç" onClick={()=>{setKnowledgePanelExpanded(true);setKnowledgeDrawerOpen(true)}}><ShieldCheck size={15}/> Proje kaynakları</button></div>
-</div>{error&&<div className="alert">{error}</div>}<nav className="studio-vscode-activity-bar" aria-label="Çalışma alanı bölümleri"><button type="button" className="active" title="Explorer" aria-label="Explorer" onClick={()=>{setFileContent(null);setError('')}}><FolderTree size={20}/></button><button type="button" title="Kod ara" aria-label="Kod ara" onClick={()=>{setSourceSearchWorkspace(fileWorkspace);setSourceSearchQuery('');setSourceSearchResult(null);setSelectedSourceMatches([]);setSourceAnalysisResult(null);setSourceAnalysisQuestion('');setSourceAnalysisConsent(false);setError('')}}><Search size={19}/></button><button type="button" title="Sürüm durumu" aria-label="Sürüm durumu" disabled={gitStatusLoading} onClick={()=>void loadWorkspaceGitStatus(fileWorkspace)}><GitBranch size={19}/></button><button type="button" title="Değişiklik geçmişi" aria-label="Değişiklik geçmişi" disabled={changeLoading} onClick={()=>void loadWorkspaceChanges(fileWorkspace)}><History size={19}/></button><span className="activity-spacer"/><ShieldCheck size={18}/></nav><aside className="studio-vscode-explorer-sidebar" aria-label="Proje dosyaları"><div className="studio-vscode-explorer-heading"><div><span>EXPLORER</span><b>Dosyalar</b></div><div className="studio-vscode-explorer-actions">{workspaceProject?.accessLevel!=="Viewer"&&<button type="button" title="Geçerli Explorer klasöründe yeni dosya oluştur" aria-label="Explorer içinde yeni dosya oluştur" onClick={()=>startManualNewFile(fileWorkspace)}><Plus size={14}/><span>Yeni dosya</span></button>}{moduleStarterId&&moduleWorkspaceCode&&workspaceProject?.accessLevel!=="Viewer"&&<button type="button" title="Onayınızla modül şablonundaki yeni dosyaları izole çalışma alanına ekle" disabled={moduleFilesLoading} onClick={()=>void loadModuleStarterIntoWorkspace()}><FileCode size={14}/><span>{moduleFilesLoading?"Ekleniyor…":"Modül şablonu"}</span></button>}<small>{visibleWorkspaceEntries.length}</small></div></div><div className="studio-vscode-tree-search"><Search size={14}/><input aria-label={moduleWorkspaceCode?"Modül dosyalarında ara":"Tüm çalışma alanında dosya ara"} value={workspaceFileFilter} onChange={e=>setWorkspaceFileFilter(e.target.value)} placeholder={moduleWorkspaceCode?"Modül dosyalarında ara…":"Tüm dosyalarda ara…"}/></div>{workspaceFileFilter.trim()&&<small className="studio-vscode-search-status">{workspaceFileSearchLoading?(moduleWorkspaceCode?'Modül alanı aranıyor…':'Tüm çalışma alanı aranıyor…'):workspaceFileSearchResult?`${workspaceFileSearchResult.entries.length} eşleşme · ${workspaceFileSearchResult.scannedEntries.toLocaleString('tr-TR')} öğe tarandı${workspaceFileSearchResult.truncated?' · sonuç sınırına ulaşıldı':''}`:'Arama bekleniyor…'}</small>}{filePath&&<button type="button" className="studio-vscode-parent-item" disabled={fileLoading||manualFileEditing} onClick={()=>void loadWorkspaceFiles(fileWorkspace,filePath.split('/').slice(0,-1).join('/'))}><ChevronRight size={13}/> Üst klasör</button>}<nav className="studio-vscode-tree">{visibleWorkspaceEntries.map(entry=><div className={'studio-vscode-tree-row '+entry.kind.toLowerCase()} key={entry.path}>{entry.kind==='File'&&workspaceProject?.accessLevel!=='Viewer'&&/\.(cs|csx|razor|ts|tsx|js|jsx|html|css|scss|sql|py|go|rs|java|md|json|xml|yml|yaml)$/i.test(entry.path)&&<input className="studio-knowledge-source-checkbox" type="checkbox" title="Proje bilgi tabanına ekle" aria-label={`${entry.path} dosyasını AI bilgi tabanına ekle`} checked={knowledgePaths.includes(entry.path)} onChange={e=>setKnowledgePaths(current=>e.target.checked?[...current,entry.path]:current.filter(path=>path!==entry.path))}/>}{entry.kind==='File'&&multiFileSelecting&&<input type="checkbox" title="AI önerisine dahil et" aria-label={`${entry.path} dosyasını AI önerisine ekle`} checked={multiFilePaths.includes(entry.path)} disabled={!/\.(cs|csx|razor|ts|tsx|js|jsx|html|css|scss|sql|py|go|rs|java)$/i.test(entry.path)||(!multiFilePaths.includes(entry.path)&&multiFilePaths.length>=5)} onChange={e=>setMultiFilePaths(current=>e.target.checked?[...current,entry.path]:current.filter(path=>path!==entry.path))}/>}<button type="button" title={entry.path} disabled={fileLoading||manualFileEditing||entry.kind==='Link'} className={'studio-vscode-tree-item '+entry.kind.toLowerCase()+(fileContent?.path===entry.path?' is-active':'')} onClick={()=>entry.kind==='Directory'?void loadWorkspaceFiles(fileWorkspace,entry.path):entry.kind==='File'?void loadWorkspaceFile(fileWorkspace,entry.path):undefined}>{entry.kind==='Directory'?<Folder size={14}/>:<FileCode size={14}/>}<span>{entry.name}{workspaceFileFilter.trim()&&<small className="studio-vscode-tree-match-path">{entry.path}</small>}</span>{entry.kind==='Directory'&&<ChevronRight size={12} className="tree-chevron"/>}</button></div>)}{visibleWorkspaceEntries.length===0&&<div className="studio-vscode-tree-empty">{workspaceFileFilter.trim()?(workspaceFileSearchLoading?(moduleWorkspaceCode?'Modül alanı aranıyor…':'Tüm çalışma alanı aranıyor…'):'Eşleşme bulunamadı'):(fileLoading?'Klasör yükleniyor…':moduleWorkspacePath?`Modül klasörü henüz oluşturulmadı. Yeni dosya, ${moduleWorkspacePath}/src/lib.rs yolunda açılır.`:'Klasör boş')}</div>}</nav>{moduleTemplateFiles.length>0&&(filePath===""||filePath===moduleWorkspacePath)&&<section className="studio-module-source-loader"><div className="studio-module-source-loader-icon"><Code2 size={16}/></div><b>{moduleDisplayNameForWorkspace(fileWorkspace)}</b><p>Başlangıç kodlarını modül klasörüne ekleyip Explorer'da açın.</p><button type="button" className="secondary small-button" disabled={moduleFilesLoading||fileLoading||manualFileEditing||workspaceProject?.accessLevel==="Viewer"} onClick={()=>void loadModuleStarterIntoWorkspace()}>{moduleFilesLoading?"Modül dosyaları yükleniyor…":"Modül dosyalarını yükle"}<ArrowUpRight size={13}/></button></section>}<div className="studio-vscode-tree-footer"><ShieldCheck size={13}/><span>{manualFileEditing?'Düzenleme açık · gezinme kaydetme sonrası etkin':'İzole çalışma alanı'}</span></div></aside><main className="studio-vscode-main"><div className="studio-vscode-tab-strip"><div className={aiToolsViewOpen?"studio-vscode-tab":"studio-vscode-tab is-active"}><Code2 size={14}/><span>{fileContent?(manualFileCreating?manualFilePath.split('/').pop():fileContent.path.split('/').pop()):'Başlangıç'}</span>{fileContent&&<button type="button" title="Sekmeyi kapat" aria-label="Dosya sekmesini kapat" onClick={()=>{if(manualFileEditing&&!window.confirm('Kaydedilmemiş düzenlemeyi kapatmak istiyor musunuz?'))return;setManualFileEditing(false);setFileContent(null);updateWorkspaceRoute(workspaceProject!.id,fileWorkspace!.id,filePath)}}><X size={13}/></button>}</div>{aiToolsViewOpen&&<div className="studio-vscode-tab is-active studio-ai-tools-tab"><Sparkles size={14}/><span>Yapay zekâ araçları</span><button type="button" title="Sekmeyi kapat" aria-label="AI araçları sekmesini kapat" onClick={()=>setAiToolsViewOpen(false)}><X size={13}/></button></div>}<div className="studio-vscode-tab-spacer"/><span className="studio-vscode-tab-branch">{fileWorkspace.workspaceBranchName??fileWorkspace.branchName}</span></div>{aiToolsViewOpen&&<section id="studio-ai-tools-page" className="studio-ai-tools-page" aria-label="Yapay zekâ araçları"><div className="studio-ai-tools-layout"><div className="studio-ai-tools-main"><header className="studio-ai-tools-hero"><div className="studio-ai-tools-hero-copy"><span>STUDIO AI</span><h1>Yapay zekâ araçları</h1><p>Geliştirme sürecinizi hızlandırın. Kod üretin, analiz edin, iyileştirin ve teknik içerikler hazırlayın.</p><div className="studio-ai-tools-hero-actions"><button type="button" className="primary" onClick={()=>{setAiToolsViewOpen(false);startNewCodeSuggestion(fileWorkspace)}} disabled={!canEditWorkspace}><Sparkles size={15}/> Hızlı başlangıç</button><button type="button" className="secondary" onClick={()=>document.getElementById("studio-ai-tool-list")?.scrollIntoView({behavior:"smooth",block:"start"})}><Play size={14}/> Araçları keşfet</button></div></div><div className="studio-ai-tools-hero-art" aria-hidden="true"><div className="studio-ai-tools-art-glow"/><div className="studio-ai-tools-art-card"><Code2 size={42}/></div><Sparkles className="studio-ai-tools-art-sparkle" size={25}/></div></header><div className="studio-ai-tools-filter-bar"><div className="studio-ai-tools-categories" role="group" aria-label="Araç kategorileri">{aiToolCategories.map(category=><button type="button" key={category} className={aiToolsCategory===category?"is-active":""} aria-pressed={aiToolsCategory===category} onClick={()=>setAiToolsCategory(category)}>{category==='Tümü'&&<Sparkles size={13}/>} {category}</button>)}</div><label className="studio-ai-tools-search"><Search size={15}/><input type="search" aria-label="Araçlarda ara" placeholder="Araçlarda ara…" value={aiToolsQuery} onChange={event=>setAiToolsQuery(event.target.value)}/></label></div><section id="studio-ai-tool-list" className="studio-ai-tools-catalog"><header className="studio-ai-tools-catalog-heading"><h2><Sparkles size={17}/> Öne çıkan araçlar</h2><span>{filteredAiToolCards.length} araç</span></header>{filteredAiToolCards.length>0?<div className="studio-ai-tools-grid">{filteredAiToolCards.map(card=>{const Icon=card.icon;return <article className="studio-ai-tool-card" key={card.id}><div className="studio-ai-tool-card-heading"><span className="studio-ai-tool-icon"><Icon size={20}/></span><div><h3>{card.title}</h3><p>{card.description}</p></div>{card.id==='file'&&<span className="studio-ai-tool-badge">Önerilen</span>}</div><div className="studio-ai-tool-tags">{card.tags.map(tag=><span key={tag}>{tag}</span>)}</div><button type="button" className="studio-ai-tool-run" disabled={card.disabled} title={card.disabled?(card.id==='docs'?'Önce izole çalışma dalı oluşturun':card.id==='improve'?'Düzenlenebilir bir kaynak dosya açın':'Bu işlem için düzenleme yetkisi gerekir'):undefined} onClick={card.action}>Çalıştır <ArrowUpRight size={14}/></button></article>})}</div>:<div className="studio-ai-tools-empty"><Search size={22}/><b>Eşleşen araç yok</b><span>Arama ifadesini veya kategori seçimini değiştirin.</span></div>}</section></div><aside className="studio-ai-tools-sidebar"><section className="studio-ai-tools-status-card"><div className="studio-ai-tools-status-title"><span><Sparkles size={17}/></span><div><h2>Kullanım durumu</h2><p>Bu çalışma alanındaki AI araçları</p></div></div><div className="studio-ai-tools-status-row"><b>AI hizmeti</b><span className={aiConfigured===true?'is-ready':aiConfigured===false?'is-unavailable':''}><i/>{aiConfigured===null?'Kontrol ediliyor':aiConfigured?'Bağlı':'Yapılandırılmadı'}</span></div><div className="studio-ai-tools-status-detail">{workspaceProject?.name&&<div><span>Proje</span><b>{workspaceProject.name}</b></div>}<div><span>Çalışma dalı</span><b>{fileWorkspace.workspaceBranchName??fileWorkspace.branchName}</b></div><div><span>Erişim</span><b>{workspaceProject?.accessLevel==='Viewer'?'Salt okunur':'İzole çalışma alanı'}</b></div></div><button type="button" className="studio-ai-tools-manage" onClick={()=>{setAiToolsViewOpen(false);setAiDockOpen(true)}}><Sparkles size={15}/> Araçları yönet</button></section><section className="studio-ai-tools-safety-card"><div><ShieldCheck size={18}/><h2>Kontrollü çalışma</h2></div><p>AI çıktıları önce taslak olarak gösterilir. Dosya değişikliği için inceleme ve ayrıca onay gerekir.</p><ul><li><ShieldCheck size={14}/> İzole çalışma alanı</li><li><ShieldCheck size={14}/> Değişiklikleri gözden geçir</li><li><ShieldCheck size={14}/> Onaysız yazma yok</li></ul></section></aside></div></section>}<div className="panel-heading studio-explorer-location"><div className="studio-explorer-path"><span className="studio-explorer-kicker">{fileContent?'DOSYA':'ÇALIŞMA ALANI'}</span><b>{fileContent?(manualFileCreating?manualFilePath:fileContent.path):filePath?'/'+filePath:'/ Proje kökü'}</b><small>{fileContent?fileContent.sizeBytes.toLocaleString('tr-TR')+' bayt':fileLoading?'Klasör okunuyor…':(fileListing?.entries.length??0)+' kayıt'}</small></div>{fileContent?<div className="studio-explorer-file-actions">{!manualFileEditing&&workspaceProject?.accessLevel!=='Viewer'&&/\.(cs|csx|razor|ts|tsx|js|jsx|html|css|scss|sql|py|go|rs|java)$/i.test(fileContent.path)&&<><button className="secondary small-button" onClick={startManualFileEdit}>Elle düzenle</button><button className="secondary small-button" onClick={startCodeSuggestion}>AI önerisi</button></>}{manualFileEditing&&<button type="button" className="secondary small-button" disabled={manualFileSaving} onClick={cancelManualFileEdit}>Düzenlemeyi iptal et</button>}<button className="secondary small-button" disabled={manualFileEditing||manualFileSaving} onClick={()=>setFileContent(null)}>Sekmeyi kapat</button></div>:filePath&&<button className="secondary small-button" disabled={fileLoading} onClick={()=>void loadWorkspaceFiles(fileWorkspace,filePath.split('/').slice(0,-1).join('/'))}>Üst klasör</button>}</div>{fileContent?(manualFileEditing?<div className="studio-manual-editor">{manualFileCreating&&<label>Dosya yolu<input value={manualFilePath} onChange={e=>setManualFilePath(e.target.value)} maxLength={500} required placeholder="src/components/NewComponent.tsx"/></label>}<WorkspaceCodeEditor path={manualFileCreating?manualFilePath:(fileContent?.path??'')} value={manualFileContent} dirty={manualFileCreating?manualFileContent.length>0||manualFilePath!==(fileContent?.path??''):manualFileContent!==fileContent?.content} onChange={setManualFileContent} saving={manualFileSaving} onSave={value=>void saveManualFile(value)}/><small id="manual-editor-help" className="studio-editor-shortcuts">Tab girintiler. Ctrl+S (Mac: ⌘S) kaydetme onayını açar.</small><div className="studio-manual-editor-footer"><span>{new TextEncoder().encode(manualFileContent).length.toLocaleString('tr-TR')} / {(manualFileCreating?128*1024:maxManualWorkspaceFileBytes).toLocaleString('tr-TR')} bayt · UTF-8</span><span className="studio-editor-approval-note">Kaydetme onay penceresiyle kaydedilir.</span></div><div className="boundary-note"><ShieldCheck size={17}/><span><b>İnsan onayı gerekli</b>Kaydetmeden önce değişikliği gözden geçirin. Kod çalıştırılmaz.</span></div></div>:<WorkspaceCodeEditor path={fileContent.path} value={fileContent.content} readOnly/>):fileLoading?<div className="studio-vscode-welcome is-loading"><div className="studio-vscode-spinner"/><b>Çalışma alanı dosyaları yükleniyor…</b></div>:<section className="studio-vscode-welcome">
-<div className="studio-welcome-hero"><div className="studio-welcome-copy">
-<p className="studio-vscode-welcome-eyebrow">NEXORA AI DEVELOPMENT STUDIO</p>
-<h1>Merhaba, <span>{workspaceProject?.name}</span></h1>
-<p>Başlamak için Explorer’dan bir dosya seçin.<br/>Dosyalar izole çalışma alanınızda açılır.</p>
-{workspaceProject?.accessLevel!=='Viewer'&&<div className="studio-vscode-welcome-actions"><button type="button" onClick={()=>startNewCodeSuggestion(fileWorkspace)}><Sparkles size={18}/> AI ile Dosya Oluştur</button><button type="button" onClick={()=>startUiDesigner(fileWorkspace)}><Code2 size={18}/> UI Tasarla</button></div>}
-</div><img className="studio-welcome-illustration" src={new URL('./assets/studio-workspace.svg', import.meta.url).href} alt="" aria-hidden="true"/></div>
-<div className="studio-welcome-quick"><h2>Hızlı Eylemler</h2><div className="studio-welcome-quick-grid">
-<button type="button" onClick={closeWorkspaceFileExplorer}><span className="studio-quick-icon gold"><Folder size={23}/></span><span><b>Proje Aç</b><small>Proje listesine dön</small></span></button>
-<button type="button" disabled={gitStatusLoading} onClick={()=>void loadWorkspaceGitStatus(fileWorkspace)}><span className="studio-quick-icon violet"><GitBranch size={23}/></span><span><b>Git Durumu</b><small>Değişiklikleri incele</small></span></button>
-<button type="button" disabled={testDiscoveryLoading} onClick={()=>void discoverWorkspaceTests(fileWorkspace)}><span className="studio-quick-icon green"><Play size={23}/></span><span><b>Test &amp; Build</b><small>Testleri ve derlemeyi aç</small></span></button>
-<button type="button" disabled={analysisLoading} onClick={()=>void loadWorkspaceAnalysis(fileWorkspace)}><span className="studio-quick-icon blue"><FolderTree size={23}/></span><span><b>Proje Haritası</b><small>Yapıyı görselleştir</small></span></button>
-</div></div>
-<div className="studio-vscode-welcome-shortcuts"><span><kbd>Ctrl + P</kbd><small>Dosya ara</small></span><span><kbd>Ctrl + Shift + F</kbd><small>Kod içinde ara</small></span><span><kbd>Ctrl + S</kbd><small>Onayla kaydet</small></span></div>
-</section>}{multiFileSelecting&&<div className="studio-vscode-multi-footer"><span>{multiFilePaths.length}/5 kaynak dosya seçildi</span><button type="button" className="primary" disabled={multiFilePaths.length<2||multiFilePaths.length>5} onClick={()=>startMultiFileSuggestion(fileWorkspace)}>Çoklu AI önerisi hazırla</button></div>}<div className="studio-vscode-statusbar"><span><GitBranch size={12}/>{fileWorkspace.workspaceBranchName??fileWorkspace.branchName}</span><span>{fileContent?(manualFileCreating?'Yeni dosya':'UTF-8'):filePath?'/'+filePath:'Hazır'}</span><span title="Yazma yalnız izinli kaynak dosyalarına açık onayla uygulanır. Git iç dizini gizlenir, sembolik bağlantılar izlenmez ve kod çalıştırılmaz.">{workspaceProject?.accessLevel==='Viewer'?'Salt okunur':'İzole çalışma alanı · Onaylı yazma'}</span></div>{aiDockOpen&&<aside id="studio-ai-dock" className="studio-ai-dock" aria-label="Yapay zekâ araçları"><header className="studio-ai-dock-header"><div><span>STUDIO AI</span><b>Yapay zekâ araçları</b><small>{workspaceProject?.name} · {fileWorkspace.workspaceBranchName??fileWorkspace.branchName}</small></div><button type="button" className="icon-button" aria-label="Yapay zekâ panelini kapat" onClick={()=>setAiDockOpen(false)}><X size={17}/></button></header><section className="studio-ai-dock-section"><p>ÜRETİM</p><button type="button" onClick={()=>{setAiDockOpen(false);startNewCodeSuggestion(fileWorkspace)}}><Sparkles size={16}/><span><b>AI dosya oluştur</b><small>Yeni bir kaynak dosya için öneri hazırla</small></span><ChevronRight size={14}/></button><button type="button" onClick={()=>{setAiDockOpen(false);startUiDesigner(fileWorkspace)}}><Code2 size={16}/><span><b>UI tasarla</b><small>Yeni bir ekran taslağı oluştur</small></span><ChevronRight size={14}/></button></section><section className="studio-ai-dock-section"><p>ASİSTANLAR</p><button type="button" disabled={!fileWorkspace.workspaceBranchName} title={!fileWorkspace.workspaceBranchName?"Önce izole çalışma dalı oluşturulmalı":"AI sohbetini aç"} onClick={()=>{setAiDockOpen(false);void openStudioChat(fileWorkspace)}}><MessageCircle size={16}/><span><b>AI sohbet</b><small>Çalışma alanı hakkında konuş</small></span><ChevronRight size={14}/></button><div className="studio-ai-dock-database"><DatabaseEngineer token={token} projectId={workspaceProject!.id} projectName={workspaceProject!.name} requestId={fileWorkspace.id} workspaceName={fileWorkspace.workspaceBranchName??fileWorkspace.branchName} disabled={workspaceProject?.accessLevel==="Viewer"}/><small>Veritabanı şeması için mühendis asistanı</small></div><button type="button" onClick={()=>{setAiDockOpen(false);setArchitectWorkspace(fileWorkspace);setArchitectPlan(null);setArchitectRequest(linkedDevelopmentContext(fileWorkspace.developmentRequestTitle,fileWorkspace.developmentRequestDescription));setArchitectConsent(false);setError("")}}><Sparkles size={16}/><span><b>AI Architect</b><small>Teknik plan ve etki alanı çıkar</small></span><ChevronRight size={14}/></button></section><div className="studio-ai-dock-note"><ShieldCheck size={15}/><span>AI önerileri taslak olarak açılır; çalışma alanına yazmak için ayrıca onay gerekir.</span></div></aside>}</main>{knowledgeDrawerOpen&&<div className="studio-knowledge-overlay" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setKnowledgeDrawerOpen(false)}}><section className="panel studio-knowledge-panel" role="dialog" aria-modal="true" aria-label="Proje bilgi tabanı"><button type="button" className="studio-knowledge-close icon-button" aria-label="Proje bilgi tabanını kapat" onClick={()=>setKnowledgeDrawerOpen(false)}><X size={18}/></button><button type="button" className="studio-knowledge-heading" aria-expanded={knowledgePanelExpanded} onClick={()=>setKnowledgePanelExpanded(value=>!value)}><span><b>Proje bilgi tabanı</b><small>{knowledgeDocs.length} güncel dosya · tenant ve workspace kapsamında</small></span><span className="studio-knowledge-state">{knowledgeAutoRefresh.allFiles?"Erişim açık":"Ayarlar"}</span><ChevronDown size={15} className={knowledgePanelExpanded?"is-expanded":""}/></button>{knowledgePanelExpanded&&<div className="studio-knowledge-content">{workspaceProject?.accessLevel!=="Viewer"&&!knowledgeAutoRefresh.allFiles&&<div className="modal-foot" style={{justifyContent:"flex-start"}}><button type="button" className="secondary small-button" disabled={knowledgeLoading} onClick={()=>void enableKnowledgeAutoRefreshAll()}>{knowledgeLoading?"Açılıyor…":"Tüm proje kaynaklarına kalıcı AI erişimi ver"}</button><span>Bir kez açılır; ilgili kaynak kodu her sohbette aranır ve eşleşmeler otomatik gönderilir.</span></div>}{knowledgeAutoRefresh.enabled&&<div className="boundary-note" style={{marginTop:10}}><ShieldCheck size={17}/><span><b>{knowledgeAutoRefresh.allFiles?"Tüm proje kaynakları için kalıcı AI erişimi açık":"Otomatik yenileme açık"}</b> {knowledgeAutoRefresh.allFiles?"Her sohbette desteklenen kaynak kodunda ilgili arama yapılır; güvenli eşleşmeler tenant’ın seçili AI sağlayıcısına otomatik gönderilir. ERP kayıtları ve olası sır dosyaları kapsama dahil değildir.":`Yalnızca onayladığınız dosyalar (${knowledgeAutoRefresh.paths.join(", ")}) sohbet öncesinde otomatik yenilenir; sohbetlerde kullanmak için mesaj bazlı onay gerekir.`}{knowledgeAutoRefresh.lastRefreshedAt&&<small> {knowledgeAutoRefresh.allFiles?"İzin verildi":"Son yenileme"}: {new Date(knowledgeAutoRefresh.lastRefreshedAt).toLocaleString("tr-TR")}</small>}</span>{workspaceProject?.accessLevel!=="Viewer"&&<button type="button" className="secondary small-button" disabled={knowledgeLoading} onClick={()=>void revokeKnowledgeAutoRefresh()}>İzni kaldır</button>}</div>}{knowledgeHistoryCandidates.length>0&&<div className="requests-list" style={{marginTop:10}}><div className="panel-heading"><div><b>Onaylanmış geliştirme geçmişi</b><small>Bağımsız inceleme ve tamamlanmış test içeren sürüm adayları · en çok 10 kayıt seçin</small></div></div>{knowledgeHistoryCandidates.map(item=><article className="request-row" key={item.id}><input type="checkbox" aria-label={`${item.branchName} ${item.commitSha.slice(0,12)} onaylı geçmiş kaydını bilgi tabanına ekle`} checked={knowledgeHistoryIds.includes(item.id)} disabled={!knowledgeHistoryIds.includes(item.id)&&knowledgeHistoryIds.length>=10} onChange={e=>setKnowledgeHistoryIds(current=>e.target.checked?[...current,item.id]:current.filter(id=>id!==item.id))}/><div className="request-info"><b>{item.developmentRequestTitle||item.branchName}</b><small>{item.branchName} · {item.commitSha.slice(0,12)} · test: {item.testTargetPath}</small><small>Onay: {new Date(item.approvedAt).toLocaleString('tr-TR')} · test: {new Date(item.testCompletedAt).toLocaleString('tr-TR')}</small></div></article>)}</div>}{knowledgeDocs.map(doc=><article className="request-row" key={doc.id}><div className="request-info"><b>{doc.path}</b><small>{doc.characterCount.toLocaleString('tr-TR')} karakter · {doc.contentSha256.slice(0,12)} · {new Date(doc.indexedAt).toLocaleString('tr-TR')}</small></div><button type="button" className="secondary small-button" onClick={()=>void deleteKnowledgeDocument(doc)}>Sil</button></article>)}{knowledgePaths.length>0&&workspaceProject?.accessLevel!=="Viewer"&&!knowledgeAutoRefresh.allFiles&&<label style={{display:"flex",alignItems:"flex-start",gap:9,marginTop:12}}><input type="checkbox" checked={enableKnowledgeAutoRefresh} onChange={e=>setEnableKnowledgeAutoRefresh(e.target.checked)} style={{width:16,marginTop:3}}/><span>Seçtiğim dosyaları sohbet öncesinde otomatik yenile. Bu izin yalnızca bu dosyaları kapsar; sohbetlerde bilgi tabanını kullanma ve AI paylaşım onayı ayrıca istenir.</span></label>}{(knowledgePaths.length>0||knowledgeHistoryIds.length>0)&&<div className="modal-foot"><span>{knowledgePaths.length} dosya + {knowledgeHistoryIds.length} geçmiş kaydı seçildi · toplam en çok 50 kaynak</span><button type="button" className="primary" disabled={knowledgeLoading||knowledgePaths.length+knowledgeHistoryIds.length>50} onClick={()=>void indexSelectedKnowledge()}>{knowledgeLoading?'İndeksleniyor…':'Seçilen kaynakları bilgi tabanına ekle'}</button></div>}</div>}</section></div>}{!workspaceFileFilter.trim()&&fileListing?.nextOffset!==null&&fileListing?.nextOffset!==undefined&&<div className="modal-foot"><span>Daha fazla dosya var</span><button className="secondary small-button" disabled={fileLoading} onClick={()=>void loadWorkspaceFiles(fileWorkspace,filePath,fileListing.nextOffset!)}>Sonraki dosyalar</button></div>}</div>}
-    {uiDesignerWorkspace&&workspaceProject&&<div className="modal-backdrop studio-ui-designer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget&&!uiDesignLoading)setUiDesignerWorkspace(null)}}><div className="modal studio-ui-designer-modal"><div className="modal-head"><div><p className="eyebrow">AI UI DESIGNER · RESPONSIVE EKRAN TASLAĞI</p><h2>{workspaceProject.name} / {uiDesignerWorkspace.branchName}</h2></div><button className="icon-button" disabled={uiDesignLoading} onClick={()=>setUiDesignerWorkspace(null)}><X size={19}/></button></div><p className="muted modal-sub">İsteğinizden erişilebilir, responsive bir ERP ekran taslağı üretin. Önizlemeyi inceleyip onayladığınızda .tsx bileşeni yeni dosya olarak izole workspace’e eklenir.</p>{error&&<div className="alert">{error}</div>}<form onSubmit={createUiDesign} className="ui-designer-form"><label>Ekran dosyası yolu<input value={uiDesignPath} onChange={e=>setUiDesignPath(e.target.value)} required maxLength={500} placeholder="src/screens/CustomerOverview.tsx" pattern=".*\.tsx" title="Yeni bir .tsx bileşen dosyası kullanın"/></label><label>Ekran ihtiyacı<textarea value={uiDesignRequest} onChange={e=>setUiDesignRequest(e.target.value)} required maxLength={2000} rows={3} placeholder="Örn. cari listesi, filtreler, risk kartı ve yeni cari eylemi olan responsive ekran"/></label><label className="ui-designer-consent"><input type="checkbox" checked={uiDesignConsent} onChange={e=>setUiDesignConsent(e.target.checked)} required/><span>Bu tasarım isteğinin, proje/dal adının ve yeni dosya yolunun OpenAI’ye gönderilmesini onaylıyorum. Kaynak kodu ve ERP verisi paylaşılmaz.</span></label><div className="modal-foot"><span>Yalnız statik ekran taslağı; veri bağlama ve buton davranışları üretilmez.</span><button className="primary" disabled={uiDesignLoading||!uiDesignConsent||!uiDesignRequest.trim()||!uiDesignPath.trim()}>{uiDesignLoading?'Tasarım hazırlanıyor…':'AI ile ekran tasarla'}</button></div></form>{uiDesignResult&&<div className="ui-designer-result"><div className="ui-designer-result-heading"><div><p className="eyebrow">ÖNİZLEME · UYGULANMADI</p><h3>{uiDesignResult.summary}</h3><small>{uiDesignResult.filePath} · {uiDesignResult.proposedContent.length.toLocaleString('tr-TR')} karakter</small></div><button className="secondary small-button" disabled={uiDesignLoading||uiDesignApplied} onClick={()=>{setUiDesignResult(null);setUiDesignConsent(false);setUiDesignApplyApproval(false)}}>İsteği düzenle</button></div><UiDesignPlanPreview plan={uiDesignResult.plan}/><details className="ui-generated-source"><summary>Üretilecek React/TSX kodunu incele</summary><pre><code>{uiDesignResult.proposedContent}</code></pre></details><label className="ui-designer-apply-consent"><input type="checkbox" checked={uiDesignApplyApproval} disabled={uiDesignLoading||uiDesignApplied} onChange={e=>setUiDesignApplyApproval(e.target.checked)}/><span>Önizlemeyi ve kodu inceledim. Bu yeni dosyayı onayla workspace’e ekle.</span></label><div className="modal-foot"><span>{uiDesignApplied?'Dosya eklendi; kod çalıştırılmadı.':'Dosya yazılmadan önce insan onayı gerekir.'}</span><button className="primary" disabled={uiDesignLoading||uiDesignApplied||!uiDesignApplyApproval} onClick={()=>void applyUiDesign()}>{uiDesignLoading?'Uygulanıyor…':uiDesignApplied?'Dosya eklendi':'Onayla ve yeni dosyayı ekle'}</button></div></div>}<div className="boundary-note"><ShieldCheck size={17}/><span><b>Güvenli uygulama sınırı</b>AI yalnız görsel şema ve statik TSX taslağı üretir. API şemayı doğrular, kaynak kod göndermez; Runner dosya yolunu doğrular. Onayla yazılır, otomatik çalıştırma yapılmaz.</span></div></div></div>}    {sourceSearchWorkspace&&<div className="modal-backdrop studio-source-search-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setSourceSearchWorkspace(null);setSourceSearchResult(null)}}}><section className="modal studio-source-search-modal" role="dialog" aria-modal="true" aria-labelledby="studio-source-search-title"><header className="studio-source-search-header"><div className="studio-source-search-heading"><div className="studio-source-search-kicker"><Search size={14}/><span>KOD TABANI · SALT OKUNUR ARAMA</span></div><h2 id="studio-source-search-title">Kaynak kodda ara</h2><div className="studio-source-search-scope"><b>{workspaceProject?.name}</b><span>/</span><code>{sourceSearchWorkspace.branchName}</code></div></div><button type="button" className="studio-source-search-close" aria-label="Aramayı kapat" onClick={()=>{setSourceSearchWorkspace(null);setSourceSearchResult(null)}}><X size={19}/></button></header><p className="studio-source-search-intro">Eşleşmeler dosya ve satır bilgisiyle listelenir. Kod parçaları, ayrıca onaylamadığınız sürece AI’ye gönderilmez.</p>{error&&<div className="alert">{error}</div>}<form onSubmit={searchWorkspaceSource} className="studio-source-search-form"><label htmlFor="studio-source-search-query">Kod içinde ara</label><div className="studio-source-search-input-row"><Search size={18}/><input id="studio-source-search-query" type="search" value={sourceSearchQuery} onChange={e=>setSourceSearchQuery(e.target.value)} maxLength={120} required autoComplete="off" placeholder="Metin, sembol veya dosya adı yazın…"/><button className="primary" disabled={sourceSearchLoading||!sourceSearchQuery.trim()}>{sourceSearchLoading?'Aranıyor…':'Ara'}<Search size={15}/></button></div><div className="studio-source-search-hint"><span>Salt okunur arama</span><span>En çok 8.000 dosya · 30 eşleşme</span></div></form>{sourceSearchResult&&<section className="studio-source-search-results" aria-label="Arama sonuçları"><header className="studio-source-search-results-heading"><div><b>{sourceSearchResult.matches.length} eşleşme</b><span>{sourceSearchResult.scannedFiles.toLocaleString('tr-TR')} dosya tarandı{sourceSearchResult.truncated?' · sonuç sınırına ulaşıldı':''}</span></div><small>{selectedSourceMatches.length}/5 seçili</small></header><div className="studio-source-search-results-list">{sourceSearchResult.matches.map((match,index)=><article className="studio-source-search-result" key={`${match.path}-${match.line}-${index}`}><label className="studio-source-search-result-select" title="AI incelemesi için seç"><input type="checkbox" checked={selectedSourceMatches.includes(`${match.path}:${match.line}:${index}`)} disabled={!selectedSourceMatches.includes(`${match.path}:${match.line}:${index}`)&&selectedSourceMatches.length>=5} onChange={e=>{const id=`${match.path}:${match.line}:${index}`;setSelectedSourceMatches(current=>e.target.checked?[...current,id]:current.filter(item=>item!==id));setSourceAnalysisResult(null)}}/><span>İncele</span></label><div className="studio-source-search-result-content"><div className="studio-source-search-result-path"><FileCode size={14}/><b>{match.path}</b><code>:{match.line}</code></div><pre><code>{match.excerpt}</code></pre></div></article>)}{sourceSearchResult.matches.length===0&&<div className="studio-source-search-empty"><Search size={20}/><b>Eşleşme bulunamadı</b><span>Başka bir metin veya sembol deneyin.</span></div>}</div></section>}{sourceSearchResult&&selectedSourceMatches.length>0&&<form onSubmit={analyzeSelectedSource} className="studio-source-search-analysis"><div className="studio-source-search-analysis-heading"><div><b>Seçili kodu AI ile incele</b><span>{selectedSourceMatches.length} kod parçası · en çok 5</span></div><Sparkles size={17}/></div><label htmlFor="studio-source-analysis-question">İnceleme sorusu<textarea id="studio-source-analysis-question" value={sourceAnalysisQuestion} onChange={e=>setSourceAnalysisQuestion(e.target.value)} required maxLength={1000} rows={3} placeholder="Örn. Bu kod parçasının sorumluluğu nedir?"/></label><label className="studio-source-search-consent"><input type="checkbox" checked={sourceAnalysisConsent} onChange={e=>setSourceAnalysisConsent(e.target.checked)} required/><span>Seçtiğim kod satırlarının ve sorumun OpenAI’ye gönderilmesini onaylıyorum. İçerik sohbet geçmişinde veya veritabanında saklanmaz.</span></label><div className="studio-source-search-analysis-footer"><span>Yalnızca seçtiğiniz eşleşmeler paylaşılır.</span><button className="primary" disabled={sourceAnalysisLoading||!sourceAnalysisConsent}>{sourceAnalysisLoading?'İnceleniyor…':'Seçili kodu incele'}<ArrowUpRight size={14}/></button></div></form>}{sourceAnalysisResult&&<section className="studio-source-search-answer"><div className="studio-source-search-analysis-heading"><div><b>AI incelemesi</b><span>{sourceAnalysisResult.sourceCount} kaynak parçası incelendi</span></div><Sparkles size={17}/></div><p>{sourceAnalysisResult.answer}</p></section>}<footer className="studio-source-search-footer"><ShieldCheck size={15}/><span>Arama sonuçları bu ekranda kalır. AI incelemesi için ayrıca onay gerekir.</span></footer></section></div>}
-    {moduleMappingProject&&<ModuleSourceMappings token={token} project={moduleMappingProject} onClose={()=>setModuleMappingProject(null)}/>}
-  </>
+      </div>
+      {showCreate && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setShowCreate(false);
+          }}
+        >
+          <div className="modal">
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">AI DEVELOPMENT STUDIO</p>
+                <h2>Proje kaydet</h2>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => setShowCreate(false)}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub">
+              HTTPS depo adresini kaydedin. Kaynak checkout yalnızca yetkili
+              çalışma alanı talebi onaylandıktan sonra yapılır.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            <form onSubmit={createProject}>
+              <label>
+                Proje adı
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  maxLength={120}
+                  placeholder="Örn. Nexora ERP"
+                />
+              </label>
+              <label>
+                HTTPS depo adresi
+                <input
+                  type="url"
+                  value={repositoryUrl}
+                  onChange={(e) => setRepositoryUrl(e.target.value)}
+                  required
+                  maxLength={2048}
+                  placeholder="https://github.com/organizasyon/proje.git"
+                />
+              </label>
+              <label>
+                Varsayılan dal
+                <input
+                  value={defaultBranch}
+                  onChange={(e) => setDefaultBranch(e.target.value)}
+                  required
+                  maxLength={256}
+                />
+              </label>
+              <div className="modal-foot">
+                <span>
+                  <ShieldCheck size={14} /> Yalnız tenant yöneticisi
+                  kaydedebilir
+                </span>
+                <div>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setShowCreate(false)}
+                  >
+                    Vazgeç
+                  </button>
+                  <button disabled={busy} className="primary">
+                    {busy ? "Kaydediliyor…" : "Projeyi kaydet"} <span>→</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {accessProject && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setAccessProject(null);
+          }}
+        >
+          <div className="modal">
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">PROJE YETKİLERİ</p>
+                <h2>{accessProject.name}</h2>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => setAccessProject(null)}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub">
+              Yalnızca seçili tenant’ın etkin üyelerine proje rolü verilebilir.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            <div className="requests-list">
+              {members.map((member) => (
+                <article className="request-row" key={member.userId}>
+                  <div className="request-info">
+                    <b>{member.email}</b>
+                    <small>{member.accessLevel}</small>
+                  </div>
+                  <button
+                    className="secondary small-button"
+                    disabled={busy}
+                    onClick={() => void revokeAccess(member)}
+                  >
+                    Erişimi kaldır
+                  </button>
+                </article>
+              ))}
+            </div>
+            <form onSubmit={grantAccess} style={{ marginTop: 16 }}>
+              <label>
+                Firma üyesi e-postası
+                <input
+                  type="email"
+                  value={memberEmail}
+                  onChange={(e) => setMemberEmail(e.target.value)}
+                  required
+                  placeholder="kullanici@firma.com"
+                />
+              </label>
+              <label>
+                Proje rolü
+                <select
+                  value={accessLevel}
+                  onChange={(e) =>
+                    setAccessLevel(
+                      e.target.value as ProjectMember["accessLevel"],
+                    )
+                  }
+                >
+                  <option value="Viewer">Viewer · Görüntüleme</option>
+                  <option value="Contributor">Contributor · Çalışma</option>
+                  <option value="Maintainer">
+                    Maintainer · Erişim yönetimi
+                  </option>
+                </select>
+              </label>
+              <div className="modal-foot">
+                <span>
+                  <ShieldCheck size={14} /> Değişiklik denetim kaydına yazılır
+                </span>
+                <div>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setAccessProject(null)}
+                  >
+                    Kapat
+                  </button>
+                  <button disabled={busy} className="primary">
+                    {busy ? "Kaydediliyor…" : "Erişim ver"} <span>→</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {workspaceProject && (
+        <section className="studio-workspace-screen">
+          <div className="studio-workspace-page">
+            <nav className="studio-workspace-nav">
+              <button
+                type="button"
+                className="studio-workspace-back"
+                onClick={() => setWorkspaceProject(null)}
+              >
+                <ArrowLeft size={16} /> Projelere dön
+              </button>
+              <span>
+                AI Development Studio <ChevronRight size={13} /> Projeler{" "}
+                <ChevronRight size={13} /> Çalışma alanı
+              </span>
+            </nav>
+            <header className="studio-workspace-hero">
+              <div className="studio-workspace-hero-copy">
+                <p className="eyebrow">İZOLE ÇALIŞMA ALANI</p>
+                <h1>{workspaceProject.name}</h1>
+                <p>
+                  Seçtiğiniz dal başlangıç noktasıdır. Onaydan sonra Runner her
+                  talep için ayrı bir yerel AI çalışma dalı açar; uzak depoya
+                  push yapılmaz.
+                </p>
+                <div className="studio-workspace-meta">
+                  <span>
+                    <Code2 size={14} />
+                    {workspaceProject.repositoryUrl}
+                  </span>
+                  <span>
+                    <span className="studio-workspace-meta-dot" />
+                    Başlangıç dalı: <b>{workspaceProject.defaultBranch}</b>
+                  </span>
+                </div>
+              </div>
+              <span className="studio-workspace-access">
+                {workspaceProject.accessLevel === "TenantAdmin"
+                  ? "Yönetici"
+                  : workspaceProject.accessLevel === "Maintainer"
+                    ? "Bakım sorumlusu"
+                    : workspaceProject.accessLevel === "Contributor"
+                      ? "Katılımcı"
+                      : "Görüntüleyici"}
+              </span>
+            </header>
+            <main className="studio-workspace-content">
+              <section className="studio-workspace-intro">
+                <div>
+                  <p className="eyebrow">YENİ TALEP</p>
+                  <h2>Çalışma alanı oluştur</h2>
+                  <p>
+                    Bir başlangıç dalı seçin ve isterseniz geliştirme talebine
+                    bağlayın.
+                  </p>
+                </div>
+              </section>
+              {!workspaceProject.githubAuthorized && (
+                <div className="boundary-note">
+                  <ShieldCheck size={17} />
+                  <span>
+                    <b>GitHub depo erişimi</b>
+                    {workspaceProject.githubAuthorized
+                      ? "Bu proje GitHub App ile yetkilendirildi."
+                      : "Özel depolar için GitHub App yetkilendirmesi gerekir."}
+                  </span>
+                  {(workspaceProject.accessLevel === "TenantAdmin" ||
+                    workspaceProject.accessLevel === "Maintainer") && (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {!workspaceProject.githubAuthorized &&
+                        workspaceProject.repositoryUrl.startsWith(
+                          "https://github.com/",
+                        ) && (
+                          <button
+                            type="button"
+                            className="primary small-button"
+                            disabled={busy}
+                            onClick={() => void connectProjectGitHub()}
+                          >
+                            GitHub ile yetkilendir
+                          </button>
+                        )}
+                      {workspaceProject.githubAuthorized && (
+                        <button
+                          type="button"
+                          className="secondary small-button"
+                          disabled={busy}
+                          onClick={() => void disconnectProjectGitHub()}
+                        >
+                          Bağlantıyı kaldır
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {error && <div className="alert">{error}</div>}
+              <div className="studio-workspace-layout">
+                {(workspaceProject.accessLevel === "TenantAdmin" ||
+                  workspaceProject.accessLevel === "Contributor" ||
+                  workspaceProject.accessLevel === "Maintainer") && (
+                  <section className="studio-workspace-create-card">
+                    <form onSubmit={createWorkspaceRequest}>
+                      <label>
+                        Çalışma dalı
+                        <select
+                          aria-label="Çalışma dalı seçin"
+                          value={
+                            customWorkspaceBranch ? "__custom" : workspaceBranch
+                          }
+                          disabled={branchesLoading}
+                          onChange={(e) => {
+                            if (e.target.value === "__custom") {
+                              setCustomWorkspaceBranch(true);
+                              setWorkspaceBranch("");
+                            } else {
+                              setCustomWorkspaceBranch(false);
+                              setWorkspaceBranch(e.target.value);
+                            }
+                          }}
+                        >
+                          {workspaceBranches.map((branch) => (
+                            <option value={branch} key={branch}>
+                              {branch}
+                            </option>
+                          ))}
+                          <option value="__custom">
+                            Başka bir dal adı gir…
+                          </option>
+                        </select>
+                        {customWorkspaceBranch && (
+                          <input
+                            aria-label="Yeni çalışma dalı adı"
+                            value={workspaceBranch}
+                            onChange={(e) => setWorkspaceBranch(e.target.value)}
+                            required
+                            maxLength={256}
+                            placeholder="feature/cari-hesaplar"
+                          />
+                        )}
+                        <small>
+                          {branchesLoading
+                            ? "Git dalları yükleniyor…"
+                            : branchesAvailable
+                              ? `${workspaceBranches.length} dal seçilebilir; başka dal adı da girebilirsiniz.`
+                              : branchListError ||
+                                "Depo dalları şu anda alınamadı; varsayılan dalı seçebilir veya başka dal adı girebilirsiniz."}
+                        </small>
+                      </label>
+                      {!branchesAvailable && !branchesLoading && (
+                        <button
+                          type="button"
+                          className="secondary small-button"
+                          disabled={busy}
+                          onClick={() =>
+                            void loadProjectBranches(workspaceProject)
+                          }
+                        >
+                          Dalları yeniden yükle
+                        </button>
+                      )}
+                      <label>
+                        Bağlı geliştirme talebi
+                        <select
+                          value={selectedDevelopmentRequestId}
+                          onChange={(e) =>
+                            setSelectedDevelopmentRequestId(e.target.value)
+                          }
+                        >
+                          <option value="">Bağımsız çalışma alanı</option>
+                          {projectDevelopmentRequests.map((item) => (
+                            <option value={item.id} key={item.id}>
+                              {item.title}
+                            </option>
+                          ))}
+                        </select>
+                        <small>
+                          Seçilen talep, onay sırasında ve AI
+                          Architect/Developer araçlarında bağlam olarak görünür.
+                        </small>
+                      </label>
+                      <div className="modal-foot">
+                        <span>
+                          <ShieldCheck size={14} /> Onay bekleyen talep
+                          oluşturulur
+                        </span>
+                        <button
+                          className="primary"
+                          disabled={
+                            busy ||
+                            !workspaceBranch.trim() ||
+                            (!customWorkspaceBranch &&
+                              !workspaceBranches.includes(workspaceBranch))
+                          }
+                        >
+                          {busy ? "Gönderiliyor…" : "Çalışma alanı iste"}{" "}
+                          <span>→</span>
+                        </button>
+                      </div>
+                    </form>
+                  </section>
+                )}
+                <section className="studio-workspace-requests">
+                  <div className="list-toolbar">
+                    <div>
+                      <h3>Çalışma alanı talepleri</h3>
+                      <p>{workspaceRequests.length} kayıt</p>
+                    </div>
+                    <button
+                      className="secondary small-button"
+                      onClick={() => setShowPlanHistory(true)}
+                    >
+                      Plan geçmişi ({savedArchitecturePlans.length})
+                    </button>
+                  </div>
+                  <div className="requests-list">
+                    {workspaceRequests.length ? (
+                      workspaceRequests.map((request) => (
+                        <article
+                          className="request-row expanded workspace-request-row"
+                          key={request.id}
+                        >
+                          <div className="request-symbol">
+                            <Code2 size={17} />
+                          </div>
+                          <div
+                            className="request-info workspace-launch-area"
+                            role={
+                              request.status === "Ready" ? "button" : undefined
+                            }
+                            tabIndex={
+                              request.status === "Ready" ? 0 : undefined
+                            }
+                            title={
+                              request.status === "Ready"
+                                ? "IDE çalışma alanını aç"
+                                : undefined
+                            }
+                            onClick={() => {
+                              if (request.status === "Ready")
+                                void loadWorkspaceFiles(request, "");
+                            }}
+                            onKeyDown={(event) => {
+                              if (
+                                request.status === "Ready" &&
+                                (event.key === "Enter" || event.key === " ")
+                              ) {
+                                event.preventDefault();
+                                void loadWorkspaceFiles(request, "");
+                              }
+                            }}
+                          >
+                            <div className="workspace-request-heading">
+                              <b>
+                                {request.workspaceBranchName
+                                  ? `${request.branchName} → ${request.workspaceBranchName}`
+                                  : request.branchName}
+                              </b>
+                              <span
+                                className={`workspace-request-status workspace-request-status-${request.status.toLowerCase()}`}
+                              >
+                                {request.status === "PendingApproval"
+                                  ? "Onay bekliyor"
+                                  : request.status === "Approved"
+                                    ? "Onaylandı"
+                                    : request.status === "Provisioning"
+                                      ? "Hazırlanıyor"
+                                      : request.status === "ProvisioningFailed"
+                                        ? "Başarısız"
+                                        : request.status === "Cancelled"
+                                          ? "İptal edildi"
+                                          : request.status === "Ready"
+                                            ? "Hazır"
+                                            : request.status === "Rejected"
+                                              ? "Reddedildi"
+                                              : "Reddedildi"}
+                              </span>
+                            </div>
+                            {request.developmentRequestTitle && (
+                              <small>
+                                Talep: {request.developmentRequestTitle}
+                              </small>
+                            )}
+                            <small>
+                              {new Date(request.createdAt).toLocaleString(
+                                "tr-TR",
+                                { dateStyle: "medium", timeStyle: "short" },
+                              )}
+                              {request.reviewNote
+                                ? " · " + request.reviewNote
+                                : ""}
+                              {request.provisioningError
+                                ? " · " + request.provisioningError
+                                : ""}
+                              {request.commitSha
+                                ? " · " + request.commitSha
+                                : ""}
+                              {request.provisionedAt
+                                ? " · " +
+                                  new Date(
+                                    request.provisionedAt,
+                                  ).toLocaleString("tr-TR", {
+                                    dateStyle: "medium",
+                                    timeStyle: "short",
+                                  })
+                                : ""}
+                              {request.status === "PendingApproval" &&
+                              !request.canReview
+                                ? " · farklı yetkili onayı bekleniyor"
+                                : ""}
+                            </small>
+                          </div>
+                          {request.status === "PendingApproval" &&
+                            (request.canReview || request.canCancel) && (
+                              <div style={{ display: "flex", gap: 6 }}>
+                                {request.canReview && (
+                                  <>
+                                    <button
+                                      className="secondary small-button"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        void reviewWorkspaceRequest(
+                                          request,
+                                          "Approve",
+                                        )
+                                      }
+                                    >
+                                      Onayla
+                                    </button>
+                                    <button
+                                      className="secondary small-button"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        void reviewWorkspaceRequest(
+                                          request,
+                                          "Reject",
+                                        )
+                                      }
+                                    >
+                                      Reddet
+                                    </button>
+                                  </>
+                                )}
+                                {request.canCancel && (
+                                  <button
+                                    className="secondary small-button"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      void cancelWorkspaceRequest(request)
+                                    }
+                                  >
+                                    Talebi iptal et
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          {request.canDelete &&
+                            request.status !== "Provisioning" && (
+                              <button
+                                type="button"
+                                className="secondary small-button workspace-request-delete"
+                                disabled={busy}
+                                onClick={() =>
+                                  void archiveWorkspaceRequest(request)
+                                }
+                                title="Talebi etkin listeden sil"
+                              >
+                                Sil
+                              </button>
+                            )}
+                          {(request.status === "Approved" ||
+                            request.status === "ProvisioningFailed") &&
+                            (workspaceProject.accessLevel === "TenantAdmin" ||
+                              workspaceProject.accessLevel ===
+                                "Maintainer") && (
+                              <button
+                                className="secondary small-button"
+                                disabled={busy}
+                                onClick={() => void provisionWorkspace(request)}
+                              >
+                                {request.status === "ProvisioningFailed"
+                                  ? "Yeniden dene"
+                                  : "Checkout oluştur"}
+                              </button>
+                            )}
+                          {request.status === "Ready" && (
+                            <div className="workspace-request-actions">
+                              {request.workspaceBranchName === null &&
+                                (workspaceProject.accessLevel ===
+                                  "TenantAdmin" ||
+                                  workspaceProject.accessLevel ===
+                                    "Maintainer") && (
+                                  <button
+                                    className="secondary small-button"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      void ensureWorkspaceBranch(request)
+                                    }
+                                  >
+                                    İzole dal oluştur
+                                  </button>
+                                )}
+                              <button
+                                type="button"
+                                className="primary small-button"
+                                disabled={fileLoading}
+                                onClick={() =>
+                                  void loadWorkspaceFiles(request, "")
+                                }
+                              >
+                                <Code2 size={14} /> IDE’yi aç{" "}
+                                <ChevronRight size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </article>
+                      ))
+                    ) : (
+                      <div className="empty-small">
+                        <div>
+                          <b>Bekleyen çalışma alanı talebi yok</b>
+                          <small>Yeni talepler onay kuyruğunda görünür.</small>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </div>
+              {workspaceRequests.some(
+                (x) => x.status === "PendingApproval" && x.canReview,
+              ) && (
+                <label className="review-note-field">
+                  <span>Ret gerekçesi</span>
+                  <small>Gerekçe inceleme geçmişine kaydedilir.</small>
+                  <textarea
+                    value={reviewNote}
+                    onChange={(e) => setReviewNote(e.target.value)}
+                    maxLength={500}
+                    rows={2}
+                    placeholder="Ret kararının kısa gerekçesini yazın…"
+                  />
+                </label>
+              )}
+              <div className="boundary-note">
+                <ShieldCheck size={17} />
+                <span>
+                  <b>Yetkili onay</b>Yetkili onaydan sonra Runner seçilen kaynak
+                  dalından ayrı bir yerel çalışma dalı oluşturur. Bu dal
+                  şimdilik yalnız izole checkout içinde bulunur; push/PR ve kod
+                  çalıştırma yapılmaz.
+                </span>
+              </div>
+            </main>
+          </div>
+        </section>
+      )}
+      {gitStatusWorkspace && (
+        <div
+          className="modal-backdrop studio-git-status-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setGitStatusWorkspace(null);
+              setWorkspaceGitStatus(null);
+            }
+          }}
+        >
+          <div className="modal">
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">SÜRÜM HAZIRLIĞI</p>
+                <h2>
+                  {workspaceProject?.name} /{" "}
+                  {workspaceGitStatus?.branchName ??
+                    gitStatusWorkspace.branchName}
+                </h2>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => {
+                  setGitStatusWorkspace(null);
+                  setWorkspaceGitStatus(null);
+                }}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub">
+              Git durumu ve başarılı sandbox test kanıtı doğrulanır. Yetkili
+              kullanıcılar koşullar sağlanınca denetlenebilir bir sürüm adayı
+              kaydedebilir. Paket üretimi ve dağıtım bu adımda yapılmaz.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            {gitStatusLoading ? (
+              <div className="empty-small">Git durumu okunuyor…</div>
+            ) : (
+              workspaceGitStatus && (
+                <>
+                  {(() => {
+                    const clean =
+                      workspaceGitStatus.totalChangedFiles === 0 &&
+                      !workspaceGitStatus.truncated;
+                    const testCurrent =
+                      testDiscoveryWorkspace?.id === gitStatusWorkspace.id &&
+                      testExecution?.status === "Passed" &&
+                      testExecution.commitSha ===
+                        workspaceGitStatus.headCommitSha &&
+                      !testExecution.hasUncommittedChanges;
+                    const ready = clean && testCurrent;
+                    const canManage =
+                      workspaceProject?.accessLevel === "TenantAdmin" ||
+                      workspaceProject?.accessLevel === "Maintainer";
+                    const alreadySaved =
+                      !!testExecution &&
+                      releaseCandidates.some(
+                        (item) => item.testJobId === testExecution.jobId,
+                      );
+                    return (
+                      <>
+                        <section className="panel" style={{ marginBottom: 14 }}>
+                          <div className="panel-heading">
+                            <div>
+                              <b>
+                                {ready
+                                  ? "İnsan incelemesine hazır"
+                                  : "Hazırlık koşulları tamamlanmadı"}
+                              </b>
+                              <small>
+                                {workspaceGitStatus.branchName} · HEAD{" "}
+                                {workspaceGitStatus.headCommitSha.slice(0, 12)}
+                              </small>
+                            </div>
+                            <ShieldCheck size={18} />
+                          </div>
+                          <div className="requests-list">
+                            <article className="request-row">
+                              <div className="request-info">
+                                <b>
+                                  {clean
+                                    ? "Çalışma ağacı temiz"
+                                    : "Çalışma ağacında değişiklik var veya liste kesildi"}
+                                </b>
+                                <small>
+                                  {workspaceGitStatus.totalChangedFiles} değişen
+                                  dosya
+                                  {workspaceGitStatus.truncated
+                                    ? " · durum listesi eksik"
+                                    : ""}
+                                </small>
+                              </div>
+                            </article>
+                            <article className="request-row">
+                              <div className="request-info">
+                                <b>
+                                  {testCurrent
+                                    ? "Aynı commit için test başarılı"
+                                    : "Güncel commit için başarılı test kanıtı yok"}
+                                </b>
+                                <small>
+                                  {testDiscoveryWorkspace?.id ===
+                                    gitStatusWorkspace.id && testExecution
+                                    ? `${testExecution.status} · HEAD ${testExecution.commitSha.slice(0, 12)}${testExecution.hasUncommittedChanges ? " · değişiklik içeren snapshot" : ""}`
+                                    : "Bu oturumda bu çalışma alanına ait test sonucu yok"}
+                                </small>
+                              </div>
+                            </article>
+                          </div>
+                          {ready && canManage && !alreadySaved && (
+                            <div className="modal-foot">
+                              <span>
+                                Test kanıtı sunucuda yeniden doğrulanır.
+                              </span>
+                              <button
+                                className="primary"
+                                disabled={releaseCandidateSaving}
+                                onClick={() => void createReleaseCandidate()}
+                              >
+                                {releaseCandidateSaving
+                                  ? "Kaydediliyor…"
+                                  : "Sürüm adayını kaydet"}
+                              </button>
+                            </div>
+                          )}
+                          {!clean &&
+                            canManage &&
+                            workspaceGitStatus.totalChangedFiles > 0 && (
+                              <div className="modal-foot">
+                                <span>
+                                  Yalnız güncel Studio onay kayıtları commit
+                                  edilebilir.
+                                </span>
+                                <button
+                                  className="secondary"
+                                  disabled={
+                                    workspaceCommitLoading ||
+                                    workspaceGitStatus.truncated
+                                  }
+                                  onClick={() =>
+                                    void commitApprovedWorkspaceChanges()
+                                  }
+                                >
+                                  {workspaceCommitLoading
+                                    ? "Commit hazırlanıyor…"
+                                    : "Onaylı değişiklikleri commit et"}
+                                </button>
+                              </div>
+                            )}
+                          <div className="boundary-note">
+                            <ShieldCheck size={17} />
+                            <span>
+                              <b>Kontrollü kayıt</b>Aday kaydı HEAD, dal ve test
+                              özetiyle denetim geçmişine yazılır. Uzak depo
+                              değişmez; paket ve dağıtım adımları çalışmaz.
+                            </span>
+                          </div>
+                        </section>
+                        {releaseCandidates.length > 0 && (
+                          <section
+                            className="panel"
+                            style={{ marginBottom: 14 }}
+                          >
+                            <div className="panel-heading">
+                              <div>
+                                <b>Kaydedilmiş sürüm adayları</b>
+                                <small>
+                                  Son {releaseCandidates.length} kayıt ·
+                                  veritabanında saklanır
+                                </small>
+                              </div>
+                            </div>
+                            <div className="requests-list">
+                              {releaseCandidates.map((candidate) => (
+                                <article
+                                  className="request-row"
+                                  key={candidate.id}
+                                >
+                                  <div className="request-symbol">
+                                    <ShieldCheck size={17} />
+                                  </div>
+                                  <div className="request-info">
+                                    <b>
+                                      {candidate.branchName} ·{" "}
+                                      {candidate.commitSha.slice(0, 12)}
+                                    </b>
+                                    <small>
+                                      {candidate.testTargetPath} · test{" "}
+                                      {new Date(
+                                        candidate.testCompletedAt,
+                                      ).toLocaleString("tr-TR", {
+                                        dateStyle: "medium",
+                                        timeStyle: "short",
+                                      })}
+                                    </small>
+                                    <small>
+                                      Aday{" "}
+                                      {new Date(
+                                        candidate.createdAt,
+                                      ).toLocaleString("tr-TR", {
+                                        dateStyle: "medium",
+                                        timeStyle: "short",
+                                      })}{" "}
+                                      · SHA-256{" "}
+                                      {candidate.testSnapshotSha256.slice(
+                                        0,
+                                        12,
+                                      )}
+                                    </small>
+                                    <small>
+                                      {candidate.decision === "Approved"
+                                        ? "Onaylandı"
+                                        : candidate.decision === "Rejected"
+                                          ? "Reddedildi"
+                                          : "Yetkili incelemesi bekliyor"}
+                                      {candidate.reviewedAt
+                                        ? ` · ${new Date(candidate.reviewedAt).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}`
+                                        : ""}
+                                    </small>
+                                    {candidate.reviewNote && (
+                                      <small>
+                                        Karar notu: {candidate.reviewNote}
+                                      </small>
+                                    )}
+                                    {candidate.githubPullRequestUrl && (
+                                      <small>
+                                        GitHub PR #
+                                        {candidate.githubPullRequestNumber} |{" "}
+                                        {candidate.githubPullRequestState} |{" "}
+                                        <a
+                                          href={candidate.githubPullRequestUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                        >
+                                          Open PR
+                                        </a>
+                                      </small>
+                                    )}
+                                    {releaseVersions.find(
+                                      (item) =>
+                                        item.releaseCandidateId ===
+                                        candidate.id,
+                                    ) && (
+                                      <small>
+                                        SemVer:{" "}
+                                        {
+                                          releaseVersions.find(
+                                            (item) =>
+                                              item.releaseCandidateId ===
+                                              candidate.id,
+                                          )!.version
+                                        }{" "}
+                                        · atanan commit{" "}
+                                        {releaseVersions
+                                          .find(
+                                            (item) =>
+                                              item.releaseCandidateId ===
+                                              candidate.id,
+                                          )!
+                                          .commitSha.slice(0, 12)}
+                                      </small>
+                                    )}
+                                    {releaseVersions.find(
+                                      (item) =>
+                                        item.releaseCandidateId ===
+                                        candidate.id,
+                                    ) &&
+                                      (() => {
+                                        const version = releaseVersions.find(
+                                          (item) =>
+                                            item.releaseCandidateId ===
+                                            candidate.id,
+                                        )!;
+                                        const pkg = releasePackages.find(
+                                          (item) =>
+                                            item.releaseVersionId ===
+                                            version.id,
+                                        );
+                                        return (
+                                          <section
+                                            className="panel"
+                                            style={{
+                                              gridColumn: "1 / -1",
+                                              marginTop: 8,
+                                            }}
+                                          >
+                                            <div className="panel-heading">
+                                              <div>
+                                                <b>
+                                                  {version.version} · sürüm
+                                                  paketi
+                                                </b>
+                                                <small>
+                                                  Onaylı commit ve başarılı
+                                                  sandbox test kanıtı
+                                                  kullanılır. Paket oluşturma
+                                                  dağıtım başlatmaz.
+                                                </small>
+                                              </div>
+                                              {!pkg &&
+                                                (workspaceProject?.accessLevel ===
+                                                  "Maintainer" ||
+                                                  workspaceProject?.accessLevel ===
+                                                    "TenantAdmin") && (
+                                                  <button
+                                                    className="secondary small-button"
+                                                    disabled={
+                                                      releasePackageLoading !==
+                                                      null
+                                                    }
+                                                    onClick={() =>
+                                                      void createReleasePackage(
+                                                        version,
+                                                      )
+                                                    }
+                                                  >
+                                                    {releasePackageLoading ===
+                                                    version.id
+                                                      ? "Paket oluşturuluyor…"
+                                                      : "Paket oluştur"}
+                                                  </button>
+                                                )}
+                                            </div>
+                                            {pkg && (
+                                              <div className="request-row">
+                                                <div className="request-info">
+                                                  <b>
+                                                    {pkg.fileName} ·{" "}
+                                                    {(
+                                                      pkg.sizeBytes /
+                                                      1024 /
+                                                      1024
+                                                    ).toFixed(2)}{" "}
+                                                    MiB
+                                                  </b>
+                                                  <small>
+                                                    SHA-256 {pkg.packageSha256}
+                                                  </small>
+                                                  <small>
+                                                    Commit{" "}
+                                                    {pkg.commitSha.slice(0, 12)}{" "}
+                                                    · test snapshot{" "}
+                                                    {pkg.testSnapshotSha256.slice(
+                                                      0,
+                                                      12,
+                                                    )}{" "}
+                                                    ·{" "}
+                                                    {new Date(
+                                                      pkg.createdAt,
+                                                    ).toLocaleString("tr-TR")}
+                                                  </small>
+                                                </div>
+                                                <button
+                                                  className="secondary small-button"
+                                                  disabled={
+                                                    releasePackageDownloadLoading !==
+                                                    null
+                                                  }
+                                                  onClick={() =>
+                                                    void downloadReleasePackage(
+                                                      pkg,
+                                                    )
+                                                  }
+                                                >
+                                                  {releasePackageDownloadLoading ===
+                                                  pkg.id
+                                                    ? "İndiriliyor…"
+                                                    : "Paketi indir"}
+                                                </button>
+                                              </div>
+                                            )}
+                                            {pkg &&
+                                              (workspaceProject?.accessLevel ===
+                                                "Maintainer" ||
+                                                workspaceProject?.accessLevel ===
+                                                  "TenantAdmin") && (
+                                                <div className="modal-foot">
+                                                  <span>
+                                                    Bağımsız onaylı paket;
+                                                    localhost staging’e
+                                                    yayınlanabilir.
+                                                  </span>
+                                                  <button
+                                                    className="primary small-button"
+                                                    disabled={
+                                                      releaseDeploymentLoading
+                                                    }
+                                                    onClick={() =>
+                                                      void deployStaging(pkg)
+                                                    }
+                                                  >
+                                                    {releaseDeploymentLoading
+                                                      ? "Yayınlanıyor…"
+                                                      : "Yerel staging’e yayınla"}
+                                                  </button>
+                                                </div>
+                                              )}
+                                          </section>
+                                        );
+                                      })()}
+                                  </div>
+                                  {releaseDeployments.length > 0 && (
+                                    <section
+                                      className="panel"
+                                      style={{ marginTop: 12 }}
+                                    >
+                                      <div className="panel-heading">
+                                        <div>
+                                          <b>Yerel staging dağıtımları</b>
+                                          <small>
+                                            Docker Compose · yalnız localhost ·
+                                            son {releaseDeployments.length}{" "}
+                                            kayıt
+                                          </small>
+                                        </div>
+                                        <button
+                                          className="secondary small-button"
+                                          disabled={gitStatusLoading}
+                                          onClick={() =>
+                                            void loadWorkspaceGitStatus(
+                                              gitStatusWorkspace!,
+                                            )
+                                          }
+                                        >
+                                          Yenile
+                                        </button>
+                                      </div>
+                                      {stagingCredentials &&
+                                        stagingCredentials.bootstrapEmail && (
+                                          <div className="notice">
+                                            <b>
+                                              {stagingCredentials.deployment
+                                                .environment === "Production"
+                                                ? "Production ilk giriş bilgileri · bu kez gösteriliyor"
+                                                : "Staging ilk giriş bilgileri · bu kez gösteriliyor"}
+                                            </b>
+                                            <br />
+                                            E-posta:{" "}
+                                            <code>
+                                              {
+                                                stagingCredentials.bootstrapEmail
+                                              }
+                                            </code>
+                                            <br />
+                                            Parola:{" "}
+                                            <code>
+                                              {
+                                                stagingCredentials.bootstrapPassword
+                                              }
+                                            </code>
+                                            <br />
+                                            <a
+                                              href={
+                                                stagingCredentials.deployment
+                                                  .environmentUrl ?? "#"
+                                              }
+                                              target="_blank"
+                                              rel="noreferrer"
+                                            >
+                                              {
+                                                stagingCredentials.deployment
+                                                  .environmentUrl
+                                              }
+                                            </a>
+                                            <br />
+                                            <small>
+                                              Parolayı şimdi güvenli bir yere
+                                              kaydedin. Tekrar gösterilmez.
+                                            </small>
+                                          </div>
+                                        )}
+                                      <div className="requests-list">
+                                        {releaseDeployments
+                                          .filter(
+                                            (deployment) =>
+                                              deployment.environment ===
+                                              "Staging",
+                                          )
+                                          .map((deployment) => {
+                                            const active =
+                                              deployment.status === "Succeeded";
+                                            const packageInfo =
+                                              releasePackages.find(
+                                                (item) =>
+                                                  item.id ===
+                                                  deployment.releasePackageId,
+                                              );
+                                            return (
+                                              <article
+                                                className="request-row"
+                                                key={deployment.id}
+                                              >
+                                                <div className="request-symbol">
+                                                  <ShieldCheck size={17} />
+                                                </div>
+                                                <div className="request-info">
+                                                  <b>
+                                                    {packageInfo?.version ??
+                                                      deployment.version ??
+                                                      deployment.commitSha.slice(
+                                                        0,
+                                                        12,
+                                                      )}{" "}
+                                                    · {deployment.status}
+                                                  </b>
+                                                  <small>
+                                                    {deployment.environmentUrl ??
+                                                      "Staging URL yok"}{" "}
+                                                    ·{" "}
+                                                    {new Date(
+                                                      deployment.createdAt,
+                                                    ).toLocaleString("tr-TR")}
+                                                  </small>
+                                                  <small>
+                                                    SHA-256{" "}
+                                                    {deployment.packageSha256} ·{" "}
+                                                    {deployment.failureCode ??
+                                                      "Docker Compose"}
+                                                  </small>
+                                                </div>
+                                                {deployment.environmentUrl && (
+                                                  <a
+                                                    className="secondary small-button"
+                                                    href={
+                                                      deployment.environmentUrl
+                                                    }
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                  >
+                                                    Aç
+                                                  </a>
+                                                )}
+                                                {active && (
+                                                  <>
+                                                    <button
+                                                      className="secondary small-button"
+                                                      disabled={
+                                                        releaseDeploymentLoading
+                                                      }
+                                                      onClick={() => {
+                                                        const pkg =
+                                                          releasePackages.find(
+                                                            (item) =>
+                                                              item.id ===
+                                                              deployment.releasePackageId,
+                                                          ) ?? {
+                                                            id: deployment.releasePackageId,
+                                                            version:
+                                                              deployment.version,
+                                                            commitSha:
+                                                              deployment.commitSha,
+                                                          };
+                                                        void deployStaging(pkg);
+                                                      }}
+                                                    >
+                                                      Yeniden dağıt
+                                                    </button>
+                                                    <button
+                                                      className="secondary small-button danger-action"
+                                                      disabled={
+                                                        releaseDeploymentLoading
+                                                      }
+                                                      onClick={() =>
+                                                        void destroyStaging(
+                                                          deployment,
+                                                        )
+                                                      }
+                                                    >
+                                                      Staging’i sil
+                                                    </button>
+                                                    {!productionApprovals.some(
+                                                      (item) =>
+                                                        item.stagingDeploymentId ===
+                                                        deployment.id,
+                                                    ) && (
+                                                      <button
+                                                        className="secondary small-button"
+                                                        disabled={
+                                                          releaseDeploymentLoading
+                                                        }
+                                                        onClick={() =>
+                                                          void requestProductionApproval(
+                                                            deployment,
+                                                          )
+                                                        }
+                                                      >
+                                                        Üretim onay talebi
+                                                      </button>
+                                                    )}
+                                                  </>
+                                                )}
+                                                {!active &&
+                                                  deployment.status ===
+                                                    "Superseded" && (
+                                                    <button
+                                                      className="secondary small-button"
+                                                      disabled={
+                                                        releaseDeploymentLoading
+                                                      }
+                                                      onClick={() => {
+                                                        const pkg =
+                                                          releasePackages.find(
+                                                            (item) =>
+                                                              item.id ===
+                                                              deployment.releasePackageId,
+                                                          );
+                                                        if (pkg)
+                                                          void deployStaging(
+                                                            pkg,
+                                                            deployment.id,
+                                                          );
+                                                      }}
+                                                    >
+                                                      Bu sürüme dön
+                                                    </button>
+                                                  )}
+                                              </article>
+                                            );
+                                          })}
+                                      </div>
+                                      <section
+                                        className="panel"
+                                        style={{ marginTop: 14 }}
+                                      >
+                                        <div className="panel-heading">
+                                          <div>
+                                            <b>Üretim geçişi · onay kaydı</b>
+                                            <small>
+                                              Hedef: bu makinede Docker Compose
+                                              · yalnız localhost
+                                            </small>
+                                          </div>
+                                        </div>
+                                        <p className="muted">
+                                          Onaylı staging paketi ayrı kullanıcı
+                                          ve migration onayından sonra
+                                          production Compose stack’ine
+                                          alınabilir. Stack localhost’a
+                                          bağlıdır; SQL verisi ayrı kalıcı
+                                          hacimde korunur ve güncelleme öncesi
+                                          yedeklenir.
+                                        </p>
+                                        <div className="requests-list">
+                                          {productionApprovals.map(
+                                            (approval) => (
+                                              <article
+                                                className="request-row"
+                                                key={approval.id}
+                                              >
+                                                <div className="request-symbol">
+                                                  <ShieldCheck size={17} />
+                                                </div>
+                                                <div className="request-info">
+                                                  <b>
+                                                    {approval.version ||
+                                                      approval.releasePackageId.slice(
+                                                        0,
+                                                        12,
+                                                      )}{" "}
+                                                    ·{" "}
+                                                    {approval.status ===
+                                                    "AwaitingReview"
+                                                      ? "İnceleme bekliyor"
+                                                      : approval.status ===
+                                                          "Approved"
+                                                        ? "Onaylandı"
+                                                        : "Reddedildi"}
+                                                  </b>
+                                                  <small>
+                                                    Staging{" "}
+                                                    {approval.stagingUrl ??
+                                                      "URL yok"}{" "}
+                                                    ·{" "}
+                                                    {new Date(
+                                                      approval.createdAt,
+                                                    ).toLocaleString("tr-TR")}
+                                                  </small>
+                                                  <small>
+                                                    Talep:{" "}
+                                                    {approval.requestNote}
+                                                  </small>
+                                                  {approval.reviewNote && (
+                                                    <small>
+                                                      İnceleme:{" "}
+                                                      {approval.reviewNote}
+                                                    </small>
+                                                  )}
+                                                  <small>
+                                                    Canlı dağıtım:{" "}
+                                                    {approval.productionDeploymentStatus ===
+                                                    "Succeeded"
+                                                      ? "Başarılı"
+                                                      : approval.productionDeploymentStatus ===
+                                                          "Failed"
+                                                        ? "Başarısız"
+                                                        : (approval.productionDeploymentStatus ??
+                                                          "Başlamadı")}
+                                                  </small>
+                                                  {approval.productionEnvironmentUrl && (
+                                                    <small>
+                                                      Production URL:{" "}
+                                                      {
+                                                        approval.productionEnvironmentUrl
+                                                      }
+                                                    </small>
+                                                  )}
+                                                </div>
+                                                {tenant.role ===
+                                                  "TenantAdmin" &&
+                                                  approval.status ===
+                                                    "AwaitingReview" && (
+                                                    <>
+                                                      <button
+                                                        className="secondary small-button"
+                                                        onClick={() =>
+                                                          void reviewProductionApproval(
+                                                            approval,
+                                                            "Approved",
+                                                          )
+                                                        }
+                                                      >
+                                                        Onayla
+                                                      </button>
+                                                      <button
+                                                        className="secondary small-button danger-action"
+                                                        onClick={() =>
+                                                          void reviewProductionApproval(
+                                                            approval,
+                                                            "Rejected",
+                                                          )
+                                                        }
+                                                      >
+                                                        Reddet
+                                                      </button>
+                                                    </>
+                                                  )}
+                                                {tenant.role ===
+                                                  "TenantAdmin" &&
+                                                  approval.status ===
+                                                    "Approved" &&
+                                                  (!approval.productionDeploymentStatus ||
+                                                    approval.productionDeploymentStatus ===
+                                                      "Failed") && (
+                                                    <button
+                                                      className="primary small-button"
+                                                      disabled={
+                                                        releaseDeploymentLoading
+                                                      }
+                                                      onClick={() =>
+                                                        void deployProduction(
+                                                          approval,
+                                                        )
+                                                      }
+                                                    >
+                                                      {releaseDeploymentLoading
+                                                        ? "Dağıtılıyor…"
+                                                        : approval.productionDeploymentStatus ===
+                                                            "Failed"
+                                                          ? "Tekrar dene"
+                                                          : "Production’a yayınla"}
+                                                    </button>
+                                                  )}
+                                              </article>
+                                            ),
+                                          )}
+                                          {productionApprovals.length === 0 && (
+                                            <div className="empty-small">
+                                              Henüz üretim onay talebi yok.
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div
+                                          className="panel-heading"
+                                          style={{ marginTop: 20 }}
+                                        >
+                                          <div>
+                                            <b>Production dağıtım geçmişi</b>
+                                            <small>
+                                              {productionDeployments.length}{" "}
+                                              kayıt · en çok 100 kayıt
+                                              gösterilir
+                                            </small>
+                                          </div>
+                                        </div>
+                                        <div className="requests-list">
+                                          {productionDeployments.map(
+                                            (deployment) => (
+                                              <article
+                                                className="request-row"
+                                                key={deployment.id}
+                                              >
+                                                <div className="request-info">
+                                                  <b>
+                                                    {deployment.version} ·{" "}
+                                                    {deployment.status ===
+                                                    "Succeeded"
+                                                      ? "Başarılı"
+                                                      : deployment.status ===
+                                                          "Superseded"
+                                                        ? "Önceki sürüm"
+                                                        : deployment.status ===
+                                                            "Failed"
+                                                          ? "Başarısız"
+                                                          : deployment.status}
+                                                  </b>
+                                                  <small>
+                                                    {deployment.commitSha.slice(
+                                                      0,
+                                                      12,
+                                                    )}{" "}
+                                                    ·{" "}
+                                                    {new Date(
+                                                      deployment.completedAt ??
+                                                        deployment.createdAt,
+                                                    ).toLocaleString("tr-TR")}
+                                                  </small>
+                                                  {deployment.environmentUrl && (
+                                                    <small>
+                                                      {
+                                                        deployment.environmentUrl
+                                                      }
+                                                    </small>
+                                                  )}
+                                                </div>
+                                                {tenant.role ===
+                                                  "TenantAdmin" &&
+                                                  deployment.canRestoreDatabase && (
+                                                    <button
+                                                      className="secondary danger-action small-button"
+                                                      disabled={
+                                                        releaseDeploymentLoading
+                                                      }
+                                                      onClick={() =>
+                                                        void restoreProductionDatabase(
+                                                          deployment,
+                                                        )
+                                                      }
+                                                    >
+                                                      Yedeğe ve önceki sürüme
+                                                      dön
+                                                    </button>
+                                                  )}
+                                              </article>
+                                            ),
+                                          )}
+                                        </div>
+                                        {productionDeployments.length === 0 && (
+                                          <div className="empty-small">
+                                            Henüz production dağıtımı yok.
+                                          </div>
+                                        )}
+                                      </section>
+                                      <div className="boundary-note">
+                                        <ShieldCheck size={17} />
+                                        <span>
+                                          <b>Rollback davranışı</b>Eski uygulama
+                                          sürümü aynı staging SQL veritabanıyla
+                                          yeniden başlatılır. Veritabanı şeması
+                                          otomatik geri alınmaz; yıkıcı
+                                          migration’lar için ayrıca yedek
+                                          gerekir.
+                                        </span>
+                                      </div>
+                                    </section>
+                                  )}
+                                  {candidate.githubPullRequestNumber &&
+                                    (workspaceProject?.accessLevel ===
+                                      "Maintainer" ||
+                                      workspaceProject?.accessLevel ===
+                                        "TenantAdmin") && (
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          gap: 6,
+                                          flexWrap: "wrap",
+                                        }}
+                                      >
+                                        {candidate.githubPullRequestState ===
+                                          "draft" &&
+                                          candidate.decision === "Approved" && (
+                                            <button
+                                              className="secondary small-button"
+                                              disabled={
+                                                pullRequestReadyLoading ===
+                                                candidate.id
+                                              }
+                                              onClick={() =>
+                                                void markGitHubPullRequestReady(
+                                                  candidate,
+                                                )
+                                              }
+                                            >
+                                              {pullRequestReadyLoading ===
+                                              candidate.id
+                                                ? "Hazırlanıyor…"
+                                                : "İncelemeye hazırla"}
+                                            </button>
+                                          )}
+                                        <button
+                                          className="secondary small-button"
+                                          onClick={() =>
+                                            void submitGitHubReview(
+                                              candidate,
+                                              "COMMENT",
+                                            )
+                                          }
+                                        >
+                                          GitHub comment
+                                        </button>
+                                        <button
+                                          className="secondary small-button"
+                                          onClick={() =>
+                                            void requestGitHubReviewers(
+                                              candidate,
+                                            )
+                                          }
+                                        >
+                                          Request reviewers
+                                        </button>
+                                        <button
+                                          className="secondary small-button"
+                                          onClick={() =>
+                                            void submitGitHubReview(
+                                              candidate,
+                                              "APPROVE",
+                                            )
+                                          }
+                                        >
+                                          GitHub approve
+                                        </button>
+                                        <button
+                                          className="secondary small-button"
+                                          onClick={() =>
+                                            void submitGitHubReview(
+                                              candidate,
+                                              "REQUEST_CHANGES",
+                                            )
+                                          }
+                                        >
+                                          Request changes
+                                        </button>
+                                        <button
+                                          className="secondary small-button"
+                                          onClick={() =>
+                                            void syncGitHubReviewComments(
+                                              candidate,
+                                            )
+                                          }
+                                        >
+                                          Sync local comments
+                                        </button>
+                                        <button
+                                          className="secondary small-button"
+                                          onClick={() =>
+                                            void importGitHubReviewComments(
+                                              candidate,
+                                            )
+                                          }
+                                        >
+                                          Import GitHub comments
+                                        </button>
+                                      </div>
+                                    )}
+                                  {candidate.canReview && (
+                                    <div style={{ display: "flex", gap: 6 }}>
+                                      <button
+                                        className="secondary small-button"
+                                        onClick={() =>
+                                          void reviewReleaseCandidate(
+                                            candidate,
+                                            "Approved",
+                                          )
+                                        }
+                                      >
+                                        Onayla
+                                      </button>
+                                      <button
+                                        className="secondary small-button danger-action"
+                                        onClick={() =>
+                                          void reviewReleaseCandidate(
+                                            candidate,
+                                            "Rejected",
+                                          )
+                                        }
+                                      >
+                                        Reddet
+                                      </button>
+                                    </div>
+                                  )}
+                                  {candidate.decision === "Approved" &&
+                                    (workspaceProject?.accessLevel ===
+                                      "Maintainer" ||
+                                      workspaceProject?.accessLevel ===
+                                        "TenantAdmin") &&
+                                    !releaseVersions.some(
+                                      (item) =>
+                                        item.releaseCandidateId ===
+                                        candidate.id,
+                                    ) && (
+                                      <button
+                                        className="secondary small-button"
+                                        onClick={() =>
+                                          void assignReleaseVersion(candidate)
+                                        }
+                                      >
+                                        Sürüm ata
+                                      </button>
+                                    )}
+                                  {candidate.decision === "Approved" &&
+                                    (workspaceProject?.accessLevel ===
+                                      "Maintainer" ||
+                                      workspaceProject?.accessLevel ===
+                                        "TenantAdmin") && (
+                                      <button
+                                        className="secondary small-button"
+                                        disabled={pullRequestDraftLoading}
+                                        onClick={() =>
+                                          void createPullRequestDraft(candidate)
+                                        }
+                                      >
+                                        {pullRequestDraftLoading
+                                          ? "Taslak hazırlanıyor…"
+                                          : "PR taslağı hazırla"}
+                                      </button>
+                                    )}
+                                  {pullRequestDraft?.candidateId ===
+                                    candidate.id && (
+                                    <section
+                                      className="panel"
+                                      style={{ gridColumn: "1 / -1" }}
+                                    >
+                                      <div className="panel-heading">
+                                        <div>
+                                          <b>{pullRequestDraft.draft.title}</b>
+                                          <small>
+                                            {
+                                              pullRequestDraft.draft
+                                                .sourceBranch
+                                            }{" "}
+                                            →{" "}
+                                            {pullRequestDraft.draft.baseBranch}{" "}
+                                            · HEAD{" "}
+                                            {pullRequestDraft.draft.commitSha.slice(
+                                              0,
+                                              12,
+                                            )}
+                                          </small>
+                                        </div>
+                                        <button
+                                          className="secondary small-button"
+                                          onClick={() =>
+                                            void navigator.clipboard.writeText(
+                                              `${pullRequestDraft.draft.title}\n\n${pullRequestDraft.draft.body}`,
+                                            )
+                                          }
+                                        >
+                                          Başlık ve açıklamayı kopyala
+                                        </button>
+                                        <button
+                                          className="primary small-button"
+                                          disabled={pullRequestPublishLoading}
+                                          onClick={() =>
+                                            void publishPullRequest(candidate)
+                                          }
+                                        >
+                                          {pullRequestPublishLoading
+                                            ? "GitHub’a gönderiliyor…"
+                                            : "Push edip draft PR oluştur"}
+                                        </button>
+                                        <small>
+                                          Yayın için yöneticinin GitHub App
+                                          anahtarını yapılandırması gerekir.
+                                          Installation ID gizli bilgi değildir.
+                                        </small>
+                                      </div>
+                                      <pre
+                                        style={{
+                                          whiteSpace: "pre-wrap",
+                                          overflowWrap: "anywhere",
+                                          fontFamily: "inherit",
+                                        }}
+                                      >
+                                        {pullRequestDraft.draft.body}
+                                      </pre>
+                                      {pullRequestDraft.draft.risks.length >
+                                        0 && (
+                                        <small>
+                                          Riskler:{" "}
+                                          {pullRequestDraft.draft.risks.join(
+                                            " · ",
+                                          )}
+                                        </small>
+                                      )}
+                                      {pullRequestDraft.draft.limitations
+                                        .length > 0 && (
+                                        <div className="boundary-note">
+                                          <ShieldCheck size={17} />
+                                          <span>
+                                            <b>Sınırlamalar</b>
+                                            {pullRequestDraft.draft.limitations.join(
+                                              " · ",
+                                            )}
+                                          </span>
+                                        </div>
+                                      )}
+                                      <div className="notice">
+                                        Taslak hazırlandı. Uzak depoya
+                                        gönderilmedi ve PR oluşturulmadı.
+                                      </div>
+                                      {publishedPullRequest?.commitSha ===
+                                        pullRequestDraft.draft.commitSha && (
+                                        <div className="notice">
+                                          {publishedPullRequest.pushed
+                                            ? "Commit GitHub’a gönderildi. "
+                                            : "Uzak dal zaten günceldi. "}
+                                          <a
+                                            href={publishedPullRequest.htmlUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            Draft PR #
+                                            {publishedPullRequest.pullNumber}’i
+                                            aç
+                                          </a>
+                                        </div>
+                                      )}
+                                    </section>
+                                  )}
+                                </article>
+                              ))}
+                            </div>
+                          </section>
+                        )}
+                      </>
+                    );
+                  })()}
+                  <div className="panel-heading">
+                    <div>
+                      <b>
+                        {workspaceGitStatus.totalChangedFiles.toLocaleString(
+                          "tr-TR",
+                        )}{" "}
+                        değişen dosya
+                      </b>
+                      <small>
+                        HEAD {workspaceGitStatus.headCommitSha.slice(0, 12)}
+                      </small>
+                    </div>
+                  </div>
+                  {workspaceGitStatus.truncated && (
+                    <div className="notice">İlk 200 dosya gösteriliyor.</div>
+                  )}
+                  <div className="requests-list">
+                    {workspaceGitStatus.files.map((file, index) => (
+                      <article
+                        className="request-row"
+                        key={`${file.path}-${index}`}
+                      >
+                        <div className="request-symbol">
+                          <FileCode size={17} />
+                        </div>
+                        <div className="request-info">
+                          <b>{file.path}</b>
+                          <small>{file.status}</small>
+                        </div>
+                        <button
+                          className="secondary small-button"
+                          disabled={gitDiffLoading}
+                          onClick={() => void openWorkspaceGitDiff(file.path)}
+                        >
+                          Diff
+                        </button>
+                      </article>
+                    ))}
+                    {workspaceGitStatus.files.length === 0 && (
+                      <div className="empty-small">
+                        Çalışma ağacında değişiklik yok.
+                      </div>
+                    )}
+                  </div>
+                </>
+              )
+            )}
+            <div className="boundary-note">
+              <ShieldCheck size={17} />
+              <span>
+                <b>Dosya adlarıyla sınırlı inceleme</b>Git durum çıktısı sınırlı
+                sayıda yol döndürür; kaynak içerikleri AI’ye aktarılmaz.
+              </span>
+            </div>
+            <div className="modal-foot">
+              <span>
+                {workspaceGitStatus?.branchName ??
+                  gitStatusWorkspace.branchName}{" "}
+                · {workspaceGitStatus?.totalChangedFiles ?? 0} dosya
+              </span>
+              <button
+                className="secondary"
+                onClick={() => {
+                  setGitStatusWorkspace(null);
+                  setWorkspaceGitStatus(null);
+                }}
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}{" "}
+      {chatWorkspace && workspaceProject && (
+        <div
+          className="modal-backdrop studio-chat-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setChatWorkspace(null);
+              setChatConversation(null);
+              setChatMessages([]);
+            }
+          }}
+        >
+          <div className="modal studio-chat-modal">
+            <header className="modal-head studio-chat-header">
+              <div className="studio-chat-heading">
+                <span className="studio-chat-mark">
+                  <Code2 size={18} />
+                </span>
+                <div className="studio-chat-title">
+                  <p className="eyebrow studio-chat-eyebrow">
+                    AI DEVELOPMENT STUDIO <span>·</span> GÖREV SOHBETİ
+                  </p>
+                  <h2>{workspaceProject.name}</h2>
+                  <span
+                    className="studio-workspace-ref"
+                    title={chatWorkspace.workspaceBranchName ?? ""}
+                  >
+                    {chatWorkspace.workspaceBranchName ?? "Çalışma alanı"}
+                  </span>
+                </div>
+              </div>
+              <div className="studio-chat-header-actions">
+                {workspaceProject.accessLevel !== "Viewer" && (
+                  <button
+                    type="button"
+                    className="secondary studio-new-chat-button"
+                    disabled={chatLoading}
+                    onClick={() => void createStudioConversation()}
+                  >
+                    <Plus size={15} /> Yeni sohbet
+                  </button>
+                )}
+                <button
+                  className="icon-button"
+                  aria-label="Sohbet penceresini kapat"
+                  onClick={() => {
+                    setChatWorkspace(null);
+                    setChatConversation(null);
+                    setChatMessages([]);
+                  }}
+                >
+                  <X size={19} />
+                </button>
+              </div>
+            </header>
+            <p className="muted modal-sub studio-chat-description">
+              Bu proje ve çalışma alanına özel bir sohbet ortamıdır. Kaynak
+              dosyaları ve ERP kayıtları burada paylaşılabilir; AI asistanı ile
+              geliştirme adımları yürütülebilir.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            <div className="studio-chat-layout">
+              <section className="panel studio-message-panel">
+                <div className="panel-heading studio-section-heading studio-message-heading">
+                  <div className="studio-message-heading-copy">
+                    {studioConversations.length > 1 ? (
+                      <select
+                        aria-label="Sohbet seç"
+                        value={chatConversation?.id ?? ""}
+                        onChange={(e) => {
+                          const selected = studioConversations.find(
+                            (item) => item.id === e.target.value,
+                          );
+                          if (selected) void selectStudioConversation(selected);
+                        }}
+                      >
+                        {studioConversations.map((conversation) => (
+                          <option key={conversation.id} value={conversation.id}>
+                            {conversation.title}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <b>{chatConversation?.title ?? "Görev sohbeti"}</b>
+                    )}
+                    <small>
+                      {chatConversation
+                        ? `${chatMessages.length} mesaj · ${chatWorkspace.workspaceBranchName ?? "çalışma alanı"}`
+                        : "Sohbet hazırlanıyor…"}
+                    </small>
+                  </div>
+                  {chatConversation?.canDelete && (
+                    <button
+                      className="secondary small-button danger-action"
+                      disabled={chatLoading}
+                      onClick={() => void deleteStudioConversation()}
+                    >
+                      Sohbeti sil
+                    </button>
+                  )}
+                </div>
+                {error && (
+                  <div className="alert studio-chat-error" role="alert">
+                    {error}
+                  </div>
+                )}
+                <div className="studio-message-list">
+                  {chatLoading && !chatMessages.length && !chatStreamingText ? (
+                    <div className="studio-chat-empty">
+                      <span className="studio-empty-icon">
+                        <Code2 size={20} />
+                      </span>
+                      <b>
+                        AI sağlayıcısından yanıt bekleniyor (en fazla 60 sn)…
+                      </b>
+                    </div>
+                  ) : (
+                    chatMessages.map((message) => (
+                      <article
+                        key={message.id}
+                        className={`studio-message ${message.role === "user" ? "user" : "assistant"}`}
+                      >
+                        <div className="studio-message-meta">
+                          <b>{message.role === "user" ? "Siz" : "AI Studio"}</b>
+                          <small>
+                            {new Date(message.createdAt).toLocaleTimeString(
+                              "tr-TR",
+                              { hour: "2-digit", minute: "2-digit" },
+                            )}
+                          </small>
+                        </div>
+                        <div className="studio-message-content">
+                          {message.content}
+                        </div>
+                      </article>
+                    ))
+                  )}
+                  {chatLoading && chatStreamingText && (
+                    <article className="studio-message assistant">
+                      <div className="studio-message-meta">
+                        <b>AI Studio</b>
+                        <small>Yanıt yazılıyor…</small>
+                      </div>
+                      <div className="studio-message-content">
+                        {chatStreamingText}
+                      </div>
+                    </article>
+                  )}
+                  {!chatMessages.length && !chatLoading && (
+                    <div className="studio-chat-empty">
+                      <span className="studio-empty-icon">
+                        <Code2 size={20} />
+                      </span>
+                      <b>
+                        {chatConversation
+                          ? "Henüz mesaj yok"
+                          : "Geliştirme sohbetinize başlayın"}
+                      </b>
+                      <small>
+                        {chatConversation
+                          ? "Bu konuşmaya proje sorunuzla ilk mesajı gönderin."
+                          : "Proje ve çalışma alanınızla ilgili sorunuzu yazın."}
+                      </small>
+                    </div>
+                  )}
+                </div>
+                {chatCodeChange && (
+                  <section className="panel" style={{ marginTop: 12 }}>
+                    <div className="panel-heading">
+                      <div>
+                        <b>AI Asistanı değişiklik taslağı</b>
+                        <small>
+                          {chatCodeChange.changes.length} dosya · izole
+                          workspace · henüz uygulanmadı
+                        </small>
+                      </div>
+                      <button
+                        type="button"
+                        className="secondary small-button"
+                        onClick={() => {
+                          setChatCodeChange(null);
+                          setChatCodeChangeApplied([]);
+                        }}
+                      >
+                        Taslağı kapat
+                      </button>
+                    </div>
+                    <div className="notice">{chatCodeChange.summary}</div>
+                    {chatCodeChange.risks.length > 0 && (
+                      <div className="boundary-note">
+                        <ShieldCheck size={17} />
+                        <span>
+                          <b>AI risk notları</b>
+                          {chatCodeChange.risks.join(" · ")}
+                        </span>
+                      </div>
+                    )}
+                    {chatCodeChange.changes.map((change) => (
+                      <section
+                        className="panel"
+                        key={change.filePath}
+                        style={{ marginTop: 12 }}
+                      >
+                        <div className="panel-heading">
+                          <div>
+                            <b>{change.filePath}</b>
+                            <small>
+                              Kaynak özeti {change.sourceSha256.slice(0, 12)} ·
+                              dosya yazımı ayrı onay ister
+                            </small>
+                          </div>
+                          <button
+                            type="button"
+                            className="primary small-button"
+                            disabled={
+                              chatCodeChangeLoading ||
+                              chatCodeChangeApplied.includes(change.filePath)
+                            }
+                            onClick={() =>
+                              void applyStudioChatCodeChange(change)
+                            }
+                          >
+                            {chatCodeChangeApplied.includes(change.filePath)
+                              ? "Uygulandı"
+                              : "Bu dosyayı uygula"}
+                          </button>
+                        </div>
+                        {change.patches.map((patch, index) => (
+                          <div
+                            key={`${change.filePath}-${index}`}
+                            className="panel"
+                            style={{ marginTop: 8 }}
+                          >
+                            <div className="panel-heading">
+                              <b>Değişiklik {index + 1}</b>
+                            </div>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns:
+                                  "repeat(auto-fit,minmax(260px,1fr))",
+                                gap: 8,
+                              }}
+                            >
+                              <pre
+                                style={{
+                                  maxHeight: 180,
+                                  overflow: "auto",
+                                  padding: 10,
+                                  background: "#fff3f3",
+                                  whiteSpace: "pre-wrap",
+                                  overflowWrap: "anywhere",
+                                }}
+                              >
+                                <code>{patch.findText}</code>
+                              </pre>
+                              <pre
+                                style={{
+                                  maxHeight: 180,
+                                  overflow: "auto",
+                                  padding: 10,
+                                  background: "#effaf3",
+                                  whiteSpace: "pre-wrap",
+                                  overflowWrap: "anywhere",
+                                }}
+                              >
+                                <code>{patch.replaceText}</code>
+                              </pre>
+                            </div>
+                            {patch.notes.length > 0 && (
+                              <small>{patch.notes.join(" · ")}</small>
+                            )}
+                          </div>
+                        ))}
+                      </section>
+                    ))}
+                    <div className="boundary-note" style={{ marginTop: 12 }}>
+                      <ShieldCheck size={17} />
+                      <span>
+                        <b>İzole workspace sınırları</b>Her dosya ayrı
+                        onaylanır; dosya taslak oluşturulduktan sonra değişmişse
+                        uygulama durur. Kod çalıştırılmaz ve uzak depoya push
+                        yapılmaz.
+                      </span>
+                    </div>
+                  </section>
+                )}
+                {chatConversation &&
+                  workspaceProject.accessLevel !== "Viewer" && (
+                    <form
+                      className="studio-chat-compose"
+                      onSubmit={sendStudioChatMessage}
+                    >
+                      <label htmlFor="studio-chat-message">Mesaj</label>
+                      <textarea
+                        id="studio-chat-message"
+                        value={chatDraft}
+                        onChange={(e) => setChatDraft(e.target.value)}
+                        maxLength={4000}
+                        rows={3}
+                        required
+                        placeholder="Bu dalda sıradaki güvenli geliştirme adımı ne olmalı?"
+                      />
+                      <label className="studio-chat-consent">
+                        <input
+                          type="checkbox"
+                          checked={chatAIConsent}
+                          onChange={(e) => setChatAIConsent(e.target.checked)}
+                          required
+                        />
+                        <span>
+                          Bu mesajın (yapıştırdığım içerikler dahil), önceki
+                          sohbet mesajlarının ve proje/dal adının seçili AI
+                          sağlayıcısına gönderilmesini onaylıyorum.{" "}
+                          {knowledgeAutoRefresh.allFiles
+                            ? "Bu workspace için kalıcı kaynak paylaşım izni açıktır."
+                            : "Runner kaynak dosyalarını veya ERP kayıtlarını otomatik eklemez."}
+                        </span>
+                      </label>
+                      {knowledgeAutoRefresh.allFiles ? (
+                        <div className="studio-chat-consent">
+                          <ShieldCheck size={16} />
+                          <span>
+                            Kalıcı proje erişimi açık; sorularda ilgili kaynak
+                            alıntıları otomatik aranır. Kod değişikliği taslağı
+                            için de dosyalar bu izin kapsamında taranır.
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          <label className="studio-chat-consent">
+                            <input
+                              type="checkbox"
+                              checked={chatKnowledgeConsent}
+                              onChange={(e) =>
+                                setChatKnowledgeConsent(e.target.checked)
+                              }
+                            />
+                            <span>
+                              Bu mesaj için, ayrıca seçip indekslediğim proje
+                              dosyalarından ilgili alıntıları AI sağlayıcısına
+                              gönder (ayrı onay).
+                            </span>
+                          </label>
+                          <label className="studio-chat-consent">
+                            <input
+                              type="checkbox"
+                              checked={chatSourceSharingConsent}
+                              onChange={(e) =>
+                                setChatSourceSharingConsent(e.target.checked)
+                              }
+                            />
+                            <span>
+                              Kod değişikliği taslağı istersem, ilgili workspace
+                              kaynak dosyalarının AI Developer'a gönderilmesini
+                              onaylıyorum.
+                            </span>
+                          </label>
+                        </>
+                      )}
+                      <div className="studio-chat-compose-footer">
+                        <span>
+                          Değişiklik isteğinde AI dosyaları bulup diff taslağı
+                          çıkarır; workspace’e yazma dosya başına onaylanır.
+                        </span>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            type="button"
+                            className="secondary"
+                            disabled={
+                              chatLoading ||
+                              chatCodeChangeLoading ||
+                              !chatAIConsent ||
+                              !chatDraft.trim() ||
+                              (!knowledgeAutoRefresh.allFiles &&
+                                !chatSourceSharingConsent)
+                            }
+                            onClick={createStudioChatCodeChange}
+                          >
+                            {chatCodeChangeLoading
+                              ? "Dosyalar inceleniyor…"
+                              : "Değişiklik taslağı oluştur"}
+                          </button>
+                          <button
+                            className="primary"
+                            disabled={
+                              chatLoading ||
+                              chatCodeChangeLoading ||
+                              !chatAIConsent ||
+                              !chatDraft.trim()
+                            }
+                          >
+                            {chatLoading ? "Yanıt bekleniyor…" : "Gönder"}{" "}
+                            <span aria-hidden="true">→</span>
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  )}
+              </section>
+            </div>
+          </div>
+        </div>
+      )}{" "}
+      {gitDiffTarget && gitStatusWorkspace && (
+        <div
+          className="modal-backdrop"
+          style={{ zIndex: 70 }}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setGitDiffTarget(null);
+              setWorkspaceGitDiff(null);
+            }
+          }}
+        >
+          <div className="modal" style={{ maxWidth: 1000 }}>
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">GIT DIFF · SALT OKUNUR</p>
+                <h2>{gitDiffTarget}</h2>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => {
+                  setGitDiffTarget(null);
+                  setWorkspaceGitDiff(null);
+                }}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub">
+              HEAD ile çalışma ağacındaki metin karşılaştırması. İçerik yalnızca
+              görüntülenir; AI’ye gönderilmez ve uygulanmaz.
+            </p>
+            {gitDiffLoading ? (
+              <div className="empty-small">Diff okunuyor…</div>
+            ) : (
+              workspaceGitDiff && (
+                <>
+                  <div className="panel-heading">
+                    <div>
+                      <b>{workspaceGitDiff.status}</b>
+                      <small>
+                        HEAD {workspaceGitDiff.headCommitSha.slice(0, 12)} ·
+                        dosya başına en fazla 900 KiB
+                      </small>
+                    </div>
+                  </div>
+                  <CodeSuggestionDiff
+                    original={workspaceGitDiff.baseContent}
+                    proposed={workspaceGitDiff.currentContent}
+                  />
+                  {workspaceProject?.accessLevel !== "Viewer" && (
+                    <form
+                      onSubmit={reviewWorkspaceDiff}
+                      style={{ marginTop: 16 }}
+                    >
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 9,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={codeReviewConsent}
+                          onChange={(e) =>
+                            setCodeReviewConsent(e.target.checked)
+                          }
+                          required
+                          style={{ width: 16, marginTop: 3 }}
+                        />
+                        <span>
+                          Bu dosyanın önceki ve güncel içeriğinin (toplam en
+                          fazla 20 KiB) OpenAI’ye gönderilmesini onaylıyorum.
+                          İnceleme sonucu saklanmaz ve değişiklik uygulamaz.
+                        </span>
+                      </label>
+                      <button
+                        className="primary"
+                        style={{ marginTop: 10 }}
+                        disabled={
+                          codeReviewLoading ||
+                          !codeReviewConsent ||
+                          aiConfigured === false
+                        }
+                      >
+                        {codeReviewLoading
+                          ? "Diff inceleniyor…"
+                          : "AI ile bu diff’i incele"}
+                      </button>
+                    </form>
+                  )}
+                  {codeReview && (
+                    <section className="panel" style={{ marginTop: 16 }}>
+                      <div className="panel-heading">
+                        <div>
+                          <b>AI inceleme · kod çalıştırılmadı</b>
+                          <small>
+                            Yalnızca seçili dosya ve gösterilen dal diff’i
+                            kullanıldı
+                          </small>
+                        </div>
+                      </div>
+                      <div className="notice">{codeReview.summary}</div>
+                      {codeReview.findings.map((finding, i) => (
+                        <article className="request-row expanded" key={i}>
+                          <div className="request-info">
+                            <b>
+                              {finding.severity} · {finding.title}
+                            </b>
+                            <small>{finding.detail}</small>
+                            <small>Öneri: {finding.recommendation}</small>
+                          </div>
+                        </article>
+                      ))}
+                      {codeReview.findings.length === 0 && (
+                        <div className="empty-small">
+                          Bu sınırlı diff içinde doğrulanabilir bir bulgu
+                          üretilmedi.
+                        </div>
+                      )}
+                      {codeReview.limitations.length > 0 && (
+                        <div className="boundary-note">
+                          <ShieldCheck size={17} />
+                          <span>
+                            <b>Sınırlamalar</b>
+                            {codeReview.limitations.join(" · ")}
+                          </span>
+                        </div>
+                      )}
+                    </section>
+                  )}
+                </>
+              )
+            )}
+            {workspaceGitDiff && (
+              <section className="panel" style={{ marginTop: 16 }}>
+                <div className="panel-heading">
+                  <div>
+                    <b>Takım kod incelemesi</b>
+                    <small>
+                      {
+                        reviewThreads.filter(
+                          (thread) => thread.status === "Open",
+                        ).length
+                      }{" "}
+                      açık başlık · commit{" "}
+                      {workspaceGitDiff.headCommitSha.slice(0, 12)}
+                    </small>
+                  </div>
+                </div>
+                {reviewThreads.map((thread) => (
+                  <article className="request-row expanded" key={thread.id}>
+                    <div className="request-info">
+                      <b>
+                        Satır {thread.lineNumber} ·{" "}
+                        {thread.status === "Open" ? "Açık" : "Çözüldü"}
+                      </b>
+                      <small>
+                        {thread.createdByUserId.slice(0, 8)} ·{" "}
+                        {new Date(thread.createdAt).toLocaleString("tr-TR")}
+                      </small>
+                      {thread.isStale && (
+                        <small className="alert">
+                          Bu başlık eski commit’e bağlı; güncel diff’e yeniden
+                          sabitleyin.
+                        </small>
+                      )}
+                      {thread.comments.map((comment) => (
+                        <div
+                          key={comment.id}
+                          style={{
+                            borderLeft: "2px solid #dedcf4",
+                            padding: "6px 0 6px 10px",
+                            marginTop: 7,
+                          }}
+                        >
+                          <small>
+                            {comment.githubAuthorLogin
+                              ? `@${comment.githubAuthorLogin}`
+                              : comment.createdByUserId.slice(0, 8)}{" "}
+                            ·{" "}
+                            {new Date(comment.createdAt).toLocaleString(
+                              "tr-TR",
+                            )}
+                          </small>
+                          <div style={{ whiteSpace: "pre-wrap" }}>
+                            {comment.body}
+                          </div>
+                        </div>
+                      ))}
+                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        {thread.status === "Open" && (
+                          <button
+                            type="button"
+                            className="secondary small-button"
+                            onClick={() => {
+                              setReviewReplyThread(thread.id);
+                              setReviewReplyDraft("");
+                            }}
+                          >
+                            Yanıtla
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="secondary small-button"
+                          disabled={reviewSaving}
+                          onClick={() =>
+                            void setCodeReviewThreadResolved(
+                              thread,
+                              thread.status === "Open",
+                            )
+                          }
+                        >
+                          {thread.status === "Open"
+                            ? "Çözüldü işaretle"
+                            : "Yeniden aç"}
+                        </button>
+                      </div>
+                      {reviewReplyThread === thread.id && (
+                        <form
+                          onSubmit={replyToCodeReviewThread}
+                          style={{ marginTop: 10 }}
+                        >
+                          <label>
+                            Yanıt
+                            <textarea
+                              value={reviewReplyDraft}
+                              onChange={(e) =>
+                                setReviewReplyDraft(e.target.value)
+                              }
+                              required
+                              maxLength={4000}
+                              rows={2}
+                            />
+                          </label>
+                          <button
+                            className="primary"
+                            disabled={reviewSaving || !reviewReplyDraft.trim()}
+                          >
+                            {reviewSaving ? "Kaydediliyor…" : "Yanıtı ekle"}
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  </article>
+                ))}
+                {reviewThreads.length === 0 && (
+                  <div className="empty-small">
+                    Bu dosyada henüz inceleme yorumu yok.
+                  </div>
+                )}
+                {workspaceProject?.accessLevel !== "Viewer" && (
+                  <form
+                    onSubmit={createCodeReviewThread}
+                    style={{ marginTop: 12 }}
+                  >
+                    <div className="panel-heading">
+                      <div>
+                        <b>Satıra yorum ekle</b>
+                        <small>
+                          Yorum güncel commit ve değişmiş dosya üzerinde
+                          sabitlenir.
+                        </small>
+                      </div>
+                    </div>
+                    <label>
+                      Satır numarası
+                      <input
+                        type="number"
+                        min={1}
+                        max={Math.max(
+                          1,
+                          workspaceGitDiff.currentContent.split(/\r?\n/).length,
+                          workspaceGitDiff.baseContent.split(/\r?\n/).length,
+                        )}
+                        value={reviewLine}
+                        onChange={(e) => setReviewLine(e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label>
+                      Yorum
+                      <textarea
+                        value={reviewDraft}
+                        onChange={(e) => setReviewDraft(e.target.value)}
+                        required
+                        maxLength={4000}
+                        rows={3}
+                        placeholder="Bu satırla ilgili soruyu veya öneriyi yazın"
+                      />
+                    </label>
+                    <button
+                      className="primary"
+                      disabled={
+                        reviewSaving || !reviewDraft.trim() || !reviewLine
+                      }
+                    >
+                      {reviewSaving ? "Kaydediliyor…" : "Yorumu başlat"}
+                    </button>
+                  </form>
+                )}
+                <div className="boundary-note">
+                  <ShieldCheck size={17} />
+                  <span>
+                    <b>İnsan incelemesi</b>Yorumlar tenant, proje ve workspace
+                    ile sınırlandırılır. Yorum eklemek kodu değiştirmez veya
+                    commit etmez.
+                  </span>
+                </div>
+              </section>
+            )}
+            {error && <div className="alert">{error}</div>}
+            <div className="modal-foot">
+              <span>Salt okunur diff</span>
+              <button
+                className="secondary"
+                onClick={() => {
+                  setGitDiffTarget(null);
+                  setWorkspaceGitDiff(null);
+                }}
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}{" "}
+      {changeWorkspace && (
+        <div
+          className="modal-backdrop studio-change-history-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setChangeWorkspace(null);
+              setChangeDiff(null);
+            }
+          }}
+        >
+          <div className="modal" style={{ maxWidth: 1000 }}>
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">İZOLE WORKSPACE · DEĞİŞİKLİK GEÇMİŞİ</p>
+                <h2>
+                  {workspaceProject?.name} / {changeWorkspace.branchName}
+                </h2>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => {
+                  setChangeWorkspace(null);
+                  setChangeDiff(null);
+                }}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub">
+              Onaylanmış dosya önerileri checkout dışında saklanan önceki
+              baytlarla izlenir. Geri alma kod çalıştırmaz ve yalnızca dosya
+              aynı durumdaysa uygulanır.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            {changeLoading && (
+              <div className="empty-small">Geçmiş yükleniyor…</div>
+            )}
+            {workspaceChanges?.truncated && (
+              <div className="notice">
+                En yeni 100 kayıt gösteriliyor; geçmiş listesi sınırlandırıldı.
+              </div>
+            )}
+            {workspaceChanges &&
+              workspaceChanges.changes.length === 0 &&
+              !changeLoading && (
+                <div className="empty-small">
+                  Bu çalışma alanında henüz onaylı dosya değişikliği yok.
+                </div>
+              )}
+            {workspaceChanges?.changes.map((change) => (
+              <article className="request-row expanded" key={change.id}>
+                <div className="request-symbol">
+                  <FileCode size={17} />
+                </div>
+                <div className="request-info">
+                  <b>{change.path}</b>
+                  {change.wasCreated && <small>Yeni dosya</small>}
+                  <small>
+                    {new Date(change.appliedAt).toLocaleString("tr-TR", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}{" "}
+                    ·{" "}
+                    {change.isRestored
+                      ? "Geri alındı"
+                      : change.isCurrent
+                        ? "Geçerli dosya sürümü"
+                        : "Daha yeni bir değişiklik var"}
+                  </small>
+                </div>
+                <button
+                  className="secondary small-button"
+                  disabled={changeLoading}
+                  onClick={() => void openWorkspaceChange(change)}
+                >
+                  Diff’i aç
+                </button>
+              </article>
+            ))}
+            {changeDiff && (
+              <section className="panel" style={{ marginTop: 16 }}>
+                <div className="panel-heading">
+                  <div>
+                    <b>{changeDiff.path}</b>
+                    {changeDiff.wasCreated && <small>Yeni dosya</small>}
+                    <small>
+                      {changeDiff.isRestored
+                        ? "Bu kayıt geri alınmış"
+                        : changeDiff.isCurrent
+                          ? "Dosya bu değişikliğin sürümünde"
+                          : "Dosyada daha yeni bir sürüm var"}
+                    </small>
+                  </div>
+                </div>
+                <CodeSuggestionDiff
+                  original={changeDiff.originalContent}
+                  proposed={changeDiff.currentContent}
+                />
+                {changeDiff.isCurrent && !changeDiff.isRestored && (
+                  <>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 10,
+                        marginTop: 14,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={restoreApproval}
+                        onChange={(e) => setRestoreApproval(e.target.checked)}
+                        style={{ width: 18, marginTop: 3 }}
+                      />
+                      <span>
+                        <b>
+                          {changeDiff.wasCreated
+                            ? "Oluşturulan dosyayı kaldır"
+                            : "Önceki içeriği geri koy"}
+                        </b>{" "}
+                        {changeDiff.wasCreated
+                          ? "Bu onay, AI önerisiyle oluşturulan dosyanın silinmesini sağlar."
+                          : "Bu kayıttan hemen önceki dosya baytlarının geri yüklenmesini onaylıyorum."}
+                      </span>
+                    </label>
+                    <div className="modal-foot">
+                      <span>Dosya özeti eşleşmezse geri alma reddedilir.</span>
+                      <button
+                        className="secondary danger-action"
+                        disabled={changeLoading || !restoreApproval}
+                        onClick={() => void restoreWorkspaceChange()}
+                      >
+                        {changeLoading ? "Geri alınıyor…" : "Onayla ve geri al"}
+                      </button>
+                    </div>
+                  </>
+                )}
+                {!changeDiff.isCurrent && !changeDiff.isRestored && (
+                  <div className="boundary-note">
+                    <ShieldCheck size={17} />
+                    <span>
+                      <b>Eski kayıt</b>Dosyada daha yeni bir sürüm bulundu. Bu
+                      kayıt üzerine yazmayacak; güncel değişikliği açın.
+                    </span>
+                  </div>
+                )}
+              </section>
+            )}
+            <div className="modal-foot">
+              <span>
+                {workspaceChanges?.changes.length ?? 0} kayıt · geçmiş en fazla
+                200 uygulamayı tutar.
+              </span>
+              <button
+                className="secondary"
+                onClick={() => {
+                  setChangeWorkspace(null);
+                  setChangeDiff(null);
+                }}
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {multiDeveloperWorkspace && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !multiFileLoading)
+              setMultiDeveloperWorkspace(null);
+          }}
+        >
+          <div className="modal" style={{ maxWidth: 1100 }}>
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">AI DEVELOPER · ÇOKLU DOSYA TASLAĞI</p>
+                <h2>{multiFilePaths.length} dosyada koordineli öneri</h2>
+              </div>
+              <button
+                className="icon-button"
+                disabled={multiFileLoading}
+                onClick={() => setMultiDeveloperWorkspace(null)}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub">
+              Yalnız seçtiğiniz kaynak dosyaları ve talebiniz OpenAI’ye
+              gönderilir. Öneriler dosya başına ayrı diff olarak incelenir;
+              hiçbiri otomatik uygulanmaz.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            {!multiFileSuggestion && (
+              <form onSubmit={createMultiFileSuggestion}>
+                {repairMode && (
+                  <label>
+                    Onarılacak kaynak dosyaları
+                    <textarea
+                      value={repairPathsDraft}
+                      onChange={(e) => setRepairPathsDraft(e.target.value)}
+                      required
+                      maxLength={2500}
+                      rows={3}
+                      placeholder="src/Services/Example.cs`nsrc/Tests/ExampleTests.cs"
+                    />
+                    <small>
+                      Hata çözümüyle ilgili dosyaların yollarını girin. 1–5
+                      dosya; yalnızca bu seçili içerikler paylaşılır.
+                    </small>
+                  </label>
+                )}
+                <label>
+                  {repairMode
+                    ? "Hata analizi ve onarım talebi"
+                    : "İstenen geliştirme"}
+                  <textarea
+                    value={multiFileRequest}
+                    onChange={(e) => setMultiFileRequest(e.target.value)}
+                    required
+                    maxLength={2000}
+                    rows={4}
+                    placeholder="Örn. API yanıt sözleşmesini ve ona bağlı UI modelini birlikte güncelle"
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 10,
+                    marginTop: 12,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={multiFileConsent}
+                    onChange={(e) => setMultiFileConsent(e.target.checked)}
+                    required
+                    style={{ width: 18, marginTop: 3 }}
+                  />
+                  <span>
+                    {repairMode
+                      ? "Yukarıda belirttiğim 1–5 dosya ile hata analizi ve onarım talebimin OpenAI’ye gönderilmesini onaylıyorum."
+                      : `Seçtiğim ${multiFilePaths.length} dosyanın içeriğinin (toplam en fazla 64 KiB) ve talebimin OpenAI’ye gönderilmesini onaylıyorum.`}
+                  </span>
+                </label>
+                <div className="modal-foot">
+                  <span>
+                    {repairMode
+                      ? "En çok 5 dosya · diff incelemesi ve her dosya için ayrı uygulama onayı gerekir."
+                      : "En fazla 5 dosya · toplam kaynak 64 KiB · otomatik uygulama kapalı"}
+                  </span>
+                  <button
+                    className="primary"
+                    disabled={multiFileLoading || !multiFileConsent}
+                  >
+                    {multiFileLoading
+                      ? "Öneri hazırlanıyor…"
+                      : repairMode
+                        ? "Onarım diff’i oluştur"
+                        : "Koordineli öneri oluştur"}
+                  </button>
+                </div>
+              </form>
+            )}
+            {multiFileSuggestion && (
+              <>
+                <div className="notice">{multiFileSuggestion.summary}</div>
+                {multiFileSuggestion.risks.length > 0 && (
+                  <div className="boundary-note">
+                    <ShieldCheck size={17} />
+                    <span>
+                      <b>AI risk notları</b>
+                      {multiFileSuggestion.risks.join(" · ")}
+                    </span>
+                  </div>
+                )}
+                {multiFileSuggestion.changes.map((change) => (
+                  <section
+                    className="panel"
+                    key={change.filePath}
+                    style={{ marginTop: 14 }}
+                  >
+                    <div className="panel-heading">
+                      <div>
+                        <b>{change.filePath}</b>
+                        <small>
+                          Kaynak SHA-256: {change.sourceSha256.slice(0, 12)} ·
+                          uygulama için ayrı onay gerekir
+                        </small>
+                      </div>
+                      <button
+                        className="secondary small-button"
+                        disabled={
+                          multiFileLoading ||
+                          multiFileApplied.includes(change.filePath)
+                        }
+                        onClick={() => void applyMultiFileSuggestion(change)}
+                      >
+                        {multiFileApplied.includes(change.filePath)
+                          ? "Uygulandı"
+                          : "Bu dosyayı uygula"}
+                      </button>
+                    </div>
+                    <CodeSuggestionDiff
+                      original={change.originalContent}
+                      proposed={change.proposedContent}
+                    />
+                    {change.notes.length > 0 && (
+                      <small>{change.notes.join(" · ")}</small>
+                    )}
+                  </section>
+                ))}
+                <div className="modal-foot">
+                  <span>
+                    {multiFileApplied.length}/
+                    {multiFileSuggestion.changes.length} dosya uygulandı; her
+                    dosya ayrı onaylandı.
+                  </span>
+                  <div>
+                    {repairMode &&
+                      multiFileApplied.length ===
+                        multiFileSuggestion.changes.length &&
+                      (workspaceProject?.accessLevel === "TenantAdmin" ||
+                        workspaceProject?.accessLevel === "Maintainer") && (
+                        <button
+                          className="primary"
+                          disabled={multiFileLoading}
+                          onClick={() => void rerunAfterSandboxRepair()}
+                        >
+                          {repairMode.operation === "test"
+                            ? "Onaylı değişikliklerle testi yeniden çalıştır"
+                            : "Onaylı değişikliklerle build’i yeniden çalıştır"}
+                        </button>
+                      )}
+                    {repairMode &&
+                      multiFileApplied.length ===
+                        multiFileSuggestion.changes.length &&
+                      workspaceProject?.accessLevel !== "TenantAdmin" &&
+                      workspaceProject?.accessLevel !== "Maintainer" && (
+                        <small>
+                          Değişiklikler uygulandı; sandbox testini yeniden
+                          çalıştırmak için Maintainer veya TenantAdmin onayı
+                          gerekir.
+                        </small>
+                      )}
+                    <button
+                      className="secondary"
+                      onClick={() => {
+                        setMultiDeveloperWorkspace(null);
+                        setMultiFileSuggestion(null);
+                        setRepairMode(null);
+                      }}
+                    >
+                      Kapat
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {developerWorkspace && developerFile && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setDeveloperWorkspace(null);
+              setDeveloperFile(null);
+              setDeveloperSuggestion(null);
+            }
+          }}
+        >
+          <div className="modal" style={{ maxWidth: 1000 }}>
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">AI DEVELOPER · İNCELEME TASLAĞI</p>
+                <h2>{developerFile.path}</h2>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => {
+                  setDeveloperWorkspace(null);
+                  setDeveloperFile(null);
+                  setDeveloperSuggestion(null);
+                }}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub">
+              AI yalnızca seçtiğiniz bu dosyayı ve talebinizi alır. Öneri diff
+              olarak gösterilir; çalışma alanına yazılmaz ve kod çalıştırılmaz.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            <form onSubmit={createCodeSuggestion}>
+              {developerIsNewFile && (
+                <label>
+                  Yeni kaynak dosya yolu
+                  <input
+                    value={developerNewPath}
+                    onChange={(e) => setDeveloperNewPath(e.target.value)}
+                    required
+                    maxLength={500}
+                  />
+                </label>
+              )}
+              <label>
+                İstenen değişiklik
+                <textarea
+                  value={developerRequest}
+                  onChange={(e) => setDeveloperRequest(e.target.value)}
+                  required
+                  maxLength={2000}
+                  rows={3}
+                  placeholder="Örn. doğrulama mesajını Türkçeleştir"
+                />
+              </label>
+              <label
+                style={{ display: "flex", alignItems: "flex-start", gap: 10 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={developerConsent}
+                  onChange={(e) => setDeveloperConsent(e.target.checked)}
+                  required
+                  style={{ width: 18, marginTop: 3 }}
+                />
+                <span>
+                  {developerIsNewFile
+                    ? `Bu yeni dosya yolu ve talebim OpenAI API’ye gönderilecek: ${developerNewPath}. Mevcut kaynak içeriği paylaşılmıyor.`
+                    : `Bu dosyanın kaynak içeriğinin (${developerFile.path}, en fazla 32 KiB) talebimle birlikte OpenAI API’ye gönderilmesini onaylıyorum.`}
+                </span>
+              </label>
+              <div className="modal-foot">
+                <span>
+                  Kaynak paylaşımı kayıt altına alınır; dosya değişmez.
+                </span>
+                <button
+                  className="primary"
+                  disabled={developerLoading || !developerConsent}
+                >
+                  {developerLoading
+                    ? "Öneri hazırlanıyor…"
+                    : "Kod önerisi oluştur"}
+                </button>
+              </div>
+            </form>
+            {developerSuggestion && (
+              <>
+                <div className="section-title">
+                  <div>
+                    <h3>{developerSuggestion.summary}</h3>
+                    <p>{developerSuggestion.filePath} · yalnızca öneri</p>
+                  </div>
+                </div>
+                <CodeSuggestionDiff
+                  original={developerSuggestion.originalContent}
+                  proposed={developerSuggestion.proposedContent}
+                />
+                {developerSuggestion.notes.length > 0 && (
+                  <div className="boundary-note">
+                    <ShieldCheck size={17} />
+                    <span>
+                      <b>İnceleme notları</b>
+                      {developerSuggestion.notes.join(" · ")}
+                    </span>
+                  </div>
+                )}
+                {!developerApplied && (
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      marginTop: 14,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={developerApplyApproval}
+                      onChange={(e) =>
+                        setDeveloperApplyApproval(e.target.checked)
+                      }
+                      style={{ width: 18, marginTop: 3 }}
+                    />
+                    <span>
+                      <b>Öneriyi onayla</b> {developerSuggestion.filePath}{" "}
+                      dosyasını bu izole checkout içinde önerilen içerikle
+                      değiştirmeyi onaylıyorum. Mevcut dosyanın özeti eşleşmezse
+                      değişiklik uygulanmaz.
+                    </span>
+                  </label>
+                )}
+                <div className="modal-foot">
+                  <span>
+                    {developerApplied
+                      ? "Değişiklik uygulandı; build veya kod çalıştırma yapılmadı."
+                      : "Uygulama ayrı onay gerektirir ve eski dosya özeti kontrol edilir."}
+                  </span>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={
+                      developerLoading ||
+                      developerApplied ||
+                      !developerApplyApproval
+                    }
+                    onClick={() => void applyCodeSuggestion()}
+                  >
+                    {developerLoading
+                      ? "Uygulanıyor…"
+                      : developerApplied
+                        ? "Çalışma alanına uygulandı"
+                        : "Onayla ve dosyaya uygula"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {showPlanHistory && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setShowPlanHistory(false);
+          }}
+        >
+          <div className="modal">
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">AI ARCHITECT</p>
+                <h2>Kaydedilen planlar</h2>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => setShowPlanHistory(false)}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub">
+              Bu projede açıkça kaydedilmiş mimari planlar. Her kayıt dal ve
+              commit bilgisine bağlıdır.
+            </p>
+            {savedArchitecturePlans.length ? (
+              savedArchitecturePlans.map((saved) => (
+                <article className="request-row expanded" key={saved.id}>
+                  <div className="request-symbol">
+                    <Code2 size={17} />
+                  </div>
+                  <div className="request-info">
+                    <b>{saved.summary}</b>
+                    <small>
+                      {saved.branchName} · {saved.commitSha.slice(0, 12)} ·{" "}
+                      {new Date(saved.createdAt).toLocaleString("tr-TR", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </small>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      className="secondary small-button"
+                      disabled={architectLoading}
+                      onClick={() => void openSavedArchitecturePlan(saved)}
+                    >
+                      Planı aç
+                    </button>
+                    {saved.canDelete && (
+                      <button
+                        className="secondary small-button"
+                        disabled={architectLoading}
+                        title="Planı sil"
+                        aria-label="Planı sil"
+                        onClick={() => void deleteSavedArchitecturePlan(saved)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="empty-state">
+                <div className="empty-icon">
+                  <Code2 size={22} />
+                </div>
+                <h3>Henüz kaydedilmiş plan yok</h3>
+                <p>
+                  AI Architect planını oluşturduktan sonra “Planı projeye
+                  kaydet” düğmesiyle geçmişe ekleyebilirsiniz.
+                </p>
+              </div>
+            )}
+            <div className="modal-foot">
+              <span>Özgün talep metni bu kayıtlara eklenmez.</span>
+              <button
+                className="secondary"
+                onClick={() => setShowPlanHistory(false)}
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {architectWorkspace && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setArchitectWorkspace(null);
+              setArchitectPlan(null);
+            }
+          }}
+        >
+          <div className="modal">
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">AI ARCHITECT · TASLAK</p>
+                <h2>{workspaceProject?.name}</h2>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => {
+                  setArchitectWorkspace(null);
+                  setArchitectPlan(null);
+                }}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub">
+              AI Architect yalnız talebini ve proje haritası metadata’sını
+              kullanarak incelenebilir bir plan hazırlar. Kaynak dosya içeriği
+              gönderilmez; kod değiştirilmez.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            {!architectPlan && (
+              <form onSubmit={createArchitecturePlan}>
+                <label>
+                  İstenen geliştirme
+                  <textarea
+                    value={architectRequest}
+                    onChange={(e) => setArchitectRequest(e.target.value)}
+                    required
+                    maxLength={2000}
+                    rows={4}
+                    placeholder="Örn. Satış siparişlerine sevkiyat önceliği ekle"
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 9,
+                    marginTop: 12,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={architectConsent}
+                    onChange={(e) => setArchitectConsent(e.target.checked)}
+                    required
+                    style={{ width: 16, marginTop: 3 }}
+                  />
+                  <span>
+                    Talep metnimin ve proje adı, dal, dosya türü sayımları ile
+                    giriş dosyası yollarından oluşan haritanın OpenAI’ye
+                    gönderilmesini onaylıyorum. Kaynak kod gönderilmez.
+                  </span>
+                </label>
+                <div className="modal-foot">
+                  <span>
+                    AI çıktısı öneri taslağıdır; değişiklik uygulamaz.
+                  </span>
+                  <button
+                    className="primary"
+                    disabled={architectLoading || !architectConsent}
+                  >
+                    {architectLoading
+                      ? "Plan hazırlanıyor…"
+                      : "Mimari plan hazırla"}{" "}
+                    <span>→</span>
+                  </button>
+                </div>
+              </form>
+            )}
+            {architectPlan && (
+              <>
+                <div className="notice">{architectPlan.summary}</div>
+                <h3>Etkilenen alanlar</h3>
+                <div className="requests-list">
+                  {architectPlan.affectedAreas.map((x, i) => (
+                    <article className="request-row" key={i}>
+                      <div className="request-info">
+                        <b>{x}</b>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <h3 style={{ marginTop: 16 }}>Uygulama adımları</h3>
+                <div className="requests-list">
+                  {architectPlan.steps.map((step, i) => (
+                    <article className="request-row expanded" key={i}>
+                      <div className="request-info">
+                        <b>
+                          {i + 1}. {step.title}
+                        </b>
+                        <small>{step.description}</small>
+                        {step.files.length > 0 && (
+                          <small>Dosyalar: {step.files.join(", ")}</small>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <h3 style={{ marginTop: 16 }}>Varsayımlar ve riskler</h3>
+                <div className="requests-list">
+                  {[
+                    ...architectPlan.assumptions.map((x) => ({
+                      kind: "Varsayım",
+                      text: x,
+                    })),
+                    ...architectPlan.risks.map((x) => ({
+                      kind: "Risk",
+                      text: x,
+                    })),
+                  ].map((x, i) => (
+                    <article className="request-row" key={i}>
+                      <div className="request-info">
+                        <b>{x.kind}</b>
+                        <small>{x.text}</small>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <div className="modal-foot">
+                  <span>
+                    {architectSavedPlanId
+                      ? "Bu plan proje geçmişinde kayıtlı; otomatik uygulanmadı."
+                      : "Planı kaydetmek özgün talep metnini saklamaz ve planı uygulamaz."}
+                  </span>
+                  <div>
+                    {!architectSavedPlanId && (
+                      <button
+                        className="primary"
+                        disabled={architectLoading}
+                        onClick={() => void saveArchitecturePlan()}
+                      >
+                        {architectLoading
+                          ? "Kaydediliyor…"
+                          : "Planı projeye kaydet"}
+                      </button>
+                    )}
+                    <button
+                      className="secondary"
+                      onClick={() => {
+                        setArchitectPlan(null);
+                        setArchitectSavedPlanId(null);
+                        setArchitectConsent(false);
+                      }}
+                    >
+                      Yeni plan
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+            <div className="boundary-note">
+              <ShieldCheck size={17} />
+              <span>
+                <b>İnsan incelemesi gerekli</b>Plan yalnızca öneridir. Kod
+                üretimi, test ve yayınlama bu aşamada kapalıdır.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      {analysisWorkspace && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setAnalysisWorkspace(null);
+              setWorkspaceAnalysis(null);
+            }
+          }}
+        >
+          <div className="modal studio-inventory-modal">
+            <div className="modal-head">
+              <div className="studio-inventory-hero-icon">
+                <GitBranch size={27} />
+              </div>
+              <div className="studio-inventory-hero-copy">
+                <p className="eyebrow">KOD ÇALIŞMA ALANI ENVANTERİ</p>
+                <h2>{workspaceProject?.name} / Proje haritası</h2>
+                <p>
+                  {analysisWorkspace.branchName} dalının kod yapısını, dosya
+                  türlerini ve solution girişlerini tek ekranda görüntüleyin.
+                </p>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="Proje haritasını kapat"
+                onClick={() => {
+                  setAnalysisWorkspace(null);
+                  setWorkspaceAnalysis(null);
+                }}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub studio-inventory-intro">
+              Dosya içerikleri okunmaz; yalnızca yapı, tür ve sayısal bilgiler
+              analiz edilir.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            {analysisLoading ? (
+              <div className="empty-small">Dosya envanteri çıkarılıyor…</div>
+            ) : (
+              workspaceAnalysis && (
+                <>
+                  <section
+                    className="studio-inventory-summary"
+                    aria-label="Envanter özeti"
+                  >
+                    <span className="studio-inventory-summary-icon">
+                      <Folder size={23} />
+                    </span>
+                    <div className="studio-inventory-file-total">
+                      <strong>
+                        {workspaceAnalysis.scannedFiles.toLocaleString("tr-TR")}
+                      </strong>
+                      <span>dosya tarandı</span>
+                    </div>
+                    <div className="studio-inventory-scan-state">
+                      <span
+                        className={`studio-inventory-status${workspaceAnalysis.truncated ? " is-partial" : ""}`}
+                      >
+                        <i />
+                        {workspaceAnalysis.truncated
+                          ? "Kısmi envanter"
+                          : "Envanter tamamlandı"}
+                      </span>
+                      <small>
+                        {analysisCompletedAt
+                          ? `Son tarama: ${new Date(analysisCompletedAt).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}`
+                          : "Envanter hazır"}
+                      </small>
+                    </div>
+                    <button
+                      className="secondary studio-inventory-rescan"
+                      disabled={analysisLoading}
+                      onClick={() =>
+                        void loadWorkspaceAnalysis(analysisWorkspace)
+                      }
+                    >
+                      <RefreshCw size={15} />
+                      {analysisLoading ? "Taranıyor…" : "Yeniden tara"}
+                    </button>
+                  </section>
+                  <section className="studio-inventory-section">
+                    <div className="studio-inventory-section-heading">
+                      <div className="studio-inventory-heading-title">
+                        <span>
+                          <Code2 size={20} />
+                        </span>
+                        <div>
+                          <h3>Teknoloji ve dosya türleri</h3>
+                          <p>
+                            Workspace içinde tespit edilen dosya türlerinin
+                            dağılımı.
+                          </p>
+                        </div>
+                      </div>
+                      <div
+                        className="studio-inventory-view-switch"
+                        role="group"
+                        aria-label="Dosya türü görünümü"
+                      >
+                        <button
+                          className={inventoryLayout === "grid" ? "active" : ""}
+                          aria-label="Kart görünümü"
+                          aria-pressed={inventoryLayout === "grid"}
+                          onClick={() => setInventoryLayout("grid")}
+                        >
+                          <Grid2X2 size={16} />
+                        </button>
+                        <button
+                          className={inventoryLayout === "list" ? "active" : ""}
+                          aria-label="Liste görünümü"
+                          aria-pressed={inventoryLayout === "list"}
+                          onClick={() => setInventoryLayout("list")}
+                        >
+                          <List size={17} />
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      className={`studio-inventory-type-grid ${inventoryLayout === "list" ? "is-list" : ""}`}
+                    >
+                      {workspaceAnalysis.technologies.map((item) => {
+                        const percent = workspaceAnalysis.scannedFiles
+                          ? (item.fileCount / workspaceAnalysis.scannedFiles) *
+                            100
+                          : 0;
+                        return (
+                          <article
+                            className="studio-inventory-type-card"
+                            key={item.name}
+                          >
+                            <span className="studio-inventory-type-icon">
+                              <FileCode size={17} />
+                            </span>
+                            <div className="studio-inventory-type-copy">
+                              <b>{item.name}</b>
+                              <span>
+                                {item.fileCount.toLocaleString("tr-TR")} dosya
+                              </span>
+                              <div className="studio-inventory-progress">
+                                <i
+                                  style={{ width: `${Math.max(percent, 1)}%` }}
+                                />
+                              </div>
+                            </div>
+                            <small>
+                              {percent.toLocaleString("tr-TR", {
+                                maximumFractionDigits: 1,
+                              })}
+                              %
+                            </small>
+                          </article>
+                        );
+                      })}
+                    </div>
+                    {!workspaceAnalysis.technologies.length && (
+                      <div className="empty-small">
+                        Envanterde tanınan dosya türü bulunamadı.
+                      </div>
+                    )}
+                  </section>
+                  <section className="studio-inventory-section studio-inventory-entry-section">
+                    <div className="studio-inventory-section-heading">
+                      <div className="studio-inventory-heading-title">
+                        <span>
+                          <FolderTree size={20} />
+                        </span>
+                        <div>
+                          <h3>Solution ve proje girişleri</h3>
+                          <p>
+                            Workspace içindeki solution ve proje manifestleri.
+                          </p>
+                        </div>
+                      </div>
+                      <span className="studio-inventory-count">
+                        {workspaceAnalysis.entryPoints.length} kayıt
+                      </span>
+                    </div>
+                    <div className="studio-inventory-entry-list">
+                      {workspaceAnalysis.entryPoints.map((path) => {
+                        const isSolution = path.toLowerCase().endsWith(".sln");
+                        return (
+                          <article
+                            className="studio-inventory-entry"
+                            key={path}
+                          >
+                            <FileCode size={18} />
+                            <div className="studio-inventory-entry-copy">
+                              <b>{path.split(/[\/]/).pop()}</b>
+                              <span>
+                                {path.startsWith("/") ? path : `/${path}`}
+                              </span>
+                            </div>
+                            <span className="studio-inventory-entry-kind">
+                              {isSolution ? "Solution" : "Project"}
+                            </span>
+                            <ArrowUpRight size={17} />
+                          </article>
+                        );
+                      })}
+                      {!workspaceAnalysis.entryPoints.length && (
+                        <div className="empty-small">
+                          Tanınan bir solution veya proje manifesti bulunamadı.
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                </>
+              )
+            )}
+            <div className="boundary-note studio-inventory-boundary">
+              <ShieldCheck size={17} />
+              <span>
+                <b>Salt okunur teknik envanter</b>Bu harita dosya adlarından
+                hesaplanır; yapay zekâ yorumu değildir. Kod, bağımlılık
+                betikleri veya testler çalıştırılmaz.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      {testDiscoveryWorkspace && (
+        <div
+          className="modal-backdrop studio-test-discovery-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setTestDiscoveryWorkspace(null);
+              setTestDiscovery(null);
+            }
+          }}
+        >
+          <div className="modal studio-test-discovery-modal">
+            <div className="modal-head studio-test-discovery-header">
+              <div className="studio-test-discovery-heading">
+                <span className="studio-test-discovery-mark">
+                  <FlaskConical size={23} />
+                </span>
+                <div>
+                  <p className="eyebrow">
+                    TEST CENTER <i>·</i> GÜVENLİ KURULUM
+                  </p>
+                  <h2>{workspaceProject?.name} / Test ve build hedefleri</h2>
+                </div>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="Kapat"
+                onClick={() => {
+                  setTestDiscoveryWorkspace(null);
+                  setTestDiscovery(null);
+                }}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub">
+              {testDiscoveryWorkspace.branchName} dalındaki proje manifestleri
+              ve test dosyaları incelenir. Keşif salt okunurdur; Maintainer veya
+              TenantAdmin seçilmiş hedefi ayrı onayla yalıtılmış sandbox içinde
+              çalıştırabilir.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            {testDiscoveryLoading ? (
+              <div className="empty-small">
+                Test ve build hedefleri taranıyor…
+              </div>
+            ) : (
+              testDiscovery && (
+                <>
+                  <div className="studio-test-discovery-summary">
+                    <div className="studio-test-discovery-file-count">
+                      <span className="studio-test-discovery-summary-icon">
+                        <Folder size={24} />
+                      </span>
+                      <div>
+                        <b>
+                          {testDiscovery.scannedFiles.toLocaleString("tr-TR")}
+                        </b>
+                        <small>dosya incelendi</small>
+                      </div>
+                    </div>
+                    <div className="studio-test-discovery-scan-status">
+                      <span
+                        className={testDiscovery.truncated ? "is-partial" : ""}
+                      >
+                        <CheckCircle2 size={16} />
+                        {testDiscovery.truncated
+                          ? "Kısmi analiz"
+                          : "Analiz tamamlandı"}
+                      </span>
+                      <small>
+                        {testDiscovery.truncated
+                          ? "Güvenlik sınırına ulaşıldı; sonuç kısmi."
+                          : "Manifest okuma sınırı: 64 KiB"}
+                      </small>
+                    </div>
+                  </div>
+                  <div className="requests-list studio-test-discovery-targets">
+                    {testDiscovery.targets.map((target, i) => (
+                      <article
+                        className="request-row expanded studio-test-target-card"
+                        key={`${target.path}-${i}`}
+                      >
+                        <div className="request-symbol">
+                          <FileCode size={17} />
+                        </div>
+                        <div className="request-info">
+                          <b>
+                            {target.ecosystem} · {target.path}
+                          </b>
+                          <small>{target.evidence}</small>
+                          <small>
+                            Öneri: <code>{target.suggestedCommand}</code> ·
+                            yalnızca test keşfi yapıldı
+                          </small>
+                        </div>
+                        {target.canTest !== false &&
+                          ((target.ecosystem === ".NET" &&
+                            target.path.toLowerCase().endsWith(".csproj")) ||
+                            (target.ecosystem === "Node.js" &&
+                              target.path
+                                .toLowerCase()
+                                .endsWith("package.json")) ||
+                            (target.ecosystem === "Python" &&
+                              target.path.toLowerCase().endsWith(".py")) ||
+                            (target.ecosystem === "Go" &&
+                              target.path.toLowerCase().endsWith("_test.go")) ||
+                            (target.ecosystem === "Rust" &&
+                              target.path
+                                .toLowerCase()
+                                .endsWith("cargo.toml"))) &&
+                          (workspaceProject?.accessLevel === "TenantAdmin" ||
+                            workspaceProject?.accessLevel === "Maintainer") && (
+                            <button
+                              className="secondary small-button"
+                              disabled={testExecutionLoading}
+                              onClick={() => void runWorkspaceTest(target)}
+                            >
+                              {testExecutionLoading &&
+                              testExecutionTarget === target.path
+                                ? "Test çalışıyor…"
+                                : target.ecosystem === "Node.js"
+                                  ? "Yalıtılmış Node testi çalıştır"
+                                  : target.ecosystem === "Python"
+                                    ? "Yalıtılmış Python testi çalıştır"
+                                    : target.ecosystem === "Go"
+                                      ? "Yalıtılmış Go testi çalıştır"
+                                      : target.ecosystem === "Rust"
+                                        ? "Yalıtılmış Rust testi çalıştır"
+                                        : "Yalıtılmış .NET testi çalıştır"}
+                            </button>
+                          )}
+                        {target.canBuild &&
+                          (workspaceProject?.accessLevel === "TenantAdmin" ||
+                            workspaceProject?.accessLevel === "Maintainer") && (
+                            <button
+                              className="secondary small-button"
+                              disabled={buildExecutionLoading}
+                              onClick={() => void runWorkspaceBuild(target)}
+                            >
+                              {buildExecutionLoading &&
+                              buildExecutionTarget === target.path
+                                ? "Build çalışıyor…"
+                                : `Yalıtılmış ${target.ecosystem} build çalıştır`}
+                            </button>
+                          )}
+                      </article>
+                    ))}
+                    {testDiscovery.targets.length === 0 && (
+                      <div className="empty-small">
+                        Desteklenen bir test hedefi bulunamadı.
+                      </div>
+                    )}
+                  </div>
+                  {testExecution && (
+                    <section className="panel" style={{ marginTop: 14 }}>
+                      <div className="panel-heading">
+                        <div>
+                          <b>
+                            {testExecutionTarget} · {testExecution.status}
+                          </b>
+                          <small>
+                            HEAD {testExecution.commitSha.slice(0, 12)} ·
+                            Snapshot {testExecution.snapshotSha256.slice(0, 12)}{" "}
+                            ·{" "}
+                            {testExecution.hasUncommittedChanges
+                              ? "kirli snapshot"
+                              : "HEAD snapshot"}{" "}
+                            · {testExecution.message ?? "Sandbox sonucu"}
+                            {testExecution.completedAt
+                              ? ` · ${new Date(testExecution.completedAt).toLocaleString("tr-TR")}`
+                              : ""}
+                          </small>
+                        </div>
+                        <small>
+                          {testExecution.durationMilliseconds
+                            ? `${Math.round(testExecution.durationMilliseconds / 1000)} sn`
+                            : ""}
+                        </small>
+                      </div>
+                      {testExecution.output && (
+                        <pre
+                          style={{
+                            maxHeight: 260,
+                            overflow: "auto",
+                            padding: 12,
+                            background: "#0b1020",
+                            color: "#dce5ff",
+                            borderRadius: 10,
+                            whiteSpace: "pre-wrap",
+                            fontSize: 12,
+                          }}
+                        >
+                          <code>{testExecution.output}</code>
+                        </pre>
+                      )}
+                      {testExecution.status === "DependencyUnavailable" && (
+                        <div className="boundary-note">
+                          <ShieldCheck size={17} />
+                          <span>
+                            <b>Çevrimdışı bağımlılık sınırı</b>
+                            {testExecutionTarget
+                              .toLowerCase()
+                              .endsWith("package.json")
+                              ? "Node.js paket bağımlılıkları sandboxa alınmadı; yalnız yerleşik node:test dosyaları çalışabilir."
+                              : testExecutionTarget
+                                    .toLowerCase()
+                                    .endsWith(".py")
+                                ? "Gerekli Python modülü imajdaki pytest ortamında yok."
+                                : testExecutionTarget
+                                      .toLowerCase()
+                                      .endsWith("_test.go")
+                                  ? "Go modülü harici bağımlılık bildiriyor veya standart dışı paket bulunamadı."
+                                  : testExecutionTarget
+                                        .toLowerCase()
+                                        .endsWith("cargo.toml")
+                                    ? "Rust manifesti bağımlılık veya workspace içeriyor; ağsız sandbox yalnız bağımsız paketleri destekler."
+                                    : "Gerekli NuGet paketleri sandbox önbelleğinde bulunamadı."}{" "}
+                            Sandbox internete erişmez; bu test çalıştırmasında
+                            paket kaynağına bağlanılmadı.
+                          </span>
+                        </div>
+                      )}
+                      {testExecution.status !== "Passed" &&
+                        testExecution.status !== "Queued" &&
+                        workspaceProject?.accessLevel !== "Viewer" && (
+                          <button
+                            className="secondary small-button"
+                            disabled={sandboxErrorAnalysisLoading}
+                            onClick={() =>
+                              void analyzeSandboxFailure(
+                                "test",
+                                testDiscoveryWorkspace!.id,
+                                testExecution,
+                              )
+                            }
+                          >
+                            {sandboxErrorAnalysisLoading
+                              ? "Analiz ediliyor…"
+                              : "AI ile hata analizi"}
+                          </button>
+                        )}
+                      {testExecution.status === "Queued" &&
+                        !testExecutionLoading && (
+                          <button
+                            className="secondary small-button"
+                            onClick={() => void pollWorkspaceTestRun()}
+                          >
+                            Durumu yenile
+                          </button>
+                        )}
+                    </section>
+                  )}
+                  {buildExecution &&
+                    buildExecutionWorkspaceId ===
+                      testDiscoveryWorkspace?.id && (
+                      <section className="panel" style={{ marginTop: 14 }}>
+                        <div className="panel-heading">
+                          <div>
+                            <b>
+                              {buildExecutionTarget} · {buildExecution.status}
+                            </b>
+                            <small>
+                              HEAD {buildExecution.commitSha.slice(0, 12)} ·
+                              Snapshot{" "}
+                              {buildExecution.snapshotSha256.slice(0, 12)} ·{" "}
+                              {buildExecution.message ?? "Sandbox build sonucu"}
+                              {buildExecution.completedAt
+                                ? ` · ${new Date(buildExecution.completedAt).toLocaleString("tr-TR")}`
+                                : ""}
+                            </small>
+                          </div>
+                          <small>
+                            {buildExecution.durationMilliseconds
+                              ? `${Math.round(buildExecution.durationMilliseconds / 1000)} sn`
+                              : ""}
+                          </small>
+                        </div>
+                        {buildExecution.output && (
+                          <pre
+                            style={{
+                              maxHeight: 260,
+                              overflow: "auto",
+                              padding: 12,
+                              background: "#0b1020",
+                              color: "#dce5ff",
+                              borderRadius: 10,
+                              whiteSpace: "pre-wrap",
+                              fontSize: 12,
+                            }}
+                          >
+                            <code>{buildExecution.output}</code>
+                          </pre>
+                        )}
+                        {buildExecution.status !== "Built" &&
+                          buildExecution.status !== "Queued" &&
+                          workspaceProject?.accessLevel !== "Viewer" && (
+                            <button
+                              className="secondary small-button"
+                              disabled={sandboxErrorAnalysisLoading}
+                              onClick={() =>
+                                void analyzeSandboxFailure(
+                                  "build",
+                                  buildExecutionWorkspaceId!,
+                                  buildExecution,
+                                )
+                              }
+                            >
+                              {sandboxErrorAnalysisLoading
+                                ? "Analiz ediliyor…"
+                                : "AI ile hata analizi"}
+                            </button>
+                          )}
+                        {buildExecution.status === "Queued" &&
+                          !buildExecutionLoading && (
+                            <button
+                              className="secondary small-button"
+                              onClick={() => void pollWorkspaceBuildRun()}
+                            >
+                              Build durumunu yenile
+                            </button>
+                          )}
+                      </section>
+                    )}
+                  {sandboxErrorAnalysis && (
+                    <section className="panel" style={{ marginTop: 14 }}>
+                      <div className="panel-heading">
+                        <div>
+                          <b>
+                            AI sandbox hata analizi ·{" "}
+                            {sandboxErrorAnalysis.operation}
+                          </b>
+                          <small>
+                            {sandboxErrorAnalysis.targetPath} ·{" "}
+                            {sandboxErrorAnalysis.status} · commit{" "}
+                            {sandboxErrorAnalysis.commitSha.slice(0, 12)}
+                          </small>
+                        </div>
+                      </div>
+                      <div className="notice">
+                        {sandboxErrorAnalysis.analysis.summary}
+                        <br />
+                        <b>Olası neden:</b>{" "}
+                        {sandboxErrorAnalysis.analysis.likelyCause}
+                      </div>
+                      <div className="boundary-note">
+                        <ShieldCheck size={17} />
+                        <span>
+                          <b>
+                            {sandboxErrorAnalysis.triage.sourceRepairCandidate
+                              ? "Kaynak onarımı değerlendirilebilir"
+                              : "Kod onarımı önerilmiyor"}
+                          </b>
+                          {sandboxErrorAnalysis.triage.summary}{" "}
+                          {sandboxErrorAnalysis.triage.nextStep}
+                        </span>
+                      </div>
+                      <div className="requests-list">
+                        {sandboxErrorAnalysis.analysis.recommendedActions.map(
+                          (action, index) => (
+                            <article className="request-row" key={index}>
+                              <div className="request-info">
+                                <b>{index + 1}. öneri</b>
+                                <small>{action}</small>
+                              </div>
+                            </article>
+                          ),
+                        )}
+                      </div>
+                      {sandboxErrorAnalysis.analysis.limitations.length > 0 && (
+                        <div className="boundary-note">
+                          <ShieldCheck size={17} />
+                          <span>
+                            <b>Sınırlar</b>
+                            {sandboxErrorAnalysis.analysis.limitations.join(
+                              " · ",
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      <div className="boundary-note">
+                        <ShieldCheck size={17} />
+                        <span>
+                          <b>Paylaşım ve saklama</b>Çıktı OpenAI’ye
+                          gönderilmeden önce maskelendi; ham sandbox çıktısı
+                          AIStudioDB’ye kaydedilmedi. Öneriler otomatik
+                          uygulanmaz.
+                        </span>
+                      </div>
+                      {sandboxErrorAnalysis.triage.sourceRepairCandidate && (
+                        <button
+                          type="button"
+                          className="primary small-button"
+                          style={{ marginTop: 12 }}
+                          disabled={workspaceProject?.accessLevel === "Viewer"}
+                          onClick={beginSandboxRepair}
+                        >
+                          AI ile onarım taslağı oluştur
+                        </button>
+                      )}
+                      {!sandboxErrorAnalysis.triage.sourceRepairCandidate && (
+                        <div className="notice">
+                          Bu sonuç altyapı veya paket kaynağı kaynaklı
+                          görünüyor. Kaynak kod onarımı açılmadı.
+                        </div>
+                      )}
+                    </section>
+                  )}
+                </>
+              )
+            )}
+            {testDiscovery && savedTestPlans.length > 0 && (
+              <section className="panel" style={{ marginTop: 16 }}>
+                <div className="panel-heading">
+                  <div>
+                    <b>Kayıtlı test planları</b>
+                    <small>
+                      Bu workspace için son {savedTestPlans.length} taslak
+                    </small>
+                  </div>
+                </div>
+                <div className="requests-list">
+                  {savedTestPlans.map((saved) => (
+                    <article className="request-row" key={saved.id}>
+                      <div className="request-info">
+                        <b>{saved.summary}</b>
+                        <small>
+                          {saved.branchName} · {saved.commitSha.slice(0, 12)} ·{" "}
+                          {new Date(saved.createdAt).toLocaleString("tr-TR")}
+                        </small>
+                      </div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          type="button"
+                          className="secondary small-button"
+                          disabled={testPlanLoading}
+                          onClick={() => void openSavedAITestPlan(saved)}
+                        >
+                          Görüntüle
+                        </button>
+                        {saved.canDelete && (
+                          <button
+                            type="button"
+                            className="secondary small-button"
+                            title="Planı sil"
+                            aria-label="Planı sil"
+                            onClick={() => void deleteSavedAITestPlan(saved)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+            {testDiscovery && workspaceProject?.accessLevel !== "Viewer" && (
+              <form onSubmit={createAITestPlan} style={{ marginTop: 18 }}>
+                <h3>AI Tester · senaryo taslağı</h3>
+                <label>
+                  Test edilmesi gereken davranış
+                  <textarea
+                    value={testRequest}
+                    onChange={(e) => setTestRequest(e.target.value)}
+                    required
+                    maxLength={2000}
+                    rows={3}
+                    placeholder="Örn. Aynı workspace talebinin iki kez onaylanması checkout'u çoğaltmamalı"
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 9,
+                    marginTop: 12,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={testAIConsent}
+                    onChange={(e) => setTestAIConsent(e.target.checked)}
+                    required
+                    style={{ width: 16, marginTop: 3 }}
+                  />
+                  <span>
+                    Talep metnimin, proje/dal adının ve test hedeflerinin
+                    sınırlı metadata özetinin OpenAI’ye gönderilmesini
+                    onaylıyorum. Kaynak kod paylaşılmaz.
+                  </span>
+                </label>
+                <div className="modal-foot">
+                  <span>
+                    Senaryo taslağı kod çalıştırmaz; .NET test hedefleri için
+                    yalıtılmış çalıştırma ayrı onay ister.
+                  </span>
+                  <button
+                    className="primary"
+                    disabled={testPlanLoading || !testAIConsent}
+                  >
+                    {testPlanLoading
+                      ? "Senaryolar hazırlanıyor…"
+                      : "AI test senaryoları hazırla"}
+                  </button>
+                </div>
+              </form>
+            )}
+            {testPlan && (
+              <section className="panel" style={{ marginTop: 16 }}>
+                <div className="panel-heading">
+                  <div>
+                    <b>AI Tester taslağı</b>
+                    <small>İnsan incelemesi gerekli · çalıştırılmadı</small>
+                  </div>
+                </div>
+                <div className="notice">{testPlan.summary}</div>
+                <div className="requests-list">
+                  {testPlan.scenarios.map((scenario, i) => (
+                    <article className="request-row expanded" key={i}>
+                      <div className="request-info">
+                        <b>
+                          {i + 1}. {scenario.title}
+                        </b>
+                        <small>
+                          {scenario.category} · Öncelik: {scenario.priority}
+                        </small>
+                        <small>{scenario.objective}</small>
+                        <small>Adımlar: {scenario.steps.join(" → ")}</small>
+                        <small>Beklenen: {scenario.expectedResult}</small>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                {(testPlan.assumptions.length > 0 ||
+                  testPlan.risks.length > 0) && (
+                  <div className="boundary-note">
+                    <ShieldCheck size={17} />
+                    <span>
+                      <b>Varsayımlar ve riskler</b>
+                      {[
+                        ...testPlan.assumptions.map((x) => `Varsayım: ${x}`),
+                        ...testPlan.risks.map((x) => `Risk: ${x}`),
+                      ].join(" · ")}
+                    </span>
+                  </div>
+                )}
+                <div className="modal-foot">
+                  <span>
+                    {testPlanSavedId
+                      ? "Proje geçmişinde kayıtlı; özgün talep saklanmadı."
+                      : "Plan henüz kaydedilmedi."}
+                  </span>
+                  {!testPlanSavedId &&
+                    workspaceProject?.accessLevel !== "Viewer" && (
+                      <button
+                        className="primary"
+                        disabled={testPlanSaveLoading}
+                        onClick={() => void saveAITestPlan()}
+                      >
+                        {testPlanSaveLoading
+                          ? "Kaydediliyor…"
+                          : "Planı proje geçmişine kaydet"}
+                      </button>
+                    )}
+                </div>
+              </section>
+            )}
+            <div className="boundary-note">
+              <ShieldCheck size={17} />
+              <span>
+                <b>Ağsız test sandboxı</b>Test keşfi salt okunur. Test ve .NET
+                build çalıştırma yalnız Maintainer veya TenantAdmin tarafından
+                açık onayla başlatılır; kaynak snapshotını değiştirmez, dış ağa
+                erişmez ve süre/CPU/bellek/PID sınırlarına tabidir. Şimdilik
+                .NET, Python pytest, Node.js yerleşik, standart kütüphane
+                kullanan Go ve bağımlılıksız Rust testleri çalıştırılır; proje
+                paketleri kurulmaz, npm scriptleri çağrılmaz.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      {fileWorkspace && (
+        <div
+          className="studio-ide-page studio-file-explorer"
+          ref={workspaceExplorerRef}
+          role="main"
+          aria-labelledby="workspace-explorer-title"
+          tabIndex={-1}
+          onKeyDown={handleWorkspaceExplorerKeyDown}
+        >
+          <div className="modal-head">
+            <div>
+              <p className="eyebrow studio-explorer-eyebrow">
+                <FolderTree size={14} /> Nexora AI Development Studio{" "}
+                <span>İZOLE ÇALIŞMA ALANI</span>
+              </p>
+              <h2 id="workspace-explorer-title">
+                <span>{workspaceProject?.name}</span>
+                <code className="studio-explorer-branch">
+                  {fileWorkspace.branchName}
+                </code>
+              </h2>
+            </div>
+            <button
+              ref={workspaceExplorerCloseRef}
+              type="button"
+              className="icon-button"
+              aria-label="Dosya gezginini kapat"
+              onClick={closeWorkspaceFileExplorer}
+            >
+              <X size={19} />
+            </button>
+          </div>
+          <p className="muted modal-sub studio-explorer-intro">
+            Kod, AI sohbeti, arama, test ve sürüm hazırlığı aynı izole çalışma
+            alanında.
+          </p>
+          <div
+            className="studio-workbench-tools"
+            role="toolbar"
+            aria-label="Çalışma alanı araçları"
+          >
+            <div
+              className="studio-workbench-group"
+              role="group"
+              aria-label="Dosyalar"
+            >
+              <span>Dosyalar</span>
+              <button
+                type="button"
+                className="is-active"
+                aria-label="Dosya gezginini aç"
+                onClick={() => {
+                  setFileContent(null);
+                  setError("");
+                }}
+              >
+                <FolderTree size={15} /> Explorer
+              </button>
+            </div>
+            <div
+              className="studio-workbench-group studio-ai-dock-toggle-group"
+              role="group"
+              aria-label="Yapay zekâ"
+            >
+              <span>Yapay zekâ</span>
+              <button
+                type="button"
+                className={aiToolsViewOpen ? "is-active" : ""}
+                aria-expanded={aiToolsViewOpen}
+                aria-controls="studio-ai-tools-page"
+                onClick={() => {
+                  setAiToolsViewOpen((value) => !value);
+                  setAiDockOpen(false);
+                }}
+              >
+                <Sparkles size={15} /> AI araçları{" "}
+                <ChevronRight
+                  size={13}
+                  className={aiToolsViewOpen ? "is-expanded" : ""}
+                />
+              </button>
+            </div>
+            <div
+              className="studio-workbench-group"
+              role="group"
+              aria-label="İnceleme"
+            >
+              <span>İnceleme</span>
+              <button
+                type="button"
+                title="Çoklu dosya seçimi"
+                className={multiFileSelecting ? "is-active" : ""}
+                onClick={() => {
+                  setMultiFileSelecting((value) => !value);
+                  setMultiFilePaths([]);
+                }}
+              >
+                <FileCode size={15} />{" "}
+                {multiFileSelecting ? "Seçimi kapat" : "Çoklu seç"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSourceSearchWorkspace(fileWorkspace);
+                  setSourceSearchQuery("");
+                  setSourceSearchResult(null);
+                  setSelectedSourceMatches([]);
+                  setSourceAnalysisResult(null);
+                  setSourceAnalysisQuestion("");
+                  setSourceAnalysisConsent(false);
+                  setError("");
+                }}
+              >
+                <Search size={15} /> Kod ara
+              </button>
+              <button
+                type="button"
+                disabled={analysisLoading}
+                onClick={() => void loadWorkspaceAnalysis(fileWorkspace)}
+              >
+                <FolderTree size={15} /> Proje haritası
+              </button>
+              <button
+                type="button"
+                disabled={testDiscoveryLoading}
+                onClick={() => void discoverWorkspaceTests(fileWorkspace)}
+              >
+                <Play size={15} /> Test ve build
+              </button>
+            </div>
+            <div
+              className="studio-workbench-group"
+              role="group"
+              aria-label="Sürüm"
+            >
+              <span>Sürüm</span>
+              <button
+                type="button"
+                disabled={gitStatusLoading}
+                onClick={() => void loadWorkspaceGitStatus(fileWorkspace)}
+              >
+                <GitBranch size={15} /> Durum
+              </button>
+              <button
+                type="button"
+                disabled={changeLoading}
+                onClick={() => void loadWorkspaceChanges(fileWorkspace)}
+              >
+                <History size={15} /> Geçmiş
+              </button>
+            </div>
+            <div
+              className="studio-workbench-group"
+              role="group"
+              aria-label="Bilgi tabanı"
+            >
+              <span>Bilgi tabanı</span>
+              <button
+                type="button"
+                className={knowledgeDrawerOpen ? "is-active" : ""}
+                title="Proje bilgi tabanını aç"
+                onClick={() => {
+                  setKnowledgePanelExpanded(true);
+                  setKnowledgeDrawerOpen(true);
+                }}
+              >
+                <ShieldCheck size={15} /> Proje kaynakları
+              </button>
+            </div>
+          </div>
+          {error && <div className="alert">{error}</div>}
+          <nav
+            className="studio-vscode-activity-bar"
+            aria-label="Çalışma alanı bölümleri"
+          >
+            <button
+              type="button"
+              className="active"
+              title="Explorer"
+              aria-label="Explorer"
+              onClick={() => {
+                setFileContent(null);
+                setError("");
+              }}
+            >
+              <FolderTree size={20} />
+            </button>
+            <button
+              type="button"
+              title="Kod ara"
+              aria-label="Kod ara"
+              onClick={() => {
+                setSourceSearchWorkspace(fileWorkspace);
+                setSourceSearchQuery("");
+                setSourceSearchResult(null);
+                setSelectedSourceMatches([]);
+                setSourceAnalysisResult(null);
+                setSourceAnalysisQuestion("");
+                setSourceAnalysisConsent(false);
+                setError("");
+              }}
+            >
+              <Search size={19} />
+            </button>
+            <button
+              type="button"
+              title="Sürüm durumu"
+              aria-label="Sürüm durumu"
+              disabled={gitStatusLoading}
+              onClick={() => void loadWorkspaceGitStatus(fileWorkspace)}
+            >
+              <GitBranch size={19} />
+            </button>
+            <button
+              type="button"
+              title="Değişiklik geçmişi"
+              aria-label="Değişiklik geçmişi"
+              disabled={changeLoading}
+              onClick={() => void loadWorkspaceChanges(fileWorkspace)}
+            >
+              <History size={19} />
+            </button>
+            <span className="activity-spacer" />
+            <ShieldCheck size={18} />
+          </nav>
+          <aside
+            className="studio-vscode-explorer-sidebar"
+            aria-label="Proje dosyaları"
+          >
+            <div className="studio-vscode-explorer-heading">
+              <div>
+                <span>EXPLORER</span>
+                <b>Dosyalar</b>
+              </div>
+              <div className="studio-vscode-explorer-actions">
+                {workspaceProject?.accessLevel !== "Viewer" && (
+                  <button
+                    type="button"
+                    title="Geçerli Explorer klasöründe yeni dosya oluştur"
+                    aria-label="Explorer içinde yeni dosya oluştur"
+                    onClick={() => startManualNewFile(fileWorkspace)}
+                  >
+                    <Plus size={14} />
+                    <span>Yeni dosya</span>
+                  </button>
+                )}
+                {moduleStarterId &&
+                  moduleWorkspaceCode &&
+                  workspaceProject?.accessLevel !== "Viewer" && (
+                    <button
+                      type="button"
+                      title="Onayınızla modül şablonundaki yeni dosyaları izole çalışma alanına ekle"
+                      disabled={moduleFilesLoading}
+                      onClick={() => void loadModuleStarterIntoWorkspace()}
+                    >
+                      <FileCode size={14} />
+                      <span>
+                        {moduleFilesLoading ? "Ekleniyor…" : "Modül şablonu"}
+                      </span>
+                    </button>
+                  )}
+                <small>{visibleWorkspaceEntries.length}</small>
+              </div>
+            </div>
+            <div className="studio-vscode-tree-search">
+              <Search size={14} />
+              <input
+                aria-label={
+                  moduleWorkspaceCode
+                    ? "Modül dosyalarında ara"
+                    : "Tüm çalışma alanında dosya ara"
+                }
+                value={workspaceFileFilter}
+                onChange={(e) => setWorkspaceFileFilter(e.target.value)}
+                placeholder={
+                  moduleWorkspaceCode
+                    ? "Modül dosyalarında ara…"
+                    : "Tüm dosyalarda ara…"
+                }
+              />
+            </div>
+            {workspaceFileFilter.trim() && (
+              <small className="studio-vscode-search-status">
+                {workspaceFileSearchLoading
+                  ? moduleWorkspaceCode
+                    ? "Modül alanı aranıyor…"
+                    : "Tüm çalışma alanı aranıyor…"
+                  : workspaceFileSearchResult
+                    ? `${workspaceFileSearchResult.entries.length} eşleşme · ${workspaceFileSearchResult.scannedEntries.toLocaleString("tr-TR")} öğe tarandı${workspaceFileSearchResult.truncated ? " · sonuç sınırına ulaşıldı" : ""}`
+                    : "Arama bekleniyor…"}
+              </small>
+            )}
+            {filePath && (
+              <button
+                type="button"
+                className="studio-vscode-parent-item"
+                disabled={fileLoading || manualFileEditing}
+                onClick={() =>
+                  void loadWorkspaceFiles(
+                    fileWorkspace,
+                    filePath.split("/").slice(0, -1).join("/"),
+                  )
+                }
+              >
+                <ChevronRight size={13} /> Üst klasör
+              </button>
+            )}
+            <nav className="studio-vscode-tree">
+              {visibleWorkspaceEntries.map((entry) => (
+                <div
+                  className={
+                    "studio-vscode-tree-row " + entry.kind.toLowerCase()
+                  }
+                  key={entry.path}
+                >
+                  {entry.kind === "File" &&
+                    workspaceProject?.accessLevel !== "Viewer" &&
+                    /\.(cs|csx|razor|ts|tsx|js|jsx|html|css|scss|sql|py|go|rs|java|md|json|xml|yml|yaml)$/i.test(
+                      entry.path,
+                    ) && (
+                      <input
+                        className="studio-knowledge-source-checkbox"
+                        type="checkbox"
+                        title="Proje bilgi tabanına ekle"
+                        aria-label={`${entry.path} dosyasını AI bilgi tabanına ekle`}
+                        checked={knowledgePaths.includes(entry.path)}
+                        onChange={(e) =>
+                          setKnowledgePaths((current) =>
+                            e.target.checked
+                              ? [...current, entry.path]
+                              : current.filter((path) => path !== entry.path),
+                          )
+                        }
+                      />
+                    )}
+                  {entry.kind === "File" && multiFileSelecting && (
+                    <input
+                      type="checkbox"
+                      title="AI önerisine dahil et"
+                      aria-label={`${entry.path} dosyasını AI önerisine ekle`}
+                      checked={multiFilePaths.includes(entry.path)}
+                      disabled={
+                        !/\.(cs|csx|razor|ts|tsx|js|jsx|html|css|scss|sql|py|go|rs|java)$/i.test(
+                          entry.path,
+                        ) ||
+                        (!multiFilePaths.includes(entry.path) &&
+                          multiFilePaths.length >= 5)
+                      }
+                      onChange={(e) =>
+                        setMultiFilePaths((current) =>
+                          e.target.checked
+                            ? [...current, entry.path]
+                            : current.filter((path) => path !== entry.path),
+                        )
+                      }
+                    />
+                  )}
+                  <button
+                    type="button"
+                    title={entry.path}
+                    disabled={
+                      fileLoading || manualFileEditing || entry.kind === "Link"
+                    }
+                    className={
+                      "studio-vscode-tree-item " +
+                      entry.kind.toLowerCase() +
+                      (fileContent?.path === entry.path ? " is-active" : "")
+                    }
+                    onClick={() =>
+                      entry.kind === "Directory"
+                        ? void loadWorkspaceFiles(fileWorkspace, entry.path)
+                        : entry.kind === "File"
+                          ? void loadWorkspaceFile(fileWorkspace, entry.path)
+                          : undefined
+                    }
+                  >
+                    {entry.kind === "Directory" ? (
+                      <Folder size={14} />
+                    ) : (
+                      <FileCode size={14} />
+                    )}
+                    <span>
+                      {entry.name}
+                      {workspaceFileFilter.trim() && (
+                        <small className="studio-vscode-tree-match-path">
+                          {entry.path}
+                        </small>
+                      )}
+                    </span>
+                    {entry.kind === "Directory" && (
+                      <ChevronRight size={12} className="tree-chevron" />
+                    )}
+                  </button>
+                </div>
+              ))}
+              {visibleWorkspaceEntries.length === 0 && (
+                <div className="studio-vscode-tree-empty">
+                  {workspaceFileFilter.trim()
+                    ? workspaceFileSearchLoading
+                      ? moduleWorkspaceCode
+                        ? "Modül alanı aranıyor…"
+                        : "Tüm çalışma alanı aranıyor…"
+                      : "Eşleşme bulunamadı"
+                    : fileLoading
+                      ? "Klasör yükleniyor…"
+                      : moduleWorkspacePath
+                        ? `Modül klasörü henüz oluşturulmadı. Yeni dosya, ${moduleWorkspacePath}/src/lib.rs yolunda açılır.`
+                        : "Klasör boş"}
+                </div>
+              )}
+            </nav>
+            {moduleTemplateFiles.length > 0 &&
+              (filePath === "" || filePath === moduleWorkspacePath) && (
+                <section className="studio-module-source-loader">
+                  <div className="studio-module-source-loader-icon">
+                    <Code2 size={16} />
+                  </div>
+                  <b>{moduleDisplayNameForWorkspace(fileWorkspace)}</b>
+                  <p>
+                    Başlangıç kodlarını modül klasörüne ekleyip Explorer'da
+                    açın.
+                  </p>
+                  <button
+                    type="button"
+                    className="secondary small-button"
+                    disabled={
+                      moduleFilesLoading ||
+                      fileLoading ||
+                      manualFileEditing ||
+                      workspaceProject?.accessLevel === "Viewer"
+                    }
+                    onClick={() => void loadModuleStarterIntoWorkspace()}
+                  >
+                    {moduleFilesLoading
+                      ? "Modül dosyaları yükleniyor…"
+                      : "Modül dosyalarını yükle"}
+                    <ArrowUpRight size={13} />
+                  </button>
+                </section>
+              )}
+            <div className="studio-vscode-tree-footer">
+              <ShieldCheck size={13} />
+              <span>
+                {manualFileEditing
+                  ? "Düzenleme açık · gezinme kaydetme sonrası etkin"
+                  : "İzole çalışma alanı"}
+              </span>
+            </div>
+          </aside>
+          <main className="studio-vscode-main">
+            <div className="studio-vscode-tab-strip">
+              <div
+                className={
+                  aiToolsViewOpen
+                    ? "studio-vscode-tab"
+                    : "studio-vscode-tab is-active"
+                }
+              >
+                <Code2 size={14} />
+                <span>
+                  {fileContent
+                    ? manualFileCreating
+                      ? manualFilePath.split("/").pop()
+                      : fileContent.path.split("/").pop()
+                    : "Başlangıç"}
+                </span>
+                {fileContent && (
+                  <button
+                    type="button"
+                    title="Sekmeyi kapat"
+                    aria-label="Dosya sekmesini kapat"
+                    onClick={() => {
+                      if (
+                        manualFileEditing &&
+                        !window.confirm(
+                          "Kaydedilmemiş düzenlemeyi kapatmak istiyor musunuz?",
+                        )
+                      )
+                        return;
+                      setManualFileEditing(false);
+                      setFileContent(null);
+                      updateWorkspaceRoute(
+                        workspaceProject!.id,
+                        fileWorkspace!.id,
+                        filePath,
+                      );
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+              {aiToolsViewOpen && (
+                <div className="studio-vscode-tab is-active studio-ai-tools-tab">
+                  <Sparkles size={14} />
+                  <span>Yapay zekâ araçları</span>
+                  <button
+                    type="button"
+                    title="Sekmeyi kapat"
+                    aria-label="AI araçları sekmesini kapat"
+                    onClick={() => setAiToolsViewOpen(false)}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              )}
+              <div className="studio-vscode-tab-spacer" />
+              <span className="studio-vscode-tab-branch">
+                {fileWorkspace.workspaceBranchName ?? fileWorkspace.branchName}
+              </span>
+            </div>
+            {aiToolsViewOpen && (
+              <section
+                id="studio-ai-tools-page"
+                className="studio-ai-tools-page"
+                aria-label="Yapay zekâ araçları"
+              >
+                <div className="studio-ai-tools-layout">
+                  <div className="studio-ai-tools-main">
+                    <header className="studio-ai-tools-hero">
+                      <div className="studio-ai-tools-hero-copy">
+                        <span>STUDIO AI</span>
+                        <h1>Yapay zekâ araçları</h1>
+                        <p>
+                          Geliştirme sürecinizi hızlandırın. Kod üretin, analiz
+                          edin, iyileştirin ve teknik içerikler hazırlayın.
+                        </p>
+                        <div className="studio-ai-tools-hero-actions">
+                          <button
+                            type="button"
+                            className="primary"
+                            onClick={() => {
+                              setAiToolsViewOpen(false);
+                              startNewCodeSuggestion(fileWorkspace);
+                            }}
+                            disabled={!canEditWorkspace}
+                          >
+                            <Sparkles size={15} /> Hızlı başlangıç
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary"
+                            onClick={() =>
+                              document
+                                .getElementById("studio-ai-tool-list")
+                                ?.scrollIntoView({
+                                  behavior: "smooth",
+                                  block: "start",
+                                })
+                            }
+                          >
+                            <Play size={14} /> Araçları keşfet
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        className="studio-ai-tools-hero-art"
+                        aria-hidden="true"
+                      >
+                        <div className="studio-ai-tools-art-glow" />
+                        <div className="studio-ai-tools-art-card">
+                          <Code2 size={42} />
+                        </div>
+                        <Sparkles
+                          className="studio-ai-tools-art-sparkle"
+                          size={25}
+                        />
+                      </div>
+                    </header>
+                    <div className="studio-ai-tools-filter-bar">
+                      <div
+                        className="studio-ai-tools-categories"
+                        role="group"
+                        aria-label="Araç kategorileri"
+                      >
+                        {aiToolCategories.map((category) => (
+                          <button
+                            type="button"
+                            key={category}
+                            className={
+                              aiToolsCategory === category ? "is-active" : ""
+                            }
+                            aria-pressed={aiToolsCategory === category}
+                            onClick={() => setAiToolsCategory(category)}
+                          >
+                            {category === "Tümü" && <Sparkles size={13} />}{" "}
+                            {category}
+                          </button>
+                        ))}
+                      </div>
+                      <label className="studio-ai-tools-search">
+                        <Search size={15} />
+                        <input
+                          type="search"
+                          aria-label="Araçlarda ara"
+                          placeholder="Araçlarda ara…"
+                          value={aiToolsQuery}
+                          onChange={(event) =>
+                            setAiToolsQuery(event.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                    <section
+                      id="studio-ai-tool-list"
+                      className="studio-ai-tools-catalog"
+                    >
+                      <header className="studio-ai-tools-catalog-heading">
+                        <h2>
+                          <Sparkles size={17} /> Öne çıkan araçlar
+                        </h2>
+                        <span>{filteredAiToolCards.length} araç</span>
+                      </header>
+                      {filteredAiToolCards.length > 0 ? (
+                        <div className="studio-ai-tools-grid">
+                          {filteredAiToolCards.map((card) => {
+                            const Icon = card.icon;
+                            return (
+                              <article
+                                className="studio-ai-tool-card"
+                                key={card.id}
+                              >
+                                <div className="studio-ai-tool-card-heading">
+                                  <span className="studio-ai-tool-icon">
+                                    <Icon size={20} />
+                                  </span>
+                                  <div>
+                                    <h3>{card.title}</h3>
+                                    <p>{card.description}</p>
+                                  </div>
+                                  {card.id === "file" && (
+                                    <span className="studio-ai-tool-badge">
+                                      Önerilen
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="studio-ai-tool-tags">
+                                  {card.tags.map((tag) => (
+                                    <span key={tag}>{tag}</span>
+                                  ))}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="studio-ai-tool-run"
+                                  disabled={card.disabled}
+                                  title={
+                                    card.disabled
+                                      ? card.id === "docs"
+                                        ? "Önce izole çalışma dalı oluşturun"
+                                        : card.id === "improve"
+                                          ? "Düzenlenebilir bir kaynak dosya açın"
+                                          : "Bu işlem için düzenleme yetkisi gerekir"
+                                      : undefined
+                                  }
+                                  onClick={card.action}
+                                >
+                                  Çalıştır <ArrowUpRight size={14} />
+                                </button>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="studio-ai-tools-empty">
+                          <Search size={22} />
+                          <b>Eşleşen araç yok</b>
+                          <span>
+                            Arama ifadesini veya kategori seçimini değiştirin.
+                          </span>
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                  <aside className="studio-ai-tools-sidebar">
+                    <section className="studio-ai-tools-status-card">
+                      <div className="studio-ai-tools-status-title">
+                        <span>
+                          <Sparkles size={17} />
+                        </span>
+                        <div>
+                          <h2>Kullanım durumu</h2>
+                          <p>Bu çalışma alanındaki AI araçları</p>
+                        </div>
+                      </div>
+                      <div className="studio-ai-tools-status-row">
+                        <b>AI hizmeti</b>
+                        <span
+                          className={
+                            aiConfigured === true
+                              ? "is-ready"
+                              : aiConfigured === false
+                                ? "is-unavailable"
+                                : ""
+                          }
+                        >
+                          <i />
+                          {aiConfigured === null
+                            ? "Kontrol ediliyor"
+                            : aiConfigured
+                              ? "Bağlı"
+                              : "Yapılandırılmadı"}
+                        </span>
+                      </div>
+                      <div className="studio-ai-tools-status-detail">
+                        {workspaceProject?.name && (
+                          <div>
+                            <span>Proje</span>
+                            <b>{workspaceProject.name}</b>
+                          </div>
+                        )}
+                        <div>
+                          <span>Çalışma dalı</span>
+                          <b>
+                            {fileWorkspace.workspaceBranchName ??
+                              fileWorkspace.branchName}
+                          </b>
+                        </div>
+                        <div>
+                          <span>Erişim</span>
+                          <b>
+                            {workspaceProject?.accessLevel === "Viewer"
+                              ? "Salt okunur"
+                              : "İzole çalışma alanı"}
+                          </b>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="studio-ai-tools-manage"
+                        onClick={() => {
+                          setAiToolsViewOpen(false);
+                          setAiDockOpen(true);
+                        }}
+                      >
+                        <Sparkles size={15} /> Araçları yönet
+                      </button>
+                    </section>
+                    <section className="studio-ai-tools-safety-card">
+                      <div>
+                        <ShieldCheck size={18} />
+                        <h2>Kontrollü çalışma</h2>
+                      </div>
+                      <p>
+                        AI çıktıları önce taslak olarak gösterilir. Dosya
+                        değişikliği için inceleme ve ayrıca onay gerekir.
+                      </p>
+                      <ul>
+                        <li>
+                          <ShieldCheck size={14} /> İzole çalışma alanı
+                        </li>
+                        <li>
+                          <ShieldCheck size={14} /> Değişiklikleri gözden geçir
+                        </li>
+                        <li>
+                          <ShieldCheck size={14} /> Onaysız yazma yok
+                        </li>
+                      </ul>
+                    </section>
+                  </aside>
+                </div>
+              </section>
+            )}
+            <div className="panel-heading studio-explorer-location">
+              <div className="studio-explorer-path">
+                <span className="studio-explorer-kicker">
+                  {fileContent ? "DOSYA" : "ÇALIŞMA ALANI"}
+                </span>
+                <b>
+                  {fileContent
+                    ? manualFileCreating
+                      ? manualFilePath
+                      : fileContent.path
+                    : filePath
+                      ? "/" + filePath
+                      : "/ Proje kökü"}
+                </b>
+                <small>
+                  {fileContent
+                    ? fileContent.sizeBytes.toLocaleString("tr-TR") + " bayt"
+                    : fileLoading
+                      ? "Klasör okunuyor…"
+                      : (fileListing?.entries.length ?? 0) + " kayıt"}
+                </small>
+              </div>
+              {fileContent ? (
+                <div className="studio-explorer-file-actions">
+                  {!manualFileEditing &&
+                    workspaceProject?.accessLevel !== "Viewer" &&
+                    /\.(cs|csx|razor|ts|tsx|js|jsx|html|css|scss|sql|py|go|rs|java)$/i.test(
+                      fileContent.path,
+                    ) && (
+                      <>
+                        <button
+                          className="secondary small-button"
+                          onClick={startManualFileEdit}
+                        >
+                          Elle düzenle
+                        </button>
+                        <button
+                          className="secondary small-button"
+                          onClick={startCodeSuggestion}
+                        >
+                          AI önerisi
+                        </button>
+                      </>
+                    )}
+                  {manualFileEditing && (
+                    <button
+                      type="button"
+                      className="secondary small-button"
+                      disabled={manualFileSaving}
+                      onClick={cancelManualFileEdit}
+                    >
+                      Düzenlemeyi iptal et
+                    </button>
+                  )}
+                  <button
+                    className="secondary small-button"
+                    disabled={manualFileEditing || manualFileSaving}
+                    onClick={() => setFileContent(null)}
+                  >
+                    Sekmeyi kapat
+                  </button>
+                </div>
+              ) : (
+                filePath && (
+                  <button
+                    className="secondary small-button"
+                    disabled={fileLoading}
+                    onClick={() =>
+                      void loadWorkspaceFiles(
+                        fileWorkspace,
+                        filePath.split("/").slice(0, -1).join("/"),
+                      )
+                    }
+                  >
+                    Üst klasör
+                  </button>
+                )
+              )}
+            </div>
+            {fileContent ? (
+              manualFileEditing ? (
+                <div className="studio-manual-editor">
+                  {manualFileCreating && (
+                    <label>
+                      Dosya yolu
+                      <input
+                        value={manualFilePath}
+                        onChange={(e) => setManualFilePath(e.target.value)}
+                        maxLength={500}
+                        required
+                        placeholder="src/components/NewComponent.tsx"
+                      />
+                    </label>
+                  )}
+                  <WorkspaceCodeEditor
+                    path={
+                      manualFileCreating
+                        ? manualFilePath
+                        : (fileContent?.path ?? "")
+                    }
+                    value={manualFileContent}
+                    dirty={
+                      manualFileCreating
+                        ? manualFileContent.length > 0 ||
+                          manualFilePath !== (fileContent?.path ?? "")
+                        : manualFileContent !== fileContent?.content
+                    }
+                    onChange={setManualFileContent}
+                    saving={manualFileSaving}
+                    onSave={(value) => void saveManualFile(value)}
+                  />
+                  <small
+                    id="manual-editor-help"
+                    className="studio-editor-shortcuts"
+                  >
+                    Tab girintiler. Ctrl+S (Mac: ⌘S) kaydetme onayını açar.
+                  </small>
+                  <div className="studio-manual-editor-footer">
+                    <span>
+                      {new TextEncoder()
+                        .encode(manualFileContent)
+                        .length.toLocaleString("tr-TR")}{" "}
+                      /{" "}
+                      {(manualFileCreating
+                        ? 128 * 1024
+                        : maxManualWorkspaceFileBytes
+                      ).toLocaleString("tr-TR")}{" "}
+                      bayt · UTF-8
+                    </span>
+                    <span className="studio-editor-approval-note">
+                      Kaydetme onay penceresiyle kaydedilir.
+                    </span>
+                  </div>
+                  <div className="boundary-note">
+                    <ShieldCheck size={17} />
+                    <span>
+                      <b>İnsan onayı gerekli</b>Kaydetmeden önce değişikliği
+                      gözden geçirin. Kod çalıştırılmaz.
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <WorkspaceCodeEditor
+                  path={fileContent.path}
+                  value={fileContent.content}
+                  readOnly
+                />
+              )
+            ) : fileLoading ? (
+              <div className="studio-vscode-welcome is-loading">
+                <div className="studio-vscode-spinner" />
+                <b>Çalışma alanı dosyaları yükleniyor…</b>
+              </div>
+            ) : (
+              <section className="studio-vscode-welcome">
+                <div className="studio-welcome-hero">
+                  <div className="studio-welcome-copy">
+                    <p className="studio-vscode-welcome-eyebrow">
+                      NEXORA AI DEVELOPMENT STUDIO
+                    </p>
+                    <h1>
+                      Merhaba, <span>{workspaceProject?.name}</span>
+                    </h1>
+                    <p>
+                      Başlamak için Explorer’dan bir dosya seçin.
+                      <br />
+                      Dosyalar izole çalışma alanınızda açılır.
+                    </p>
+                    {workspaceProject?.accessLevel !== "Viewer" && (
+                      <div className="studio-vscode-welcome-actions">
+                        <button
+                          type="button"
+                          onClick={() => startNewCodeSuggestion(fileWorkspace)}
+                        >
+                          <Sparkles size={18} /> AI ile Dosya Oluştur
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startUiDesigner(fileWorkspace)}
+                        >
+                          <Code2 size={18} /> UI Tasarla
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <img
+                    className="studio-welcome-illustration"
+                    src={
+                      new URL("./assets/studio-workspace.svg", import.meta.url)
+                        .href
+                    }
+                    alt=""
+                    aria-hidden="true"
+                  />
+                </div>
+                <div className="studio-welcome-quick">
+                  <h2>Hızlı Eylemler</h2>
+                  <div className="studio-welcome-quick-grid">
+                    <button type="button" onClick={closeWorkspaceFileExplorer}>
+                      <span className="studio-quick-icon gold">
+                        <Folder size={23} />
+                      </span>
+                      <span>
+                        <b>Proje Aç</b>
+                        <small>Proje listesine dön</small>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={gitStatusLoading}
+                      onClick={() => void loadWorkspaceGitStatus(fileWorkspace)}
+                    >
+                      <span className="studio-quick-icon violet">
+                        <GitBranch size={23} />
+                      </span>
+                      <span>
+                        <b>Git Durumu</b>
+                        <small>Değişiklikleri incele</small>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={testDiscoveryLoading}
+                      onClick={() => void discoverWorkspaceTests(fileWorkspace)}
+                    >
+                      <span className="studio-quick-icon green">
+                        <Play size={23} />
+                      </span>
+                      <span>
+                        <b>Test &amp; Build</b>
+                        <small>Testleri ve derlemeyi aç</small>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={analysisLoading}
+                      onClick={() => void loadWorkspaceAnalysis(fileWorkspace)}
+                    >
+                      <span className="studio-quick-icon blue">
+                        <FolderTree size={23} />
+                      </span>
+                      <span>
+                        <b>Proje Haritası</b>
+                        <small>Yapıyı görselleştir</small>
+                      </span>
+                    </button>
+                  </div>
+                </div>
+                <div className="studio-vscode-welcome-shortcuts">
+                  <span>
+                    <kbd>Ctrl + P</kbd>
+                    <small>Dosya ara</small>
+                  </span>
+                  <span>
+                    <kbd>Ctrl + Shift + F</kbd>
+                    <small>Kod içinde ara</small>
+                  </span>
+                  <span>
+                    <kbd>Ctrl + S</kbd>
+                    <small>Onayla kaydet</small>
+                  </span>
+                </div>
+              </section>
+            )}
+            {multiFileSelecting && (
+              <div className="studio-vscode-multi-footer">
+                <span>{multiFilePaths.length}/5 kaynak dosya seçildi</span>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={
+                    multiFilePaths.length < 2 || multiFilePaths.length > 5
+                  }
+                  onClick={() => startMultiFileSuggestion(fileWorkspace)}
+                >
+                  Çoklu AI önerisi hazırla
+                </button>
+              </div>
+            )}
+            <div className="studio-vscode-statusbar">
+              <span>
+                <GitBranch size={12} />
+                {fileWorkspace.workspaceBranchName ?? fileWorkspace.branchName}
+              </span>
+              <span>
+                {fileContent
+                  ? manualFileCreating
+                    ? "Yeni dosya"
+                    : "UTF-8"
+                  : filePath
+                    ? "/" + filePath
+                    : "Hazır"}
+              </span>
+              <span title="Yazma yalnız izinli kaynak dosyalarına açık onayla uygulanır. Git iç dizini gizlenir, sembolik bağlantılar izlenmez ve kod çalıştırılmaz.">
+                {workspaceProject?.accessLevel === "Viewer"
+                  ? "Salt okunur"
+                  : "İzole çalışma alanı · Onaylı yazma"}
+              </span>
+            </div>
+            {aiDockOpen && (
+              <aside
+                id="studio-ai-dock"
+                className="studio-ai-dock"
+                aria-label="Yapay zekâ araçları"
+              >
+                <header className="studio-ai-dock-header">
+                  <div>
+                    <span>STUDIO AI</span>
+                    <b>Yapay zekâ araçları</b>
+                    <small>
+                      {workspaceProject?.name} ·{" "}
+                      {fileWorkspace.workspaceBranchName ??
+                        fileWorkspace.branchName}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label="Yapay zekâ panelini kapat"
+                    onClick={() => setAiDockOpen(false)}
+                  >
+                    <X size={17} />
+                  </button>
+                </header>
+                <section className="studio-ai-dock-section">
+                  <p>ÜRETİM</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiDockOpen(false);
+                      startNewCodeSuggestion(fileWorkspace);
+                    }}
+                  >
+                    <Sparkles size={16} />
+                    <span>
+                      <b>AI dosya oluştur</b>
+                      <small>Yeni bir kaynak dosya için öneri hazırla</small>
+                    </span>
+                    <ChevronRight size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiDockOpen(false);
+                      startUiDesigner(fileWorkspace);
+                    }}
+                  >
+                    <Code2 size={16} />
+                    <span>
+                      <b>UI tasarla</b>
+                      <small>Yeni bir ekran taslağı oluştur</small>
+                    </span>
+                    <ChevronRight size={14} />
+                  </button>
+                </section>
+                <section className="studio-ai-dock-section">
+                  <p>ASİSTANLAR</p>
+                  <button
+                    type="button"
+                    disabled={!fileWorkspace.workspaceBranchName}
+                    title={
+                      !fileWorkspace.workspaceBranchName
+                        ? "Önce izole çalışma dalı oluşturulmalı"
+                        : "AI sohbetini aç"
+                    }
+                    onClick={() => {
+                      setAiDockOpen(false);
+                      void openStudioChat(fileWorkspace);
+                    }}
+                  >
+                    <MessageCircle size={16} />
+                    <span>
+                      <b>AI sohbet</b>
+                      <small>Çalışma alanı hakkında konuş</small>
+                    </span>
+                    <ChevronRight size={14} />
+                  </button>
+                  <div className="studio-ai-dock-database">
+                    <DatabaseEngineer
+                      token={token}
+                      projectId={workspaceProject!.id}
+                      projectName={workspaceProject!.name}
+                      requestId={fileWorkspace.id}
+                      workspaceName={
+                        fileWorkspace.workspaceBranchName ??
+                        fileWorkspace.branchName
+                      }
+                      disabled={workspaceProject?.accessLevel === "Viewer"}
+                    />
+                    <small>Veritabanı şeması için mühendis asistanı</small>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiDockOpen(false);
+                      setArchitectWorkspace(fileWorkspace);
+                      setArchitectPlan(null);
+                      setArchitectRequest(
+                        linkedDevelopmentContext(
+                          fileWorkspace.developmentRequestTitle,
+                          fileWorkspace.developmentRequestDescription,
+                        ),
+                      );
+                      setArchitectConsent(false);
+                      setError("");
+                    }}
+                  >
+                    <Sparkles size={16} />
+                    <span>
+                      <b>AI Architect</b>
+                      <small>Teknik plan ve etki alanı çıkar</small>
+                    </span>
+                    <ChevronRight size={14} />
+                  </button>
+                </section>
+                <div className="studio-ai-dock-note">
+                  <ShieldCheck size={15} />
+                  <span>
+                    AI önerileri taslak olarak açılır; çalışma alanına yazmak
+                    için ayrıca onay gerekir.
+                  </span>
+                </div>
+              </aside>
+            )}
+          </main>
+          {knowledgeDrawerOpen && (
+            <div
+              className="studio-knowledge-overlay"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget)
+                  setKnowledgeDrawerOpen(false);
+              }}
+            >
+              <section
+                className="panel studio-knowledge-panel"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Proje bilgi tabanı"
+              >
+                <button
+                  type="button"
+                  className="studio-knowledge-close icon-button"
+                  aria-label="Proje bilgi tabanını kapat"
+                  onClick={() => setKnowledgeDrawerOpen(false)}
+                >
+                  <X size={18} />
+                </button>
+                <button
+                  type="button"
+                  className="studio-knowledge-heading"
+                  aria-expanded={knowledgePanelExpanded}
+                  onClick={() => setKnowledgePanelExpanded((value) => !value)}
+                >
+                  <span>
+                    <b>Proje bilgi tabanı</b>
+                    <small>
+                      {knowledgeDocs.length} güncel dosya · tenant ve workspace
+                      kapsamında
+                    </small>
+                  </span>
+                  <span className="studio-knowledge-state">
+                    {knowledgeAutoRefresh.allFiles ? "Erişim açık" : "Ayarlar"}
+                  </span>
+                  <ChevronDown
+                    size={15}
+                    className={knowledgePanelExpanded ? "is-expanded" : ""}
+                  />
+                </button>
+                {knowledgePanelExpanded && (
+                  <div className="studio-knowledge-content">
+                    {workspaceProject?.accessLevel !== "Viewer" &&
+                      !knowledgeAutoRefresh.allFiles && (
+                        <div
+                          className="modal-foot"
+                          style={{ justifyContent: "flex-start" }}
+                        >
+                          <button
+                            type="button"
+                            className="secondary small-button"
+                            disabled={knowledgeLoading}
+                            onClick={() => void enableKnowledgeAutoRefreshAll()}
+                          >
+                            {knowledgeLoading
+                              ? "Açılıyor…"
+                              : "Tüm proje kaynaklarına kalıcı AI erişimi ver"}
+                          </button>
+                          <span>
+                            Bir kez açılır; ilgili kaynak kodu her sohbette
+                            aranır ve eşleşmeler otomatik gönderilir.
+                          </span>
+                        </div>
+                      )}
+                    {knowledgeAutoRefresh.enabled && (
+                      <div className="boundary-note" style={{ marginTop: 10 }}>
+                        <ShieldCheck size={17} />
+                        <span>
+                          <b>
+                            {knowledgeAutoRefresh.allFiles
+                              ? "Tüm proje kaynakları için kalıcı AI erişimi açık"
+                              : "Otomatik yenileme açık"}
+                          </b>{" "}
+                          {knowledgeAutoRefresh.allFiles
+                            ? "Her sohbette desteklenen kaynak kodunda ilgili arama yapılır; güvenli eşleşmeler tenant’ın seçili AI sağlayıcısına otomatik gönderilir. ERP kayıtları ve olası sır dosyaları kapsama dahil değildir."
+                            : `Yalnızca onayladığınız dosyalar (${knowledgeAutoRefresh.paths.join(", ")}) sohbet öncesinde otomatik yenilenir; sohbetlerde kullanmak için mesaj bazlı onay gerekir.`}
+                          {knowledgeAutoRefresh.lastRefreshedAt && (
+                            <small>
+                              {" "}
+                              {knowledgeAutoRefresh.allFiles
+                                ? "İzin verildi"
+                                : "Son yenileme"}
+                              :{" "}
+                              {new Date(
+                                knowledgeAutoRefresh.lastRefreshedAt,
+                              ).toLocaleString("tr-TR")}
+                            </small>
+                          )}
+                        </span>
+                        {workspaceProject?.accessLevel !== "Viewer" && (
+                          <button
+                            type="button"
+                            className="secondary small-button"
+                            disabled={knowledgeLoading}
+                            onClick={() => void revokeKnowledgeAutoRefresh()}
+                          >
+                            İzni kaldır
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {knowledgeHistoryCandidates.length > 0 && (
+                      <div className="requests-list" style={{ marginTop: 10 }}>
+                        <div className="panel-heading">
+                          <div>
+                            <b>Onaylanmış geliştirme geçmişi</b>
+                            <small>
+                              Bağımsız inceleme ve tamamlanmış test içeren sürüm
+                              adayları · en çok 10 kayıt seçin
+                            </small>
+                          </div>
+                        </div>
+                        {knowledgeHistoryCandidates.map((item) => (
+                          <article className="request-row" key={item.id}>
+                            <input
+                              type="checkbox"
+                              aria-label={`${item.branchName} ${item.commitSha.slice(0, 12)} onaylı geçmiş kaydını bilgi tabanına ekle`}
+                              checked={knowledgeHistoryIds.includes(item.id)}
+                              disabled={
+                                !knowledgeHistoryIds.includes(item.id) &&
+                                knowledgeHistoryIds.length >= 10
+                              }
+                              onChange={(e) =>
+                                setKnowledgeHistoryIds((current) =>
+                                  e.target.checked
+                                    ? [...current, item.id]
+                                    : current.filter((id) => id !== item.id),
+                                )
+                              }
+                            />
+                            <div className="request-info">
+                              <b>
+                                {item.developmentRequestTitle ||
+                                  item.branchName}
+                              </b>
+                              <small>
+                                {item.branchName} ·{" "}
+                                {item.commitSha.slice(0, 12)} · test:{" "}
+                                {item.testTargetPath}
+                              </small>
+                              <small>
+                                Onay:{" "}
+                                {new Date(item.approvedAt).toLocaleString(
+                                  "tr-TR",
+                                )}{" "}
+                                · test:{" "}
+                                {new Date(item.testCompletedAt).toLocaleString(
+                                  "tr-TR",
+                                )}
+                              </small>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                    {knowledgeDocs.map((doc) => (
+                      <article className="request-row" key={doc.id}>
+                        <div className="request-info">
+                          <b>{doc.path}</b>
+                          <small>
+                            {doc.characterCount.toLocaleString("tr-TR")}{" "}
+                            karakter · {doc.contentSha256.slice(0, 12)} ·{" "}
+                            {new Date(doc.indexedAt).toLocaleString("tr-TR")}
+                          </small>
+                        </div>
+                        <button
+                          type="button"
+                          className="secondary small-button"
+                          onClick={() => void deleteKnowledgeDocument(doc)}
+                        >
+                          Sil
+                        </button>
+                      </article>
+                    ))}
+                    {knowledgePaths.length > 0 &&
+                      workspaceProject?.accessLevel !== "Viewer" &&
+                      !knowledgeAutoRefresh.allFiles && (
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 9,
+                            marginTop: 12,
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={enableKnowledgeAutoRefresh}
+                            onChange={(e) =>
+                              setEnableKnowledgeAutoRefresh(e.target.checked)
+                            }
+                            style={{ width: 16, marginTop: 3 }}
+                          />
+                          <span>
+                            Seçtiğim dosyaları sohbet öncesinde otomatik yenile.
+                            Bu izin yalnızca bu dosyaları kapsar; sohbetlerde
+                            bilgi tabanını kullanma ve AI paylaşım onayı ayrıca
+                            istenir.
+                          </span>
+                        </label>
+                      )}
+                    {(knowledgePaths.length > 0 ||
+                      knowledgeHistoryIds.length > 0) && (
+                      <div className="modal-foot">
+                        <span>
+                          {knowledgePaths.length} dosya +{" "}
+                          {knowledgeHistoryIds.length} geçmiş kaydı seçildi ·
+                          toplam en çok 50 kaynak
+                        </span>
+                        <button
+                          type="button"
+                          className="primary"
+                          disabled={
+                            knowledgeLoading ||
+                            knowledgePaths.length + knowledgeHistoryIds.length >
+                              50
+                          }
+                          onClick={() => void indexSelectedKnowledge()}
+                        >
+                          {knowledgeLoading
+                            ? "İndeksleniyor…"
+                            : "Seçilen kaynakları bilgi tabanına ekle"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+          {!workspaceFileFilter.trim() &&
+            fileListing?.nextOffset !== null &&
+            fileListing?.nextOffset !== undefined && (
+              <div className="modal-foot">
+                <span>Daha fazla dosya var</span>
+                <button
+                  className="secondary small-button"
+                  disabled={fileLoading}
+                  onClick={() =>
+                    void loadWorkspaceFiles(
+                      fileWorkspace,
+                      filePath,
+                      fileListing.nextOffset!,
+                    )
+                  }
+                >
+                  Sonraki dosyalar
+                </button>
+              </div>
+            )}
+        </div>
+      )}
+      {uiDesignerWorkspace && workspaceProject && (
+        <div
+          className="modal-backdrop studio-ui-designer-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !uiDesignLoading)
+              setUiDesignerWorkspace(null);
+          }}
+        >
+          <div className="modal studio-ui-designer-modal">
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">
+                  AI UI DESIGNER · RESPONSIVE EKRAN TASLAĞI
+                </p>
+                <h2>
+                  {workspaceProject.name} / {uiDesignerWorkspace.branchName}
+                </h2>
+              </div>
+              <button
+                className="icon-button"
+                disabled={uiDesignLoading}
+                onClick={() => setUiDesignerWorkspace(null)}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <p className="muted modal-sub">
+              İsteğinizden erişilebilir, responsive bir ERP ekran taslağı
+              üretin. Önizlemeyi inceleyip onayladığınızda .tsx bileşeni yeni
+              dosya olarak izole workspace’e eklenir.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            <form onSubmit={createUiDesign} className="ui-designer-form">
+              <label>
+                Ekran dosyası yolu
+                <input
+                  value={uiDesignPath}
+                  onChange={(e) => setUiDesignPath(e.target.value)}
+                  required
+                  maxLength={500}
+                  placeholder="src/screens/CustomerOverview.tsx"
+                  pattern=".*\.tsx"
+                  title="Yeni bir .tsx bileşen dosyası kullanın"
+                />
+              </label>
+              <label>
+                Ekran ihtiyacı
+                <textarea
+                  value={uiDesignRequest}
+                  onChange={(e) => setUiDesignRequest(e.target.value)}
+                  required
+                  maxLength={2000}
+                  rows={3}
+                  placeholder="Örn. cari listesi, filtreler, risk kartı ve yeni cari eylemi olan responsive ekran"
+                />
+              </label>
+              <label className="ui-designer-consent">
+                <input
+                  type="checkbox"
+                  checked={uiDesignConsent}
+                  onChange={(e) => setUiDesignConsent(e.target.checked)}
+                  required
+                />
+                <span>
+                  Bu tasarım isteğinin, proje/dal adının ve yeni dosya yolunun
+                  OpenAI’ye gönderilmesini onaylıyorum. Kaynak kodu ve ERP
+                  verisi paylaşılmaz.
+                </span>
+              </label>
+              <div className="modal-foot">
+                <span>
+                  Yalnız statik ekran taslağı; veri bağlama ve buton
+                  davranışları üretilmez.
+                </span>
+                <button
+                  className="primary"
+                  disabled={
+                    uiDesignLoading ||
+                    !uiDesignConsent ||
+                    !uiDesignRequest.trim() ||
+                    !uiDesignPath.trim()
+                  }
+                >
+                  {uiDesignLoading
+                    ? "Tasarım hazırlanıyor…"
+                    : "AI ile ekran tasarla"}
+                </button>
+              </div>
+            </form>
+            {uiDesignResult && (
+              <div className="ui-designer-result">
+                <div className="ui-designer-result-heading">
+                  <div>
+                    <p className="eyebrow">ÖNİZLEME · UYGULANMADI</p>
+                    <h3>{uiDesignResult.summary}</h3>
+                    <small>
+                      {uiDesignResult.filePath} ·{" "}
+                      {uiDesignResult.proposedContent.length.toLocaleString(
+                        "tr-TR",
+                      )}{" "}
+                      karakter
+                    </small>
+                  </div>
+                  <button
+                    className="secondary small-button"
+                    disabled={uiDesignLoading || uiDesignApplied}
+                    onClick={() => {
+                      setUiDesignResult(null);
+                      setUiDesignConsent(false);
+                      setUiDesignApplyApproval(false);
+                    }}
+                  >
+                    İsteği düzenle
+                  </button>
+                </div>
+                <UiDesignPlanPreview plan={uiDesignResult.plan} />
+                <details className="ui-generated-source">
+                  <summary>Üretilecek React/TSX kodunu incele</summary>
+                  <pre>
+                    <code>{uiDesignResult.proposedContent}</code>
+                  </pre>
+                </details>
+                <label className="ui-designer-apply-consent">
+                  <input
+                    type="checkbox"
+                    checked={uiDesignApplyApproval}
+                    disabled={uiDesignLoading || uiDesignApplied}
+                    onChange={(e) => setUiDesignApplyApproval(e.target.checked)}
+                  />
+                  <span>
+                    Önizlemeyi ve kodu inceledim. Bu yeni dosyayı onayla
+                    workspace’e ekle.
+                  </span>
+                </label>
+                <div className="modal-foot">
+                  <span>
+                    {uiDesignApplied
+                      ? "Dosya eklendi; kod çalıştırılmadı."
+                      : "Dosya yazılmadan önce insan onayı gerekir."}
+                  </span>
+                  <button
+                    className="primary"
+                    disabled={
+                      uiDesignLoading ||
+                      uiDesignApplied ||
+                      !uiDesignApplyApproval
+                    }
+                    onClick={() => void applyUiDesign()}
+                  >
+                    {uiDesignLoading
+                      ? "Uygulanıyor…"
+                      : uiDesignApplied
+                        ? "Dosya eklendi"
+                        : "Onayla ve yeni dosyayı ekle"}
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="boundary-note">
+              <ShieldCheck size={17} />
+              <span>
+                <b>Güvenli uygulama sınırı</b>AI yalnız görsel şema ve statik
+                TSX taslağı üretir. API şemayı doğrular, kaynak kod göndermez;
+                Runner dosya yolunu doğrular. Onayla yazılır, otomatik
+                çalıştırma yapılmaz.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}{" "}
+      {sourceSearchWorkspace && (
+        <div
+          className="modal-backdrop studio-source-search-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setSourceSearchWorkspace(null);
+              setSourceSearchResult(null);
+            }
+          }}
+        >
+          <section
+            className="modal studio-source-search-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="studio-source-search-title"
+          >
+            <header className="studio-source-search-header">
+              <div className="studio-source-search-heading">
+                <div className="studio-source-search-kicker">
+                  <Search size={14} />
+                  <span>KOD TABANI · SALT OKUNUR ARAMA</span>
+                </div>
+                <h2 id="studio-source-search-title">Kaynak kodda ara</h2>
+                <div className="studio-source-search-scope">
+                  <b>{workspaceProject?.name}</b>
+                  <span>/</span>
+                  <code>{sourceSearchWorkspace.branchName}</code>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="studio-source-search-close"
+                aria-label="Aramayı kapat"
+                onClick={() => {
+                  setSourceSearchWorkspace(null);
+                  setSourceSearchResult(null);
+                }}
+              >
+                <X size={19} />
+              </button>
+            </header>
+            <p className="studio-source-search-intro">
+              Eşleşmeler dosya ve satır bilgisiyle listelenir. Kod parçaları,
+              ayrıca onaylamadığınız sürece AI’ye gönderilmez.
+            </p>
+            {error && <div className="alert">{error}</div>}
+            <form
+              onSubmit={searchWorkspaceSource}
+              className="studio-source-search-form"
+            >
+              <label htmlFor="studio-source-search-query">Kod içinde ara</label>
+              <div className="studio-source-search-input-row">
+                <Search size={18} />
+                <input
+                  id="studio-source-search-query"
+                  type="search"
+                  value={sourceSearchQuery}
+                  onChange={(e) => setSourceSearchQuery(e.target.value)}
+                  maxLength={120}
+                  required
+                  autoComplete="off"
+                  placeholder="Metin, sembol veya dosya adı yazın…"
+                />
+                <button
+                  className="primary"
+                  disabled={sourceSearchLoading || !sourceSearchQuery.trim()}
+                >
+                  {sourceSearchLoading ? "Aranıyor…" : "Ara"}
+                  <Search size={15} />
+                </button>
+              </div>
+              <div className="studio-source-search-hint">
+                <span>Salt okunur arama</span>
+                <span>En çok 8.000 dosya · 30 eşleşme</span>
+              </div>
+            </form>
+            {sourceSearchResult && (
+              <section
+                className="studio-source-search-results"
+                aria-label="Arama sonuçları"
+              >
+                <header className="studio-source-search-results-heading">
+                  <div>
+                    <b>{sourceSearchResult.matches.length} eşleşme</b>
+                    <span>
+                      {sourceSearchResult.scannedFiles.toLocaleString("tr-TR")}{" "}
+                      dosya tarandı
+                      {sourceSearchResult.truncated
+                        ? " · sonuç sınırına ulaşıldı"
+                        : ""}
+                    </span>
+                  </div>
+                  <small>{selectedSourceMatches.length}/5 seçili</small>
+                </header>
+                <div className="studio-source-search-results-list">
+                  {sourceSearchResult.matches.map((match, index) => (
+                    <article
+                      className="studio-source-search-result"
+                      key={`${match.path}-${match.line}-${index}`}
+                    >
+                      <label
+                        className="studio-source-search-result-select"
+                        title="AI incelemesi için seç"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedSourceMatches.includes(
+                            `${match.path}:${match.line}:${index}`,
+                          )}
+                          disabled={
+                            !selectedSourceMatches.includes(
+                              `${match.path}:${match.line}:${index}`,
+                            ) && selectedSourceMatches.length >= 5
+                          }
+                          onChange={(e) => {
+                            const id = `${match.path}:${match.line}:${index}`;
+                            setSelectedSourceMatches((current) =>
+                              e.target.checked
+                                ? [...current, id]
+                                : current.filter((item) => item !== id),
+                            );
+                            setSourceAnalysisResult(null);
+                          }}
+                        />
+                        <span>İncele</span>
+                      </label>
+                      <div className="studio-source-search-result-content">
+                        <div className="studio-source-search-result-path">
+                          <FileCode size={14} />
+                          <b>{match.path}</b>
+                          <code>:{match.line}</code>
+                        </div>
+                        <pre>
+                          <code>{match.excerpt}</code>
+                        </pre>
+                      </div>
+                    </article>
+                  ))}
+                  {sourceSearchResult.matches.length === 0 && (
+                    <div className="studio-source-search-empty">
+                      <Search size={20} />
+                      <b>Eşleşme bulunamadı</b>
+                      <span>Başka bir metin veya sembol deneyin.</span>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+            {sourceSearchResult && selectedSourceMatches.length > 0 && (
+              <form
+                onSubmit={analyzeSelectedSource}
+                className="studio-source-search-analysis"
+              >
+                <div className="studio-source-search-analysis-heading">
+                  <div>
+                    <b>Seçili kodu AI ile incele</b>
+                    <span>
+                      {selectedSourceMatches.length} kod parçası · en çok 5
+                    </span>
+                  </div>
+                  <Sparkles size={17} />
+                </div>
+                <label htmlFor="studio-source-analysis-question">
+                  İnceleme sorusu
+                  <textarea
+                    id="studio-source-analysis-question"
+                    value={sourceAnalysisQuestion}
+                    onChange={(e) => setSourceAnalysisQuestion(e.target.value)}
+                    required
+                    maxLength={1000}
+                    rows={3}
+                    placeholder="Örn. Bu kod parçasının sorumluluğu nedir?"
+                  />
+                </label>
+                <label className="studio-source-search-consent">
+                  <input
+                    type="checkbox"
+                    checked={sourceAnalysisConsent}
+                    onChange={(e) => setSourceAnalysisConsent(e.target.checked)}
+                    required
+                  />
+                  <span>
+                    Seçtiğim kod satırlarının ve sorumun OpenAI’ye
+                    gönderilmesini onaylıyorum. İçerik sohbet geçmişinde veya
+                    veritabanında saklanmaz.
+                  </span>
+                </label>
+                <div className="studio-source-search-analysis-footer">
+                  <span>Yalnızca seçtiğiniz eşleşmeler paylaşılır.</span>
+                  <button
+                    className="primary"
+                    disabled={sourceAnalysisLoading || !sourceAnalysisConsent}
+                  >
+                    {sourceAnalysisLoading
+                      ? "İnceleniyor…"
+                      : "Seçili kodu incele"}
+                    <ArrowUpRight size={14} />
+                  </button>
+                </div>
+              </form>
+            )}
+            {sourceAnalysisResult && (
+              <section className="studio-source-search-answer">
+                <div className="studio-source-search-analysis-heading">
+                  <div>
+                    <b>AI incelemesi</b>
+                    <span>
+                      {sourceAnalysisResult.sourceCount} kaynak parçası
+                      incelendi
+                    </span>
+                  </div>
+                  <Sparkles size={17} />
+                </div>
+                <p>{sourceAnalysisResult.answer}</p>
+              </section>
+            )}
+            <footer className="studio-source-search-footer">
+              <ShieldCheck size={15} />
+              <span>
+                Arama sonuçları bu ekranda kalır. AI incelemesi için ayrıca onay
+                gerekir.
+              </span>
+            </footer>
+          </section>
+        </div>
+      )}
+      {moduleMappingProject && (
+        <ModuleSourceMappings
+          token={token}
+          project={moduleMappingProject}
+          onClose={() => setModuleMappingProject(null)}
+        />
+      )}
+    </>
+  );
 }

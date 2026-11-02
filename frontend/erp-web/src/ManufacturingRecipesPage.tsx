@@ -1,8 +1,8 @@
-import type { ComponentProps } from 'react'
-import ManufacturingPage from './ManufacturingPage'
+import type { ComponentProps } from "react";
+import ManufacturingPage from "./ManufacturingPage";
 
-type Props = Omit<ComponentProps<typeof ManufacturingPage>, 'section'>
+type Props = Omit<ComponentProps<typeof ManufacturingPage>, "section">;
 
 export default function ManufacturingRecipesPage(props: Props) {
-  return <ManufacturingPage {...props} section="manufacturing-recipes"/>
+  return <ManufacturingPage {...props} section="manufacturing-recipes" />;
 }

@@ -1,8 +1,8 @@
-import type { ComponentProps } from 'react'
-import { SalesOrdersPageContent } from './sales-orders/components/SalesOrdersPageContent'
+import type { ComponentProps } from "react";
+import { SalesOrdersPageContent } from "./sales-orders/components/SalesOrdersPageContent";
 
-type Props = ComponentProps<typeof SalesOrdersPageContent>
+type Props = ComponentProps<typeof SalesOrdersPageContent>;
 
 export default function SalesOrdersPage(props: Props) {
-  return <SalesOrdersPageContent {...props}/>
+  return <SalesOrdersPageContent {...props} />;
 }
