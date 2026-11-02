@@ -149,6 +149,7 @@ export function WorkspacePageRouter({page,token,tenant,locale,dashboard,platform
   if(page==='finance-budget')return <div className='finance-embedded-workbench'><FinanceBudgetPage token={token} role={tenant.role}/></div>
   if(page==='finance-cash-budget')return <div className='finance-embedded-workbench'><DirectCashBudgetPage token={token} role={tenant.role}/></div>
   if(page==='finance-accounts')return <FinanceAccountsPage token={token} role={tenant.role}/>
+  if(page==='finance-account-create')return <FinanceAccountsPage token={token} role={tenant.role} createOnOpen/>
   if(page==='finance-banks')return <FinanceAccountsPage token={token} role={tenant.role} section="finance-banks"/>
   if(page==='finance-statements')return <BankStatementsPage token={token} role={tenant.role}/>
   if(page==='finance-cash-flow')return <CashFlowPage token={token} role={tenant.role}/>

@@ -9,6 +9,28 @@ public static class SalesOrderEndpoints
     public static void MapSalesOrderEndpoints(this WebApplication app)
     {
         var orders = app.MapGroup("/api/sales/orders").WithTags("Satış Siparişleri").RequireAuthorization();
+        orders.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+            var order = await db.SalesOrders.Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (order is null) return Results.NotFound();
+            if (order.Status != SalesOrderStatus.Open ||
+                await db.SalesDeliveries.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id, ct) ||
+                await db.SalesInvoices.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id, ct) ||
+                await db.SalesOrderReservations.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id, ct))
+                return Results.Conflict(new { error = "Yalnızca irsaliye, fatura veya rezervasyon kaydı bulunmayan açık siparişler silinebilir." });
+
+            var revisions = await db.SalesOrderCustomFieldValueRevisions.Where(x => x.TenantId == tenantId && x.OrderId == id).ToListAsync(ct);
+            var values = await db.SalesOrderCustomFieldValues.Where(x => x.TenantId == tenantId && x.OrderId == id).ToListAsync(ct);
+            db.SalesOrderCustomFieldValueRevisions.RemoveRange(revisions);
+            db.SalesOrderCustomFieldValues.RemoveRange(values);
+            db.SalesOrders.Remove(order);
+            var userId = Guid.TryParse(principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedUserId) ? parsedUserId : (Guid?)null;
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "sales-order.deleted", Resource = order.Code });
+            try { await db.SaveChangesAsync(ct); }
+            catch (DbUpdateException) { return Results.Conflict(new { error = "Sipariş ilişkili bir kayıt nedeniyle silinemedi. Sayfayı yenileyip ilişkili işlemleri kontrol edin." }); }
+            return Results.NoContent();
+        });
         orders.MapPost("/", async (SalesOrderWriteRequest request, ClaimsPrincipal principal, TenantDbContext db,
             ILogger<Program> logger, CancellationToken ct) =>
         {

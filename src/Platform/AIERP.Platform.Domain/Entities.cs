@@ -1050,6 +1050,8 @@ public sealed class ManufacturingOrderOperation
     public DateOnly? ScheduledEndDate { get; set; }
     public int? ScheduledStartMinuteOfDay { get; set; }
     public int? ScheduledEndMinuteOfDay { get; set; }
+    public int? ScheduledStartSecondOfDay { get; set; }
+    public int? ScheduledEndSecondOfDay { get; set; }
 }
 
 /// <summary>Order-time snapshot of the machine eligibility matrix for a routed operation.</summary>
@@ -1071,6 +1073,8 @@ public sealed class ManufacturingCapacityAllocation
     public decimal AllocatedMinutes { get; set; }
     public int StartMinuteOfDay { get; set; }
     public int EndMinuteOfDay { get; set; }
+    public int? StartSecondOfDay { get; set; }
+    public int? EndSecondOfDay { get; set; }
 }
 
 public sealed class ManufacturingOrderLine
@@ -2279,7 +2283,7 @@ public sealed class SalesOrderReservation
     public DateTimeOffset? ReleasedAt { get; set; }
 }
 
-public enum SalesDeliveryStatus { Posted = 1, Voided = 2 }
+public enum SalesDeliveryStatus { Posted = 1, Voided = 2, Deleted = 3 }
 
 public sealed class SalesDelivery
 {

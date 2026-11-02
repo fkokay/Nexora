@@ -41,7 +41,7 @@ try {
         try {
             $env:VITE_STUDIO_URL = $studioUrl
             Push-Location (Join-Path $repositoryRoot 'frontend/erp-web')
-            npm run build
+            npm.cmd run build
             if ($LASTEXITCODE -ne 0) {
                 throw "Local ERP web build failed (exit code $LASTEXITCODE)."
             }

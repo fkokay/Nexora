@@ -49,6 +49,7 @@ public sealed class SalesDeliverySearchEndpointsIntegrationTests
             WarehouseId = warehouseA.Id, Warehouse = warehouseA, Code = $"DN-SEARCH-{index:000}", DeliveryDate = today,
             CreatedAt = DateTimeOffset.Parse("2026-10-25T10:00:00Z")
         }).ToArray();
+        var deletedDelivery = new SalesDelivery { TenantId = tenantAId, Tenant = tenantA, RequestId = Guid.NewGuid(), OrderId = orderA.Id, Order = orderA, WarehouseId = warehouseA.Id, Warehouse = warehouseA, Code = "DN-SEARCH-DELETED", DeliveryDate = today, Status = SalesDeliveryStatus.Deleted };
         var otherTenantDelivery = new SalesDelivery
         {
             TenantId = tenantBId, Tenant = tenantB, RequestId = Guid.NewGuid(), OrderId = orderB.Id, Order = orderB,
@@ -74,7 +75,7 @@ public sealed class SalesDeliverySearchEndpointsIntegrationTests
             db.SalesQuotes.AddRange(quoteA, quoteB);
             db.SalesOrders.AddRange(orderA, orderB);
             db.SalesDeliveries.AddRange(deliveries);
-            db.SalesDeliveries.AddRange(otherTenantDelivery, duplicateDeliveryA, duplicateDeliveryB, tenantBMatchingCode);
+            db.SalesDeliveries.AddRange(otherTenantDelivery, duplicateDeliveryA, duplicateDeliveryB, tenantBMatchingCode, deletedDelivery);
             await db.SaveChangesAsync();
         }
 
@@ -111,6 +112,7 @@ public sealed class SalesDeliverySearchEndpointsIntegrationTests
             Assert.False(line.TryGetProperty("stockName", out _));
             Assert.False(line.TryGetProperty("stockItemId", out _));
         }
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/sales/deliveries/search/details?code=DN-SEARCH-DELETED")).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await client.GetAsync("/api/sales/deliveries/search/details?code=DN-DUPLICATE")).StatusCode);
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");
         client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantBId.ToString());

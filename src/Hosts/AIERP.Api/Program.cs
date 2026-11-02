@@ -1687,6 +1687,22 @@ customers.MapPost("/{id:guid}/ledger/{entryId:guid}/reverse", async (Guid id, Gu
 
 var stockItems = app.MapGroup("/api/stock/items").RequireAuthorization();
 stockItems.MapStockBulkImportEndpoint();
+stockItems.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
+{
+    if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var item = await db.StockItems.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+    if (item is null) return Results.NotFound();
+    if (await db.StockItemCustomFieldValueRevisions.AnyAsync(x => x.TenantId == tenantId && x.StockItemId == id, ct))
+        return Results.Conflict(new { error = "Özel alan geçmişi bulunan stok kartı silinemez; bunun yerine devre dışı bırakabilirsiniz." });
+    var units = await db.StockItemUnitConversions.Where(x => x.TenantId == tenantId && x.StockItemId == id).ToListAsync(ct);
+    db.StockItemUnitConversions.RemoveRange(units);
+    db.StockItems.Remove(item);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-item.deleted", Resource = item.Code });
+    try { await db.SaveChangesAsync(ct); }
+    catch (DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 547 })
+    { return Results.Conflict(new { error = "İlişkili işlem veya kayıt bulunan stok kartı silinemez; bunun yerine devre dışı bırakabilirsiniz." }); }
+    return Results.NoContent();
+});
 var stockCategories = app.MapGroup("/api/stock/categories").RequireAuthorization();
 stockCategories.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -3044,6 +3060,25 @@ warehouses.MapPost("/cost-adjustments/{id:guid}/reverse", async (Guid id, Invent
 });
 
 var salesQuotes = app.MapGroup("/api/sales/quotes").RequireAuthorization();
+salesQuotes.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var quote = await db.SalesQuotes.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+    if (quote is null) return Results.NotFound();
+    if (quote.Status != SalesQuoteStatus.Draft || await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.QuoteId == id, ct) ||
+        await db.SalesPromotionApplications.AnyAsync(x => x.TenantId == tenantId && x.QuoteId == id, ct))
+        return Results.Conflict(new { error = "Yalnızca henüz iletilmemiş ve siparişe veya kampanyaya bağlanmamış taslak teklifler silinebilir." });
+
+    var revisions = await db.SalesQuoteCustomFieldValueRevisions.Where(x => x.TenantId == tenantId && x.QuoteId == id).ToListAsync(ct);
+    var values = await db.SalesQuoteCustomFieldValues.Where(x => x.TenantId == tenantId && x.QuoteId == id).ToListAsync(ct);
+    db.SalesQuoteCustomFieldValueRevisions.RemoveRange(revisions);
+    db.SalesQuoteCustomFieldValues.RemoveRange(values);
+    db.SalesQuotes.Remove(quote);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-quote.deleted", Resource = quote.Code });
+    try { await db.SaveChangesAsync(ct); }
+    catch (DbUpdateException) { return Results.Conflict(new { error = "Teklif ilişkili bir kayıt nedeniyle silinemedi. Sayfayı yenileyip ilişkili işlemleri kontrol edin." }); }
+    return Results.NoContent();
+});
 salesQuotes.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
@@ -3762,7 +3797,7 @@ salesDeliveries.MapGet("/", async (Guid? orderId, string? q, bool? unbilledOnly,
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
-    var query = db.SalesDeliveries.AsNoTracking().Where(x => x.TenantId == tenantId);
+    var query = db.SalesDeliveries.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status != SalesDeliveryStatus.Deleted);
     if (orderId is { } requestedOrderId) query = query.Where(x => x.OrderId == requestedOrderId);
     if (unbilledOnly == true) query = query.Where(x => x.Status == SalesDeliveryStatus.Posted
         && !db.SalesInvoices.Any(invoice => invoice.TenantId == tenantId && invoice.DeliveryId == x.Id));
@@ -3784,7 +3819,7 @@ salesDeliveries.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, 
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var delivery = await db.SalesDeliveries.AsNoTracking().Include(x => x.Order).Include(x => x.Warehouse).Include(x => x.Lines).Include(x => x.Invoice)
-        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.Status != SalesDeliveryStatus.Deleted);
     if (delivery is null) return Results.NotFound();
     var lineIds = delivery.Lines.Select(x => x.Id).ToArray();
     var locationByDeliveryLine = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId
@@ -3794,6 +3829,20 @@ salesDeliveries.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, 
         x.StockItemId, x.StockCode, x.StockName, x.UnitCode, x.Quantity, StorageLocationId: locationByDeliveryLine.GetValueOrDefault(x.Id))).ToList();
     return Results.Ok(new SalesDeliveryView(delivery.Id, delivery.Code, delivery.OrderId, delivery.Order?.Code, delivery.WarehouseId,
         delivery.Warehouse.Name, delivery.DeliveryDate, delivery.Status, delivery.CreatedAt, lines, delivery.Invoice is not null, delivery.Invoice?.Status, delivery.Invoice?.Id));
+});
+salesDeliveries.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    await using var transaction = await db.Database.BeginTransactionAsync(ct);
+    var delivery = await db.SalesDeliveries.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesDeliveries] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync(ct);
+    if (delivery is null || delivery.Status == SalesDeliveryStatus.Deleted) return Results.NotFound();
+    if (delivery.Status != SalesDeliveryStatus.Voided)
+        return Results.Conflict(new { error = "Silmeden önce irsaliyeyi iptal edin. Bağlı aktif fatura varsa önce faturayı iptal etmelisiniz." });
+    delivery.Status = SalesDeliveryStatus.Deleted;
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-delivery.deleted", Resource = delivery.Code });
+    await db.SaveChangesAsync(ct);
+    await transaction.CommitAsync(ct);
+    return Results.NoContent();
 });
 salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -4074,6 +4123,29 @@ salesInvoiceCustomFields.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/h
 });
 
 var salesInvoices = app.MapGroup("/api/sales/invoices").RequireAuthorization();
+salesInvoices.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var invoice = await db.SalesInvoices.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+    if (invoice is null) return Results.NotFound();
+    if (invoice.Status != SalesInvoiceStatus.Voided)
+        return Results.Conflict(new { error = "Kesilmiş faturalar silinemez. Önce faturayı iptal edin; iptal edilmiş fatura daha sonra silinebilir." });
+    if (await db.CustomerCollectionAllocations.AnyAsync(x => x.TenantId == tenantId && x.SalesInvoiceId == id, ct) ||
+        await db.SalesReturns.AnyAsync(x => x.TenantId == tenantId && x.SalesInvoiceId == id, ct))
+        return Results.Conflict(new { error = "Faturaya bağlı tahsilat veya iade kaydı bulunduğu için silinemez." });
+
+    var fieldRevisions = await db.SalesInvoiceCustomFieldValueRevisions.Where(x => x.TenantId == tenantId && x.InvoiceId == id).ToListAsync(ct);
+    var fieldValues = await db.SalesInvoiceCustomFieldValues.Where(x => x.TenantId == tenantId && x.InvoiceId == id).ToListAsync(ct);
+    var ledgerEntries = await db.CustomerLedgerEntries.Where(x => x.TenantId == tenantId && x.SalesInvoiceId == id).ToListAsync(ct);
+    foreach (var entry in ledgerEntries) entry.SalesInvoiceId = null;
+    db.SalesInvoiceCustomFieldValueRevisions.RemoveRange(fieldRevisions);
+    db.SalesInvoiceCustomFieldValues.RemoveRange(fieldValues);
+    db.SalesInvoices.Remove(invoice);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-invoice.deleted", Resource = invoice.Code });
+    try { await db.SaveChangesAsync(ct); }
+    catch (DbUpdateException) { return Results.Conflict(new { error = "Fatura ilişkili bir kayıt nedeniyle silinemedi. Sayfayı yenileyip bağlı işlemleri kontrol edin." }); }
+    return Results.NoContent();
+});
 salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();

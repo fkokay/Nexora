@@ -17,6 +17,39 @@ public sealed class Phase2SalesOrderDeliveryGuardAcceptanceTests
     private static readonly Guid TenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     [Fact]
+    public async Task Delete_requires_admin_and_own_unprocessed_order_and_records_audit()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantId.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/api/sales/orders/{OpenOrderId}")).StatusCode);
+        client.DefaultRequestHeaders.Remove("X-Test-Role");
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/sales/orders/{OtherTenantOrderId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"/api/sales/orders/{FulfilledOrderId}")).StatusCode);
+
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.SalesOrderReservations.Add(new SalesOrderReservation { TenantId = TenantId, OrderId = OpenOrderId, Status = SalesOrderReservationStatus.Released });
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"/api/sales/orders/{OpenOrderId}")).StatusCode);
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.SalesOrderReservations.RemoveRange(db.SalesOrderReservations);
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/sales/orders/{OpenOrderId}")).StatusCode);
+        await using var verifyScope = app.Services.CreateAsyncScope();
+        var verify = verifyScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        Assert.False(await verify.SalesOrders.AnyAsync(x => x.Id == OpenOrderId));
+        Assert.True(await verify.SalesOrders.AnyAsync(x => x.Id == OtherTenantOrderId));
+        Assert.Equal("SO-OPEN", (await verify.AuditEvents.SingleAsync(x => x.Action == "sales-order.deleted")).Resource);
+    }
+
+    [Fact]
     public async Task Delivery_date_guard_rejects_pre_order_and_closed_order_changes_without_mutation_or_audit()
     {
         await using var app = await StartAsync();

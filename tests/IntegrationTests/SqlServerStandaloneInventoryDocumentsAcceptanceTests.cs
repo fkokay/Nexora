@@ -12,6 +12,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -23,12 +25,18 @@ namespace AIERP.Api.IntegrationTests;
 public sealed class SqlServerStandaloneInventoryDocumentsAcceptanceTests
 {
     [SqlServerAcceptanceFact]
-    public async Task Orderless_sales_delivery_and_purchase_receipt_post_idempotently_and_reverse_stock()
+    public Task Orderless_sales_delivery_and_purchase_receipt_post_idempotently_and_reverse_stock() => RunOrderlessFlowAsync(useMigrations: false);
+
+    [SqlServerAcceptanceFact]
+    public Task Orderless_sales_and_purchase_flow_works_after_tenant_schema_upgrade() => RunOrderlessFlowAsync(useMigrations: true);
+
+    private static async Task RunOrderlessFlowAsync(bool useMigrations)
     {
         var configuredConnection = Environment.GetEnvironmentVariable("AIERP_REPORT_TEST_SQL_CONNECTION_STRING");
         Assert.False(string.IsNullOrWhiteSpace(configuredConnection));
         var suffix = Guid.NewGuid().ToString("N");
-        var connection = DatabaseConnection(configuredConnection!, $"AIERP_OrderlessTenant_{suffix}");
+        var databaseName = $"AIERP_OrderlessTenant_{suffix}";
+        var connection = DatabaseConnection(configuredConnection!, databaseName);
         var tenantId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var tenant = new Tenant { Id = tenantId, Name = "Orderless acceptance", Slug = $"orderless-{tenantId:N}" };
@@ -41,8 +49,23 @@ public sealed class SqlServerStandaloneInventoryDocumentsAcceptanceTests
         var databaseCreated = false;
         try
         {
-            databaseCreated = await seed.Database.EnsureCreatedAsync();
-            Assert.True(databaseCreated);
+            if (useMigrations)
+            {
+                var masterConnection = DatabaseConnection(configuredConnection!, "master");
+                await using var sql = new SqlConnection(masterConnection);
+                await sql.OpenAsync();
+                await using var createDatabase = sql.CreateCommand();
+                // The identifier contains only our fixed prefix and a freshly generated GUID.
+                createDatabase.CommandText = $"CREATE DATABASE [{databaseName}]";
+                await createDatabase.ExecuteNonQueryAsync();
+                databaseCreated = true;
+                await seed.GetService<IMigrator>().MigrateAsync("20261031180715_AddCreditSecurityAlertDismissals");
+            }
+            else
+            {
+                databaseCreated = await seed.Database.EnsureCreatedAsync();
+                Assert.True(databaseCreated);
+            }
             seed.Tenants.Add(tenant);
             seed.CustomerAccounts.AddRange(customer, supplier);
             seed.Warehouses.Add(warehouse);
@@ -53,6 +76,17 @@ public sealed class SqlServerStandaloneInventoryDocumentsAcceptanceTests
                 Direction = InventoryDirection.Receipt, Quantity = 5m, UnitCostBase = 10m, Description = "Synthetic opening stock",
             });
             await seed.SaveChangesAsync();
+
+            if (useMigrations)
+            {
+                await seed.Database.MigrateAsync();
+                Assert.Empty(await seed.Database.GetPendingMigrationsAsync());
+                seed.ChangeTracker.Clear();
+                Assert.Equal("Customer", await seed.CustomerAccounts.AsNoTracking()
+                    .Where(x => x.TenantId == tenantId && x.Id == customer.Id).Select(x => x.Name).SingleAsync());
+                Assert.Equal(5m, await seed.InventoryTransactions.AsNoTracking()
+                    .Where(x => x.TenantId == tenantId && x.StockItemId == item.Id).SumAsync(x => x.Quantity));
+            }
 
             var builder = WebApplication.CreateBuilder();
             builder.WebHost.UseTestServer();

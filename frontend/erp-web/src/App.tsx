@@ -103,6 +103,7 @@ export default function App() {
       {page:'customers',label:tx('customers'),description:'Satış & cari'},
       {page:'customer-create',label:locale==='en'?'New customer card':'Yeni Cari Kart',description:'Satış & cari'},
       {page:'sales-invoice-create',label:locale==='en'?'New sales invoice':'İrsaliyesiz satış faturası girişi',description:locale==='en'?'Sales · select an open order; delivery and invoice are created together':'Satış · açık siparişten irsaliye ve fatura oluştur'},
+      {page:'finance-account-create',label:locale==='en'?'New cash register':'Yeni Kasa Tanımla',description:locale==='en'?'Finance · create a cash register':'Finans · yeni kasa kartı oluştur'},
       {page:'crm-opportunities',label:tx('crm'),description:'Satış & cari'},
       {page:'crm-opportunity-create',label:locale==='en'?'New opportunity':'Yeni fırsat',description:'Satış & cari'},
       ...Object.keys(inventoryPageTitles).map(key=>({page:key,label:inventoryPageTitle(key as InventoryPageKey,locale),description:tx('inventory')})),

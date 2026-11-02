@@ -86,3 +86,23 @@
 }
 .warehouse-field-create-form > .panel-heading b { line-height: 1.4; }
 .warehouse-field-create-form > .panel-heading small { line-height: 1.5; }
+
+/* Stock movement dialog: keep its controls visible and give the grid one scroll area. */
+.stock-movement-backdrop { z-index: 2000; padding: 20px; }
+.stock-movement-modal { padding: 23px; width: min(960px, 100%); max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain; }
+.stock-movement-modal > .modal-head { position: sticky; top: -23px; z-index: 5; margin: -23px -23px 16px; padding: 19px 23px 15px; background: var(--erp-surface, #fff); border-bottom: 1px solid var(--erp-border, #e2e8f0); }
+.stock-movement-modal > .modal-head h2 { margin: 0; }
+.stock-movement-modal > .balance-banner { margin-bottom: 16px; }
+.stock-movement-modal > .ledger-list { max-height: none; overflow: visible; margin: 0; }
+.stock-movement-modal .advanced-grid-scroll { max-height: min(30dvh, 260px); }
+.stock-movement-modal > .table-pagination { margin: 10px 0 18px; }
+.stock-movement-modal > form { border-top: 1px solid var(--erp-border, #e2e8f0); padding-top: 16px; }
+.stock-movement-modal > form > label, .stock-movement-modal > form > .form-two { margin-bottom: 12px; }
+.stock-movement-modal > form > .modal-foot { margin-top: 16px; }
+html[data-theme="dark"] .stock-movement-modal > .modal-head { background: var(--erp-surface, #1a2232); }
+@media (max-width: 680px) {
+  .stock-movement-backdrop { padding: 10px; }
+  .stock-movement-modal { padding: 16px; max-height: calc(100dvh - 20px); }
+  .stock-movement-modal > .modal-head { top: -16px; margin: -16px -16px 14px; padding: 15px 16px 12px; }
+  .stock-movement-modal .advanced-grid-scroll { max-height: 240px; }
+}

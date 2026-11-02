@@ -211,6 +211,12 @@ export function SalesPage({token,role,section,onNavigate,initialInvoiceId,onInit
     try { await api<SalesQuoteSummary>(`/api/sales/quotes/${item.id}/send`,token,{method:'POST'});setNotice(`${item.code} numaralı teklif iletildi durumuna alındı.`);await load() }
     catch(e) { setError((e as Error).message) } finally { setBusy(false) }
   }
+  async function deleteQuote(item:SalesQuoteSummary) {
+    if(!window.confirm(`${item.code} taslak teklifi ve özel alan geçmişi silinecek. Devam edilsin mi?`))return
+    setBusy(true);setError('');setNotice('')
+    try { await api(`/api/sales/quotes/${item.id}`,token,{method:'DELETE'});setSelectedSalesId(null);await load(salesListPage);setNotice(`${item.code} teklifi silindi.`) }
+    catch(e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
   async function decideQuote(item:SalesQuoteSummary,decision:'accept'|'reject') {
     setBusy(true);setError('');setNotice('')
     try { await api<SalesQuoteSummary>(`/api/sales/quotes/${item.id}/${decision}`,token,{method:'POST'});setNotice(decision==='accept'?`${item.code} teklifi kabul edildi.`:`${item.code} teklifi reddedildi.`);await load();if(detail?.id===item.id)await openQuote(item.id) }
@@ -224,6 +230,12 @@ export function SalesPage({token,role,section,onNavigate,initialInvoiceId,onInit
   async function openOrder(id:string) {
     setError('')
     try { setOrderDetail(await api<SalesOrderDetail>(`/api/sales/orders/${id}`,token)) } catch(e) { setError((e as Error).message) }
+  }
+  async function deleteOrder(item:SalesOrderSummary) {
+    if(!window.confirm(`${item.code} siparişi ve özel alan geçmişi silinecek. Devam edilsin mi?`))return
+    setBusy(true);setError('');setNotice('')
+    try { await api(`/api/sales/orders/${item.id}`,token,{method:'DELETE'});setSelectedSalesId(null);await load(orders.length===1&&salesListPage>1?salesListPage-1:salesListPage);setNotice(`${item.code} siparişi silindi.`) }
+    catch(e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   async function openInvoice(id:string) { setError('');setInvoiceId(id) }
   const filtered=quotes.filter(x=>!search||x.code.toLocaleLowerCase('tr').includes(search.toLocaleLowerCase('tr'))||x.customerName.toLocaleLowerCase('tr').includes(search.toLocaleLowerCase('tr')))
@@ -240,7 +252,7 @@ export function SalesPage({token,role,section,onNavigate,initialInvoiceId,onInit
       case 'lineCount': return item.lineCount
       case 'grandTotal': return <b>{item.grandTotal.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})} {item.currencyCode}</b>
       case 'status': return <span className={`quote-status ${item.status.toLowerCase()}`}>{statusName(item.status)}</span>
-      case 'actions': return <div className="row-actions"><button className="row-action" disabled={busy} onClick={()=>void openQuote(item.id)}>Detay</button>{item.status==='Draft'&&<button className="row-action" disabled={busy} onClick={()=>void sendQuote(item)}>İletildi yap</button>}{item.status==='Sent'&&<><button className="row-action" disabled={busy} onClick={()=>void decideQuote(item,'accept')}>Kabul et</button><button className="row-action danger-action" disabled={busy} onClick={()=>void decideQuote(item,'reject')}>Reddet</button></>}{item.status==='Accepted'&&!item.hasSalesOrder&&<button className="row-action" disabled={busy} onClick={()=>void convertQuote(item)}>Sipariş oluştur</button>}{item.status==='Accepted'&&item.hasSalesOrder&&<span className="cell-subtitle">Sipariş hazır</span>}</div>
+      case 'actions': return <div className="row-actions"><button className="row-action" disabled={busy} onClick={()=>void openQuote(item.id)}>Detay</button>{item.status==='Draft'&&<><button className="row-action" disabled={busy} onClick={()=>void sendQuote(item)}>İletildi yap</button>{role==='TenantAdmin'&&<button className="row-action danger-action" disabled={busy} onClick={event=>{event.stopPropagation();void deleteQuote(item)}}>Sil</button>}</>}{item.status==='Sent'&&<><button className="row-action" disabled={busy} onClick={()=>void decideQuote(item,'accept')}>Kabul et</button><button className="row-action danger-action" disabled={busy} onClick={()=>void decideQuote(item,'reject')}>Reddet</button></>}{item.status==='Accepted'&&!item.hasSalesOrder&&<button className="row-action" disabled={busy} onClick={()=>void convertQuote(item)}>Sipariş oluştur</button>}{item.status==='Accepted'&&item.hasSalesOrder&&<span className="cell-subtitle">Sipariş hazır</span>}</div>
       default: return null
     }
   }
@@ -253,7 +265,7 @@ export function SalesPage({token,role,section,onNavigate,initialInvoiceId,onInit
       case 'lineCount': return item.lineCount
       case 'grandTotal': return <b>{item.grandTotal.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})} {item.currencyCode}</b>
       case 'status': return <span className="quote-status sent">{item.status==='Open'?'Açık':item.status==='Fulfilled'?'Tamamlandı':'İptal'}</span>
-      case 'actions': return <button className="row-action" onClick={()=>void openOrder(item.id)}>Detay</button>
+      case 'actions': return <div className="row-actions"><button className="row-action" onClick={()=>void openOrder(item.id)}>Detay</button>{role==='TenantAdmin'&&<button type="button" className="row-action danger-action" disabled={busy} onClick={event=>{event.stopPropagation();void deleteOrder(item)}}>Sil</button>}</div>
       default: return null
     }
   }
@@ -261,7 +273,7 @@ export function SalesPage({token,role,section,onNavigate,initialInvoiceId,onInit
     {error&&<div className="alert inline-alert">{error}<button onClick={()=>setError('')}><X size={15}/></button></div>}{notice&&<div className="notice">{notice}<button onClick={()=>setNotice('')}><X size={15}/></button></div>}
     {!createOrderPage&&activeTab!=='purchases'&&activeTab!=='requests'&&activeTab!=='purchase-quotes'&&activeTab!=='purchase-invoices'&&activeTab!=='purchase-receipts'&&activeTab!=='purchase-invoice-entry'&&activeTab!=='purchase-invoice-drafts'&&activeTab!=='deliveries'&&<><SalesListToolbar activeTab={activeTab as 'quotes'|'orders'|'invoices'} total={salesListTotal} loading={loading} search={search} onSearchChange={setSearch}/></>}
 
-     {!createOrderPage&&(activeTab==='purchase-quotes' ? <PurchaseSupplierQuotesPage token={token} onOpenRequests={()=>onNavigate('sales-requests')}/> : activeTab==='purchase-invoice-drafts' ? <StandaloneSupplierInvoiceDraftPage token={token} role={role}/> : activeTab==='purchase-invoice-entry' ? <PurchaseInvoiceEntryPage token={token} role={role} onInvoiceCreated={()=>onNavigate('sales-purchase-invoices')}/> : activeTab==='purchases'||activeTab==='requests' ? <PurchasingPanel token={token} role={role} customers={customers} stockItems={stockItems} warehouses={warehouses} mode={activeTab==='requests'?'requests':'purchasing'}/> : activeTab==='purchase-invoices' ? <PurchaseInvoicesScreen token={token} initialSupplier={initialSupplier} onInitialSupplierOpened={onInitialSupplierOpened} onNavigate={onNavigate}/> : activeTab==='purchase-receipts' ? <PurchaseReceiptsScreen token={token} role={role} warehouses={warehouses} customers={customers} stockItems={stockItems}/> : activeTab==='deliveries' ? <SalesDeliveriesScreen token={token} role={role} warehouses={warehouses} customers={customers} stockItems={stockItems}/> : activeTab==='invoices' ? <SalesInvoiceTable invoices={invoices} orders={orders} customers={customers} stockItems={stockItems} warehouses={warehouses} onOpen={openInvoice} onSelect={setSelectedSalesId} selectedId={selectedSalesId} search={search} fields={invoiceScreenFields} token={token} createOpen={invoiceCreateOpen} createFromOrder={true} setCreateOpen={open=>open?void prepareInvoiceCreate():setInvoiceCreateOpen(false)} onInvoiceCreated={async id=>{await load();openInvoice(id)}}/> : activeTab==='quotes' ?
+     {!createOrderPage&&(activeTab==='purchase-quotes' ? <PurchaseSupplierQuotesPage token={token} onOpenRequests={()=>onNavigate('sales-requests')}/> : activeTab==='purchase-invoice-drafts' ? <StandaloneSupplierInvoiceDraftPage token={token} role={role}/> : activeTab==='purchase-invoice-entry' ? <PurchaseInvoiceEntryPage token={token} role={role} onInvoiceCreated={()=>onNavigate('sales-purchase-invoices')}/> : activeTab==='purchases'||activeTab==='requests' ? <PurchasingPanel token={token} role={role} customers={customers} stockItems={stockItems} warehouses={warehouses} mode={activeTab==='requests'?'requests':'purchasing'}/> : activeTab==='purchase-invoices' ? <PurchaseInvoicesScreen token={token} initialSupplier={initialSupplier} onInitialSupplierOpened={onInitialSupplierOpened} onNavigate={onNavigate}/> : activeTab==='purchase-receipts' ? <PurchaseReceiptsScreen token={token} role={role} warehouses={warehouses} customers={customers} stockItems={stockItems}/> : activeTab==='deliveries' ? <SalesDeliveriesScreen token={token} role={role} warehouses={warehouses} customers={customers} stockItems={stockItems}/> : activeTab==='invoices' ? <SalesInvoiceTable invoices={invoices} orders={orders} customers={customers} stockItems={stockItems} warehouses={warehouses} onOpen={openInvoice} onSelect={setSelectedSalesId} selectedId={selectedSalesId} search={search} fields={invoiceScreenFields} token={token} role={role} createOpen={invoiceCreateOpen} createFromOrder={true} setCreateOpen={open=>open?void prepareInvoiceCreate():setInvoiceCreateOpen(false)} onInvoiceCreated={async id=>{await load();openInvoice(id)}} onChanged={()=>load()}/> : activeTab==='quotes' ?
 <SalesDocumentGrid gridId="sales-quotes" fields={visibleQuoteFields} items={filtered} selectedId={selectedSalesId} loading={loading} loadingMessage="Teklifler yükleniyor…" emptyMessage="Henüz satış teklifi yok." search={search} searchEmptyMessage="Aramanızla eşleşen teklif yok." onSelect={setSelectedSalesId} renderCell={renderQuoteField}/> :
 <section className="sales-document-list-card" aria-label="Satış siparişi listesi"><div className="sales-document-list-heading"><div><h2>Sipariş kayıtları</h2><p>{loading?'Kayıtlar yükleniyor…':`${filteredOrders.length} kayıt gösteriliyor`}</p></div></div><SalesDocumentGrid gridId="sales-orders" fields={visibleOrderFields} items={filteredOrders} selectedId={selectedSalesId} loading={loading} loadingMessage="Siparişler yükleniyor…" emptyMessage="Henüz satış siparişi yok. Yeni sipariş oluşturabilir veya kabul edilen bir teklifi dönüştürebilirsiniz." search={search} searchEmptyMessage="Aramanızla eşleşen sipariş yok." onSelect={setSelectedSalesId} renderCell={renderOrderField}/></section>)}
      {(activeTab==='quotes'||activeTab==='orders'||activeTab==='invoices')&&!createOrderPage&&<SalesListPagination page={salesListPage} total={salesListTotal} loading={loading} onPageChange={setSalesListPage}/> }
@@ -464,7 +476,8 @@ function SalesOrderModal({order,token,role,warehouses,onClose,onSaved,onInvoiceC
     <div className="modal-foot"><span>Sipariş tarihi {order.orderDate} · Kaynak teklif {order.quoteCode}</span><div><button className="secondary" onClick={onClose}>Kapat</button></div></div></div></div>
 }
 
-function SalesInvoiceTable({invoices,orders,customers,stockItems,warehouses,onOpen,onSelect,selectedId,search,fields,token,createOpen,createFromOrder=false,setCreateOpen,onInvoiceCreated}:{invoices:SalesInvoiceSummary[];orders:SalesOrderSummary[];customers:SalesCustomer[];stockItems:StockItem[];warehouses:Warehouse[];onOpen:(id:string)=>void;onSelect:(id:string)=>void;selectedId:string|null;search:string;fields:BuiltInScreenLayoutField[];token:string;createOpen:boolean;createFromOrder?:boolean;setCreateOpen:(open:boolean)=>void;onInvoiceCreated:(id:string)=>Promise<void>}) {
+function SalesInvoiceTable({invoices,orders,customers,stockItems,warehouses,onOpen,onSelect,selectedId,search,fields,token,role,createOpen,createFromOrder=false,setCreateOpen,onInvoiceCreated,onChanged}:{invoices:SalesInvoiceSummary[];orders:SalesOrderSummary[];customers:SalesCustomer[];stockItems:StockItem[];warehouses:Warehouse[];onOpen:(id:string)=>void;onSelect:(id:string)=>void;selectedId:string|null;search:string;fields:BuiltInScreenLayoutField[];token:string;role:string;createOpen:boolean;createFromOrder?:boolean;setCreateOpen:(open:boolean)=>void;onInvoiceCreated:(id:string)=>Promise<void>;onChanged:()=>Promise<void>}) {
+  const [busy,setBusy]=useState(false),[actionError,setActionError]=useState(''),[actionNotice,setActionNotice]=useState('')
   const [deliveries,setDeliveries]=useState<SalesDeliverySummary[]>([]),[deliveryTotal,setDeliveryTotal]=useState(0),[deliveryPage,setDeliveryPage]=useState(1),[deliverySearch,setDeliverySearch]=useState(''),[deliveryLoading,setDeliveryLoading]=useState(false),[deliveryBusyId,setDeliveryBusyId]=useState<string|null>(null),[deliveryError,setDeliveryError]=useState('')
   useEffect(()=>{
     if(!createOpen)return
@@ -484,6 +497,18 @@ function SalesInvoiceTable({invoices,orders,customers,stockItems,warehouses,onOp
     catch(error){setDeliveryError((error as Error).message)}
     finally{setDeliveryBusyId(null)}
   }
+  async function voidInvoice(item:SalesInvoiceSummary){
+    if(!window.confirm(`${item.code} faturası iptal edilecek ve cari hareketi ters kayıtla kapatılacak. Devam edilsin mi?`))return
+    setBusy(true);setActionError('');setActionNotice('')
+    try{await api(`/api/sales/invoices/${item.id}/void`,token,{method:'POST'});setActionNotice(`${item.code} faturası iptal edildi.`);await onChanged()}
+    catch(error){setActionError((error as Error).message)}finally{setBusy(false)}
+  }
+  async function deleteInvoice(item:SalesInvoiceSummary){
+    if(!window.confirm(`${item.code} faturası silinecek. Yalnızca iptal edilmiş faturalar silinebilir. Devam edilsin mi?`))return
+    setBusy(true);setActionError('');setActionNotice('')
+    try{await api(`/api/sales/invoices/${item.id}`,token,{method:'DELETE'});setActionNotice(`${item.code} faturası silindi.`);await onChanged()}
+    catch(error){setActionError((error as Error).message)}finally{setBusy(false)}
+  }
   const visible=invoices.filter(x=>!search||`${x.code} ${x.deliveryCode} ${x.orderCode} ${x.customerName}`.toLocaleLowerCase('tr').includes(search.toLocaleLowerCase('tr')))
   const ordered=fields.filter(field=>field.key==='actions'||field.visible).sort((a,b)=>a.key==='actions'?1:b.key==='actions'?-1:a.position-b.position)
   const render=(item:SalesInvoiceSummary,field:BuiltInScreenLayoutField)=>{
@@ -496,11 +521,12 @@ function SalesInvoiceTable({invoices,orders,customers,stockItems,warehouses,onOp
       case 'lineCount':return item.lineCount
       case 'grandTotal':return <b>{item.grandTotal.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})} {item.currencyCode}</b>
       case 'status':return <span className={`quote-status ${item.status==='Posted'?'accepted':'rejected'}`}>{item.status==='Posted'?'Kesildi':'İptal'}</span>
-      case 'actions':return <button className="row-action" onClick={event=>{event.stopPropagation();onOpen(item.id)}}>Detay</button>
+      case 'actions':return <div className="row-actions"><button className="row-action" onClick={event=>{event.stopPropagation();onOpen(item.id)}}>Detay</button>{role==='TenantAdmin'&&item.status==='Posted'&&<button type="button" className="row-action danger-action" disabled={busy} onClick={event=>{event.stopPropagation();void voidInvoice(item)}}>İptal et</button>}{role==='TenantAdmin'&&<button type="button" className="row-action danger-action" disabled={busy} onClick={event=>{event.stopPropagation();void deleteInvoice(item)}}>Sil</button>}</div>
       default:return null
     }
   }
   return <>
+    {actionError&&<div className="alert inline-alert">{actionError}<button onClick={()=>setActionError('')}><X size={15}/></button></div>}{actionNotice&&<div className="notice">{actionNotice}<button onClick={()=>setActionNotice('')}><X size={15}/></button></div>}
     <section className="sales-invoice-list-card" aria-label="Satış faturası listesi"><div className="sales-invoice-list-heading"><div><h2>Fatura kayıtları</h2><p>{visible.length} kayıt gösteriliyor</p></div></div>
     <SalesDocumentGrid
       gridId="sales-invoices"

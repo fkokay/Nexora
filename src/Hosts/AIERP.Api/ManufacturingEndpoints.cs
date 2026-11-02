@@ -11,6 +11,12 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 public static class ManufacturingEndpoints
 {
+    internal static DateOnly SchedulingStartDate(DateTimeOffset now, DateOnly plannedDate)
+    {
+        var today = AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(now);
+        return plannedDate > today ? plannedDate : today;
+    }
+
     private static bool HasOverlappingRotations(IReadOnlyList<WorkCenterShiftRotationWriteRequest> rotations)
     {
         var ordered = rotations.OrderBy(x => x.EffectiveFromDate).ToArray();
@@ -715,7 +721,7 @@ public static class ManufacturingEndpoints
                     o.PlannedEnergyCostPerKwhBase, o.PlannedEnergyCostBase, o.Status.ToString(),
                     o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase, o.StartedAt, o.CompletedAt,
                     db.ManufacturingCapacityAllocations.Where(a => a.TenantId == tenantId && a.ManufacturingOrderOperationId == o.Id)
-                        .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay)).ToList())).ToList(),
+                        .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay, a.StartSecondOfDay ?? a.StartMinuteOfDay * 60, a.EndSecondOfDay ?? a.EndMinuteOfDay * 60)).ToList(), o.ScheduledStartSecondOfDay ?? o.ScheduledStartMinuteOfDay * 60, o.ScheduledEndSecondOfDay ?? o.ScheduledEndMinuteOfDay * 60)).ToList(),
                 Convert.ToBase64String(x.RowVersion))).ToListAsync(ct);
             return page.HasValue
                 ? Results.Ok(new { page = safePage, pageSize = safePageSize, totalCount, openOrderCount, items = rows })
@@ -856,23 +862,22 @@ public static class ManufacturingEndpoints
             }
             var operationIds = operations.Select(x => x.Id).ToArray();
             var previous = await db.ManufacturingCapacityAllocations.Where(x => x.TenantId == tenantId && operationIds.Contains(x.ManufacturingOrderOperationId)).ToListAsync(ct);
-            var startDate = DateOnly.FromDateTime(DateTime.UtcNow);
-            if (order.PlannedDate > startDate) startDate = order.PlannedDate;
+            var startDate = SchedulingStartDate(DateTimeOffset.UtcNow, order.PlannedDate);
             var horizonEnd = startDate.AddDays(365);
             var existingAllocations = await db.ManufacturingCapacityAllocations.AsNoTracking().Where(x => x.TenantId == tenantId && workCenterIds.Contains(x.WorkCenterId) &&
                     !operationIds.Contains(x.ManufacturingOrderOperationId) && x.ScheduledDate >= startDate && x.ScheduledDate <= horizonEnd)
-                .Select(x => new { x.WorkCenterId, x.ScheduledDate, x.AllocatedMinutes, x.StartMinuteOfDay, x.EndMinuteOfDay })
+                .Select(x => new { x.WorkCenterId, x.ScheduledDate, StartSecond = x.StartSecondOfDay ?? x.StartMinuteOfDay * 60, EndSecond = x.EndSecondOfDay ?? x.EndMinuteOfDay * 60 })
                 .ToListAsync(ct);
             var loads = existingAllocations.GroupBy(x => (x.WorkCenterId, x.ScheduledDate))
-                .ToDictionary(x => x.Key, x => x.Sum(a => a.AllocatedMinutes));
+                .ToDictionary(x => x.Key, x => x.Sum(a => (decimal)(a.EndSecond - a.StartSecond)));
             // New allocations append to a deterministic machine queue. Existing intervals are
             // authoritative, so a later scheduled order cannot overlap an earlier one.
             var queueEnds = existingAllocations.GroupBy(x => (x.WorkCenterId, x.ScheduledDate))
-                .ToDictionary(x => x.Key, x => x.Max(a => a.EndMinuteOfDay));
+                .ToDictionary(x => x.Key, x => x.Max(a => a.EndSecond));
             var scheduledOperations = await db.ManufacturingOrderOperations.AsNoTracking().Where(x => x.TenantId == tenantId &&
                     workCenterIds.Contains(x.WorkCenterId) && x.ManufacturingOrderId != id && x.ScheduledEndDate != null)
                 .Select(x => new { x.Id, x.WorkCenterId, x.SetupFamilyCodeSnapshot, EndDate = x.ScheduledEndDate!.Value,
-                    EndMinute = x.ScheduledEndMinuteOfDay ?? 1440 }).ToListAsync(ct);
+                    EndMinute = x.ScheduledEndSecondOfDay ?? (x.ScheduledEndMinuteOfDay ?? 1440) * 60 }).ToListAsync(ct);
             var capacityOverrides = await db.ManufacturingWorkCenterCapacityOverrides.AsNoTracking()
                 .Where(x => x.TenantId == tenantId && workCenterIds.Contains(x.WorkCenterId) && x.WorkDate >= startDate && x.WorkDate <= horizonEnd)
                 .ToDictionaryAsync(x => (x.WorkCenterId, x.WorkDate), x => x.CapacityMinutes, ct);
@@ -906,7 +911,7 @@ public static class ManufacturingEndpoints
                     var sequenceSetup = 0m;
                     var candidateLoads = new Dictionary<(Guid WorkCenterId, DateOnly ScheduledDate), decimal>(loads);
                     var candidateAllocations = new List<ManufacturingCapacityAllocation>();
-                    var remaining = operation.SetupMinutes + operation.RunMinutes;
+                    var remaining = (operation.SetupMinutes + operation.RunMinutes) * 60m;
                     var setupResolved = false;
                     var transitionBlocked = false;
                     DateOnly? first = null; DateOnly? last = null;
@@ -927,12 +932,12 @@ public static class ManufacturingEndpoints
                             .OrderByDescending(x => x.EffectiveFromDate).FirstOrDefault();
                         var rotationDay = rotation is null || rotation.Days.Count == 0 ? null : rotation.Days
                             .SingleOrDefault(x => x.DayIndex == (day.DayNumber - rotation.EffectiveFromDate.DayNumber) % rotation.Days.Count);
-                        var shiftStartMinute = rotationDay?.ShiftStartMinuteOfDay ?? candidateCenter.ShiftStartMinuteOfDay;
-                        var shiftEndMinute = rotationDay?.ShiftEndMinuteOfDay ?? candidateCenter.ShiftEndMinuteOfDay;
+                        var shiftStartMinute = (rotationDay?.ShiftStartMinuteOfDay ?? candidateCenter.ShiftStartMinuteOfDay) * 60;
+                        var shiftEndMinute = (rotationDay?.ShiftEndMinuteOfDay ?? candidateCenter.ShiftEndMinuteOfDay) * 60;
                         capacity ??= rotationDay?.CapacityMinutes ??
                             ((candidateCenter.WorkingDaysMask & (1 << (int)day.DayOfWeek)) != 0 ? candidateCenter.CapacityMinutesPerDay : 0);
                         var shiftCapacity = Math.Max(0, shiftEndMinute - shiftStartMinute);
-                        var effectiveCapacity = Math.Min(capacity!.Value, shiftCapacity);
+                        var effectiveCapacity = Math.Min(capacity!.Value * 60, shiftCapacity);
                         var dayStartMinute = Math.Max(shiftStartMinute, day == earliestDate ? earliestMinute : 0);
                         var queueMinute = Math.Max(dayStartMinute, queueEnds.GetValueOrDefault(key, shiftStartMinute));
                         var availableEndMinute = Math.Min(shiftEndMinute, shiftStartMinute + effectiveCapacity);
@@ -956,18 +961,19 @@ public static class ManufacturingEndpoints
                                     x.ToSetupFamilyCode == operation.SetupFamilyCodeSnapshot);
                                 if (transition is { IsTransitionAllowed: false }) { transitionBlocked = true; break; }
                                 sequenceSetup = transition?.SetupMinutes ?? 0m;
-                                remaining += sequenceSetup;
+                                remaining += sequenceSetup * 60m;
                             }
+                            remaining = decimal.Ceiling(remaining);
                             setupResolved = true;
                         }
                         var allocationStartMinute = queueMinute;
                         var take = Math.Min(remaining, free);
-                        var allocationEndMinute = allocationStartMinute + decimal.ToInt32(decimal.Ceiling(take));
-                        if (take != decimal.Truncate(take)) take = allocationEndMinute - allocationStartMinute;
+                        var allocationEndMinute = allocationStartMinute + decimal.ToInt32(take);
                         if (take <= 0m) continue;
                         candidateAllocations.Add(new ManufacturingCapacityAllocation { TenantId = tenantId,
-                            ManufacturingOrderOperationId = operation.Id, WorkCenterId = candidateCenter.Id, ScheduledDate = day, AllocatedMinutes = take,
-                            StartMinuteOfDay = allocationStartMinute, EndMinuteOfDay = allocationEndMinute });
+                            ManufacturingOrderOperationId = operation.Id, WorkCenterId = candidateCenter.Id, ScheduledDate = day, AllocatedMinutes = decimal.Round(take / 60m, 2, MidpointRounding.AwayFromZero),
+                            StartMinuteOfDay = allocationStartMinute / 60, EndMinuteOfDay = (allocationEndMinute + 59) / 60,
+                            StartSecondOfDay = allocationStartMinute, EndSecondOfDay = allocationEndMinute });
                         candidateLoads[key] = candidateLoads.GetValueOrDefault(key) + take; remaining -= take;
                         first ??= day; firstMinute ??= allocationStartMinute; last = day; lastMinute = allocationEndMinute;
                         queueEnds[key] = allocationEndMinute;
@@ -975,13 +981,13 @@ public static class ManufacturingEndpoints
                     // Candidate exploration must not reserve machine time until selected.
                     foreach (var allocation in candidateAllocations) queueEnds.Remove((allocation.WorkCenterId, allocation.ScheduledDate));
                     foreach (var allocation in existingAllocations.Where(x => x.WorkCenterId == candidateCenter.Id))
-                        queueEnds[(allocation.WorkCenterId, allocation.ScheduledDate)] = Math.Max(queueEnds.GetValueOrDefault((allocation.WorkCenterId, allocation.ScheduledDate)), allocation.EndMinuteOfDay);
+                        queueEnds[(allocation.WorkCenterId, allocation.ScheduledDate)] = Math.Max(queueEnds.GetValueOrDefault((allocation.WorkCenterId, allocation.ScheduledDate)), allocation.EndSecond);
                     foreach (var allocation in proposedAllocations.Where(x => x.WorkCenterId == candidateCenter.Id))
-                        queueEnds[(allocation.WorkCenterId, allocation.ScheduledDate)] = Math.Max(queueEnds.GetValueOrDefault((allocation.WorkCenterId, allocation.ScheduledDate)), allocation.EndMinuteOfDay);
+                        queueEnds[(allocation.WorkCenterId, allocation.ScheduledDate)] = Math.Max(queueEnds.GetValueOrDefault((allocation.WorkCenterId, allocation.ScheduledDate)), allocation.EndSecondOfDay!.Value);
                     if (!transitionBlocked && setupResolved && remaining == 0m && first is { } firstDate && last is { } lastDate && firstMinute is { } firstStartMinute && lastMinute is { } lastEndMinute)
                     {
                         var candidateCost = decimal.Round((operation.SetupMinutes + operation.RunMinutes + sequenceSetup) / 60m *
-                            (candidateCenter.LaborCostPerHourBase + candidateCenter.OverheadCostPerHourBase), 4, MidpointRounding.AwayFromZero);
+                            (candidateCenter.LaborCostPerHourBase + candidateCenter.OverheadCostPerHourBase) + operation.PlannedEnergyCostBase, 4, MidpointRounding.AwayFromZero);
                         if (candidateCost <= 99999999999999.9999m)
                             candidatePlans.Add((candidateCenter, candidateAllocations, firstDate, lastDate, firstStartMinute, lastEndMinute, candidateCost,
                                 eligibleByOperation.TryGetValue(operation.Id, out var preference) && preference.Any(x => x.WorkCenterId == candidateCenter.Id && x.IsPreferred), sequenceSetup));
@@ -994,8 +1000,8 @@ public static class ManufacturingEndpoints
                 foreach (var allocation in selected.Allocations)
                 {
                     var key = (allocation.WorkCenterId, allocation.ScheduledDate);
-                    loads[key] = loads.GetValueOrDefault(key) + allocation.AllocatedMinutes;
-                    queueEnds[key] = Math.Max(queueEnds.GetValueOrDefault(key, centers[allocation.WorkCenterId].ShiftStartMinuteOfDay), allocation.EndMinuteOfDay);
+                    loads[key] = loads.GetValueOrDefault(key) + (allocation.EndSecondOfDay!.Value - allocation.StartSecondOfDay!.Value);
+                    queueEnds[key] = Math.Max(queueEnds.GetValueOrDefault(key, centers[allocation.WorkCenterId].ShiftStartMinuteOfDay * 60), allocation.EndSecondOfDay!.Value);
                 }
                 operation.WorkCenterId = selected.Center.Id;
                 operation.WorkCenterCodeSnapshot = selected.Center.Code;
@@ -1014,7 +1020,8 @@ public static class ManufacturingEndpoints
             {
                 var dates = proposedDates[operation.Id];
                 operation.ScheduledStartDate = dates.First; operation.ScheduledEndDate = dates.Last;
-                operation.ScheduledStartMinuteOfDay = dates.StartMinute; operation.ScheduledEndMinuteOfDay = dates.EndMinute;
+                operation.ScheduledStartSecondOfDay = dates.StartMinute; operation.ScheduledEndSecondOfDay = dates.EndMinute;
+                operation.ScheduledStartMinuteOfDay = dates.StartMinute / 60; operation.ScheduledEndMinuteOfDay = (dates.EndMinute + 59) / 60;
             }
             await db.SaveChangesAsync(ct); if (transaction is not null) await transaction.CommitAsync(ct);
             return Results.Ok(await ReadOrderAsync(db, tenantId, id, ct));
@@ -1504,7 +1511,7 @@ public static class ManufacturingEndpoints
                 o.PlannedEnergyCostPerKwhBase, o.PlannedEnergyCostBase, o.Status.ToString(),
                 o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase, o.StartedAt, o.CompletedAt,
                 db.ManufacturingCapacityAllocations.Where(a => a.TenantId == tenantId && a.ManufacturingOrderOperationId == o.Id)
-                    .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay)).ToList())).ToList(),
+                    .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay, a.StartSecondOfDay ?? a.StartMinuteOfDay * 60, a.EndSecondOfDay ?? a.EndMinuteOfDay * 60)).ToList(), o.ScheduledStartSecondOfDay ?? o.ScheduledStartMinuteOfDay * 60, o.ScheduledEndSecondOfDay ?? o.ScheduledEndMinuteOfDay * 60)).ToList(),
             Convert.ToBase64String(x.RowVersion))).SingleOrDefaultAsync(ct);
     private static async Task<IDbContextTransaction?> BeginMutationAsync(TenantDbContext db, CancellationToken ct) => db.Database.IsRelational()
         ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
@@ -1597,14 +1604,14 @@ public sealed record OrderView(Guid Id, string Code, Guid BillOfMaterialId, stri
     decimal PlannedQuantity, string Status, DateOnly PlannedDate, DateTimeOffset? CompletedAt, IReadOnlyList<OrderLineView> Lines,
     IReadOnlyList<ManufacturingOrderOperationView> Operations, string RowVersion);
 public sealed record OrderLineView(Guid ComponentStockItemId, string ComponentCode, string ComponentName, decimal RequiredQuantity, decimal StandardUnitCostBaseSnapshot, decimal PlannedCostBase);
-public sealed record CapacityDayView(DateOnly Date, decimal Minutes, int StartMinuteOfDay, int EndMinuteOfDay);
+public sealed record CapacityDayView(DateOnly Date, decimal Minutes, int StartMinuteOfDay, int EndMinuteOfDay, int StartSecondOfDay, int EndSecondOfDay);
 public sealed record ManufacturingOrderOperationView(Guid Id, int Sequence, Guid WorkCenterId, string WorkCenterCode, string WorkCenterName,
     decimal SetupMinutes, decimal RunMinutes, int MinimumWaitDaysAfterPrevious, string SetupFamilyCode, decimal SequenceSetupMinutes,
     decimal PlannedCostBase, DateOnly? ScheduledStartDate, DateOnly? ScheduledEndDate, int? ScheduledStartMinuteOfDay, int? ScheduledEndMinuteOfDay,
     decimal LaborCostPerHourBase, decimal OverheadCostPerHourBase, decimal PlannedEnergyQuantityKwh,
     decimal PlannedEnergyCostPerKwhBase, decimal PlannedEnergyCostBase, string Status, decimal? ActualSetupMinutes, decimal? ActualRunMinutes,
     decimal? ActualEnergyQuantityKwh, decimal? ActualEnergyCostPerKwhBase, decimal? ActualEnergyCostBase,
-    decimal? ActualCostBase, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt, IReadOnlyList<CapacityDayView> CapacityDays);
+    decimal? ActualCostBase, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt, IReadOnlyList<CapacityDayView> CapacityDays, int? ScheduledStartSecondOfDay, int? ScheduledEndSecondOfDay);
 public sealed record ManufacturingCompleteRequest(IReadOnlyList<InventoryTrackingAllocationRequest>? FinishedGoodsTracking = null,
     Guid? ComponentStorageLocationId = null, Guid? FinishedGoodsStorageLocationId = null);
 public sealed record ManufacturingOperationCompleteRequest(decimal ActualSetupMinutes, decimal ActualRunMinutes,

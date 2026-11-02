@@ -64,6 +64,7 @@ public static class EDocumentSubmissionRules
         {
             if (line.ValueKind != System.Text.Json.JsonValueKind.Object ||
                 !line.TryGetProperty("quantity", out var quantity) ||
+                quantity.ValueKind != System.Text.Json.JsonValueKind.Number ||
                 !quantity.TryGetDecimal(out var amount) || amount <= 0)
             {
                 errors.Add("invalid_document_line_quantity");

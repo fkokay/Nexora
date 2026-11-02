@@ -21,7 +21,7 @@ const CreditFacilitiesPage = lazy(() => import('./CreditFacilitiesPage'))
 
 
 
-function FinancePage({token,role,section,onNavigate}:{token:string;role:string;section:FinancePageKey;onNavigate?:(page:string)=>void}) {
+function FinancePage({token,role,section,onNavigate,createOnOpen=false}:{token:string;role:string;section:FinancePageKey;onNavigate?:(page:string)=>void;createOnOpen?:boolean}) {
   const financePageDescriptions:Record<FinancePageKey,string>={'finance-accounts':'Kasa hesaplarını, bakiyelerini ve hareketlerini yönetin.','finance-banks':'Banka hesaplarını, bakiyelerini ve ekstre hareketlerini yönetin.','finance-statements':'Banka ekstrelerini yükleyin, hareketlerle eşleştirin ve mutabakatı tamamlayın.','finance-cash-flow':'Kasa ve banka hareketlerini faaliyet sınıfı ve para birimine göre inceleyin.','finance-fx':'Baz para birimini, döviz kurlarını ve dönem sonu değerlemelerini yönetin.','finance-ledger':'Hesap planı, fiş ve mali raporlar için muhasebe çalışma alanı.','finance-ledger-chart':'Tenant hesaplarını yönetin.','finance-ledger-mappings':'Alt defter kaynaklarını muhasebe hesaplarıyla eşleştirin.','finance-journal-vouchers':'Manuel yevmiye fişi oluşturun; borç ve alacak toplamları kayıtta doğrulanır.','finance-trial-balance':'Dönem açılışlarını, borç/alacak hareketlerini ve kapanış bakiyelerini karşılaştırın.','finance-balance-sheet':'Belirlenen tarih itibarıyla varlık, yükümlülük ve özkaynak bakiyelerini görün.','finance-journal-ledger':'Yevmiye fişlerini ve muhasebeye aktarılmayı bekleyen kaynakları inceleyin.','finance-budget':'Dönemsel bütçe senaryolarını oluşturun ve defter gerçekleşenleriyle karşılaştırın.','finance-cash-budget':'Tahsilat ve ödemeleri planlayın; onaylanan planlar nakit tahminine yansır, muhasebe kaydı oluşturmaz.','finance-exposure':'Açık dövizli cari bakiyeleri güncel kurla inceleyin.','finance-maturities':'Açık satış ve alış faturalarını vade aralıklarına göre takip edin.','finance-instruments':'Alınan ve verilen çek/senetleri, vadeleri ve portföy hareketleriyle izleyin.','finance-credit-facilities':'Banka ve finansman kuruluşu limitlerini, vadeleri ve ödeme planlarını yönetin.','finance-credit-facility-create':'Kredi veya limit sözleşmesini tanımlayın.','finance-credit-schedule-create':'Ödeme planına yeni taksit ekleyin.','finance-credit-movement-create':'Kredi kullandırımını kasa/banka hesabına kaydedin.','finance-credit-repayment-create':'Kredi geri ödemesini kasa/banka hesabına kaydedin.','finance-credit-security-create':'Kredi teminatı veya garantisi tanımlayın.'}
   const isAccountsPage=section==='finance-accounts'||section==='finance-banks'
   const accountKind=section==='finance-banks'?'Bank':'Cash'
@@ -52,6 +52,7 @@ function FinancePage({token,role,section,onNavigate}:{token:string;role:string;s
     dialog.showModal();document.body.style.overflow='hidden'
     return()=>{dialog.close();document.body.style.overflow=previousOverflow}
   },[accountCreateOpen])
+  useEffect(()=>{if(createOnOpen&&section==='finance-accounts')setAccountCreateOpen(true)},[createOnOpen,section])
   useEffect(()=>{
     const dialog=statementImportDialog.current
     if(!statementImportOpen||!dialog)return

@@ -10499,6 +10499,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<int>("EndMinuteOfDay")
                         .HasColumnType("int");
 
+                    b.Property<int?>("EndSecondOfDay")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("ManufacturingOrderOperationId")
                         .HasColumnType("uniqueidentifier");
 
@@ -10506,6 +10509,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("date");
 
                     b.Property<int>("StartMinuteOfDay")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StartSecondOfDay")
                         .HasColumnType("int");
 
                     b.Property<Guid>("TenantId")
@@ -10526,6 +10532,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("ManufacturingCapacityAllocations", t =>
                         {
                             t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_Minutes", "[AllocatedMinutes] > 0");
+
+                            t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_SecondRange", "([StartSecondOfDay] IS NULL AND [EndSecondOfDay] IS NULL) OR ([StartSecondOfDay] IS NOT NULL AND [EndSecondOfDay] IS NOT NULL AND [StartSecondOfDay] BETWEEN 0 AND 86399 AND [EndSecondOfDay] BETWEEN 1 AND 86400 AND [EndSecondOfDay] > [StartSecondOfDay])");
 
                             t.HasCheckConstraint("CK_ManufacturingCapacityAllocations_TimeRange", "[StartMinuteOfDay] BETWEEN 0 AND 1439 AND [EndMinuteOfDay] BETWEEN 1 AND 1440 AND [EndMinuteOfDay] > [StartMinuteOfDay]");
                         });
@@ -10728,10 +10736,16 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<int?>("ScheduledEndMinuteOfDay")
                         .HasColumnType("int");
 
+                    b.Property<int?>("ScheduledEndSecondOfDay")
+                        .HasColumnType("int");
+
                     b.Property<DateOnly?>("ScheduledStartDate")
                         .HasColumnType("date");
 
                     b.Property<int?>("ScheduledStartMinuteOfDay")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ScheduledStartSecondOfDay")
                         .HasColumnType("int");
 
                     b.Property<int>("Sequence")
@@ -10800,6 +10814,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_ManufacturingOrderOperations_MinutesAndCost", "[Sequence] > 0 AND [SetupMinutes] >= 0 AND [RunMinutes] >= 0 AND [LaborCostPerHourBase] >= 0 AND [OverheadCostPerHourBase] >= 0 AND [PlannedCostBase] >= 0");
 
                             t.HasCheckConstraint("CK_ManufacturingOrderOperations_PlannedEnergy", "[PlannedEnergyQuantityKwh] >= 0 AND [PlannedEnergyCostPerKwhBase] >= 0 AND [PlannedEnergyCostBase] >= 0");
+
+                            t.HasCheckConstraint("CK_ManufacturingOrderOperations_SecondRange", "([ScheduledStartSecondOfDay] IS NULL OR [ScheduledStartSecondOfDay] BETWEEN 0 AND 86399) AND ([ScheduledEndSecondOfDay] IS NULL OR [ScheduledEndSecondOfDay] BETWEEN 1 AND 86400)");
                         });
                 });
 
