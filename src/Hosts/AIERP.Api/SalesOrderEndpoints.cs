@@ -9,7 +9,8 @@ public static class SalesOrderEndpoints
     public static void MapSalesOrderEndpoints(this WebApplication app)
     {
         var orders = app.MapGroup("/api/sales/orders").WithTags("Satış Siparişleri").RequireAuthorization();
-        orders.MapPost("/", async (SalesOrderWriteRequest request, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
+        orders.MapPost("/", async (SalesOrderWriteRequest request, ClaimsPrincipal principal, TenantDbContext db,
+            ILogger<Program> logger, CancellationToken ct) =>
         {
             if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
             var userId = Guid.TryParse(principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedUserId)
@@ -92,7 +93,20 @@ public static class SalesOrderEndpoints
             }
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "sales-order.created-direct", Resource = code });
             try { await db.SaveChangesAsync(ct); }
-            catch (DbUpdateException) { return Results.Conflict(new { error = "Sipariş kaydedilemedi. Sipariş numarasının benzersiz olduğunu kontrol edin." }); }
+            catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+            {
+                logger.LogWarning(ex, "Sales order code conflict for tenant {TenantId} and order {OrderCode}.", tenantId, code);
+                return Results.Conflict(new { error = "Bu satış siparişi numarası bu firmada zaten kullanılıyor.", code = "sales_order.code_conflict" });
+            }
+            catch (DbUpdateException ex)
+            {
+                logger.LogError(ex, "Could not persist sales order for tenant {TenantId} and order {OrderCode}.", tenantId, code);
+                return Results.Json(new
+                {
+                    error = "Sipariş kaydedilemedi. Veritabanında bir kayıt kısıtı oluştu; sistem günlüğünde ayrıntı kaydedildi.",
+                    code = "sales_order.persistence_failed"
+                }, statusCode: StatusCodes.Status500InternalServerError);
+            }
             return Results.Created($"/api/sales/orders/{order.Id}", new SalesOrderSummary(order.Id, order.Code, null, "Bağımsız", customer.Id,
                 customer.Name, order.OrderDate, order.CurrencyCode, order.Status, order.GrandTotal, order.Lines.Count, order.CreatedAt, order.RequestedDeliveryDate));
         });
@@ -123,4 +137,7 @@ public static class SalesOrderEndpoints
                 order.CreatedAt, order.RequestedDeliveryDate));
         });
     }
+
+    private static bool IsUniqueViolation(DbUpdateException exception) =>
+        exception.GetBaseException() is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 };
 }
