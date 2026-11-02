@@ -117,12 +117,12 @@ public static class SalesOrderEndpoints
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateException ex) when (IsUniqueViolation(ex))
             {
-                logger.LogWarning(ex, "Sales order code conflict for tenant {TenantId} and order {OrderCode}.", tenantId, code);
+                logger.LogWarning(ex, "Sales order code conflict for tenant {TenantId} and order {OrderCode}.", tenantId, SanitizeForLog(code));
                 return Results.Conflict(new { error = "Bu satış siparişi numarası bu firmada zaten kullanılıyor.", code = "sales_order.code_conflict" });
             }
             catch (DbUpdateException ex)
             {
-                logger.LogError(ex, "Could not persist sales order for tenant {TenantId} and order {OrderCode}.", tenantId, code);
+                logger.LogError(ex, "Could not persist sales order for tenant {TenantId} and order {OrderCode}.", tenantId, SanitizeForLog(code));
                 return Results.Json(new
                 {
                     error = "Sipariş kaydedilemedi. Veritabanında bir kayıt kısıtı oluştu; sistem günlüğünde ayrıntı kaydedildi.",
@@ -158,6 +158,14 @@ public static class SalesOrderEndpoints
                 order.Customer.Name, order.OrderDate, order.CurrencyCode, order.Status, order.GrandTotal, order.Lines.Count,
                 order.CreatedAt, order.RequestedDeliveryDate));
         });
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        return value
+            .Replace("\r", string.Empty)
+            .Replace("\n", string.Empty);
     }
 
     private static bool IsUniqueViolation(DbUpdateException exception) =>
