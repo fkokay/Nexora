@@ -1,0 +1,71 @@
+.purchase-delivery-notes-page{display:grid;gap:16px}.purchase-delivery-notes-page>.page-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.purchase-delivery-notes-page .page-heading h1{margin:4px 0 7px}.purchase-delivery-notes-page .page-heading .muted{max-width:760px;margin:0}.purchase-delivery-notes-page .panel>label,.purchase-delivery-notes-page form>label{display:grid;gap:6px;margin:10px 0;color:#555f73;font-size:11px;font-weight:600}.purchase-delivery-notes-page .panel input,.purchase-delivery-notes-page .panel select{min-width:0;min-height:37px;padding:7px 10px;border:1px solid #e3e6ee;border-radius:7px;background:#fff;color:#30394d;font:inherit}.purchase-delivery-notes-page .customer-table{min-width:700px}.purchase-delivery-notes-page .customer-table input{width:130px}.purchase-delivery-notes-page .form-inline{display:flex;align-items:center;gap:6px}.purchase-delivery-notes-page .form-inline select{max-width:180px}.purchase-delivery-notes-page .panel-heading{align-items:center}.purchase-delivery-notes-page .panel-heading b{font-size:13px}.purchase-delivery-notes-page .panel-heading small{display:block;margin-top:4px;color:#858da0;font-size:10px}.purchase-delivery-notes-page .modal-foot{margin-top:12px;padding-top:12px;border-top:1px solid #edf0f5}.purchase-delivery-notes-page .panel .muted{font-size:11px}@media(max-width:720px){.purchase-delivery-notes-page>.page-heading{flex-direction:column}.purchase-delivery-notes-page>.page-heading button{align-self:flex-start}.purchase-delivery-notes-page .modal-foot{align-items:flex-start;flex-direction:column}}
+
+/* Receiving documents use a compact purchasing workbench and readable forms. */
+.purchase-delivery-notes-page { gap: 14px; }
+.purchase-delivery-notes-page>.page-heading { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.purchase-delivery-notes-page .page-heading h1 { font-size: 27px; letter-spacing: -.025em; }
+.purchase-delivery-notes-page .panel { border-radius: 10px; box-shadow: none; }
+.purchase-delivery-notes-page .panel-heading { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.purchase-delivery-notes-page .panel>label,
+.purchase-delivery-notes-page form>label { gap: 5px; margin: 8px 0; font-size: 12px; }
+.purchase-delivery-notes-page .panel input,
+.purchase-delivery-notes-page .panel select { min-height: 40px; border-radius: 7px; }
+.purchase-delivery-notes-page .customer-table { min-width: 760px; }
+.purchase-delivery-notes-page .customer-table th { background: #f6f7fa; }
+.purchase-delivery-notes-page .customer-table th,
+.purchase-delivery-notes-page .customer-table td { padding: 10px 12px; }
+.purchase-delivery-notes-page .modal-foot { margin-top: 10px; padding-top: 10px; }
+
+/* Blue is reserved for selected purchasing records and primary commands. */
+.purchase-delivery-notes-page .customer-table tbody tr[aria-selected="true"] { background: #eaf3fb; box-shadow: inset 3px 0 #0f6cbd; }
+.purchase-delivery-notes-page .panel input:focus-visible,
+.purchase-delivery-notes-page .panel select:focus-visible { border-color: #0f6cbd; outline: 2px solid #0f6cbd24; }
+
+/* Dynamics document workbench: command area, operational summary, register and selected order context. */
+.purchase-delivery-notes-page { gap: 11px; max-width: 1500px; margin: 0 auto; }
+.purchase-delivery-notes-page>.purchase-note-commandbar { align-items: center; padding: 14px 17px; border: 1px solid #d6e0ec; border-radius: 7px; background: linear-gradient(100deg,#f8fbff,#edf4fb); }
+.purchase-delivery-notes-page .purchase-note-commandbar h1 { margin: 2px 0 4px; color: #172b4d; font-size: 22px; }
+.purchase-delivery-notes-page .purchase-note-commandbar .eyebrow,.purchase-delivery-notes-page .panel-heading .eyebrow { margin: 0 0 4px; color: #456b98; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+.purchase-note-overview { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid #d6e0ec; border-radius: 6px; background: #fff; }
+.purchase-note-overview>div { display: grid; gap: 3px; min-width: 0; padding: 9px 12px; border-right: 1px solid #e5ebf2; }
+.purchase-note-overview>div:last-child { border-right: 0; }
+.purchase-note-overview span,.purchase-note-overview small { color: #687b91; font-size: 9px; }
+.purchase-note-overview b { overflow: hidden; color: #203958; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.purchase-delivery-notes-page>.panel { min-width: 0; padding: 15px; border: 1px solid #d6e0ec; border-radius: 7px; box-shadow: 0 1px 2px #1f35560a; }
+.purchase-delivery-notes-page>.panel .panel-heading { align-items: center; padding-bottom: 9px; border-bottom: 1px solid #e5ebf2; }
+.purchase-delivery-notes-page>.panel .panel-heading b { color: #203958; font-size: 12px; }
+.purchase-delivery-notes-page>.panel .form-inline { margin: 9px 0; }
+.purchase-delivery-notes-page>.panel .form-inline>input { flex: 1; }
+.purchase-delivery-notes-page .purchase-note-list-panel .ledger-list { max-height: 390px; }
+.purchase-delivery-notes-page .purchase-note-list-panel .customer-table { min-width: 900px; }
+.purchase-delivery-notes-page .purchase-note-list-panel .customer-table th { position: sticky; top: 0; z-index: 1; color: #536982; background: #f3f6fa; font-size: 9px; }
+.purchase-delivery-notes-page .purchase-note-list-panel .customer-table td { font-size: 10px; }
+.purchase-delivery-notes-page .purchase-note-order-controls { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(240px,.9fr); gap: 12px; align-items: end; }
+.purchase-delivery-notes-page .purchase-note-order-controls>label { display: grid; gap: 5px; color: #455d79; font-size: 10px; font-weight: 650; }
+.purchase-delivery-notes-page .purchase-note-compose-panel .panel-heading>svg { color: #0f6cbd; }
+.purchase-delivery-notes-page .purchase-note-compose-panel .form-two { gap: 12px; }
+.purchase-delivery-notes-page .purchase-note-compose-panel .customer-table { min-width: 650px; }
+.purchase-delivery-notes-page .purchase-note-compose-panel .customer-table th { color: #536982; background: #f3f6fa; font-size: 9px; }
+.purchase-delivery-notes-page .purchase-note-related-panel .customer-table { min-width: 650px; }
+.purchase-delivery-notes-page .purchase-note-related-panel .form-inline { flex-wrap: nowrap; }
+.purchase-delivery-notes-page .purchase-note-related-panel .form-inline select { min-width: 115px; }
+.purchase-delivery-notes-page .table-pagination { margin-top: 8px; }
+.purchase-delivery-notes-page .row-action { color: #0f6cbd; }
+.purchase-delivery-notes-page .row-action.danger-action { color: #b54743; }
+.purchase-delivery-notes-page .modal .ledger-list { max-height: 42vh; overflow: auto; }
+@media(min-width:1400px) {
+  .purchase-delivery-notes-page.has-selected-order { grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); align-items: start; }
+  .purchase-delivery-notes-page.has-selected-order>.page-heading,
+  .purchase-delivery-notes-page.has-selected-order>.purchase-note-overview,
+  .purchase-delivery-notes-page.has-selected-order>.alert,
+  .purchase-delivery-notes-page.has-selected-order>.notice,
+  .purchase-delivery-notes-page.has-selected-order>.purchase-note-list-panel,
+  .purchase-delivery-notes-page.has-selected-order>.purchase-note-order-panel,
+  .purchase-delivery-notes-page.has-selected-order>.table-pagination { grid-column: 1/-1; }
+}
+@media(max-width:760px) {
+  .purchase-note-overview { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .purchase-note-overview>div:nth-child(2) { border-right: 0; }
+  .purchase-note-overview>div:nth-child(-n+2) { border-bottom: 1px solid #e5ebf2; }
+  .purchase-delivery-notes-page .purchase-note-order-controls { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,55 @@
+{
+  "scannedAtUtc": "2026-10-19T09:58:21.3904349+00:00",
+  "scanner": "Docker Scout CLI",
+  "imagesScanned": 1,
+  "totals": {
+    "critical": 0,
+    "high": 4,
+    "medium": 16,
+    "low": 5,
+    "unspecified": 2
+  },
+  "images": [
+    {
+      "image": "docker-workspace-sandbox:latest",
+      "digest": "sha256:5168358c91320d7d484a7c955d6f3941f603d4c70239c2569fe1eec2f6540580",
+      "vulnerabilityCount": 27,
+      "bySeverity": {
+        "critical": 0,
+        "high": 4,
+        "medium": 16,
+        "low": 5,
+        "unspecified": 2
+      },
+      "cves": [
+        "CVE-2025-69644",
+        "CVE-2025-69647",
+        "CVE-2025-69648",
+        "CVE-2025-69649",
+        "CVE-2025-69650",
+        "CVE-2025-69651",
+        "CVE-2025-69652",
+        "CVE-2025-8732",
+        "CVE-2026-0989",
+        "CVE-2026-101910",
+        "CVE-2026-101911",
+        "CVE-2026-101912",
+        "CVE-2026-101913",
+        "CVE-2026-104844",
+        "CVE-2026-11979",
+        "CVE-2026-13346",
+        "CVE-2026-56288",
+        "CVE-2026-56289",
+        "CVE-2026-6846",
+        "CVE-2026-86137",
+        "CVE-2026-86138",
+        "CVE-2026-86139",
+        "CVE-2026-86140",
+        "CVE-2026-86141",
+        "CVE-2026-86142",
+        "CVE-2026-86143",
+        "CVE-2026-86144"
+      ]
+    }
+  ]
+}

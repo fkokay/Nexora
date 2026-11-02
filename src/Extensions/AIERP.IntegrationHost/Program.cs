@@ -44,6 +44,7 @@ builder.Services.AddRateLimiter(options => options.AddFixedWindowLimiter("integr
     limiter.QueueLimit = 0;
 }));
 var app = builder.Build();
+app.UseAierpSecurityHeaders();
 app.UseAierpHttpMetrics();
 app.UseRouting();
 app.UseAuthentication();

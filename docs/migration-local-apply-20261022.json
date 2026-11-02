@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-22",
+  "environment": "local Docker SQL Server 2022 development only",
+  "productionAccessed": false,
+  "package": "artifacts/migrations/2026-10-22/",
+  "backups": {
+    "directory": "D:\\Nexora-Migration-Backups\\20261022T125215Z_local-package-apply",
+    "method": "COPY_ONLY, CHECKSUM",
+    "restoreVerifyOnlyWithChecksum": "passed before migration",
+    "files": [
+      {
+        "database": "AIERPPlatform",
+        "file": "AIERPPlatform.bak",
+        "sha256": "09372e37fa2b297b8ec8227c57a0c641aacb21160a6cfe1566d5d03f4155bddf"
+      },
+      {
+        "database": "AIERPTenant_912df12f4e3144bea20735cca5834485",
+        "file": "AIERPTenant_912df12f4e3144bea20735cca5834485.bak",
+        "sha256": "72787a8a9fdc4df03d74f41e7daae40827613e17e6be5dbebd3489eb532c7356"
+      }
+    ]
+  },
+  "applications": [
+    {
+      "database": "AIERPPlatform",
+      "script": "platform-incremental.sql",
+      "before": {
+        "count": 120,
+        "latest": "20261021114203_AddTenantScreenViews"
+      },
+      "after": {
+        "count": 123,
+        "latest": "20261022122258_AddSequenceDependentManufacturingSetups"
+      },
+      "result": "passed"
+    },
+    {
+      "database": "AIERPTenant_912df12f4e3144bea20735cca5834485",
+      "script": "tenant-incremental.sql",
+      "before": {
+        "count": 35,
+        "latest": "20261021114219_AddTenantScreenViews"
+      },
+      "after": {
+        "count": 42,
+        "latest": "20261022121926_AddSequenceDependentManufacturingSetups"
+      },
+      "result": "passed"
+    },
+    {
+      "database": "AIERPStudio",
+      "before": {
+        "count": 10,
+        "latest": "20261017134712_AddStudioKnowledgeRefreshConsentAIStudio"
+      },
+      "after": {
+        "count": 10,
+        "latest": "20261017134712_AddStudioKnowledgeRefreshConsentAIStudio"
+      },
+      "result": "no migration pending"
+    }
+  ],
+  "postApplyChecks": {
+    "dbccCheckdbPhysicalOnly": "passed for Platform and Tenant",
+    "platformApiHealth": 200,
+    "aiServiceHealth": 200,
+    "erpWeb": 200,
+    "developmentStudio": 200,
+    "servicesHealthy": true
+  },
+  "limitations": [
+    "This record applies only to the local development databases listed above.",
+    "No production database or external customer target was accessed.",
+    "The backup set is preserved on D:; do not delete until a separate backup-retention decision."
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "compatibility": "NOT_PROVEN: migration history ordering and package integrity only; execute on an isolated restore of target data to prove schema/data compatibility.",
+  "contexts": [
+    {
+      "context": "PlatformDbContext",
+      "database": "AIERPPlatform",
+      "targetApplied": 123,
+      "releaseMigrations": 124,
+      "pending": 1,
+      "latest": "20261022130452_AddIntradayManufacturingScheduling"
+    },
+    {
+      "context": "TenantDbContext",
+      "database": "AIERPTenant_<tenant-guid>",
+      "targetApplied": 42,
+      "releaseMigrations": 43,
+      "pending": 1,
+      "latest": "20261022130311_AddIntradayManufacturingScheduling"
+    },
+    {
+      "context": "AIStudioDbContext",
+      "database": "AIERPStudio",
+      "targetApplied": 10,
+      "releaseMigrations": 10,
+      "pending": 0,
+      "latest": "20261017134712_AddStudioKnowledgeRefreshConsentAIStudio"
+    }
+  ],
+  "status": "passed-static-history-preflight",
+  "checkedAtUtc": "2026-10-22T13:26:06.0086050Z"
+}

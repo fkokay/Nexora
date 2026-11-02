@@ -48,11 +48,13 @@ public sealed class TenantWorkflowSchemaTests
 
         var denied = TenantWorkflowSchema.Decide("Pending", steps, 0, user, requester, "TenantDeveloper", "Approved");
         var selfDecision = TenantWorkflowSchema.Decide("Pending", steps, 0, requester, requester, "TenantAdmin", "Approved");
+        var adminSelfDecision = TenantWorkflowSchema.Decide("Pending", steps, 0, requester, requester, "TenantAdmin", "Approved", allowRequesterDecision: true);
         var advanced = TenantWorkflowSchema.Decide("Pending", steps, 0, user, requester, "TenantAdmin", "Approved");
         var completed = TenantWorkflowSchema.Decide("Pending", steps, 1, user, requester, "TenantDeveloper", "Approved");
 
         Assert.False(denied.IsAllowed);
         Assert.False(selfDecision.IsAllowed);
+        Assert.True(adminSelfDecision.IsAllowed);
         Assert.True(advanced.IsAllowed);
         Assert.Equal("Pending", advanced.Status);
         Assert.Equal(1, advanced.CurrentStepIndex);

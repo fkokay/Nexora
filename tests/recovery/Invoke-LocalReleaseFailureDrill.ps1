@@ -5,6 +5,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$contractModule = Join-Path $PSScriptRoot 'LocalReleaseFailureDrillContract.psm1'
+Import-Module $contractModule -Force
 $docker = (Get-Command docker -ErrorAction Stop).Source
 if ($ContainerName -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$') {
     throw 'ContainerName contains unsupported characters.'
@@ -172,7 +174,13 @@ $report = [ordered]@{
     targetSurvivedFailedRestore = $targetSurvivedFailedRestore
     safetyBackupRestoredAndDbccChecked = $safetyRestoreSucceeded
     temporaryArtifactsRemoved = $cleanupSucceeded
-    status = if ([string]::IsNullOrEmpty($drillError) -and $cleanupSucceeded -and $migrationRolledBack -and $failedRestoreRejected -and $safetyRestoreSucceeded) { 'passed' } else { 'failed' }
+    status = if (Test-LocalReleaseFailureDrillPassed `
+        -HasError (-not [string]::IsNullOrEmpty($drillError)) `
+        -CleanupSucceeded $cleanupSucceeded `
+        -MigrationRolledBack $migrationRolledBack `
+        -CorruptRestoreRejected $failedRestoreRejected `
+        -TargetSurvivedFailedRestore $targetSurvivedFailedRestore `
+        -SafetyRestoreSucceeded $safetyRestoreSucceeded) { 'passed' } else { 'failed' }
     failedStage = if ($drillError) { $stage } else { $null }
     error = $drillError
 }

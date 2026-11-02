@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-23",
+  "package": "2026-10-23-r1",
+  "status": "blocked-before-sql-execution",
+  "checkedAtUtc": "2026-10-23T07:30:50.5231136Z",
+  "runbook": "docs/production-ha-acceptance-runbook.md",
+  "findings": {
+    "docker": {
+      "cli": "available",
+      "serverConnection": "unavailable",
+      "endpointError": "npipe:////./pipe/dockerDesktopLinuxEngine: Docker Desktop Linux engine pipe not found",
+      "dockerService": "stopped",
+      "containerAndVolumeEnumeration": "unavailable because daemon was not reachable",
+      "daemonStarted": false
+    },
+    "packageIntegrity": "passed: artifacts/migrations/2026-10-23-r1/SHA256SUMS.txt",
+    "staticHistoryPreflight": {
+      "status": "passed-static-history-preflight",
+      "scope": "bundled last-known r3 history only; no database queried",
+      "platform": "124 of 125; expected r3 prefix through 20261022130452_AddIntradayManufacturingScheduling; 1 pending",
+      "tenant": "44 of 46; expected r3 prefix through 20261022145500_AddAnnualWorkCenterCapacityRules; 2 pending",
+      "aiStudio": "10 of 10; no pending r1 migration"
+    },
+    "backupAndRestore": "not performed: no accessible SQL Server or isolated target; no full checksum backup or RESTORE VERIFYONLY/restore/DBCC evidence",
+    "migration": "not applied",
+    "scratch": {
+      "createdByThisRehearsal": false,
+      "cleanup": "not applicable; this attempt created no containers, databases, or volumes",
+      "globalExistingResourceEnumeration": "unverified because Docker daemon was unavailable"
+    }
+  },
+  "productionQueried": false,
+  "productionChanged": false,
+  "platformTenantStudioOrExistingDockerVolumesTouched": false,
+  "commitOrPush": false,
+  "releaseGate": "NO-GO: isolated scratch SQL Server and real restored-history/backup verification unavailable; do not apply scripts until runbook gates are met"
+}

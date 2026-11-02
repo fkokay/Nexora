@@ -1,0 +1,1013 @@
+import { useEffect, useState } from "react";
+import type * as AppTypes from "./erp-types";
+import { api, localDateString } from "./erpApi";
+import {
+  ArrowLeftRight,
+  Boxes,
+  FilePlus2,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
+import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
+import { SalesInvoiceModal } from "./SalesInvoiceModal";
+import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
+type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
+type SalesCustomer = AppTypes.SalesCustomer;
+type SalesDeliverySummary = AppTypes.SalesDeliverySummary;
+type SalesInvoiceCustomFieldDefinition =
+  AppTypes.SalesInvoiceCustomFieldDefinition;
+type StockItem = AppTypes.StockItem;
+type Warehouse = AppTypes.Warehouse;
+
+export function SalesDeliveriesScreen({
+  token,
+  role,
+  warehouses,
+  customers,
+  stockItems,
+}: {
+  token: string;
+  role: string;
+  warehouses: Warehouse[];
+  customers: SalesCustomer[];
+  stockItems: StockItem[];
+}) {
+  const [items, setItems] = useState<SalesDeliverySummary[]>([]),
+    [total, setTotal] = useState(0),
+    [page, setPage] = useState(1),
+    [search, setSearch] = useState(""),
+    [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [screenFields, setScreenFields] = useState<BuiltInScreenLayoutField[]>([
+    { key: "code", label: "İrsaliye no", visible: true, position: 0 },
+    { key: "orderCode", label: "Sipariş no", visible: true, position: 1 },
+    { key: "deliveryDate", label: "Sevk tarihi", visible: true, position: 2 },
+    { key: "warehouseName", label: "Depo", visible: true, position: 3 },
+    { key: "lineCount", label: "Satır", visible: true, position: 4 },
+    { key: "status", label: "Durum", visible: true, position: 5 },
+    { key: "invoiceStatus", label: "Fatura", visible: true, position: 6 },
+    {
+      key: "actions",
+      label: "İşlemler",
+      visible: true,
+      position: 7,
+      fixed: true,
+    },
+  ]);
+  const [detail, setDetail] = useState<{
+    id: string;
+    code: string;
+    orderId: string | null;
+    orderCode: string | null;
+    warehouseName: string;
+    deliveryDate: string;
+    status: "Posted" | "Voided";
+    lines: {
+      orderLineNumber: number;
+      stockItemId: string;
+      stockCode: string;
+      stockName: string;
+      unitCode: string;
+      quantity: number;
+    }[];
+    hasSalesInvoice: boolean;
+    invoiceStatus: "Posted" | "Voided" | null;
+    invoiceId: string | null;
+  } | null>(null);
+  const [invoiceEditing, setInvoiceEditing] = useState(false),
+    [invoiceCustomerId, setInvoiceCustomerId] = useState(""),
+    [invoiceDate, setInvoiceDate] = useState(localDateString());
+  const [invoiceLines, setInvoiceLines] = useState<
+    {
+      orderLineNumber: number;
+      unitPrice: string;
+      discountPercent: string;
+      vatPercent: string;
+    }[]
+  >([]);
+  const [invoiceCustomFields, setInvoiceCustomFields] = useState<
+      SalesInvoiceCustomFieldDefinition[]
+    >([]),
+    [invoiceCustomFieldValues, setInvoiceCustomFieldValues] = useState<
+      Record<string, string>
+    >({});
+  const [invoiceId, setInvoiceId] = useState<string | null>(null),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!detail) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDetail(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [detail]);
+  const pageSize = 25;
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await api<{
+        items: SalesDeliverySummary[];
+        totalCount: number;
+      }>(`/api/sales/deliveries/?page=${page}&pageSize=${pageSize}`, token);
+      setItems(result.items);
+      setTotal(result.totalCount);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [token, page]);
+  useEffect(() => {
+    let active = true;
+    void api<SalesInvoiceCustomFieldDefinition[]>(
+      "/api/sales/invoices/custom-fields",
+      token,
+    )
+      .then((fields) => {
+        if (active) setInvoiceCustomFields(fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    api<{ fields: BuiltInScreenLayoutField[] }>(
+      "/api/screen-views/sales-deliveries/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length)
+          setScreenFields(
+            view.fields.map((field, index) => ({
+              ...field,
+              fixed: field.key === "actions",
+              position: field.position ?? index,
+            })),
+          );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+  const filtered = items.filter(
+    (x) =>
+      !search ||
+      `${x.code} ${x.orderCode} ${x.warehouseName}`
+        .toLocaleLowerCase("tr")
+        .includes(search.toLocaleLowerCase("tr")),
+  );
+  const selected =
+    filtered.find((x) => x.id === selectedId) ?? filtered[0] ?? null;
+  const visibleFields = screenFields
+    .filter((field) => field.visible)
+    .sort((a, b) => a.position - b.position);
+  function renderField(
+    item: SalesDeliverySummary,
+    field: BuiltInScreenLayoutField,
+  ) {
+    switch (field.key) {
+      case "code":
+        return (
+          <button
+            type="button"
+            className="erp-link-button customer-code"
+            aria-haspopup="dialog"
+            aria-label={`${item.code} irsaliye ayrıntılarını aç`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setSelectedId(item.id);
+              void open(item.id);
+            }}
+          >
+            {item.code}
+          </button>
+        );
+      case "orderCode":
+        return item.orderCode || "—";
+      case "deliveryDate":
+        return item.deliveryDate.split("-").reverse().join(".");
+      case "warehouseName":
+        return item.warehouseName;
+      case "lineCount":
+        return item.lineCount;
+      case "status":
+        return (
+          <span
+            className={`quote-status ${item.status === "Posted" ? "accepted" : "rejected"}`}
+          >
+            {item.status === "Posted" ? "Sevk edildi" : "İptal"}
+          </span>
+        );
+      case "invoiceStatus":
+        return item.invoiceId ? (
+          <button
+            className="row-action"
+            onClick={() => setInvoiceId(item.invoiceId)}
+          >
+            Faturayı aç
+          </button>
+        ) : (
+          <span className="cell-subtitle">Yok</span>
+        );
+      case "actions":
+        return (
+          <div className="row-actions">
+            {item.status === "Posted" && !item.hasSalesInvoice && (
+              <button
+                className="row-action"
+                disabled={busy}
+                onClick={() =>
+                  void (item.orderId
+                    ? createInvoice(item.id)
+                    : startOrderlessInvoice(item.id))
+                }
+              >
+                {busy ? "İşleniyor…" : "Faturalaştır"}
+              </button>
+            )}
+            {item.invoiceId && (
+              <button
+                className="row-action"
+                onClick={() => setInvoiceId(item.invoiceId)}
+              >
+                Faturayı aç
+              </button>
+            )}
+            <button className="row-action" onClick={() => void open(item.id)}>
+              Satırları gör
+            </button>
+            {item.status === "Posted" && (
+              <button
+                className="row-action danger-action"
+                disabled={
+                  busy ||
+                  role !== "TenantAdmin" ||
+                  item.invoiceStatus === "Posted"
+                }
+                title={
+                  role !== "TenantAdmin"
+                    ? "İrsaliye iptali için yönetici yetkisi gerekir."
+                    : item.invoiceStatus === "Posted"
+                      ? "Önce bağlı satış faturasını iptal edin."
+                      : "İrsaliyeyi iptal et ve stok çıkışını geri al"
+                }
+                onClick={() => void voidDelivery(item)}
+              >
+                İptal et
+              </button>
+            )}
+            {item.status === "Posted" &&
+              role === "TenantAdmin" &&
+              item.invoiceStatus === "Posted" && (
+                <small className="cell-subtitle">
+                  Önce bağlı faturayı iptal edin.
+                </small>
+              )}
+            {role === "TenantAdmin" && (
+              <button
+                className="row-action danger-action"
+                disabled={busy || item.status !== "Voided"}
+                title={
+                  item.status !== "Voided"
+                    ? "Silmeden önce irsaliyeyi iptal edin."
+                    : "İrsaliyeyi listeden kaldır"
+                }
+                onClick={() => void deleteDelivery(item)}
+              >
+                Sil
+              </button>
+            )}
+            {item.status === "Posted" &&
+              role === "TenantAdmin" &&
+              item.invoiceStatus !== "Posted" && (
+                <small className="cell-subtitle">
+                  Silmek için önce irsaliyeyi iptal edin.
+                </small>
+              )}
+          </div>
+        );
+      default:
+        return null;
+    }
+  }
+  async function open(id: string) {
+    setError("");
+    setInvoiceEditing(false);
+    try {
+      setDetail(
+        await api<NonNullable<typeof detail>>(
+          `/api/sales/deliveries/${id}`,
+          token,
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function startOrderlessInvoice(id: string) {
+    setBusy(true);
+    setError("");
+    try {
+      const loaded = await api<NonNullable<typeof detail>>(
+        `/api/sales/deliveries/${id}`,
+        token,
+      );
+      setDetail(loaded);
+      setInvoiceCustomerId("");
+      setInvoiceDate(localDateString());
+      setInvoiceCustomFieldValues({});
+      setInvoiceLines(
+        loaded.lines.map((line) => ({
+          orderLineNumber: line.orderLineNumber,
+          unitPrice: "0",
+          discountPercent: "0",
+          vatPercent: "20",
+        })),
+      );
+      setInvoiceEditing(true);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function createInvoice(id: string, request?: Record<string, unknown>) {
+    setBusy(true);
+    setError("");
+    try {
+      const invoice = await api<{ id: string }>(
+        `/api/sales/deliveries/${id}/invoice`,
+        token,
+        {
+          method: "POST",
+          ...(request ? { body: JSON.stringify(request) } : {}),
+        },
+      );
+      setInvoiceEditing(false);
+      setInvoiceId(invoice.id);
+      await load();
+      if (detail?.id === id) await open(id);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const invoiceCustomFieldsPayload = Object.fromEntries(
+    invoiceCustomFields.map((field) => [
+      field.code,
+      invoiceCustomFieldValues[field.code] || "",
+    ]),
+  );
+  function renderInvoiceCustomFieldInputs() {
+    return (
+      invoiceCustomFields.length > 0 && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <b>Fatura özel alanları</b>
+              <small>Tenant tarafından tanımlanan ek bilgiler</small>
+            </div>
+          </div>
+          <div className="form-two">
+            {invoiceCustomFields.map((field) => (
+              <label key={field.id}>
+                {field.label}
+                {field.isRequired ? " *" : ""}
+                <small>
+                  {field.code} · {field.dataType}
+                </small>
+                {field.dataType === "Boolean" ? (
+                  <select
+                    required={field.isRequired}
+                    value={invoiceCustomFieldValues[field.code] || ""}
+                    onChange={(event) =>
+                      setInvoiceCustomFieldValues((values) => ({
+                        ...values,
+                        [field.code]: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Seçin</option>
+                    <option value="true">Evet</option>
+                    <option value="false">Hayır</option>
+                  </select>
+                ) : (
+                  <input
+                    type={
+                      field.dataType === "Decimal"
+                        ? "number"
+                        : field.dataType === "Date"
+                          ? "date"
+                          : "text"
+                    }
+                    step={field.dataType === "Decimal" ? "any" : undefined}
+                    maxLength={
+                      field.dataType === "Text" ? field.maxLength : undefined
+                    }
+                    required={field.isRequired}
+                    value={invoiceCustomFieldValues[field.code] || ""}
+                    onChange={(event) =>
+                      setInvoiceCustomFieldValues((values) => ({
+                        ...values,
+                        [field.code]: event.target.value,
+                      }))
+                    }
+                  />
+                )}
+              </label>
+            ))}
+          </div>
+        </section>
+      )
+    );
+  }
+  async function deleteDelivery(item: SalesDeliverySummary) {
+    if (
+      !window.confirm(
+        `${item.code} irsaliyesi silinsin mi? Belge listeden kaldırılır; stok hareketleri ve denetim kayıtları korunur.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      await api<void>(`/api/sales/deliveries/${item.id}`, token, {
+        method: "DELETE",
+      });
+      setDetail(null);
+      setSelectedId(null);
+      if (items.length === 1 && page > 1) setPage(page - 1);
+      else await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function voidDelivery(item: SalesDeliverySummary) {
+    if (
+      !window.confirm(
+        `${item.code} irsaliyesi iptal edilsin mi? Stok çıkışı ters hareketle geri alınır.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      await api<void>(`/api/sales/deliveries/${item.id}/void`, token, {
+        method: "POST",
+      });
+      setDetail(null);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div
+      className={`delivery-screen${creating ? " delivery-create-screen" : ""}`}
+    >
+      <div className="page-heading customer-heading">
+        <div>
+          <p className="eyebrow">ERP CORE · SATIŞ</p>
+          <h1>{creating ? "Yeni satış irsaliyesi" : "Satış irsaliyeleri"}</h1>
+          <p className="muted">
+            {creating
+              ? "Siparişe bağlı olmadan sevk belgesi taslağı oluşturun."
+              : "Sevk edilen sipariş satırlarını, depoları ve bağlı faturaları izleyin."}
+          </p>
+        </div>
+        {creating ? (
+          <button className="secondary" onClick={() => setCreating(false)}>
+            <ArrowLeftRight size={15} />
+            İrsaliye listesine dön
+          </button>
+        ) : (
+          <button className="primary" onClick={() => setCreating(true)}>
+            <Plus size={16} />
+            Yeni irsaliye
+          </button>
+        )}
+      </div>
+      {error && (
+        <div className="alert inline-alert" role="alert">
+          {error}
+          <button onClick={() => setError("")}>
+            <X size={15} />
+          </button>
+        </div>
+      )}
+      {creating ? (
+        <StandaloneFulfillmentPanel
+          token={token}
+          sales
+          customers={customers}
+          stockItems={stockItems}
+          warehouses={warehouses}
+        />
+      ) : (
+        <>
+          <div className="customer-summary">
+            <div className="customer-summary-icon">
+              <Boxes size={19} />
+            </div>
+            <div>
+              <b>{total} satış irsaliyesi</b>
+              <small>Siparişe bağlı sevkiyatlar burada listelenir.</small>
+            </div>
+          </div>
+          <div className="customer-toolbar">
+            <label className="customer-search">
+              <Search size={16} />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="İrsaliye, sipariş veya depo ara"
+              />
+            </label>
+            <span className="date-pill">
+              {loading
+                ? "Yükleniyor…"
+                : `${total === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} / ${total}`}
+            </span>
+            <button
+              className="secondary"
+              disabled={loading}
+              onClick={() => void load()}
+            >
+              Yenile
+            </button>
+          </div>
+          <div className="customer-table-wrap">
+            <table className="customer-table quote-table">
+              <thead>
+                <ScreenViewGroupHeader fields={visibleFields} />
+                <tr>
+                  {visibleFields.map((field) => (
+                    <th key={field.key}>{field.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={visibleFields.length} className="table-empty">
+                      İrsaliyeler yükleniyor…
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={visibleFields.length} className="table-empty">
+                      {search
+                        ? "Aramanızla eşleşen irsaliye yok."
+                        : "Henüz satış irsaliyesi yok. İrsaliye, açık sipariş ayrıntısından oluşturulur."}
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((item) => (
+                    <tr
+                      key={item.id}
+                      className={
+                        selected?.id === item.id ? "erp-selected-row" : ""
+                      }
+                      onClick={() => setSelectedId(item.id)}
+                      aria-selected={selected?.id === item.id}
+                    >
+                      {visibleFields.map((field) => (
+                        <td key={field.key}>{renderField(item, field)}</td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="table-pagination">
+            <span>
+              Sayfa {page} / {Math.max(1, Math.ceil(total / pageSize))}
+            </span>
+            <div>
+              <button
+                className="secondary"
+                disabled={page <= 1 || loading}
+                onClick={() => setPage((x) => Math.max(1, x - 1))}
+              >
+                Önceki
+              </button>
+              <button
+                className="secondary"
+                disabled={page * pageSize >= total || loading}
+                onClick={() => setPage((x) => x + 1)}
+              >
+                Sonraki
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+      {detail && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setDetail(null);
+          }}
+        >
+          <div
+            className="modal sales-detail-modal sales-delivery-detail-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sales-delivery-detail-title"
+          >
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">SATIŞ · SEVK BELGESİ</p>
+                <h2 id="sales-delivery-detail-title">İrsaliye ayrıntısı</h2>
+                <span className="delivery-document-code">{detail.code}</span>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="İrsaliye ayrıntısını kapat"
+                onClick={() => setDetail(null)}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <div className="delivery-detail-statusbar">
+              <span
+                className={`quote-status ${detail.status === "Posted" ? "accepted" : "rejected"}`}
+              >
+                {detail.status === "Posted" ? "Sevk edildi" : "İptal edildi"}
+              </span>
+              <span>Satış irsaliyesi</span>
+            </div>
+            <section
+              className="delivery-detail-summary"
+              aria-label="İrsaliye bilgileri"
+            >
+              <article>
+                <small>İrsaliye numarası</small>
+                <b>{detail.code}</b>
+                <span>Belge numarası</span>
+              </article>
+              <article>
+                <small>Bağlı sipariş</small>
+                <b>{detail.orderCode}</b>
+                <span>Satış siparişi</span>
+              </article>
+              <article>
+                <small>Sevk deposu</small>
+                <b>{detail.warehouseName}</b>
+                <span>Stok çıkış noktası</span>
+              </article>
+              <article>
+                <small>Sevk tarihi</small>
+                <b>{detail.deliveryDate.split("-").reverse().join(".")}</b>
+                <span>{detail.lines.length} stok kalemi</span>
+              </article>
+            </section>
+            <section className="delivery-detail-lines-section">
+              <div className="delivery-detail-section-head">
+                <div>
+                  <p className="eyebrow">SEVK İÇERİĞİ</p>
+                  <h3>İrsaliye kalemleri</h3>
+                </div>
+                <span>{detail.lines.length} satır</span>
+              </div>
+              <div className="customer-table-wrap sales-delivery-lines-wrap">
+                <table className="customer-table sales-delivery-lines-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Stok kartı</th>
+                      <th>Sipariş satırı</th>
+                      <th>Sevk miktarı</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.lines.map((line, index) => (
+                      <tr
+                        key={`${line.orderLineNumber}-${line.stockItemId}-${index}`}
+                      >
+                        <td>{index + 1}</td>
+                        <td>
+                          <b>{line.stockCode}</b>
+                          <small className="cell-subtitle">
+                            {line.stockName}
+                          </small>
+                        </td>
+                        <td>{line.orderLineNumber}</td>
+                        <td>
+                          <strong>
+                            {line.quantity.toLocaleString("tr-TR", {
+                              maximumFractionDigits: 4,
+                            })}
+                          </strong>
+                          <span className="delivery-line-unit">
+                            {line.unitCode}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {detail.lines.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="table-empty">
+                          İrsaliye kalemi bulunamadı.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            <section className="delivery-detail-invoice">
+              <div>
+                <p className="eyebrow">FATURA BAĞLANTISI</p>
+                <h3>
+                  {detail.hasSalesInvoice
+                    ? "Fatura oluşturulmuş"
+                    : "Henüz fatura yok"}
+                </h3>
+                <span>
+                  {detail.hasSalesInvoice
+                    ? `Fatura durumu: ${detail.invoiceStatus === "Posted" ? "İşlendi" : "İptal edildi"}`
+                    : detail.orderId
+                      ? "Bu irsaliyeyi faturalaştırarak satış faturasını ve cari borç kaydını oluşturun."
+                      : "Faturayı daha sonra bu irsaliyedeki miktarları değiştirmeden oluşturabilirsiniz."}
+                </span>
+              </div>
+              {detail.invoiceId ? (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setInvoiceId(detail.invoiceId)}
+                >
+                  Faturayı aç
+                </button>
+              ) : (
+                detail.status === "Posted" &&
+                !invoiceEditing && (
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={busy}
+                    onClick={() => void startOrderlessInvoice(detail.id)}
+                  >
+                    <FilePlus2 size={15} />
+                    {busy
+                      ? "Fatura hazırlanıyor…"
+                      : detail.orderId
+                        ? "Faturalaştır"
+                        : "Fatura bilgilerini gir"}
+                  </button>
+                )
+              )}
+            </section>
+            {invoiceEditing && (
+              <form
+                className="sales-invoice-standalone"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const request = detail.orderId
+                    ? { customFields: invoiceCustomFieldsPayload }
+                    : {
+                        customerId: invoiceCustomerId,
+                        invoiceDate,
+                        customFields: invoiceCustomFieldsPayload,
+                        lines: invoiceLines.map((line) => ({
+                          ...line,
+                          unitPrice: Number(line.unitPrice),
+                          discountPercent: Number(line.discountPercent),
+                          vatPercent: Number(line.vatPercent),
+                        })),
+                      };
+                  void createInvoice(detail.id, request);
+                }}
+              >
+                {detail.orderId === null ? (
+                  <>
+                    <div className="form-two">
+                      <label>
+                        Müşteri
+                        <select
+                          value={invoiceCustomerId}
+                          onChange={(event) =>
+                            setInvoiceCustomerId(event.target.value)
+                          }
+                          required
+                        >
+                          <option value="">Müşteri seçin</option>
+                          {customers
+                            .filter(
+                              (customer) =>
+                                customer.isActive &&
+                                customer.type !== "Supplier",
+                            )
+                            .map((customer) => (
+                              <option key={customer.id} value={customer.id}>
+                                {customer.code} · {customer.name} (
+                                {customer.currencyCode})
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <label>
+                        Fatura tarihi
+                        <input
+                          type="date"
+                          value={invoiceDate}
+                          onChange={(event) =>
+                            setInvoiceDate(event.target.value)
+                          }
+                          required
+                        />
+                      </label>
+                    </div>
+                    <div className="customer-table-wrap sales-delivery-lines-wrap">
+                      <table className="customer-table">
+                        <thead>
+                          <tr>
+                            <th>İrsaliye satırı</th>
+                            <th>Miktar</th>
+                            <th>Birim fiyat</th>
+                            <th>İskonto %</th>
+                            <th>KDV %</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detail.lines.map((line, index) => (
+                            <tr
+                              key={`${line.orderLineNumber}-${line.stockItemId}`}
+                            >
+                              <td>
+                                <b>
+                                  {line.stockCode} · {line.stockName}
+                                </b>
+                              </td>
+                              <td>
+                                {line.quantity.toLocaleString("tr-TR", {
+                                  maximumFractionDigits: 4,
+                                })}{" "}
+                                {line.unitCode}
+                              </td>
+                              <td>
+                                <input
+                                  aria-label={`${line.stockCode} birim fiyat`}
+                                  type="number"
+                                  min="0"
+                                  step="0.0001"
+                                  value={invoiceLines[index]?.unitPrice ?? "0"}
+                                  onChange={(event) =>
+                                    setInvoiceLines((rows) =>
+                                      rows.map((row, i) =>
+                                        i === index
+                                          ? {
+                                              ...row,
+                                              unitPrice: event.target.value,
+                                            }
+                                          : row,
+                                      ),
+                                    )
+                                  }
+                                  required
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  aria-label={`${line.stockCode} iskonto yüzdesi`}
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.01"
+                                  value={
+                                    invoiceLines[index]?.discountPercent ?? "0"
+                                  }
+                                  onChange={(event) =>
+                                    setInvoiceLines((rows) =>
+                                      rows.map((row, i) =>
+                                        i === index
+                                          ? {
+                                              ...row,
+                                              discountPercent:
+                                                event.target.value,
+                                            }
+                                          : row,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  aria-label={`${line.stockCode} KDV yüzdesi`}
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.01"
+                                  value={
+                                    invoiceLines[index]?.vatPercent ?? "20"
+                                  }
+                                  onChange={(event) =>
+                                    setInvoiceLines((rows) =>
+                                      rows.map((row, i) =>
+                                        i === index
+                                          ? {
+                                              ...row,
+                                              vatPercent: event.target.value,
+                                            }
+                                          : row,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="muted">
+                      Bu işlem yalnızca faturayı ve cari borç kaydını oluşturur;
+                      irsaliyedeki stok çıkışı tekrarlanmaz.
+                    </p>
+                  </>
+                ) : (
+                  <p className="muted">
+                    Fatura fiyatları sipariş satırlarından alınır. Zorunlu
+                    fatura özel alanlarını tamamlayın.
+                  </p>
+                )}
+                {renderInvoiceCustomFieldInputs()}
+                <div className="modal-foot">
+                  <span>
+                    {detail.orderId
+                      ? "Sipariş fiyatları kullanılır."
+                      : `${customers.find((customer) => customer.id === invoiceCustomerId)?.currencyCode || "Döviz"} · KDV/iskonto oranlarını doğrulayın`}
+                  </span>
+                  <div>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() => setInvoiceEditing(false)}
+                    >
+                      Vazgeç
+                    </button>
+                    <button
+                      type="submit"
+                      className="primary"
+                      disabled={
+                        busy || (detail.orderId === null && !invoiceCustomerId)
+                      }
+                    >
+                      {busy ? "Fatura kaydediliyor…" : "Faturayı oluştur"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+            {!invoiceEditing && (
+              <div className="modal-foot">
+                <span>
+                  {detail.orderId
+                    ? "İrsaliye ve stok çıkış kaydı bağlı satış siparişinden izlenir."
+                    : "Siparişsiz irsaliye; fatura kesilene kadar kaydı ayrı tutulur."}
+                </span>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setDetail(null)}
+                >
+                  Kapat
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {invoiceId && (
+        <SalesInvoiceModal
+          invoiceId={invoiceId}
+          token={token}
+          role={role}
+          warehouses={warehouses}
+          onClose={() => setInvoiceId(null)}
+          onSaved={load}
+        />
+      )}
+    </div>
+  );
+}

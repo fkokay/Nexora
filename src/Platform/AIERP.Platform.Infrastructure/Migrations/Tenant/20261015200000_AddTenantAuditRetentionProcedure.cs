@@ -10,7 +10,11 @@ public sealed class AddTenantAuditRetentionProcedure : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        foreach (var batch in Sql.Split("\nGO\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) migrationBuilder.Sql(batch);
+        foreach (var batch in Sql.Split("\nGO\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var escaped = batch.Replace("'", "''", StringComparison.Ordinal);
+            migrationBuilder.Sql($"EXEC(N'{escaped}')");
+        }
     }
     protected override void Down(MigrationBuilder migrationBuilder) { migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.PurgeExpiredAuditEvents; DROP TRIGGER IF EXISTS dbo.TR_AuditEvents_AppendOnly;"); }
     private const string Sql = """

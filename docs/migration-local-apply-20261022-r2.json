@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-22",
+  "environment": "Local Docker SQL Server development only",
+  "productionAccessed": false,
+  "package": "artifacts/migrations/2026-10-22-r2/",
+  "backupDirectory": "D:\\Nexora-Migration-Backups\\20261022T1323Z_intraday-scheduling-r2",
+  "backups": [
+    {
+      "method": "COPY_ONLY CHECKSUM",
+      "file": "AIERPPlatform.bak",
+      "sha256": "fe40a9409a183e1936dabe596f1a0b35fe9b69edf5cf6bf6a565cce88f9b3f9e",
+      "verifyOnly": "passed",
+      "database": "AIERPPlatform"
+    },
+    {
+      "method": "COPY_ONLY CHECKSUM",
+      "file": "AIERPTenant_912df12f4e3144bea20735cca5834485.bak",
+      "sha256": "af45fbbf1bd387e7617aed74a8b1a0633bb18f5a0c774d74b83898f7cb83be1d",
+      "verifyOnly": "passed",
+      "database": "AIERPTenant_912df12f4e3144bea20735cca5834485"
+    }
+  ],
+  "applications": [
+    {
+      "script": "platform-incremental.sql",
+      "result": "passed",
+      "after": "124 / 20261022130452_AddIntradayManufacturingScheduling",
+      "before": "123 / 20261022122258_AddSequenceDependentManufacturingSetups",
+      "database": "AIERPPlatform"
+    },
+    {
+      "script": "tenant-incremental.sql",
+      "result": "passed",
+      "after": "43 / 20261022130311_AddIntradayManufacturingScheduling",
+      "before": "42 / 20261022121926_AddSequenceDependentManufacturingSetups",
+      "database": "AIERPTenant_912df12f4e3144bea20735cca5834485"
+    },
+    {
+      "before": "10 / 20261017134712_AddStudioKnowledgeRefreshConsentAIStudio",
+      "result": "no migration pending",
+      "after": "10 / 20261017134712_AddStudioKnowledgeRefreshConsentAIStudio",
+      "database": "AIERPStudio"
+    }
+  ],
+  "checks": {
+    "production": "not queried or changed",
+    "focusedHrIntegrationTests": "4/4 passed",
+    "staticMigrationPreflight": "passed; exact 123/42/10 pre-apply history",
+    "erpWebProductionBuild": "passed",
+    "focusedManufacturingIntegrationTests": "33/33 passed",
+    "dbcc": "passed for Platform and Tenant",
+    "dockerComposeRebuild": "platform-api, ai-service, erp-web and development-studio rebuilt from current source and started; Compose health passed.",
+    "httpHealth": {
+      "platformApi": 200,
+      "aiService": 200,
+      "erpWeb": 200,
+      "developmentStudio": 200
+    }
+  },
+  "limitations": [
+    "Local development databases only.",
+    "The D: backups are preserved; keep them until a separate backup retention decision.",
+    "Production migration needs separate staging restore and DBA review."
+  ]
+}

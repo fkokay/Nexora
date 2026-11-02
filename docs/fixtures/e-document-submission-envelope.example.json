@@ -1,0 +1,41 @@
+{
+  "documentType": "e-invoice",
+  "documentId": "00000000-0000-4000-8000-000000000001",
+  "documentNumber": "SAMPLE-2026-0001",
+  "issueDate": "2026-10-26",
+  "currencyCode": "TRY",
+  "document": {
+    "source": {
+      "kind": "sales-invoice",
+      "id": "00000000-0000-4000-8000-000000000001",
+      "code": "SAMPLE-2026-0001"
+    },
+    "issueDate": "2026-10-26",
+    "customer": {
+      "code": "SAMPLE-CUSTOMER",
+      "name": "Örnek Alıcı A.Ş.",
+      "taxNumber": null,
+      "addresses": []
+    },
+    "subtotal": 1000.00,
+    "discountTotal": 0.00,
+    "taxTotal": 200.00,
+    "grandTotal": 1200.00,
+    "lines": [
+      {
+        "orderLineNumber": 1,
+        "stockCode": "SAMPLE-ITEM",
+        "stockName": "Örnek ürün",
+        "unitCode": "C62",
+        "quantity": 1.0,
+        "unitPrice": 1000.00,
+        "discountPercent": 0.00,
+        "vatPercent": 20.00,
+        "lineSubtotal": 1000.00,
+        "discountAmount": 0.00,
+        "taxAmount": 200.00,
+        "lineTotal": 1200.00
+      }
+    ]
+  }
+}

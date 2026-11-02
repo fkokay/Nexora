@@ -16,7 +16,8 @@ public sealed class PlatformPermissionAuthorizer(PlatformDbContext db) : IPlatfo
         if (membership is null || !membership.UserIsActive || !membership.TenantIsActive
             || !string.Equals(membership.Role, role, StringComparison.Ordinal)) return false;
         // TenantAdmin remains the existing tenant-wide administrator role and cannot be locked out by policy edits.
-        if (string.Equals(role, "TenantAdmin", StringComparison.Ordinal)) return true;
+        if (string.Equals(role, "TenantAdmin", StringComparison.Ordinal)
+            && !string.Equals(permission.Permission.ResourceType, "erp.payroll-compensation", StringComparison.Ordinal)) return true;
 
         var rules = await db.TenantPermissionRules.AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.IsActive && x.PermissionCode == permission.Permission.Code
@@ -27,7 +28,7 @@ public sealed class PlatformPermissionAuthorizer(PlatformDbContext db) : IPlatfo
         {
             var scopedRules = rules.Where(rule => rule.ResourceType is null
                 || string.Equals(rule.ResourceType, permission.Permission.ResourceType, StringComparison.OrdinalIgnoreCase)).ToList();
-            var rowAttributes = new[] { "resource.status", "resource.customerId", "resource.supplierId", "resource.ownerUserId" };
+            var rowAttributes = new[] { "resource.status", "resource.customerId", "resource.customerType", "resource.customerActive", "resource.supplierId", "resource.ownerUserId" };
             var routeMatched = scopedRules.Where(rule => !rowAttributes.Contains(rule.AttributeName, StringComparer.OrdinalIgnoreCase)
                 && MatchesAttribute(rule, permission.Attributes)).ToList();
             if (routeMatched.Any(x => x.Effect == TenantPermissionEffect.Deny)) return false;

@@ -1,0 +1,35 @@
+{
+  "checkedAtUtc": "2026-10-22T12:45:20.2897875Z",
+  "basePrefix": "verified live local Docker SQL Server history on 2026-10-22: Platform 120, Tenant 35; no database was changed",
+  "status": "passed-live-prefix-and-isolated-restore-rehearsal",
+  "incrementalContexts": [
+    {
+      "context": "PlatformDbContext",
+      "fromMigration": "20261021114203_AddTenantScreenViews",
+      "file": "platform-incremental.sql",
+      "sha256": "DFE267E5A4D0360D46972A65A42E6FDD0DF46E03834BAB892550952E637B3FFE",
+      "migrationIds": [
+        "20261022102441_AddSalesPromotionCampaigns",
+        "20261022115924_AddRemainingPlatformCapabilities",
+        "20261022122258_AddSequenceDependentManufacturingSetups"
+      ]
+    },
+    {
+      "context": "TenantDbContext",
+      "fromMigration": "20261021114219_AddTenantScreenViews",
+      "file": "tenant-incremental.sql",
+      "sha256": "CB2AB455E95660F3E692BB205851DBFE46CCC0A7D4E5A963AE0AF5FB68FC28A0",
+      "migrationIds": [
+        "20261022074823_AddCommercialContractsAndFixedAssetInvoiceLink",
+        "20261022084202_AddPaymentInstrumentCounterpartyAccount",
+        "20261022103440_AddWorkCenterCalendarsPromotionsAndProjects",
+        "20261022104644_AddManufacturingOperationWaitConstraints",
+        "20261022105740_AddManufacturingOperationWorkCenterEligibility",
+        "20261022111726_AddOperationalProjectTimeEntries",
+        "20261022121926_AddSequenceDependentManufacturingSetups"
+      ]
+    }
+  ],
+  "checksumEntries": 5,
+  "measurementPoint": "exact 120/35 prefix captured before local development apply; post-apply histories are recorded separately"
+}

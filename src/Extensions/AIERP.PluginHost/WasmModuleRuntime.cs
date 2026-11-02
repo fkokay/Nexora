@@ -10,10 +10,12 @@ namespace AIERP.PluginHost;
 /// </summary>
 public sealed class WasmModuleRuntime : IDisposable
 {
+    public const int MaximumConcurrentInvocations = 4;
     public const int MaximumInputBytes = 256 * 1024;
     public const int MaximumOutputBytes = 512 * 1024;
     public const ulong InvocationFuel = 20_000_000;
     private readonly Engine _engine;
+    private readonly ModuleInvocationConcurrencyGate _invocationGate = new(MaximumConcurrentInvocations);
 
     public WasmModuleRuntime()
     {
@@ -43,7 +45,17 @@ public sealed class WasmModuleRuntime : IDisposable
             data = request.Data
         });
         if (input.Length > MaximumInputBytes) throw new InvalidDataException("Module invocation input exceeds 256 KiB.");
+        if (!_invocationGate.TryAcquire(out var invocationLease))
+            throw new ModuleRuntimeBusyException();
 
+        using (invocationLease)
+        {
+            return InvokeUnderPermit(wasm, input);
+        }
+    }
+
+    private JsonElement InvokeUnderPermit(ReadOnlySpan<byte> wasm, byte[] input)
+    {
         using var module = Module.FromBytes(_engine, "module", wasm);
         EnsureNoImports(module);
         using var store = CreateStore(InvocationFuel);
@@ -97,5 +109,14 @@ public sealed class WasmModuleRuntime : IDisposable
         return (memory, allocate, invoke);
     }
 
-    public void Dispose() => _engine.Dispose();
+    public void Dispose()
+    {
+        _invocationGate.Dispose();
+        _engine.Dispose();
+    }
+}
+
+public sealed class ModuleRuntimeBusyException : Exception
+{
+    public ModuleRuntimeBusyException() : base("The module runtime has reached its concurrent invocation limit.") { }
 }

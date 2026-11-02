@@ -17,6 +17,7 @@ public static partial class TenantBusinessRuleEngine
     public const string PurchaseRequestSubmitted = "purchase-request.submitted";
     public const string SalesQuoteAccepted = "sales-quote.accepted";
     public const string PurchaseOrderCreated = "purchase-order.created";
+    public const string ProjectTaskCompleted = "project.task-completed";
     private static readonly IReadOnlyList<TenantBusinessRuleTrigger> Triggers =
     [
         new(PurchaseRequestSubmitted, "Satın alma talebi gönderildi", "Talep kaydedilip gönderildiğinde değerlendirilir.",
@@ -34,6 +35,13 @@ public static partial class TenantBusinessRuleEngine
         [
             new("code", "Sipariş kodu", "text"), new("supplierId", "Tedarikçi kodu", "text"), new("currencyCode", "Para birimi", "text"),
             new("lineCount", "Satır sayısı", "number"), new("grandTotal", "Genel toplam", "number"), new("orderDate", "Sipariş tarihi", "date")
+        ]),
+        new(ProjectTaskCompleted, "Proje görevi tamamlandı", "Tamamlanan proje görevini, tanımlı koşullar eşleştiğinde gözden geçirme akışına yönlendirin.",
+        [
+            new("code", "Görev kodu", "text"), new("name", "Görev adı", "text"),
+            new("projectCode", "Proje kodu", "text"), new("projectName", "Proje adı", "text"),
+            new("plannedHours", "Planlanan saat", "number"), new("completionDate", "Tamamlanma tarihi", "date"),
+            new("completedByUserId", "Tamamlayan kullanıcı kodu", "text")
         ])
     ];
 
@@ -93,7 +101,7 @@ public static partial class TenantBusinessRuleEngine
     {
         if (op == "IsEmpty") return string.IsNullOrWhiteSpace(actual);
         if (op == "IsNotEmpty") return !string.IsNullOrWhiteSpace(actual);
-        if (field is "lineCount" or "grandTotal")
+        if (field is "lineCount" or "grandTotal" or "plannedHours")
         {
             if (!decimal.TryParse(actual, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var left)
                 || !decimal.TryParse(expected, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var right)) return false;
@@ -103,7 +111,7 @@ public static partial class TenantBusinessRuleEngine
                 "GreaterThanOrEqual" => left >= right, "LessThan" => left < right, "LessThanOrEqual" => left <= right, _ => false
             };
         }
-        if (field is "requestDate" or "neededByDate" or "quoteDate" or "validUntil" or "orderDate")
+        if (field is "requestDate" or "neededByDate" or "quoteDate" or "validUntil" or "orderDate" or "completionDate")
         {
             if (!DateOnly.TryParseExact(actual, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var left)) return false;
             if (expected.Length == 0) return op == "Equals" ? actual.Length == 0 : op == "NotEquals" && actual.Length > 0;

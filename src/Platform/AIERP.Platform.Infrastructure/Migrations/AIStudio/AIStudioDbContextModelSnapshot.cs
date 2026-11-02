@@ -798,6 +798,50 @@ namespace AIERP.Platform.Infrastructure.Migrations.AIStudio
                     b.ToTable("StudioKnowledgeRefreshConsents");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioModuleSourceMapping", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ModuleCode")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(60)");
+
+                    b.Property<string>("PathAllowlistJson")
+                        .IsRequired()
+                        .HasMaxLength(12000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Ref")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ModuleCode")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ProjectId");
+
+                    b.ToTable("StudioModuleSourceMappings");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.StudioProductionPromotionApprovalRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1301,6 +1345,22 @@ namespace AIERP.Platform.Infrastructure.Migrations.AIStudio
                     b.HasOne("AIERP.Platform.Domain.Tenant", null)
                         .WithMany()
                         .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.StudioModuleSourceMapping", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.DevelopmentProject", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ProjectId")
+                        .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

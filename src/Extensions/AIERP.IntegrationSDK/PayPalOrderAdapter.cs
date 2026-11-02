@@ -64,19 +64,34 @@ public sealed class PayPalOrderAdapter : IERPIntegrationAdapter<JsonElement, Jso
             return Failure(code, retryable);
         }
 
-        var bytes = await ReadBoundedAsync(response.Content, cancellationToken);
-        using var document = JsonDocument.Parse(bytes);
-        var root = document.RootElement;
-        if (root.ValueKind != JsonValueKind.Object ||
-            !TryString(root, "id", 128, out var id) || !IsOrderId(id) ||
-            !TryString(root, "status", 32, out var status) || status != "CREATED" ||
-            !TryString(root, "intent", 16, out var intent) || intent != "CAPTURE")
-            return Failure("provider_error", false);
+        try
+        {
+            var bytes = await ReadBoundedAsync(response.Content, cancellationToken);
+            using var document = JsonDocument.Parse(bytes);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !TryString(root, "id", 128, out var id) || !IsOrderId(id) ||
+                !TryString(root, "status", 32, out var status) || status != "CREATED" ||
+                !TryString(root, "intent", 16, out var intent) || intent != "CAPTURE")
+                return Failure("provider_error", false);
 
-        // Deliberately return only an opaque order reference and safe state; omit links, payer data,
-        // amounts, and any provider fields not required by the ERP integration contract.
-        var result = JsonSerializer.SerializeToElement(new { id, status, intent });
-        return new IntegrationResult<JsonElement>(true, result, id, null, false);
+            // Deliberately return only an opaque order reference, safe state, and the invoice ID
+            // that this request supplied. Omit links, payer data, amounts, and other provider fields.
+            var safeResult = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["id"] = id,
+                ["status"] = status,
+                ["intent"] = intent
+            };
+            if (TryReadMatchingInvoiceId(root, request, out var invoiceId))
+                safeResult["invoiceId"] = invoiceId;
+            var result = JsonSerializer.SerializeToElement(safeResult);
+            return new IntegrationResult<JsonElement>(true, result, id, null, false);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidDataException)
+        {
+            return Failure("provider_error", false);
+        }
     }
 
     private static bool TryBuildBody(JsonElement request, out string body)
@@ -120,6 +135,25 @@ public sealed class PayPalOrderAdapter : IERPIntegrationAdapter<JsonElement, Jso
     }
 
     private static bool IsOrderId(string id) => id.Length is >= 1 and <= 128 && id.All(char.IsAsciiLetterOrDigit);
+
+    private static bool TryReadMatchingInvoiceId(JsonElement response, JsonElement request, out string invoiceId)
+    {
+        invoiceId = string.Empty;
+        if (!request.TryGetProperty("invoiceId", out var requested) || requested.ValueKind != JsonValueKind.String ||
+            !response.TryGetProperty("purchase_units", out var purchaseUnits) ||
+            purchaseUnits.ValueKind != JsonValueKind.Array || purchaseUnits.GetArrayLength() != 1)
+            return false;
+
+        var purchaseUnit = purchaseUnits[0];
+        if (purchaseUnit.ValueKind != JsonValueKind.Object ||
+            !TryString(purchaseUnit, "invoice_id", 127, out var returned) ||
+            returned.Length == 0 || returned.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not ('-' or '_' or '.')) ||
+            !string.Equals(requested.GetString(), returned, StringComparison.Ordinal))
+            return false;
+
+        invoiceId = returned;
+        return true;
+    }
 
     private static bool TryParseAmount(string text, out decimal amount)
     {

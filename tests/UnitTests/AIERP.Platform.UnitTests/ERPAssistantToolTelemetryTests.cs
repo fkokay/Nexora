@@ -13,6 +13,48 @@ namespace AIERP.Platform.UnitTests;
 
 public sealed class ERPAssistantToolTelemetryTests
 {
+    [Theory]
+    [InlineData("search_fixed_assets", "{\"term\":\"laptop\"}")]
+    [InlineData("get_financial_account_balances", "{}")]
+    [InlineData("get_sales_delivery_details", "{\"code\":\"DN-2026-001\"}")]
+    public async Task ERP_assistant_recent_read_tools_keep_bounded_metric_names(string toolName, string arguments)
+    {
+        var observedTools = new ConcurrentBag<string>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == "AIERP.AIService.ERPAssistant")
+                meterListener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>
+        {
+            if (instrument.Name == "aierp.erp_assistant.tool.calls")
+                observedTools.Add(ReadTag(tags, "tool"));
+        });
+        listener.Start();
+
+        var httpCall = 0;
+        var handler = new StubHandler(_ =>
+        {
+            httpCall++;
+            var payload = httpCall == 1
+                ? $$"""{"status":"completed","output":[{"type":"function_call","name":"{{toolName}}","arguments":{{System.Text.Json.JsonSerializer.Serialize(arguments)}},"call_id":"call-1"}]}"""
+                : """{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"Tamam."}]}]}""";
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            });
+        });
+        var provider = CreateProvider(handler);
+
+        var answer = await provider.ReplyToERPDataQuestionAsync("Verileri özetle.", [], CancellationToken.None,
+            (_, _, _) => Task.FromResult("{}"));
+
+        Assert.Equal("Tamam.", answer);
+        Assert.Contains(toolName, observedTools);
+        Assert.DoesNotContain("other", observedTools);
+    }
+
     [Fact]
     public async Task ERP_assistant_tool_execution_emits_bounded_success_metrics_without_arguments_or_results()
     {
@@ -40,8 +82,8 @@ public sealed class ERPAssistantToolTelemetryTests
         {
             httpCall++;
             var payload = httpCall == 1
-                ? """{"status":"completed","output":[{"type":"function_call","name":"search_customer_accounts","arguments":"{\"term\":\"private-customer-name\"}","call_id":"call-1"}]}"""
-                : """{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"Bir cari hesap bulundu."}]}]}""";
+                ? """{"status":"completed","output":[{"type":"function_call","name":"search_supplier_ledger","arguments":"{\"supplierId\":\"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2\",\"from\":\"2026-10-01\",\"to\":\"2026-10-25\"}","call_id":"call-1"}]}"""
+                : """{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"Bir tedarikçi hareketi bulundu."}]}]}""";
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(payload, Encoding.UTF8, "application/json")
@@ -50,25 +92,25 @@ public sealed class ERPAssistantToolTelemetryTests
         var provider = CreateProvider(handler);
         var toolCallCount = 0;
 
-        var answer = await provider.ReplyToERPDataQuestionAsync("Cari hesabı bul.", [], CancellationToken.None,
+        var answer = await provider.ReplyToERPDataQuestionAsync("Tedarikçi hareketlerini getir.", [], CancellationToken.None,
             (_, _, _) =>
             {
                 toolCallCount++;
                 return Task.FromResult("private-tool-result");
             });
 
-        Assert.Equal("Bir cari hesap bulundu.", answer);
+        Assert.Equal("Bir tedarikçi hareketi bulundu.", answer);
         Assert.Equal(1, toolCallCount);
         var call = Assert.Single(measurements.Where(item => item.Instrument == "aierp.erp_assistant.tool.calls" &&
-            item.Tool == "search_customer_accounts" && item.Outcome == "success").Distinct());
+            item.Tool == "search_supplier_ledger" && item.Outcome == "success").Distinct());
         Assert.Equal(1, call.Count);
-        Assert.Equal("search_customer_accounts", call.Tool);
+        Assert.Equal("search_supplier_ledger", call.Tool);
         Assert.Equal("success", call.Outcome);
         Assert.Contains(durationMeasurements, value => value >= 0);
         Assert.DoesNotContain(measurements, item => item.Tool.Contains("private", StringComparison.OrdinalIgnoreCase));
         var scrapedMetrics = prometheus.Render();
-        Assert.Contains("tool=\"search_customer_accounts\",outcome=\"success\"", scrapedMetrics, StringComparison.Ordinal);
-        Assert.DoesNotContain("private-customer-name", scrapedMetrics, StringComparison.Ordinal);
+        Assert.Contains("tool=\"search_supplier_ledger\",outcome=\"success\"", scrapedMetrics, StringComparison.Ordinal);
+        Assert.DoesNotContain("supplierId", scrapedMetrics, StringComparison.Ordinal);
         Assert.DoesNotContain("private-tool-result", scrapedMetrics, StringComparison.Ordinal);
     }
 

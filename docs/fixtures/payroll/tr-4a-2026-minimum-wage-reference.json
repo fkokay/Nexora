@@ -1,0 +1,35 @@
+{
+  "fixtureKind": "official-source-derived-reference-scenario",
+  "fixtureStatus": "synthetic-no-personal-data-not-an-official-gib-example",
+  "jurisdiction": "TR",
+  "profile": "TR-4A-PRIVATE",
+  "period": "2026-01",
+  "assumptions": {
+    "fullMonth": true,
+    "grossMonthlyWageTry": 33030,
+    "eligibleForMinimumWageIncomeAndStampTaxExemptions": true,
+    "otherEarningsOrDeductions": false,
+    "employerIncentive": "none",
+    "employeeCategory": "standard-4a"
+  },
+  "expectedReferenceValues": {
+    "employeeOldAgeSurvivorsDisabilityTry": 2972.7,
+    "employeeGeneralHealthTry": 1651.5,
+    "employeeSocialSecurityTotalTry": 4624.2,
+    "employeeUnemploymentTry": 330.3,
+    "incomeTaxWithholdingTry": 0,
+    "stampTaxWithholdingTry": 0,
+    "netPayTry": 28075.5,
+    "employerOldAgeSurvivorsDisabilityTryBeforeIncentives": 3963.6,
+    "employerGeneralHealthTryBeforeIncentives": 2477.25,
+    "employerShortTermRiskTryBeforeIncentives": 743.175,
+    "employerUnemploymentTry": 660.6,
+    "employerTotalContributionTryBeforeIncentivesRoundedToKurus": 7844.63,
+    "employerTotalCostTryBeforeIncentivesRoundedToKurus": 40874.63
+  },
+  "sources": [
+    "https://csgb.gov.tr/poco-pages/asgari-ucret/",
+    "https://cdn.gib.gov.tr/api/gibportal-file/file/getFileResources?objectKey=arsiv%2Fyardim-kaynaklar%2Fyararli-bilgiler%2FAsgariUcrettenYapilanKesintiler.pdf",
+    "https://www.sgk.gov.tr/Content/Post/c7812ea8-5087-413f-aeb5-d3c1d153e11a/Isveren-Prim-Oranlari-2026-01-13-04-52-38"
+  ]
+}

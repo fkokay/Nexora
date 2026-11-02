@@ -59,9 +59,34 @@ public sealed class CustomerValidationTests
     public void Accepts_valid_customer_address()
     {
         var errors = CustomerAddressValidation.Validate(new CustomerAddressWriteRequest(
-            CustomerAddressKind.Billing, "Head office", "Main Street 1", "Istanbul", "Kadikoy", "34710", "TR", true));
+            CustomerAddressKind.Billing, "Head office", "Main Street 1", "Istanbul", "Kadikoy", "34710", "TR", true,
+            Latitude: 40.9917m, Longitude: 29.0277m));
 
         Assert.Null(errors);
+    }
+
+    [Theory]
+    [InlineData(91, 0, "latitude")]
+    [InlineData(0, 181, "longitude")]
+    public void Rejects_out_of_range_customer_address_coordinates(decimal latitude, decimal longitude, string field)
+    {
+        var errors = CustomerAddressValidation.Validate(new CustomerAddressWriteRequest(
+            CustomerAddressKind.General, "Office", "Main Street 1", "Istanbul", null, null, "TR",
+            Latitude: latitude, Longitude: longitude));
+
+        Assert.NotNull(errors);
+        Assert.Contains(field, errors.Keys);
+    }
+
+    [Fact]
+    public void Rejects_partial_customer_address_coordinates()
+    {
+        var errors = CustomerAddressValidation.Validate(new CustomerAddressWriteRequest(
+            CustomerAddressKind.General, "Office", "Main Street 1", "Istanbul", null, null, "TR",
+            Latitude: 40.9917m));
+
+        Assert.NotNull(errors);
+        Assert.Contains("coordinates", errors.Keys);
     }
 
     [Fact]
@@ -76,6 +101,32 @@ public sealed class CustomerValidationTests
         Assert.Contains("addressLine", errors.Keys);
         Assert.Contains("city", errors.Keys);
         Assert.Contains("countryCode", errors.Keys);
+    }
+
+    [Fact]
+    public void Customer_address_default_policy_sets_only_the_requested_active_address_as_default()
+    {
+        var previous = new CustomerAddress { Kind = CustomerAddressKind.Billing, IsDefault = true, IsActive = true };
+        var next = new CustomerAddress { Kind = CustomerAddressKind.Billing };
+
+        CustomerAddressDefaultPolicy.Apply(next, [previous], requestedDefault: true, isActive: true);
+
+        Assert.False(previous.IsDefault);
+        Assert.True(next.IsDefault);
+        Assert.True(next.IsActive);
+    }
+
+    [Fact]
+    public void Customer_address_default_policy_does_not_promote_active_address_when_not_requested()
+    {
+        var previous = new CustomerAddress { Kind = CustomerAddressKind.General, IsDefault = true, IsActive = true };
+        var next = new CustomerAddress { Kind = CustomerAddressKind.General };
+
+        CustomerAddressDefaultPolicy.Apply(next, [previous], requestedDefault: false, isActive: true);
+
+        Assert.True(previous.IsDefault);
+        Assert.False(next.IsDefault);
+        Assert.True(next.IsActive);
     }
 
     [Fact]

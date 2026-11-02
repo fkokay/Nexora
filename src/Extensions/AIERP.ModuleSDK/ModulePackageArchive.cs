@@ -22,7 +22,18 @@ public static class ModulePackageArchive
 
         using var artifact = archive.Entries[0].Open();
         using var output = new MemoryStream((int)archive.Entries[0].Length);
-        artifact.CopyTo(output);
+        var chunk = new byte[16 * 1024];
+        while (true)
+        {
+            // The entry stream is bounded by the ZIP metadata. Keep an independent
+            // output cap here as defense in depth, then verify the final length.
+            var remaining = archive.Entries[0].Length - output.Length;
+            var read = artifact.Read(chunk, 0, (int)Math.Min(chunk.Length, Math.Max(1, remaining + 1)));
+            if (read == 0) break;
+            if (read > remaining || output.Length + read > MaximumWasmBytes)
+                throw new InvalidDataException("Module WebAssembly payload exceeds its declared or maximum size.");
+            output.Write(chunk, 0, read);
+        }
         if (output.Length != archive.Entries[0].Length)
             throw new InvalidDataException("Module WebAssembly size does not match its archive metadata.");
         return output.ToArray();

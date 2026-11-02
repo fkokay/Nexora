@@ -1,0 +1,555 @@
+/** Reads the ERP shell's persisted locale. The shell rerenders its page tree when the locale changes. */
+export function isEnglishLocale(): boolean {
+  return typeof window !== 'undefined' && window.localStorage.getItem('aierp.locale') === 'en'
+}
+
+export function subscribeLocale(onChange: () => void): () => void {
+  if (typeof window === 'undefined') return () => undefined
+  window.addEventListener('aierp:localechange', onChange)
+  window.addEventListener('storage', onChange)
+  return () => {
+    window.removeEventListener('aierp:localechange', onChange)
+    window.removeEventListener('storage', onChange)
+  }
+}
+
+export function localizedText(turkish: string, english: string): string {
+  return isEnglishLocale() ? english : turkish
+}
+
+const catalogEnglish: Record<string, string> = {
+  'Cari hesaplar': 'Customer accounts', 'Satış faturaları': 'Sales invoices', 'Satın alma siparişleri': 'Purchase orders',
+  'Alış faturaları': 'Purchase invoices', 'Satın alma mal kabulleri': 'Purchase receipts', 'Üretim emirleri': 'Manufacturing orders',
+  'Üretim iş merkezleri': 'Manufacturing work centers', 'Stok hareketleri': 'Inventory transactions', 'Satış siparişleri': 'Sales orders',
+  'Satış siparişi karşılama durumu': 'Sales order fulfillment', 'Satış teklifleri': 'Sales quotes', 'Tedarikçi teklifleri': 'Supplier quotes',
+  'Tedarikçi ödemeleri': 'Supplier payments', 'Satış sevkiyatları': 'Sales deliveries', 'Satış iadeleri': 'Sales returns',
+  'Tedarikçi iadeleri': 'Supplier returns', 'Satın alma talepleri': 'Purchase requests', 'Stok kartları': 'Stock items',
+  'Depo bazında stok bakiyesi': 'Stock by warehouse', 'Banka ekstreleri': 'Bank statements', 'Banka ekstresi satırları': 'Bank statement lines',
+  'Kasa-banka hareketleri': 'Cash and bank transactions', 'Kasa-banka hesap transferleri': 'Cash and bank transfers',
+  'Muhasebe fiş satırları': 'Journal entry lines', 'Döviz değerleme satırları': 'FX revaluation lines', 'CRM fırsatları': 'CRM opportunities',
+  'Cari hareketleri': 'Customer ledger entries', 'Depolar arası transferler': 'Inter-warehouse transfers', 'İş akışı geçmişi': 'Workflow history',
+  'Fatura kodu': 'Invoice code', 'Satış faturası kodu': 'Sales invoice code', 'Alış faturası kodu': 'Purchase invoice code',
+  'Müşteri kodu': 'Customer code', 'Müşteri adı': 'Customer name', 'Cari kodu': 'Account code', 'Cari adı': 'Account name',
+  'Tedarikçi kodu': 'Supplier code', 'Tedarikçi adı': 'Supplier name', 'Stok kodu': 'Item code', 'Stok adı': 'Item name',
+  'Depo kodu': 'Warehouse code', 'Depo adı': 'Warehouse name', 'Sipariş kodu': 'Order code', 'Teklif kodu': 'Quote code',
+  'Talep kodu': 'Request code', 'Fiş kodu': 'Entry code', 'Transfer kodu': 'Transfer code', 'Banka kodu': 'Bank code',
+  'Hesap kodu': 'Account code', 'Hesap adı': 'Account name', 'Para birimi': 'Currency', 'Döviz kodu': 'Currency code',
+  'Tutar': 'Amount', 'Toplam tutar': 'Total amount', 'Net tutar': 'Net amount', 'KDV tutarı': 'VAT amount',
+  'Miktar': 'Quantity', 'Birim': 'Unit', 'Durum': 'Status', 'Tür': 'Type', 'Tarih': 'Date', 'Oluşturulma tarihi': 'Created date',
+  'Vade tarihi': 'Due date', 'Kayıt sayısı': 'Record count', 'Toplam': 'Total', 'Ortalama': 'Average', 'Aktif': 'Active', 'Pasif': 'Inactive'
+}
+
+export function localizedCatalogLabel(value: string): string {
+  return isEnglishLocale() ? catalogEnglish[value] ?? value : value
+}
+
+/** Exact labels used by ERP screens and feedback messages that are rendered from
+ * shared page components. Keep this dictionary independent of the shell so lazy
+ * pages and authentication screens use the same locale. */
+const uiEnglish: Record<string, string> = {
+  'Firma seçin': 'Select a company', 'Hoş geldiniz': 'Welcome',
+  'Devam etmek için erişim yetkiniz olan firmayı seçin.': 'Select a company you are authorized to access.',
+  'AI ERP Platform hesabınızla oturum açın.': 'Sign in with your AI ERP Platform account.',
+  'E-posta': 'Email', 'Parola': 'Password', 'Kontrol ediliyor…': 'Checking…', 'Giriş yap': 'Sign in',
+  'Farklı bir hesapla giriş yap': 'Sign in with a different account',
+  'Bu hesaba henüz firma atanmamış.': 'No company has been assigned to this account yet.',
+  'Giriş ekranına dön': 'Back to sign in', 'Güvenli oturum · Yetkiniz olan firmalar': 'Secure session · Companies you are authorized to access',
+  'Kullanıcı': 'User', 'YENİ': 'NEW', 'Satış': 'Sales', 'Satın Alma': 'Purchasing',
+  'Kasa & Banka': 'Cash & Bank', 'Banka Ekstreleri': 'Bank Statements', 'Kur & Değerleme': 'FX & Revaluation',
+  'Genel Muhasebe': 'General Ledger', 'Döviz Pozisyonu': 'FX Exposure', 'Vade Takibi': 'Maturity Tracking',
+  'Depo Yönetimi': 'Warehouse Management', 'Stok Kartları': 'Stock Items', 'Teklifler': 'Quotes', 'Siparişler': 'Orders',
+  'Faturalar': 'Invoices', 'Talepler': 'Requests',
+  'MÜŞTERİ İLİŞKİLERİ · SATIŞ HATTI': 'CUSTOMER RELATIONSHIPS · SALES PIPELINE',
+  'CRM fırsatları': 'CRM opportunities', 'Açık fırsat değeri': 'Open opportunity value', 'Değer girilmedi': 'No value entered',
+  'Yeni fırsat': 'New opportunity', 'Fırsatı müşteri carisine bağlayın; kapanış ve sonraki takip tarihini planlayın.': 'Link the opportunity to a customer account and plan its close and next follow-up.',
+  'Fırsat kodu': 'Opportunity code', 'Fırsat adı': 'Opportunity name', 'Müşteri': 'Customer', 'Henüz bağlanmadı': 'Not linked yet',
+  'Tahmini tutar': 'Estimated amount', 'Para birimi': 'Currency', 'Kazanma olasılığı (%)': 'Win probability (%)',
+  'Beklenen kapanış': 'Expected close', 'Sonraki takip': 'Next follow-up', 'Not': 'Notes',
+  'Görüşme özeti veya sonraki adım': 'Meeting summary or next step', 'Kaydediliyor…': 'Saving…', 'Fırsat oluştur': 'Create opportunity',
+  'Fırsat kaydedildi.': 'Opportunity saved.', 'Satış hattı': 'Sales pipeline',
+  'Aşamalar tenant içinde izlenir.': 'Stages are tracked within this tenant.', 'Kod, fırsat veya müşteri ara': 'Search code, opportunity, or customer',
+  'Tüm aşamalar': 'All stages', 'Henüz fırsat yok': 'No opportunities yet',
+  'Yeni bir fırsat oluşturarak satış hattınızı başlatın.': 'Start your sales pipeline by creating an opportunity.',
+  'Fırsat': 'Opportunity', 'Aşama': 'Stage', 'Tahmini değer': 'Estimated value', 'Olasılık': 'Probability',
+  'Kapanış / takip': 'Close / follow-up', 'İşlem': 'Action', 'Bağlanmadı': 'Not linked', 'Tarih yok': 'No date',
+  'Takip planlanmadı': 'No follow-up planned', 'İlerlet': 'Advance', 'Kaybet': 'Mark lost',
+  'TENANT İŞ AKIŞLARI': 'TENANT WORKFLOWS', 'Özel Formlar': 'Custom Forms', 'İş süreçleri için form tasarlayın, yayımlayın ve yanıtları yönetin.': 'Design and publish forms for business processes, then manage responses.',
+  'Yeni form': 'New form', 'Kapat': 'Close', 'Formlar': 'Forms', 'Tasarım': 'Builder', 'Vazgeç': 'Cancel',
+  'Taslağı düzenle': 'Edit draft', 'Form tasarla': 'Design form', 'Taslağı kaydet': 'Save draft', 'Form adı': 'Form name',
+  'Form kodu': 'Form code', 'Açıklama': 'Description', 'Formun hangi süreçte kullanıldığını açıklayın': 'Describe which process uses this form',
+  'Form alanları': 'Form fields', 'Alan kodları benzersiz ve küçük harfle başlamalıdır.': 'Field codes must be unique and start with a lowercase letter.',
+  'Alan ekle': 'Add field', 'Etiket': 'Label', 'Alan kodu': 'Field code', 'Tür': 'Type', 'Zorunlu': 'Required',
+  'Azami karakter': 'Maximum characters', 'Seçenekler (virgülle ayırın)': 'Options (separate with commas)', 'Alanı sil': 'Delete field',
+  'Canlı önizleme': 'Live preview', 'Kullanıcıların göreceği form': 'Form as users will see it', 'Form başlığı': 'Form title',
+  'Form açıklaması burada görünür.': 'The form description will appear here.', 'Sürüm geçmişi': 'Version history',
+  'Formlara dön': 'Back to forms', 'Henüz değişiklik kaydı yok.': 'No change history yet.', 'Bu sürümü geri yükle': 'Restore this version',
+  'KULLANIMA HAZIR': 'READY TO USE', 'Yayımlanmış formlar': 'Published forms', 'Henüz yayımlanmış form yok': 'No published forms yet',
+  'Yeni form oluşturup yayımladığınızda burada görünür.': 'Forms you create and publish will appear here.',
+  'Yöneticiniz yayımlanmış bir form eklediğinde burada göreceksiniz.': 'Published forms added by your administrator will appear here.',
+  'Taslak kaydedildi.': 'Draft saved.', 'İşlem tamamlandı.': 'Done.', 'Yanıtınız gönderildi.': 'Your response was submitted.',
+  'MÜŞTERİ İLİŞKİLERİ': 'CUSTOMER RELATIONSHIPS', 'Üretim emri': 'Manufacturing order',
+  'Reçete ve depo seçerek miktarı planlayın.': 'Choose a recipe and warehouse, then plan the quantity.', 'Emir kodu': 'Order code',
+  'Reçete seçin': 'Select a recipe', 'Üretim deposu': 'Production warehouse', 'Depo seçin': 'Select a warehouse',
+  'Planlanan miktar': 'Planned quantity', 'Plan tarihi': 'Plan date', 'Planlama tarihi': 'Planning date', 'Emir planla': 'Plan order', 'Reçete oluştur': 'Create recipe',
+  'İş merkezleri': 'Work centers', 'Günlük kapasite ile saatlik işçilik ve genel gider maliyetini tanımlayın.': 'Set daily capacity and hourly labor and overhead costs.',
+  'Günlük kapasite (dk)': 'Daily capacity (min)', 'İşçilik / saat': 'Labor / hour', 'Genel gider / saat': 'Overhead / hour',
+  'İş merkezi oluştur': 'Create work center', 'Üretim emirleri': 'Manufacturing orders', 'Henüz üretim emri yok': 'No manufacturing orders yet',
+  'İlk emri planlayabilirsiniz.': 'You can plan your first order.', 'Depo': 'Warehouse',
+  'Plan': 'Plan', 'Bileşenler': 'Components', 'Durum': 'Status', 'Kapasiteye çizelgele': 'Schedule capacity',
+  'Serbest bırak': 'Release', 'Üretimi tamamla': 'Complete production', 'İptal': 'Cancel', 'Malzeme ihtiyaç planı': 'Material requirements plan',
+  'Plan geçmişi': 'Plan history', 'Planlama deposu': 'Planning warehouse', 'Ek talep stok kartı': 'Additional demand item',
+  'Ek talep miktarı': 'Additional demand quantity', 'İhtiyaç tarihi': 'Required date', 'Stok kartı seçin': 'Select a stock item',
+  'Planı hesapla ve kaydet': 'Calculate and save plan', 'Karşılanmamış malzeme ihtiyacı bulunamadı.': 'No unmet material requirements found.',
+  'Stok kartı': 'Stock item', 'Seviye': 'Level', 'Brüt ihtiyaç': 'Gross requirement', 'Stok / Rezerve': 'On hand / Reserved',
+  'Açık satın alma': 'Open purchasing', 'Açık üretim': 'Open manufacturing', 'Net ihtiyaç': 'Net requirement',
+  'Gerekli tarih': 'Required date', 'Sipariş / üretim tarihi': 'Order / production date', 'Öneri': 'Recommendation',
+  'Önerileri uygulamaya hazırla': 'Prepare recommendations', 'Üretim önerileri taslak emir, satın alma önerileri onaya gönderilen satın alma talebi oluşturur. Her satır ayrı seçilebilir.': 'Manufacturing recommendations create draft orders; purchasing recommendations create purchase requests for approval. Select each row separately.',
+  'Ürün reçetesi seçin': 'Select a product recipe', 'Seçili önerileri dönüştür': 'Convert selected recommendations',
+  'MAMUL İZLENEBİLİRLİĞİ': 'FINISHED GOODS TRACEABILITY', 'Lot numarası': 'Lot number', 'Son kullanma tarihi': 'Expiry date',
+  'Seri numaraları': 'Serial numbers', 'Fiili süreyi kaydet': 'Save actual time', 'Operasyonu başlat': 'Start operation',
+  'İş akışı geçmişi': 'Workflow history', 'Yayımla': 'Publish', 'Yayımlandı': 'Published', 'Taslak': 'Draft',
+  'Onayla': 'Approve', 'Reddet': 'Reject', 'Devre dışı': 'Inactive', 'Aktif': 'Active', 'Düzenle': 'Edit', 'Görüntüle': 'View',
+  'Ara': 'Search', 'Filtrele': 'Filter', 'Temizle': 'Clear', 'Önceki': 'Previous', 'Sonraki': 'Next',
+  'Kayıt bulunamadı.': 'No records found.', 'Yükleniyor…': 'Loading…', 'Bir hata oluştu.': 'An error occurred.',
+  'İlk temas': 'Prospecting', 'Nitelikli': 'Qualified', 'Müzakere': 'Negotiation', 'Kazanıldı': 'Won', 'Kaybedildi': 'Lost',
+  'Reddedildi': 'Rejected', 'Onaylandı': 'Approved', 'Bekliyor': 'Pending', 'Gönderildi': 'Submitted', 'Tamamlandı': 'Completed',
+  'Açık': 'Open', 'Kapalı': 'Closed', 'İptal edildi': 'Cancelled', 'Yürürlükte': 'Active',
+  'Alacak': 'Credit', 'Borç': 'Debit', 'Giriş': 'Inflow', 'Çıkış': 'Outflow', 'Tahsilat': 'Collection', 'Ödeme': 'Payment',
+  'İade': 'Return', 'Sevk edildi': 'Shipped', 'Kısmi': 'Partial', 'Eşleşti': 'Matched',
+  'Eşleşmedi': 'Unmatched', 'Eşleştirildi': 'Matched', 'İnceleniyor': 'Under review', 'İşleniyor': 'Processing',
+  'Beklemede': 'Queued', 'Başarılı': 'Succeeded', 'Başarısız': 'Failed', 'Yeniden denenecek': 'Will retry',
+  'Üret': 'Make', 'Satın al': 'Buy', 'Karşılandı': 'Covered', 'Planlandı': 'Planned', 'Serbest bırakıldı': 'Released',
+  'Lot': 'Lot', 'Seri': 'Serial', 'Metin': 'Text', 'Ondalık': 'Decimal', 'Tarih': 'Date', 'Evet': 'Yes', 'Hayır': 'No',
+  'Aç': 'Open', 'Açık cari döviz bakiyesi bulunmuyor.': 'No open customer foreign-currency balance.',
+  'Açık döviz faturası bulunmuyor.': 'No open foreign-currency invoices.', 'Açık fatura': 'Open invoice',
+  'Açık fatura bulunmuyor.': 'No open invoices.', 'Açık faturalar': 'Open invoices', 'Açık sipariş varsa önce değerleri tamamlayın.': 'Complete the values on open orders first.',
+  'Açık tutar': 'Outstanding amount', 'Açık vadeli fatura bulunmuyor.': 'No open invoices with a due date.', 'Açılış': 'Opening',
+  'Açılış → kapanış': 'Opening → closing', 'Açılış bakiyesi': 'Opening balance', 'Açılış bakiyesi ilk hareket olarak kaydedilir.': 'The opening balance is saved as the first transaction.',
+  'Adres etiketi': 'Address label', 'Adres türü': 'Address type', 'Aktarılabilir alt defter kaynakları': 'Subledger sources available for posting',
+  'Aktarılmayı bekleyen kaynak yok.': 'No sources are waiting to be posted.', 'Aktif hesap seçin': 'Select an active account',
+  'Aktif sağlayıcı': 'Active provider', 'Aktif stok kartı yok.': 'No active stock items.', 'Alacak bakiyesi': 'Credit balance',
+  'Alacak hareketi': 'Credit transaction', 'Alacak hesabı': 'Credit account', 'Alan değişiklikleri sürüm geçmişinde tutulur.': 'Field changes are kept in version history.',
+  'Alan kodu tenant içinde yeniden kullanılamaz.': 'A field code cannot be reused within a tenant.', 'Alan tanımı ekle': 'Add field definition',
+  'Alanı devre dışı bırak': 'Deactivate field', 'Alanı oluştur': 'Create field', 'Alanları kaydet': 'Save fields', 'Alınan': 'Received',
+  'Alış faturası': 'Purchase invoice', 'Alış faturası vade gününü tedarikçi kartından alır.': 'The purchase invoice uses the due days from the supplier account.',
+  'Alış iadeleri': 'Purchase returns', 'Alternatif birim kodu': 'Alternate unit code', 'Alternatif birim tanımı yok.': 'No alternate units defined.',
+  'Alternatif birimde girilen miktar temel birime çevrilerek stoktan düşülür.': 'Quantities entered in an alternate unit are converted to the base unit before being deducted from stock.',
+  'Attribute değeri': 'Attribute value', 'Audit kayıtlarının saklanması': 'Audit log retention', 'Ayrı geliştirme çalışma alanı': 'Separate development workspace',
+  'Bağlam': 'Context', 'Banka ekstresi içe aktar': 'Import bank statement', 'Banka hesabı': 'Bank account', 'Başlangıç': 'Start',
+  'Baz para birimi': 'Base currency', 'Baz para birimi ve döviz kurları': 'Base currency and exchange rates', 'Baz para birimini kaydet': 'Save base currency',
+  'Beklenen teslim / depo': 'Expected delivery / warehouse', 'Beklenen teslim tarihi': 'Expected delivery date', 'Belirtilmedi': 'Not specified',
+  'Birim dönüşümleri': 'Unit conversions', 'Birim ekle': 'Add unit', 'Birim fiyat': 'Unit price', 'Birim kodu': 'Unit code', 'Birim maliyet': 'Unit cost', 'Bitiş': 'End',
+  'Borç bakiyesi': 'Debit balance', 'Borç hareketi': 'Debit transaction', 'Borç hesabı': 'Debit account',
+  'Bu alan için değer değişikliği geçmişi yok.': 'There is no value change history for this field.', 'Bu alan için değer geçmişi yok.': 'There is no value history for this field.',
+  'Bu alan için değişiklik geçmişi yok.': 'There is no change history for this field.',
+  'Bu alan tanımları yalnız seçili firmaya aittir. Değerler veri türüne göre doğrulanır; alan tanımını kaldırmak eski değerleri silmez.': 'These field definitions belong only to the selected company. Values are validated by data type; removing a definition does not delete existing values.',
+  'Bu cari için henüz adres yok.': 'No addresses have been added for this account.', 'Bu çalışma alanında kayıtlı müşteri ve tedarikçiler': 'Customers and suppliers registered in this workspace',
+  'Bu değerler satın alma talebiyle saklanır.': 'These values are saved with the purchase request.', 'Bu dönemde banka hareketi yok.': 'No bank transactions in this period.',
+  'Bu dönemde değerleme gerektiren açık döviz faturası yok.': 'There are no open foreign-currency invoices requiring revaluation in this period.',
+  'Bu dövizde aktif hesap yok. Önce Finans ekranından hesap açın.': 'There is no active account in this currency. Create an account in Finance first.',
+  'Bu firma için henüz cari özel alanı tanımlanmadı.': 'No customer account custom fields have been defined for this company yet.',
+  'Bu firmanın AI sohbetinde kullanılacak sağlayıcıyı ve API anahtarlarını yönetin.': 'Manage the provider and API keys used by this company’s AI chat.',
+  'Bu firmanın Studio sohbetinde kullanılacak modeli ve erişim bilgilerini yönetin.': 'Manage the model and credentials used by this company’s Studio chat.',
+  'Bu fişin farkı': 'Voucher difference', 'Bu işlem stok hareketi oluşturmaz.': 'This action does not create an inventory transaction.',
+  'Bu kart yalnızca seçili firmanızda kullanılabilir.': 'This item is available only in your selected company.',
+  'Bugünkü değer': 'Current value', 'Bugünkü operasyonlarınıza dair özet': 'Summary of today’s operations', 'Cari grubu': 'Account group',
+  'Cari grupları': 'Account groups', 'Cari kartlarını sınıflandırmak için firma gruplarını yönetin.': 'Manage company groups to classify account records.',
+  'Cari özel alanları': 'Account custom fields', 'CARİ ÖZELLEŞTİRMESİ': 'ACCOUNT CUSTOMIZATION', 'Cari türü': 'Account type',
+  'Çalışma alanı': 'Workspace', 'Çalışma ortamı bağlantıları': 'Environment connections', 'Çek': 'Check', 'Çıkış deposu': 'Source warehouse',
+  'Çıktı': 'Output', 'Dağıtım satır yuvarlaması son satıra eklenir.': 'Any allocation rounding is added to the final line.',
+  'Dağıtım yöntemi': 'Allocation method', 'Defter hareketi seçin': 'Select a ledger transaction',
+  'Defterde olup ekstreden henüz eşleşmeyen hareketler': 'Ledger transactions not yet matched to the statement', 'Değer geçmişi': 'Value history',
+  'Değerleme tarihi': 'Revaluation date', 'Değerler tenant kapsamında saklanır.': 'Values are stored within the tenant.',
+  'Değerler tenant kapsamlıdır.': 'Values are tenant-scoped.', 'Değerleri kaydet': 'Save values', 'Değerlerin değişiklik geçmişi depo kartından açılır.': 'Value change history is available from the warehouse record.',
+  'Değişiklikler geçmişe kaydedilir.': 'Changes are saved to history.', 'Depo adı': 'Warehouse name', 'Depo alan tanımları': 'Warehouse field definitions',
+  'Depo bakiyesi': 'Warehouse balance', 'Depo hareket geçmişi korunur.': 'Warehouse transaction history is retained.',
+  'Depo hareketleri sıralı ve tenant kapsamlı kaydedilir. Stok değeri ağırlıklı ortalama bazında gösterilir; maliyetsiz miktar ayrıca izlenir.': 'Warehouse transactions are recorded in order and scoped to the tenant. Inventory value uses a weighted average; quantities without cost are tracked separately.',
+  'Depo oluştur': 'Create warehouse', 'Depo özel alanı değerleri tenant kapsamında doğrulanır ve her değişiklik için geçmiş kaydı tutulur.': 'Warehouse custom field values are validated within the tenant and each change is recorded in history.',
+  'Depo özel alanları': 'Warehouse custom fields', 'Depo yönetimi': 'Warehouse management', 'Depolar arası transfer': 'Inter-warehouse transfer',
+  'Depoları yönet': 'Manage warehouses', 'Devre dışı depolar yeni stok hareketi ve transferde kullanılamaz. Sıfırdan farklı bakiyesi olan depo kapatılamaz.': 'Inactive warehouses cannot be used for new inventory transactions or transfers. A warehouse with a nonzero balance cannot be deactivated.',
+  'Devre dışı stok kartları': 'Inactive stock items', 'Dönem bakiyesi': 'Period balance', 'Dönem başlangıcı': 'Period start', 'Dönem bitişi': 'Period end',
+  'Dönem kuru': 'Period exchange rate', 'Dönem sonu': 'Period end', 'Dönem sonu kur değerleme fişleri': 'Period-end FX revaluation vouchers',
+  'Dönem sonu tarihi': 'Period-end date', 'Dönemi getir': 'Load period', 'Döviz kalemi': 'Currency', 'Döviz pozisyonu · açık cari bakiyeler': 'FX exposure · open account balances',
+  'Dövizli açık faturalar': 'Open foreign-currency invoices', 'Durum koşulu tekil kayıtlarda ve desteklenen satış/alış listelerinde filtrelenir.': 'Status conditions filter individual records and supported sales and purchase lists.',
+  'Düzenlemeyi iptal et': 'Cancel editing', 'Ek maliyeti dağıt': 'Allocate additional cost', 'Ekran etiketi': 'Display label',
+  'Eksik kur varsa fiş oluşturulmaz. Aynı tarihte tekrar fiş kesilemez.': 'A voucher cannot be created when an exchange rate is missing. A second voucher cannot be posted for the same date.',
+  'Ekstre CSV dosyası': 'Statement CSV file', 'Ekstredeki yön': 'Statement direction', 'En yeniden eskiye · tenant kapsamlı görünüm': 'Newest first · tenant-scoped view',
+  'ERP ile aynı yön': 'Same direction as ERP', 'ERP verileriniz hakkında soru sorun': 'Ask questions about your ERP data',
+  'Eşleşen izin politikası yok.': 'No matching access policy.', 'Eşleşme': 'Match', 'Eşleşmemiş defter hareketi yok.': 'No unmatched ledger transactions.',
+  'Eşleştir': 'Match', 'Eşleştirilen tenant hesabı': 'Mapped tenant account', 'Eşleştirme': 'Mapping',
+  'Eşleştirme tamamlanana kadar ilgili alt defter kaynağı yevmiyeye aktarılamaz.': 'The related subledger source cannot be posted to the journal until it is mapped.',
+  'Etkinleştir': 'Activate', 'Evet/Hayır': 'Yes/No', 'Fatura / cari': 'Invoice / account', 'Fatura iptali için önce bağlı ödemeleri iptal edin.': 'Cancel linked payments before voiding the invoice.',
+  'Fatura iptali için tahsilat ve iadeleri önce iptal edin.': 'Cancel collections and returns before voiding the invoice.', 'Fatura miktarı': 'Invoice quantity',
+  'Fatura oluştur': 'Create invoice', 'Fatura özel alanları': 'Invoice custom fields', 'Fatura tarihi': 'Invoice date', 'Fatura tarihindeki değer': 'Value at invoice date',
+  'Fatura yükleniyor…': 'Loading invoice…', 'Faturalar varsa yeni zorunlu alan açılamaz.': 'A new required field cannot be added when invoices exist.', 'Faturayı aç': 'Open invoice',
+  'Filtrelerle eşleşen işlem kaydı yok.': 'No activity records match the filters.', 'FİNANS YÖNETİMİ': 'FINANCE MANAGEMENT', 'Firma ayarı': 'Company setting',
+  'Firma kapsamlı belgeler': 'Company-scoped documents', 'Firma tanımları müşteri ve tedarikçi cari kartlarında kullanılır. Değerler veri türüne göre doğrulanır.': 'Company definitions are used on customer and supplier account records. Values are validated by data type.',
+  'Firma tarafından tanımlanmış alanlar talep ile birlikte saklanır.': 'Company-defined fields are saved with the request.',
+  'Firma yöneticisi henüz özel alan tanımlamadı.': 'The company administrator has not defined any custom fields yet.', 'Firmaya özel depo': 'Company warehouse',
+  'Fiş no': 'Voucher number', 'Fiş tarihi': 'Voucher date', 'Fişi aç': 'Open voucher', 'Fiziksel miktarı değiştirmeden ek maliyet dağıtabilir, stok değerini yeniden değerleyebilir ve alternatif birim tanımlayabilirsiniz.': 'Allocate additional costs, revalue inventory, and define alternate units without changing physical quantities.',
+  'Geçerlilik': 'Validity', 'Geçerlilik sonu': 'Valid through', 'Geçerlilik tarihi': 'Validity date', 'Geçmiş': 'History',
+  'Geçmiş API üzerinden korunur.': 'History is retained through the API.', 'Geçmiş tarih için kur girilebilir. Aynı gün düzeltmesi yeni revizyon oluşturur.': 'Exchange rates can be entered for past dates. A same-day correction creates a new revision.',
+  'GELİŞTİRME ALANI': 'DEVELOPMENT', 'GELİŞTİRME VE UYARLAMA · AI ARAÇLARI': 'DEVELOPMENT & CUSTOMIZATION · AI TOOLS',
+  'Gerekli eşleştirmeler / işlem': 'Required mappings / transaction', 'Geri yükleme yeni bir geçmiş kaydı oluşturur.': 'Restoring creates a new history entry.',
+  'Geri yükleme yeni bir sürüm ekler.': 'Restoring adds a new version.', 'Geri yükleme yeni sürüm ekler.': 'Restoring adds a new version.',
+  'Giriş maliyetini tenant baz para biriminde girin. Maliyetsiz stok ayrı gösterilir; iptal ters kayıtla yapılır.': 'Enter the receipt cost in the tenant base currency. Stock without cost is shown separately; cancellation uses a reversal entry.',
+  'Grup adı': 'Group name', 'Güncel bakiye': 'Current balance', 'Güncel kur': 'Current rate', 'GÜVENLİK · ABAC': 'SECURITY · ABAC',
+  'Hareket birimi': 'Transaction unit', 'Hareket geçmişi oluşunca takip türü değiştirilemez.': 'Tracking mode cannot be changed after transaction history exists.',
+  'Hareket yönü': 'Transaction direction', 'Hareketler kaynak kaydı koruyan ters kayıt yöntemiyle tutulur': 'Transactions use reversal entries that preserve the source record.',
+  'Henüz aktif stok kartı yok.': 'No active stock items yet.', 'Henüz alış iadesi yok.': 'No purchase returns yet.', 'Henüz banka ekstresi aktarılmadı.': 'No bank statements have been imported yet.',
+  'Henüz değer geçmişi yok.': 'No value history yet.', 'Henüz değerleme fişi oluşturulmadı.': 'No revaluation vouchers have been created yet.', 'Henüz depo alanı tanımlanmadı.': 'No warehouse fields have been defined yet.',
+  'Henüz depo eklenmedi.': 'No warehouses have been added yet.', 'Henüz depo oluşturulmadı.': 'No warehouses have been created yet.', 'Henüz depo özel alanı tanımlanmadı.': 'No warehouse custom fields have been defined yet.',
+  'Henüz depo transferi yok.': 'No warehouse transfers yet.', 'Henüz döviz kuru girilmedi.': 'No exchange rates have been entered yet.', 'Henüz fatura alanı tanımlanmadı.': 'No invoice fields have been defined yet.',
+  'Henüz grup tanımı yok': 'No groups have been defined yet.', 'Henüz hareket yok.': 'No transactions yet.', 'Henüz irsaliye oluşturulmadı.': 'No deliveries have been created yet.',
+  'Henüz kasa veya banka hesabı yok.': 'No cash or bank accounts yet.', 'Henüz mal kabul yok.': 'No purchase receipts yet.', 'Henüz ödeme yok.': 'No payments yet.',
+  'Henüz satın alma siparişi yok.': 'No purchase orders yet.', 'Henüz satın alma talebi yok.': 'No purchase requests yet.', 'Henüz satış iadesi yok.': 'No sales returns yet.',
+  'Henüz satış siparişi yok. Kabul edilen bir teklifi siparişe dönüştürün.': 'No sales orders yet. Convert an accepted quote into an order.',
+  'Henüz sipariş alanı yok.': 'No order fields yet.', 'Henüz tahsilat kaydı yok.': 'No collections yet.', 'Henüz talep özel alanı yok.': 'No request custom fields yet.',
+  'Henüz tedarikçi teklifi kaydedilmedi.': 'No supplier quotes have been saved yet.', 'Henüz teklif alanı tanımlanmadı.': 'No quote fields have been defined yet.',
+  'Henüz teklif alanı yok.': 'No quote fields yet.', 'Henüz teklif özel alanı tanımlanmadı.': 'No quote custom fields have been defined yet.', 'Henüz yevmiye kaydı yok.': 'No journal entries yet.',
+  'Hesap bakiyesi hareketlerden hesaplanır.': 'The account balance is calculated from transactions.', 'Hesap eşleştirmeleri': 'Account mappings', 'Hesap hareketi yok.': 'No account transactions.',
+  'Hesap işlemleri': 'Account transactions', 'Hesap planı': 'Chart of accounts', 'Hesap seçin': 'Select an account', 'Hesap türü': 'Account type',
+  'İade edilebilir': 'Returnable', 'İade girişi seçilen depoya eklenir; müşteri cari hesabına alacak yazılır.': 'The return is added to the selected warehouse and credited to the customer account.',
+  'İade kalan': 'Return remaining', 'İade miktarı': 'Return quantity', 'İade no': 'Return number', 'İade oluştur': 'Create return', 'İade tarihi': 'Return date',
+  'İade, fatura miktarını ve stok bakiyesini aşamaz.': 'The return cannot exceed the invoice quantity or stock balance.', 'İade, tedarikçi cari borcunu azaltır.': 'The return reduces the supplier payable balance.',
+  'İlk finansal kayıt veya kur girilene kadar değiştirilebilir.': 'Can be changed until the first financial transaction or rate is entered.',
+  'İmzalı tutar kullanın: pozitif giriş, negatif çıkış. Bakiye toplamı API tarafından doğrulanır.': 'Use signed amounts: positive for inflows and negative for outflows. The API validates the balance total.',
+  'İncele': 'Review', 'İncele ve aktar': 'Review and post', 'İptal edildi · geçmiş kaydı korunuyor': 'Cancelled · history retained', 'İptal edildi · kaynak korundu': 'Cancelled · source retained',
+  'İrsaliye': 'Delivery note', 'İrsaliye oluştur': 'Create delivery note', 'İrsaliyeler': 'Delivery notes', 'İrsaliyeler yükleniyor…': 'Loading delivery notes…',
+  'İskonto': 'Discount', 'İskonto %': 'Discount %', 'İsteğe bağlı': 'Optional', 'İstenen miktar seçilen birim üzerinden temel birime çevrilir.': 'Requested quantity is converted from the selected unit to the base unit.',
+  'İstenen stok kalemleri': 'Requested stock items', 'İstenen teslim tarihi': 'Requested delivery date', 'İş süreçlerinize ve çalışma alanınıza genel bir bakış.': 'An overview of your business processes and workspace.',
+  'İş süreçlerinizi buradan yönetin veya AI Development Studio ile yeni geliştirme talebi oluşturun.': 'Manage your business processes here or create a development request in AI Development Studio.',
+  'İşlem geçmişi her değişikliği saklar.': 'Transaction history retains every change.', 'İşlem seçili depodaki mevcut miktara uygulanır.': 'The transaction is applied to the current quantity in the selected warehouse.',
+  'Kalan sipariş': 'Remaining order quantity', 'Kalem fiyatlarını incele': 'Review line prices', 'Kapanış': 'Closing', 'Kapanış bakiyesi': 'Closing balance',
+  'Karşı taraf ekstresiyle karşılaştır': 'Compare with counterparty statement', 'Karşı taraf yönü (Borç/Alacak ters)': 'Counterparty direction (reverse debit/credit)',
+  'Karşılaştırma farkları': 'Reconciliation differences', 'Karşılaştırmayı temizle': 'Clear comparison', 'Kategori': 'Category',
+  'Kaydedilen hareket silinemez; iptal ters kayıtla yapılır.': 'A saved transaction cannot be deleted; cancel it with a reversal entry.', 'Kayıt tarihi': 'Record date', 'Kayıtlar yükleniyor…': 'Loading records…',
+  'Kaynak depo bakiyesi API tarafından kilit altında doğrulanır.': 'The API validates the source warehouse balance under a lock.', 'Kaynak depo': 'Source warehouse', 'Kaynak hesap': 'Source account', 'Kaynak teklif': 'Source quote',
+  'Kaynak ve hedef hareketler tek transfer kaydına bağlıdır.': 'Source and destination transactions belong to one transfer record.', 'Koşul yok': 'No condition',
+  'Koşulsuz kural, seçilen izin için tüm eşleşen kaynaklara uygulanır.': 'An unconditional rule applies to all matching resources for the selected permission.',
+  'Kullanılabilir': 'Available', 'Kullanım': 'Usage', 'Kur kaynak para biriminden hedef para birimine uygulanır. Kasa bakiyesi kontrol edilir.': 'The rate converts from the source currency to the destination currency. The cash balance is checked.',
+  'Lot / seri kodu': 'Lot / serial code', 'Lot / seri takibi': 'Lot / serial tracking', 'Mal kabul ek maliyeti': 'Receipt landed cost', 'Mal kabul seçin': 'Select a receipt',
+  'Mal kabul tarihi': 'Receipt date', 'Mal kabul yalnızca açık miktar için yapılabilir': 'Receipts can only be recorded for the outstanding quantity.', 'Mal kabulini faturala': 'Invoice receipt',
+  'Maliyet düzeltme kaydı yok.': 'No cost adjustments.', 'Maliyet kayıtları append-only tutulur.': 'Cost records are append-only.', 'Maliyet ve birim yönetimi': 'Cost and unit management',
+  'Maliyet yeniden değerleme': 'Cost revaluation', 'Maliyetsiz miktar': 'Quantity without cost', 'Manuel yevmiye fişi': 'Manual journal voucher',
+  'Mevcut cariler önce doldurulmalıdır.': 'Existing accounts must be filled in first.', 'Mevcut depo değerlerini önce tamamlayın.': 'Complete values for existing warehouses first.',
+  'Mevcut kartlarda önce değerleri tamamlayın.': 'Complete values on existing records first.', 'Mevcut taslak teklifleri önce doldurun.': 'Fill in existing draft quotes first.',
+  'Miktar ve fiyat seçilen birim içindir; kayıt stok kartının temel birimine çevrilir.': 'Quantity and price use the selected unit; the record is converted to the stock item’s base unit.',
+  'Miktar ve fiyat seçilen birim içindir; sipariş stok kartının temel biriminde saklanır.': 'Quantity and price use the selected unit; the order is stored in the stock item’s base unit.',
+  'Miktara göre': 'By quantity', 'Minimum': 'Minimum', 'Minimum stok': 'Minimum stock', 'Mizan': 'Trial balance', 'Mizanı getir': 'Load trial balance',
+  'MRP, açık sipariş talebini bu tarihte karşılamaya çalışır.': 'MRP plans to meet open order demand by this date.', 'Mutabakat, iki bakiyeyi ve tüm dönem hareketlerini doğrular.': 'Reconciliation checks both balances and all transactions for the period.',
+  'Müşteri & Tedarikçi': 'Customer & Supplier', 'Müşteri seçin': 'Select a customer', 'Müşteri ve tedarikçi kartlarını firma bazında yönetin.': 'Manage customer and supplier records by company.',
+  'Nakit çıkışı hesap bakiyesini aşamaz.': 'A cash outflow cannot exceed the account balance.', 'Navlun, sigorta ve benzeri maliyetleri bir mal kabulün stok satırlarına dağıtın.': 'Allocate freight, insurance, and similar costs across the inventory lines of a receipt.',
+  'Negatif stok değeri veya maliyetsiz miktar kabul edilmez.': 'Negative stock value or quantities without cost are not allowed.', 'Negatif stok koruması': 'Negative stock protection',
+  'Onay sonrası alanlar değiştirilemez.': 'Fields cannot be changed after approval.', 'Onay, sipariş ve finans kaydı birbirinden ayrı adımlardır.': 'Approval, order creation, and financial posting are separate steps.',
+  'Onaylanan taleplerde tedarikçi ve fiyatları girerek bağlantılı sipariş oluşturun.': 'Add a supplier and prices to approved requests to create a linked order.', 'Ondalık sayı': 'Decimal number',
+  'Önce benzersiz eşleşmeleri bul, sonra kalanları incele.': 'Find unique matches first, then review the remaining items.', 'Önceki değeri geri yükle': 'Restore previous value',
+  'Önceki hesap pasif; yeni eşleştirme gerekli': 'Previous account is inactive; a new mapping is required', 'Öncekine döndür': 'Revert',
+  'Özel alanlar': 'Custom fields', 'Özel alanlar yükleniyor…': 'Loading custom fields…', 'Platform servisleri': 'Platform services', 'Politika oluştur': 'Create policy',
+  'Proje ve workspace geliştirme araçları ayrı, yetkilendirilmiş Studio uygulamasında çalışır.': 'Project and workspace development tools run in the separately authorized Studio app.',
+  'Projeler ve geliştirme talepleri ayrı yetkilendirilmiş çalışma alanında yönetilir.': 'Projects and development requests are managed in a separately authorized workspace.',
+  'Revizyon': 'Revision', 'Rezervasyonu bırak': 'Release reservation', 'Risk limiti': 'Credit limit', 'Sadece okuma araçları · Değişiklik yapılmaz': 'Read-only tools · No changes are made',
+  'Saklama süresi (gün)': 'Retention period (days)', 'Satın alma siparişleri yükleniyor…': 'Loading purchase orders…', 'Satın alma talebi': 'Purchase request',
+  'Satın alma talepleri': 'Purchase requests', 'Satır': 'Line', 'Satır açıklaması': 'Line description', 'Satır ekle': 'Add line', 'Satır maliyetine göre': 'By line cost',
+  'Satış iadeleri': 'Sales returns', 'Satış siparişi oluştur': 'Create sales order', 'Satış siparişi oluşturuldu': 'Sales order created', 'Sayfa yükleniyor…': 'Loading page…',
+  'Seçilen dönemde cari hareket yok.': 'No account transactions in the selected period.', 'Seçili depodaki maliyet kayıtları': 'Cost records for the selected warehouse',
+  'Seçili firmadaki kullanıcı ve sistem işlemlerinin değiştirilemez kayıtları.': 'Immutable records of user and system activity in the selected company.',
+  'Seçili firmaya kaydedilir': 'Saved to the selected company', 'Seri numarası': 'Serial number', 'Sevk tarihi': 'Shipment date', 'Sıfır tutar · aktarılamaz': 'Zero amount · cannot be posted',
+  'Sipariş alan tanımları': 'Order field definitions', 'Sipariş alanları': 'Order fields', 'Sipariş hazır': 'Order ready', 'Sipariş no': 'Order number', 'Sipariş notu': 'Order notes',
+  'Sipariş oluştur': 'Create order', 'Sipariş oluştururken doldurulur.': 'Completed when creating an order.', 'Sipariş özel alanları': 'Order custom fields', 'Sipariş satırları': 'Order lines', 'Sipariş tarihi': 'Order date',
+  'Sipariş ve sevkiyat': 'Orders and shipments', 'Siparişler yükleniyor…': 'Loading orders…', 'Son 100 kayıt; ters kayıtlar önceki belgeyi korur.': 'Latest 100 records; reversals preserve the original document.',
+  'Son 50 değişiklik': 'Latest 50 changes', 'Son 50 değişiklik; eski ve yeni değerler tenant kapsamında tutulur.': 'Latest 50 changes; old and new values are retained within the tenant.',
+  'Son 50 değişiklik; geri yükleme yeni bir geçmiş kaydı oluşturur.': 'Latest 50 changes; restoring creates a new history entry.', 'Son 50 denetlenebilir kayıt': 'Latest 50 auditable records',
+  'Standart hesap kodu veya hesap planı atanmaz.': 'No standard account code or chart of accounts is assigned.', 'Stok ayır': 'Reserve stock',
+  'Stok bakiyelerini görmek için bir depo oluşturun veya seçin.': 'Create or select a warehouse to view stock balances.', 'Stok değeri': 'Inventory value',
+  'Stok için ek maliyet, maliyet yeniden değerlemesi veya alternatif birim tanımlayın.': 'Set landed cost, cost revaluation, or alternate units for stock.',
+  'Stok ve depo bilgilerini doğal dille sorun. Asistan yalnızca hesabınızın erişebildiği kayıtları okur.': 'Ask about inventory and warehouses in natural language. The assistant reads only records your account can access.',
+  'Studio kendi frontend origin’inde Platform hesabıyla oturum açar; proje ve workspace izinleri API tarafında denetlenir.': 'Studio signs in with the Platform account on its own frontend origin; project and workspace permissions are checked by the API.',
+  'Studio’yu aç': 'Open Studio', 'Studio’yu keşfet': 'Explore Studio', 'Süre tenant bazındadır. Süresi dolan kayıtlar her gün 02.00 UTC’de denetlenebilir temizlik işiyle silinir.': 'Retention is configured per tenant. Expired records are removed daily at 02:00 UTC by an auditable cleanup job.',
+  'Tahminî değişim': 'Estimated change', 'Tahsilat tarihi': 'Collection date', 'Tahsilatlar': 'Collections', 'Talebi siparişe dönüştür': 'Convert request to order',
+  'Talep açıklamaları ve proje çalışma alanlarına yalnız Studio üzerinden erişilir.': 'Request descriptions and project workspaces are available only through Studio.', 'Talep açıklaması': 'Request description',
+  'Talep alanları': 'Request fields', 'Talep dönüşümünde eşleşen kodlar aktarılır; alanlar tenant kapsamındadır.': 'Matching field codes are carried over when converting a request; fields are tenant-scoped.',
+  'Talep miktarları siparişe aynen aktarılır; tutarlar sunucuda hesaplanır.': 'Request quantities carry over unchanged to the order; amounts are calculated on the server.',
+  'Talep oluştur': 'Create request', 'Talep özel alanları': 'Request custom fields', 'Talep tarihi': 'Request date',
+  'Talep TenantAdmin onayına gönderilir; talep sahibi kendi talebini karara bağlayamaz.': 'Requests are sent to a TenantAdmin for approval; request owners cannot decide on their own request.',
+  'Tanım bu tenant içindeki müşteri/tedarikçi kartlarında kullanılabilir.': 'This definition can be used on customer and supplier records in this tenant.',
+  'Tanım değişiklikleri korunur; geri yükleme yeni sürüm ekler.': 'Definition changes are retained; restoring adds a new version.', 'Tanım geçmişi bulunmuyor.': 'No definition history.',
+  'Tanım sürüm 1 olarak eklenir; kodu tenant içinde yeniden kullanılamaz.': 'The definition is added as version 1; its code cannot be reused within the tenant.',
+  'Tanımı düzenle': 'Edit definition', 'Tanımlar değiştirilemez biçimde kaydedilir; geri yükleme yeni sürüm ekler.': 'Definitions are saved immutably; restoring adds a new version.',
+  'Tanımlar tenant kapsamındadır; yeni taleplerde doldurulur ve sürüm geçmişi korunur.': 'Definitions are tenant-scoped, completed on new requests, and kept in version history.', 'Tarih / saat': 'Date / time',
+  'Taslak tekliflerde alan değerleri güncellenebilir; teklif iletildikten sonra alanlar sabitlenir.': 'Field values can be updated on draft quotes; fields are locked after the quote is sent.',
+  'Tedarik süresi (gün)': 'Lead time (days)', 'Tedarikçi borcu': 'Supplier payable', 'Tedarikçi fatura no': 'Supplier invoice number', 'Tedarikçi ödemeleri': 'Supplier payments',
+  'Tedarikçi seçin': 'Select a supplier', 'Tedarikçi seçin ve talep miktarları için birim fiyatları girin.': 'Select a supplier and enter unit prices for the requested quantities.',
+  'Tedarikçi teklif no': 'Supplier quote number', 'Tedarikçi teklifi alanları': 'Supplier quote fields', 'Teklif alanları': 'Quote fields',
+  'Teklif iletildiğinde değerler kilitlenir.': 'Values are locked when the quote is sent.', 'Teklif kaydet': 'Save quote', 'Teklif no': 'Quote number', 'Teklif notu': 'Quote notes',
+  'Teklif özel alanları': 'Quote custom fields', 'Teklif para birimi seçilen müşteri kartından alınır': 'Quote currency comes from the selected customer account',
+  'Teklif satırları': 'Quote lines', 'Teklif tarihi': 'Quote date', 'Teklifi kabul et': 'Accept quote', 'Teklifi reddet': 'Reject quote', 'Teklifler yükleniyor…': 'Loading quotes…',
+  'Tekliflerde zorunlu olsun': 'Required on quotes', 'Tekliften aynı kodla eşleşen değerler siparişe taşınır. Sipariş açıkken değerler düzenlenebilir.': 'Values with matching codes carry over from the quote to the order. They can be edited while the order is open.',
+  'Tekliften değer taşımak için alan kodunu eşleştirin.': 'Match field codes to carry values over from the quote.', 'Tekliften eşleşen kodlu alan değerleri taşındı.': 'Field values with matching codes were carried over from the quote.',
+  'Tekrar gönderim anahtarıyla çift stok girişi engellenir.': 'The idempotency key prevents duplicate stock receipts.', 'Temel birim katsayısı': 'Base unit factor',
+  'Tenant alan tanımlarına göre doğrulanır.': 'Validated against tenant field definitions.', 'Tenant hesabı eklenmedi.': 'No tenant accounts added.',
+  'Tenant hesap planı, kaynak eşleştirmeleri ve çift taraflı yevmiye defteri. Otomatik aktarım yalnız yönetici isteğiyle yapılır.': 'Tenant chart of accounts, source mappings, and double-entry journal. Automatic posting is available only when an administrator requests it.',
+  'Tenant içinde benzersiz kod.': 'Code must be unique within the tenant.', 'Tenant kapsamındaki depo alanları. Zorunlu alan eklemek için önce mevcut tüm depolarda değer bulunmalıdır.': 'Warehouse fields are tenant-scoped. All existing warehouses must have values before adding a required field.',
+  'Tenant kapsamlı kayıt': 'Tenant-scoped record', 'Tenant kapsamlı, tür doğrulamalı teklif metadata alanları.': 'Tenant-scoped quote metadata fields with type validation.',
+  'TENANT ÖZELLEŞTİRMESİ · DEPO': 'TENANT CUSTOMIZATION · WAREHOUSE', 'TENANT ÖZELLEŞTİRMESİ · STOK KARTI': 'TENANT CUSTOMIZATION · STOCK ITEM',
+  'Tenant politikaları': 'Tenant policies', 'Tenant rolleri veya üyeler için kaynak, işlem ve isteğe bağlı attribute koşullarına göre erişim tanımlayın.': 'Define access for tenant roles or members by resource, action, and optional attribute conditions.',
+  'Tenant rolü': 'Tenant role', 'Tenant üyesi': 'Tenant member', 'TenantAdmin yönetim yetkisi korunur. Eşleşen bir Deny, Allow sonucunu geçersiz kılar.': 'TenantAdmin management access is preserved. A matching Deny overrides an Allow.',
+  'Ters kayıt oluştur': 'Create reversal', 'Teslim': 'Delivery', 'Teslim tarihini kaydet': 'Save delivery date', 'Teslimat': 'Shipment', 'Transfer / döviz': 'Transfer / currency',
+  'Transfer kalemi yok.': 'No transfer lines.', 'Transfer tarihi': 'Transfer date', 'Transfer tek işlemde kaynak depodan düşer ve hedef depoya ekler. Aynı stok kalemi bir kez girilebilir.': 'A transfer deducts from the source warehouse and adds to the destination in one operation. Each stock item can be entered once.',
+  'Transferi iptal et': 'Cancel transfer', 'Tutarlar sunucuda hesaplanır': 'Amounts are calculated on the server', 'Tutarlar sunucuda hesaplanır; teklif para birimi tedarikçi kartından alınır.': 'Amounts are calculated on the server; quote currency comes from the supplier record.',
+  'Tutarlar teklif tarihindeki kurla tenant baz para birimine çevrilir; kur yoksa kıyaslanamaz.': 'Amounts are converted to the tenant base currency using the quote-date rate; they cannot be compared if no rate exists.',
+  'Tüm hareketler eşleşti.': 'All transactions matched.', 'Ülke kodu': 'Country code', 'Ünvan': 'Legal name', 'Ünvan / grup': 'Legal name / group',
+  'Üretim süresi (gün)': 'Manufacturing lead time (days)', 'Üye': 'Member', 'Vade günü': 'Payment term days', 'Vade takibi': 'Maturity tracking', 'Vade tarihi': 'Due date',
+  'Vade, tedarikçinin kayıtlı ödeme koşulundan hesaplanır.': 'The due date is calculated from the supplier’s saved payment terms.', 'Vadesi gelmemiş': 'Not yet due',
+  'Varsayılan adres ilk kayıtta atanır.': 'The default address is set on the first record.', 'Vergi no': 'Tax number', 'Vergi numarası': 'Tax number',
+  'Yalnız TenantAdmin': 'TenantAdmin only', 'Yalnızca bu firmada kullanılır.': 'Used only in this company.', 'YAPAY ZEKA · BAĞLANTI': 'AI · CONNECTION',
+  'Yeni cari kartı': 'New account record', 'Yeni cari özel alanı': 'New account custom field', 'Yeni depo': 'New warehouse', 'Yeni depo alanı': 'New warehouse field',
+  'Yeni grup ekleyerek başlayın.': 'Start by adding a group.', 'Yeni hesap': 'New account', 'Yeni özel alan': 'New custom field', 'Yeni satın alma siparişi': 'New purchase order',
+  'Yeni satış teklifi': 'New sales quote', 'Yeni satış ve stok işlemlerinde listelenmezler.': 'They are not listed in new sales or inventory transactions.', 'Yeni sipariş alanı': 'New order field',
+  'Yeni sohbetlerde kullanılacak yapay zekâ': 'AI provider for new chats', 'Yeni stok kartı': 'New stock item', 'Yeni taleplerde zorunlu olsun': 'Required on new requests',
+  'Yeni teklif': 'New quote', 'Yeni teklif alanı': 'New quote field', 'Yeniden değerle': 'Revalue', 'Yetkili ERP kayıtları inceleniyor…': 'Reviewing authorized ERP records…',
+  'Yetkili projeler, Project Explorer, geliştirme talepleri ve AI Developer araçları.': 'Authorized projects, Project Explorer, development requests, and AI Developer tools.',
+  'Yevmiye defteri': 'Journal', 'Yevmiye kayıtlarından hesap bazında hareket ve kalan bakiyeler.': 'Account transactions and remaining balances from journal entries.', 'Yön': 'Direction', 'Yönet': 'Manage',
+  'YÖNETİM · DENETİM İZİ': 'ADMINISTRATION · AUDIT LOG', 'Yöntem': 'Method', 'Zorunlu alan açmak için önce mevcut teklifler doldurulmalıdır.': 'Complete existing quotes before making a field required.',
+  'Zorunlu alanı mevcut talepler varken açmak için önce taleplere değer girilmelidir.': 'Enter values on existing requests before making a field required.',
+  'Zorunlu alanlar bu stok kartıyla birlikte kaydedilir.': 'Required fields are saved with this stock item.', 'Zorunlu alanlar yeni depo ile birlikte kaydedilir.': 'Required fields are saved with the new warehouse.',
+  'Zorunlu değerler cari kartıyla birlikte kaydedilir.': 'Required values are saved with the account record.',
+  'ÖZEL MENÜLER': 'CUSTOM MENUS', 'TENANT UYARLAMA': 'TENANT CUSTOMIZATION', 'Özel menüler': 'Custom menus',
+  'Kullanıcılarınız için ERP çalışma alanına kısayollar ekleyin ve sıralayın.': 'Add and arrange shortcuts in the ERP workspace for your users.',
+  'Menü öğesi güncellendi.': 'Menu item updated.', 'Menü öğesi oluşturuldu.': 'Menu item created.', 'Menü öğesi silindi.': 'Menu item deleted.',
+  'Menüyü düzenle': 'Edit menu', 'Yeni menü öğesi': 'New menu item', 'Hedef, yetkili ERP sayfa kataloğundan seçilir.': 'Choose a destination from the authorized ERP page catalog.',
+  'Menü kodu': 'Menu code', 'Küçük harfle başlar; harf, rakam, tire ve alt çizgi kullanılabilir.': 'Starts with a lowercase letter; use letters, numbers, hyphens, and underscores.',
+  'Görünen ad': 'Display name', 'ERP sayfası': 'ERP page', 'Değişiklikleri kaydet': 'Save changes', 'Menü ekle': 'Add menu item',
+  'Özel menüleri yalnız TenantAdmin düzenleyebilir. Mevcut menüler çalışma alanı kenar çubuğunda görünür.': 'Only TenantAdmins can edit custom menus. Current menus appear in the workspace sidebar.',
+  'Çalışma alanı menüsü': 'Workspace menu', 'Sıra, bütün tenant kullanıcılarına uygulanır.': 'The order applies to all users in the tenant.',
+  'Henüz özel menü öğesi eklenmedi.': 'No custom menu items have been added yet.', 'Menü öğesi oluştur': 'Create menu item',
+  'Düzenlemeyi kapat': 'Close editor', 'Yukarı taşı': 'Move up', 'Aşağı taşı': 'Move down', 'Sil': 'Delete',
+  'KİŞİSELLEŞTİRİLEBİLİR GÖRÜNÜM': 'CUSTOMIZABLE VIEW', 'Dashboard widget’ları': 'Dashboard widgets',
+  'Kayıtlı raporları firmanızın ana ekranına ekleyin ve sıralayın.': 'Add saved reports to your company dashboard and arrange them.',
+  'Kayıtlı rapor seçin': 'Select a saved report', 'Eklenecek rapor yok': 'No reports available to add', 'Widget ekle': 'Add widget',
+  'Henüz dashboard widget’ı yok': 'No dashboard widgets yet', 'Önce Rapor oluşturucu’da bir rapor kaydedin, ardından bu alandan ekleyin.': 'Save a report in the Report Builder, then add it here.',
+  'Rapor özeti': 'Report summary', 'Rapor verisi yüklenemedi.': 'Could not load report data.', 'Grup': 'Group', 'Kayıt': 'Record', 'Toplam': 'Total',
+  'Widget\'ı kaldır': 'Remove widget', 'İstek başarısız (401).': 'Request failed (401).',
+  'YÖNETİM · ENTEGRASYONLAR': 'ADMINISTRATION · INTEGRATIONS', 'Entegrasyon kuyruğu': 'Integration queue',
+  'Tenant işlemlerini izleyin; yalnızca henüz çalışmamış işleri iptal edin.': 'Monitor tenant operations; cancel only jobs that have not started.',
+  'Gösterilen filtredeki işlem': 'Operation in selected filter', 'Tenant sınırı uygulanıyor': 'Tenant boundary enforced', 'İşlem geçmişi': 'Operation history',
+  'Kuyruk içeriği ve hassas istek verileri bu listede gösterilmez.': 'Queue contents and sensitive request data are not shown in this list.',
+  'Tüm durumlar': 'All statuses', 'Entegrasyon': 'Integration', 'Oluşturulma': 'Created', 'Deneme': 'Attempt', 'Hata kodu': 'Error code',
+  'Kuyruk yükleniyor…': 'Loading queue…', 'İptal ediliyor…': 'Cancelling…', 'İptal et': 'Cancel', 'Bu filtrede işlem bulunmuyor.': 'No operations match this filter.',
+  'işlem': 'operations', 'Başlamış, başarısız veya sonucu belirsiz bir provider çağrısı otomatik olarak yeniden oynatılmaz; dış sistemde çift işlem riski için operatör incelemesi gerekir.': 'Provider calls that have started, failed, or returned an indeterminate result are not replayed automatically; operator review is required to prevent duplicate actions in the external system.',
+  'İşlem durumu değişti. Listeyi yenileyin.': 'Operation status changed. Refresh the list.', 'Kuyruk yüklenemedi.': 'Could not load queue.',
+  'Kuyrukta bekleyen işlem iptal edildi.': 'Queued operation cancelled.', 'İşlem iptal edilemedi.': 'Could not cancel operation.',
+  'Kuyrukta': 'Queued', 'Çalışıyor': 'Running', 'Sonuç belirsiz': 'Indeterminate',
+  'SÜREÇ MERKEZİ · TENANT İŞ AKIŞLARI': 'PROCESS CENTER · TENANT WORKFLOWS', 'Tekrarlanabilir onay süreçleri oluşturun, başlatın ve görev kutusundan yönetin.': 'Create repeatable approval workflows, launch them, and manage them from your inbox.',
+  'Yeni iş akışı': 'New workflow', 'TASARIMCI': 'BUILDER', 'Yeni akış tanımla': 'Define workflow', 'Akış kodu': 'Workflow code', 'Sıralı onay adımları': 'Sequential approval steps',
+  'Her adım belirtilen tenant rolünden bir kişinin kararıyla ilerler.': 'Each step advances when a member of the specified tenant role makes a decision.',
+  'Adım ekle': 'Add step', 'Adım adı': 'Step name', 'Onaylayacak rol': 'Approver role', 'Adımı kaldır': 'Remove step',
+  'YAYIMLANMIŞ SÜREÇLER': 'PUBLISHED WORKFLOWS', 'Yeni bir iş akışı başlat': 'Start a workflow', 'Henüz yayımlanmış iş akışı yok.': 'No published workflows yet.',
+  'Açıklama eklenmemiş.': 'No description provided.', 'Başlat': 'Start', 'başlat': 'start', 'Kayıt türü': 'Record type', 'Talep veya kayıt başlığı': 'Request or record title',
+  'Onaya gönder': 'Submit for approval', 'TANIM YÖNETİMİ': 'DEFINITION MANAGEMENT', 'Taslaklar ve sürümler': 'Drafts and versions',
+  'Taslak v': 'Draft v', 'Yayımlanmış v': 'Published v', 'Yeni sürüm': 'New version', 'GÖREV KUTUSU': 'INBOX', 'Onaylar ve başlattığım akışlar': 'Approvals and workflows I started',
+  'süreçte kararınız bekleniyor': 'workflow(s) awaiting your decision', 'Henüz başlatılmış bir süreç yok.': 'No workflows have been started yet.',
+  'Red gerekçesi (red için zorunlu)': 'Rejection reason (required to reject)', 'Karar notu gerekli': 'Decision note required',
+  'İş akışı taslağı kaydedildi.': 'Workflow draft saved.', 'İş akışları': 'Workflows',
+  'OTOMASYON · ERP OLAYLARI': 'AUTOMATION · ERP EVENTS', 'Desteklenen ERP olaylarını koşullara göre onay akışlarına yönlendirin.': 'Route supported ERP events to approval workflows based on conditions.',
+  'Yeni kural': 'New rule', 'KURAL TASARIMI': 'RULE BUILDER', 'Yeni kural oluştur': 'Create rule', 'Başlatılacak akış': 'Workflow to start',
+  'Akış seçin': 'Select a workflow', 'Tetikleyici': 'Trigger', 'Koşulun iş amacını yazın': 'Describe the business purpose of the condition',
+  'Koşullar': 'Conditions', 'Tüm koşullar eşleştiğinde seçilen onay akışı başlar.': 'The selected approval workflow starts when all conditions match.',
+  'Koşul ekle': 'Add condition', 'Değer': 'Value', 'Koşulu sil': 'Remove condition', 'Örnek:': 'Example:', 'Seçilen alan': 'Selected field',
+  'seçilen iş akışı': 'selected workflow', 'ise': 'then', 'onayını başlat.': 'approval.', 'AKTİF KURAL': 'ACTIVE RULE',
+  'Yayımlanmış olay kuralları': 'Published event rules', 'Yayımlanmış kural yok. Olay ve onay akışı seçerek bir kural oluşturun.': 'No published rules. Create a rule by selecting an event and approval workflow.',
+  'Yeni sürüm düzenle': 'Edit as new version', 'KURAL TASLAKLARI': 'RULE DRAFTS',
+  'Yayımlamaya hazır': 'Ready to publish', 'Henüz taslak kural yok.': 'No draft rules yet.', 'ÇALIŞMA GEÇMİŞİ': 'RUN HISTORY',
+  'Son kural değerlendirmeleri': 'Latest rule evaluations', 'Henüz desteklenen bir ERP olayı değerlendirilmedi.': 'No supported ERP events have been evaluated yet.',
+  'Koşullar eşleşti': 'Conditions matched', 'Koşullar eşleşmedi': 'Conditions did not match', 'VERSİYON YÖNETİMİ': 'VERSION MANAGEMENT',
+  'Taslaklar ve geçmiş sürümler': 'Drafts and previous versions', 'Arşivlenmiş eski sürüm yok.': 'No archived previous versions.', 'Yeni taslak': 'New draft',
+  'Kural taslağı kaydedildi.': 'Rule draft saved.', 'İçerir': 'Contains', 'Boş': 'Empty', 'Dolu': 'Not empty', 'Büyüktür': 'Greater than',
+  'En az': 'At least', 'Küçüktür': 'Less than', 'En çok': 'At most', 'Eşittir': 'Equals', 'Eşit değildir': 'Does not equal',
+  'Özel modül pazaryeri': 'Custom module marketplace', 'Modül pazaryeri': 'Module marketplace', 'Henüz kullanılabilir modül yok.': 'No modules are available yet.',
+  'Runtime yok': 'Runtime unavailable', 'Sandbox doğrulandı': 'Sandbox verified', 'Girdi geçerli JSON olmalı.': 'Input must be valid JSON.',
+  'Sayı alanlarına geçerli bir değer girin.': 'Enter a valid value in number fields.', 'Modülü çalıştır': 'Run module', 'Çalıştır': 'Run', 'Gönder': 'Submit',
+  'Çalıştırılıyor…': 'Running…', 'Doğrulanıyor…': 'Validating…', 'Güncelleniyor…': 'Updating…', 'Modül yükleniyor…': 'Loading module…',
+  'Yetenekler': 'Capabilities', 'Gerekli izinler': 'Required permissions', 'Devre dışı bırak': 'Deactivate',
+  '1 birim karşılığı': '1 unit equivalent', '1 yabancı para biriminin tenant baz para birimi karşılığını kaydedin. Kurlar elle girilir; kayıtlar ve düzeltme revizyonları korunur.': 'Save the tenant base-currency equivalent for one unit of foreign currency. Rates are entered manually; records and correction revisions are retained.',
+  '1–30 gün': '1–30 days', '31–60 gün': '31–60 days', '61–90 gün': '61–90 days', '90+ gün': '90+ days', 'ABAC attribute': 'ABAC attribute',
+  'Açık fırsatları aşamaları, tahmini kapanışları ve takip adımlarıyla yönetin.': 'Manage open opportunities, their stages, expected close dates, and follow-up steps.',
+  'Açık satış siparişlerini ve ek talebi reçetelerde çok seviyeli patlatıp stok/tedarik ile netleyin.': 'Explode open sales orders and additional demand through multi-level recipes, then net against stock and supply.',
+  'AI sağlayıcı ayarları': 'AI provider settings', 'AI sağlayıcı bağlantısı': 'AI provider connection', 'Alan değerleri sürüm geçmişiyle kaydedilir; finansal tutarlar değişmez.': 'Field values are saved in version history; financial amounts are not changed.',
+  'ALIŞ FATURASI': 'PURCHASE INVOICE', 'Allow · izin ver': 'Allow · permit', 'API anahtarınızla erişilebilen metin modelleri listelenir.': 'Text models available to your API key are listed.',
+  'API anahtarları sunucuda şifrelenerek saklanır ve tekrar gösterilmez. Sağlayıcı seçimi bu firmanın Studio AI sohbetine uygulanır.': 'API keys are encrypted on the server and are not shown again. The provider selection applies to this company’s Studio AI chat.',
+  'Banka ekstreleri': 'Bank statements', 'Bileşen ekle': 'Add component', 'Bileşen seçin': 'Select a component',
+  'Bir reçete oluşturduktan sonra ilk emri planlayabilirsiniz.': 'Create a recipe before planning your first order.', 'Bu alanı zorunlu yap': 'Make this field required',
+  'Bu model için fiyat bilgisi listede yok. Güncel tutarı OpenAI fiyatlandırma sayfasından doğrulayın.': 'No price is listed for this model. Check the current amount on the OpenAI pricing page.',
+  'Bu modül eylemi izole WASM çalışma alanında yürütülür. Modüller ERP veritabanına veya ağa doğrudan erişemez.': 'This module action runs in an isolated WASM environment. Modules cannot directly access the ERP database or network.',
+  'Bu nitelik tekil kayıtlarda ve ilgili satış/alış listelerinde satır bazında filtrelenir.': 'This attribute filters individual records and related sales or purchase lists row by row.',
+  'Bu teklifle sipariş': 'Create order from this quote', 'Bu tenant için henüz stok özel alanı yok.': 'No stock custom fields have been defined for this tenant yet.',
+  'CARİ YÖNETİMİ': 'ACCOUNT MANAGEMENT', 'CSV dışa aktar': 'Export CSV', 'CSV dosyası': 'CSV file',
+  'CSV dosyası tarayıcıda işlenir. Tarih, tutar ve yön karşılaştırılır; karşı taraf yönü varsayılan olarak ters çevrilir.': 'The CSV file is processed in the browser. Date, amount, and direction are compared; counterparty direction is reversed by default.',
+  'CSV örneği indir': 'Download CSV template', 'ÇALIŞMA ALANI': 'WORKSPACE', 'Çalışma dk': 'Run time (min)', 'Çıktı / 1M': 'Output / 1M',
+  'Çıktı miktarı': 'Output quantity', 'De&#287;erler stok giri&#351;iyle birlikte kaydedilir ve sonradan de&#287;i&#351;tirilemez.': 'Values are saved with the stock receipt and cannot be changed later.',
+  'Depolar arası transferler': 'Inter-warehouse transfers', 'ERP CORE · CARİ': 'ERP CORE · ACCOUNTS', 'ERP CORE · SATIN ALMA': 'ERP CORE · PURCHASING',
+  'ERP CORE · SATIŞ': 'ERP CORE · SALES', 'ERP CORE · ÜRETİM': 'ERP CORE · MANUFACTURING', 'ETKİN MODÜLLER': 'ACTIVE MODULES',
+  'EXTENSION ECOSYSTEM · TENANT KATALOĞU': 'EXTENSION ECOSYSTEM · TENANT CATALOG', 'Eylem seçin': 'Select an action',
+  'Fiyatlar USD cinsindendir; model erişimi API hesabınıza göre değişir.': 'Prices are in USD; model access depends on your API account.',
+  'Girdi / 1M': 'Input / 1M', 'GPT-6 model karşılaştırması': 'GPT-6 model comparison', 'Güncel fiyatları OpenAI’de görüntüleyin': 'View current prices on OpenAI',
+  'Hedef türü': 'Target type', 'Henüz otomatik aktarımı olmayan hareketleri tenant hesaplarına dengeli olarak kaydedin. Fiş kaydedildikten sonra değiştirilemez.': 'Post transactions that are not automatically transferred as balanced entries to tenant accounts. Vouchers cannot be changed after saving.',
+  'Henüz yanıt yok.': 'No responses yet.', 'Henüz yayımlanmış modül yok': 'No published modules yet', 'Her kayıt seçilen depoya stok girişi yapar.': 'Each record receives stock into the selected warehouse.',
+  'Hesap adı': 'Account name', 'İade deposu': 'Return warehouse', 'İletildi yap': 'Mark as sent', 'İmzalı paket': 'Signed package',
+  'İş merkezi seçin': 'Select a work center', 'JSON girdi': 'JSON input', 'Kaynak hesabı': 'Source account', 'Lot miktarı planlanan mamul miktarıyla aynı kaydedilir.': 'The lot quantity is recorded to match the planned finished-goods quantity.',
+  'Mamul seçin': 'Select a finished good', 'Menü eylemi': 'Menu action', 'Modül eylemi': 'Module action', 'Modül yanıtı': 'Module response',
+  'Modül yanıtında beklenen satır listesi bulunmadı; ham JSON gösteriliyor.': 'The module response did not include the expected row list; showing raw JSON.',
+  'NVIDIA anahtarını sil': 'Remove NVIDIA key', 'NVIDIA API kataloğundaki modeller listelenir.': 'Models in the NVIDIA API catalog are listed.', 'NVIDIA modeli': 'NVIDIA model',
+  'NVIDIA NIM API anahtarı': 'NVIDIA NIM API key', 'OpenAI anahtarını sil': 'Remove OpenAI key', 'OpenAI API anahtarı': 'OpenAI API key', 'OpenAI modeli': 'OpenAI model',
+  'Operasyon rotası': 'Operation route', 'Otomatik eşleştir': 'Auto-match', 'Ödeme tarihi': 'Payment date', 'Ödeme yöntemi': 'Payment method',
+  'Örneğin “Kahve kodlu ürünün stok durumunu kontrol et” veya “Depoları listele”.': 'For example, “Check stock for the coffee-coded item” or “List warehouses”.',
+  'Platform yayın yöneticisi bir modülü yayımladığında katalogda görünür.': 'A module appears in the catalog after the platform publisher publishes it.',
+  'Reçete / rota ve fiili süre': 'Recipe / route and actual time', 'Reçete adı': 'Recipe name', 'Reçete kodu': 'Recipe code', 'Sandbox’ta çalıştır': 'Run in sandbox',
+  'SATIN ALMA': 'PURCHASING', 'SATIN ALMA YÖNETİMİ': 'PURCHASING MANAGEMENT', 'SATIŞ · SİPARİŞ ALANLARI': 'SALES · ORDER FIELDS',
+  'SATIŞ YÖNETİMİ': 'SALES MANAGEMENT', 'SATIŞ YÖNETİMİ · TENANT ALANLARI': 'SALES MANAGEMENT · TENANT FIELDS',
+  'Sorumu ve gerekli, erişim kapsamındaki ERP verilerini yanıt üretmek için seçili AI sağlayıcısıyla paylaşmayı onaylıyorum.': 'I agree to share my question and the necessary ERP data I can access with the selected AI provider to generate a response.',
+  'Stok adı': 'Stock item name', 'Stok seçin': 'Select a stock item', 'Sürüm geçmişi yok.': 'No version history.', 'Tahmini değişim': 'Estimated change',
+  'Tanımlı menüler': 'Defined menus', 'Tenant’tan çıkar': 'Remove from tenant', 'USD, standart API metin fiyatı. 272K üzeri bağlam ve farklı işlem türlerinde fiyat değişebilir.': 'USD standard API text pricing. Rates may vary for contexts above 272K and for other operation types.',
+  'Veri türü': 'Data type', 'void request': 'void request', 'Yanıtı gönder': 'Submit response', 'Yayımlanmış modüller yükleniyor…': 'Loading published modules…',
+  'Yayımlanmış, imzası doğrulanmış modülleri inceleyin ve tenant kapsamına ekleyin.': 'Review published modules with verified signatures and add them to the tenant.',
+  'Yeni talep alanları kaydedildiğinde yeni taleplerde kullanılabilir.': 'New request fields are available on new requests after they are saved.',
+  'Değerler stok girişiyle birlikte kaydedilir ve sonradan değiştirilemez.': 'Values are saved with the stock receipt and cannot be changed later.',
+  'CSV indir': 'Download CSV', 'In · virgülle ayır': 'In · separate with commas',
+  'Mamul başına bileşen ve fire miktarlarını tanımlayın.': 'Define component quantities and scrap rates per finished good.',
+  'Model listesi NVIDIA API’sinden sunucu üzerinden alınır.': 'The model list is retrieved from the NVIDIA API through the server.',
+  'Model listesi OpenAI API anahtarınızla sunucu üzerinden alınır.': 'The model list is retrieved through the server using your OpenAI API key.',
+  'Model seçin': 'Select a model', 'Ters kayıt': 'Reversal entry', 'Ürün reçetesi': 'Product recipe'
+}
+
+Object.assign(uiEnglish, {
+  // Payment instrument portfolio page.
+  'Portföyde': 'In portfolio', 'Ciro edildi': 'Endorsed', 'Tahsil/ödeme edildi': 'Collected/paid',
+  'Karşılıksız': 'Bounced', 'İptal': 'Cancelled', 'Çek ve senet': 'Checks and promissory notes',
+  'FİNANS · PORTFÖY YÖNETİMİ': 'FINANCE · PORTFOLIO MANAGEMENT',
+  'Alınan ve verilen çek/senetleri vadeleri ve durum geçmişiyle izleyin.': 'Track received and issued checks and promissory notes, including due dates and status history.',
+  'Yenile': 'Refresh', 'Yeni kayıt': 'New record', 'Uyarıyı kapat': 'Dismiss alert', 'Bildirimi kapat': 'Dismiss notification',
+  'Açık portföy': 'Open portfolio', 'seçili filtrelere göre, döviz ayrımıyla': 'for selected filters, by currency',
+  'Vadesi gelen': 'Due', 'seçili filtrelere göre': 'for selected filters', 'Portföye kayıt ekle': 'Add portfolio record',
+  'Firma kapsamındaki çek veya senedi alınan/verilen yönüyle kaydedin.': 'Record a company check or promissory note as received or issued.',
+  'Tür': 'Type', 'Çek': 'Check', 'Senet': 'Promissory note', 'Yön': 'Direction', 'Alacak · alınan': 'Receivable · received',
+  'Borç · verilen': 'Payable · issued', 'Çek/senet numarası': 'Check/note number', 'Cari unvanı': 'Account name',
+  'Banka': 'Bank', 'Para birimi': 'Currency', 'Düzenleme tarihi': 'Issue date', 'Vade tarihi': 'Due date',
+  'Portföye giriş tarihi': 'Portfolio entry date', 'Açıklama': 'Notes',
+  'Kaydetmek finans hesabı bakiyesini değiştirmez; tahsil/ödeme ayrıca işlenir.': 'Saving does not change the financial account balance; collection/payment is recorded separately.',
+  'Kaydediliyor…': 'Saving…', 'Portföye ekle': 'Add to portfolio', 'Portföy kayıtları': 'Portfolio records',
+  'kayıt · sayfa': 'records · page', 'firma veritabanı kapsamı': 'company database scope', 'Duruma göre filtrele': 'Filter by status',
+  'Tüm durumlar': 'All statuses', 'Türe göre filtrele': 'Filter by type', 'Çekler': 'Checks', 'Senetler': 'Promissory notes',
+  'Kayıtlar yükleniyor…': 'Loading records…', 'Gösterilecek kayıt yok': 'No records to show',
+  'Filtreleri değiştirebilir veya yeni çek/senet ekleyebilirsiniz.': 'Change the filters or add a check/promissory note.',
+  'Önceki': 'Previous', 'Sonraki': 'Next', 'Sayfa': 'Page', 'Çek/senet işlemleri durum ve denetim geçmişi oluşturur. Tahsilat/ödeme banka veya kasa hareketi yazar; cari fatura tahsilatına otomatik mahsup yapmaz.': 'Check and promissory note operations create status and audit history. Collection/payment records a bank or cash transaction; it is not automatically applied to an account invoice.',
+  'Portföy kodu': 'Portfolio code', 'Cari': 'Account', 'Döviz': 'Currency', 'Durum': 'Status', 'İşlemler': 'Actions',
+  'Alınan': 'Received', 'Verilen': 'Issued', 'Ciro:': 'Endorsed to:', 'finans hesabı': 'financial account',
+  'Hesap seçin': 'Select an account', 'Tahsil': 'Collect/pay', 'Ciro': 'Endorse',
+  'Karşılıksız işlem notu (zorunlu):': 'Bounced transaction note (required):', 'İşlem açıklaması (isteğe bağlı):': 'Transaction notes (optional):',
+  'Erişim reddedildi (403). Oturumun firma üyeliği veya rolü çek/senet listesine erişemiyor.': 'Access denied (403). Your company membership or role cannot access the check and promissory note list.',
+  'Erişim reddedildi (403). Oturumun firma üyeliği veya rolü finans hesaplarına erişemiyor.': 'Access denied (403). Your company membership or role cannot access financial accounts.',
+  'Çek/senet listesi alınamadı (': 'Could not load checks and promissory notes (', 'Finans hesapları alınamadı (': 'Could not load financial accounts (',
+  'Bu çek/senet işlemi için firma yöneticisi (TenantAdmin) rolü gerekir.': 'A company administrator (TenantAdmin) role is required for this check/promissory note operation.',
+  'Çek/senet portföye kaydedildi.': 'Check/promissory note saved to the portfolio.',
+  'Tahsilat/ödeme için finans hesabı seçin.': 'Select a financial account for collection/payment.',
+  'Karşılıksız işleminde açıklama girilmelidir.': 'Enter a note for a bounced transaction.',
+  ' kaydı iptal edilsin mi? Bu işlem geri alınamaz.': ' record will be cancelled. This action cannot be undone.',
+  'İstek başarısız (${response.status})': 'Request failed (${response.status})'
+})
+
+Object.assign(uiEnglish, {
+  // Fixed labels shared by customer collections and supplier payment forms.
+  'Havale / EFT': 'Bank transfer', 'Havale': 'Bank transfer', 'Nakit': 'Cash', 'Kart': 'Card',
+  'Referans': 'Reference', 'Dekont veya işlem numarası': 'Receipt or transaction number',
+  'Tahsilat kaydet': 'Record collection', 'Ödeme kaydet': 'Record payment', 'En fazla': 'Up to',
+  'ödenebilir.': 'may be paid.', 'tahsil edilebilir.': 'may be collected.', 'Alındı': 'Collected', 'Ödendi': 'Paid',
+  'Faturalanan': 'Invoiced',
+  'Önce': 'Before', 'En geç': 'On or before', 'Onay akışı kuralı': 'Approval workflow rule',
+  'İş kuralları': 'Business rules', 'Seçilen iş akışı': 'selected workflow', 'Yayımlandı · v': 'Published · v',
+  'YENİ FORM': 'NEW FORM', 'Örn. Masraf talebi': 'For example, Expense request', 'Form yanıtları': 'Form responses', 'Gönderdiğim yanıtlar': 'My submitted responses',
+  'YÖNETİM': 'MANAGEMENT', 'Bağımlılıklar': 'Dependencies', 'sürümüne geç': 'switch to version',
+  'İşlemler': 'Operations', 'Çalışıyor…': 'Running…', 'Yönetici onayı': 'Manager approval', 'Masraf talebi onayı': 'Expense request approval',
+  'Sürecin kullanım amacı': 'Purpose of the process', 'Örn. Ekipman satın alma talebi': 'For example, Equipment purchase request',
+  'OTOMASYON · ERP OLAYLARI': 'AUTOMATION · ERP EVENTS', 'Desteklenen ERP olaylarını koşullara göre onay akışlarına yönlendirin.': 'Route supported ERP events to approval workflows based on conditions.',
+  'KURAL TASARIMI': 'RULE DESIGN', 'Yeni kural oluştur': 'Create rule', 'Başlatılacak akış': 'Workflow to start', 'Akış seçin': 'Select a workflow',
+  'Koşulun iş amacını yazın': 'Describe the business purpose of this condition', 'Tüm koşullar eşleştiğinde seçilen onay akışı başlar.': 'The selected approval workflow starts when all conditions match.',
+  'Koşul ekle': 'Add condition', 'Koşulu sil': 'Delete condition', 'Örnek:': 'Example:',
+  'Yayımlanmış olay kuralları': 'Published event rules', 'Yayımlanmış kural yok. Olay ve onay akışı seçerek bir kural oluşturun.': 'No published rules. Create a rule by selecting an event and approval workflow.',
+  'Açıklama eklenmemiş.': 'No description provided.', 'EĞER': 'IF', 'VE': 'AND', 'İSE': 'THEN', 'akışını başlat': 'start workflow',
+  'Yeni sürüm düzenle': 'Edit new version', 'KURAL TASLAKLARI': 'RULE DRAFTS', 'Yayımlamaya hazır': 'Ready to publish', 'Henüz taslak kural yok.': 'No draft rules yet.',
+  'ÇALIŞMA GEÇMİŞİ': 'RUN HISTORY', 'Son kural değerlendirmeleri': 'Recent rule evaluations', 'Henüz desteklenen bir ERP olayı değerlendirilmedi.': 'No supported ERP events have been evaluated yet.',
+  'Koşullar eşleşti': 'Conditions matched', 'Koşullar eşleşmedi': 'Conditions did not match', 'VERSİYON YÖNETİMİ': 'VERSION MANAGEMENT',
+  'Taslaklar ve geçmiş sürümler': 'Drafts and previous versions', 'Arşivlenmiş eski sürüm yok.': 'No archived versions.', 'Arşivlendi v': 'Archived v',
+  'SÜREÇ MERKEZİ · TENANT İŞ AKIŞLARI': 'PROCESS CENTER · TENANT WORKFLOWS',
+  'Tekrarlanabilir onay süreçleri oluşturun, başlatın ve görev kutusundan yönetin.': 'Create repeatable approval processes, start them, and manage them from the task inbox.',
+  'TASARIMCI': 'DESIGNER', 'Yeni akış tanımla': 'Define workflow', 'Akış kodu': 'Workflow code', 'masraf-onayi': 'expense-approval',
+  'Sıralı onay adımları': 'Sequential approval steps', 'Her adım belirtilen tenant rolünden bir kişinin kararıyla ilerler.': 'Each step advances with a decision from a member of the specified tenant role.',
+  'Adım ekle': 'Add step', 'TenantAdmin': 'Tenant admin', 'TenantDeveloper': 'Tenant developer', 'TenantUser': 'Tenant user',
+  'Silinsin mi?': 'Delete this item?', 'İstek başarısız (${response.status})': 'Request failed (${response.status})'
+})
+
+export function localizedUiText(value: string): string {
+  return isEnglishLocale() ? uiEnglish[value.trim()] ?? localizedCatalogLabel(value.trim()) : value
+}
+
+const mountedTextSources = new WeakMap<Text, { source: string; applied: string }>()
+const mountedAttributeSources = new WeakMap<Element, Map<string, { source: string; applied: string }>>()
+
+/** Localizes rendered labels from legacy ERP views, including lazy-loaded pages.
+ * React still owns the source text; saved originals let locale changes round-trip. */
+export function localizeMountedUi(root: ParentNode, locale: 'tr' | 'en'): void {
+  const translate = (value: string) => {
+    if (locale !== 'en') return value
+    const source = value.trim()
+    const mapped = uiEnglish[source] ?? catalogEnglish[source]
+    if (mapped) return mapped
+    const requestFailure = source.match(/^İstek başarısız \((\d{3})\)(\.)?$/)
+    if (requestFailure) return `Request failed (${requestFailure[1]})${requestFailure[2] ?? ''}`
+    const publishedVersion = source.match(/^Yayımlandı · v(\d+)$/)
+    if (publishedVersion) return `Published · v${publishedVersion[1]}`
+    const queuePage = source.match(/^(\d+) işlem · Sayfa (\d+)\/(\d+)$/)
+    if (queuePage) return `${queuePage[1]} operations · Page ${queuePage[2]}/${queuePage[3]}`
+    const portfolioPage = source.match(/^(\d+) kayıt · sayfa (\d+) · firma veritabanı kapsamı$/)
+    if (portfolioPage) return `${portfolioPage[1]} records · page ${portfolioPage[2]} · company database scope`
+    const pageNumber = source.match(/^Sayfa (\d+) \/ (\d+)$/)
+    if (pageNumber) return `Page ${pageNumber[1]} / ${pageNumber[2]}`
+    const listFailure = source.match(/^Çek\/senet listesi alınamadı \((\d{3})\)\.$/)
+    if (listFailure) return `Could not load checks and promissory notes (${listFailure[1]}).`
+    const accountsFailure = source.match(/^Finans hesapları alınamadı \((\d{3})\)\.$/)
+    if (accountsFailure) return `Could not load financial accounts (${accountsFailure[1]}).`
+    const cancelledRecord = source.match(/^(.+) kaydı iptal edilsin mi\? Bu işlem geri alınamaz\.$/)
+    if (cancelledRecord) return `Cancel record ${cancelledRecord[1]}? This action cannot be undone.`
+    const actionNotice = source.match(/^(.+): (Ciro edildi|Tahsil\/ödeme edildi|Karşılıksız|İptal)\.$/)
+    if (actionNotice) return `${actionNotice[1]}: ${uiEnglish[actionNotice[2]]}.`
+    return value
+  }
+  const updateText = (node: Text) => {
+    const current = node.data
+    if (!current.trim()) return
+    const prior = mountedTextSources.get(node)
+    const source = prior && current === prior.applied ? prior.source : current
+    const translated = translate(source)
+    mountedTextSources.set(node, { source, applied: translated })
+    if (current !== translated) node.data = translated
+  }
+  const updateAttribute = (element: Element, name: string) => {
+    const current = element.getAttribute(name)
+    if (!current || !current.trim()) return
+    let values = mountedAttributeSources.get(element)
+    if (!values) { values = new Map(); mountedAttributeSources.set(element, values) }
+    const prior = values.get(name)
+    const source = prior && current === prior.applied ? prior.source : current
+    const translated = translate(source)
+    values.set(name, { source, applied: translated })
+    if (current !== translated) element.setAttribute(name, translated)
+  }
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) updateText(node as Text)
+    else if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node as Element
+      for (const name of ['placeholder', 'title', 'aria-label', 'aria-description', 'alt']) updateAttribute(element, name)
+      for (const child of Array.from(element.childNodes)) walk(child)
+    }
+  }
+  walk(root as Node)
+}
+

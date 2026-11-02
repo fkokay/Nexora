@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexora.invalid/schemas/payroll-manual-submission-package-v1.schema.json",
+  "title": "Nexora Manual Payroll Submission Package Manifest v1",
+  "description": "Design-only manifest contract. Not an official Turkish declaration schema and not currently emitted by the product.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "packageId",
+    "tenantRef",
+    "createdAt",
+    "period",
+    "sourceRun",
+    "approval",
+    "files",
+    "submissionRecord"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "packageId": { "type": "string", "format": "uuid" },
+    "tenantRef": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "periodRuleVersion"],
+      "properties": {
+        "from": { "type": "string", "format": "date" },
+        "to": { "type": "string", "format": "date" },
+        "periodRuleVersion": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    },
+    "sourceRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runRef", "snapshotSha256", "ruleSetVersion"],
+      "properties": {
+        "runRef": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "snapshotSha256": { "$ref": "#/$defs/sha256" },
+        "ruleSetVersion": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "preparedBy", "approvedBy", "approvedAt", "approvedContentSha256"],
+      "properties": {
+        "status": { "enum": ["AwaitingApproval", "ApprovedForExport", "Revoked"] },
+        "preparedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "approvedBy": { "type": ["string", "null"], "maxLength": 128 },
+        "approvedAt": { "type": ["string", "null"], "format": "date-time" },
+        "approvedContentSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["declarationCode", "format", "schemaVersion", "fileName", "mediaType", "length", "sha256", "schemaSourceRef"],
+        "properties": {
+          "declarationCode": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "format": { "type": "string", "minLength": 1, "maxLength": 24 },
+          "schemaVersion": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "fileName": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$" },
+          "mediaType": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "length": { "type": "integer", "minimum": 0, "maximum": 52428800 },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "schemaSourceRef": { "type": "string", "minLength": 1, "maxLength": 300 }
+        }
+      }
+    },
+    "submissionRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reportedBy", "reportedAt", "externalReference", "evidenceSha256"],
+      "properties": {
+        "status": { "enum": ["NotSubmitted", "OperatorReportedSubmitted", "OperatorReportedRejected", "NeedsCorrection"] },
+        "reportedBy": { "type": ["string", "null"], "maxLength": 128 },
+        "reportedAt": { "type": ["string", "null"], "format": "date-time" },
+        "externalReference": { "type": ["string", "null"], "maxLength": 300 },
+        "evidenceSha256": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}

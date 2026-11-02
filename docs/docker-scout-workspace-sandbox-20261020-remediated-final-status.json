@@ -1,0 +1,34 @@
+{
+  "scannedAtUtc": "2026-10-20",
+  "sourceImage": "nexora-workspace-sandbox-remediated:local",
+  "sourceImageId": "sha256:17a655fb993cf13e2d052a222571e0d5d4dff70a0a553afab4caa251727ab6e1",
+  "archiveConfigDigest": "sha256:fd99af0ac2c9d6224e12d312cdc81792577e2058fb8f3e36f6688b7cd71cafd1",
+  "archiveSha256": "AB3BB0BA3437C24F614CC7796093521F6432424094BBA907154E0EFE04DE68FA",
+  "scanner": "Docker Scout v1.26.0",
+  "sarif": "docs/docker-scout-workspace-sandbox-20261020-remediated-final.sarif.json",
+  "sarifSha256": "34785F4548DC87831D14BF408CEECC26D1A6A3B2B86E30AFDACE3626E2825618",
+  "indexedPackages": 1159,
+  "packagesWithFindings": 1,
+  "vulnerabilityRecords": 2,
+  "status": "completed_with_triaged_sbom_findings",
+  "findings": [
+    {
+      "package": "setuptools",
+      "id": "CVE-2025-47273",
+      "fixedVersion": "78.1.1",
+      "severity": "HIGH",
+      "scopeAssessment": "Pip image vendors pkg_resources only; setuptools.package_index / PackageIndex code is absent.",
+      "version": "70.3.0"
+    },
+    {
+      "package": "setuptools",
+      "id": "CVE-2026-59890",
+      "fixedVersion": "83.0.0",
+      "severity": "MEDIUM",
+      "scopeAssessment": "Pip image vendors pkg_resources only; setuptools sdist FileList implementation is absent.",
+      "version": "70.3.0"
+    }
+  ],
+  "composePromotion": "promoted-and-verified",
+  "dataVolumesChanged": false
+}

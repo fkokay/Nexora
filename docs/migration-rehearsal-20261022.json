@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-22",
+  "engine": "Docker SQL Server 2022",
+  "execution": "sqlcmd -I (QUOTED_IDENTIFIER ON)",
+  "status": "passed-isolated-rehearsal",
+  "liveDatabases": {
+    "queriedReadOnly": true,
+    "migrationsApplied": false,
+    "productionQueried": false,
+    "historiesUnchanged": {
+      "platform": {
+        "count": 120,
+        "latest": "20261021114203_AddTenantScreenViews"
+      },
+      "tenant": {
+        "count": 35,
+        "latest": "20261021114219_AddTenantScreenViews"
+      },
+      "aiStudio": {
+        "count": 10,
+        "latest": "20261017134712_AddStudioKnowledgeRefreshConsentAIStudio"
+      }
+    },
+    "observationPoint": "before subsequent local development apply"
+  },
+  "rehearsals": [
+    {
+      "context": "PlatformDbContext",
+      "mode": "incremental-on-isolated-restored-copy",
+      "runs": 2,
+      "history": "120 to 123",
+      "latest": "20261022122258_AddSequenceDependentManufacturingSetups",
+      "result": "passed"
+    },
+    {
+      "context": "TenantDbContext",
+      "mode": "incremental-on-isolated-restored-copy",
+      "runs": 2,
+      "history": "35 to 42",
+      "latest": "20261022121926_AddSequenceDependentManufacturingSetups",
+      "result": "passed"
+    },
+    {
+      "context": "PlatformDbContext",
+      "mode": "full-idempotent-on-fresh-database",
+      "runs": 2,
+      "history": "0 to 123",
+      "latest": "20261022122258_AddSequenceDependentManufacturingSetups",
+      "result": "passed"
+    },
+    {
+      "context": "TenantDbContext",
+      "mode": "full-idempotent-on-fresh-database",
+      "runs": 2,
+      "history": "0 to 42",
+      "latest": "20261022121926_AddSequenceDependentManufacturingSetups",
+      "result": "passed"
+    },
+    {
+      "context": "AIStudioDbContext",
+      "mode": "full-idempotent-on-fresh-database",
+      "runs": 2,
+      "history": "0 to 10",
+      "latest": "20261017134712_AddStudioKnowledgeRefreshConsentAIStudio",
+      "verifiedObjects": [
+        "dbo.PurgeExpiredAuditEvents procedure",
+        "dbo.TR_AuditEvents_AppendOnly trigger"
+      ],
+      "result": "passed"
+    }
+  ],
+  "cleanup": {
+    "scratchDatabasesRemoved": true,
+    "temporaryBackupFilesRemoved": true
+  },
+  "limitations": [
+    "No production database was queried or modified.",
+    "The local restored snapshot rehearsal does not establish compatibility with an independently provisioned production target or every tenant topology."
+  ],
+  "subsequentLocalApplyReport": "docs/migration-local-apply-20261022.json"
+}

@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory)][ValidatePattern('^[0-9A-Za-z][0-9A-Za-z.-]{0,63}$')][string]$Version,
     [Parameter(Mandatory)][string]$OutputPath,
-    [ValidateSet('Release','Debug')][string]$Configuration = 'Release',
+    [ValidateSet('Release')][string]$Configuration = 'Release',
     [switch]$NoRestore
 )
 
@@ -73,6 +73,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Switch-IisRelease.ps1') -Destination $outputFull
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Test-IisHealth.ps1') -Destination $outputFull
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Rollback-IisBundle.ps1') -Destination $outputFull
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'BundleValidation.psm1') -Destination $outputFull
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'config\secrets.example.psd1') -Destination $outputFull
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination $outputFull
 
@@ -85,6 +86,17 @@ try {
         builtAtUtc = [DateTime]::UtcNow.ToString('o')
         components = @('platform-api','ai-service','erp-web','development-studio')
         prerequisites = @('Windows Server with IIS 10','ASP.NET Core .NET 10 Hosting Bundle','IIS URL Rewrite 2.1','IIS ARR 3.0')
+        files = @(
+            Get-ChildItem -LiteralPath $outputFull -File -Force -Recurse |
+                Where-Object { $_.Name -ne 'bundle.json' } |
+                Sort-Object { [IO.Path]::GetRelativePath($outputFull, $_.FullName).Replace('\', '/') } |
+                ForEach-Object {
+                    [ordered]@{
+                        path = [IO.Path]::GetRelativePath($outputFull, $_.FullName).Replace('\', '/')
+                        sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+                    }
+                }
+        )
     }
     $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputFull 'bundle.json') -Encoding UTF8
     Write-Host "IIS bundle ready: $outputFull"

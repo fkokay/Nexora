@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexora.invalid/schemas/payroll-rule-set-v1.schema.json",
+  "title": "Nexora payroll rule set v1",
+  "description": "Company-authored, source-backed rule metadata. This schema does not establish statutory correctness or provide tax rates.",
+  "type": "object",
+  "required": ["schemaVersion", "parameters"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "parameters": { "type": "array", "maxItems": 512, "items": { "$ref": "#/$defs/parameter" } },
+    "inputs": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/input" } },
+    "components": { "type": "array", "maxItems": 512, "items": { "$ref": "#/$defs/component" } },
+    "mappings": { "type": "array", "maxItems": 2048, "items": { "$ref": "#/$defs/mapping" } },
+    "payBases": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/payBasis" } },
+    "declarations": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/declaration" } }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "code": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "maxLength": 80 },
+    "inputKey": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "maxLength": 120 },
+    "targetCode": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "maxLength": 120 },
+    "date": { "type": "string", "format": "date", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "sources": {
+      "type": "array", "minItems": 2, "maxItems": 16,
+      "contains": { "properties": { "kind": { "const": "official" } }, "required": ["kind"] }, "minContains": 1,
+      "allOf": [ { "contains": { "properties": { "kind": { "const": "employerPolicy" } }, "required": ["kind"] }, "minContains": 1 } ],
+      "items": {
+        "type": "object", "required": ["kind", "reference", "url"], "additionalProperties": false,
+        "properties": {
+          "kind": { "enum": ["official", "employerPolicy"] },
+          "reference": { "type": "string", "minLength": 1, "maxLength": 300, "pattern": ".*\\S.*" },
+          "url": { "oneOf": [ { "type": "null" }, { "type": "string", "format": "uri", "maxLength": 1000, "pattern": "^https://" } ] }
+        },
+        "allOf": [ { "if": { "properties": { "kind": { "const": "official" } }, "required": ["kind"] }, "then": { "properties": { "url": { "type": "string", "format": "uri", "maxLength": 1000, "pattern": "^https://" } }, "required": ["url"] } } ]
+      }
+    },
+    "effective": {
+      "type": "object", "required": ["profile", "effectiveFrom", "effectiveTo"],
+      "properties": {
+        "profile": { "type": "string", "minLength": 1, "maxLength": 40, "pattern": ".*\\S.*" },
+        "effectiveFrom": { "$ref": "#/$defs/date" },
+        "effectiveTo": { "oneOf": [ { "type": "null" }, { "$ref": "#/$defs/date" } ] }
+      }
+    },
+    "unitName": { "type": "string", "minLength": 1, "maxLength": 32, "pattern": "^(?:1|[A-Za-z0-9%._-]+(?:\\^[1-8])?(?:[*/][A-Za-z0-9%._-]+(?:\\^[1-8])?)*)$" },
+    "unit": { "oneOf": [ { "type": "null" }, { "$ref": "#/$defs/unitName" } ] },
+    "scalarType": { "enum": ["decimal", "integer", "boolean", "text", "choice"] },
+    "expression": {
+      "oneOf": [
+        { "type": "object", "required": ["op", "value", "unit"], "properties": { "op": { "const": "constant" }, "value": { "type": "number" }, "unit": { "type": "string" } }, "additionalProperties": false },
+        { "type": "object", "required": ["op", "key", "valueType", "unit"], "properties": { "op": { "enum": ["input", "parameter"] }, "key": { "$ref": "#/$defs/inputKey" }, "valueType": { "$ref": "#/$defs/scalarType" }, "unit": { "$ref": "#/$defs/unit" } }, "additionalProperties": false },
+        { "type": "object", "required": ["op", "left", "right"], "properties": { "op": { "enum": ["add", "subtract", "multiply", "divide", "min", "max", "eq", "ne", "lt", "lte", "gt", "gte", "and", "or"] }, "left": { "$ref": "#/$defs/expression" }, "right": { "$ref": "#/$defs/expression" } }, "additionalProperties": false },
+        { "type": "object", "required": ["op", "value"], "properties": { "op": { "const": "not" }, "value": { "$ref": "#/$defs/expression" } }, "additionalProperties": false },
+        { "type": "object", "required": ["op", "condition", "then", "else"], "properties": { "op": { "const": "if" }, "condition": { "$ref": "#/$defs/expression" }, "then": { "$ref": "#/$defs/expression" }, "else": { "$ref": "#/$defs/expression" } }, "additionalProperties": false },
+        { "type": "object", "required": ["op", "value", "precision", "mode"], "properties": { "op": { "const": "round" }, "value": { "$ref": "#/$defs/expression" }, "precision": { "type": "integer", "minimum": 0, "maximum": 8 }, "mode": { "enum": ["toEven", "awayFromZero", "towardZero", "floor", "ceiling"] } }, "additionalProperties": false },
+        { "type": "object", "required": ["op", "value", "fromUnit", "toUnit", "factor"], "properties": { "op": { "const": "convert" }, "value": { "$ref": "#/$defs/expression" }, "fromUnit": { "type": "string" }, "toUnit": { "type": "string" }, "factor": { "$ref": "#/$defs/expression" } }, "additionalProperties": false }
+      ]
+    },
+    "parameter": {
+      "type": "object", "required": ["key", "label", "valueType", "value", "unit", "sources"],
+      "properties": {
+        "key": { "$ref": "#/$defs/code" }, "label": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": ".*\\S.*" },
+        "valueType": { "enum": ["decimal", "integer", "boolean", "text", "choice", "date", "json", "expression"] },
+        "value": {}, "unit": { "$ref": "#/$defs/unit" }, "sources": { "$ref": "#/$defs/sources" }
+      },
+      "allOf": [
+        { "$ref": "#/$defs/effective" },
+        { "if": { "properties": { "valueType": { "enum": ["decimal", "integer"] } }, "required": ["valueType"] }, "then": { "properties": { "unit": { "$ref": "#/$defs/unitName" } } } },
+        { "if": { "properties": { "valueType": { "enum": ["boolean", "text", "choice", "date", "json"] } }, "required": ["valueType"] }, "then": { "properties": { "unit": { "type": "null" } } } },
+        { "if": { "properties": { "valueType": { "const": "json" } }, "required": ["valueType"] }, "then": { "properties": { "value": { "not": { "type": "null" } } } } },
+        { "if": { "properties": { "valueType": { "const": "decimal" } }, "required": ["valueType"] }, "then": { "properties": { "value": { "type": "number" } } } },
+        { "if": { "properties": { "valueType": { "const": "integer" } }, "required": ["valueType"] }, "then": { "properties": { "value": { "type": "integer" } } } },
+        { "if": { "properties": { "valueType": { "const": "boolean" } }, "required": ["valueType"] }, "then": { "properties": { "value": { "type": "boolean" } } } },
+        { "if": { "properties": { "valueType": { "enum": ["text", "choice"] } }, "required": ["valueType"] }, "then": { "properties": { "value": { "type": "string" } } } },
+        { "if": { "properties": { "valueType": { "const": "date" } }, "required": ["valueType"] }, "then": { "properties": { "value": { "$ref": "#/$defs/date" } } } },
+        { "if": { "properties": { "valueType": { "const": "expression" } }, "required": ["valueType"] }, "then": { "properties": { "value": { "$ref": "#/$defs/expression" } } } }
+      ]
+    },
+    "input": {
+      "type": "object", "required": ["key", "label", "valueType", "unit", "sourceBinding", "sources"],
+      "properties": {
+        "key": { "$ref": "#/$defs/inputKey" }, "label": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": ".*\\S.*" },
+        "valueType": { "$ref": "#/$defs/scalarType" }, "unit": { "$ref": "#/$defs/unit" },
+        "sourceBinding": { "enum": ["compensation.amount", "compensation.periodAmount", "compensation.targetKind", "compensation.currencyCode", "compensation.payBasisCode", "calculation.grossCandidate", "period.calendarDays", "period.scheduledDays", "period.scheduledMinutes", "attendance.workedMinutes", "attendance.overtimeMinutes", "leave.requestedDays", "priorEmployerTaxBase.amount", "sameEmployerYtdBase.amount"] },
+        "leaveType": { "enum": ["Annual", "Health", "Unpaid", "Excuse", "Other"] },
+        "baseCode": { "$ref": "#/$defs/code" },
+        "baseType": { "enum": ["incomeTaxBase", "socialSecurityBase"] },
+        "sources": { "$ref": "#/$defs/sources" }
+      },
+      "allOf": [ { "$ref": "#/$defs/effective" },
+        { "if": { "properties": { "sourceBinding": { "const": "leave.requestedDays" } }, "required": ["sourceBinding"] }, "then": { "required": ["leaveType"] }, "else": { "not": { "required": ["leaveType"] } } },
+        { "if": { "properties": { "sourceBinding": { "enum": ["priorEmployerTaxBase.amount", "sameEmployerYtdBase.amount"] } }, "required": ["sourceBinding"] }, "then": { "required": ["baseCode"], "properties": { "baseCode": { "$ref": "#/$defs/targetCode" }, "valueType": { "const": "decimal" } } }, "else": { "not": { "required": ["baseCode"] } } },
+        { "if": { "properties": { "sourceBinding": { "const": "sameEmployerYtdBase.amount" } }, "required": ["sourceBinding"] }, "then": { "required": ["baseType"] }, "else": { "not": { "required": ["baseType"] } } },
+        { "if": { "properties": { "sourceBinding": { "const": "compensation.amount" } }, "required": ["sourceBinding"] }, "then": { "properties": { "valueType": { "const": "decimal" }, "unit": { "type": "string", "minLength": 1 } } } },
+        { "if": { "properties": { "sourceBinding": { "const": "compensation.periodAmount" } }, "required": ["sourceBinding"] }, "then": { "properties": { "valueType": { "const": "decimal" }, "unit": { "$ref": "#/$defs/unitName" } } } },
+        { "if": { "properties": { "sourceBinding": { "const": "compensation.targetKind" } }, "required": ["sourceBinding"] }, "then": { "properties": { "valueType": { "const": "choice" }, "unit": { "type": "null" } } } },
+        { "if": { "properties": { "sourceBinding": { "enum": ["compensation.currencyCode", "compensation.payBasisCode"] } }, "required": ["sourceBinding"] }, "then": { "properties": { "valueType": { "const": "text" }, "unit": { "type": "null" } } } },
+        { "if": { "properties": { "sourceBinding": { "const": "calculation.grossCandidate" } }, "required": ["sourceBinding"] }, "then": { "properties": { "valueType": { "const": "decimal" }, "unit": { "$ref": "#/$defs/unitName" } } } },
+        { "if": { "properties": { "sourceBinding": { "const": "period.calendarDays" } }, "required": ["sourceBinding"] }, "then": { "properties": { "valueType": { "const": "integer" }, "unit": { "const": "day" } } } },
+        { "if": { "properties": { "sourceBinding": { "const": "period.scheduledDays" } }, "required": ["sourceBinding"] }, "then": { "properties": { "valueType": { "const": "integer" }, "unit": { "const": "day" } } } },
+        { "if": { "properties": { "sourceBinding": { "enum": ["period.scheduledMinutes", "attendance.workedMinutes", "attendance.overtimeMinutes"] } }, "required": ["sourceBinding"] }, "then": { "properties": { "valueType": { "const": "integer" }, "unit": { "const": "min" } } } },
+        { "if": { "properties": { "sourceBinding": { "const": "leave.requestedDays" } }, "required": ["sourceBinding"] }, "then": { "properties": { "valueType": { "const": "decimal" }, "unit": { "const": "day" } } } },
+        { "if": { "properties": { "sourceBinding": { "enum": ["priorEmployerTaxBase.amount", "sameEmployerYtdBase.amount"] } }, "required": ["sourceBinding"] }, "then": { "properties": { "valueType": { "const": "decimal" }, "unit": { "$ref": "#/$defs/unitName" } } } }
+      ]
+    },
+    "component": {
+      "allOf": [ { "$ref": "#/$defs/effective" } ],
+      "type": "object", "required": ["key", "label", "category", "unit", "sources"],
+      "properties": {
+        "key": { "$ref": "#/$defs/code" }, "label": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": ".*\\S.*" },
+        "category": { "enum": ["earning", "deduction", "employerCost", "exemption"] },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 32 }, "formula": { "$ref": "#/$defs/expression" },
+        "sources": { "$ref": "#/$defs/sources" }
+      }
+    },
+    "mapping": {
+      "allOf": [ { "$ref": "#/$defs/effective" } ],
+      "type": "object", "required": ["componentKey", "mappingType", "targetCode", "sources"],
+      "properties": {
+        "componentKey": { "$ref": "#/$defs/code" },
+        "mappingType": { "enum": ["incomeTaxBase", "socialSecurityBase", "accountingAccount", "declarationField"] },
+        "targetCode": { "$ref": "#/$defs/targetCode" },
+        "baseTreatment": { "enum": ["add", "subtract", "exclude"] },
+        "sources": { "$ref": "#/$defs/sources" }
+      },
+      "allOf": [
+        { "if": { "properties": { "mappingType": { "enum": ["incomeTaxBase", "socialSecurityBase"] } }, "required": ["mappingType"] }, "then": { "required": ["baseTreatment"] }, "else": { "not": { "required": ["baseTreatment"] } } },
+        {
+          "if": { "properties": { "mappingType": { "enum": ["incomeTaxBase", "socialSecurityBase"] } }, "required": ["mappingType"] },
+          "then": {
+            "allOf": [
+              {
+                "if": { "properties": { "targetCode": { "const": "EXCLUDED" } }, "required": ["targetCode"] },
+                "then": { "properties": { "baseTreatment": { "const": "exclude" } } },
+                "else": { "properties": { "baseTreatment": { "enum": ["add", "subtract"] } } }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "payBasis": {
+      "allOf": [ { "$ref": "#/$defs/effective" } ],
+      "type": "object", "required": ["code", "label", "unit", "periodMultiplier", "sources"],
+      "properties": { "code": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "maxLength": 40 }, "label": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": ".*\\S.*" }, "unit": { "$ref": "#/$defs/unitName" }, "periodMultiplier": { "$ref": "#/$defs/expression" }, "sources": { "$ref": "#/$defs/sources" } }
+    },
+    "declaration": {
+      "allOf": [ { "$ref": "#/$defs/effective" } ],
+      "type": "object", "required": ["declarationCode", "format", "schemaVersion", "periodRuleRef", "sources"],
+      "if": { "properties": { "declarationCode": { "const": "1003A" }, "schemaVersion": { "const": "MUHSGK_21" } }, "required": ["declarationCode", "schemaVersion"] },
+      "then": { "required": ["employerProfile"] },
+      "properties": {
+        "declarationCode": { "$ref": "#/$defs/code" }, "format": { "type": "string", "minLength": 1, "maxLength": 24, "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$" },
+        "schemaVersion": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": ".*\\S.*" }, "periodRuleRef": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": ".*\\S.*" },
+        "employerProfile": { "type": "object", "required": ["taxOfficeCode", "taxNumber", "employerTitle", "phoneAreaCode", "phoneNumber", "branchNumber"], "additionalProperties": false, "properties": {
+          "taxOfficeCode": { "type": "string", "pattern": "^[0-9]{6}$" }, "taxNumber": { "type": "string", "pattern": "^[0-9]{10}$" },
+          "employerTitle": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": ".*\\S.*" },
+          "phoneAreaCode": { "type": "string", "pattern": "^[0-9]{3}$" }, "phoneNumber": { "type": "string", "pattern": "^[0-9]{7}$" },
+          "branchNumber": { "type": "string", "maxLength": 10 }
+        } },
+        "sources": { "$ref": "#/$defs/sources" }
+      }
+    }
+  }
+}

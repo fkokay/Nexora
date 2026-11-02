@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using AIERP.ReleaseDeployer;
 using AIERP.Platform.Domain;
+using AIERP.Platform.Infrastructure;
 using AIERP.Observability;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -16,7 +17,8 @@ var builder = WebApplication.CreateBuilder(args);
 DeployerState.AllowTestDockerOverride = ReleaseDeployerDockerExecutionPolicy.IsTestOverrideAllowed(builder.Environment.EnvironmentName);
 builder.Services.AddAierpHttpMetrics();
 var signingKey = builder.Configuration["Authentication:SigningKey"];
-var separationEnabled = builder.Configuration.GetValue<bool>("Database:SeparationEnabled");
+DatabaseIsolationConfiguration.RequireEnabled(builder.Configuration, "Release Deployer");
+const bool separationEnabled = true;
 if (string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32)
     throw new InvalidOperationException("Authentication:SigningKey must contain at least 32 bytes.");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
@@ -32,6 +34,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 });
 builder.Services.AddAuthorization();
 var app = builder.Build();
+var environmentName = builder.Environment.EnvironmentName;
+// Capture process configuration outside request handlers. IConfiguration is a
+// host service, not request data; making it a minimal-API parameter causes
+// static analysis to treat configured storage roots as user-controlled paths.
+var configuration = builder.Configuration;
+app.UseAierpSecurityHeaders();
 app.UseAierpHttpMetrics();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -46,7 +54,7 @@ app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
         if (nextRun <= now) nextRun = nextRun.AddDays(1);
         try { await Task.Delay(nextRun - now, scheduledBackupStopping); }
         catch (OperationCanceledException) when (scheduledBackupStopping.IsCancellationRequested) { break; }
-        try { await BackupActiveProductionProjectsAsync(builder.Configuration, signingKey, app.Logger, scheduledBackupStopping); }
+        try { await BackupActiveProductionProjectsAsync(configuration, signingKey, app.Logger, scheduledBackupStopping); }
         catch (OperationCanceledException) when (scheduledBackupStopping.IsCancellationRequested) { break; }
         catch (Exception exception) { app.Logger.LogError(exception, "Scheduled production database backup failed."); }
     }
@@ -54,7 +62,7 @@ app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "release-deployer" }));
 app.MapAierpMetrics();
-app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body, ClaimsPrincipal caller, CancellationToken cancellationToken) =>
 {
     if (!HasScope(caller, body, "release.staging.deploy")) return Results.Forbid();
     if (body.DeploymentId == Guid.Empty || body.TenantId == Guid.Empty || body.ProjectId == Guid.Empty || body.PackageId == Guid.Empty ||
@@ -62,12 +70,26 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
         !StudioReleaseVersionRules.IsValid(body.Version))
         return Results.BadRequest(new { error = "Dağıtım metadata'sı geçersiz." });
 
+    // Staging currently inherits a shared SQL login and has no isolated
+    // synthetic-tenant Worker/Vault lifecycle. Reject before creating files,
+    // allocating secrets, or invoking Docker until both conditions are met.
+    var stagingVaultLifecycleEnabled = configuration.GetValue<bool>("ReleaseDeployer:StagingTenantSqlVaultLifecycleEnabled");
+    var unsafeAcceptanceFixture = TenantSqlVaultStagingPolicy.CanUseUnsafeAcceptanceFixture(
+        environmentName,
+        configuration.GetValue<bool>("ReleaseDeployer:AllowUnsafeComposeForAcceptanceTests"),
+        DeployerState.AllowTestDockerOverride);
+    if (!unsafeAcceptanceFixture && !TenantSqlVaultStagingPolicy.IsEnabled(stagingVaultLifecycleEnabled, syntheticIdentityLifecycleImplemented: false, compose: StagingTemplates.StagingCompose))
+        return Results.Problem(
+            "Staging dağıtımı kapalı: sentetik tenant SQL/Vault yaşam döngüsü ve DBA tarafından onaylı Worker bağlantısı yapılandırılmamış.",
+            statusCode: StatusCodes.Status503ServiceUnavailable,
+            title: "Staging tenant SQL Vault hazırlığı eksik");
+
     var packagesRoot = Path.GetFullPath(configuration["ReleaseDeployer:PackageRoot"] ?? "/release-packages");
     var releaseRoot = Path.GetFullPath(configuration["ReleaseDeployer:ReleaseRoot"] ?? "/staging-releases");
-    var packagePath = SafeChild(packagesRoot, $"{body.PackageId:N}.zip");
-    var packageMetadataPath = SafeChild(packagesRoot, $"{body.PackageId:N}.json");
-    var projectDirectory = SafeChild(releaseRoot, $"{body.ProjectId:N}");
-    var deploymentDirectory = SafeChild(projectDirectory, $"{body.DeploymentId:N}");
+    var packagePath = ReleaseDeployerPath.SafeChild(packagesRoot, $"{ReleaseDeployerPath.SafeGuidSegment(body.PackageId)}.zip");
+    var packageMetadataPath = ReleaseDeployerPath.SafeChild(packagesRoot, $"{ReleaseDeployerPath.SafeGuidSegment(body.PackageId)}.json");
+    var projectDirectory = ReleaseDeployerPath.SafeChild(releaseRoot, ReleaseDeployerPath.SafeGuidSegment(body.ProjectId));
+    var deploymentDirectory = ReleaseDeployerPath.SafeChild(projectDirectory, ReleaseDeployerPath.SafeGuidSegment(body.DeploymentId));
     string? temporaryEnvFile = null;
     var deploymentSucceeded = false;
     var projectName = $"aierp-staging-{body.ProjectId:N}";
@@ -75,9 +97,9 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
     await DeployerState.Gate.WaitAsync(cancellationToken);
     try
     {
-        await using var deploymentLock = await DistributedDeploymentLock.AcquireAsync(configuration["ReleaseDeployer:LockRoot"] ?? "/deployer-state", cancellationToken);
+        await using var deploymentLock = await DistributedDeploymentLock.AcquireAsync(cancellationToken);
         if (!File.Exists(packagePath) || !File.Exists(packageMetadataPath)) return Results.NotFound(new { error = "Sürüm paketi veya metadata dosyası bulunamadı." });
-        var existingResultPath = Path.Combine(deploymentDirectory, "result.json");
+        var existingResultPath = ReleaseDeployerPath.SafeChild(deploymentDirectory, "result.json");
         if (File.Exists(existingResultPath))
         {
             var existing = await ReadEncryptedResultAsync(existingResultPath, signingKey, cancellationToken);
@@ -87,7 +109,7 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
             return Results.Ok(existing);
         }
 
-        var currentPath = Path.Combine(projectDirectory, "current.json");
+        var currentPath = ReleaseDeployerPath.SafeChild(projectDirectory, "current.json");
         if (File.Exists(currentPath))
         {
             await using var currentStream = File.OpenRead(currentPath);
@@ -99,8 +121,11 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
         {
             var maxActiveProjects = int.TryParse(configuration["ReleaseDeployer:MaxActiveStagingProjects"], out var configuredLimit)
                 ? Math.Clamp(configuredLimit, 1, 10) : 2;
-            var activeProjectCount = Directory.EnumerateDirectories(releaseRoot).Take(1000)
-                .Count(directory => File.Exists(Path.Combine(directory, "current.json")));
+            var activeProjectCount = Directory.EnumerateDirectories(releaseRoot).Take(1000).Count(directory =>
+            {
+                var projectPath = ReleaseDeployerPath.SafeChild(releaseRoot, Path.GetFileName(directory));
+                return File.Exists(ReleaseDeployerPath.SafeChild(projectPath, "current.json"));
+            });
             if (activeProjectCount >= maxActiveProjects)
                 return Results.Problem("Yerel staging ortamı sınırına ulaşıldı; kullanılmayan bir ortamı temizleyip yeniden deneyin.", statusCode: StatusCodes.Status429TooManyRequests);
         }
@@ -118,12 +143,12 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
                 return Results.Conflict(new { error = "Sürüm paketi metadata'sı beklenen sürümle eşleşmiyor." });
         }
         Directory.CreateDirectory(projectDirectory);
-        var sourceDirectory = Path.Combine(deploymentDirectory, "source");
+        var sourceDirectory = ReleaseDeployerPath.SafeChild(deploymentDirectory, "source");
         Directory.CreateDirectory(sourceDirectory);
-        await ExtractVerifiedPackageAsync(packagePath, sourceDirectory, body.PackageId, body.Version, body.CommitSha, packageMetadata!.FileCount, cancellationToken);
+        await ExtractVerifiedPackageAsync(packagePath, body.PackageSha256, sourceDirectory, body.PackageId, body.Version, body.CommitSha, packageMetadata!.FileCount, cancellationToken);
         WriteTrustedBuildFiles(sourceDirectory);
 
-        var secretsPath = Path.Combine(projectDirectory, "secrets.enc.json");
+        var secretsPath = ReleaseDeployerPath.SafeChild(projectDirectory, "secrets.enc.json");
         var secrets = File.Exists(secretsPath)
             ? await ReadEncryptedAsync<DeploymentSecrets>(secretsPath, signingKey, cancellationToken)
             : null;
@@ -134,27 +159,34 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
             var password = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).Replace('+', 'A').Replace('/', 'B').TrimEnd('=');
             var sql = Convert.ToBase64String(RandomNumberGenerator.GetBytes(36)).Replace('+', 'A').Replace('/', 'B').TrimEnd('=') + "aA1!";
             var jwt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
-            secrets = new DeploymentSecrets(email, password, sql, jwt, $"Nexora Staging {body.Version}", allocatedPort, NewRuntimePassword("pP2!"), NewRuntimePassword("dD3!"));
+            secrets = new DeploymentSecrets(email, password, sql, jwt, $"Nexora Staging {body.Version}", allocatedPort, NewRuntimePassword("pP2!"), NewRuntimePassword("mM3!"));
             Directory.CreateDirectory(projectDirectory);
             await WriteEncryptedAsync(secretsPath, secrets, signingKey, cancellationToken);
             if (OperatingSystem.IsLinux()) File.SetUnixFileMode(secretsPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
-        if (string.IsNullOrWhiteSpace(secrets.PlatformRuntimePassword) || string.IsNullOrWhiteSpace(secrets.DataRuntimePassword))
+        var syntheticStagingTenantId = StagingTenantIdentity.Resolve(body.TenantId, secrets.SyntheticStagingTenantId);
+        if (secrets.SyntheticStagingTenantId != syntheticStagingTenantId)
         {
-            secrets = secrets with { PlatformRuntimePassword = NewRuntimePassword("pP2!"), DataRuntimePassword = NewRuntimePassword("dD3!") };
+            secrets = secrets with { SyntheticStagingTenantId = syntheticStagingTenantId };
+            await WriteEncryptedAsync(secretsPath, secrets, signingKey, cancellationToken);
+            if (OperatingSystem.IsLinux()) File.SetUnixFileMode(secretsPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+        if (string.IsNullOrWhiteSpace(secrets.PlatformRuntimePassword) || string.IsNullOrWhiteSpace(secrets.PlatformMigratorPassword))
+        {
+            secrets = secrets with { PlatformRuntimePassword = NewRuntimePassword("pP2!"), PlatformMigratorPassword = NewRuntimePassword("mM3!") };
             await WriteEncryptedAsync(secretsPath, secrets, signingKey, cancellationToken);
         }
         var port = secrets.Port;
-        var composeFile = Path.Combine(sourceDirectory, ".aierp-deploy", "compose.yml");
-        var envFile = Path.Combine(Path.GetFullPath(Path.GetTempPath()), $"aierp-staging-{body.DeploymentId:N}.env");
+        var composeFile = ReleaseDeployerPath.SafeChild(sourceDirectory, ".aierp-deploy/compose.yml");
+        var envFile = ReleaseDeployerPath.SafeChild(Path.GetFullPath(Path.GetTempPath()), $"aierp-staging-{ReleaseDeployerPath.SafeGuidSegment(body.DeploymentId)}.env");
         temporaryEnvFile = envFile;
-        var cleanupEnvFile = Path.Combine(projectDirectory, "cleanup.env");
-        var env = $"SOURCE_ROOT={sourceDirectory}\nSTAGING_PORT={port}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={secrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(secrets.JwtKey)}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\n";
+        var cleanupEnvFile = ReleaseDeployerPath.SafeChild(projectDirectory, "cleanup.env");
+        var env = $"SOURCE_ROOT={sourceDirectory}\nSTAGING_PORT={port}\nAIERP_STAGING_TENANT_ID={syntheticStagingTenantId:D}\nOCI_IMAGE_REVISION={body.CommitSha}\nOCI_IMAGE_VERSION={body.Version}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_MIGRATOR_PASSWORD={secrets.PlatformMigratorPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(secrets.JwtKey)}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\n";
         await File.WriteAllTextAsync(envFile, env, new UTF8Encoding(false), cancellationToken);
         if (OperatingSystem.IsLinux()) File.SetUnixFileMode(envFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         if (!File.Exists(cleanupEnvFile))
         {
-            var cleanupEnv = $"SOURCE_ROOT={sourceDirectory}\nSTAGING_PORT={port}\nMSSQL_SA_PASSWORD=unused\nAIERP_PLATFORM_RUNTIME_PASSWORD=unused\nAIERP_DATA_RUNTIME_PASSWORD=unused\nAUTH_SIGNING_KEY=unused\nPLUGIN_HOST_SIGNING_KEY=unused\nBOOTSTRAP_EMAIL=unused@example.invalid\nBOOTSTRAP_PASSWORD=unused\nBOOTSTRAP_TENANT_NAME=unused\n";
+            var cleanupEnv = $"SOURCE_ROOT={sourceDirectory}\nSTAGING_PORT={port}\nMSSQL_SA_PASSWORD=unused\nAIERP_PLATFORM_RUNTIME_PASSWORD=unused\nAIERP_PLATFORM_MIGRATOR_PASSWORD=unused\nAUTH_SIGNING_KEY=unused\nPLUGIN_HOST_SIGNING_KEY=unused\nBOOTSTRAP_EMAIL=unused@example.invalid\nBOOTSTRAP_PASSWORD=unused\nBOOTSTRAP_TENANT_NAME=unused\n";
             await File.WriteAllTextAsync(cleanupEnvFile, cleanupEnv, new UTF8Encoding(false), cancellationToken);
             if (OperatingSystem.IsLinux()) File.SetUnixFileMode(cleanupEnvFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
@@ -166,14 +198,19 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
         if (up.ExitCode != 0) return Results.Problem("Staging servisleri başlatılamadı. Deployer hata çıktısını gizlilik için saklamadı.", statusCode: StatusCodes.Status502BadGateway);
         var healthy = await WaitForHealthyAsync(commandPrefix, configuration, cancellationToken);
         if (!healthy) return Results.Problem("Staging servisleri başlatıldı ancak health check süresi içinde sağlıklı olmadı.", statusCode: StatusCodes.Status504GatewayTimeout);
+        var tenantProvisioned = await WaitForStagingProvisioningAsync(commandPrefix, secrets.SqlPassword,
+            syntheticStagingTenantId, configuration, cancellationToken);
+        if (!tenantProvisioned)
+            return Results.Problem("Staging servisleri sağlıklı ancak sentetik firmanın ERP/AI Studio veritabanları ve Worker işi hazır olmadı.",
+                statusCode: StatusCodes.Status504GatewayTimeout, title: "Staging tenant hazırlığı tamamlanmadı");
 
         var result = new StagingDeploymentResult(body.DeploymentId, body.IdempotencyKey, body.PackageId, body.PackageSha256.ToUpperInvariant(), body.CommitSha,
-            $"http://localhost:{port}", projectName, secrets.BootstrapEmail, secrets.BootstrapPassword, DateTimeOffset.UtcNow);
-        var resultPath = Path.Combine(deploymentDirectory, "result.json");
+            $"http://localhost:{port}", projectName, secrets.BootstrapEmail, secrets.BootstrapPassword, DateTimeOffset.UtcNow, body.Version);
+        var resultPath = ReleaseDeployerPath.SafeChild(deploymentDirectory, "result.json");
         await WriteEncryptedResultAsync(resultPath, result, signingKey, cancellationToken);
         if (OperatingSystem.IsLinux()) File.SetUnixFileMode(resultPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         await File.WriteAllTextAsync(currentPath, JsonSerializer.Serialize(new DeploymentCurrentPointer(body.DeploymentId), JsonConfig.Options), new UTF8Encoding(false), cancellationToken);
-        var activeCleanupEnv = $"SOURCE_ROOT={sourceDirectory}\nSTAGING_PORT={port}\nMSSQL_SA_PASSWORD=unused\nAIERP_PLATFORM_RUNTIME_PASSWORD=unused\nAIERP_DATA_RUNTIME_PASSWORD=unused\nAUTH_SIGNING_KEY=unused\nPLUGIN_HOST_SIGNING_KEY=unused\nBOOTSTRAP_EMAIL=unused@example.invalid\nBOOTSTRAP_PASSWORD=unused\nBOOTSTRAP_TENANT_NAME=unused\n";
+        var activeCleanupEnv = $"SOURCE_ROOT={sourceDirectory}\nSTAGING_PORT={port}\nMSSQL_SA_PASSWORD=unused\nAIERP_PLATFORM_RUNTIME_PASSWORD=unused\nAIERP_PLATFORM_MIGRATOR_PASSWORD=unused\nAUTH_SIGNING_KEY=unused\nPLUGIN_HOST_SIGNING_KEY=unused\nBOOTSTRAP_EMAIL=unused@example.invalid\nBOOTSTRAP_PASSWORD=unused\nBOOTSTRAP_TENANT_NAME=unused\n";
         await File.WriteAllTextAsync(cleanupEnvFile, activeCleanupEnv, new UTF8Encoding(false), cancellationToken);
         deploymentSucceeded = true;
         return Results.Ok(result);
@@ -186,19 +223,19 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
     {
         if (!deploymentSucceeded && Directory.Exists(deploymentDirectory))
         {
-            var composeFile = Path.Combine(deploymentDirectory, "source", ".aierp-deploy", "compose.yml");
+            var composeFile = ReleaseDeployerPath.SafeChild(deploymentDirectory, "source/.aierp-deploy/compose.yml");
             var restored = currentDeploymentId is null;
             if (currentDeploymentId is Guid previousId)
             {
                 try
                 {
-                    var previousSource = Path.Combine(projectDirectory, $"{previousId:N}", "source");
-                    var previousCompose = Path.Combine(previousSource, ".aierp-deploy", "compose.yml");
-                    var previousEnv = Path.Combine(Path.GetFullPath(Path.GetTempPath()), $"aierp-staging-restore-{body.ProjectId:N}.env");
-                    var savedSecrets = await ReadEncryptedAsync<DeploymentSecrets>(Path.Combine(projectDirectory, "secrets.enc.json"), signingKey, CancellationToken.None);
+                    var previousSource = ReleaseDeployerPath.SafeChild(projectDirectory, $"{ReleaseDeployerPath.SafeGuidSegment(previousId)}/source");
+                    var previousCompose = ReleaseDeployerPath.SafeChild(previousSource, ".aierp-deploy/compose.yml");
+                    var previousEnv = ReleaseDeployerPath.SafeChild(Path.GetFullPath(Path.GetTempPath()), $"aierp-staging-restore-{ReleaseDeployerPath.SafeGuidSegment(body.ProjectId)}.env");
+                    var savedSecrets = await ReadEncryptedAsync<DeploymentSecrets>(ReleaseDeployerPath.SafeChild(projectDirectory, "secrets.enc.json"), signingKey, CancellationToken.None);
                     if (File.Exists(previousCompose) && savedSecrets is not null)
                     {
-                        var restoreValues = $"SOURCE_ROOT={previousSource}\nSTAGING_PORT={savedSecrets.Port}\nMSSQL_SA_PASSWORD={savedSecrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={savedSecrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={savedSecrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={savedSecrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(savedSecrets.JwtKey)}\nBOOTSTRAP_EMAIL={savedSecrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={savedSecrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={savedSecrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\n";
+                        var restoreValues = $"SOURCE_ROOT={previousSource}\nSTAGING_PORT={savedSecrets.Port}\nAIERP_STAGING_TENANT_ID={savedSecrets.SyntheticStagingTenantId:D}\nMSSQL_SA_PASSWORD={savedSecrets.SqlPassword}\nAIERP_PLATFORM_MIGRATOR_PASSWORD={savedSecrets.PlatformMigratorPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={savedSecrets.PlatformRuntimePassword}\nAUTH_SIGNING_KEY={savedSecrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(savedSecrets.JwtKey)}\nBOOTSTRAP_EMAIL={savedSecrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={savedSecrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={savedSecrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\n";
                         await File.WriteAllTextAsync(previousEnv, restoreValues, new UTF8Encoding(false), CancellationToken.None);
                         var restore = await RunDockerAsync(["compose", "--project-name", projectName, "--file", previousCompose, "--env-file", previousEnv, "up", "--detach", "--build", "--remove-orphans"], TimeSpan.FromMinutes(20), CancellationToken.None);
                         restored = restore.ExitCode == 0;
@@ -226,24 +263,24 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
     }
 }).RequireAuthorization();
 
-app.MapDelete("/internal/deployments/staging/{deploymentId:guid}", async (Guid deploymentId, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapDelete("/internal/deployments/staging/{deploymentId:guid}", async (Guid deploymentId, ClaimsPrincipal caller, CancellationToken cancellationToken) =>
 {
     if (deploymentId == Guid.Empty || caller.FindFirstValue("deployment_id") != deploymentId.ToString("D") || caller.FindFirstValue("scope") != "release.staging.destroy") return Results.Forbid();
     if (!Guid.TryParse(caller.FindFirstValue("project_id"), out var projectId)) return Results.Forbid();
     var root = Path.GetFullPath(configuration["ReleaseDeployer:ReleaseRoot"] ?? "/staging-releases");
-    var directory = SafeChild(root, $"{projectId:N}");
+    var directory = ReleaseDeployerPath.SafeChild(root, ReleaseDeployerPath.SafeGuidSegment(projectId));
     if (!Directory.Exists(directory)) return Results.NotFound();
     await DeployerState.Gate.WaitAsync(cancellationToken);
     try
     {
-        await using var deploymentLock = await DistributedDeploymentLock.AcquireAsync(configuration["ReleaseDeployer:LockRoot"] ?? "/deployer-state", cancellationToken);
-        var currentPath = Path.Combine(directory, "current.json");
+        await using var deploymentLock = await DistributedDeploymentLock.AcquireAsync(cancellationToken);
+        var currentPath = ReleaseDeployerPath.SafeChild(directory, "current.json");
         if (!File.Exists(currentPath)) return Results.NotFound();
         await using var currentStream = File.OpenRead(currentPath);
         var current = await JsonSerializer.DeserializeAsync<DeploymentCurrentPointer>(currentStream, JsonConfig.Options, cancellationToken);
         if (current?.DeploymentId != deploymentId) return Results.Conflict(new { error = "Yalnız etkin staging dağıtımı temizlenebilir." });
-        var composePath = Path.Combine(directory, $"{deploymentId:N}", "source", ".aierp-deploy", "compose.yml");
-        var envPath = Path.Combine(directory, "cleanup.env");
+        var composePath = ReleaseDeployerPath.SafeChild(directory, $"{ReleaseDeployerPath.SafeGuidSegment(deploymentId)}/source/.aierp-deploy/compose.yml");
+        var envPath = ReleaseDeployerPath.SafeChild(directory, "cleanup.env");
         if (File.Exists(composePath) && File.Exists(envPath))
         {
             var projectName = $"aierp-staging-{projectId:N}";
@@ -259,32 +296,47 @@ app.MapDelete("/internal/deployments/staging/{deploymentId:guid}", async (Guid d
     finally { DeployerState.Gate.Release(); }
 }).RequireAuthorization();
 
-app.MapPost("/internal/deployments/production", async (CreateStagingDeployment body, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/internal/deployments/production", async (CreateStagingDeployment body, ClaimsPrincipal caller, CancellationToken cancellationToken) =>
 {
     if (!HasScope(caller, body, "release.production.deploy")) return Results.Forbid();
     if (body.DeploymentId == Guid.Empty || body.TenantId == Guid.Empty || body.ProjectId == Guid.Empty || body.PackageId == Guid.Empty ||
         body.IdempotencyKey == Guid.Empty || !IsSha256(body.PackageSha256) || !IsSha256(body.CommitSha) || !StudioReleaseVersionRules.IsValid(body.Version))
         return Results.BadRequest(new { error = "Üretim dağıtım metadata'sı geçersiz." });
+    // Production is generated from the same tenant-separated Compose
+    // template. A flag alone cannot bypass this check: the template must also
+    // contain the synthetic-tenant Worker/Vault contract and must not contain
+    // the shared tenant SQL login or a Vault token.
+    var stagingVaultLifecycleEnabled = configuration.GetValue<bool>("ReleaseDeployer:StagingTenantSqlVaultLifecycleEnabled");
+    var unsafeAcceptanceFixture = TenantSqlVaultStagingPolicy.CanUseUnsafeAcceptanceFixture(
+        environmentName,
+        configuration.GetValue<bool>("ReleaseDeployer:AllowUnsafeComposeForAcceptanceTests"),
+        DeployerState.AllowTestDockerOverride);
+    if (!unsafeAcceptanceFixture && !TenantSqlVaultStagingPolicy.IsEnabled(stagingVaultLifecycleEnabled, syntheticIdentityLifecycleImplemented: false, compose: StagingTemplates.StagingCompose))
+        return Results.Problem(
+            "Üretim dağıtımı kapalı: sentetik tenant SQL/Vault yaşam döngüsü ve DBA tarafından onaylı Worker bağlantısı yapılandırılmamış.",
+            statusCode: StatusCodes.Status503ServiceUnavailable,
+            title: "Tenant SQL Vault dağıtım hazırlığı eksik");
     var packagesRoot = Path.GetFullPath(configuration["ReleaseDeployer:PackageRoot"] ?? "/release-packages");
     var releaseRoot = Path.GetFullPath(configuration["ReleaseDeployer:ProductionRoot"] ?? "/production-releases");
-    var packagePath = SafeChild(packagesRoot, $"{body.PackageId:N}.zip");
-    var packageMetadataPath = SafeChild(packagesRoot, $"{body.PackageId:N}.json");
-    var projectDirectory = SafeChild(releaseRoot, $"{body.ProjectId:N}");
-    var deploymentDirectory = SafeChild(projectDirectory, $"{body.DeploymentId:N}");
+    var packagePath = ReleaseDeployerPath.SafeChild(packagesRoot, $"{ReleaseDeployerPath.SafeGuidSegment(body.PackageId)}.zip");
+    var packageMetadataPath = ReleaseDeployerPath.SafeChild(packagesRoot, $"{ReleaseDeployerPath.SafeGuidSegment(body.PackageId)}.json");
+    var projectDirectory = ReleaseDeployerPath.SafeChild(releaseRoot, ReleaseDeployerPath.SafeGuidSegment(body.ProjectId));
+    var deploymentDirectory = ReleaseDeployerPath.SafeChild(projectDirectory, ReleaseDeployerPath.SafeGuidSegment(body.DeploymentId));
     var projectName = $"aierp-production-{body.ProjectId:N}";
-    var secretsPath = Path.Combine(projectDirectory, "secrets.enc.json");
-    var envPath = Path.Combine(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-{body.DeploymentId:N}.env");
-    var migrationRollbackPath = Path.Combine(deploymentDirectory, "migration-rollback.json");
+    var secretsPath = ReleaseDeployerPath.SafeChild(projectDirectory, "secrets.enc.json");
+    var envPath = ReleaseDeployerPath.SafeChild(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-{ReleaseDeployerPath.SafeGuidSegment(body.DeploymentId)}.env");
+    var migrationRollbackPath = ReleaseDeployerPath.SafeChild(deploymentDirectory, "migration-rollback.json");
     Guid? previousDeploymentId = null;
     var succeeded = false;
+    var attemptStarted = false;
     var migrationMayHaveRun = false;
     var migrationStatus = "not_started";
     await DeployerState.Gate.WaitAsync(cancellationToken);
     try
     {
-        await using var deploymentLock = await DistributedDeploymentLock.AcquireAsync(configuration["ReleaseDeployer:LockRoot"] ?? "/deployer-state", cancellationToken);
+        await using var deploymentLock = await DistributedDeploymentLock.AcquireAsync(cancellationToken);
         if (!File.Exists(packagePath) || !File.Exists(packageMetadataPath)) return Results.NotFound(new { error = "Sürüm paketi bulunamadı." });
-        var existingResultPath = Path.Combine(deploymentDirectory, "result.json");
+        var existingResultPath = ReleaseDeployerPath.SafeChild(deploymentDirectory, "result.json");
         if (File.Exists(existingResultPath))
         {
             var existing = await ReadEncryptedResultAsync(existingResultPath, signingKey, cancellationToken);
@@ -293,8 +345,10 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
             succeeded = true;
             return Results.Ok(existing);
         }
+        if (File.Exists(migrationRollbackPath))
+            return Results.Conflict(new { error = "Bu deployment kimliği daha önce kullanılmış; güvenli tekrar için yeni bir deployment oluşturun." });
         Directory.CreateDirectory(projectDirectory);
-        var currentPath = Path.Combine(projectDirectory, "current.json");
+        var currentPath = ReleaseDeployerPath.SafeChild(projectDirectory, "current.json");
         if (File.Exists(currentPath))
         {
             await using var stream = File.OpenRead(currentPath);
@@ -302,7 +356,10 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
         }
         if (previousDeploymentId != body.ExpectedActiveDeploymentId)
             return Results.Conflict(new { error = "Üretim sürümü değişti; dağıtım geçmişini yenileyip tekrar deneyin." });
-        if (Directory.Exists(deploymentDirectory)) Directory.Delete(deploymentDirectory, recursive: true);
+        // A failed attempt may have started a database migration. Keep its
+        // recovery record and require a fresh deployment ID for every retry.
+        if (Directory.Exists(deploymentDirectory))
+            return Results.Conflict(new { error = "Bu deployment kimliği daha önce kullanılmış; güvenli tekrar için yeni bir deployment oluşturun." });
         if (!string.Equals(await HashFileAsync(packagePath, cancellationToken), body.PackageSha256, StringComparison.OrdinalIgnoreCase))
             return Results.Conflict(new { error = "Paket SHA-256 doğrulaması başarısız." });
         PackageMetadata? metadata;
@@ -310,10 +367,11 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
         if (metadata is null || metadata.PackageId != body.PackageId || metadata.Version != body.Version || metadata.CommitSha != body.CommitSha ||
             metadata.SizeBytes != new FileInfo(packagePath).Length || metadata.FileCount is <= 0 or > 20_000 || !string.Equals(metadata.PackageSha256, body.PackageSha256, StringComparison.OrdinalIgnoreCase))
             return Results.Conflict(new { error = "Paket metadata'sı beklenen sürümle eşleşmiyor." });
+        attemptStarted = true;
         Directory.CreateDirectory(deploymentDirectory);
-        var sourceDirectory = Path.Combine(deploymentDirectory, "source");
+        var sourceDirectory = ReleaseDeployerPath.SafeChild(deploymentDirectory, "source");
         Directory.CreateDirectory(sourceDirectory);
-        await ExtractVerifiedPackageAsync(packagePath, sourceDirectory, body.PackageId, body.Version, body.CommitSha, metadata.FileCount, cancellationToken);
+        await ExtractVerifiedPackageAsync(packagePath, body.PackageSha256, sourceDirectory, body.PackageId, body.Version, body.CommitSha, metadata.FileCount, cancellationToken);
         await WriteProductionMigrationRollbackStateAsync(migrationRollbackPath,
             new ProductionMigrationRollbackState(body.DeploymentId, previousDeploymentId, migrationStatus, "deployment_in_progress", null, DateTimeOffset.UtcNow), cancellationToken);
         WriteTrustedBuildFiles(sourceDirectory, production: true);
@@ -323,31 +381,31 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
             var port = 40000 + (int)(BitConverter.ToUInt32(body.ProjectId.ToByteArray(), 0) % 10000);
             secrets = new DeploymentSecrets($"production-admin-{body.ProjectId:N}@aierp.local", Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
                 NewRuntimePassword("aA1!"), Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)), $"Nexora Production {body.Version}", port,
-                NewRuntimePassword("pP2!"), NewRuntimePassword("dD3!"));
+                NewRuntimePassword("pP2!"), NewRuntimePassword("mM3!"));
             await WriteEncryptedAsync(secretsPath, secrets, signingKey, cancellationToken);
             if (OperatingSystem.IsLinux()) File.SetUnixFileMode(secretsPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
-        if (string.IsNullOrWhiteSpace(secrets.PlatformRuntimePassword) || string.IsNullOrWhiteSpace(secrets.DataRuntimePassword))
+        if (string.IsNullOrWhiteSpace(secrets.PlatformRuntimePassword) || string.IsNullOrWhiteSpace(secrets.PlatformMigratorPassword))
         {
-            secrets = secrets with { PlatformRuntimePassword = NewRuntimePassword("pP2!"), DataRuntimePassword = NewRuntimePassword("dD3!") };
+            secrets = secrets with { PlatformRuntimePassword = NewRuntimePassword("pP2!"), PlatformMigratorPassword = NewRuntimePassword("mM3!") };
             await WriteEncryptedAsync(secretsPath, secrets, signingKey, cancellationToken);
         }
-        var separationBackupPath = previousDeploymentId is null ? "" : $"/var/opt/mssql/backups/AIERPPlatform-{body.ProjectId:N}-{body.DeploymentId:N}.bak";
-        var env = $"SOURCE_ROOT={sourceDirectory}\nPRODUCTION_PORT={secrets.Port}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={secrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(secrets.JwtKey)}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\nDATABASE_SEPARATION_BACKUP_PATH={separationBackupPath}\n";
+        var separationBackupPath = previousDeploymentId is null ? "" : $"/var/opt/mssql/backups/AIERPPlatform-{ReleaseDeployerPath.SafeGuidSegment(body.ProjectId)}-{ReleaseDeployerPath.SafeGuidSegment(body.DeploymentId)}.bak";
+        var env = $"SOURCE_ROOT={sourceDirectory}\nPRODUCTION_PORT={secrets.Port}\nOCI_IMAGE_REVISION={body.CommitSha}\nOCI_IMAGE_VERSION={body.Version}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_MIGRATOR_PASSWORD={secrets.PlatformMigratorPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(secrets.JwtKey)}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\nDATABASE_SEPARATION_BACKUP_PATH={separationBackupPath}\n";
         await File.WriteAllTextAsync(envPath, env, new UTF8Encoding(false), cancellationToken);
         if (OperatingSystem.IsLinux()) File.SetUnixFileMode(envPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-        var composeFile = Path.Combine(sourceDirectory, ".aierp-deploy", "compose.yml");
+        var composeFile = ReleaseDeployerPath.SafeChild(sourceDirectory, ".aierp-deploy/compose.yml");
         var prefix = new[] { "compose", "--project-name", projectName, "--file", composeFile, "--env-file", envPath };
         if ((await RunDockerAsync(prefix.Concat(["config", "-q"]), TimeSpan.FromMinutes(1), cancellationToken)).ExitCode != 0)
             return Results.Problem("Production Compose yapılandırması doğrulanamadı.", statusCode: StatusCodes.Status422UnprocessableEntity);
         if (previousDeploymentId is Guid activeId)
         {
-            var activeSource = Path.Combine(projectDirectory, $"{activeId:N}", "source");
-            var activeCompose = Path.Combine(activeSource, ".aierp-deploy", "compose.yml");
-            var backupEnv = Path.Combine(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-backup-{body.DeploymentId:N}.env");
+            var activeSource = ReleaseDeployerPath.SafeChild(projectDirectory, $"{ReleaseDeployerPath.SafeGuidSegment(activeId)}/source");
+            var activeCompose = ReleaseDeployerPath.SafeChild(activeSource, ".aierp-deploy/compose.yml");
+            var backupEnv = ReleaseDeployerPath.SafeChild(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-backup-{ReleaseDeployerPath.SafeGuidSegment(body.DeploymentId)}.env");
             try
             {
-                var backupEnvironment = $"SOURCE_ROOT={activeSource}\nPRODUCTION_PORT={secrets.Port}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={secrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(secrets.JwtKey)}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\n";
+                var backupEnvironment = $"SOURCE_ROOT={activeSource}\nPRODUCTION_PORT={secrets.Port}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_MIGRATOR_PASSWORD={secrets.PlatformMigratorPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(secrets.JwtKey)}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\n";
                 await File.WriteAllTextAsync(backupEnv, backupEnvironment, new UTF8Encoding(false), cancellationToken);
                 if (OperatingSystem.IsLinux()) File.SetUnixFileMode(backupEnv, UnixFileMode.UserRead | UnixFileMode.UserWrite);
                 var backupPrefix = new[] { "compose", "--project-name", projectName, "--file", activeCompose, "--env-file", backupEnv };
@@ -375,7 +433,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
         if (!await WaitForHealthyAsync(prefix, configuration, cancellationToken))
             return Results.Problem("Production servisleri health check süresinde hazır olmadı.", statusCode: StatusCodes.Status504GatewayTimeout);
         var result = new StagingDeploymentResult(body.DeploymentId, body.IdempotencyKey, body.PackageId, body.PackageSha256.ToUpperInvariant(), body.CommitSha,
-            $"http://localhost:{secrets.Port}", projectName, secrets.BootstrapEmail, secrets.BootstrapPassword, DateTimeOffset.UtcNow);
+            $"http://localhost:{secrets.Port}", projectName, secrets.BootstrapEmail, secrets.BootstrapPassword, DateTimeOffset.UtcNow, body.Version);
         await WriteEncryptedResultAsync(existingResultPath, result, signingKey, cancellationToken);
         await File.WriteAllTextAsync(currentPath, JsonSerializer.Serialize(new DeploymentCurrentPointer(body.DeploymentId), JsonConfig.Options), new UTF8Encoding(false), cancellationToken);
         succeeded = true;
@@ -393,19 +451,20 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
     catch (IOException) { return Results.Problem("Production paket veya dağıtım dosyaları okunamadı.", statusCode: StatusCodes.Status500InternalServerError); }
     finally
     {
-        if (!succeeded && previousDeploymentId is Guid previousId && ProductionMigrationRollbackPolicy.ShouldRestartPreviousApplication(migrationMayHaveRun))
+        if (!succeeded && attemptStarted && previousDeploymentId is Guid previousId && ProductionMigrationRollbackPolicy.ShouldRestartPreviousApplication(migrationMayHaveRun))
         {
             var rollbackOutcome = "previous_application_restart_failed";
             var rollbackMessage = "Previous application was not confirmed healthy.";
             try
             {
-                var oldSource = Path.Combine(projectDirectory, $"{previousId:N}", "source");
-                var oldCompose = Path.Combine(oldSource, ".aierp-deploy", "compose.yml");
+                var oldSource = ReleaseDeployerPath.SafeChild(projectDirectory, $"{ReleaseDeployerPath.SafeGuidSegment(previousId)}/source");
+                var oldCompose = ReleaseDeployerPath.SafeChild(oldSource, ".aierp-deploy/compose.yml");
                 var oldSecrets = await ReadEncryptedAsync<DeploymentSecrets>(secretsPath, signingKey, CancellationToken.None);
+                var oldResult = await ReadEncryptedResultAsync(ReleaseDeployerPath.SafeChild(projectDirectory, $"{ReleaseDeployerPath.SafeGuidSegment(previousId)}/result.json"), signingKey, CancellationToken.None);
                 if (File.Exists(oldCompose) && oldSecrets is not null)
                 {
-                    var restoreEnv = Path.Combine(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-restore-{body.ProjectId:N}.env");
-                    await File.WriteAllTextAsync(restoreEnv, $"SOURCE_ROOT={oldSource}\nPRODUCTION_PORT={oldSecrets.Port}\nMSSQL_SA_PASSWORD={oldSecrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={oldSecrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={oldSecrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={oldSecrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(oldSecrets.JwtKey)}\nBOOTSTRAP_EMAIL={oldSecrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={oldSecrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={oldSecrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\nDATABASE_SEPARATION_BACKUP_PATH=/var/opt/mssql/backups/AIERPPlatform-{body.ProjectId:N}-{body.DeploymentId:N}.bak\n", new UTF8Encoding(false), CancellationToken.None);
+                    var restoreEnv = ReleaseDeployerPath.SafeChild(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-restore-{ReleaseDeployerPath.SafeGuidSegment(body.ProjectId)}.env");
+                    await File.WriteAllTextAsync(restoreEnv, $"SOURCE_ROOT={oldSource}\nPRODUCTION_PORT={oldSecrets.Port}\nOCI_IMAGE_REVISION={oldResult?.CommitSha ?? "unknown"}\nOCI_IMAGE_VERSION={oldResult?.Version ?? "unknown"}\nMSSQL_SA_PASSWORD={oldSecrets.SqlPassword}\nAIERP_PLATFORM_MIGRATOR_PASSWORD={oldSecrets.PlatformMigratorPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={oldSecrets.PlatformRuntimePassword}\nAUTH_SIGNING_KEY={oldSecrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(oldSecrets.JwtKey)}\nBOOTSTRAP_EMAIL={oldSecrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={oldSecrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={oldSecrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\nDATABASE_SEPARATION_BACKUP_PATH=/var/opt/mssql/backups/AIERPPlatform-{ReleaseDeployerPath.SafeGuidSegment(body.ProjectId)}-{ReleaseDeployerPath.SafeGuidSegment(body.DeploymentId)}.bak\n", new UTF8Encoding(false), CancellationToken.None);
                     if (OperatingSystem.IsLinux()) File.SetUnixFileMode(restoreEnv, UnixFileMode.UserRead | UnixFileMode.UserWrite);
                     try
                     {
@@ -432,7 +491,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
             catch (Exception exception) { app.Logger.LogError(exception, "Could not persist production rollback state for deployment {DeploymentId}.", body.DeploymentId); }
             app.Logger.LogWarning("Production deployment {DeploymentId} failed before migration; rollback outcome: {RollbackOutcome}. {RollbackMessage}", body.DeploymentId, rollbackOutcome, rollbackMessage);
         }
-        else if (!succeeded && previousDeploymentId is Guid blockedPreviousId)
+        else if (!succeeded && attemptStarted && previousDeploymentId is Guid blockedPreviousId)
         {
             const string outcome = "blocked_migration_may_have_run";
             const string message = "Previous application was not restarted because the new migration may have changed the database. Database restore is a separate operator decision.";
@@ -444,11 +503,11 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
             catch (Exception exception) { app.Logger.LogError(exception, "Could not persist production migration safety state for deployment {DeploymentId}.", body.DeploymentId); }
             app.Logger.LogError("Production deployment {DeploymentId} failed after migration may have started. Previous application restart is blocked; migration status {MigrationStatus}.", body.DeploymentId, migrationStatus);
         }
-        else if (!succeeded && Directory.Exists(deploymentDirectory))
+        else if (!succeeded && attemptStarted && Directory.Exists(deploymentDirectory))
         {
             try
             {
-                var failedCompose = Path.Combine(deploymentDirectory, "source", ".aierp-deploy", "compose.yml");
+                var failedCompose = ReleaseDeployerPath.SafeChild(deploymentDirectory, "source/.aierp-deploy/compose.yml");
                 if (File.Exists(failedCompose) && File.Exists(envPath))
                     await RunDockerAsync(ProductionMigrationRollbackPolicy.FailedDeploymentCleanupArguments(projectName, failedCompose, envPath), TimeSpan.FromMinutes(3), CancellationToken.None);
                 Directory.Delete(deploymentDirectory, recursive: true);
@@ -460,7 +519,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
     }
 }).RequireAuthorization();
 
-app.MapPost("/internal/deployments/production/restore", async (RestoreProductionDeployment body, ClaimsPrincipal caller, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/internal/deployments/production/restore", async (RestoreProductionDeployment body, ClaimsPrincipal caller, CancellationToken cancellationToken) =>
 {
     if (!HasRestoreScope(caller, body, "release.production.restore")) return Results.Forbid();
     if (body.DeploymentId == Guid.Empty || body.TenantId == Guid.Empty || body.ProjectId == Guid.Empty || body.PackageId == Guid.Empty ||
@@ -469,15 +528,15 @@ app.MapPost("/internal/deployments/production/restore", async (RestoreProduction
         return Results.BadRequest(new { error = "Üretim geri yükleme metadata'sı geçersiz." });
 
     var root = Path.GetFullPath(configuration["ReleaseDeployer:ProductionRoot"] ?? "/production-releases");
-    var projectDirectory = SafeChild(root, $"{body.ProjectId:N}");
-    var operationDirectory = SafeChild(projectDirectory, $"{body.DeploymentId:N}");
-    var activeDirectory = SafeChild(projectDirectory, $"{body.ExpectedActiveDeploymentId:N}");
-    var targetDirectory = SafeChild(projectDirectory, $"{body.TargetDeploymentId:N}");
-    var secretsPath = Path.Combine(projectDirectory, "secrets.enc.json");
-    var currentPath = Path.Combine(projectDirectory, "current.json");
+    var projectDirectory = ReleaseDeployerPath.SafeChild(root, ReleaseDeployerPath.SafeGuidSegment(body.ProjectId));
+    var operationDirectory = ReleaseDeployerPath.SafeChild(projectDirectory, ReleaseDeployerPath.SafeGuidSegment(body.DeploymentId));
+    var activeDirectory = ReleaseDeployerPath.SafeChild(projectDirectory, ReleaseDeployerPath.SafeGuidSegment(body.ExpectedActiveDeploymentId));
+    var targetDirectory = ReleaseDeployerPath.SafeChild(projectDirectory, ReleaseDeployerPath.SafeGuidSegment(body.TargetDeploymentId));
+    var secretsPath = ReleaseDeployerPath.SafeChild(projectDirectory, "secrets.enc.json");
+    var currentPath = ReleaseDeployerPath.SafeChild(projectDirectory, "current.json");
     var projectName = $"aierp-production-{body.ProjectId:N}";
-    var envPath = Path.Combine(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-restore-{body.DeploymentId:N}.env");
-    var targetEnvPath = Path.Combine(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-restore-target-{body.DeploymentId:N}.env");
+    var envPath = ReleaseDeployerPath.SafeChild(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-restore-{ReleaseDeployerPath.SafeGuidSegment(body.DeploymentId)}.env");
+    var targetEnvPath = ReleaseDeployerPath.SafeChild(Path.GetFullPath(Path.GetTempPath()), $"aierp-production-restore-target-{ReleaseDeployerPath.SafeGuidSegment(body.DeploymentId)}.env");
     var succeeded = false;
     var applicationStopped = false;
     var databaseRestoreAttempted = false;
@@ -485,7 +544,7 @@ app.MapPost("/internal/deployments/production/restore", async (RestoreProduction
     await DeployerState.Gate.WaitAsync(cancellationToken);
     try
     {
-        await using var deploymentLock = await DistributedDeploymentLock.AcquireAsync(configuration["ReleaseDeployer:LockRoot"] ?? "/deployer-state", cancellationToken);
+        await using var deploymentLock = await DistributedDeploymentLock.AcquireAsync(cancellationToken);
         if (!File.Exists(currentPath) || !Directory.Exists(activeDirectory) || !Directory.Exists(targetDirectory))
             return Results.Conflict(new { error = "Etkin sürüm, hedef paket veya production işaretçisi bulunamadı." });
         await using (var stream = File.OpenRead(currentPath))
@@ -494,20 +553,25 @@ app.MapPost("/internal/deployments/production/restore", async (RestoreProduction
             if (pointer?.DeploymentId != body.ExpectedActiveDeploymentId && pointer?.DeploymentId != body.BackupDeploymentId)
                 return Results.Conflict(new { error = "Etkin production sürümü değişti; geçmişi yenileyip tekrar deneyin." });
         }
-        var activeSource = Path.Combine(activeDirectory, "source");
-        var targetSource = Path.Combine(targetDirectory, "source");
-        var activeCompose = Path.Combine(activeSource, ".aierp-deploy", "compose.yml");
-        var targetCompose = Path.Combine(targetSource, ".aierp-deploy", "compose.yml");
-        var targetResult = await ReadEncryptedResultAsync(Path.Combine(targetDirectory, "result.json"), signingKey, cancellationToken);
+        var activeSource = ReleaseDeployerPath.SafeChild(activeDirectory, "source");
+        var targetSource = ReleaseDeployerPath.SafeChild(targetDirectory, "source");
+        var activeCompose = ReleaseDeployerPath.SafeChild(activeSource, ".aierp-deploy/compose.yml");
+        var targetCompose = ReleaseDeployerPath.SafeChild(targetSource, ".aierp-deploy/compose.yml");
+        var targetResult = await ReadEncryptedResultAsync(ReleaseDeployerPath.SafeChild(targetDirectory, "result.json"), signingKey, cancellationToken);
         if (targetResult is null || targetResult.PackageId != body.PackageId || targetResult.PackageSha256 != body.PackageSha256 || targetResult.CommitSha != body.CommitSha ||
+            (targetResult.Version is not null && targetResult.Version != body.Version) ||
             !File.Exists(activeCompose) || !File.Exists(targetCompose))
             return Results.Conflict(new { error = "Geri yükleme hedefinin kayıtlı production paketi doğrulanamadı." });
         var secrets = await ReadEncryptedAsync<DeploymentSecrets>(secretsPath, signingKey, cancellationToken);
         if (secrets is null) return Results.Conflict(new { error = "Production kimlik bilgileri çözümlenemedi." });
-        var activeEnv = $"SOURCE_ROOT={activeSource}\nPRODUCTION_PORT={secrets.Port}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={secrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(secrets.JwtKey)}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\n";
+        var activeResult = await ReadEncryptedResultAsync(ReleaseDeployerPath.SafeChild(activeDirectory, "result.json"), signingKey, cancellationToken);
+        if (activeResult is null) return Results.Conflict(new { error = "Etkin production sürümünün onaylı commit bilgisi okunamadı." });
+        var activeEnv = $"SOURCE_ROOT={activeSource}\nPRODUCTION_PORT={secrets.Port}\nOCI_IMAGE_REVISION={activeResult.CommitSha}\nOCI_IMAGE_VERSION={activeResult.Version ?? "unknown"}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_MIGRATOR_PASSWORD={secrets.PlatformMigratorPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(secrets.JwtKey)}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separationEnabled.ToString().ToLowerInvariant()}\n";
         await File.WriteAllTextAsync(envPath, activeEnv, new UTF8Encoding(false), cancellationToken);
         if (OperatingSystem.IsLinux()) File.SetUnixFileMode(envPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-        var targetEnv = activeEnv.Replace($"SOURCE_ROOT={activeSource}", $"SOURCE_ROOT={targetSource}", StringComparison.Ordinal);
+        var targetEnv = activeEnv.Replace($"SOURCE_ROOT={activeSource}", $"SOURCE_ROOT={targetSource}", StringComparison.Ordinal)
+            .Replace($"OCI_IMAGE_REVISION={activeResult.CommitSha}", $"OCI_IMAGE_REVISION={body.CommitSha}", StringComparison.Ordinal)
+            .Replace($"OCI_IMAGE_VERSION={activeResult.Version ?? "unknown"}", $"OCI_IMAGE_VERSION={body.Version}", StringComparison.Ordinal);
         await File.WriteAllTextAsync(targetEnvPath, targetEnv, new UTF8Encoding(false), cancellationToken);
         if (OperatingSystem.IsLinux()) File.SetUnixFileMode(targetEnvPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         var activePrefix = new[] { "compose", "--project-name", projectName, "--file", activeCompose, "--env-file", envPath };
@@ -515,28 +579,37 @@ app.MapPost("/internal/deployments/production/restore", async (RestoreProduction
         var sqlcmd = new[] { "exec", "-T", "sqlserver", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", secrets.SqlPassword, "-C", "-b", "-d", "master", "-Q" };
         var backupRoot = ProductionBackupRoot(configuration);
         var backupNames = await ReadBackupManifestAsync(body.ProjectId, body.BackupDeploymentId, backupRoot, cancellationToken);
-        if (backupNames is null && File.Exists(Path.Combine(backupRoot, $"AIERPPlatform-{body.ProjectId:N}-{body.BackupDeploymentId:N}.bak")))
+        if (backupNames is null && File.Exists(DatabaseBackupVolumePath("AIERPPlatform", body.ProjectId, body.BackupDeploymentId, backupRoot)))
             backupNames = ["AIERPPlatform"]; // Compatibility with backups created before database-set manifests.
         if (backupNames is null || backupNames.Count == 0 || !await VerifyDatabaseSetAsync(activePrefix, sqlcmd, backupNames, body.ProjectId, body.BackupDeploymentId, backupRoot, cancellationToken))
             return Results.Conflict(new { error = "Geri yüklenecek veritabanı yedek seti doğrulanamadı; production değişmeden bırakıldı." });
+        var currentDatabaseNames = await ListAierpDatabasesAsync(activePrefix, sqlcmd, cancellationToken);
+        if (!DatabaseBackupSetPolicy.MatchesCurrentSet(currentDatabaseNames, backupNames))
+            return Results.Conflict(new { error = "Geri yükleme yedeğinin veritabanı kümesi mevcut production ile eşleşmiyor; farklı zamana ait veritabanları karışmaması için production değiştirilmedi." });
         safetyDatabaseNames = await ListAierpDatabasesAsync(activePrefix, sqlcmd, cancellationToken);
         if (safetyDatabaseNames.Count == 0 || !await BackupDatabaseSetAsync(activePrefix, sqlcmd, safetyDatabaseNames, body.ProjectId, body.DeploymentId, backupRoot, cancellationToken))
             return Results.Problem("Geri yükleme öncesi mevcut veritabanı yedek seti alınamadı; production değişmeden bırakıldı.", statusCode: StatusCodes.Status503ServiceUnavailable);
         var stopped = await RunDockerAsync(activePrefix.Concat(["stop", "platform-api", "ai-service", "platform-migrator"]), TimeSpan.FromMinutes(2), cancellationToken);
         if (stopped.ExitCode != 0) return Results.Problem("Production API durdurulamadı; veritabanı geri yüklenmedi.", statusCode: StatusCodes.Status503ServiceUnavailable);
         applicationStopped = true;
+        // Tenant creation can race with the earlier preflight while the live application is
+        // still serving requests. Recheck after all database writers are stopped so a set
+        // mismatch cannot turn into a partial point-in-time restore.
+        var stoppedDatabaseNames = await ListAierpDatabasesAsync(activePrefix, sqlcmd, cancellationToken);
+        if (!DatabaseBackupSetPolicy.MatchesCurrentSet(stoppedDatabaseNames, backupNames))
+            return Results.Conflict(new { error = "Production veritabanı kümesi yedek doğrulamasından sonra değişti; geri yükleme iptal edildi." });
         databaseRestoreAttempted = true;
         if (!await RestoreDatabaseSetAsync(activePrefix, sqlcmd, backupNames, body.ProjectId, body.BackupDeploymentId, backupRoot, cancellationToken))
             return Results.Problem("Veritabanı yedek seti geri yüklenemedi; Deployer mevcut uygulama ve veriyi kurtarmayı deneyecek.", statusCode: StatusCodes.Status502BadGateway);
         if ((await RunDockerAsync(targetPrefix.Concat(["up", "--detach", "--build", "--remove-orphans"]), TimeSpan.FromMinutes(20), cancellationToken)).ExitCode != 0 ||
             !await WaitForHealthyAsync(targetPrefix, configuration, cancellationToken))
             return Results.Problem("Önceki uygulama sürümü geri yüklendi ancak health check geçmedi; Deployer mevcut veritabanı yedeğini geri almaya çalıştı.", statusCode: StatusCodes.Status504GatewayTimeout);
-        var operationSource = Path.Combine(operationDirectory, "source");
+        var operationSource = ReleaseDeployerPath.SafeChild(operationDirectory, "source");
         if (Directory.Exists(operationDirectory)) Directory.Delete(operationDirectory, recursive: true);
         CopyDirectory(targetSource, operationSource);
         var result = new StagingDeploymentResult(body.DeploymentId, body.IdempotencyKey, body.PackageId, body.PackageSha256.ToUpperInvariant(), body.CommitSha,
-            $"http://localhost:{secrets.Port}", projectName, "", "", DateTimeOffset.UtcNow);
-        await WriteEncryptedResultAsync(Path.Combine(operationDirectory, "result.json"), result, signingKey, cancellationToken);
+            $"http://localhost:{secrets.Port}", projectName, "", "", DateTimeOffset.UtcNow, body.Version);
+        await WriteEncryptedResultAsync(ReleaseDeployerPath.SafeChild(operationDirectory, "result.json"), result, signingKey, cancellationToken);
         await File.WriteAllTextAsync(currentPath, JsonSerializer.Serialize(new DeploymentCurrentPointer(body.DeploymentId), JsonConfig.Options), new UTF8Encoding(false), cancellationToken);
         succeeded = true;
         return Results.Ok(result);
@@ -550,8 +623,8 @@ app.MapPost("/internal/deployments/production/restore", async (RestoreProduction
         {
             try
             {
-                var activeSource = Path.Combine(activeDirectory, "source");
-                var activeCompose = Path.Combine(activeSource, ".aierp-deploy", "compose.yml");
+                var activeSource = ReleaseDeployerPath.SafeChild(activeDirectory, "source");
+                var activeCompose = ReleaseDeployerPath.SafeChild(activeSource, ".aierp-deploy/compose.yml");
                 var activePrefix = new[] { "compose", "--project-name", projectName, "--file", activeCompose, "--env-file", envPath };
                 var oldSecrets = await ReadEncryptedAsync<DeploymentSecrets>(secretsPath, signingKey, CancellationToken.None);
                 if (oldSecrets is not null && File.Exists(activeCompose))
@@ -580,13 +653,13 @@ static async Task BackupActiveProductionProjectsAsync(IConfiguration configurati
     await DeployerState.Gate.WaitAsync(cancellationToken);
     try
     {
-        await using var deploymentLock = await DistributedDeploymentLock.AcquireAsync(configuration["ReleaseDeployer:LockRoot"] ?? "/deployer-state", cancellationToken);
+        await using var deploymentLock = await DistributedDeploymentLock.AcquireAsync(cancellationToken);
         foreach (var projectDirectory in Directory.EnumerateDirectories(releaseRoot).Take(1000))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!Guid.TryParseExact(Path.GetFileName(projectDirectory), "N", out var projectId)) continue;
-            var currentPath = Path.Combine(projectDirectory, "current.json");
-            var secretsPath = Path.Combine(projectDirectory, "secrets.enc.json");
+            var currentPath = ReleaseDeployerPath.SafeChild(projectDirectory, "current.json");
+            var secretsPath = ReleaseDeployerPath.SafeChild(projectDirectory, "secrets.enc.json");
             if (!File.Exists(currentPath) || !File.Exists(secretsPath)) continue;
             DeploymentCurrentPointer? pointer;
             await using (var stream = File.OpenRead(currentPath))
@@ -594,15 +667,15 @@ static async Task BackupActiveProductionProjectsAsync(IConfiguration configurati
             if (pointer?.DeploymentId is not Guid deploymentId || deploymentId == Guid.Empty) continue;
             var secrets = await ReadEncryptedAsync<DeploymentSecrets>(secretsPath, signingKey, cancellationToken);
             if (secrets is null || string.IsNullOrWhiteSpace(secrets.SqlPassword)) continue;
-            var source = Path.Combine(projectDirectory, deploymentId.ToString("N"), "source");
-            var composeFile = Path.Combine(source, ".aierp-deploy", "compose.yml");
+            var source = ReleaseDeployerPath.SafeChild(projectDirectory, $"{ReleaseDeployerPath.SafeGuidSegment(deploymentId)}/source");
+            var composeFile = ReleaseDeployerPath.SafeChild(source, ".aierp-deploy/compose.yml");
             if (!File.Exists(composeFile)) continue;
             var backupId = Guid.NewGuid();
-            var envFile = Path.Combine(Path.GetFullPath(Path.GetTempPath()), $"aierp-scheduled-backup-{projectId:N}-{backupId:N}.env");
+            var envFile = ReleaseDeployerPath.SafeChild(Path.GetFullPath(Path.GetTempPath()), $"aierp-scheduled-backup-{ReleaseDeployerPath.SafeGuidSegment(projectId)}-{ReleaseDeployerPath.SafeGuidSegment(backupId)}.env");
             try
             {
                 var separation = configuration.GetValue<bool>("Database:SeparationEnabled").ToString().ToLowerInvariant();
-                var env = $"SOURCE_ROOT={source}\nPRODUCTION_PORT={secrets.Port}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAIERP_DATA_RUNTIME_PASSWORD={secrets.DataRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(secrets.JwtKey)}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separation}\n";
+                var env = $"SOURCE_ROOT={source}\nPRODUCTION_PORT={secrets.Port}\nMSSQL_SA_PASSWORD={secrets.SqlPassword}\nAIERP_PLATFORM_MIGRATOR_PASSWORD={secrets.PlatformMigratorPassword}\nAIERP_PLATFORM_RUNTIME_PASSWORD={secrets.PlatformRuntimePassword}\nAUTH_SIGNING_KEY={secrets.JwtKey}\nPLUGIN_HOST_SIGNING_KEY={DerivePluginHostSigningKey(secrets.JwtKey)}\nBOOTSTRAP_EMAIL={secrets.BootstrapEmail}\nBOOTSTRAP_PASSWORD={secrets.BootstrapPassword}\nBOOTSTRAP_TENANT_NAME={secrets.TenantName}\nDATABASE_SEPARATION_ENABLED={separation}\n";
                 await File.WriteAllTextAsync(envFile, env, new UTF8Encoding(false), cancellationToken);
                 if (OperatingSystem.IsLinux()) File.SetUnixFileMode(envFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
                 var prefix = new[] { "compose", "--project-name", $"aierp-production-{projectId:N}", "--file", composeFile, "--env-file", envFile };
@@ -621,13 +694,13 @@ static async Task BackupActiveProductionProjectsAsync(IConfiguration configurati
                         throw new IOException($"No verified AIERP database set was produced for project {projectId:N}.");
                     foreach (var database in databases)
                     {
-                        var stagingBackup = Path.Combine(backupRoot, Path.GetFileName(DatabaseBackupPath(database, projectId, backupId)));
-                        var activeBackup = Path.Combine(backupRoot, Path.GetFileName(DatabaseBackupPath(database, projectId, deploymentId)));
+                        var stagingBackup = DatabaseBackupVolumePath(database, projectId, backupId, backupRoot);
+                        var activeBackup = DatabaseBackupVolumePath(database, projectId, deploymentId, backupRoot);
                         File.Move(stagingBackup, activeBackup, overwrite: true);
                     }
                     var stagingManifest = BackupManifestPath(projectId, backupId, backupRoot);
                     var activeManifest = BackupManifestPath(projectId, deploymentId, backupRoot);
-                    var manifestStagingPath = $"{stagingManifest}.tmp";
+                    var manifestStagingPath = ReleaseDeployerPath.SafeChild(backupRoot, $"AIERP-{ReleaseDeployerPath.SafeGuidSegment(projectId)}-{ReleaseDeployerPath.SafeGuidSegment(backupId)}.json.tmp");
                     await File.WriteAllTextAsync(manifestStagingPath, JsonSerializer.Serialize(databases, JsonConfig.Options), new UTF8Encoding(false), cancellationToken);
                     File.Move(manifestStagingPath, activeManifest, overwrite: true);
                 }
@@ -657,29 +730,24 @@ static bool HasRestoreScope(ClaimsPrincipal caller, RestoreProductionDeployment 
     caller.FindFirstValue("project_id") == body.ProjectId.ToString("D") &&
     caller.FindFirstValue("scope") == scope;
 
-static string SafeChild(string root, string name)
-{
-    var fullRoot = Path.GetFullPath(root);
-    var child = Path.GetFullPath(Path.Combine(fullRoot, name));
-    if (!child.StartsWith(fullRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-        throw new InvalidDataException("Dağıtım dosya yolu geçersiz.");
-    return child;
-}
 
-static bool IsSha256(string value) => value.Length == 64 && value.All(Uri.IsHexDigit);
+static bool IsSha256(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
 
 static void CopyDirectory(string source, string destination)
 {
+    ReleaseDeployerPath.AssertNoReparsePoints(source);
+    ReleaseDeployerPath.AssertNoReparsePoints(destination);
     Directory.CreateDirectory(destination);
     foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
     {
-        if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) throw new InvalidDataException("Dağıtım kaynağında sembolik bağlantı kabul edilmez.");
-        Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, directory)));
+        ReleaseDeployerPath.AssertNoReparsePoints(directory);
+        var target = ReleaseDeployerPath.SafeChild(destination, Path.GetRelativePath(source, directory));
+        Directory.CreateDirectory(target);
     }
     foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
     {
-        if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) throw new InvalidDataException("Dağıtım kaynağında sembolik bağlantı kabul edilmez.");
-        var target = Path.Combine(destination, Path.GetRelativePath(source, file));
+        ReleaseDeployerPath.AssertNoReparsePoints(file);
+        var target = ReleaseDeployerPath.SafeChild(destination, Path.GetRelativePath(source, file));
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         File.Copy(file, target, overwrite: false);
     }
@@ -722,9 +790,16 @@ static async Task<T?> ReadEncryptedAsync<T>(string path, string signingKey, Canc
     finally { CryptographicOperations.ZeroMemory(plain); }
 }
 
-static async Task ExtractVerifiedPackageAsync(string packagePath, string sourceDirectory, Guid packageId, string version, string commitSha, int expectedFileCount, CancellationToken cancellationToken)
+static async Task ExtractVerifiedPackageAsync(string packagePath, string expectedPackageSha256, string sourceDirectory, Guid packageId, string version, string commitSha, int expectedFileCount, CancellationToken cancellationToken)
 {
-    using var archive = ZipFile.OpenRead(packagePath);
+    // Keep one handle from package hashing through extraction. This prevents a
+    // package path replacement between the hash check and ZIP parsing.
+    await using var packageStream = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+    var packageHash = Convert.ToHexString(await SHA256.HashDataAsync(packageStream, cancellationToken));
+    if (!string.Equals(packageHash, expectedPackageSha256, StringComparison.OrdinalIgnoreCase))
+        throw new InvalidDataException("Sürüm paketinin SHA-256 değeri kayıtla eşleşmiyor.");
+    packageStream.Position = 0;
+    using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
     var manifestEntry = archive.GetEntry("AIERP-RELEASE.json") ?? throw new InvalidDataException("Sürüm manifesti arşivde yok.");
     ReleaseManifest? manifest;
     await using (var input = manifestEntry.Open()) manifest = await JsonSerializer.DeserializeAsync<ReleaseManifest>(input, JsonConfig.Options, cancellationToken);
@@ -744,16 +819,38 @@ static async Task ExtractVerifiedPackageAsync(string packagePath, string sourceD
         var unixMode = (entry.ExternalAttributes >> 16) & 0xF000;
         if (unixMode == 0xA000 || entry.Name.Length == 0) throw new InvalidDataException("Sembolik bağlantı veya geçersiz arşiv kaydı reddedildi.");
         expandedBytes += entry.Length;
-        var target = SafeChild(sourceDirectory, relative.Replace('/', Path.DirectorySeparatorChar));
+        var safeRelativePath = SanitizeArchivePath(relative);
+        var target = ReleaseDeployerPath.SafeChild(sourceDirectory, safeRelativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        await using var input = entry.Open();
-        var hash = await SHA256.HashDataAsync(input, cancellationToken);
-        if (!string.Equals(Convert.ToHexString(hash), file.Sha256, StringComparison.OrdinalIgnoreCase) || entry.Length != file.SizeBytes)
-            throw new InvalidDataException("Arşiv dosyasının hash veya boyut doğrulaması başarısız.");
-        await input.DisposeAsync();
-        await using var copySource = entry.Open();
-        await using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        await copySource.CopyToAsync(output, cancellationToken);
+        var temporaryTarget = ReleaseDeployerPath.SafeChild(Path.GetDirectoryName(target)!, $".{Path.GetFileName(target)}.{ReleaseDeployerPath.SafeGuidSegment(Guid.NewGuid())}.tmp");
+        try
+        {
+            using var contentHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            long copiedBytes = 0;
+            await using (var input = entry.Open())
+            await using (var output = new FileStream(temporaryTarget, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                var buffer = new byte[64 * 1024];
+                int read;
+                while ((read = await input.ReadAsync(buffer, cancellationToken)) != 0)
+                {
+                    copiedBytes += read;
+                    if (copiedBytes > 16 * 1024 * 1024 || expandedBytes - entry.Length + copiedBytes > 100 * 1024 * 1024)
+                        throw new InvalidDataException("Sürüm arşivi boyut sınırını aşıyor.");
+                    contentHash.AppendData(buffer, 0, read);
+                    await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                }
+                await output.FlushAsync(cancellationToken);
+            }
+            if (copiedBytes != file.SizeBytes || copiedBytes != entry.Length ||
+                !string.Equals(Convert.ToHexString(contentHash.GetHashAndReset()), file.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Arşiv dosyasının hash veya boyut doğrulaması başarısız.");
+            File.Move(temporaryTarget, target, overwrite: false);
+        }
+        finally
+        {
+            if (File.Exists(temporaryTarget)) File.Delete(temporaryTarget);
+        }
     }
     if (found.Count != expected.Count) throw new InvalidDataException("Arşiv dosyaları manifestle tam eşleşmiyor.");
 }
@@ -766,17 +863,26 @@ static string NormalizeArchivePath(string path)
     return normalized;
 }
 
+static string SanitizeArchivePath(string normalizedRelativePath)
+{
+    var segments = normalizedRelativePath.Split('/');
+    var safeSegments = segments.Select(Path.GetFileName).ToArray();
+    if (safeSegments.Any(string.IsNullOrEmpty) || !segments.SequenceEqual(safeSegments, StringComparer.Ordinal))
+        throw new InvalidDataException("Sürüm arşivi güvenli olmayan yol içeriyor.");
+    return string.Join('/', safeSegments);
+}
+
 void WriteTrustedBuildFiles(string sourceRoot, bool production = false)
 {
-    var deployDirectory = Path.Combine(sourceRoot, ".aierp-deploy");
+    var deployDirectory = ReleaseDeployerPath.SafeChild(sourceRoot, ".aierp-deploy");
     Directory.CreateDirectory(deployDirectory);
-    File.WriteAllText(Path.Combine(deployDirectory, "Platform.Api.Dockerfile"), StagingTemplates.DotnetDockerfile("src/Hosts/AIERP.Api/AIERP.Api.csproj", "AIERP.Api.dll", true));
-    File.WriteAllText(Path.Combine(deployDirectory, "AIService.Dockerfile"), StagingTemplates.DotnetDockerfile("src/AI/AIERP.AIService/AIERP.AIService.csproj", "AIERP.AIService.dll", true));
-    File.WriteAllText(Path.Combine(deployDirectory, "WorkspaceRunner.Dockerfile"), StagingTemplates.DotnetDockerfile("src/AI/AIERP.WorkspaceRunner/AIERP.WorkspaceRunner.csproj", "AIERP.WorkspaceRunner.dll", false));
-    File.WriteAllText(Path.Combine(deployDirectory, "PluginHost.Dockerfile"), StagingTemplates.DotnetDockerfile("src/Extensions/AIERP.PluginHost/AIERP.PluginHost.csproj", "AIERP.PluginHost.dll", true));
-    File.WriteAllText(Path.Combine(deployDirectory, "WorkspaceSandbox.Dockerfile"), StagingTemplates.SandboxDockerfile);
-    File.WriteAllText(Path.Combine(deployDirectory, "DevelopmentStudio.Dockerfile"), StagingTemplates.StudioDockerfile);
-    File.WriteAllText(Path.Combine(deployDirectory, "development-studio.nginx.conf"), StagingTemplates.StudioNginxConfig);
+    File.WriteAllText(ReleaseDeployerPath.SafeChild(deployDirectory, "Platform.Api.Dockerfile"), StagingTemplates.DotnetDockerfile("src/Hosts/AIERP.Api/AIERP.Api.csproj", "AIERP.Api.dll", true, true));
+    File.WriteAllText(ReleaseDeployerPath.SafeChild(deployDirectory, "AIService.Dockerfile"), StagingTemplates.DotnetDockerfile("src/AI/AIERP.AIService/AIERP.AIService.csproj", "AIERP.AIService.dll", true, true));
+    File.WriteAllText(ReleaseDeployerPath.SafeChild(deployDirectory, "WorkspaceRunner.Dockerfile"), StagingTemplates.DotnetDockerfile("src/AI/AIERP.WorkspaceRunner/AIERP.WorkspaceRunner.csproj", "AIERP.WorkspaceRunner.dll", false));
+    File.WriteAllText(ReleaseDeployerPath.SafeChild(deployDirectory, "PluginHost.Dockerfile"), StagingTemplates.DotnetDockerfile("src/Extensions/AIERP.PluginHost/AIERP.PluginHost.csproj", "AIERP.PluginHost.dll", true));
+    File.WriteAllText(ReleaseDeployerPath.SafeChild(deployDirectory, "WorkspaceSandbox.Dockerfile"), StagingTemplates.SandboxDockerfile);
+    File.WriteAllText(ReleaseDeployerPath.SafeChild(deployDirectory, "DevelopmentStudio.Dockerfile"), StagingTemplates.StudioDockerfile);
+    File.WriteAllText(ReleaseDeployerPath.SafeChild(deployDirectory, "development-studio.nginx.conf"), StagingTemplates.StudioNginxConfig);
     var compose = production
         ? StagingTemplates.StagingCompose
             .Replace("Staging", "Production", StringComparison.Ordinal)
@@ -796,7 +902,7 @@ void WriteTrustedBuildFiles(string sourceRoot, bool production = false)
                        !compose.Contains("aierp-production-backups:/backups", StringComparison.Ordinal) ||
                        !compose.Contains("name: aierp-production-backups", StringComparison.Ordinal)))
         throw new InvalidDataException("Production Compose yedek volume'u oluşturulamadı.");
-    File.WriteAllText(Path.Combine(deployDirectory, "compose.yml"), compose);
+    File.WriteAllText(ReleaseDeployerPath.SafeChild(deployDirectory, "compose.yml"), compose);
 }
 
 static async Task<bool> WaitForHealthyAsync(string[] composePrefix, IConfiguration configuration, CancellationToken cancellationToken)
@@ -816,13 +922,42 @@ static async Task<bool> WaitForHealthyAsync(string[] composePrefix, IConfigurati
     return false;
 }
 
+static async Task<bool> WaitForStagingProvisioningAsync(string[] composePrefix, string sqlPassword, Guid tenantId,
+    IConfiguration configuration, CancellationToken cancellationToken)
+{
+    var timeoutSeconds = int.TryParse(configuration["ReleaseDeployer:StagingProvisioningTimeoutSeconds"], out var configuredTimeout)
+        ? Math.Clamp(configuredTimeout, 1, 1_800) : 300;
+    var intervalMilliseconds = int.TryParse(configuration["ReleaseDeployer:HealthCheckIntervalMilliseconds"], out var configuredInterval)
+        ? Math.Clamp(configuredInterval, 10, 5_000) : 5_000;
+    var sqlcmd = new[]
+    {
+        "exec", "-T", "sqlserver", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", sqlPassword,
+        "-C", "-b", "-d", "AIERPPlatform", "-h", "-1", "-W", "-Q", StagingProvisioningReadiness.BuildSql(tenantId)
+    };
+    var deadline = DateTimeOffset.UtcNow.AddSeconds(timeoutSeconds);
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = await RunDockerAsync(composePrefix.Concat(sqlcmd), TimeSpan.FromSeconds(15), cancellationToken);
+        if (result.ExitCode == 0 && StagingProvisioningReadiness.IsReadyOutput(result.StandardOutput)) return true;
+        await Task.Delay(TimeSpan.FromMilliseconds(intervalMilliseconds), cancellationToken);
+    }
+    return false;
+}
+
 static string ProductionBackupRoot(IConfiguration configuration) => Path.GetFullPath(configuration["ReleaseDeployer:ProductionBackupRoot"] ?? "/production-backups");
-static string BackupManifestPath(Guid projectId, Guid deploymentId, string backupRoot) => Path.Combine(backupRoot, $"AIERP-{projectId:N}-{deploymentId:N}.json");
-static string DatabaseBackupPath(string database, Guid projectId, Guid deploymentId) => $"/var/opt/mssql/backups/{database}-{projectId:N}-{deploymentId:N}.bak";
+static string BackupManifestPath(Guid projectId, Guid deploymentId, string backupRoot) => ReleaseDeployerPath.SafeChild(backupRoot, $"AIERP-{ReleaseDeployerPath.SafeGuidSegment(projectId)}-{ReleaseDeployerPath.SafeGuidSegment(deploymentId)}.json");
+static string DatabaseBackupPath(string database, Guid projectId, Guid deploymentId) => $"/var/opt/mssql/backups/{database}-{ReleaseDeployerPath.SafeGuidSegment(projectId)}-{ReleaseDeployerPath.SafeGuidSegment(deploymentId)}.bak";
+static string DatabaseBackupVolumePath(string database, Guid projectId, Guid deploymentId, string backupRoot)
+{
+    if (!IsSafeAierpDatabaseName(database)) throw new InvalidDataException("Veritabanı yedek adı geçersiz.");
+    return ReleaseDeployerPath.SafeChild(backupRoot, Path.GetFileName(DatabaseBackupPath(database, projectId, deploymentId)));
+}
 
 static async Task WriteProductionMigrationRollbackStateAsync(string path, ProductionMigrationRollbackState state, CancellationToken cancellationToken)
 {
-    var temporaryPath = path + ".tmp";
+    var temporaryDirectory = Path.GetDirectoryName(path) ?? throw new InvalidDataException("Dağıtım durum yolu geçersiz.");
+    var temporaryPath = ReleaseDeployerPath.SafeChild(temporaryDirectory, Path.GetFileName(path) + ".tmp");
     await File.WriteAllTextAsync(temporaryPath, JsonSerializer.Serialize(state, JsonConfig.Options), new UTF8Encoding(false), cancellationToken);
     File.Move(temporaryPath, path, overwrite: true);
 }
@@ -857,10 +992,11 @@ static async Task<bool> BackupDatabaseSetAsync(IEnumerable<string> composePrefix
     foreach (var database in databases)
     {
         if (!IsSafeAierpDatabaseName(database)) return false;
+        var volumePath = DatabaseBackupVolumePath(database, projectId, operationId, backupRoot);
         var path = DatabaseBackupPath(database, projectId, operationId);
         var sql = $"BACKUP DATABASE {SqlIdentifier(database)} TO DISK = N'{path}' WITH INIT, CHECKSUM; RESTORE VERIFYONLY FROM DISK = N'{path}' WITH CHECKSUM";
         var result = await RunDockerAsync(composePrefix.Concat(sqlcmdPrefix).Append(sql), TimeSpan.FromMinutes(15), cancellationToken);
-        if (result.ExitCode != 0 || !File.Exists(Path.Combine(backupRoot, Path.GetFileName(path)))) return false;
+        if (result.ExitCode != 0 || !File.Exists(volumePath)) return false;
     }
     return true;
 }
@@ -870,8 +1006,9 @@ static async Task<bool> VerifyDatabaseSetAsync(IEnumerable<string> composePrefix
     foreach (var database in databases)
     {
         if (!IsSafeAierpDatabaseName(database)) return false;
+        var volumePath = DatabaseBackupVolumePath(database, projectId, operationId, backupRoot);
         var path = DatabaseBackupPath(database, projectId, operationId);
-        if (!File.Exists(Path.Combine(backupRoot, Path.GetFileName(path)))) return false;
+        if (!File.Exists(volumePath)) return false;
         var result = await RunDockerAsync(composePrefix.Concat(sqlcmdPrefix).Append($"RESTORE VERIFYONLY FROM DISK = N'{path}' WITH CHECKSUM"), TimeSpan.FromMinutes(5), cancellationToken);
         if (result.ExitCode != 0) return false;
     }
@@ -883,8 +1020,9 @@ static async Task<bool> RestoreDatabaseSetAsync(IEnumerable<string> composePrefi
     foreach (var database in databases)
     {
         if (!IsSafeAierpDatabaseName(database)) return false;
+        var volumePath = DatabaseBackupVolumePath(database, projectId, operationId, backupRoot);
         var path = DatabaseBackupPath(database, projectId, operationId);
-        if (!File.Exists(Path.Combine(backupRoot, Path.GetFileName(path)))) return false;
+        if (!File.Exists(volumePath)) return false;
         var sql = $"IF DB_ID(N'{database}') IS NOT NULL ALTER DATABASE {SqlIdentifier(database)} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE {SqlIdentifier(database)} FROM DISK = N'{path}' WITH REPLACE, CHECKSUM; ALTER DATABASE {SqlIdentifier(database)} SET MULTI_USER";
         var result = await RunDockerAsync(composePrefix.Concat(sqlcmdPrefix).Append(sql), TimeSpan.FromMinutes(20), cancellationToken);
         if (result.ExitCode != 0) return false;
@@ -952,7 +1090,7 @@ public static class ReleaseDeployerDockerExecutionPolicy
 }
 sealed record CreateStagingDeployment(Guid DeploymentId, Guid TenantId, Guid ProjectId, Guid PackageId, Guid IdempotencyKey, Guid? ExpectedActiveDeploymentId, string PackageSha256, string CommitSha, string Version);
 sealed record RestoreProductionDeployment(Guid DeploymentId, Guid TenantId, Guid ProjectId, Guid PackageId, Guid IdempotencyKey, Guid ExpectedActiveDeploymentId, Guid BackupDeploymentId, Guid TargetDeploymentId, string PackageSha256, string CommitSha, string Version);
-sealed record StagingDeploymentResult(Guid DeploymentId, Guid IdempotencyKey, Guid PackageId, string PackageSha256, string CommitSha, string Url, string ProviderDeploymentId, string BootstrapEmail, string BootstrapPassword, DateTimeOffset CreatedAt);
+sealed record StagingDeploymentResult(Guid DeploymentId, Guid IdempotencyKey, Guid PackageId, string PackageSha256, string CommitSha, string Url, string ProviderDeploymentId, string BootstrapEmail, string BootstrapPassword, DateTimeOffset CreatedAt, string? Version = null);
 sealed record DeploymentCurrentPointer(Guid DeploymentId);
 public sealed record ProductionMigrationRollbackState(Guid DeploymentId, Guid? PreviousDeploymentId, string MigrationStatus, string RollbackStatus, string? Message, DateTimeOffset UpdatedAt);
 public static class ProductionMigrationRollbackPolicy
@@ -963,7 +1101,7 @@ public static class ProductionMigrationRollbackPolicy
         ["compose", "--project-name", projectName, "--file", composeFile, "--env-file", envFile, "down", "--remove-orphans"];
 }
 sealed record DeploymentSecrets(string BootstrapEmail, string BootstrapPassword, string SqlPassword, string JwtKey, string TenantName, int Port,
-    string? PlatformRuntimePassword = null, string? DataRuntimePassword = null);
+    string? PlatformRuntimePassword = null, string? PlatformMigratorPassword = null, Guid? SyntheticStagingTenantId = null);
 sealed record PackageMetadata(Guid PackageId, string FileName, string Version, string CommitSha, string PackageSha256, long SizeBytes, int FileCount, DateTimeOffset CreatedAt);
 sealed record EncryptedResult(string Nonce, string Tag, string Ciphertext);
 sealed record ReleaseManifest(Guid PackageId, string Version, string CommitSha, Guid TestJobId, string TestTargetPath, string TestSnapshotSha256, DateTimeOffset CreatedAt, IReadOnlyList<ReleaseManifestFile> Files);

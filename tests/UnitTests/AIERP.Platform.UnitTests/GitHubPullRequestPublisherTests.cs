@@ -48,6 +48,70 @@ public sealed class GitHubPullRequestPublisherTests
         Assert.Equal(1, handler.RequestCount);
     }
 
+    [Theory]
+    [InlineData("closed", "https://github.com/Acme/ERP/pull/17")]
+    [InlineData("open", "http://github.com/Acme/ERP/pull/17")]
+    [InlineData("open", "https://github.com.example/Acme/ERP/pull/17")]
+    public async Task Does_not_reuse_pr_with_unverified_state_or_url(string state, string url)
+    {
+        var handler = new SequenceHandler(_ => Json(HttpStatusCode.OK,
+            $"[{{\"number\":17,\"html_url\":\"{url}\",\"state\":\"{state}\",\"draft\":true}}]"));
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.github.com/") };
+
+        var result = await GitHubPullRequestPublisher.PublishAsync(client, "Acme", "ERP", "codex/studio-123", "main",
+            "Studio change", "Description", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.PullRequest);
+        Assert.Equal(1, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task Rejects_malformed_open_pr_lookup_without_trying_to_create()
+    {
+        var handler = new SequenceHandler(_ => Json(HttpStatusCode.OK, "not-json"));
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.github.com/") };
+
+        var result = await GitHubPullRequestPublisher.PublishAsync(client, "Acme", "ERP", "codex/studio-123", "main",
+            "Studio change", "Description", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(1, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task Rejects_successful_create_response_that_is_not_an_open_draft()
+    {
+        var handler = new SequenceHandler(
+            _ => Json(HttpStatusCode.OK, "[]"),
+            _ => Json(HttpStatusCode.Created,
+                "{\"number\":18,\"html_url\":\"https://github.com/Acme/ERP/pull/18\",\"state\":\"open\",\"draft\":false}"));
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.github.com/") };
+
+        var result = await GitHubPullRequestPublisher.PublishAsync(client, "Acme", "ERP", "codex/studio-123", "main",
+            "Studio change", "Description", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.PullRequest);
+    }
+
+    [Fact]
+    public async Task Rejects_malformed_successful_create_response_without_throwing()
+    {
+        var handler = new SequenceHandler(
+            _ => Json(HttpStatusCode.OK, "[]"),
+            _ => Json(HttpStatusCode.Created, "not-json"));
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.github.com/") };
+
+        var result = await GitHubPullRequestPublisher.PublishAsync(client, "Acme", "ERP", "codex/studio-123", "main",
+            "Studio change", "Description", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.PullRequest);
+        Assert.Equal("GitHub geçersiz PR yanıtı döndürdü.", result.Failure);
+        Assert.Equal(2, handler.RequestCount);
+    }
+
     private static HttpResponseMessage Json(HttpStatusCode status, string payload) => new(status)
     {
         Content = new StringContent(payload, Encoding.UTF8, "application/json")

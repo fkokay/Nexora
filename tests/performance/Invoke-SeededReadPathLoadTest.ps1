@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [string]$BaseUrl = 'http://localhost:5080',
-    [string]$TenantName,
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^synthetic-load-[0-9a-f]{32}$')]
+    [string]$TenantSlug,
     [ValidateRange(10, 10000)][int]$RequestsPerEndpoint = 300,
     [ValidateRange(1, 200)][int]$Concurrency = 25,
     [ValidateRange(1, 1000000)][int]$MinimumRowsPerDataset = 100,
@@ -11,13 +13,24 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$baseUri = $null
+if (-not [Uri]::TryCreate($BaseUrl, [UriKind]::Absolute, [ref]$baseUri) -or
+    -not $baseUri.IsLoopback -or
+    $baseUri.Scheme -notin @('http', 'https') -or
+    $baseUri.AbsolutePath -ne '/' -or
+    -not [string]::IsNullOrEmpty($baseUri.UserInfo) -or
+    -not [string]::IsNullOrEmpty($baseUri.Query) -or
+    -not [string]::IsNullOrEmpty($baseUri.Fragment)) {
+    throw 'The seeded read-path load test accepts only an http(s) loopback API URL without credentials, query, or fragment.'
+}
+
 $email = [Environment]::GetEnvironmentVariable('AIERP_LOADTEST_EMAIL')
 $password = [Environment]::GetEnvironmentVariable('AIERP_LOADTEST_PASSWORD')
 if ([string]::IsNullOrWhiteSpace($email) -or [string]::IsNullOrWhiteSpace($password)) {
     throw 'Set AIERP_LOADTEST_EMAIL and AIERP_LOADTEST_PASSWORD in the current process. Credentials are never accepted as command-line arguments or written to the result.'
 }
 
-$root = $BaseUrl.TrimEnd('/')
+$root = $baseUri.GetLeftPart([UriPartial]::Authority).TrimEnd('/')
 try {
     $loginBody = @{ email = $email; password = $password } | ConvertTo-Json -Compress
     $login = Invoke-RestMethod -Method Post -Uri "$root/api/auth/login" -ContentType 'application/json' -Body $loginBody
@@ -29,8 +42,8 @@ try {
     $email = $null
 }
 
-$tenant = if ($TenantName) { $login.tenants | Where-Object name -eq $TenantName | Select-Object -First 1 } else { $login.tenants | Select-Object -First 1 }
-if (-not $tenant) { $login = $null; throw 'The authenticated user has no matching active tenant.' }
+$tenant = $login.tenants | Where-Object { $_.slug -ceq $TenantSlug } | Select-Object -First 1
+if (-not $tenant) { $login = $null; throw 'The authenticated user has no matching synthetic load-test tenant. No load was sent.' }
 $token = $login.accessToken
 try {
     $selectionBody = @{ tenantId = $tenant.id } | ConvertTo-Json -Compress

@@ -16,3 +16,20 @@
 
 /* Standalone authenticated AI Development Studio surface. */
 .standalone-studio .sidebar{display:none}.standalone-studio .main-area{margin-left:0}.standalone-studio .topbar{display:none}.standalone-studio .studio-standalone-bar{display:flex;align-items:center;justify-content:space-between;padding:14px clamp(18px,4vw,56px);background:#fff;border-bottom:1px solid #e9ebf1}.studio-standalone-bar>div{display:flex;align-items:center;gap:12px}.studio-standalone-bar b{display:flex;align-items:center;gap:8px;font:700 14px Manrope,sans-serif}.studio-standalone-bar small{color:#8790a0;font-size:11px}.standalone-studio .content{padding:24px clamp(18px,4vw,56px) 56px}
+
+/* Shared Fluent tokens for the standalone Development Studio. */
+:root { --studio-navy: #102a43; --studio-navy-deep: #0b2239; --studio-blue: #0f6cbd; --studio-blue-hover: #0b5ea8; --studio-line: #dce3eb; --studio-surface: #fff; --studio-canvas: #f3f6fa; --studio-ink: #203957; --studio-muted: #63768c; }
+body { background: var(--studio-canvas); color: #26374a; }
+.topbar,.studio-app-header,.studio-dashboard-topbar,.studio-standalone-bar { background: var(--studio-navy); border-color: var(--studio-navy-deep); color: #d9e5f0; }
+.topbar .crumb,.studio-app-header .crumb,.studio-dashboard-topbar .studio-topbar-crumb,.studio-standalone-bar small { color: #b8c9d9; }
+.topbar .crumb b,.studio-app-header .crumb b,.studio-dashboard-topbar .studio-topbar-crumb b,.studio-standalone-bar b { color: #fff; }
+.primary,.banner-button { border-color: var(--studio-blue); border-radius: 4px; background: var(--studio-blue); box-shadow: none; }
+.primary:hover,.banner-button:hover { background: var(--studio-blue-hover); }
+.secondary { border-color: #cbd6e2; border-radius: 4px; background: #fff; color: #36536f; }
+.secondary:hover { border-color: #7fa9d0; background: #f2f7fb; color: #155d99; }
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible { outline: 2px solid #0f6cbd; outline-offset: 2px; }
+input:focus,textarea:focus,select:focus { border-color: var(--studio-blue)!important; box-shadow: 0 0 0 2px #0f6cbd20!important; }
+.panel,.request-row,.metric-card,.customer-summary,.customer-table-wrap { border-color: var(--studio-line); border-radius: 6px; box-shadow: none; }
+.request-row:hover,.customer-table tbody tr:hover { background: #f4f8fc; }
+.request-symbol,.customer-summary-icon,.tiny-icon,.studio-icon { border-radius: 4px; background: #eaf3fb; color: var(--studio-blue); box-shadow: none; }
+.status-live,.active-pill.yes { border-radius: 4px; }

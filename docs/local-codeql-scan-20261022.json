@@ -1,0 +1,226 @@
+{
+  "scanDate": "2026-10-23",
+  "codeqlVersion": "2.27.2",
+  "gitHeadAtScan": "b0e201c54bdf0391bccef1c541784fae12b1706f",
+  "workingTree": {
+    "dirty": true,
+    "statusEntryCountAtReport": 406
+  },
+  "policy": {
+    "rootLicenseFilePresent": false,
+    "repositoryLicenseEligibility": "Unresolved locally; verify before using CodeQL CLI on proprietary/commercial code.",
+    "queryPacksDownloadedDuringScan": false,
+    "githubWorkflowPresentInCheckout": true,
+    "githubWorkflowRunOrRemoteAlertsChecked": false,
+    "remoteRepositoryAccessOrGitHubApiUsed": false,
+    "externalQueryPackDownloadRequested": false,
+    "cliTelemetryStatus": "Not explicitly inspected; no network-dependent scan step was requested.",
+    "codeqlQueryPackDownloadsDuringCSharpRerun": false,
+    "nugetActivity": "The C# autobuilder checked NuGet feed reachability and performed per-project --no-dependencies restores into the CodeQL database working area. No CodeQL query pack was downloaded."
+  },
+  "localQueryPacks": [
+    {
+      "name": "codeql/csharp-queries",
+      "version": "1.10.1",
+      "present": true
+    },
+    {
+      "name": "codeql/javascript-queries",
+      "version": "2.4.7",
+      "present": true
+    }
+  ],
+  "javascriptTypescript": {
+    "status": "completed",
+    "sourceRoot": "frontend",
+    "filesScanned": 31,
+    "filesExpected": 31,
+    "querySuite": "codeql/javascript-queries:codeql-suites/javascript-code-scanning.qls",
+    "queryCount": 89,
+    "findings": 0,
+    "extractionErrors": 0,
+    "sarif": ".codex-build/codeql-20261022/javascript.sarif",
+    "database": ".codex-build/codeql-20261022/javascript-frontend",
+    "scopeNote": "Scoped to ERP Web and Development Studio frontends; generated dist content under frontend was included by CodeQL extraction. Generated release artifacts elsewhere in the repository were intentionally excluded from this frontend-only invocation."
+  },
+  "csharp": {
+    "status": "completed-scoped-buildless",
+    "intendedScope": "Current application C# source under src only; tests and other repository C# files are excluded from the completed scan.",
+    "previousFullTreeDatabase": ".codex-build/codeql-20261022/csharp-current",
+    "fullTreeAttempt": {
+      "result": "stopped",
+      "reason": "No capture-log progress for about three minutes; csc reached approximately 3.7 GB working set."
+    },
+    "apiAttempts": [
+      {
+        "database": ".codex-build/codeql-20261022/csharp-api",
+        "result": "build-command-path-error",
+        "reason": "CodeQL ran command from sourceRoot; project path was incorrectly repo-relative."
+      },
+      {
+        "database": ".codex-build/codeql-20261022/csharp-api-v2",
+        "result": "no-source-captured",
+        "reason": "Incremental build succeeded without compiler work."
+      },
+      {
+        "database": ".codex-build/codeql-20261022/csharp-api-root",
+        "result": "no-source-captured",
+        "reason": "Incremental build succeeded without compiler work."
+      },
+      {
+        "database": ".codex-build/codeql-20261022/csharp-api-rebuild",
+        "result": "stopped-resource-limit",
+        "reason": "Forced API rebuild recompiled project references; csc reached approximately 3.78 GB and logs stopped advancing."
+      },
+      {
+        "database": ".codex-build/codeql-20261022/csharp-api-only",
+        "result": "build-error",
+        "reason": "BuildProjectReferences=false compile lacked reference assemblies after the forced rebuild was stopped."
+      }
+    ],
+    "partialDatabasesPreserved": true,
+    "retryCondition": "The full 59-query C# suite has completed against the retry snapshot (525/525 C# files). The initial 25/59-query attempt is retained as historical evidence in previousInterruptedAttempt. A compiler-backed full-tree scan and a test-source scan were not performed; the completed result is local src-only buildless evidence.",
+    "priorSnapshot": {
+      "date": "2026-10-19",
+      "status": "Historical only, not this source state",
+      "findings": 110,
+      "csharpFiles": 422
+    },
+    "sourceSnapshot": {
+      "databaseCreatedAtUtc": "2026-10-23T07:18:13.813126900Z",
+      "gitHead": "b0e201c54bdf0391bccef1c541784fae12b1706f",
+      "workingTreeDirty": true,
+      "sourceRoot": ".codex-build/codeql-20261023/src-snapshot",
+      "liveSrcComparedFiles": 643,
+      "contentDifferencesAtCapture": 0,
+      "currentHeadVerifiedSame": true
+    },
+    "sourceOnlyBuildless": {
+      "status": "completed-current-src-buildless",
+      "buildMode": "none",
+      "database": ".codex-build/codeql-20261023-retry/csharp-src-nobuild",
+      "databaseFinalised": true,
+      "sourceSnapshot": ".codex-build/codeql-20261023-retry/src-snapshot",
+      "sourceFilesFound": 525,
+      "filesScanned": 525,
+      "filesSkipped": 0,
+      "projectsFound": 13,
+      "resolvedAssemblyReferences": 430,
+      "unresolvedAssemblyReferences": 0,
+      "unresolvedTypes": 6,
+      "querySuite": "codeql/csharp-queries:codeql-suites/csharp-code-scanning.qls",
+      "queryPackVersion": "1.10.1",
+      "queriesInSuite": 59,
+      "completedQueries": 59,
+      "fullSuiteCompleted": true,
+      "analysisExitCode": 0,
+      "sarif": ".codex-build/codeql-20261023-retry/csharp-full.sarif",
+      "sarifBytes": 2527577,
+      "sarifResults": 1,
+      "runInfo": ".codex-build/codeql-20261023-retry/csharp-src-nobuild/results/run-info-20261023.090431.288.yml",
+      "runExecutionSuccessful": true,
+      "finding": {
+        "ruleId": "cs/user-controlled-bypass",
+        "severity": "error",
+        "securitySeverity": "7.5",
+        "precision": "high",
+        "file": "src/AI/AIERP.AIService/Program.cs",
+        "line": 864,
+        "classification": "Two independent source reviews classify the condition as a per-request client consent assertion for sharing with an AI provider, not an authentication, tenant-isolation, or module-authorization bypass.",
+        "limitation": "The server receives a client-supplied consent flag; it is not durable proof that a user actually clicked the checkbox. Keep durable-consent requirements as a product/privacy decision.",
+        "disposition": "Kept as a local CodeQL result; no SARIF suppression or hosted alert action was made."
+      },
+      "scopeNote": "Local src-only C# CodeQL buildless database. Captured 525/525 C# source files and completed the full 59-query code-scanning suite. This is analysis of the local working tree snapshot, not a GitHub-hosted workflow result or immutable published commit.",
+      "nugetActivity": "The C# autobuilder checked NuGet feed reachability and performed project --no-dependencies restores into the CodeQL working area; no CodeQL query pack was downloaded."
+    },
+    "discardedBuildlessAttempt": {
+      "database": ".codex-build/codeql-20261022/csharp-nobuild",
+      "sourceRoot": ".",
+      "status": "discarded-no-results",
+      "sourceFilesFound": 1169,
+      "reason": "The repository-root source discovery included old extracted C# files in .codex-build CodeQL databases, contaminating scope. This database was not analyzed and no result count is claimed."
+    },
+    "comparisonToHistoricalMaster": {
+      "historicalOpenAlertCount": 192,
+      "asOf": "2026-10-19 historical repository notes",
+      "refreshedInThisTask": false,
+      "relation": "The single local cs/user-controlled-bypass result is at the AISharingConfirmed consent check described in historical master alert #194 triage. It is an independent local SARIF result and is not included in the historical hosted alert count."
+    },
+    "previousCompletedBuildless": {
+      "status": "completed-historical-stale-snapshot",
+      "buildMode": "none",
+      "database": ".codex-build/codeql-20261022/csharp-src-nobuild",
+      "databaseFinalised": true,
+      "sourceFilesFound": 634,
+      "filesScanned": 632,
+      "filesSkipped": 2,
+      "projectsFound": 13,
+      "resolvedAssemblyReferences": 430,
+      "unresolvedAssemblyReferences": 0,
+      "unresolvedTypes": 6,
+      "totalCreateElapsed": "18m57.826s",
+      "trapImportElapsed": "1m59s",
+      "baselineLinesOfCode": 1174224,
+      "querySuite": "codeql/csharp-queries:codeql-suites/csharp-code-scanning.qls",
+      "queryPackVersion": "1.10.1",
+      "queriesInSuite": 59,
+      "sarifRules": 52,
+      "evaluatedQueries": 39,
+      "cachedQueries": 13,
+      "executionSuccessful": true,
+      "findings": 1,
+      "sarif": ".codex-build/codeql-20261022/csharp-src-rerun.sarif",
+      "sarifBytes": 4547033,
+      "runInfo": ".codex-build/codeql-20261022/csharp-src-nobuild/results/run-info-20261023.064514.086.yml",
+      "result": {
+        "ruleId": "cs/user-controlled-bypass",
+        "severity": "error",
+        "securitySeverity": "7.5",
+        "precision": "high",
+        "file": "src/AI/AIERP.AIService/Program.cs",
+        "line": 792,
+        "condition": "AISharingConfirmed",
+        "interpretation": "Local current-source result. The same consent-check scenario is discussed in docs/codeql-master-bypass-triage.md as historical alert #194; that old remote triage does not automatically dismiss or close this independent local result."
+      },
+      "currentSourceClaim": false,
+      "staleReason": "A later archive-to-working-tree comparison found 19 C# files changed after this database snapshot. Keep its one SARIF result as historical evidence only."
+    },
+    "previousInterruptedAttempt": {
+      "status": "partial-incomplete-current-snapshot",
+      "buildMode": "none",
+      "database": ".codex-build/codeql-20261023/csharp-src-snapshot-nobuild",
+      "databaseFinalised": true,
+      "sourceSnapshot": ".codex-build/codeql-20261023/src-snapshot",
+      "sourceFilesFound": 643,
+      "projectsFound": 13,
+      "resolvedAssemblyReferences": 430,
+      "unresolvedAssemblyReferences": 0,
+      "unresolvedTypes": 6,
+      "trapSize": "70.25 MiB",
+      "databaseCreateElapsed": "9m52.184s",
+      "trapImportElapsed": "1m21s",
+      "querySuite": "codeql/csharp-queries:codeql-suites/csharp-code-scanning.qls",
+      "queryPackVersion": "1.10.1",
+      "queriesInSuite": 59,
+      "completedQueries": 25,
+      "remainingQueries": 34,
+      "completedSecurityQueries": 18,
+      "completedDiagnosticMetricQueries": 7,
+      "analysisInterruptedByUser": true,
+      "analysisExitCode": 1,
+      "fullSuiteCompleted": false,
+      "userControlledBypassQueryCompleted": false,
+      "partialSarif": ".codex-build/codeql-20261023/csharp-src-partial-security.sarif",
+      "partialSarifBytes": 337308,
+      "partialSarifRules": 18,
+      "partialSarifResults": 0,
+      "partialSarifArtifacts": 643,
+      "partialSarifInterpretation": "Partial export from 18 completed security queries only. Zero results in this partial SARIF is not a zero-finding or full-scan conclusion.",
+      "runInfo": ".codex-build/codeql-20261023/csharp-src-snapshot-nobuild/results/run-info-20261023.073020.165.yml",
+      "completedBqrsCount": 25,
+      "nugetActivity": "Autobuilder checked NuGet feed reachability and performed project --no-dependencies restores into the CodeQL working area; no CodeQL query pack was downloaded."
+    }
+  },
+  "conclusion": "Frontend JS/TS evidence remains the earlier 31/31-file, 89-query, 0-finding local scan and was not rerun in this refresh. The current src-only buildless C# analysis completed all 59 queries against 525/525 captured C# source files and reported one cs/user-controlled-bypass result at src/AI/AIERP.AIService/Program.cs:864 (security-severity 7.5). Two independent source reviews classify it as a per-request client consent assertion, not an authentication, tenant-isolation, or module-authorization bypass; the client-supplied flag is not durable proof of a checkbox click. This is local SARIF evidence only: no GitHub-hosted workflow, remote alert, or published-commit state was checked or changed.",
+  "reportUpdatedDate": "2026-10-23"
+}

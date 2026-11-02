@@ -10,6 +10,99 @@ namespace AIERP.Platform.UnitTests;
 public sealed class PluginHostTests
 {
     [Fact]
+    public void PluginHostHealth_RequiresReadablePackageDirectory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-module-health-{Guid.NewGuid():N}");
+        var missing = Path.Combine(root, "missing");
+        Directory.CreateDirectory(root);
+        try
+        {
+            Assert.True(PluginHostHealth.IsPackageStoreReadable(root));
+            Assert.False(PluginHostHealth.IsPackageStoreReadable(missing));
+            Assert.False(PluginHostHealth.IsPackageStoreReadable("\0"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ModuleInvocationConcurrencyGate_RejectsOverCapacityWithoutQueueingAndReleasesPermit()
+    {
+        using var gate = new ModuleInvocationConcurrencyGate(1);
+
+        Assert.True(gate.TryAcquire(out var lease));
+        Assert.NotNull(lease);
+        Assert.False(gate.TryAcquire(out var rejectedLease));
+        Assert.Null(rejectedLease);
+
+        lease.Dispose();
+        lease.Dispose();
+
+        Assert.True(gate.TryAcquire(out var nextLease));
+        nextLease!.Dispose();
+    }
+
+    [Fact]
+    public void ModulePackageStoragePath_RejectsTraversalAndReparsePointAncestors()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-module-storage-{Guid.NewGuid():N}");
+        var outside = Path.Combine(Path.GetTempPath(), $"aierp-module-outside-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(outside);
+        try
+        {
+            Assert.Throws<InvalidDataException>(() => ModulePackageStoragePath.ResolveChild(root, "../outside/file.zip"));
+            var link = Path.Combine(root, "linked");
+            try { Directory.CreateSymbolicLink(link, outside); }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException or IOException) { return; }
+            Assert.Equal(Path.Combine(root, $"{new string('b', 64)}.zip"), ModulePackageStoragePath.ResolvePackage(root, new string('b', 64)));
+            Assert.Throws<InvalidDataException>(() => ModulePackageStoragePath.ResolveChild(root, "linked/package.zip"));
+            Assert.Throws<InvalidDataException>(() => ModulePackageStoragePath.ResolveChild(link, "package.zip"));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+            try { Directory.Delete(outside, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
+    public void ModulePackageUploadCoordinator_OnlyDeletesPackageOwnedByThisUpload()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aierp-module-cleanup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var hash = new string('c', 64);
+        var package = ModulePackageStoragePath.ResolvePackage(root, hash);
+        File.WriteAllBytes(package, [1, 2, 3]);
+        try
+        {
+            Assert.False(ModulePackageUploadCoordinator.DeleteOwnedPackage(root, hash, createdByThisUpload: false));
+            Assert.True(File.Exists(package));
+            Assert.True(ModulePackageUploadCoordinator.DeleteOwnedPackage(root, hash, createdByThisUpload: true));
+            Assert.False(File.Exists(package));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ModulePackageUploadCoordinator_SerializesSameHashWithinProcess()
+    {
+        var hash = new string('d', 64);
+        using var first = await ModulePackageUploadCoordinator.AcquireAsync(hash);
+        var secondTask = ModulePackageUploadCoordinator.AcquireAsync(hash).AsTask();
+
+        Assert.False(secondTask.IsCompleted);
+        first.Dispose();
+        using var second = await secondTask.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Throws<InvalidDataException>(() => ModulePackageUploadCoordinator.AcquireAsync("../bad").AsTask().GetAwaiter().GetResult());
+    }
+
+    [Fact]
     public void ModulePackageArchive_RequiresOneBoundedRootWasmEntry()
     {
         var wasm = BuildModule();

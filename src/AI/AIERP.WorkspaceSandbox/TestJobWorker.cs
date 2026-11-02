@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using AIERP.WorkspaceSandbox;
 
@@ -129,6 +130,18 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
                     result = new(build.ExitCode == 0, build.TimedOut ? "TimedOut" : build.ExitCode == 0 ? "Built" : "BuildFailed",
                         build.TimedOut ? "Python syntax compilation exceeded its time limit." : build.ExitCode == 0 ? "Python source compiled successfully." : "Python syntax compilation failed.", build.ExitCode, CombineOutput(build));
                 }
+                else if (Path.GetExtension(target).Equals(".java", StringComparison.OrdinalIgnoreCase) && IsSafePlainJavaTarget(job.TargetPath))
+                {
+                    if (new FileInfo(target).Length > 64 * 1024)
+                        throw new SandboxRejectedException("Plain-JDK Java source files are limited to 64 KiB.");
+                    var classesDirectory = Path.Combine(workDirectory, ".java-classes");
+                    var sourcePathDirectory = Path.Combine(workDirectory, ".java-empty-sourcepath");
+                    Directory.CreateDirectory(classesDirectory);
+                    Directory.CreateDirectory(sourcePathDirectory);
+                    var compile = await RunCommandAsync(workDirectory, "javac", CreatePlainJavaCompileArguments(target, classesDirectory, sourcePathDirectory), TimeSpan.FromSeconds(55), stoppingToken);
+                    result = new(compile.ExitCode == 0, compile.TimedOut ? "TimedOut" : compile.ExitCode == 0 ? "Built" : "BuildFailed",
+                        compile.TimedOut ? "Java compilation exceeded its time limit." : compile.ExitCode == 0 ? "Plain-JDK Java source compiled successfully without dependency resolution." : "Java compilation failed.", compile.ExitCode, CombineOutput(compile));
+                }
                 else if (Path.GetFileName(target).Equals("go.mod", StringComparison.OrdinalIgnoreCase))
                 {
                     var moduleDirectory = Path.GetDirectoryName(target)!;
@@ -195,7 +208,33 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
             }
             else
             {
-                if (Path.GetFileName(target).Equals("package.json", StringComparison.OrdinalIgnoreCase) && HasExternalNodeDependencies(target))
+                if (Path.GetExtension(target).Equals(".java", StringComparison.OrdinalIgnoreCase) && IsSafePlainJavaTarget(job.TargetPath))
+                {
+                    if (new FileInfo(target).Length > 64 * 1024)
+                        throw new SandboxRejectedException("Plain-JDK Java source files are limited to 64 KiB.");
+                    var source = await File.ReadAllTextAsync(target, stoppingToken);
+                    if (!TryGetPlainJavaTestMainClass(job.TargetPath, source, out var mainClass))
+                    {
+                        result = new(false, "Rejected", "Java tests require a public top-level class matching the filename with public static void main(String[] args).", -1, "");
+                    }
+                    else
+                    {
+                        var classesDirectory = Path.Combine(workDirectory, ".java-classes");
+                        var sourcePathDirectory = Path.Combine(workDirectory, ".java-empty-sourcepath");
+                        Directory.CreateDirectory(classesDirectory);
+                        Directory.CreateDirectory(sourcePathDirectory);
+                        var compile = await RunCommandAsync(workDirectory, "javac", CreatePlainJavaCompileArguments(target, classesDirectory, sourcePathDirectory), TimeSpan.FromSeconds(55), stoppingToken);
+                        if (compile.ExitCode != 0)
+                            result = new(false, compile.TimedOut ? "TimedOut" : "BuildFailed", compile.TimedOut ? "Java test compilation exceeded its time limit." : "Java test compilation failed.", compile.ExitCode, CombineOutput(compile));
+                        else
+                        {
+                            var run = await RunCommandAsync(workDirectory, "java", CreatePlainJavaRunArguments(classesDirectory, mainClass, Path.Combine(workDirectory, ".tmp")), TimeSpan.FromSeconds(55), stoppingToken);
+                            result = new(run.ExitCode == 0, run.TimedOut ? "TimedOut" : run.ExitCode == 0 ? "Passed" : "Failed",
+                                run.TimedOut ? "Java test execution exceeded its time limit." : run.ExitCode == 0 ? "Plain-JDK Java test harness completed successfully." : "Java test harness failed.", run.ExitCode, CombineOutput(run));
+                        }
+                    }
+                }
+                else if (Path.GetFileName(target).Equals("package.json", StringComparison.OrdinalIgnoreCase) && HasExternalNodeDependencies(target))
                 {
                     var projectDirectory = Path.GetDirectoryName(target)!;
                     if (!File.Exists(Path.Combine(projectDirectory, "package-lock.json")))
@@ -289,6 +328,10 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
                             test.TimedOut ? "Test execution exceeded its time limit." : unavailable ? "Rust crate dependencies are not available in the offline sandbox." : test.ExitCode == 0 ? "Rust tests completed successfully." : "Rust tests failed.", test.ExitCode, output);
                     }
                 }
+                else if (Path.GetExtension(target).Equals(".java", StringComparison.OrdinalIgnoreCase))
+                {
+                    result = new(false, "Rejected", "Selected Java test target is not safe for plain-JDK execution.", -1, "");
+                }
                 else
                 {
                     var nodeProjectDirectory = Path.GetDirectoryName(target)!;
@@ -311,8 +354,10 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
         await WriteResultAsync(resultPath, result, stoppingToken);
     }
 
-    private static void ExtractArchive(string archivePath, string destination)
+    internal static void ExtractArchive(string archivePath, string destination)
     {
+        destination = Path.GetFullPath(destination);
+        RejectReparsePoint(destination);
         using var archive = ZipFile.OpenRead(archivePath);
         if (archive.Entries.Count > MaxFiles) throw new SandboxRejectedException("Source snapshot has too many files.");
         long extractedBytes = 0;
@@ -331,10 +376,30 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
             var target = Path.GetFullPath(Path.Combine(destination, path.Replace('/', Path.DirectorySeparatorChar)));
             if (!target.StartsWith(destination + Path.DirectorySeparatorChar, StringComparison.Ordinal))
                 throw new SandboxRejectedException("Source snapshot path escapes its temporary directory.");
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            var parent = Path.GetDirectoryName(target)!;
+            EnsureNoReparsePointAncestors(destination, parent);
+            Directory.CreateDirectory(parent);
             using var input = entry.Open(); using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None);
             input.CopyTo(output);
         }
+    }
+
+    private static void EnsureNoReparsePointAncestors(string destination, string parent)
+    {
+        var current = parent;
+        while (current.StartsWith(destination + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            RejectReparsePoint(current);
+            current = Path.GetDirectoryName(current)!;
+        }
+        RejectReparsePoint(destination);
+    }
+
+    private static void RejectReparsePoint(string path)
+    {
+        if (!Directory.Exists(path) && !File.Exists(path)) return;
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            throw new SandboxRejectedException("Source snapshot destination contains a symbolic link or reparse point.");
     }
 
     private static void MakeSnapshotWritableForSandboxUser(string root)
@@ -408,6 +473,33 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
         KillProcessGroup(process.Id);
         return new(process.ExitCode, timedOut, await stdoutTask, await stderrTask);
     }
+
+    internal static bool IsSafePlainJavaTarget(string? path) => !string.IsNullOrWhiteSpace(path) && path.Length <= 500 &&
+        !path.StartsWith('/') && !path.Contains('\\') && !path.Contains(':') && !path.Any(char.IsControl) &&
+        Path.GetExtension(path).Equals(".java", StringComparison.OrdinalIgnoreCase) &&
+        path.Split('/').All(segment => !string.IsNullOrWhiteSpace(segment) && segment is not ("." or "..") &&
+            !segment.StartsWith('.') && !segment.Contains("secret", StringComparison.OrdinalIgnoreCase) &&
+            !segment.Contains("credential", StringComparison.OrdinalIgnoreCase) && !segment.Contains("password", StringComparison.OrdinalIgnoreCase) &&
+            !segment.Contains("apikey", StringComparison.OrdinalIgnoreCase) && !ExcludedDirectories.Contains(segment));
+
+    internal static bool TryGetPlainJavaTestMainClass(string targetPath, string source, out string mainClass)
+    {
+        mainClass = "";
+        if (!IsSafePlainJavaTarget(targetPath) || source.Length is 0 or > 64 * 1024) return false;
+        var className = Path.GetFileNameWithoutExtension(targetPath);
+        var typePattern = $@"\bpublic\s+(?:(?:final|abstract|strictfp)\s+)*class\s+{Regex.Escape(className)}\b";
+        if (!Regex.IsMatch(source, typePattern) || !Regex.IsMatch(source,
+                @"\bpublic\s+static\s+void\s+main\s*\(\s*String\s*\[\s*\]\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\)")) return false;
+        var package = Regex.Match(source, @"(?m)^\s*package\s+([A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*)\s*;");
+        mainClass = package.Success ? $"{package.Groups[1].Value}.{className}" : className;
+        return true;
+    }
+
+    internal static IReadOnlyList<string> CreatePlainJavaCompileArguments(string sourcePath, string classesDirectory, string emptySourcePathDirectory) =>
+    ["-J-Xmx512m", "-J-XX:ActiveProcessorCount=1", "--release", "21", "-proc:none", "-implicit:none", "-classpath", classesDirectory, "-sourcepath", emptySourcePathDirectory, "-d", classesDirectory, sourcePath];
+
+    internal static IReadOnlyList<string> CreatePlainJavaRunArguments(string classesDirectory, string mainClass, string tempDirectory) =>
+    ["-Xmx512m", "-XX:ActiveProcessorCount=1", "--limit-modules", "java.base", "-ea", $"-Djava.io.tmpdir={tempDirectory}", "-cp", classesDirectory, mainClass];
 
     private static void KillProcessGroup(int processId) => _ = kill(-processId, 9);
 

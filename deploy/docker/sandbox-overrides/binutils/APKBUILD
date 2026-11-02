@@ -1,0 +1,55 @@
+pkgname=binutils
+pkgver=2.47
+pkgrel=0
+pkgdesc="GNU Binutils 2.47, security-fixed linker and ELF utilities"
+url="https://www.gnu.org/software/binutils/"
+arch="x86_64"
+license="GPL-2.0-or-later AND LGPL-2.1-or-later AND BSD-3-Clause"
+makedepends="build-base zlib-dev zstd-dev jansson-dev"
+source="https://ftp.gnu.org/gnu/binutils/binutils-$pkgver.tar.xz"
+options="!check"
+builddir="$srcdir/binutils-$pkgver"
+
+prepare() {
+	default_prepare
+	printf '%s  %s\n' '154ab23b60070e8f27013c22977f1129425d67d1e8acd6e13010e617811e4cff' "$srcdir/binutils-$pkgver.tar.xz" | sha256sum -c -
+}
+
+build() {
+	./configure \
+		--build="$CBUILD" \
+		--host="$CHOST" \
+		--target="$CTARGET" \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--sysconfdir=/etc \
+		--disable-nls \
+		--disable-gdb \
+		--disable-gprofng \
+		--disable-werror \
+		--enable-64-bit-bfd \
+		--enable-colored-disassembly \
+		--enable-default-execstack=no \
+		--enable-default-hash-style=gnu \
+		--enable-deterministic-archives \
+		--enable-ld=default \
+		--enable-new-dtags \
+		--enable-plugins \
+		--enable-threads \
+		--with-mmap \
+		--with-pic \
+		--with-system-zlib \
+		--with-zstd \
+		--enable-jansson
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir"/usr/share "$pkgdir"/usr/include "$pkgdir"/usr/lib/pkgconfig "$pkgdir"/usr/lib/*.a
+}
+
+sha512sums="
+3126a1064374d8da40d4d70630c204ed1e75d542c447d53fca9778c7ceff095c28e9b445e15a313fef9729082d7966471ee6b5b715d479aa6d568528743e1d98  binutils-2.47.tar.xz
+"

@@ -12,6 +12,7 @@ public sealed class IntegrationDispatcher(IConfiguration configuration, IHttpCli
 {
     private const string StripePaymentIntentProvider = "stripe.payment-intent";
     private const string PayPalOrdersV2Provider = "paypal.orders-v2";
+    private const string EDocumentIntegrationCode = "tr.e-document.submit";
     private const int MaximumPayloadBytes = 128 * 1024;
     private const int MaximumResponseBytes = 128 * 1024;
 
@@ -28,6 +29,10 @@ public sealed class IntegrationDispatcher(IConfiguration configuration, IHttpCli
 
     private static bool IsReadyConfiguration(IConfigurationSection section)
     {
+        // E-document delivery needs a tenant-owned provider profile and a secure
+        // secret handoff contract. Host-wide settings alone must never enable it.
+        if (string.Equals(section.Key, EDocumentIntegrationCode, StringComparison.Ordinal)) return false;
+
         var provider = section["Provider"];
         if (string.IsNullOrWhiteSpace(provider))
         {
@@ -52,7 +57,8 @@ public sealed class IntegrationDispatcher(IConfiguration configuration, IHttpCli
 
         var mappings = section.GetSection("RequestMappings").Get<IntegrationJsonFieldMapping[]>() ?? [];
         var responseMappings = section.GetSection("ResponseMappings").Get<IntegrationJsonFieldMapping[]>() ?? [];
-        return IntegrationJsonMapper.Validate(mappings).Count == 0 &&
+        return HasRequiredEDocumentMappings(section.Key, mappings, responseMappings) &&
+            IntegrationJsonMapper.Validate(mappings).Count == 0 &&
             IntegrationJsonMapper.Validate(responseMappings).Count == 0;
     }
 
@@ -65,6 +71,10 @@ public sealed class IntegrationDispatcher(IConfiguration configuration, IHttpCli
         if (!ModuleCodeRules.IsValid(integrationCode)) return (false, null);
         var section = configuration.GetSection($"Integrations:{integrationCode}");
         if (!section.GetValue<bool>("Enabled")) return (false, null);
+        // There is deliberately no e-document tenant-profile/secret-ingress contract
+        // yet. Fail closed even if an operator has configured a generic host adapter.
+        if (string.Equals(integrationCode, EDocumentIntegrationCode, StringComparison.Ordinal))
+            return (true, new IntegrationExecutionResult<JsonElement>(false, default, null, "invalid_integration", 0, TimeSpan.Zero));
         if (payload.ValueKind != JsonValueKind.Object || Encoding.UTF8.GetByteCount(payload.GetRawText()) > MaximumPayloadBytes)
             return (true, new IntegrationExecutionResult<JsonElement>(false, default, null, "validation_failed", 0, TimeSpan.Zero));
         var provider = section["Provider"];
@@ -73,6 +83,9 @@ public sealed class IntegrationDispatcher(IConfiguration configuration, IHttpCli
         if (string.Equals(provider, PayPalOrdersV2Provider, StringComparison.Ordinal) && !IsValidPayPalEnvironment(section["Environment"]))
             return (true, new IntegrationExecutionResult<JsonElement>(false, default, null, "invalid_integration", 0, TimeSpan.Zero));
         var responseMappings = section.GetSection("ResponseMappings").Get<IntegrationJsonFieldMapping[]>() ?? [];
+        var requestMappings = section.GetSection("RequestMappings").Get<IntegrationJsonFieldMapping[]>() ?? [];
+        if (!HasRequiredEDocumentMappings(integrationCode, requestMappings, responseMappings))
+            return (true, new IntegrationExecutionResult<JsonElement>(false, default, null, "invalid_integration", 0, TimeSpan.Zero));
         if (IntegrationJsonMapper.Validate(responseMappings).Count > 0)
             return (true, new IntegrationExecutionResult<JsonElement>(false, default, null, "mapping_failed", 0, TimeSpan.Zero));
 
@@ -87,8 +100,7 @@ public sealed class IntegrationDispatcher(IConfiguration configuration, IHttpCli
         JsonElement providerPayload;
         try
         {
-            var mappings = section.GetSection("RequestMappings").Get<IntegrationJsonFieldMapping[]>() ?? [];
-            providerPayload = IntegrationJsonMapper.Map(payload, mappings);
+            providerPayload = IntegrationJsonMapper.Map(payload, requestMappings);
         }
         catch (IntegrationJsonMappingException)
         {
@@ -137,6 +149,13 @@ public sealed class IntegrationDispatcher(IConfiguration configuration, IHttpCli
         }
         return (true, result);
     }
+
+    private static bool HasRequiredEDocumentMappings(
+        string integrationCode,
+        IReadOnlyCollection<IntegrationJsonFieldMapping> requestMappings,
+        IReadOnlyCollection<IntegrationJsonFieldMapping> responseMappings) =>
+        !string.Equals(integrationCode, EDocumentIntegrationCode, StringComparison.Ordinal) ||
+        (requestMappings.Count > 0 && responseMappings.Count > 0);
 
     private static bool TryResolveEndpoint(string? baseUrl, string? path, IReadOnlyCollection<string> allowedHosts, out Uri endpoint)
     {

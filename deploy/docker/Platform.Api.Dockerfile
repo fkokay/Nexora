@@ -4,8 +4,13 @@ COPY . .
 RUN dotnet publish src/Hosts/AIERP.Api/AIERP.Api.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
+ARG OCI_IMAGE_REVISION=unknown
+ARG OCI_IMAGE_VERSION=unknown
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/publish .
+LABEL org.opencontainers.image.source="https://github.com/fkokay/Nexora" \
+      org.opencontainers.image.revision="${OCI_IMAGE_REVISION}" \
+      org.opencontainers.image.version="${OCI_IMAGE_VERSION}"
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "AIERP.Api.dll"]

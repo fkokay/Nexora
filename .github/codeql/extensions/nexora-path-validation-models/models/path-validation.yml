@@ -1,0 +1,27 @@
+extensions:
+  - addsTo:
+      pack: codeql/csharp-all
+      extensible: barrierModel
+    data:
+      # Guid text formats contain only hex digits and formatting punctuation;
+      # they cannot contribute separators, drive prefixes, or traversal segments.
+      - [System, Guid, false, ToString, "()", "", ReturnValue, path-injection, manual]
+      - [System, Guid, false, ToString, "(System.String)", "", ReturnValue, path-injection, manual]
+      - [System, Guid, false, ToString, "(System.String,System.IFormatProvider)", "", ReturnValue, path-injection, manual]
+      - [AIERP.ReleaseDeployer, ReleaseDeployerPath, true, SafeGuidSegment, "(System.Guid)", "", ReturnValue, path-injection, manual]
+      # These resolvers return a canonical contained path only after validating
+      # traversal, platform path syntax, and existing reparse points.
+      - [AIERP.ReleaseDeployer, ReleaseDeployerPath, true, SafeChild, "(System.String,System.String)", "", ReturnValue, path-injection, manual]
+      - [AIERP.ModuleSDK, ModulePackageStoragePath, false, ResolvePackage, "(System.String,System.String)", "", ReturnValue, path-injection, manual]
+      - [AIERP.ModuleSDK, ModulePackageStoragePath, false, ResolveChild, "(System.String,System.String)", "", ReturnValue, path-injection, manual]
+  - addsTo:
+      pack: codeql/csharp-all
+      extensible: barrierGuardModel
+    data:
+      # These guards model the validated out-path value, not the raw path input.
+      # Each resolver assigns its out path only after containment and reparse-point
+      # checks pass, and callers use it only when the bool result is true.
+      - ["", WorkspaceSecurity, false, TryResolveStorageChild, "(System.String,System.String,System.String&)", "", "Argument[2]", "true", path-injection, manual]
+      - ["", WorkspaceSecurity, false, TryResolveDirectory, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[3]", "true", path-injection, manual]
+      - ["", WorkspaceSecurity, false, TryResolveFile, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[3]", "true", path-injection, manual]
+      - ["", WorkspaceSecurity, false, TryResolveNewFile, "(System.String,System.Guid,System.String,System.String&,System.String&)", "", "Argument[3]", "true", path-injection, manual]

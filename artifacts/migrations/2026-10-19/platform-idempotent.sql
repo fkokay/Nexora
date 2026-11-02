@@ -2710,7 +2710,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    ALTER TABLE [FinancialAccountTransfers] ADD [DestinationAmount] decimal(18,2) NULL;
+    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD [DestinationAmount] decimal(18,2) NULL')
 END;
 
 IF NOT EXISTS (
@@ -2718,7 +2718,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    ALTER TABLE [FinancialAccountTransfers] ADD [ExchangeRate] decimal(18,8) NULL;
+    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD [ExchangeRate] decimal(18,8) NULL')
 END;
 
 IF NOT EXISTS (
@@ -2726,7 +2726,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    ALTER TABLE [FinancialAccountTransfers] ADD [ToCurrencyCode] nchar(3) NULL;
+    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD [ToCurrencyCode] nchar(3) NULL')
 END;
 
 IF NOT EXISTS (
@@ -2734,7 +2734,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    UPDATE [FinancialAccountTransfers] SET [ToCurrencyCode] = [CurrencyCode], [DestinationAmount] = [Amount], [ExchangeRate] = 1
+    EXEC(N'UPDATE [FinancialAccountTransfers] SET [ToCurrencyCode] = [CurrencyCode], [DestinationAmount] = [Amount], [ExchangeRate] = 1')
 END;
 
 IF NOT EXISTS (
@@ -2742,13 +2742,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    DECLARE @var nvarchar(max);
-    SELECT @var = QUOTENAME([d].[name])
-    FROM [sys].[default_constraints] [d]
-    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
-    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[FinancialAccountTransfers]') AND [c].[name] = N'DestinationAmount');
-    IF @var IS NOT NULL EXEC(N'ALTER TABLE [FinancialAccountTransfers] DROP CONSTRAINT ' + @var + ';');
-    ALTER TABLE [FinancialAccountTransfers] ALTER COLUMN [DestinationAmount] decimal(18,2) NOT NULL;
+    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ALTER COLUMN [DestinationAmount] decimal(18,2) NOT NULL')
 END;
 
 IF NOT EXISTS (
@@ -2756,13 +2750,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    DECLARE @var1 nvarchar(max);
-    SELECT @var1 = QUOTENAME([d].[name])
-    FROM [sys].[default_constraints] [d]
-    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
-    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[FinancialAccountTransfers]') AND [c].[name] = N'ExchangeRate');
-    IF @var1 IS NOT NULL EXEC(N'ALTER TABLE [FinancialAccountTransfers] DROP CONSTRAINT ' + @var1 + ';');
-    ALTER TABLE [FinancialAccountTransfers] ALTER COLUMN [ExchangeRate] decimal(18,8) NOT NULL;
+    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ALTER COLUMN [ExchangeRate] decimal(18,8) NOT NULL')
 END;
 
 IF NOT EXISTS (
@@ -2770,13 +2758,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    DECLARE @var2 nvarchar(max);
-    SELECT @var2 = QUOTENAME([d].[name])
-    FROM [sys].[default_constraints] [d]
-    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
-    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[FinancialAccountTransfers]') AND [c].[name] = N'ToCurrencyCode');
-    IF @var2 IS NOT NULL EXEC(N'ALTER TABLE [FinancialAccountTransfers] DROP CONSTRAINT ' + @var2 + ';');
-    ALTER TABLE [FinancialAccountTransfers] ALTER COLUMN [ToCurrencyCode] nchar(3) NOT NULL;
+    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ALTER COLUMN [ToCurrencyCode] nchar(3) NOT NULL')
 END;
 
 IF NOT EXISTS (
@@ -2784,7 +2766,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    CREATE INDEX [IX_FinancialAccountTransfers_TenantId_ToAccountId_ToCurrencyCode] ON [FinancialAccountTransfers] ([TenantId], [ToAccountId], [ToCurrencyCode]);
+    EXEC(N'CREATE INDEX [IX_FinancialAccountTransfers_TenantId_ToAccountId_ToCurrencyCode] ON [FinancialAccountTransfers] ([TenantId], [ToAccountId], [ToCurrencyCode])')
 END;
 
 IF NOT EXISTS (
@@ -2792,7 +2774,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [CK_FinancialAccountTransfers_DestinationAmountPositive] CHECK ([DestinationAmount] > 0)');
+    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [CK_FinancialAccountTransfers_DestinationAmountPositive] CHECK ([DestinationAmount] > 0)')
 END;
 
 IF NOT EXISTS (
@@ -2800,7 +2782,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [CK_FinancialAccountTransfers_ExchangeRatePositive] CHECK ([ExchangeRate] > 0)');
+    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [CK_FinancialAccountTransfers_ExchangeRatePositive] CHECK ([ExchangeRate] > 0)')
 END;
 
 IF NOT EXISTS (
@@ -2808,7 +2790,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [CK_FinancialAccountTransfers_SameCurrencyRate] CHECK ([CurrencyCode] <> [ToCurrencyCode] OR [ExchangeRate] = 1)');
+    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [CK_FinancialAccountTransfers_SameCurrencyRate] CHECK ([CurrencyCode] <> [ToCurrencyCode] OR [ExchangeRate] = 1)')
 END;
 
 IF NOT EXISTS (
@@ -2816,7 +2798,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261014231139_AddForeignCurrencyTransfers'
 )
 BEGIN
-    ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [FK_FinancialAccountTransfers_FinancialAccounts_TenantId_ToAccountId_ToCurrencyCode] FOREIGN KEY ([TenantId], [ToAccountId], [ToCurrencyCode]) REFERENCES [FinancialAccounts] ([TenantId], [Id], [CurrencyCode]) ON DELETE NO ACTION;
+    EXEC(N'ALTER TABLE [FinancialAccountTransfers] ADD CONSTRAINT [FK_FinancialAccountTransfers_FinancialAccounts_TenantId_ToAccountId_ToCurrencyCode] FOREIGN KEY ([TenantId], [ToAccountId], [ToCurrencyCode]) REFERENCES [FinancialAccounts] ([TenantId], [Id], [CurrencyCode]) ON DELETE NO ACTION')
 END;
 
 IF NOT EXISTS (
@@ -4229,16 +4211,18 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261015111729_AddCustomerCustomFieldHistory'
 )
 BEGIN
+    EXEC(N'
     UPDATE [dbo].[CustomerCustomFieldDefinitions] SET [Version] = 1 WHERE [Version] = 0;
     UPDATE [dbo].[CustomerCustomFieldValues] SET [DefinitionVersion] = 1 WHERE [DefinitionVersion] = 0;
     INSERT INTO [dbo].[CustomerCustomFieldDefinitionRevisions]
         ([Id], [TenantId], [DefinitionId], [Version], [Code], [Label], [DataType], [MaxLength], [IsRequired], [IsActive], [ChangeKind], [ChangedByUserId], [CreatedAt])
-    SELECT NEWID(), [TenantId], [Id], [Version], [Code], [Label], [DataType], [MaxLength], [IsRequired], [IsActive], N'Baseline', NULL, [CreatedAt]
+    SELECT NEWID(), [TenantId], [Id], [Version], [Code], [Label], [DataType], [MaxLength], [IsRequired], [IsActive], N''Baseline'', NULL, [CreatedAt]
     FROM [dbo].[CustomerCustomFieldDefinitions];
     INSERT INTO [dbo].[CustomerCustomFieldValueRevisions]
         ([Id], [TenantId], [CustomerId], [DefinitionId], [PreviousValue], [NewValue], [DefinitionVersion], [ChangedByUserId], [CreatedAt])
     SELECT NEWID(), [TenantId], [CustomerId], [DefinitionId], NULL, [Value], [DefinitionVersion], NULL, [UpdatedAt]
     FROM [dbo].[CustomerCustomFieldValues];
+    ')
 END;
 
 IF NOT EXISTS (
@@ -5002,6 +4986,19 @@ IF NOT EXISTS (
 BEGIN
     INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
     VALUES (N'20261015141057_AddPurchaseRequestCustomFields', N'10.0.13');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261015141145_AddGitHubProjectAuthorization'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261015141145_AddGitHubProjectAuthorization', N'10.0.13');
 END;
 
 COMMIT;
@@ -6079,12 +6076,12 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261015180928_FixSalesInvoiceCustomFieldRelationships'
 )
 BEGIN
-    DECLARE @var3 nvarchar(max);
-    SELECT @var3 = QUOTENAME([d].[name])
+    DECLARE @var nvarchar(max);
+    SELECT @var = QUOTENAME([d].[name])
     FROM [sys].[default_constraints] [d]
     INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
     WHERE ([d].[parent_object_id] = OBJECT_ID(N'[SalesInvoiceCustomFieldValues]') AND [c].[name] = N'SalesInvoiceId');
-    IF @var3 IS NOT NULL EXEC(N'ALTER TABLE [SalesInvoiceCustomFieldValues] DROP CONSTRAINT ' + @var3 + ';');
+    IF @var IS NOT NULL EXEC(N'ALTER TABLE [SalesInvoiceCustomFieldValues] DROP CONSTRAINT ' + @var + ';');
     ALTER TABLE [SalesInvoiceCustomFieldValues] DROP COLUMN [SalesInvoiceId];
 END;
 
@@ -6093,12 +6090,12 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261015180928_FixSalesInvoiceCustomFieldRelationships'
 )
 BEGIN
-    DECLARE @var4 nvarchar(max);
-    SELECT @var4 = QUOTENAME([d].[name])
+    DECLARE @var1 nvarchar(max);
+    SELECT @var1 = QUOTENAME([d].[name])
     FROM [sys].[default_constraints] [d]
     INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
     WHERE ([d].[parent_object_id] = OBJECT_ID(N'[SalesInvoiceCustomFieldValueRevisions]') AND [c].[name] = N'SalesInvoiceId');
-    IF @var4 IS NOT NULL EXEC(N'ALTER TABLE [SalesInvoiceCustomFieldValueRevisions] DROP CONSTRAINT ' + @var4 + ';');
+    IF @var1 IS NOT NULL EXEC(N'ALTER TABLE [SalesInvoiceCustomFieldValueRevisions] DROP CONSTRAINT ' + @var1 + ';');
     ALTER TABLE [SalesInvoiceCustomFieldValueRevisions] DROP COLUMN [SalesInvoiceId];
 END;
 
@@ -6880,7 +6877,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261015191405_AddTenantAuditRetention'
 )
 BEGIN
-    ALTER TABLE [Tenants] ADD [AuditLastPurgeAt] datetimeoffset NULL;
+    EXEC(N'ALTER TABLE [Tenants] ADD [AuditLastPurgeAt] datetimeoffset NULL')
 END;
 
 IF NOT EXISTS (
@@ -6888,7 +6885,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261015191405_AddTenantAuditRetention'
 )
 BEGIN
-    ALTER TABLE [Tenants] ADD [AuditRetentionDays] int NOT NULL DEFAULT 365;
+    EXEC(N'ALTER TABLE [Tenants] ADD [AuditRetentionDays] int NOT NULL DEFAULT 365')
 END;
 
 IF NOT EXISTS (
@@ -6913,7 +6910,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261015191405_AddTenantAuditRetention'
 )
 BEGIN
-    EXEC(N'ALTER TABLE [Tenants] ADD CONSTRAINT [CK_Tenants_AuditRetentionDays] CHECK ([AuditRetentionDays] >= 30 AND [AuditRetentionDays] <= 3650)');
+    EXEC(N'ALTER TABLE [Tenants] ADD CONSTRAINT [CK_Tenants_AuditRetentionDays] CHECK ([AuditRetentionDays] >= 30 AND [AuditRetentionDays] <= 3650)')
 END;
 
 IF NOT EXISTS (
@@ -6921,15 +6918,15 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261015191405_AddTenantAuditRetention'
 )
 BEGIN
-    CREATE OR ALTER TRIGGER dbo.TR_AuditEvents_AppendOnly
+    EXEC(N'CREATE OR ALTER TRIGGER dbo.TR_AuditEvents_AppendOnly
     ON dbo.AuditEvents
     AFTER UPDATE, DELETE
     AS
     BEGIN
         SET NOCOUNT ON;
-        IF ISNULL(TRY_CONVERT(int, SESSION_CONTEXT(N'AIERP_AuditRetentionPurge')), 0) <> 1
-            THROW 51001, 'Audit events are append-only outside the retention purge procedure.', 1;
-    END;
+        IF ISNULL(TRY_CONVERT(int, SESSION_CONTEXT(N''AIERP_AuditRetentionPurge'')), 0) <> 1
+            THROW 51001, ''Audit events are append-only outside the retention purge procedure.'', 1;
+    END;')
 END;
 
 IF NOT EXISTS (
@@ -6937,7 +6934,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261015191405_AddTenantAuditRetention'
 )
 BEGIN
-    CREATE OR ALTER PROCEDURE dbo.PurgeExpiredAuditEvents
+    EXEC(N'CREATE OR ALTER PROCEDURE dbo.PurgeExpiredAuditEvents
         @BatchSize int = 500,
         @TenantId uniqueidentifier = NULL,
         @MaxRowsPerTenant int = 10000,
@@ -6948,9 +6945,9 @@ BEGIN
         SET XACT_ABORT ON;
 
         IF @BatchSize < 1 OR @BatchSize > 5000
-            THROW 51002, 'Batch size must be between 1 and 5000.', 1;
+            THROW 51002, ''Batch size must be between 1 and 5000.'', 1;
         IF @MaxRowsPerTenant < 1 OR @MaxRowsPerTenant > 100000
-            THROW 51003, 'Maximum rows per tenant must be between 1 and 100000.', 1;
+            THROW 51003, ''Maximum rows per tenant must be between 1 and 100000.'', 1;
 
         DECLARE @CurrentTenantId uniqueidentifier;
         DECLARE @RetentionDays int;
@@ -6963,7 +6960,7 @@ BEGIN
         SET @TotalDeleted = 0;
 
         BEGIN TRY
-            EXEC sys.sp_set_session_context @key=N'AIERP_AuditRetentionPurge', @value=1;
+            EXEC sys.sp_set_session_context @key=N''AIERP_AuditRetentionPurge'', @value=1;
 
             DECLARE tenant_cursor CURSOR LOCAL FAST_FORWARD FOR
                 SELECT Id, AuditRetentionDays
@@ -6973,7 +6970,7 @@ BEGIN
             FETCH NEXT FROM tenant_cursor INTO @CurrentTenantId, @RetentionDays;
             WHILE @@FETCH_STATUS = 0
             BEGIN
-                SET @Cutoff = DATEADD(day, -@RetentionDays, TODATETIMEOFFSET(SYSUTCDATETIME(), '+00:00'));
+                SET @Cutoff = DATEADD(day, -@RetentionDays, TODATETIMEOFFSET(SYSUTCDATETIME(), ''+00:00''));
                 SET @TenantDeleted = 0;
                 WHILE @TenantDeleted < @MaxRowsPerTenant
                 BEGIN
@@ -6987,18 +6984,18 @@ BEGIN
                     SET @Deleted = @@ROWCOUNT;
                     IF @Deleted > 0
                     BEGIN
-                        SET @Now = TODATETIMEOFFSET(SYSUTCDATETIME(), '+00:00');
+                        SET @Now = TODATETIMEOFFSET(SYSUTCDATETIME(), ''+00:00'');
                         INSERT dbo.AuditEvents (TenantId, UserId, Action, Resource, OccurredAt)
-                        VALUES (@CurrentTenantId, NULL, N'audit.retention.purged',
-                            CONCAT(N'{"cutoffUtc":"', CONVERT(nvarchar(33), @Cutoff, 127),
-                                N'","deletedCount":', @Deleted, N'}'), @Now);
+                        VALUES (@CurrentTenantId, NULL, N''audit.retention.purged'',
+                            CONCAT(N''{"cutoffUtc":"'', CONVERT(nvarchar(33), @Cutoff, 127),
+                                N''","deletedCount":'', @Deleted, N''}''), @Now);
                     END;
                     COMMIT TRANSACTION;
                     SET @TenantDeleted += @Deleted;
                     SET @TotalDeleted += @Deleted;
                     IF @Deleted = 0 BREAK;
                 END;
-                UPDATE dbo.Tenants SET AuditLastPurgeAt = TODATETIMEOFFSET(SYSUTCDATETIME(), '+00:00')
+                UPDATE dbo.Tenants SET AuditLastPurgeAt = TODATETIMEOFFSET(SYSUTCDATETIME(), ''+00:00'')
                     WHERE Id = @CurrentTenantId;
                 FETCH NEXT FROM tenant_cursor INTO @CurrentTenantId, @RetentionDays;
             END;
@@ -7009,7 +7006,7 @@ BEGIN
             BEGIN
                 SET @CurrentTenantId = NULL;
                 SET @RetentionDays = 365;
-                SET @Cutoff = DATEADD(day, -@RetentionDays, TODATETIMEOFFSET(SYSUTCDATETIME(), '+00:00'));
+                SET @Cutoff = DATEADD(day, -@RetentionDays, TODATETIMEOFFSET(SYSUTCDATETIME(), ''+00:00''));
                 SET @TenantDeleted = 0;
                 WHILE @TenantDeleted < @MaxRowsPerTenant
                 BEGIN
@@ -7023,11 +7020,11 @@ BEGIN
                     SET @Deleted = @@ROWCOUNT;
                     IF @Deleted > 0
                     BEGIN
-                        SET @Now = TODATETIMEOFFSET(SYSUTCDATETIME(), '+00:00');
+                        SET @Now = TODATETIMEOFFSET(SYSUTCDATETIME(), ''+00:00'');
                         INSERT dbo.AuditEvents (TenantId, UserId, Action, Resource, OccurredAt)
-                        VALUES (NULL, NULL, N'audit.retention.purged',
-                            CONCAT(N'{"cutoffUtc":"', CONVERT(nvarchar(33), @Cutoff, 127),
-                                N'","deletedCount":', @Deleted, N'}'), @Now);
+                        VALUES (NULL, NULL, N''audit.retention.purged'',
+                            CONCAT(N''{"cutoffUtc":"'', CONVERT(nvarchar(33), @Cutoff, 127),
+                                N''","deletedCount":'', @Deleted, N''}''), @Now);
                     END;
                     COMMIT TRANSACTION;
                     SET @TenantDeleted += @Deleted;
@@ -7036,16 +7033,16 @@ BEGIN
                 END;
             END;
 
-            EXEC sys.sp_set_session_context @key=N'AIERP_AuditRetentionPurge', @value=NULL;
+            EXEC sys.sp_set_session_context @key=N''AIERP_AuditRetentionPurge'', @value=NULL;
         END TRY
         BEGIN CATCH
-            IF CURSOR_STATUS('local', 'tenant_cursor') >= 0 CLOSE tenant_cursor;
-            IF CURSOR_STATUS('local', 'tenant_cursor') > -3 DEALLOCATE tenant_cursor;
+            IF CURSOR_STATUS(''local'', ''tenant_cursor'') >= 0 CLOSE tenant_cursor;
+            IF CURSOR_STATUS(''local'', ''tenant_cursor'') > -3 DEALLOCATE tenant_cursor;
             IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
-            EXEC sys.sp_set_session_context @key=N'AIERP_AuditRetentionPurge', @value=NULL;
+            EXEC sys.sp_set_session_context @key=N''AIERP_AuditRetentionPurge'', @value=NULL;
             THROW;
         END CATCH;
-    END;
+    END;')
 END;
 
 IF NOT EXISTS (
@@ -9364,12 +9361,12 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261018111041_SetEnteredQuantityPrecision'
 )
 BEGIN
-    DECLARE @var5 nvarchar(max);
-    SELECT @var5 = QUOTENAME([d].[name])
+    DECLARE @var2 nvarchar(max);
+    SELECT @var2 = QUOTENAME([d].[name])
     FROM [sys].[default_constraints] [d]
     INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
     WHERE ([d].[parent_object_id] = OBJECT_ID(N'[SupplierReturnLines]') AND [c].[name] = N'EnteredQuantity');
-    IF @var5 IS NOT NULL EXEC(N'ALTER TABLE [SupplierReturnLines] DROP CONSTRAINT ' + @var5 + ';');
+    IF @var2 IS NOT NULL EXEC(N'ALTER TABLE [SupplierReturnLines] DROP CONSTRAINT ' + @var2 + ';');
     ALTER TABLE [SupplierReturnLines] ALTER COLUMN [EnteredQuantity] decimal(18,4) NULL;
 END;
 
@@ -9378,12 +9375,12 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261018111041_SetEnteredQuantityPrecision'
 )
 BEGIN
-    DECLARE @var6 nvarchar(max);
-    SELECT @var6 = QUOTENAME([d].[name])
+    DECLARE @var3 nvarchar(max);
+    SELECT @var3 = QUOTENAME([d].[name])
     FROM [sys].[default_constraints] [d]
     INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
     WHERE ([d].[parent_object_id] = OBJECT_ID(N'[SalesReturnLines]') AND [c].[name] = N'EnteredQuantity');
-    IF @var6 IS NOT NULL EXEC(N'ALTER TABLE [SalesReturnLines] DROP CONSTRAINT ' + @var6 + ';');
+    IF @var3 IS NOT NULL EXEC(N'ALTER TABLE [SalesReturnLines] DROP CONSTRAINT ' + @var3 + ';');
     ALTER TABLE [SalesReturnLines] ALTER COLUMN [EnteredQuantity] decimal(18,4) NULL;
 END;
 
@@ -9392,12 +9389,12 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261018111041_SetEnteredQuantityPrecision'
 )
 BEGIN
-    DECLARE @var7 nvarchar(max);
-    SELECT @var7 = QUOTENAME([d].[name])
+    DECLARE @var4 nvarchar(max);
+    SELECT @var4 = QUOTENAME([d].[name])
     FROM [sys].[default_constraints] [d]
     INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
     WHERE ([d].[parent_object_id] = OBJECT_ID(N'[SalesDeliveryLines]') AND [c].[name] = N'EnteredQuantity');
-    IF @var7 IS NOT NULL EXEC(N'ALTER TABLE [SalesDeliveryLines] DROP CONSTRAINT ' + @var7 + ';');
+    IF @var4 IS NOT NULL EXEC(N'ALTER TABLE [SalesDeliveryLines] DROP CONSTRAINT ' + @var4 + ';');
     ALTER TABLE [SalesDeliveryLines] ALTER COLUMN [EnteredQuantity] decimal(18,4) NULL;
 END;
 
@@ -9406,12 +9403,12 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261018111041_SetEnteredQuantityPrecision'
 )
 BEGIN
-    DECLARE @var8 nvarchar(max);
-    SELECT @var8 = QUOTENAME([d].[name])
+    DECLARE @var5 nvarchar(max);
+    SELECT @var5 = QUOTENAME([d].[name])
     FROM [sys].[default_constraints] [d]
     INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
     WHERE ([d].[parent_object_id] = OBJECT_ID(N'[PurchaseReceiptLines]') AND [c].[name] = N'EnteredQuantity');
-    IF @var8 IS NOT NULL EXEC(N'ALTER TABLE [PurchaseReceiptLines] DROP CONSTRAINT ' + @var8 + ';');
+    IF @var5 IS NOT NULL EXEC(N'ALTER TABLE [PurchaseReceiptLines] DROP CONSTRAINT ' + @var5 + ';');
     ALTER TABLE [PurchaseReceiptLines] ALTER COLUMN [EnteredQuantity] decimal(18,4) NULL;
 END;
 
@@ -9476,6 +9473,802 @@ IF NOT EXISTS (
 BEGIN
     INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
     VALUES (N'20261018190001_AddCrmOpportunityPermissions', N'10.0.13');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020194216_EnforceSinglePublishedCustomFormPlatform'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_TenantCustomFormDefinitions_TenantId_Code] ON [TenantCustomFormDefinitions] ([TenantId], [Code]) WHERE [Status] = ''Published''');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020194216_EnforceSinglePublishedCustomFormPlatform'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261020194216_EnforceSinglePublishedCustomFormPlatform', N'10.0.13');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020201336_AddSavedReportRevisionHistory'
+)
+BEGIN
+    ALTER TABLE [TenantSavedReports] ADD [DefinitionRevision] int NOT NULL DEFAULT 1;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020201336_AddSavedReportRevisionHistory'
+)
+BEGIN
+    CREATE TABLE [TenantSavedReportRevisions] (
+        [Id] uniqueidentifier NOT NULL,
+        [TenantId] uniqueidentifier NOT NULL,
+        [SavedReportId] uniqueidentifier NOT NULL,
+        [Revision] int NOT NULL,
+        [Name] nvarchar(120) NOT NULL,
+        [Kind] varchar(12) NOT NULL,
+        [Source] varchar(40) NOT NULL,
+        [DefinitionJson] nvarchar(max) NOT NULL,
+        [CreatedByUserId] uniqueidentifier NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_TenantSavedReportRevisions] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_TenantSavedReportRevisions_TenantId_Id] UNIQUE ([TenantId], [Id]),
+        CONSTRAINT [FK_TenantSavedReportRevisions_TenantSavedReports_TenantId_SavedReportId] FOREIGN KEY ([TenantId], [SavedReportId]) REFERENCES [TenantSavedReports] ([TenantId], [Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020201336_AddSavedReportRevisionHistory'
+)
+BEGIN
+    INSERT INTO [TenantSavedReportRevisions] ([Id], [TenantId], [SavedReportId], [Revision], [Name], [Kind], [Source], [DefinitionJson], [CreatedByUserId], [CreatedAt]) SELECT NEWID(), [TenantId], [Id], 1, [Name], [Kind], [Source], [DefinitionJson], [UpdatedByUserId], [UpdatedAt] FROM [TenantSavedReports];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020201336_AddSavedReportRevisionHistory'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_TenantSavedReportRevisions_TenantId_SavedReportId_Revision] ON [TenantSavedReportRevisions] ([TenantId], [SavedReportId], [Revision]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020201336_AddSavedReportRevisionHistory'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261020201336_AddSavedReportRevisionHistory', N'10.0.13');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020204650_AddManufacturingPermissions'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Code', N'Action', N'Description', N'ResourceType') AND [object_id] = OBJECT_ID(N'[PermissionDefinitions]'))
+        SET IDENTITY_INSERT [PermissionDefinitions] ON;
+    EXEC(N'INSERT INTO [PermissionDefinitions] ([Code], [Action], [Description], [ResourceType])
+    VALUES (''erp.manufacturing.create'', ''create'', N''create · Manufacturing recipes, work centers, orders and material planning'', ''erp.manufacturing''),
+    (''erp.manufacturing.delete'', ''delete'', N''delete · Manufacturing recipes, work centers, orders and material planning'', ''erp.manufacturing''),
+    (''erp.manufacturing.execute'', ''execute'', N''execute · Manufacturing recipes, work centers, orders and material planning'', ''erp.manufacturing''),
+    (''erp.manufacturing.read'', ''read'', N''read · Manufacturing recipes, work centers, orders and material planning'', ''erp.manufacturing''),
+    (''erp.manufacturing.update'', ''update'', N''update · Manufacturing recipes, work centers, orders and material planning'', ''erp.manufacturing'')');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Code', N'Action', N'Description', N'ResourceType') AND [object_id] = OBJECT_ID(N'[PermissionDefinitions]'))
+        SET IDENTITY_INSERT [PermissionDefinitions] OFF;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020204650_AddManufacturingPermissions'
+)
+BEGIN
+    INSERT INTO [TenantPermissionRules]
+        ([Id], [TenantId], [SubjectType], [SubjectRole], [SubjectUserId], [PermissionCode], [Effect],
+         [ResourceType], [AttributeName], [AttributeOperator], [AttributeValue], [IsActive], [CreatedByUserId], [CreatedAt])
+    SELECT NEWID(), tenant.[TenantId], 1, 'TenantUser', NULL, permission.[Code], 1,
+           NULL, NULL, NULL, NULL, 1, NULL, SYSUTCDATETIME()
+    FROM (SELECT DISTINCT [TenantId] FROM [TenantMemberships] WHERE [Role] = 'TenantUser') AS tenant
+    CROSS JOIN [PermissionDefinitions] AS permission
+    WHERE permission.[ResourceType] = 'erp.manufacturing'
+      AND NOT EXISTS (
+          SELECT 1 FROM [TenantPermissionRules] AS existing
+          WHERE existing.[TenantId] = tenant.[TenantId]
+            AND existing.[SubjectType] = 1
+            AND existing.[SubjectRole] = 'TenantUser'
+            AND existing.[PermissionCode] = permission.[Code]
+            AND existing.[Effect] = 1
+            AND existing.[IsActive] = 1
+      );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020204650_AddManufacturingPermissions'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261020204650_AddManufacturingPermissions', N'10.0.13');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    CREATE TABLE [EmployeeRecords] (
+        [Id] uniqueidentifier NOT NULL,
+        [TenantId] uniqueidentifier NOT NULL,
+        [PersonnelCode] varchar(40) NOT NULL,
+        [FullName] nvarchar(160) NOT NULL,
+        [UserId] uniqueidentifier NULL,
+        [Department] nvarchar(120) NULL,
+        [JobTitle] nvarchar(120) NULL,
+        [WorkEmail] nvarchar(254) NULL,
+        [HireDate] date NOT NULL,
+        [TerminationDate] date NULL,
+        [Status] varchar(16) NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_EmployeeRecords] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_EmployeeRecords_TenantId_Id] UNIQUE ([TenantId], [Id]),
+        CONSTRAINT [CK_EmployeeRecords_EmploymentDates] CHECK ([TerminationDate] IS NULL OR [TerminationDate] >= [HireDate]),
+        CONSTRAINT [FK_EmployeeRecords_Tenants_TenantId] FOREIGN KEY ([TenantId]) REFERENCES [Tenants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    CREATE TABLE [PayrollRuleSets] (
+        [Id] uniqueidentifier NOT NULL,
+        [TenantId] uniqueidentifier NOT NULL,
+        [JurisdictionCode] varchar(8) NOT NULL,
+        [TaxYear] varchar(4) NOT NULL,
+        [EffectiveFrom] date NOT NULL,
+        [EffectiveTo] date NULL,
+        [Version] int NOT NULL,
+        [RulesJson] nvarchar(max) NOT NULL,
+        [OfficialSourceUrl] nvarchar(1000) NOT NULL,
+        [Status] varchar(16) NOT NULL,
+        [CreatedByUserId] uniqueidentifier NOT NULL,
+        [ApprovedByUserId] uniqueidentifier NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [ApprovedAt] datetimeoffset NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_PayrollRuleSets] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_PayrollRuleSets_TenantId_Id] UNIQUE ([TenantId], [Id]),
+        CONSTRAINT [CK_PayrollRuleSets_EffectiveDates] CHECK ([EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]),
+        CONSTRAINT [FK_PayrollRuleSets_Tenants_TenantId] FOREIGN KEY ([TenantId]) REFERENCES [Tenants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    CREATE TABLE [EmployeeAttendanceRecords] (
+        [Id] uniqueidentifier NOT NULL,
+        [TenantId] uniqueidentifier NOT NULL,
+        [EmployeeId] uniqueidentifier NOT NULL,
+        [WorkDate] date NOT NULL,
+        [WorkedMinutes] int NOT NULL,
+        [OvertimeMinutes] int NOT NULL,
+        [Note] nvarchar(1000) NULL,
+        [RecordedByUserId] uniqueidentifier NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_EmployeeAttendanceRecords] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_EmployeeAttendanceRecords_TenantId_Id] UNIQUE ([TenantId], [Id]),
+        CONSTRAINT [CK_EmployeeAttendanceRecords_Minutes] CHECK ([WorkedMinutes] BETWEEN 0 AND 1440 AND [OvertimeMinutes] BETWEEN 0 AND 1440),
+        CONSTRAINT [FK_EmployeeAttendanceRecords_EmployeeRecords_TenantId_EmployeeId] FOREIGN KEY ([TenantId], [EmployeeId]) REFERENCES [EmployeeRecords] ([TenantId], [Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_EmployeeAttendanceRecords_Tenants_TenantId] FOREIGN KEY ([TenantId]) REFERENCES [Tenants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    CREATE TABLE [EmployeeLeaveRequests] (
+        [Id] uniqueidentifier NOT NULL,
+        [TenantId] uniqueidentifier NOT NULL,
+        [EmployeeId] uniqueidentifier NOT NULL,
+        [LeaveType] varchar(32) NOT NULL,
+        [StartDate] date NOT NULL,
+        [EndDate] date NOT NULL,
+        [RequestedDays] decimal(8,2) NOT NULL,
+        [Note] nvarchar(1000) NULL,
+        [Status] varchar(16) NOT NULL,
+        [RequestedByUserId] uniqueidentifier NOT NULL,
+        [ReviewedByUserId] uniqueidentifier NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [ReviewedAt] datetimeoffset NULL,
+        [ReviewNote] nvarchar(1000) NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_EmployeeLeaveRequests] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_EmployeeLeaveRequests_TenantId_Id] UNIQUE ([TenantId], [Id]),
+        CONSTRAINT [CK_EmployeeLeaveRequests_DatesAndDays] CHECK ([EndDate] >= [StartDate] AND [RequestedDays] > 0),
+        CONSTRAINT [FK_EmployeeLeaveRequests_EmployeeRecords_TenantId_EmployeeId] FOREIGN KEY ([TenantId], [EmployeeId]) REFERENCES [EmployeeRecords] ([TenantId], [Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_EmployeeLeaveRequests_Tenants_TenantId] FOREIGN KEY ([TenantId]) REFERENCES [Tenants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Code', N'Action', N'Description', N'ResourceType') AND [object_id] = OBJECT_ID(N'[PermissionDefinitions]'))
+        SET IDENTITY_INSERT [PermissionDefinitions] ON;
+    EXEC(N'INSERT INTO [PermissionDefinitions] ([Code], [Action], [Description], [ResourceType])
+    VALUES (''erp.human-resources.create'', ''create'', N''create · Tenant-scoped personnel, leave, attendance, and payroll rule administration'', ''erp.human-resources''),
+    (''erp.human-resources.delete'', ''delete'', N''delete · Tenant-scoped personnel, leave, attendance, and payroll rule administration'', ''erp.human-resources''),
+    (''erp.human-resources.execute'', ''execute'', N''execute · Tenant-scoped personnel, leave, attendance, and payroll rule administration'', ''erp.human-resources''),
+    (''erp.human-resources.read'', ''read'', N''read · Tenant-scoped personnel, leave, attendance, and payroll rule administration'', ''erp.human-resources''),
+    (''erp.human-resources.update'', ''update'', N''update · Tenant-scoped personnel, leave, attendance, and payroll rule administration'', ''erp.human-resources'')');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Code', N'Action', N'Description', N'ResourceType') AND [object_id] = OBJECT_ID(N'[PermissionDefinitions]'))
+        SET IDENTITY_INSERT [PermissionDefinitions] OFF;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_EmployeeAttendanceRecords_TenantId_EmployeeId_WorkDate] ON [EmployeeAttendanceRecords] ([TenantId], [EmployeeId], [WorkDate]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    CREATE INDEX [IX_EmployeeLeaveRequests_TenantId_EmployeeId_StartDate_EndDate] ON [EmployeeLeaveRequests] ([TenantId], [EmployeeId], [StartDate], [EndDate]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_EmployeeRecords_TenantId_PersonnelCode] ON [EmployeeRecords] ([TenantId], [PersonnelCode]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    CREATE INDEX [IX_EmployeeRecords_TenantId_Status_FullName] ON [EmployeeRecords] ([TenantId], [Status], [FullName]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_EmployeeRecords_TenantId_UserId] ON [EmployeeRecords] ([TenantId], [UserId]) WHERE [UserId] IS NOT NULL');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PayrollRuleSets_TenantId_JurisdictionCode_EffectiveFrom_Version] ON [PayrollRuleSets] ([TenantId], [JurisdictionCode], [EffectiveFrom], [Version]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020212527_AddHumanResources'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261020212527_AddHumanResources', N'10.0.13');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE TABLE [FixedAssets] (
+        [Id] uniqueidentifier NOT NULL,
+        [TenantId] uniqueidentifier NOT NULL,
+        [AssetCode] varchar(40) NOT NULL,
+        [Name] nvarchar(160) NOT NULL,
+        [Category] nvarchar(80) NULL,
+        [AcquisitionDate] date NOT NULL,
+        [InServiceDate] date NOT NULL,
+        [AcquisitionCostBase] decimal(18,2) NOT NULL,
+        [ResidualValueBase] decimal(18,2) NOT NULL,
+        [UsefulLifeMonths] int NOT NULL,
+        [SupplierAccountId] uniqueidentifier NULL,
+        [SourceReference] nvarchar(120) NULL,
+        [AccumulatedDepreciationBase] decimal(18,2) NOT NULL,
+        [Status] varchar(16) NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_FixedAssets] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_FixedAssets_TenantId_Id] UNIQUE ([TenantId], [Id]),
+        CONSTRAINT [CK_FixedAssets_CostAndLife] CHECK ([AcquisitionCostBase] > 0 AND [ResidualValueBase] >= 0 AND [ResidualValueBase] < [AcquisitionCostBase] AND [UsefulLifeMonths] BETWEEN 1 AND 1200 AND [InServiceDate] >= [AcquisitionDate] AND [AccumulatedDepreciationBase] >= 0 AND [AccumulatedDepreciationBase] <= [AcquisitionCostBase] - [ResidualValueBase]),
+        CONSTRAINT [FK_FixedAssets_CustomerAccounts_TenantId_SupplierAccountId] FOREIGN KEY ([TenantId], [SupplierAccountId]) REFERENCES [CustomerAccounts] ([TenantId], [Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_FixedAssets_Tenants_TenantId] FOREIGN KEY ([TenantId]) REFERENCES [Tenants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE TABLE [TenantLicenses] (
+        [TenantId] uniqueidentifier NOT NULL,
+        [LicenseId] uniqueidentifier NOT NULL,
+        [Tier] varchar(16) NOT NULL,
+        [MaxUsers] int NOT NULL,
+        [MaxCustomModules] int NOT NULL,
+        [MaxStorageGb] int NOT NULL,
+        [IssuedAt] datetimeoffset NOT NULL,
+        [ExpiresAt] datetimeoffset NOT NULL,
+        [ActivatedAt] datetimeoffset NOT NULL,
+        [GrantSha256] char(64) NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_TenantLicenses] PRIMARY KEY ([TenantId]),
+        CONSTRAINT [CK_TenantLicenses_Tier] CHECK ([Tier] IN ('Small','Medium','Large')),
+        CONSTRAINT [FK_TenantLicenses_Tenants_TenantId] FOREIGN KEY ([TenantId]) REFERENCES [Tenants] ([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE TABLE [FixedAssetAssignments] (
+        [Id] uniqueidentifier NOT NULL,
+        [TenantId] uniqueidentifier NOT NULL,
+        [AssetId] uniqueidentifier NOT NULL,
+        [EmployeeId] uniqueidentifier NOT NULL,
+        [AssignedDate] date NOT NULL,
+        [ReturnedDate] date NULL,
+        [Location] nvarchar(160) NULL,
+        [Notes] nvarchar(1000) NULL,
+        [AssignedByUserId] uniqueidentifier NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_FixedAssetAssignments] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_FixedAssetAssignments_TenantId_Id] UNIQUE ([TenantId], [Id]),
+        CONSTRAINT [CK_FixedAssetAssignments_ReturnDate] CHECK ([ReturnedDate] IS NULL OR [ReturnedDate] >= [AssignedDate]),
+        CONSTRAINT [FK_FixedAssetAssignments_EmployeeRecords_TenantId_EmployeeId] FOREIGN KEY ([TenantId], [EmployeeId]) REFERENCES [EmployeeRecords] ([TenantId], [Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_FixedAssetAssignments_FixedAssets_TenantId_AssetId] FOREIGN KEY ([TenantId], [AssetId]) REFERENCES [FixedAssets] ([TenantId], [Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE TABLE [FixedAssetDepreciationPostings] (
+        [Id] uniqueidentifier NOT NULL,
+        [TenantId] uniqueidentifier NOT NULL,
+        [AssetId] uniqueidentifier NOT NULL,
+        [PeriodStart] date NOT NULL,
+        [PeriodEnd] date NOT NULL,
+        [AmountBase] decimal(18,2) NOT NULL,
+        [JournalEntryId] uniqueidentifier NOT NULL,
+        [PostedByUserId] uniqueidentifier NOT NULL,
+        [PostedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_FixedAssetDepreciationPostings] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_FixedAssetDepreciationPostings_TenantId_Id] UNIQUE ([TenantId], [Id]),
+        CONSTRAINT [CK_FixedAssetDepreciationPostings_PeriodAmount] CHECK ([PeriodEnd] >= [PeriodStart] AND [AmountBase] > 0),
+        CONSTRAINT [FK_FixedAssetDepreciationPostings_FixedAssets_TenantId_AssetId] FOREIGN KEY ([TenantId], [AssetId]) REFERENCES [FixedAssets] ([TenantId], [Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_FixedAssetDepreciationPostings_JournalEntries_TenantId_JournalEntryId] FOREIGN KEY ([TenantId], [JournalEntryId]) REFERENCES [JournalEntries] ([TenantId], [Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Code', N'Action', N'Description', N'ResourceType') AND [object_id] = OBJECT_ID(N'[PermissionDefinitions]'))
+        SET IDENTITY_INSERT [PermissionDefinitions] ON;
+    EXEC(N'INSERT INTO [PermissionDefinitions] ([Code], [Action], [Description], [ResourceType])
+    VALUES (''erp.fixed-assets.create'', ''create'', N''create · Tenant fixed-asset register, depreciation, and custody'', ''erp.fixed-assets''),
+    (''erp.fixed-assets.delete'', ''delete'', N''delete · Tenant fixed-asset register, depreciation, and custody'', ''erp.fixed-assets''),
+    (''erp.fixed-assets.execute'', ''execute'', N''execute · Tenant fixed-asset register, depreciation, and custody'', ''erp.fixed-assets''),
+    (''erp.fixed-assets.read'', ''read'', N''read · Tenant fixed-asset register, depreciation, and custody'', ''erp.fixed-assets''),
+    (''erp.fixed-assets.update'', ''update'', N''update · Tenant fixed-asset register, depreciation, and custody'', ''erp.fixed-assets''),
+    (''erp.tenant-settings.create'', ''create'', N''create · Company-specific operational policies and behavior'', ''erp.tenant-settings''),
+    (''erp.tenant-settings.delete'', ''delete'', N''delete · Company-specific operational policies and behavior'', ''erp.tenant-settings''),
+    (''erp.tenant-settings.execute'', ''execute'', N''execute · Company-specific operational policies and behavior'', ''erp.tenant-settings''),
+    (''erp.tenant-settings.read'', ''read'', N''read · Company-specific operational policies and behavior'', ''erp.tenant-settings''),
+    (''erp.tenant-settings.update'', ''update'', N''update · Company-specific operational policies and behavior'', ''erp.tenant-settings'')');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Code', N'Action', N'Description', N'ResourceType') AND [object_id] = OBJECT_ID(N'[PermissionDefinitions]'))
+        SET IDENTITY_INSERT [PermissionDefinitions] OFF;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_FixedAssetAssignments_TenantId_AssetId] ON [FixedAssetAssignments] ([TenantId], [AssetId]) WHERE [ReturnedDate] IS NULL');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE INDEX [IX_FixedAssetAssignments_TenantId_AssetId_ReturnedDate] ON [FixedAssetAssignments] ([TenantId], [AssetId], [ReturnedDate]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE INDEX [IX_FixedAssetAssignments_TenantId_EmployeeId] ON [FixedAssetAssignments] ([TenantId], [EmployeeId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_FixedAssetDepreciationPostings_TenantId_AssetId_PeriodStart] ON [FixedAssetDepreciationPostings] ([TenantId], [AssetId], [PeriodStart]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_FixedAssetDepreciationPostings_TenantId_JournalEntryId] ON [FixedAssetDepreciationPostings] ([TenantId], [JournalEntryId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_FixedAssets_TenantId_AssetCode] ON [FixedAssets] ([TenantId], [AssetCode]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE INDEX [IX_FixedAssets_TenantId_Status_InServiceDate] ON [FixedAssets] ([TenantId], [Status], [InServiceDate]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE INDEX [IX_FixedAssets_TenantId_SupplierAccountId] ON [FixedAssets] ([TenantId], [SupplierAccountId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_TenantLicenses_LicenseId] ON [TenantLicenses] ([LicenseId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020215245_AddTenantLicenses'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261020215245_AddTenantLicenses', N'10.0.13');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    ALTER TABLE [LedgerAccounts] ADD [StatementSection] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    CREATE TABLE [PaymentInstruments] (
+        [Id] uniqueidentifier NOT NULL,
+        [TenantId] uniqueidentifier NOT NULL,
+        [RequestId] uniqueidentifier NOT NULL,
+        [Type] int NOT NULL,
+        [Direction] int NOT NULL,
+        [Status] int NOT NULL,
+        [Code] nvarchar(40) NOT NULL,
+        [InstrumentNumber] nvarchar(80) NOT NULL,
+        [CounterpartyName] nvarchar(160) NOT NULL,
+        [BankName] nvarchar(120) NOT NULL,
+        [CurrencyCode] nchar(3) NOT NULL,
+        [Amount] decimal(18,2) NOT NULL,
+        [IssueDate] date NOT NULL,
+        [DueDate] date NOT NULL,
+        [PortfolioDate] date NOT NULL,
+        [EndorsedTo] nvarchar(160) NULL,
+        [EndorsedAt] datetimeoffset NULL,
+        [CollectedAt] datetimeoffset NULL,
+        [FinancialAccountId] uniqueidentifier NULL,
+        [FinancialAccountTransactionId] uniqueidentifier NULL,
+        [Notes] nvarchar(500) NULL,
+        [CreatedByUserId] uniqueidentifier NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_PaymentInstruments] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_PaymentInstruments_TenantId_Id] UNIQUE ([TenantId], [Id]),
+        CONSTRAINT [CK_PaymentInstruments_AmountPositive] CHECK ([Amount] > 0),
+        CONSTRAINT [CK_PaymentInstruments_DueDate] CHECK ([DueDate] >= [IssueDate]),
+        CONSTRAINT [CK_PaymentInstruments_ValidDirection] CHECK ([Direction] IN (1,2)),
+        CONSTRAINT [CK_PaymentInstruments_ValidStatus] CHECK ([Status] IN (1,2,3,4,5)),
+        CONSTRAINT [CK_PaymentInstruments_ValidType] CHECK ([Type] IN (1,2)),
+        CONSTRAINT [FK_PaymentInstruments_FinancialAccountTransactions_TenantId_FinancialAccountTransactionId_FinancialAccountId_CurrencyCode] FOREIGN KEY ([TenantId], [FinancialAccountTransactionId], [FinancialAccountId], [CurrencyCode]) REFERENCES [FinancialAccountTransactions] ([TenantId], [Id], [FinancialAccountId], [CurrencyCode]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_PaymentInstruments_FinancialAccounts_TenantId_FinancialAccountId_CurrencyCode] FOREIGN KEY ([TenantId], [FinancialAccountId], [CurrencyCode]) REFERENCES [FinancialAccounts] ([TenantId], [Id], [CurrencyCode]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_PaymentInstruments_Tenants_TenantId] FOREIGN KEY ([TenantId]) REFERENCES [Tenants] ([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    CREATE TABLE [PaymentInstrumentEvents] (
+        [Id] uniqueidentifier NOT NULL,
+        [TenantId] uniqueidentifier NOT NULL,
+        [PaymentInstrumentId] uniqueidentifier NOT NULL,
+        [RequestId] uniqueidentifier NOT NULL,
+        [EventType] nvarchar(24) NOT NULL,
+        [PreviousStatus] int NULL,
+        [NewStatus] int NOT NULL,
+        [EventDate] date NOT NULL,
+        [Note] nvarchar(500) NULL,
+        [FinancialAccountTransactionId] uniqueidentifier NULL,
+        [CreatedByUserId] uniqueidentifier NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_PaymentInstrumentEvents] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_PaymentInstrumentEvents_TenantId_Id] UNIQUE ([TenantId], [Id]),
+        CONSTRAINT [CK_PaymentInstrumentEvents_Status] CHECK ([NewStatus] IN (1,2,3,4,5)),
+        CONSTRAINT [FK_PaymentInstrumentEvents_FinancialAccountTransactions_TenantId_FinancialAccountTransactionId] FOREIGN KEY ([TenantId], [FinancialAccountTransactionId]) REFERENCES [FinancialAccountTransactions] ([TenantId], [Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_PaymentInstrumentEvents_PaymentInstruments_TenantId_PaymentInstrumentId] FOREIGN KEY ([TenantId], [PaymentInstrumentId]) REFERENCES [PaymentInstruments] ([TenantId], [Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentInstrumentEvents_TenantId_FinancialAccountTransactionId] ON [PaymentInstrumentEvents] ([TenantId], [FinancialAccountTransactionId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentInstrumentEvents_TenantId_PaymentInstrumentId_CreatedAt] ON [PaymentInstrumentEvents] ([TenantId], [PaymentInstrumentId], [CreatedAt]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PaymentInstrumentEvents_TenantId_RequestId] ON [PaymentInstrumentEvents] ([TenantId], [RequestId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PaymentInstruments_TenantId_Code] ON [PaymentInstruments] ([TenantId], [Code]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentInstruments_TenantId_FinancialAccountId_CurrencyCode] ON [PaymentInstruments] ([TenantId], [FinancialAccountId], [CurrencyCode]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentInstruments_TenantId_FinancialAccountTransactionId_FinancialAccountId_CurrencyCode] ON [PaymentInstruments] ([TenantId], [FinancialAccountTransactionId], [FinancialAccountId], [CurrencyCode]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PaymentInstruments_TenantId_RequestId] ON [PaymentInstruments] ([TenantId], [RequestId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentInstruments_TenantId_Status_DueDate] ON [PaymentInstruments] ([TenantId], [Status], [DueDate]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020221252_AddPaymentInstrumentsAndStatementCategories'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261020221252_AddPaymentInstrumentsAndStatementCategories', N'10.0.13');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020231818_AddCashFlowCategories'
+)
+BEGIN
+    ALTER TABLE [FinancialAccountTransactions] ADD [CashFlowCategory] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020231818_AddCashFlowCategories'
+)
+BEGIN
+    UPDATE [dbo].[FinancialAccountTransactions]
+    SET [CashFlowCategory] = CASE
+        WHEN [CustomerCollectionId] IS NOT NULL OR [SupplierPaymentId] IS NOT NULL THEN 1
+        WHEN [TransferId] IS NOT NULL THEN 4
+        WHEN [Description] = N'Açılış bakiyesi' THEN 5
+        ELSE [CashFlowCategory]
+    END;
+    UPDATE reversal
+    SET reversal.[CashFlowCategory] = original.[CashFlowCategory]
+    FROM [dbo].[FinancialAccountTransactions] reversal
+    INNER JOIN [dbo].[FinancialAccountTransactions] original
+        ON original.[TenantId] = reversal.[TenantId] AND original.[Id] = reversal.[ReversalOfId]
+    WHERE original.[CashFlowCategory] IN (1, 4, 5);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020231818_AddCashFlowCategories'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261020231818_AddCashFlowCategories', N'10.0.13');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020232844_AddWarehouseLocations'
+)
+BEGIN
+    ALTER TABLE [InventoryTransactions] ADD [StorageLocationId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020232844_AddWarehouseLocations'
+)
+BEGIN
+    CREATE TABLE [WarehouseLocations] (
+        [Id] uniqueidentifier NOT NULL,
+        [TenantId] uniqueidentifier NOT NULL,
+        [WarehouseId] uniqueidentifier NOT NULL,
+        [ParentLocationId] uniqueidentifier NULL,
+        [Code] nvarchar(40) NOT NULL,
+        [Name] nvarchar(120) NOT NULL,
+        [IsActive] bit NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_WarehouseLocations] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_WarehouseLocations_TenantId_WarehouseId_Id] UNIQUE ([TenantId], [WarehouseId], [Id]),
+        CONSTRAINT [FK_WarehouseLocations_WarehouseLocations_TenantId_WarehouseId_ParentLocationId] FOREIGN KEY ([TenantId], [WarehouseId], [ParentLocationId]) REFERENCES [WarehouseLocations] ([TenantId], [WarehouseId], [Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_WarehouseLocations_Warehouses_TenantId_WarehouseId] FOREIGN KEY ([TenantId], [WarehouseId]) REFERENCES [Warehouses] ([TenantId], [Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020232844_AddWarehouseLocations'
+)
+BEGIN
+    CREATE INDEX [IX_InventoryTransactions_TenantId_WarehouseId_StorageLocationId] ON [InventoryTransactions] ([TenantId], [WarehouseId], [StorageLocationId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020232844_AddWarehouseLocations'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_WarehouseLocations_TenantId_WarehouseId_Code] ON [WarehouseLocations] ([TenantId], [WarehouseId], [Code]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020232844_AddWarehouseLocations'
+)
+BEGIN
+    CREATE INDEX [IX_WarehouseLocations_TenantId_WarehouseId_ParentLocationId_Code] ON [WarehouseLocations] ([TenantId], [WarehouseId], [ParentLocationId], [Code]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020232844_AddWarehouseLocations'
+)
+BEGIN
+    ALTER TABLE [InventoryTransactions] ADD CONSTRAINT [FK_InventoryTransactions_WarehouseLocations_TenantId_WarehouseId_StorageLocationId] FOREIGN KEY ([TenantId], [WarehouseId], [StorageLocationId]) REFERENCES [WarehouseLocations] ([TenantId], [WarehouseId], [Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261020232844_AddWarehouseLocations'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261020232844_AddWarehouseLocations', N'10.0.13');
 END;
 
 COMMIT;

@@ -1,0 +1,75 @@
+{
+  "scanDate": "2026-10-19",
+  "codeqlVersion": "2.27.2",
+  "sourceState": "C# captured HEAD fbdda32 working tree before final SafeChild guard was added to rollback-state temporary path; JavaScript run from same-turn source state, no frontend changes",
+  "csharp": {
+    "sourceFilesScanned": 422,
+    "queriesCompleted": "59/59",
+    "resultCount": 110,
+    "rules": [
+      {
+        "rule": "cs/command-line-injection",
+        "count": 1,
+        "paths": [
+          {
+            "path": "src/AI/AIERP.WorkspaceRunner/Program.cs",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "rule": "cs/path-injection",
+        "count": 107,
+        "paths": [
+          {
+            "path": "src/AI/AIERP.ReleaseDeployer/Program.cs",
+            "count": 87
+          },
+          {
+            "path": "src/AI/AIERP.WorkspaceRunner/Program.cs",
+            "count": 9
+          },
+          {
+            "path": "src/Hosts/AIERP.Api/Program.cs",
+            "count": 6
+          },
+          {
+            "path": "src/AI/AIERP.ReleaseDeployer/DistributedDeploymentLock.cs",
+            "count": 2
+          },
+          {
+            "path": "src/AI/AIERP.ReleaseDeployer/ReleaseDeployerPath.cs",
+            "count": 1
+          },
+          {
+            "path": "src/Extensions/AIERP.ModuleSDK/ModulePackageStoragePath.cs",
+            "count": 1
+          },
+          {
+            "path": "src/Extensions/AIERP.PluginHost/Program.cs",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "rule": "cs/user-controlled-bypass",
+        "count": 2,
+        "paths": [
+          {
+            "path": "src/AI/AIERP.AIService/Program.cs",
+            "count": 1
+          },
+          {
+            "path": "src/Hosts/AIERP.Api/Program.cs",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  "javascript": {
+    "resultCount": 0,
+    "rules": [],
+    "coverageNote": "Previously completed JavaScript/TypeScript suite; frontend sources unchanged in this follow-up"
+  }
+}

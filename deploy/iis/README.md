@@ -19,11 +19,11 @@ Build on a machine with the .NET 10 SDK, Node.js/npm, and network or package-cac
 .\Publish-IisBundle.ps1 -Version 1.0.0 -OutputPath C:\build\Nexora-IIS-1.0.0
 ```
 
-The publisher creates a fresh output directory, runs framework-dependent `dotnet publish` for Platform API and AIService, then runs `npm ci` and `npm run build` for both frontends in temporary copies. It never writes generated frontend output into the source tree. The target server needs the .NET 10 ASP.NET Core Hosting Bundle, IIS 10, IIS URL Rewrite 2.1, and IIS ARR 3.0 with proxy enabled.
+The publisher creates a fresh output directory, runs framework-dependent `dotnet publish` for Platform API and AIService, then runs `npm ci` and `npm run build` for both frontends in temporary copies. It never writes generated frontend output into the source tree. `bundle.json` records SHA-256 hashes for every bundle file except itself. The installer verifies exact manifest coverage, required components, safe relative paths, regular files and hashes before changing IIS configuration; missing, changed, extra or reparse-point files fail closed. The manifest detects package corruption or an accidental file swap; use the separately distributed package digest and trusted release process to establish package provenance. The target server needs the .NET 10 ASP.NET Core Hosting Bundle, IIS 10, IIS URL Rewrite 2.1, and IIS ARR 3.0 with proxy enabled.
 
 ## Install or upgrade
 
-1. Create `C:\ProgramData\Nexora\deployment\nexora-secrets.psd1` from the bundled `secrets.example.psd1`. Replace every placeholder. `IntegrationQueue__EncryptionKey` must be base64 encoding of exactly 32 random bytes; `Authentication__SigningKey` and `PluginHost__SigningKey` must each be at least 32 bytes and distinct. Protect the file so only Administrators and SYSTEM can read it. Use SQL least-privilege credentials and a secret store or managed credential process for operational use.
+1. Create `C:\ProgramData\Nexora\deployment\nexora-secrets.psd1` from the bundled `secrets.example.psd1`. Replace every placeholder and point `Vault__Address` to the trusted HTTPS Vault KV v2 endpoint. Install the Vault CA in the Windows Local Machine trust store. Create the two reader credential files at the configured paths and restrict them to Administrators, SYSTEM and the deployment identity before install; the installer then grants read-only access to the Platform API and AI Service app pools. Use the same read-only tenant SQL AppRole in both services. Never put a Vault writer or SQL provisioning credential in runtime config. `IntegrationQueue__EncryptionKey` must be base64 encoding of exactly 32 random bytes; `Authentication__SigningKey` and `PluginHost__SigningKey` must each be at least 32 bytes and distinct. Both API services require `Database__SeparationEnabled=true`; tenant/Studio SQL endpoint templates must not contain usernames or passwords. The installer rejects shared mode and refuses to start without Vault reader files. For an existing shared installation, perform and verify the documented backup-and-copy migration in a controlled maintenance window before installing this release; changing the flag alone does not migrate data.
 2. Make DNS for `erp.example.com` and `studio.example.com` resolve to the IIS host. Install a trusted certificate with a private key in `LocalMachine\My`; it must cover both names.
 3. From an elevated PowerShell session:
 
@@ -57,3 +57,15 @@ Or specify `-Version <retained-version>`. `Switch-IisRelease.ps1` changes all fo
 This bundle includes Platform API, AIService, ERP Web, and Development Studio. Workspace Runner, Release Deployer, Plugin Host, Integration Host, SQL Server, telemetry infrastructure, and any reverse proxy/WAF not listed here remain separately deployed services; set their `*__BaseUrl` and connection settings in the protected configuration. Studio's `/api/*` goes to Platform API; `/studio/*`, `/ai-health`, and GitHub setup callback routes go to AIService. Static routes fall through to each app's `index.html`.
 
 The scripts target Windows Server IIS and are not tested against a live IIS installation here. HTTPS certificate binding, ARR/Rewrite module installation, DNS, ACL behavior, app pool startup, database connectivity, and production traffic must be validated in a staging IIS environment before production use. Configure a separate certificate per hostname manually if a single SAN certificate is not appropriate.
+
+## Remote Docker development ingress
+
+The separately configured remote development server uses one IIS ARR site, `Nexora-Docker-Ingress`, in front of the remote Docker Engine. Its public hostnames and loopback upstreams are:
+
+| Hostname | Upstream |
+| --- | --- |
+| `nexoraerp.ozgurteknolojiyazilim.com` | `http://127.0.0.1:5173` (ERP Web) |
+| `nexorastudio.ozgurteknolojiyazilim.com` | `http://127.0.0.1:5174` (Development Studio; `/studio/*` is proxied by the frontend to AIService) |
+| `nexoraapi.ozgurteknolojiyazilim.com` | `http://127.0.0.1:5080` (Platform API; health endpoint `/health`) |
+
+`templates/docker-ingress.web.config` is the host-based ARR rewrite template installed at that site's root. It serves ACME HTTP-01 challenges before redirecting ordinary HTTP requests to HTTPS. The three names use one SAN certificate in `LocalMachine\WebHosting`; win-acme performs renewal, and `scripts/sync-nexora-iis-certificate.ps1` updates only this site's three SNI bindings to the newest valid certificate. The development server runs this synchronization daily at 23:30 as SYSTEM. Do not copy its private Compose override or credentials into the repository. This remote Docker ingress is separate from the versioned four-site IIS bundle above and does not certify a production installation.

@@ -17,28 +17,44 @@ internal sealed class AuditRetentionWorker(IServiceScopeFactory scopeFactory, IL
                 var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
                 var deleted = await PurgeAsync(db, null, stoppingToken);
                 var deletedTotal = deleted;
-                if (scope.ServiceProvider.GetRequiredService<IConfiguration>().GetValue<bool>("Database:SeparationEnabled"))
+                var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+                var tenantConnection = configuration.GetConnectionString("Tenant")
+                    ?? throw new InvalidOperationException("ConnectionStrings:Tenant is required for audit retention.");
+                var credentialReader = scope.ServiceProvider.GetRequiredService<ITenantSqlCredentialReader>();
+                var tenants = await db.TenantDatabaseCatalog.AsNoTracking().Where(x => x.State == AIERP.Platform.Domain.TenantDatabaseProvisioningState.Ready)
+                    .Select(x => new { x.TenantId, x.DatabaseName }).ToListAsync(stoppingToken);
+                foreach (var entry in tenants)
                 {
-                    var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-                    var tenantConnection = configuration.GetConnectionString("Tenant") ?? db.Database.GetDbConnection().ConnectionString;
-                    var tenants = await db.TenantDatabaseCatalog.AsNoTracking().Where(x => x.State == AIERP.Platform.Domain.TenantDatabaseProvisioningState.Ready)
-                        .Select(x => new { x.TenantId, x.DatabaseName }).ToListAsync(stoppingToken);
-                    foreach (var entry in tenants)
-                    {
-                        var connection = new SqlConnectionStringBuilder(tenantConnection) { InitialCatalog = entry.DatabaseName }.ConnectionString;
-                        var options = new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(connection).Options;
-                        await using var tenantDb = new TenantDbContext(options);
-                        deletedTotal += await PurgeAsync(tenantDb, entry.TenantId, stoppingToken);
-                    }
-                    var studioConnection = configuration.GetConnectionString("AIStudio") ?? tenantConnection;
-                    var studioState = await db.DatabaseSeparationComponentStates.AsNoTracking().SingleOrDefaultAsync(x => x.Component == "AIStudio" && x.State == AIERP.Platform.Domain.TenantDatabaseProvisioningState.Ready, stoppingToken);
-                    if (studioState is not null)
-                    {
-                        var connection = new SqlConnectionStringBuilder(studioConnection) { InitialCatalog = studioState.DatabaseName }.ConnectionString;
-                        var options = new DbContextOptionsBuilder<AIStudioDbContext>().UseSqlServer(connection).Options;
-                        await using var studioDb = new AIStudioDbContext(options);
-                        deletedTotal += await PurgeAsync(studioDb, null, stoppingToken);
-                    }
+                    if (entry.DatabaseName != $"AIERPTenant_{entry.TenantId:N}")
+                        throw new InvalidOperationException("Tenant database catalog entry does not match its tenant identity.");
+                    var secretReference = TenantSqlCredentialPath.ForTenant(entry.TenantId, TenantSqlDatabaseComponent.Erp);
+                    var credential = await credentialReader.ReadAsync(entry.TenantId, TenantSqlDatabaseComponent.Erp, secretReference, stoppingToken);
+                    var connection = TenantDatabaseRouting.BuildTenantConnectionString(tenantConnection, entry.TenantId, credential);
+                    var options = new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(connection).Options;
+                    await using var tenantDb = new TenantDbContext(options);
+                    deletedTotal += await PurgeAsync(tenantDb, entry.TenantId, stoppingToken);
+                }
+                var studioRuntimeConnection = configuration.GetConnectionString("AIStudio")
+                    ?? throw new InvalidOperationException("ConnectionStrings:AIStudio is required for audit retention.");
+                var studioStates = await db.DatabaseSeparationComponentStates.AsNoTracking()
+                    .Where(x => x.Component.StartsWith("AIStudio:") && x.State == AIERP.Platform.Domain.TenantDatabaseProvisioningState.Ready)
+                    .Select(x => new { x.Component, x.DatabaseName })
+                    .ToListAsync(stoppingToken);
+                foreach (var studioState in studioStates)
+                {
+                    var suffix = studioState.Component["AIStudio:".Length..];
+                    if (!Guid.TryParseExact(suffix, "N", out var studioTenantId)
+                        || TenantDatabaseRouting.StudioComponentKey(studioTenantId) != studioState.Component
+                        || TenantSqlCredentialPath.DatabaseName(studioTenantId, TenantSqlDatabaseComponent.AiStudio) != studioState.DatabaseName)
+                        throw new InvalidOperationException("AIStudio tenant catalog entry is not canonical; audit retention stopped.");
+                    var secretReference = TenantSqlCredentialPath.ForTenant(studioTenantId, TenantSqlDatabaseComponent.AiStudio);
+                    var credential = await credentialReader.ReadAsync(studioTenantId, TenantSqlDatabaseComponent.AiStudio,
+                        secretReference, stoppingToken);
+                    var connection = TenantDatabaseRouting.BuildComponentConnectionString(studioRuntimeConnection,
+                        studioTenantId, TenantSqlDatabaseComponent.AiStudio, credential);
+                    var options = new DbContextOptionsBuilder<AIStudioDbContext>().UseSqlServer(connection).Options;
+                    await using var studioDb = new AIStudioDbContext(options);
+                    deletedTotal += await PurgeAsync(studioDb, studioTenantId, stoppingToken);
                 }
                 logger.LogInformation("Daily audit retention completed. Expired rows removed: {DeletedCount}.", deletedTotal);
             }

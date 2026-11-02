@@ -1,0 +1,64 @@
+{
+  "completedAtUtc": "2026-10-20T12:45:20.3364479+00:00",
+  "runnerContainer": "nexora-sandbox-matrix-remediated-final-20261020",
+  "sandboxContainer": "nexora-sandbox-matrix-remediated-final-20261020",
+  "sandboxWorkerUid": "0",
+  "sandboxWorkerCapabilities": [
+    "CAP_DAC_OVERRIDE",
+    "CAP_KILL",
+    "CAP_SETGID",
+    "CAP_SETPCAP",
+    "CAP_SETUID"
+  ],
+  "packageCacheRoot": "deploy\\docker\\sandbox-package-cache-remediated-final-20261020",
+  "networkDisabled": true,
+  "operatorCaches": [
+    "npm",
+    "go-mod",
+    "cargo-home",
+    "nuget"
+  ],
+  "results": [
+    {
+      "ecosystem": "Node.js",
+      "target": "package.json",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 7155,
+      "message": "Node.js tests completed successfully.",
+      "output": "✔ uses the staged npm dependency (1.507496ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 130.88353"
+    },
+    {
+      "ecosystem": "Go",
+      "target": "go/cache_test.go",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 17227,
+      "message": "Go tests completed successfully.",
+      "output": "ok  \texample.local/sandbox-cache-smoke\t0.004s"
+    },
+    {
+      "ecosystem": "Rust",
+      "target": "Cargo.toml",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 469,
+      "message": "Rust tests completed successfully.",
+      "output": "running 1 test\ntest tests::consumes_operator_cache ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n   Compiling aierp-cache-dep v0.1.0 (/tmp/test-jobs/e63c5faacbde4df882342ca34158dcb0/.cargo/aierp-cache-dep)\n   Compiling aierp-cache-smoke v0.1.0 (/tmp/test-jobs/e63c5faacbde4df882342ca34158dcb0)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.37s\n     Running unittests src/lib.rs (target/debug/deps/aierp_cache_smoke-8b9bef3583082ab3)\n   Doc-tests aierp_cache_smoke"
+    },
+    {
+      "ecosystem": ".NET",
+      "target": "CacheSmoke.Tests.csproj",
+      "status": "Passed",
+      "success": true,
+      "exitCode": 0,
+      "durationMilliseconds": 27858,
+      "message": "Tests completed successfully.",
+      "output": "/tmp/test-jobs/3d1b2253ed6e47069c7434fb92162bad/CacheSmoke.Tests.csproj : warning NU1603: CacheSmoke.Tests depends on Microsoft.NET.Test.Sdk (>= 17.14.1) but Microsoft.NET.Test.Sdk 17.14.1 was not found. Microsoft.NET.Test.Sdk 18.11.0 was resolved instead.\n/tmp/test-jobs/3d1b2253ed6e47069c7434fb92162bad/CacheSmoke.Tests.csproj : warning NU1603: CacheSmoke.Tests depends on xunit.runner.visualstudio (>= 3.1.4) but xunit.runner.visualstudio 3.1.4 was not found. xunit.runner.visualstudio 4.0.1 was resolved instead.\n  CacheSmoke.Tests -> /tmp/test-jobs/3d1b2253ed6e47069c7434fb92162bad/bin/Debug/net10.0/CacheSmoke.Tests.dll\nTest run for /tmp/test-jobs/3d1b2253ed6e47069c7434fb92162bad/bin/Debug/net10.0/CacheSmoke.Tests.dll (.NETCoreApp,Version=v10.0)\nA total of 1 test files matched the specified pattern.\n\nPassed!  - Failed:     0, Passed:     1, Skipped:     0, Total:     1, Duration: 22 ms - CacheSmoke.Tests.dll (net10.0)"
+    }
+  ],
+  "status": "passed"
+}

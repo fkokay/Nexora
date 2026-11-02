@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-23",
+  "scope": "offline-read-only-artifact-validation",
+  "deploymentPackage": {
+    "version": "20261022-source-r1",
+    "iisPath": "artifacts/deployment-source-20261022-r1/iis",
+    "linuxArchive": "artifacts/deployment-source-20261022-r1/linux/aierp-linux-20261022-source-r1.tar.gz",
+    "iisManifestEntries": 206,
+    "iisManifestIntegrity": "passed",
+    "linuxArchiveSha256": "0dbf210d9a8129bdc8c5aae6bc874d80c8ca88f1ecef6e577a2af29426cdc329",
+    "linuxOuterChecksum": "passed",
+    "crossPackageValidator": "failed",
+    "failure": "Linux archive config/platform-api.env.example omits ConnectionStrings__AIStudio required by current source validator.",
+    "stagingDecision": "NO-GO until rebuilt from approved clean source or provenance-attested source and validator passes."
+  },
+  "migrationPackage": {
+    "path": "artifacts/migrations/2026-10-23-r2",
+    "status": "generated-not-applied-not-rehearsed",
+    "sha256Sums": "passed",
+    "staticHistoryPreflight": "passed against bundled historical r3 prefix only",
+    "historicalPrefix": {
+      "platform": "124/133; 9 pending",
+      "tenant": "44/47; 3 pending",
+      "aiStudio": "10/11; 1 pending"
+    },
+    "targetHistory": "not queried; DBA export required for Platform, AIStudio, and every Tenant database",
+    "restoreAndMigrationRehearsal": "not performed; isolated verified restore required"
+  },
+  "hostValidation": "not performed: no IIS/Linux host access or deployment",
+  "databaseValidation": "not performed: no SQL connection/query/backup/restore/migration",
+  "haAcceptance": "not performed: Ops must run multi-node lease/fencing, traffic failover, SQL failover, alerts, and measure approved RTO/RPO in isolated staging.",
+  "requiredOwners": [
+    "Release owner",
+    "IIS host owner",
+    "Linux host owner",
+    "DBA",
+    "Backup-storage owner",
+    "Operations/HA owner"
+  ],
+  "releaseGate": "NO-GO"
+}

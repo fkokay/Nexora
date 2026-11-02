@@ -1,0 +1,23 @@
+{
+  "checkedAtUtc": "2026-10-22T12:12:42.1255009Z",
+  "status": "passed",
+  "mode": "offline-fixture-and-contract-tests",
+  "databaseAccess": "none",
+  "checks": [
+    {
+      "output": "IIS bundle integrity fixture smoke passed: valid package accepted; tampering, missing and unmanifested files, traversal paths and duplicate entries rejected.",
+      "passed": true,
+      "name": "IIS bundle integrity fixtures"
+    },
+    {
+      "output": "Linux installer preflight fixture smoke passed: separated and explicit legacy topology accepted; missing tenant connection, mismatched topology and service identity, payload tampering, unsafe manifest paths, missing checksum coverage, and unmanifested files rejected.",
+      "passed": true,
+      "name": "Linux installer preflight fixtures"
+    },
+    {
+      "output": "Migration readiness contract passed: exact histories pass across 3 contexts; orphan and non-prefix histories fail closed.",
+      "passed": true,
+      "name": "Migration readiness contract"
+    }
+  ]
+}

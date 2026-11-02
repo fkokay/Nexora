@@ -1,0 +1,1 @@
+import{Cn as e,cn as t,ct as n,lt as r,pn as i,rt as a}from"./monaco-editor-CpRTdW7Q.js";function o(o,s){let c=!!(globalThis._VSCODE_PRODUCT_JSON??globalThis.vscode?.context?.configuration()?.product)?.commit&&(i||e&&t),l=`${o}/${s}`,u=`${c?n:r}/${l}`;return a.asBrowserUri(u).toString(!0)}export{o as t};

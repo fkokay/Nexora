@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [switch]$Apply
+    [switch]$Apply,
+    [switch]$PurgeLegacyTenantData
 )
 
 $ErrorActionPreference = 'Stop'
@@ -63,12 +64,19 @@ $currentMode = Get-DotEnvValue 'DATABASE_SEPARATION_ENABLED'
 if ($currentMode -match '^(?i:true|1|yes)$') {
     throw 'DATABASE_SEPARATION_ENABLED is already true. This workflow is for a shared-to-separated transition and will not rerun against an already enabled environment.'
 }
+if ($currentMode -notmatch '^(?i:false|0|no)$') {
+    throw 'Set DATABASE_SEPARATION_ENABLED=false explicitly in .env before running this shared-to-separated cutover. The Compose default is separated mode, so an absent value is not accepted as proof of a legacy shared deployment.'
+}
+if ($PurgeLegacyTenantData -and -not $Apply) {
+    throw 'Use -PurgeLegacyTenantData only together with -Apply; the purge is a separate destructive cutover step.'
+}
 
 Invoke-Compose @('config', '-q')
 if (-not $Apply) {
     Write-Host 'Preflight passed. No backup, migration, data copy, or local .env change was made.'
     Write-Host 'To run the controlled workflow, invoke this script with -Apply.'
-    Write-Host 'The workflow stops Platform API and AI Service, creates and SQL-verifies a fresh checksum full backup, verifies that backup with the application, runs the migrator and separated-mode verification, then starts the services.'
+    Write-Host 'The workflow stops Platform API and AI Service, creates and SQL-verifies a checksum full backup, verifies that backup with the application, runs the migrator and separated-mode verification.'
+    Write-Host 'Add -PurgeLegacyTenantData to create a fresh post-copy backup, preview counts, explicitly purge legacy operational rows, and then start the services.'
     return
 }
 
@@ -140,6 +148,21 @@ try {
     $separationEnabled = $true
     $migrationStarted = $true
     Invoke-Compose @('run', '--rm', '--no-deps', 'platform-api', '--migrate-only') | Out-Null
+    Invoke-Compose @('run', '--rm', '--no-deps', 'platform-api', '--verify-separation') | Out-Null
+    if (-not $PurgeLegacyTenantData) {
+        Write-Host 'Tenant database provisioning is Ready, but cutover is incomplete: legacy operational rows remain in AIERPPlatform.'
+        Write-Host 'Platform API and AI Service remain stopped. After review, take a fresh checksum full backup, set DATABASE_SEPARATION_BACKUP_PATH, run the purge preview and confirmed purge commands with docker compose, then start the services.'
+        return
+    }
+
+    # The backup used to copy rows may predate the migration and catalog changes.
+    # Take a distinct, fresh full backup after all isolated copies have verified.
+    $purgeTimestamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ', [System.Globalization.CultureInfo]::InvariantCulture)
+    $purgeBackupPath = "/var/opt/mssql/backups/AIERPPlatform-before-legacy-purge-$purgeTimestamp-$backupId.bak"
+    Invoke-ComposeSql "BACKUP DATABASE [AIERPPlatform] TO DISK = N'$purgeBackupPath' WITH INIT, CHECKSUM; RESTORE VERIFYONLY FROM DISK = N'$purgeBackupPath' WITH CHECKSUM;" | Out-Null
+    Set-DotEnvValue 'DATABASE_SEPARATION_BACKUP_PATH' $purgeBackupPath
+    Invoke-Compose @('run', '--rm', '--no-deps', 'platform-api', '--legacy-tenant-data-purge-preview') | Out-Null
+    Invoke-Compose @('run', '--rm', '--no-deps', 'platform-api', '--purge-legacy-tenant-data', '--confirm-legacy-tenant-data-purge=I_HAVE_VERIFIED_BACKUP_AND_COPIES') | Out-Null
     Invoke-Compose @('run', '--rm', '--no-deps', 'platform-api', '--verify-separation') | Out-Null
     $servicesToStart = if ($resumeServices.Count -gt 0) { $resumeServices } else { @('platform-api', 'ai-service') }
     Invoke-Compose (@('up', '-d') + $servicesToStart) | Out-Null

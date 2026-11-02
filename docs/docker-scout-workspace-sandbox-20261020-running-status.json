@@ -1,0 +1,34 @@
+{
+  "scannedAtUtc": "2026-10-20",
+  "sourceImage": "docker-workspace-sandbox:latest",
+  "sourceImageId": "sha256:17a655fb993cf13e2d052a222571e0d5d4dff70a0a553afab4caa251727ab6e1",
+  "composeContainer": "docker-workspace-sandbox-1",
+  "composeImageId": "sha256:17a655fb993cf13e2d052a222571e0d5d4dff70a0a553afab4caa251727ab6e1",
+  "scanner": "Docker Scout v1.26.0",
+  "sarif": "docs/docker-scout-workspace-sandbox-20261020-running.sarif.json",
+  "sarifSha256": "34785F4548DC87831D14BF408CEECC26D1A6A3B2B86E30AFDACE3626E2825618",
+  "indexedPackages": 1159,
+  "packagesWithFindings": 1,
+  "vulnerabilityRecords": 2,
+  "status": "completed_with_triaged_sbom_findings",
+  "findings": [
+    {
+      "severity": "HIGH",
+      "id": "CVE-2025-47273",
+      "package": "setuptools",
+      "fixedVersion": "78.1.1",
+      "scopeAssessment": "Pip image vendors pkg_resources only; setuptools.package_index / PackageIndex code is absent.",
+      "version": "70.3.0"
+    },
+    {
+      "severity": "MEDIUM",
+      "id": "CVE-2026-59890",
+      "package": "setuptools",
+      "fixedVersion": "83.0.0",
+      "scopeAssessment": "Pip image vendors pkg_resources only; setuptools sdist FileList implementation is absent.",
+      "version": "70.3.0"
+    }
+  ],
+  "composePromotion": "verified-running-exact-digest",
+  "dataVolumesChanged": false
+}
