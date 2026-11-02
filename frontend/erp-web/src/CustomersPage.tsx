@@ -700,21 +700,6 @@ function CustomersPage({
       setExportBusy(false);
     }
   }
-  async function exportCustomers(format:'csv'|'xlsx') {
-    setExportBusy(true)
-    try {
-      const params=new URLSearchParams({q:filter,page:'1',pageSize:'100'});if(typeFilter)params.set('type',typeFilter);if(statusFilter)params.set('status',statusFilter)
-      const first=await api<{items:CustomerItem[];totalCount:number}>(`/api/customers/?${params}`,token)
-      const rows=[...first.items]
-      for(let nextPage=2;rows.length<first.totalCount;nextPage++){
-        params.set('page',String(nextPage));const result=await api<{items:CustomerItem[];totalCount:number}>(`/api/customers/?${params}`,token);if(!result.items.length)break;rows.push(...result.items)
-      }
-      const data=rows.map(item=>({'Cari kodu':item.code,'Ünvan':item.name,'Cari grubu':item.groupName||'','Tür':item.type==='Customer'?'Müşteri':item.type==='Supplier'?'Tedarikçi':'Müşteri & Tedarikçi','Döviz':item.currencyCode,'Vade (gün)':item.paymentTermDays,'Vergi no':item.taxNumber||'','Vergi dairesi':item.taxOffice||'','Risk limiti':item.riskLimit??'','Durum':item.isActive?'Aktif':'Pasif'}))
-      const fileName=`cariler-${localDateString()}.${format}`
-      if(format==='xlsx'){const XLSX=await import('xlsx');const workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(data),'Cariler');XLSX.writeFileXLSX(workbook,fileName)}
-      else {const headers=Object.keys(data[0]||{'Cari kodu':''});const cell=(value:unknown)=>`"${String(value??'').replace(/"/g,'""')}"`;const csv=[headers.map(cell).join(','),...data.map(row=>headers.map(header=>cell((row as Record<string,unknown>)[header])).join(','))].join('\r\n');const url=URL.createObjectURL(new Blob(['\uFEFF',csv],{type:'text/csv;charset=utf-8'}));const anchor=document.createElement('a');anchor.href=url;anchor.download=fileName;anchor.click();window.setTimeout(()=>URL.revokeObjectURL(url),1000)}
-    } catch(error) { setError((error as Error).message) } finally { setExportBusy(false) }
-  }
   async function loadScreenLayout() {
     try {
       const active = await api<{ fields: BuiltInScreenLayoutField[] }>(
