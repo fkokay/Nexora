@@ -226,9 +226,7 @@ public static class PlatformPermissionCatalog
             resource = Resources.First(x => x.ResourceType == "erp.sales-promotions");
         else if (path.Equals("/api/location-definitions", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/location-definitions/", StringComparison.OrdinalIgnoreCase))
-            // Province and district lookups are used by customer address forms and share
-            // the existing customer read permission. Mutations still enforce TenantAdmin.
-            resource = Resources.First(x => x.ResourceType == "erp.customers");
+            resource = Resources.First(x => x.ResourceType == "erp.customer-locations");
         resource ??= Resources.Where(x => path.Equals(x.RoutePrefix, StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith(x.RoutePrefix.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(x => x.RoutePrefix.Length).FirstOrDefault();
