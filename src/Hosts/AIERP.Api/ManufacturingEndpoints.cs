@@ -256,8 +256,8 @@ public static class ManufacturingEndpoints
                 requestedDemand.Any(x => x.StockItemId == Guid.Empty || x.Quantity is <= 0m or > 99999999999999.9999m) ||
                 requestedDemand.GroupBy(x => (x.StockItemId, x.RequiredByDate ?? request.PlanDate)).Any(x => x.Count() > 1))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["demand"] = ["Plan için depo ve 1–100 benzersiz tarih/stok kombinasyonlu, pozitif talep satırı gereklidir."] });
-            var planningDate = request.PlanDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var planningDate = request.PlanDate ?? AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
+            var today = AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
             if (planningDate < today.AddYears(-10) || planningDate > today.AddYears(10))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["planDate"] = ["Planlama tarihi bugünün en fazla 10 yıl öncesi/sonrası olabilir."] });
             if (requestedDemand.Any(x => x.RequiredByDate is { } due && (due < planningDate.AddYears(-10) || due > planningDate.AddYears(10))))
@@ -386,7 +386,7 @@ public static class ManufacturingEndpoints
                 if (db.Database.IsRelational()) transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
                 if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == snapshot.WarehouseId && x.IsActive, ct))
                     return Results.Conflict(new { error = "Planın deposu artık etkin değil; yeni plan hesaplayın." });
-                var requestDate = DateOnly.FromDateTime(DateTime.UtcNow);
+                var requestDate = AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
                 var created = new List<MrpConversionResult>();
                 foreach (var suggestion in selected)
                 {
@@ -1054,7 +1054,7 @@ public static class ManufacturingEndpoints
             if (operation is null) return Results.NotFound();
             if (operation.Status != ManufacturingOperationStatus.Planned || operation.ScheduledStartDate is null)
                 return Results.Conflict(new { error = "Operasyon çizelgelenmemiş veya daha önce başlatılmış." });
-            if (DateOnly.FromDateTime(DateTime.UtcNow) < operation.ScheduledStartDate.Value)
+            if (AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow) < operation.ScheduledStartDate.Value)
                 return Results.Conflict(new { error = "Operasyon planlanan başlangıç tarihinden önce başlatılamaz." });
             if (await db.ManufacturingOrderOperations.AnyAsync(x => x.TenantId == tenantId && x.ManufacturingOrderId == id && x.Sequence < operation.Sequence &&
                     x.Status != ManufacturingOperationStatus.Completed, ct))
@@ -1147,7 +1147,7 @@ public static class ManufacturingEndpoints
                 stockItems.Add(item);
             }
             var product = stockItems.Single(x => x.Id == bom.ProductStockItemId);
-            var movementDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            var movementDate = AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
             var finishedTracking = request.FinishedGoodsTracking ?? [];
             var outputTrackingError = ValidateTrackingAllocations(product.TrackingMode, finishedTracking, order.PlannedQuantity);
             if (outputTrackingError is not null)
@@ -1289,7 +1289,7 @@ public static class ManufacturingEndpoints
     }
     private static async Task<(MrpPlanView? Plan, string? Error)> CalculateMrpAsync(TenantDbContext db, Guid tenantId, MrpPlanRequest request, CancellationToken ct)
     {
-        var planDate = request.PlanDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var planDate = request.PlanDate ?? AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         var stockItems = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Code).ToListAsync(ct);
         var stockById = stockItems.ToDictionary(x => x.Id);
         var boms = await db.BillOfMaterials.AsNoTracking().Include(x => x.Lines)

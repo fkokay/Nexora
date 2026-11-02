@@ -37,7 +37,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         Assert.Equal(HttpStatusCode.Created, bomResponse.StatusCode);
         using var bom = JsonDocument.Parse(await bomResponse.Content.ReadAsStringAsync());
         var bomId = bom.RootElement.GetProperty("id").GetGuid();
-        var planned = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        var planned = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow).AddDays(1);
         var firstResponse = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-SECONDS-1", bomId, 1m, planned));
         var secondResponse = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-SECONDS-2", bomId, 1m, planned));
         Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
@@ -280,7 +280,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         Assert.Equal(HttpStatusCode.Created, nextBomResponse.StatusCode);
         using var nextBomJson = JsonDocument.Parse(await nextBomResponse.Content.ReadAsStringAsync());
         var nextOrderResponse = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-SETUP-CROSS-ORDER", nextBomJson.RootElement.GetProperty("id").GetGuid(), 1m,
-            DateOnly.FromDateTime(DateTime.UtcNow).AddDays(10)));
+            TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow).AddDays(10)));
         Assert.Equal(HttpStatusCode.Created, nextOrderResponse.StatusCode);
         using var crossOrderJson = JsonDocument.Parse(await nextOrderResponse.Content.ReadAsStringAsync());
         var crossOrderId = crossOrderJson.RootElement.GetProperty("id").GetGuid();
@@ -300,7 +300,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         });
         Assert.Equal(HttpStatusCode.OK, blockRouteTransition.StatusCode);
         var nextOrder = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-SETUP-SEQ-BLOCKED", bomId, 1m,
-            DateOnly.FromDateTime(DateTime.UtcNow).AddDays(100)));
+            TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow).AddDays(100)));
         Assert.Equal(HttpStatusCode.Created, nextOrder.StatusCode);
         using var nextOrderJson = JsonDocument.Parse(await nextOrder.Content.ReadAsStringAsync());
         var blockedOrderId = nextOrderJson.RootElement.GetProperty("id").GetGuid();
@@ -395,7 +395,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
             Assert.Equal(HttpStatusCode.Created, bom.StatusCode);
             using var bomJson = JsonDocument.Parse(await bom.Content.ReadAsStringAsync());
             var order = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order(orderCode,
-                bomJson.RootElement.GetProperty("id").GetGuid(), 1m, DateOnly.FromDateTime(DateTime.UtcNow)));
+                bomJson.RootElement.GetProperty("id").GetGuid(), 1m, TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow)));
             Assert.Equal(HttpStatusCode.Created, order.StatusCode);
             using var orderJson = JsonDocument.Parse(await order.Content.ReadAsStringAsync());
             return orderJson.RootElement.GetProperty("id").GetGuid();
@@ -960,7 +960,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
     {
         await using var app = await StartAsync(); using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         await using (var seed = app.Services.CreateAsyncScope())
         {
             var db = seed.ServiceProvider.GetRequiredService<TenantDbContext>();
@@ -1008,7 +1008,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
     {
         await using var app = await StartAsync(); using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
 
         await using (var scope = app.Services.CreateAsyncScope())
         {
@@ -1044,7 +1044,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
     {
         await using var app = await StartAsync(); using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
 
         var bomResponse = await client.PostAsJsonAsync("/api/manufacturing/boms/", Bom("MRP-ARCHIVED-BOM", ProductId));
         Assert.Equal(HttpStatusCode.Created, bomResponse.StatusCode);
@@ -1082,7 +1082,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
     {
         await using var app = await StartAsync(); using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         Guid orderId;
         await using (var seed = app.Services.CreateAsyncScope())
         {
@@ -1147,7 +1147,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         Assert.Equal(12.5m, bomJson.RootElement.GetProperty("lines")[0].GetProperty("standardUnitCostBase").GetDecimal());
         Assert.Equal(2m, bomJson.RootElement.GetProperty("operations")[0].GetProperty("plannedEnergyKwhPerOutput").GetDecimal());
         Assert.Equal(1.25m, bomJson.RootElement.GetProperty("operations")[0].GetProperty("plannedEnergyCostPerKwhBase").GetDecimal());
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         var first = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-ROUTED-1", bomId, 2m, today));
         var second = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-ROUTED-2", bomId, 2m, today));
         Assert.Equal(HttpStatusCode.Created, first.StatusCode); Assert.Equal(HttpStatusCode.Created, second.StatusCode);
@@ -1242,7 +1242,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         });
         Assert.Equal(HttpStatusCode.Created, bomResponse.StatusCode);
         using var bomJson = JsonDocument.Parse(await bomResponse.Content.ReadAsStringAsync());
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         var orderResponse = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-STRICT-ROUTE", bomJson.RootElement.GetProperty("id").GetGuid(), 1m, today));
         Assert.Equal(HttpStatusCode.Created, orderResponse.StatusCode);
         using var orderJson = JsonDocument.Parse(await orderResponse.Content.ReadAsStringAsync());
@@ -1292,7 +1292,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, invalidBom.StatusCode);
 
         var orderResponse = await client.PostAsJsonAsync("/api/manufacturing/orders/",
-            Order("MO-WAIT-ROUTE", bomJson.RootElement.GetProperty("id").GetGuid(), 1m, DateOnly.FromDateTime(DateTime.UtcNow)));
+            Order("MO-WAIT-ROUTE", bomJson.RootElement.GetProperty("id").GetGuid(), 1m, TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow)));
         Assert.Equal(HttpStatusCode.Created, orderResponse.StatusCode);
         using var orderJson = JsonDocument.Parse(await orderResponse.Content.ReadAsStringAsync());
         var orderId = orderJson.RootElement.GetProperty("id").GetGuid();
@@ -1348,7 +1348,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         });
         Assert.Equal(HttpStatusCode.BadRequest, invalidEligibility.StatusCode);
         var orderResponse = await client.PostAsJsonAsync("/api/manufacturing/orders/",
-            Order("MO-ALT-MACHINE", bomJson.RootElement.GetProperty("id").GetGuid(), 1m, DateOnly.FromDateTime(DateTime.UtcNow)));
+            Order("MO-ALT-MACHINE", bomJson.RootElement.GetProperty("id").GetGuid(), 1m, TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow)));
         Assert.Equal(HttpStatusCode.Created, orderResponse.StatusCode);
         using var orderJson = JsonDocument.Parse(await orderResponse.Content.ReadAsStringAsync());
         var orderId = orderJson.RootElement.GetProperty("id").GetGuid();
@@ -1378,7 +1378,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
         const int mondayThroughFriday = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5);
         var centerId = await CreateWorkCenterAsync(client, "WC-CALENDAR-WEEK", 60, mondayThroughFriday);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         var orderId = await CreateScheduledOrderAsync(client, "MO-CALENDAR-WEEK", centerId, 0m, 30m, today);
         using var calendar = await client.PutAsJsonAsync($"/api/manufacturing/work-centers/{centerId}/calendar", new
         {
@@ -1406,7 +1406,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         await using var app = await StartAsync(); using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
         var centerId = await CreateWorkCenterAsync(client, "WC-CALENDAR-REDUCED", 120, 127);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         var orderId = await CreateScheduledOrderAsync(client, "MO-CALENDAR-REDUCED", centerId, 0m, 35m, today);
         using var calendar = await client.PutAsJsonAsync($"/api/manufacturing/work-centers/{centerId}/calendar", new
         {
@@ -1430,7 +1430,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
     {
         await using var app = await StartAsync(); using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         var closedCenterId = await CreateWorkCenterAsync(client, "WC-ANNUAL-CLOSED", 60, 127);
         var closedOrderId = await CreateScheduledOrderAsync(client, "MO-ANNUAL-CLOSED", closedCenterId, 0m, 30m, today);
         using (var calendar = await client.PutAsJsonAsync($"/api/manufacturing/work-centers/{closedCenterId}/calendar", new
@@ -1478,7 +1478,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         })) Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
 
         var year = DateTime.UtcNow.Year;
-        while (!DateTime.IsLeapYear(year) || new DateOnly(year, 2, 29) < DateOnly.FromDateTime(DateTime.UtcNow)) year++;
+        while (!DateTime.IsLeapYear(year) || new DateOnly(year, 2, 29) < TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow)) year++;
         var leapDay = new DateOnly(year, 2, 29);
         using (var leapRule = await client.PutAsJsonAsync($"/api/manufacturing/work-centers/{centerId}/calendar", new
         {
@@ -1517,7 +1517,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         await using var app = await StartAsync(); using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
         var centerId = await CreateWorkCenterAsync(client, "WC-ROTATING-SHIFTS", 120, 127);
-        var startDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(2);
+        var startDate = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow).AddDays(2);
         var orderId = await CreateScheduledOrderAsync(client, "MO-ROTATING-SHIFTS", centerId, 0m, 90m, startDate);
         using (var calendar = await client.PutAsJsonAsync($"/api/manufacturing/work-centers/{centerId}/calendar", new
         {
@@ -1579,7 +1579,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         await using var app = await StartAsync(); using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
         var centerId = await CreateWorkCenterAsync(client, "WC-CALENDAR-TENANT", 60, 127);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         using (var update = await client.PutAsJsonAsync($"/api/manufacturing/work-centers/{centerId}/calendar", new
         {
             workingDaysMask = 127,
@@ -1613,7 +1613,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         await using var app = await StartAsync(); using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
         var centerId = await CreateWorkCenterAsync(client, "WC-CALENDAR-ROLLBACK", 60, 127);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         var orderId = await CreateScheduledOrderAsync(client, "MO-CALENDAR-ROLLBACK", centerId, 0m, 30m, today);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/manufacturing/orders/{orderId}/schedule", new { })).StatusCode);
         Guid operationId; DateOnly originalDate;
@@ -1646,7 +1646,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
         var firstCenterId = await CreateWorkCenterAsync(client, "WC-CALENDAR-ROUTE-1", 60, 127);
         var secondCenterId = await CreateWorkCenterAsync(client, "WC-CALENDAR-ROUTE-2", 60, 127);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         var firstOrderId = await CreateScheduledOrderAsync(client, "MO-CALENDAR-OCCUPIED-1", firstCenterId, 0m, 60m, today);
         var secondOrderId = await CreateScheduledOrderAsync(client, "MO-CALENDAR-OCCUPIED-2", firstCenterId, 0m, 60m, today);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/manufacturing/orders/{firstOrderId}/schedule", new { })).StatusCode);
@@ -1741,7 +1741,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         Assert.Equal(HttpStatusCode.Created, bomResponse.StatusCode);
         using var bomJson = JsonDocument.Parse(await bomResponse.Content.ReadAsStringAsync());
         var bomId = bomJson.RootElement.GetProperty("id").GetGuid();
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
         var firstResponse = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-CANCEL-SCHEDULE-1", bomId, 1m, today));
         var secondResponse = await client.PostAsJsonAsync("/api/manufacturing/orders/", Order("MO-CANCEL-SCHEDULE-2", bomId, 1m, today));
         Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
