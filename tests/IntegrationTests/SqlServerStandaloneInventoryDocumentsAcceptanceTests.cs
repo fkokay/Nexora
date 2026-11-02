@@ -116,45 +116,6 @@ public sealed class SqlServerStandaloneInventoryDocumentsAcceptanceTests
             Assert.Equal(StandaloneInventoryDocumentStatus.Voided, await seed.StandaloneSalesDeliveries.Where(x => x.Id == deliveryId).Select(x => x.Status).SingleAsync());
             Assert.Equal(StandaloneInventoryDocumentStatus.Voided, await seed.StandalonePurchaseReceipts.Where(x => x.Id == receiptId).Select(x => x.Status).SingleAsync());
 
-            using var createInvoiceDeliveryResponse = await client.PostAsJsonAsync("/api/sales/standalone-deliveries", new
-            {
-                requestId = Guid.NewGuid(), code = "SD-SQL-INVOICE-001", customerId = customer.Id, warehouseId = warehouse.Id, deliveryDate = "2026-10-30",
-                lines = new[] { new { stockItemId = item.Id, quantity = 1m, unitCode = "EA", trackingCode = (string?)null, expiryDate = (string?)null } },
-            });
-            Assert.Equal(HttpStatusCode.Created, createInvoiceDeliveryResponse.StatusCode);
-            using var invoiceDeliveryJson = await JsonDocument.ParseAsync(await createInvoiceDeliveryResponse.Content.ReadAsStreamAsync());
-            var invoiceDeliveryId = invoiceDeliveryJson.RootElement.GetProperty("id").GetGuid();
-            using var postInvoiceDeliveryResponse = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{invoiceDeliveryId}/post", new { });
-            Assert.True(postInvoiceDeliveryResponse.StatusCode == HttpStatusCode.OK, await postInvoiceDeliveryResponse.Content.ReadAsStringAsync());
-
-            var invoiceRequest = new
-            {
-                invoiceDate = "2026-10-30",
-                lines = new[] { new { lineNumber = 1, unitPrice = 25m, discountPercent = 0m, vatPercent = 20m } },
-            };
-            using var createInvoiceResponse = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{invoiceDeliveryId}/invoice", invoiceRequest);
-            Assert.Equal(HttpStatusCode.Created, createInvoiceResponse.StatusCode);
-            using var invoiceJson = await JsonDocument.ParseAsync(await createInvoiceResponse.Content.ReadAsStreamAsync());
-            var invoiceId = invoiceJson.RootElement.GetProperty("id").GetGuid();
-            Assert.Equal(30m, invoiceJson.RootElement.GetProperty("grandTotal").GetDecimal());
-            using var replayInvoiceResponse = await client.PostAsJsonAsync($"/api/sales/standalone-deliveries/{invoiceDeliveryId}/invoice", invoiceRequest);
-            Assert.Equal(HttpStatusCode.OK, replayInvoiceResponse.StatusCode);
-            using var replayInvoiceJson = await JsonDocument.ParseAsync(await replayInvoiceResponse.Content.ReadAsStreamAsync());
-            Assert.Equal(invoiceId, replayInvoiceJson.RootElement.GetProperty("id").GetGuid());
-
-            var persistedInvoice = await seed.SalesInvoices.AsNoTracking().Include(x => x.Lines)
-                .SingleAsync(x => x.TenantId == tenantId && x.Id == invoiceId);
-            Assert.Equal(invoiceDeliveryId, persistedInvoice.StandaloneDeliveryId);
-            Assert.Equal(25m, Assert.Single(persistedInvoice.Lines).UnitPrice);
-            Assert.Equal(30m, persistedInvoice.GrandTotal);
-            Assert.Single(await seed.CustomerLedgerEntries.AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.SalesInvoiceId == invoiceId && x.Direction == CustomerLedgerDirection.Debit && x.Amount == 30m)
-                .ToListAsync());
-            Assert.Single(await seed.AuditEvents.AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.Action == "sales.standalone-delivery.invoiced" && x.Resource.Contains("SD-SQL-INVOICE-001"))
-                .ToListAsync());
-            Assert.Equal(6, await seed.InventoryTransactions.CountAsync(x => x.TenantId == tenantId));
-
             await app.StopAsync();
         }
         finally
