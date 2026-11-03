@@ -5163,6 +5163,16 @@ public static class ReportEndpoints
         return new AggregatePage(rows.Select(x => x with { GroupValue = x.GroupValue is SalesInvoiceStatus status ? status.ToString() : x.GroupValue }).ToArray(), total);
     }
 
+    private static string ReportSqlDataType(Type type)
+    {
+        var actualType = Nullable.GetUnderlyingType(type) ?? type;
+        if (actualType == typeof(bool)) return "boolean";
+        if (actualType == typeof(DateTime) || actualType == typeof(DateOnly) || actualType == typeof(DateTimeOffset)) return "date";
+        if (actualType == typeof(byte) || actualType == typeof(short) || actualType == typeof(int) || actualType == typeof(long)) return "number";
+        if (actualType == typeof(decimal) || actualType == typeof(double) || actualType == typeof(float)) return "decimal";
+        return "text";
+    }
+
     private static bool Validate(ReportRunRequest? request, out NormalizedReport? normalized, out Dictionary<string, string[]>? errors)
     {
         normalized = null; errors = new Dictionary<string, string[]>();
