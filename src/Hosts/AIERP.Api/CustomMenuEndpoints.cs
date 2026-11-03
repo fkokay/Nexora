@@ -8,7 +8,7 @@ public static class CustomMenuEndpoints
     private const int MaxEntries = 30;
     private static readonly IReadOnlyDictionary<string, string> Targets = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        ["dashboard"] = "Genel Bakış", ["customers"] = "Cari Yönetimi", ["inventory-stock"] = "Stok Kartları",
+        ["dashboard"] = "Genel Bakış", ["customers"] = "Cari Hesaplar", ["inventory-stock"] = "Stok Kartları",
         ["inventory-warehouses"] = "Depo Yönetimi", ["sales-quotes"] = "Satış Teklifleri", ["sales-requests"] = "Satın Alma Talepleri",
         ["sales-orders"] = "Satış Siparişleri", ["sales-invoices"] = "Satış Faturaları", ["sales-purchasing"] = "Satın Alma",
         ["finance-accounts"] = "Kasa & Banka", ["finance-statements"] = "Banka Ekstreleri", ["finance-fx"] = "Kur & Değerleme",
