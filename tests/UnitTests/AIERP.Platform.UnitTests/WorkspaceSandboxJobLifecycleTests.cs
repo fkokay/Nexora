@@ -17,7 +17,7 @@ public sealed class WorkspaceSandboxJobLifecycleTests
         {
             await File.WriteAllTextAsync(Path.Combine(jobDirectory, "job.json"), JsonSerializer.Serialize(job, options));
             await File.WriteAllTextAsync(Path.Combine(jobDirectory, "started.json"), "{}");
-            File.SetLastWriteTimeUtc(Path.Combine(jobDirectory, "started.json"), DateTime.UtcNow.AddMinutes(-11));
+            File.SetLastWriteTimeUtc(Path.Combine(jobDirectory, "started.json"), DateTime.UtcNow.AddMinutes(-31));
             await File.WriteAllBytesAsync(Path.Combine(jobDirectory, "source.zip"), [1, 2, 3]);
 
             await Task.WhenAll(Enumerable.Range(0, 16).Select(_ =>
