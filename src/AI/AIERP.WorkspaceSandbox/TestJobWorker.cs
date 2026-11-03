@@ -591,7 +591,8 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
                 var path = Path.Combine(jobDirectory, "progress.json");
                 var temporary = path + ".tmp";
                 File.WriteAllText(temporary, JsonSerializer.Serialize(new { message, output = output.ToString() }, JsonOptions));
-                File.SetUnixFileMode(temporary, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+                if (OperatingSystem.IsLinux())
+                    File.SetUnixFileMode(temporary, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
                 File.Move(temporary, path, overwrite: true);
                 lastWrite = Environment.TickCount64;
             }
