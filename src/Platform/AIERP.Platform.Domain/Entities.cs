@@ -2983,6 +2983,15 @@ public sealed class TenantDashboardWidget
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+public sealed class TenantStandardMenuLayout
+{
+    public Guid TenantId { get; set; }
+    public string LayoutJson { get; set; } = "[]";
+    public int Revision { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class TenantCustomMenuEntry
 {
     public Guid Id { get; set; } = Guid.NewGuid();

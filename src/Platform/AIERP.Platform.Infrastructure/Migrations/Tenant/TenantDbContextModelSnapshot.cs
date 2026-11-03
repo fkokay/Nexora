@@ -17288,6 +17288,30 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantStandardMenuLayout", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("LayoutJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("TenantId");
+
+                    b.ToTable("TenantStandardMenuLayouts");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantWorkflowAction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -20906,6 +20930,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .IsRequired();
 
                     b.Navigation("ScreenView");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantStandardMenuLayout", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.TenantWorkflowAction", b =>

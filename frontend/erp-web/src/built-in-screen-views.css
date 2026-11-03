@@ -47,3 +47,49 @@
 
 .screen-view-preview-actions{display:flex;flex-wrap:wrap;gap:4px}.screen-view-preview-actions button{min-height:24px;padding:2px 6px;font-size:10px;white-space:nowrap}.screen-view-preview-actions button:disabled{opacity:.72;cursor:not-allowed}
 .screen-view-field-width{grid-template-columns:16px 24px minmax(90px,1fr) minmax(100px,.8fr) minmax(76px,.5fr) auto 58px}.screen-view-width-label{display:grid;gap:3px;min-width:0;color:#8a93a7;font-size:9px;font-weight:700}.screen-view-width-label input{min-width:0;width:100%;height:32px;padding:0 8px;border:1px solid #e7eaf2;border-radius:8px;color:#556078;font:inherit;font-size:11px}.screen-view-width-label input:focus{outline:3px solid #725cf02b;border-color:#725cf0}@media(max-width:680px){.screen-view-field-width{grid-template-columns:14px 22px minmax(70px,1fr) minmax(70px,.55fr) 54px}.screen-view-field-width .screen-view-width-label{grid-column:4}.screen-view-field-width .screen-view-order{grid-column:5}}
+
+/* Column editor: keep the controls aligned as the workspace changes width. */
+.screen-view-editor { container-type: inline-size; }
+.screen-view-editor .screen-view-name { margin-bottom: 20px; }
+.screen-view-fields-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
+.screen-view-fields-heading > div { display: grid; gap: 3px; }
+.screen-view-fields-heading strong { color: #263b54; font-size: 12px; }
+.screen-view-fields-heading div span { color: #77869a; font-size: 11px; }
+.screen-view-field-count { flex: none; padding: 5px 9px; border: 1px solid #dbe8f2; border-radius: 20px; background: #f2f8fc; color: #276a96; font-size: 10px; font-weight: 700; }
+.screen-view-editor .screen-view-fields { gap: 7px; }
+.screen-view-editor .screen-view-field,
+.screen-view-editor .screen-view-field-width { display: grid; grid-template-columns: 14px 30px minmax(110px, 1.4fr) minmax(85px, .8fr) minmax(72px, .62fr) 58px; align-items: center; gap: 9px; min-height: 72px; padding: 9px 10px; border: 1px solid #dfe7ef; border-radius: 9px; background: #fff; transition: border-color .15s, background .15s, box-shadow .15s; }
+.screen-view-editor .screen-view-field:not(.screen-view-field-width) { grid-template-columns: 14px 30px minmax(110px, 1.4fr) minmax(85px, .8fr) 58px; }
+.screen-view-editor .screen-view-field:hover { border-color: #b5cede; box-shadow: 0 2px 8px #1b53700a; }
+.screen-view-editor .screen-view-field.is-hidden { background: #f8fafc; border-color: #e7edf3; }
+.screen-view-editor .screen-view-field.fixed { background: #f3f6f9; }
+.screen-view-editor .screen-view-grip { color: #a0afbd; }
+.screen-view-editor .screen-view-visible { width: 30px; height: 30px; border: 1px solid #d8e8f3; border-radius: 8px; background: #edf7fd; color: #116a9f; }
+.screen-view-editor .is-hidden .screen-view-visible { border-color: #e1e7ed; background: #fff; color: #9aa8b6; }
+.screen-view-editor .screen-view-visible:has(input:disabled) { cursor: not-allowed; opacity: .7; }
+.screen-view-editor .screen-view-field-label, .screen-view-editor .screen-view-section-label, .screen-view-editor .screen-view-width-label { display: grid; position: relative; min-width: 0; gap: 4px; color: #68798b; font-size: 10px; font-weight: 700; }
+.screen-view-editor .screen-view-field-label input, .screen-view-editor .screen-view-section-label input, .screen-view-editor .screen-view-width-label input { box-sizing: border-box; width: 100%; min-width: 0; height: 32px; padding: 0 9px; border: 1px solid #dce5ed; border-radius: 6px; background: #fff; color: #243c52; font: inherit; font-size: 12px; font-weight: 500; }
+.screen-view-editor .screen-view-field-label input:focus, .screen-view-editor .screen-view-section-label input:focus, .screen-view-editor .screen-view-width-label input:focus { outline: 2px solid #0078d433; border-color: #1682c4; }
+.screen-view-editor .screen-view-section-label input:disabled { background: #edf1f5; color: #8a98a8; }
+.screen-view-editor .screen-view-field-label code { overflow: hidden; color: #94a2b1; font-size: 9px; font-weight: 400; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.screen-view-editor .screen-view-order { align-self: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
+.screen-view-editor .screen-view-order small { width: 100%; color: #7e8da0; text-align: right; }
+.screen-view-editor .screen-view-order button { width: 27px; height: 27px; border-color: #dce6ee; border-radius: 6px; background: #fff; }
+.screen-view-editor .screen-view-order button:not(:disabled):hover { border-color: #91bed9; background: #f0f8fd; }
+.screen-view-editor .screen-view-actions { margin-top: 16px; padding-top: 14px; }
+@container (max-width: 560px) {
+  .screen-view-editor .screen-view-field, .screen-view-editor .screen-view-field-width,
+  .screen-view-editor .screen-view-field:not(.screen-view-field-width) { grid-template-columns: 14px 30px minmax(0, 1fr) 58px; gap: 8px; }
+  .screen-view-editor .screen-view-grip { grid-column: 1; grid-row: 1; }
+  .screen-view-editor .screen-view-visible { grid-column: 2; grid-row: 1; }
+  .screen-view-editor .screen-view-field-label { grid-column: 3; grid-row: 1; }
+  .screen-view-editor .screen-view-order, .screen-view-editor .screen-view-field-width .screen-view-order { grid-column: 4; grid-row: 1; }
+  .screen-view-editor .screen-view-section-label { display: grid; grid-column: 3; grid-row: 2; }
+  .screen-view-editor .screen-view-width-label, .screen-view-editor .screen-view-field-width .screen-view-width-label { grid-column: 4; grid-row: 2; }
+}
+@container (max-width: 560px) {
+  .screen-view-editor .screen-view-field, .screen-view-editor .screen-view-field-width,
+  .screen-view-editor .screen-view-field:not(.screen-view-field-width) { grid-template-columns: 14px 30px minmax(0, 1fr) 86px; }
+}
+.screen-view-fields-heading > .screen-view-field-tools{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}.screen-view-add-field{display:flex;align-items:center;gap:6px;padding:5px 7px;border:1px solid #cddcf0;border-radius:9px;background:#f9fbff;color:#245f96;font-size:11px;font-weight:700}.screen-view-add-field input,.screen-view-add-field select{box-sizing:border-box;height:30px;max-width:180px;min-width:100px;padding:4px 7px;border:1px solid #d9e2ef;border-radius:6px;background:#fff;color:#293c54;font:inherit;font-weight:500}.screen-view-add-field input{width:140px}.screen-view-add-field input::placeholder{color:#8290a4}.screen-view-add-field button{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 9px;border:1px solid #c9d3fa;border-radius:7px;background:#fff;color:#5141bd;font:inherit;font-size:10px;font-weight:700;white-space:nowrap}.screen-view-add-field button:not(:disabled):hover{border-color:#8d7cf0;background:#f5f2ff}.screen-view-add-field button:disabled,.screen-view-add-field select:disabled,.screen-view-add-field input:disabled{opacity:.55}
+@media(max-width:760px){.screen-view-fields-heading{align-items:flex-start;flex-wrap:wrap}.screen-view-fields-heading>.screen-view-field-tools{justify-content:flex-start;width:100%}.screen-view-add-field{flex:1 1 100%;flex-wrap:wrap}.screen-view-add-field input{flex:1 1 110px;width:auto}.screen-view-add-field select{flex:1 1 120px;max-width:none}}

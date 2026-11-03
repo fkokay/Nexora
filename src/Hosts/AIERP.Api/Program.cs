@@ -1396,7 +1396,16 @@ customers.MapGet("/", async (string? q, string? type, string? status, ClaimsPrin
             x.GroupId, x.Group == null ? null : x.Group.Name, x.CurrencyCode, x.RiskLimit, x.PaymentTermDays, x.IdentityNumber, x.TaxOffice,
             visibleAccounts.Where(parent => parent.Id == x.ParentCompanyId).Select(parent => (Guid?)parent.Id).FirstOrDefault(),
             visibleAccounts.Where(parent => parent.Id == x.ParentCompanyId).Select(parent => parent.Name).FirstOrDefault(),
-            visibleAccounts.Count(subsidiary => subsidiary.ParentCompanyId == x.Id))).ToListAsync();
+            visibleAccounts.Count(subsidiary => subsidiary.ParentCompanyId == x.Id), null)).ToListAsync();
+    var customerIds = items.Select(x => x.Id).ToArray();
+    var customValues = await (from value in db.CustomerCustomFieldValues.AsNoTracking()
+        join definition in db.CustomerCustomFieldDefinitions.AsNoTracking()
+            on new { value.TenantId, Id = value.DefinitionId } equals new { definition.TenantId, definition.Id }
+        where value.TenantId == tenantId && definition.IsActive && customerIds.Contains(value.CustomerId)
+        select new { value.CustomerId, value.DefinitionId, value.Value }).ToListAsync(ct);
+    var valuesByCustomer = customValues.GroupBy(x => x.CustomerId).ToDictionary(x => x.Key,
+        x => (IReadOnlyDictionary<string, string>)x.ToDictionary(v => $"custom:{v.DefinitionId:D}", v => v.Value));
+    items = items.Select(item => item with { CustomFields = valuesByCustomer.GetValueOrDefault(item.Id) }).ToList();
     return Results.Ok(new CustomerPage(items, page, pageSize, total));
 });
 customers.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db,
@@ -1414,7 +1423,7 @@ customers.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tenant
             x.GroupId, x.Group == null ? null : x.Group.Name, x.CurrencyCode, x.RiskLimit, x.PaymentTermDays, x.IdentityNumber, x.TaxOffice,
             visibleAccounts.Where(parent => parent.Id == x.ParentCompanyId).Select(parent => (Guid?)parent.Id).FirstOrDefault(),
             visibleAccounts.Where(parent => parent.Id == x.ParentCompanyId).Select(parent => parent.Name).FirstOrDefault(),
-            visibleAccounts.Count(subsidiary => subsidiary.ParentCompanyId == x.Id))).SingleOrDefaultAsync(ct);
+            visibleAccounts.Count(subsidiary => subsidiary.ParentCompanyId == x.Id), null)).SingleOrDefaultAsync(ct);
     return customer is null ? Results.NotFound() : Results.Ok(customer);
 });
 customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -4301,7 +4310,20 @@ salesInvoices.MapGet("/", async (string? q, Guid? customerId, ClaimsPrincipal pr
     var total = await query.CountAsync();
     var rows = await query.OrderByDescending(x => x.InvoiceDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
         .Select(x => new SalesInvoiceSummary(x.Id, x.Code, x.DeliveryId, x.Delivery != null ? x.Delivery.Code : db.StandaloneSalesDeliveries.Where(d => d.TenantId == tenantId && d.Id == x.StandaloneDeliveryId).Select(d => d.Code).FirstOrDefault(), x.OrderId, x.Order == null ? null : x.Order.Code, x.CustomerId,
-            x.Customer.Name, x.InvoiceDate, x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt)).ToListAsync();
+            x.Customer.Name, x.InvoiceDate, x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt, x.Customer.TaxNumber)).ToListAsync();
+    var invoiceIds = rows.Select(x => x.Id).ToArray();
+    if (invoiceIds.Length > 0)
+    {
+        var customValues = await (from value in db.SalesInvoiceCustomFieldValues.AsNoTracking()
+            join definition in db.SalesInvoiceCustomFieldDefinitions.AsNoTracking()
+                on new { value.TenantId, value.DefinitionId } equals new { definition.TenantId, DefinitionId = definition.Id }
+            where value.TenantId == tenantId && invoiceIds.Contains(value.InvoiceId)
+            select new { value.InvoiceId, value.DefinitionId, value.Value }).ToListAsync();
+        var customFieldsByInvoice = customValues.GroupBy(value => value.InvoiceId).ToDictionary(
+            group => group.Key,
+            group => (IReadOnlyDictionary<string, string>)group.ToDictionary(value => $"custom:{value.DefinitionId:D}", value => value.Value, StringComparer.Ordinal));
+        rows = rows.Select(row => row with { ListCustomFields = customFieldsByInvoice.GetValueOrDefault(row.Id) }).ToList();
+    }
     return Results.Ok(new SalesInvoicePage(rows, page, pageSize, total));
 });
 salesInvoices.MapGet("/assistant-detail", async (string? q, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, CancellationToken cancellationToken) =>

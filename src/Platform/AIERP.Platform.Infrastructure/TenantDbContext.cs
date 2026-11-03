@@ -9,6 +9,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
 {
     /// <summary>The signed-in tenant identity when this context serves an HTTP request.</summary>
     public Guid? ExecutionTenantId => auditExecutionContext?.TenantId;
+    public DbSet<TenantStandardMenuLayout> TenantStandardMenuLayouts => Set<TenantStandardMenuLayout>();
 
     public DbSet<ManufacturingWorkCenterAnnualCapacityRule> ManufacturingWorkCenterAnnualCapacityRules => Set<ManufacturingWorkCenterAnnualCapacityRule>();
     public DbSet<ManufacturingWorkCenterShiftRotation> ManufacturingWorkCenterShiftRotations => Set<ManufacturingWorkCenterShiftRotation>();
@@ -30,6 +31,13 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<TenantStandardMenuLayout>(e =>
+        {
+            e.HasKey(x => x.TenantId);
+            e.Property(x => x.LayoutJson).IsRequired();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<ManufacturingWorkCenterAnnualCapacityRule>(e =>
         {
             e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });

@@ -1,5 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
+    <EmbeddedResource Include="../../../deploy/docker/ErpWeb.Dockerfile" LogicalName="WebUpdate.Dockerfile" />
+    <EmbeddedResource Include="../../../deploy/docker/erp-web.nginx.conf" LogicalName="WebUpdate.nginx.conf" />
+    <EmbeddedResource Include="../../../deploy/docker/Platform.Api.Dockerfile" LogicalName="WebUpdate.PlatformApi.Dockerfile" />
+    <EmbeddedResource Include="../../../deploy/docker/AIService.Dockerfile" LogicalName="WebUpdate.AIService.Dockerfile" />
+    <EmbeddedResource Include="../../../deploy/docker/PluginHost.Dockerfile" LogicalName="WebUpdate.PluginHost.Dockerfile" />
+    <EmbeddedResource Include="../../../deploy/docker/IntegrationHost.Dockerfile" LogicalName="WebUpdate.IntegrationHost.Dockerfile" />
+    <EmbeddedResource Include="../../../deploy/docker/TenantProvisioningWorker.Dockerfile" LogicalName="WebUpdate.TenantProvisioningWorker.Dockerfile" />
+    <EmbeddedResource Include="../../../deploy/docker/WorkspaceRunner.Dockerfile" LogicalName="WebUpdate.WorkspaceRunner.Dockerfile" />
+    <EmbeddedResource Include="../../../deploy/docker/WorkspaceSandbox.Dockerfile" LogicalName="WebUpdate.WorkspaceSandbox.Dockerfile" />
     <ProjectReference Include="..\..\Observability\AIERP.Observability\AIERP.Observability.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
   </ItemGroup>

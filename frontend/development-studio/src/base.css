@@ -33,3 +33,13 @@ input:focus,textarea:focus,select:focus { border-color: var(--studio-blue)!impor
 .request-row:hover,.customer-table tbody tr:hover { background: #f4f8fc; }
 .request-symbol,.customer-summary-icon,.tiny-icon,.studio-icon { border-radius: 4px; background: #eaf3fb; color: var(--studio-blue); box-shadow: none; }
 .status-live,.active-pill.yes { border-radius: 4px; }
+
+/* Keep release PR drafts readable inside the candidate grid. */
+.pr-draft-panel{grid-column:1/-1;min-width:0;width:100%;}
+.pr-draft-heading{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:start;gap:10px 12px;min-width:0;}
+.pr-draft-heading>div:first-child{min-width:0;}
+.pr-draft-heading .pr-draft-branches{overflow-wrap:anywhere;}
+.pr-draft-heading .pr-draft-branches small{display:block;line-height:1.5;}
+.pr-draft-heading .pr-draft-publish-note{grid-column:1/-1;white-space:normal;line-height:1.5;}
+.pr-draft-panel pre{max-width:100%;overflow-wrap:anywhere;}
+@media(max-width:760px){.pr-draft-heading{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}.pr-draft-heading>div:first-child{grid-column:1/-1;}.pr-draft-heading>button{width:100%;min-width:0;white-space:normal;}.pr-draft-heading .pr-draft-publish-note{grid-column:1/-1;}}

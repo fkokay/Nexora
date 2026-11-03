@@ -122,12 +122,19 @@ export default function ScreenViewEditor({
               onChange={(event) => onNameChange(event.target.value)}
             />
           </label>
+          <div className="screen-view-fields-heading">
+            <div>
+              <strong>{en ? "Column settings" : "Sütun ayarları"}</strong>
+              <span>{en ? "Show, hide or reorder fields" : "Alanları gösterin, gizleyin veya sıralayın"}</span>
+            </div>
+            <span className="screen-view-field-count">{visibleCount} / {fields.length} {en ? "visible" : "görünür"}</span>
+          </div>
           <div className="screen-view-fields">
             {[...fields]
               .sort((a, b) => a.position - b.position)
               .map((field, index) => (
                 <article
-                  className={`screen-view-field${field.fixed ? " fixed" : ""}${supportsColumnWidth(screenKey) ? " screen-view-field-width" : ""}`}
+                  className={`screen-view-field${field.fixed ? " fixed" : ""}${!field.visible ? " is-hidden" : ""}${supportsColumnWidth(screenKey) && !field.fixed ? " screen-view-field-width" : ""}`}
                   key={field.key}
                   draggable={!field.fixed}
                   onDragStart={(event) =>
@@ -151,6 +158,7 @@ export default function ScreenViewEditor({
                   >
                     <input
                       type="checkbox"
+                      aria-label={en ? `Show ${field.label}` : `${field.label} alanını göster`}
                       checked={field.visible}
                       disabled={field.fixed}
                       onChange={(event) =>
@@ -161,14 +169,18 @@ export default function ScreenViewEditor({
                     />
                     {field.visible ? <Eye size={16} /> : <EyeOff size={16} />}
                   </label>
-                  <input
-                    aria-label={en ? "Column label" : "Sütun etiketi"}
-                    maxLength={80}
-                    value={field.label}
-                    onChange={(event) =>
-                      onUpdateField(field.key, { label: event.target.value })
-                    }
-                  />
+                  <label className="screen-view-field-label">
+                    <span>{en ? "Column label" : "Sütun adı"}</span>
+                    <input
+                      aria-label={en ? `Column label for ${field.label}` : `${field.label} sütun adı`}
+                      maxLength={80}
+                      value={field.label}
+                      onChange={(event) =>
+                        onUpdateField(field.key, { label: event.target.value })
+                      }
+                    />
+                    <code title={field.key}>{field.key.startsWith("custom:") ? (en ? "Custom field" : "Özel alan") : field.key}</code>
+                  </label>
                   <label className="screen-view-section-label">
                     {en ? "Section" : "Bölüm"}
                     <input
@@ -213,12 +225,11 @@ export default function ScreenViewEditor({
                       />
                     </label>
                   )}
-                  <code>{field.key}</code>
-                  {field.fixed && <small>{en ? "Required" : "Zorunlu"}</small>}
-                  <div className="screen-view-order">
+                  <div className="screen-view-order" aria-label={en ? "Column order" : "Sütun sırası"}>
+                    {field.fixed && <small>{en ? "Required" : "Zorunlu"}</small>}
                     <button
                       type="button"
-                      aria-label={en ? "Move up" : "Yukarı taşı"}
+                      aria-label={en ? `Move ${field.label} up` : `${field.label} alanını yukarı taşı`}
                       disabled={
                         index === 0 || field.fixed || fields[index - 1]?.fixed
                       }
@@ -228,7 +239,7 @@ export default function ScreenViewEditor({
                     </button>
                     <button
                       type="button"
-                      aria-label={en ? "Move down" : "Aşağı taşı"}
+                      aria-label={en ? `Move ${field.label} down` : `${field.label} alanını aşağı taşı`}
                       disabled={
                         index === fields.length - 1 ||
                         field.fixed ||

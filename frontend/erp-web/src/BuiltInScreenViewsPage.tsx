@@ -364,6 +364,21 @@ export default function BuiltInScreenViewsPage({
       ),
     );
   }
+  function addField(key: string) {
+    const metadata = state?.catalog.fields.find((field) => field.key === key);
+    if (!metadata || metadata.fixed) return;
+    setFields((current) => {
+      const ordered = [...current].sort((a, b) => a.position - b.position);
+      const existing = ordered.find((field) => field.key === key);
+      const added: LayoutField = existing
+        ? { ...existing, visible: true }
+        : { key, label: metadata.label, visible: true, position: ordered.length, fixed: false };
+      const visible = ordered.filter((field) => field.visible && !field.fixed && field.key !== key);
+      const hidden = ordered.filter((field) => !field.visible && !field.fixed && field.key !== key);
+      const fixed = ordered.filter((field) => field.fixed);
+      return [...visible, added, ...hidden, ...fixed].map((field, position) => ({ ...field, position }));
+    });
+  }
   function move(index: number, delta: -1 | 1) {
     const next = [...fields].sort((a, b) => a.position - b.position);
     const target = index + delta;
@@ -813,6 +828,7 @@ export default function BuiltInScreenViewsPage({
             onSaveDraft={() => void saveDraft()}
             onPublishDraft={() => void publishDraft()}
             onUpdateField={updateField}
+            onAddField={addField}
             onMove={move}
             onReorder={reorder}
           />

@@ -12,11 +12,12 @@ public sealed record SandboxTestJob(Guid Id, Guid WorkspaceId, string TargetPath
 internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJobWorker> logger) : BackgroundService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private const long MaxArchiveBytes = 100 * 1024 * 1024;
+    private const long MaxArchiveBytes = 200 * 1024 * 1024;
     private const int MaxFiles = 20_000;
     private const int MaxOutputCharacters = 32_000;
     private const int MaxPackageCacheEntries = 50_000;
-    private static readonly TimeSpan DotNetRestoreTimeout = TimeSpan.FromSeconds(120);
+    private int BuildMaxNodeCount => Math.Clamp(configuration.GetValue<int?>("WorkspaceSandbox:BuildMaxNodeCount") ?? 2, 1, 6);
+    private static readonly TimeSpan DotNetRestoreTimeout = TimeSpan.FromMinutes(7);
     private static readonly HashSet<string> ExcludedDirectories = new(StringComparer.OrdinalIgnoreCase)
         { ".git", ".vs", ".next", "node_modules", "bin", "obj", "dist", "build", "coverage", "packages", "vendor" };
 
@@ -57,6 +58,8 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
         if (job is null || job.Id == Guid.Empty || job.WorkspaceId == Guid.Empty || job.Operation is not ("test" or "build") || !IsSafeProjectPath(job.TargetPath))
         { await WriteResultAsync(resultPath, new(false, "InvalidJob", "Sandbox job metadata was rejected.", 0, ""), stoppingToken); return; }
         await File.WriteAllTextAsync(Path.Combine(jobDirectory, "started.json"), DateTimeOffset.UtcNow.ToString("O"), stoppingToken);
+        var progress = new JobProgress(jobDirectory);
+        progress.SetStage("Kaynak görüntüsü hazırlanıyor.");
         if (DateTimeOffset.UtcNow - job.CreatedAt > TimeSpan.FromMinutes(20))
         {
             await WriteResultAsync(resultPath, new(false, "QueueExpired", "Test işi sandbox kuyruğunda 20 dakikadan fazla bekledi.", -1, ""), stoppingToken);
@@ -76,20 +79,23 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
             if (!target.StartsWith(workDirectory + Path.DirectorySeparatorChar, StringComparison.Ordinal) || !File.Exists(target))
                 throw new SandboxRejectedException("Selected test project was not found in the snapshot.");
             MakeSnapshotWritableForSandboxUser(workDirectory);
+            progress.SetStage("Sandbox hedefi çalıştırıyor.");
             if (job.Operation == "build")
             {
                 if (Path.GetExtension(job.TargetPath).Equals(".csproj", StringComparison.OrdinalIgnoreCase))
                 {
+                    progress.SetStage("NuGet bağımlılıkları hazırlanıyor.");
                     if (!TryCreateNugetRestoreConfig(workDirectory, out var restoreConfigPath, out var cacheError, out var cacheStatus))
                         result = new(false, cacheStatus, cacheError, -1, "");
                     else
                     {
-                        var restore = await RunCommandAsync(workDirectory, "dotnet", ["restore", target, "--configfile", restoreConfigPath, "--ignore-failed-sources", "-p:NuGetAudit=false", "--disable-parallel"], DotNetRestoreTimeout, stoppingToken);
+                        var restore = await RunCommandAsync(workDirectory, "dotnet", ["restore", target, "--configfile", restoreConfigPath, "--ignore-failed-sources", "-p:NuGetAudit=false", "-p:MSBuildEnableWorkloadResolver=false", "-m:1", "--verbosity", "normal"], DotNetRestoreTimeout, stoppingToken, onOutput: progress.Append);
                         if (restore.ExitCode != 0)
                             result = new(false, restore.TimedOut ? "TimedOut" : "DependencyUnavailable", restore.TimedOut ? "Offline NuGet restore exceeded its time limit." : "Offline dependency restore failed. The sandbox has no network access; dependencies must be available in its approved package cache.", restore.ExitCode, CombineOutput(restore));
                         else
                         {
-                            var build = await RunCommandAsync(workDirectory, "dotnet", ["build", target, "--no-restore", "--configuration", "Release", "--verbosity", "minimal"], TimeSpan.FromSeconds(55), stoppingToken);
+                            progress.SetStage("Proje derleniyor.");
+                            var build = await RunCommandAsync(workDirectory, "dotnet", ["build", target, "--no-restore", "--configuration", "Release", $"-m:{BuildMaxNodeCount}", "-p:UseSharedCompilation=false", "--verbosity", "minimal"], TimeSpan.FromMinutes(15), stoppingToken, onOutput: progress.Append);
                             result = new(build.ExitCode == 0, build.TimedOut ? "TimedOut" : build.ExitCode == 0 ? "Built" : "BuildFailed",
                                 build.TimedOut ? "Build exceeded its time limit." : build.ExitCode == 0 ? ".NET build completed successfully." : ".NET build failed.", build.ExitCode, CombineOutput(build));
                         }
@@ -189,18 +195,20 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
             }
             else if (Path.GetExtension(job.TargetPath).Equals(".csproj", StringComparison.OrdinalIgnoreCase))
             {
+                progress.SetStage("NuGet bağımlılıkları hazırlanıyor.");
                 if (!TryCreateNugetRestoreConfig(workDirectory, out var restoreConfigPath, out var cacheError, out var cacheStatus))
                 {
                     result = new(false, cacheStatus, cacheError, -1, "");
                 }
                 else
                 {
-                    var restore = await RunCommandAsync(workDirectory, "dotnet", ["restore", target, "--configfile", restoreConfigPath, "--ignore-failed-sources", "-p:NuGetAudit=false", "--disable-parallel"], DotNetRestoreTimeout, stoppingToken);
+                    var restore = await RunCommandAsync(workDirectory, "dotnet", ["restore", target, "--configfile", restoreConfigPath, "--ignore-failed-sources", "-p:NuGetAudit=false", "-p:MSBuildEnableWorkloadResolver=false", "-m:1", "--verbosity", "normal"], DotNetRestoreTimeout, stoppingToken, onOutput: progress.Append);
                     if (restore.ExitCode != 0)
                         result = new(false, restore.TimedOut ? "TimedOut" : "DependencyUnavailable", restore.TimedOut ? "Offline NuGet restore exceeded its time limit." : "Offline dependency restore failed. The sandbox has no network access; dependencies must be available in its approved package cache.", restore.ExitCode, CombineOutput(restore));
                     else
                     {
-                        var test = await RunCommandAsync(workDirectory, "dotnet", ["test", target, "--no-restore", "--logger", "console;verbosity=minimal"], TimeSpan.FromSeconds(55), stoppingToken);
+                        progress.SetStage("Proje derleniyor ve testler çalıştırılıyor.");
+                        var test = await RunCommandAsync(workDirectory, "dotnet", ["test", target, "--no-restore", $"-m:{BuildMaxNodeCount}", "-p:UseSharedCompilation=false", "--logger", "console;verbosity=minimal"], TimeSpan.FromMinutes(15), stoppingToken, onOutput: progress.Append);
                         result = new(test.ExitCode == 0, test.TimedOut ? "TimedOut" : test.ExitCode == 0 ? "Passed" : "Failed",
                             test.TimedOut ? "Test execution exceeded its time limit." : test.ExitCode == 0 ? "Tests completed successfully." : "Tests failed.", test.ExitCode, CombineOutput(test));
                     }
@@ -366,7 +374,10 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
             var path = entry.FullName.Replace('\\', '/');
             if (string.IsNullOrWhiteSpace(path) || path.StartsWith('/') || path.Contains(':') || path.Any(char.IsControl) || path.Split('/').Any(x => x is "" or "." or ".."))
                 throw new SandboxRejectedException("Source snapshot contains an unsafe path.");
-            if (path.Split('/').Any(x => ExcludedDirectories.Contains(x) || x.StartsWith('.') || IsSecretName(x))) continue;
+            var segments = path.Split('/');
+            if (segments.Any(x => ExcludedDirectories.Contains(x) || x.StartsWith('.')) ||
+                segments.SkipLast(1).Any(IsSecretName) ||
+                (IsSecretName(segments[^1]) && !Path.GetExtension(segments[^1]).Equals(".cs", StringComparison.OrdinalIgnoreCase))) continue;
             var unixType = (entry.ExternalAttributes >> 16) & 0xF000;
             if (unixType == 0xA000) throw new SandboxRejectedException("Source snapshot contains a symbolic link.");
             if (entry.Name.Length == 0) continue;
@@ -412,7 +423,7 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
     }
 
     private static async Task<ProcessResult> RunCommandAsync(string workingDirectory, string executable, IReadOnlyList<string> arguments,
-        TimeSpan timeout, CancellationToken cancellationToken, IReadOnlyDictionary<string, string>? environmentOverrides = null)
+        TimeSpan timeout, CancellationToken cancellationToken, IReadOnlyDictionary<string, string>? environmentOverrides = null, Action<string>? onOutput = null)
     {
         var tempDirectory = Path.Combine(workingDirectory, ".tmp");
         Directory.CreateDirectory(tempDirectory);
@@ -437,6 +448,7 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
         process.StartInfo.Environment["NUGET_PACKAGES"] = Path.Combine(workingDirectory, ".nuget");
         process.StartInfo.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         process.StartInfo.Environment["DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE"] = "1";
+        process.StartInfo.Environment["MSBuildEnableWorkloadResolver"] = "false";
         process.StartInfo.Environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
         process.StartInfo.Environment["DOTNET_NOLOGO"] = "1";
         process.StartInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
@@ -457,8 +469,8 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
             foreach (var (key, value) in environmentOverrides)
                 process.StartInfo.Environment[key] = value;
         process.Start();
-        var stdoutTask = ReadBoundedAsync(process.StandardOutput, MaxOutputCharacters / 2);
-        var stderrTask = ReadBoundedAsync(process.StandardError, MaxOutputCharacters / 2);
+        var stdoutTask = ReadBoundedAsync(process.StandardOutput, MaxOutputCharacters / 2, onOutput);
+        var stderrTask = ReadBoundedAsync(process.StandardError, MaxOutputCharacters / 2, onOutput);
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(timeout);
         var timedOut = false;
@@ -506,14 +518,27 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
     [DllImport("libc", SetLastError = true)]
     private static extern int kill(int processId, int signal);
 
-    private static async Task<(string Text, bool Truncated)> ReadBoundedAsync(StreamReader reader, int maxCharacters)
+    private static async Task<(string Text, bool Truncated)> ReadBoundedAsync(StreamReader reader, int maxCharacters, Action<string>? onOutput = null)
     {
         var buffer = new char[4096]; var output = new StringBuilder(Math.Min(maxCharacters, 4096)); var truncated = false; int count;
         while ((count = await reader.ReadAsync(buffer)) > 0)
         {
-            var remaining = maxCharacters - output.Length;
-            if (remaining > 0) output.Append(buffer, 0, Math.Min(count, remaining));
-            if (count > remaining) truncated = true;
+            onOutput?.Invoke(new string(buffer, 0, count));
+            if (count >= maxCharacters)
+            {
+                output.Clear();
+                output.Append(buffer, count - maxCharacters, maxCharacters);
+                truncated = true;
+                continue;
+            }
+
+            var excess = output.Length + count - maxCharacters;
+            if (excess > 0)
+            {
+                output.Remove(0, excess);
+                truncated = true;
+            }
+            output.Append(buffer, 0, count);
         }
         return (output.ToString(), truncated);
     }
@@ -523,6 +548,56 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
         var value = (result.Stdout.Text + "\n" + result.Stderr.Text).Trim();
         if (result.Stdout.Truncated || result.Stderr.Truncated) value += "\n[çıktı kısaltıldı]";
         return value.Length <= MaxOutputCharacters ? value : value[..MaxOutputCharacters];
+    }
+
+    private sealed class JobProgress(string jobDirectory)
+    {
+        private readonly object gate = new();
+        private readonly StringBuilder output = new();
+        private string message = "Sandbox işi hazırlanıyor.";
+        private long lastWrite;
+
+        public void SetStage(string stage)
+        {
+            lock (gate)
+            {
+                message = stage;
+                if (output.Length > 0) output.AppendLine();
+                output.AppendLine($"--- {stage} ---");
+                Trim();
+                Write();
+            }
+        }
+
+        public void Append(string chunk)
+        {
+            lock (gate)
+            {
+                output.Append(chunk);
+                Trim();
+                if (Environment.TickCount64 - lastWrite >= 1000) Write();
+            }
+        }
+
+        private void Trim()
+        {
+            if (output.Length > MaxOutputCharacters) output.Remove(0, output.Length - MaxOutputCharacters);
+        }
+
+        private void Write()
+        {
+            try
+            {
+                var path = Path.Combine(jobDirectory, "progress.json");
+                var temporary = path + ".tmp";
+                File.WriteAllText(temporary, JsonSerializer.Serialize(new { message, output = output.ToString() }, JsonOptions));
+                File.SetUnixFileMode(temporary, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+                File.Move(temporary, path, overwrite: true);
+                lastWrite = Environment.TickCount64;
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
     }
 
     private static async Task WriteResultAsync(string path, SandboxTestResult result, CancellationToken cancellationToken)

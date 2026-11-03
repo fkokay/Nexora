@@ -32,7 +32,7 @@ export function CustomMenuList({
     <section className="panel custom-menu-list">
       <div className="panel-heading">
         <div>
-          <h3>Çalışma alanı menüsü</h3>
+          <h3>Özel kısayollar</h3>
           <p>
             {entries.length
               ? "Sıra, bütün tenant kullanıcılarına uygulanır."

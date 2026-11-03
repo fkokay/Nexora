@@ -68,6 +68,7 @@ public sealed class WorkspaceTestSandboxSecurityTests
         Directory.CreateDirectory(Path.Combine(workspace, "tests"));
         Directory.CreateDirectory(Path.Combine(workspace, "bin"));
         Directory.CreateDirectory(Path.Combine(workspace, ".hidden"));
+        Directory.CreateDirectory(Path.Combine(workspace, "artifacts"));
         await File.WriteAllTextAsync(Path.Combine(workspace, "tests", "UnitTests.csproj"), "<Project />");
         await File.WriteAllTextAsync(Path.Combine(workspace, "tests", "Example.cs"), "public sealed class Example {}");
         await File.WriteAllTextAsync(Path.Combine(workspace, ".env"), "secret=value");
@@ -75,6 +76,8 @@ public sealed class WorkspaceTestSandboxSecurityTests
         await File.WriteAllTextAsync(Path.Combine(workspace, ".git", "config"), "git-secret");
         await File.WriteAllTextAsync(Path.Combine(workspace, "bin", "output.dll"), "generated");
         await File.WriteAllTextAsync(Path.Combine(workspace, ".hidden", "source.cs"), "hidden");
+        using (var generated = File.Create(Path.Combine(workspace, "artifacts", "release.tar.gz")))
+            generated.SetLength(16 * 1024 * 1024 + 1);
 
         try
         {
@@ -86,12 +89,61 @@ public sealed class WorkspaceTestSandboxSecurityTests
             Assert.DoesNotContain(paths, path => path.Contains(".git", StringComparison.Ordinal));
             Assert.DoesNotContain(paths, path => path.Contains("bin/", StringComparison.Ordinal));
             Assert.DoesNotContain(paths, path => path.Contains(".hidden", StringComparison.Ordinal));
+            Assert.DoesNotContain(paths, path => path.StartsWith("artifacts/", StringComparison.Ordinal));
             Assert.DoesNotContain(paths, path => path.Contains("Password", StringComparison.OrdinalIgnoreCase));
             Assert.DoesNotContain(paths, path => path.Contains(".env", StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Snapshot_includes_only_unchanged_committed_sensitive_named_csharp_sources()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "aierp-test-committed-source-" + Guid.NewGuid().ToString("N"));
+        var workspaceId = Guid.NewGuid();
+        var workspace = Path.Combine(root, workspaceId.ToString("N"));
+        var snapshot = Path.Combine(root, "snapshot.zip");
+        var destination = Path.Combine(root, "extracted");
+        Directory.CreateDirectory(Path.Combine(workspace, "tests"));
+        Directory.CreateDirectory(Path.Combine(workspace, "src"));
+        Directory.CreateDirectory(Path.Combine(workspace, "secrets"));
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(workspace, "tests", "UnitTests.csproj"), "<Project />");
+            await File.WriteAllTextAsync(Path.Combine(workspace, "src", "VaultTenantSqlCredentialStore.cs"), "public class VaultTenantSqlCredentialStore {} ");
+            await File.WriteAllTextAsync(Path.Combine(workspace, "src", "FileIntegrationSecretResolver.cs"), "public class FileIntegrationSecretResolver {} ");
+            await File.WriteAllTextAsync(Path.Combine(workspace, "src", "ApiKeyCipher.cs"), "public class ApiKeyCipher {} ");
+            await File.WriteAllTextAsync(Path.Combine(workspace, "src", "credential.json"), "{\"password\":\"fake\"}");
+            await File.WriteAllTextAsync(Path.Combine(workspace, "secrets", "SecretResolver.cs"), "fake secret folder");
+            Assert.Equal(0, (await WorkspaceSecurity.RunGit(root, ["-C", workspace, "init"], TimeSpan.FromSeconds(10), CancellationToken.None)).ExitCode);
+            Assert.Equal(0, (await WorkspaceSecurity.RunGit(root, ["-C", workspace, "add", "."], TimeSpan.FromSeconds(10), CancellationToken.None)).ExitCode);
+            Assert.Equal(0, (await WorkspaceSecurity.RunGit(root, ["-C", workspace, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "test"], TimeSpan.FromSeconds(20), CancellationToken.None)).ExitCode);
+            await File.WriteAllTextAsync(Path.Combine(workspace, "src", "UntrackedPassword.cs"), "fake secret");
+
+            await WorkspaceSecurity.CreateTestSnapshotAsync(root, workspaceId, "tests/UnitTests.csproj", snapshot, CancellationToken.None);
+            Directory.CreateDirectory(destination);
+            TestJobWorker.ExtractArchive(snapshot, destination);
+            Assert.True(File.Exists(Path.Combine(destination, "src", "VaultTenantSqlCredentialStore.cs")));
+            Assert.True(File.Exists(Path.Combine(destination, "src", "FileIntegrationSecretResolver.cs")));
+            Assert.True(File.Exists(Path.Combine(destination, "src", "ApiKeyCipher.cs")));
+            Assert.False(File.Exists(Path.Combine(destination, "src", "credential.json")));
+            Assert.False(File.Exists(Path.Combine(destination, "src", "UntrackedPassword.cs")));
+            Assert.False(Directory.Exists(Path.Combine(destination, "secrets")));
+
+            await File.WriteAllTextAsync(Path.Combine(workspace, "src", "VaultTenantSqlCredentialStore.cs"), "modified source");
+            var error = await Assert.ThrowsAsync<InvalidDataException>(() => WorkspaceSecurity.CreateTestSnapshotAsync(root, workspaceId, "tests/UnitTests.csproj", Path.Combine(root, "modified.zip"), CancellationToken.None));
+            Assert.Contains("commit ile eşleşmiyor", error.Message);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)) File.SetAttributes(file, FileAttributes.Normal);
+                Directory.Delete(root, recursive: true);
+            }
         }
     }
 

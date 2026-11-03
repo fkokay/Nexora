@@ -11,6 +11,7 @@ import {
   Send,
 } from "lucide-react";
 import type { EditorState, LayoutField } from "../types";
+import { useMemo, useState } from "react";
 
 const screensWithResizableColumns = new Set([
   "customers",
@@ -59,6 +60,7 @@ type Props = {
   onSaveDraft: () => void;
   onPublishDraft: () => void;
   onUpdateField: (key: string, update: Partial<LayoutField>) => void;
+  onAddField: (key: string) => void;
   onMove: (index: number, delta: -1 | 1) => void;
   onReorder: (source: string, target: string) => void;
 };
@@ -77,9 +79,22 @@ export default function ScreenViewEditor({
   onSaveDraft,
   onPublishDraft,
   onUpdateField,
+  onAddField,
   onMove,
   onReorder,
 }: Props) {
+  const [fieldSearch, setFieldSearch] = useState("");
+  const addableFields = useMemo(() => {
+    const query = fieldSearch.trim().toLocaleLowerCase(en ? "en" : "tr");
+    return fields
+      .filter((field) => !field.visible && !field.fixed)
+      .filter((field) => !query || `${field.label} ${field.key}`.toLocaleLowerCase(en ? "en" : "tr").includes(query))
+      .sort((a, b) => a.label.localeCompare(b.label, en ? "en" : "tr"));
+  }, [en, fieldSearch, fields]);
+  const [selectedFieldKey, setSelectedFieldKey] = useState("");
+  const selectedKey = addableFields.some((field) => field.key === selectedFieldKey)
+    ? selectedFieldKey
+    : addableFields[0]?.key ?? "";
   return (
     <section className="panel screen-view-editor">
       <div className="screen-view-panel-head">
@@ -122,12 +137,50 @@ export default function ScreenViewEditor({
               onChange={(event) => onNameChange(event.target.value)}
             />
           </label>
+          <div className="screen-view-fields-heading">
+            <div>
+              <strong>{en ? "Column settings" : "Sütun ayarları"}</strong>
+              <span>{en ? "Show, hide or reorder fields" : "Alanları gösterin, gizleyin veya sıralayın"}</span>
+            </div>
+            <div className="screen-view-field-tools">
+              <span className="screen-view-field-count">{visibleCount} / {fields.length} {en ? "visible" : "görünür"}</span>
+              <div className="screen-view-add-field">
+                <input
+                  type="search"
+                  aria-label={en ? "Search available fields" : "Kullanılabilir alanlarda ara"}
+                  placeholder={en ? "Search fields…" : "Alanlarda ara…"}
+                  value={fieldSearch}
+                  onChange={(event) => setFieldSearch(event.target.value)}
+                  disabled={busy || addableFields.length === 0 && !fieldSearch}
+                />
+                <select
+                  aria-label={en ? "Field to add" : "Eklenecek alan"}
+                  value={selectedKey}
+                  disabled={busy || addableFields.length === 0}
+                  onChange={(event) => setSelectedFieldKey(event.target.value)}
+                >
+                  {addableFields.length === 0 ? (
+                    <option value="">{en ? "No available fields" : "Alan bulunamadı"}</option>
+                  ) : addableFields.map((field) => (
+                    <option key={field.key} value={field.key}>{field.label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={busy || !selectedKey}
+                  onClick={() => selectedKey && onAddField(selectedKey)}
+                >
+                  <Plus size={14} /> {en ? "Add field" : "Alan ekle"}
+                </button>
+              </div>
+            </div>
+          </div>
           <div className="screen-view-fields">
             {[...fields]
               .sort((a, b) => a.position - b.position)
               .map((field, index) => (
                 <article
-                  className={`screen-view-field${field.fixed ? " fixed" : ""}${supportsColumnWidth(screenKey) ? " screen-view-field-width" : ""}`}
+                  className={`screen-view-field${field.fixed ? " fixed" : ""}${!field.visible ? " is-hidden" : ""}${supportsColumnWidth(screenKey) && !field.fixed ? " screen-view-field-width" : ""}`}
                   key={field.key}
                   draggable={!field.fixed}
                   onDragStart={(event) =>
@@ -151,6 +204,7 @@ export default function ScreenViewEditor({
                   >
                     <input
                       type="checkbox"
+                      aria-label={en ? `Show ${field.label}` : `${field.label} alanını göster`}
                       checked={field.visible}
                       disabled={field.fixed}
                       onChange={(event) =>
@@ -161,14 +215,18 @@ export default function ScreenViewEditor({
                     />
                     {field.visible ? <Eye size={16} /> : <EyeOff size={16} />}
                   </label>
-                  <input
-                    aria-label={en ? "Column label" : "Sütun etiketi"}
-                    maxLength={80}
-                    value={field.label}
-                    onChange={(event) =>
-                      onUpdateField(field.key, { label: event.target.value })
-                    }
-                  />
+                  <label className="screen-view-field-label">
+                    <span>{en ? "Column label" : "Sütun adı"}</span>
+                    <input
+                      aria-label={en ? `Column label for ${field.label}` : `${field.label} sütun adı`}
+                      maxLength={80}
+                      value={field.label}
+                      onChange={(event) =>
+                        onUpdateField(field.key, { label: event.target.value })
+                      }
+                    />
+                    <code title={field.key}>{field.key.startsWith("custom:") ? (en ? "Custom field" : "Özel alan") : field.key}</code>
+                  </label>
                   <label className="screen-view-section-label">
                     {en ? "Section" : "Bölüm"}
                     <input
@@ -213,12 +271,11 @@ export default function ScreenViewEditor({
                       />
                     </label>
                   )}
-                  <code>{field.key}</code>
-                  {field.fixed && <small>{en ? "Required" : "Zorunlu"}</small>}
-                  <div className="screen-view-order">
+                  <div className="screen-view-order" aria-label={en ? "Column order" : "Sütun sırası"}>
+                    {field.fixed && <small>{en ? "Required" : "Zorunlu"}</small>}
                     <button
                       type="button"
-                      aria-label={en ? "Move up" : "Yukarı taşı"}
+                      aria-label={en ? `Move ${field.label} up` : `${field.label} alanını yukarı taşı`}
                       disabled={
                         index === 0 || field.fixed || fields[index - 1]?.fixed
                       }
@@ -228,7 +285,7 @@ export default function ScreenViewEditor({
                     </button>
                     <button
                       type="button"
-                      aria-label={en ? "Move down" : "Aşağı taşı"}
+                      aria-label={en ? `Move ${field.label} down` : `${field.label} alanını aşağı taşı`}
                       disabled={
                         index === fields.length - 1 ||
                         field.fixed ||

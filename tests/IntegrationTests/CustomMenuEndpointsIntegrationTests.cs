@@ -73,6 +73,40 @@ public sealed class CustomMenuEndpointsIntegrationTests
             && x.Action.StartsWith("erp.custom-menu.")));
     }
 
+    [Fact]
+    public async Task Standard_menu_layout_is_tenant_scoped_versioned_and_admin_managed()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var initial = await client.GetFromJsonAsync<JsonElement>("/api/custom-menus/standard/");
+        Assert.Equal(0, initial.GetProperty("revision").GetInt32());
+        var items = initial.GetProperty("items").EnumerateArray().Select(x => new {
+            page = x.GetProperty("page").GetString(),
+            label = x.GetProperty("page").GetString() == "customers" ? "Müşterilerim" : (string?)null
+        }).ToArray();
+        Assert.Contains(items, x => x.page == "customers");
+        var changed = items.ToArray();
+        var customerIndex = Array.FindIndex(changed, x => x.page == "customers");
+        var nextIndex = customerIndex + 1;
+        (changed[customerIndex], changed[nextIndex]) = (changed[nextIndex], changed[customerIndex]);
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync("/api/custom-menus/standard/", new { expectedRevision = 0, items = changed })).StatusCode);
+        client.DefaultRequestHeaders.Remove("X-Test-Role");
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/custom-menus/standard/", new { expectedRevision = 0, items = changed })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync("/api/custom-menus/standard/", new { expectedRevision = 0, items = changed })).StatusCode);
+        var active = await client.GetFromJsonAsync<JsonElement>("/api/custom-menus/standard/");
+        Assert.Equal(1, active.GetProperty("revision").GetInt32());
+        var rows = active.GetProperty("items").EnumerateArray().ToArray();
+        Assert.Equal("Müşterilerim", rows.Single(x => x.GetProperty("page").GetString() == "customers").GetProperty("label").GetString());
+        Assert.True(Array.FindIndex(rows, x => x.GetProperty("page").GetString() == "customer-create") < Array.FindIndex(rows, x => x.GetProperty("page").GetString() == "customers"));
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var other = await client.GetFromJsonAsync<JsonElement>("/api/custom-menus/standard/");
+        Assert.Equal(0, other.GetProperty("revision").GetInt32());
+        Assert.Equal(JsonValueKind.Null, other.GetProperty("items").EnumerateArray().Single(x => x.GetProperty("page").GetString() == "customers").GetProperty("label").ValueKind);
+    }
+
     private static async Task<WebApplication> StartApplicationAsync()
     {
         var databaseName = $"custom-menu-{Guid.NewGuid():N}";

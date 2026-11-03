@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
@@ -2300,6 +2300,33 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Sandbox test durumu isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/test-runs/latest-passed", async (Guid projectId, Guid requestId, string? commitSha, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
+    if (commitSha is null || !IsCommitSha(commitSha)) return Results.BadRequest(new { error = "Commit kimliği geçersiz." });
+    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (!CanViewProject(user, project.AccessGrants, userId)) return Results.Forbid();
+    var request = await db.DevelopmentWorkspaceRequests.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
+    if (request is null) return Results.NotFound();
+    if (!Uri.TryCreate(configuration["WorkspaceRunner:BaseUrl"], UriKind.Absolute, out var runnerUri) || runnerUri.Scheme != Uri.UriSchemeHttp)
+        return Results.Problem("Workspace Runner yapılandırılmamış.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    try
+    {
+        using var client = clients.CreateClient("workspace-runner"); client.BaseAddress = runnerUri;
+        using var message = new HttpRequestMessage(HttpMethod.Get, $"/internal/workspaces/{request.Id:D}/test-runs/latest-passed?commitSha={Uri.EscapeDataString(commitSha)}");
+        message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateRunnerToken(configuration, request.Id, "workspace.tests.status"));
+        using var response = await client.SendAsync(message, cancellationToken);
+        if (!response.IsSuccessStatusCode) return Results.Problem("Sandbox test kanıtı okunamadı.", statusCode: StatusCodes.Status502BadGateway);
+        var result = await response.Content.ReadFromJsonAsync<RunnerLatestPassedTest>(cancellationToken: cancellationToken);
+        return result is null ? Results.Problem("Runner geçersiz test kanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway) : Results.Ok(result);
+    }
+    catch (HttpRequestException) { return Results.Problem("Workspace Runner bağlantısı kurulamadı.", statusCode: StatusCodes.Status502BadGateway); }
+    catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Sandbox test kanıtı isteği zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
+    catch (System.Text.Json.JsonException) { return Results.Problem("Runner geçersiz test kanıtı döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
+}).RequireAuthorization().RequireRateLimiting("workspace-read");
 app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/build-runs", async (Guid projectId, Guid requestId, CreateWorkspaceTestRun body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
@@ -2436,7 +2463,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     catch (System.Text.Json.JsonException) { return Results.Problem("Runner veya AI sağlayıcısı geçersiz yanıt döndürdü.", statusCode: StatusCodes.Status502BadGateway); }
     catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return Results.Problem("Sandbox hata analizi zaman aşımına uğradı.", statusCode: StatusCodes.Status504GatewayTimeout); }
 }).RequireAuthorization().RequireRateLimiting("ai-tester");
-app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, CancellationToken cancellationToken) =>
+app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates", async (Guid projectId, Guid requestId, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider tokenProvider, HttpContext http, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
@@ -2451,6 +2478,37 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
         .OrderByDescending(x => x.CreatedAt)
         .Take(100)
         .ToListAsync(cancellationToken);
+    if (http.Request.Query["refreshGithub"] == "true" && CanManageProject(user, project.AccessGrants, userId) && project.GitHubInstallationId is long installationId)
+    {
+        try
+        {
+            using var github = clients.CreateClient("github-api");
+            foreach (var candidate in candidates.Where(x => x.GitHubPullRequestNumber.HasValue && x.GitHubRepository != null && x.GitHubPullRequestState != "merged").Take(10))
+            {
+                var installationToken = await tokenProvider.CreateRepositoryTokenAsync(installationId, candidate.GitHubRepository!, cancellationToken);
+                github.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", installationToken);
+                var repoPath = string.Join('/', candidate.GitHubRepository!.Split('/').Select(Uri.EscapeDataString));
+                using var response = await github.GetAsync($"repos/{repoPath}/pulls/{candidate.GitHubPullRequestNumber}", cancellationToken);
+                if (!response.IsSuccessStatusCode) return Results.Problem("GitHub PR durumu yenilenemedi.", statusCode: 502);
+                var snapshot = await response.Content.ReadFromJsonAsync<GitHubPullRequestResponse>(cancellationToken: cancellationToken);
+                if (snapshot is null || snapshot.Number != candidate.GitHubPullRequestNumber) return Results.Problem("GitHub PR yanıtı doğrulanamadı.", statusCode: 502);
+                if (snapshot.UpdatedAt is null) return Results.Problem("GitHub PR zaman bilgisi okunamadı.", statusCode: 502);
+                var state = snapshot.Merged ? "merged" : snapshot.Draft ? "draft" : snapshot.State ?? "unknown";
+                var webhook = new GitHubPullRequestWebhookEvent(candidate.GitHubRepository!, snapshot.Number, state, "manual-refresh", snapshot.UpdatedAt.Value, snapshot.Head?.Sha, installationId);
+                if (GitHubPullRequestStateSynchronizer.TryApply(candidate, webhook, "manual-refresh", out var audit))
+                {
+                    db.Attach(candidate);
+                    db.Entry(candidate).Property(x => x.GitHubPullRequestState).IsModified = true;
+                    db.Entry(candidate).Property(x => x.GitHubPullRequestUpdatedAt).IsModified = true;
+                    if (audit is not null) db.AuditEvents.Add(audit);
+                }
+            }
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (GitHubAppConfigurationException) { return Results.Problem("GitHub App yapılandırması gerekli.", statusCode: 503); }
+        catch (GitHubIntegrationException) { return Results.Problem("GitHub repository erişimi doğrulanamadı.", statusCode: 502); }
+        catch (HttpRequestException) { return Results.Problem("GitHub’a bağlanılamadı.", statusCode: 502); }
+    }
     var candidateIds = candidates.Select(x => x.Id).ToArray();
     var reviews = await db.ReleaseCandidateReviewRecords.AsNoTracking()
         .Where(x => x.TenantId == tenantId && candidateIds.Contains(x.ReleaseCandidateId))
@@ -2461,7 +2519,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
         return new ReleaseCandidateView(candidate.Id, candidate.WorkspaceRequestId, candidate.BranchName, candidate.CommitSha, candidate.TestJobId,
             candidate.TestTargetPath, candidate.TestSnapshotSha256, candidate.TestCompletedAt, candidate.CreatedAt, candidate.CreatedByUserId,
             review?.Decision, review?.Note, review?.CreatedAt, review?.ReviewedByUserId,
-            user.IsInRole("TenantAdmin") && candidate.CreatedByUserId != userId && review is null,
+            CanManageProject(user, project.AccessGrants, userId) && review is null,
             candidate.GitHubPullRequestNumber, candidate.GitHubPullRequestUrl, candidate.GitHubPullRequestState);
     }));
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
@@ -2520,8 +2578,8 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     if (candidate is null || !string.Equals(candidate.CommitSha, version.CommitSha, StringComparison.OrdinalIgnoreCase)) return Results.Conflict(new { error = "Sürüm adayı ve sürüm metadata'sı eşleşmiyor." });
     if (!GitHubPullRequestReleaseRules.CanRelease(candidate)) return Results.Conflict(new { error = "Bağlı GitHub PR kapalı veya geçerli durumda değil; yeni paket için PR yeniden açılmalı ya da birleştirilmeli." });
     var review = await db.ReleaseCandidateReviewRecords.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidate.Id, cancellationToken);
-    if (review?.Decision != "Approved" || review.ReviewedByUserId == candidate.CreatedByUserId)
-        return Results.Conflict(new { error = "Paket için sürüm adayını oluşturan kişiden bağımsız yetkili onayı gerekli." });
+    if (review?.Decision != "Approved")
+        return Results.Conflict(new { error = "Paket için yetkili kullanıcı onayı gerekli." });
     var workspaceRequest = await db.DevelopmentWorkspaceRequests.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
     if (workspaceRequest is null || workspaceRequest.WorkspaceBranchName != candidate.BranchName)
@@ -2554,7 +2612,21 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         };
         createMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateRunnerToken(configuration, requestId, "workspace.release-package.create"));
         using var createResponse = await client.SendAsync(createMessage, cancellationToken);
-        if (!createResponse.IsSuccessStatusCode) return Results.Problem("Sürüm paketi Runner tarafından oluşturulamadı.", statusCode: (int)createResponse.StatusCode >= 500 ? StatusCodes.Status502BadGateway : StatusCodes.Status409Conflict);
+        if (!createResponse.IsSuccessStatusCode)
+        {
+            var detail = "Sürüm paketi Runner tarafından oluşturulamadı.";
+            if ((int)createResponse.StatusCode < 500)
+            {
+                var content = await createResponse.Content.ReadAsStringAsync(cancellationToken);
+                if (content.Length <= 4096)
+                {
+                    using var payload = System.Text.Json.JsonDocument.Parse(content);
+                    if (payload.RootElement.TryGetProperty("error", out var reason) && reason.ValueKind == System.Text.Json.JsonValueKind.String)
+                        detail = reason.GetString() ?? detail;
+                }
+            }
+            return Results.Problem(detail, statusCode: (int)createResponse.StatusCode >= 500 ? StatusCodes.Status502BadGateway : StatusCodes.Status409Conflict);
+        }
         var package = await createResponse.Content.ReadFromJsonAsync<RunnerReleasePackage>(cancellationToken: cancellationToken);
         if (package is null || package.PackageId != packageId || package.Version != version.Version || package.CommitSha != version.CommitSha || package.SizeBytes is <= 0 or > 100 * 1024 * 1024 || !IsSha256(package.PackageSha256) || package.FileCount <= 0 || package.FileCount > 20_000)
             return Results.Problem("Workspace Runner geçersiz paket metadata'sı döndürdü.", statusCode: StatusCodes.Status502BadGateway);
@@ -2596,8 +2668,8 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         return Results.Conflict(new { error = "Normal dağıtım paketi seçili workspace isteğine ait olmalıdır." });
     var review = await db.ReleaseCandidateReviewRecords.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidate.Id, cancellationToken);
-    if (review?.Decision != "Approved" || review.ReviewedByUserId == candidate.CreatedByUserId)
-        return Results.Conflict(new { error = "Staging dağıtımı için adayı oluşturandan bağımsız yetkili onayı gerekli." });
+    if (review?.Decision != "Approved")
+        return Results.Conflict(new { error = "Staging dağıtımı için yetkili kullanıcı onayı gerekli." });
     var activeDeployment = await db.StudioReleaseDeploymentRecords
         .Where(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Environment == StudioReleaseDeploymentRules.Staging && x.Status == StudioReleaseDeploymentRules.Succeeded)
         .OrderByDescending(x => x.CompletedAt).FirstOrDefaultAsync(cancellationToken);
@@ -2730,8 +2802,8 @@ app.MapPost("/studio/projects/{projectId:guid}/release-deployments/{deploymentId
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == version.ReleaseCandidateId, cancellationToken);
     var candidateReview = candidate is null ? null : await db.ReleaseCandidateReviewRecords.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidate.Id, cancellationToken);
-    if (package is null || version is null || candidate is null || candidateReview?.Decision != "Approved" || candidateReview.ReviewedByUserId == candidate.CreatedByUserId)
-        return Results.Conflict(new { error = "Paketin bağımsız aday onayı doğrulanamadı." });
+    if (package is null || version is null || candidate is null || candidateReview?.Decision != "Approved")
+        return Results.Conflict(new { error = "Paketin yetkili aday onayı doğrulanamadı." });
     if (staging.RollbackOfDeploymentId is null && !GitHubPullRequestReleaseRules.CanRelease(candidate))
         return Results.Conflict(new { error = "Bağlı GitHub PR kapalı veya geçerli durumda değil; üretim onayı için PR yeniden açılmalı ya da birleştirilmeli." });
     var approval = new StudioProductionPromotionApprovalRecord
@@ -3110,8 +3182,8 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         return Results.Conflict(new { error = "Bu sürüm adayına zaten sürüm numarası atanmış; kayıtlar değiştirilemez." });
     var review = await db.ReleaseCandidateReviewRecords.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidateId, cancellationToken);
-    if (review?.Decision != "Approved" || review.ReviewedByUserId == candidate.CreatedByUserId)
-        return Results.Conflict(new { error = "Sürüm ataması için adayı oluşturandan bağımsız yetkili onayı gerekli." });
+    if (review?.Decision != "Approved")
+        return Results.Conflict(new { error = "Sürüm ataması için yetkili kullanıcı onayı gerekli." });
     var request = await db.DevelopmentWorkspaceRequests.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
     if (request is null || !string.Equals(request.WorkspaceBranchName, candidate.BranchName, StringComparison.Ordinal))
@@ -3226,8 +3298,8 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     if (candidate is null) return Results.NotFound();
     var review = await db.ReleaseCandidateReviewRecords.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidateId, cancellationToken);
-    if (review?.Decision != "Approved" || review.ReviewedByUserId == candidate.CreatedByUserId)
-        return Results.Conflict(new { error = "PR taslağı için adayı oluşturan kişiden bağımsız yetkilinin onayı gerekli." });
+    if (review?.Decision != "Approved")
+        return Results.Conflict(new { error = "PR taslağı için yetkili kullanıcı onayı gerekli." });
     var request = await db.DevelopmentWorkspaceRequests.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
     if (request is null || !string.Equals(request.WorkspaceBranchName, candidate.BranchName, StringComparison.Ordinal))
@@ -3257,11 +3329,25 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
             return Results.Conflict(new { error = "Adayın başarılı test kanıtı aynı commit, hedef ve snapshot için doğrulanamıyor." });
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.release.pr-draft.requested", Resource = $"{requestId:D}:{candidateId:D}" });
         await db.SaveChangesAsync(cancellationToken);
-        var draft = await aiProvider.CreateStudioPullRequestDraftAsync(new StudioPullRequestContext(
-            project.Name, candidate.BranchName, request.BranchName, candidate.CommitSha, candidate.TestTargetPath, summary), cancellationToken);
-        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.release.pr-draft.completed", Resource = $"{requestId:D}:{candidateId:D}" });
+        StudioPullRequestDraft draft;
+        var draftSource = "ai";
+        try
+        {
+            draft = await aiProvider.CreateStudioPullRequestDraftAsync(new StudioPullRequestContext(
+                project.Name, candidate.BranchName, request.BranchName, candidate.CommitSha, candidate.TestTargetPath, summary), cancellationToken);
+        }
+        catch (AIProviderRateLimitException)
+        {
+            draftSource = "template";
+            var title = summary.Length <= 120 ? summary : summary[..117].TrimEnd() + "...";
+            var draftBody = $"## Özet\n\n{summary}\n\n## Doğrulama\n\n- Sandbox testi başarılı: `{candidate.TestTargetPath}`\n- Commit: `{candidate.CommitSha}`\n\n## İnceleme\n\n- Kaynak değişiklikleri ve test kapsamı yayınlamadan önce incelenmelidir.";
+            draft = new StudioPullRequestDraft(title, draftBody,
+                ["Değişikliklerin etkisi ve test kapsamı insan tarafından gözden geçirilmelidir."],
+                ["AI sağlayıcısı istek sınırı döndürdü; bu taslak kullanıcı özeti ve doğrulanmış test bilgisiyle şablondan oluşturuldu."]);
+        }
+        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = draftSource == "ai" ? "studio.release.pr-draft.completed" : "studio.release.pr-draft.template", Resource = $"{requestId:D}:{candidateId:D}" });
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new { draft.Title, draft.Body, draft.Risks, draft.Limitations, sourceBranch = candidate.BranchName,
+        return Results.Ok(new { draft.Title, draft.Body, draft.Risks, draft.Limitations, draftSource, sourceBranch = candidate.BranchName,
             baseBranch = request.BranchName, candidate.CommitSha, testTargetPath = candidate.TestTargetPath,
             testCompletedAt = candidate.TestCompletedAt, remotePullRequestCreated = false });
     }
@@ -3279,7 +3365,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     var description = body.Body?.Trim();
     if (string.IsNullOrWhiteSpace(title) || title.Length > 120 || title.Any(char.IsControl) || string.IsNullOrWhiteSpace(description) || description.Length > 5000 || description.Any(c => char.IsControl(c) && c is not ('\r' or '\n' or '\t')))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["title"] = ["PR başlığı en fazla 120, açıklaması en fazla 5000 karakter olmalı."] });
-    var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
+    var project = await db.DevelopmentProjects.Include(x => x.AccessGrants)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
     if (project is null) return Results.NotFound();
     if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
@@ -3290,8 +3376,8 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     if (candidate is null) return Results.NotFound();
     var review = await db.ReleaseCandidateReviewRecords.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidateId, cancellationToken);
-    if (review?.Decision != "Approved" || review.ReviewedByUserId == candidate.CreatedByUserId)
-        return Results.Conflict(new { error = "Uzak PR için sürüm adayını oluşturan kişiden bağımsız yetkili onayı gerekli." });
+    if (review?.Decision != "Approved")
+        return Results.Conflict(new { error = "Uzak PR için yetkili kullanıcı onayı gerekli." });
     var workspaceRequest = await db.DevelopmentWorkspaceRequests.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
     if (workspaceRequest is null || !string.Equals(workspaceRequest.WorkspaceBranchName, candidate.BranchName, StringComparison.Ordinal))
@@ -3327,6 +3413,10 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
             !string.Equals(test.CommitSha, candidate.CommitSha, StringComparison.OrdinalIgnoreCase) || !string.Equals(test.SnapshotSha256, candidate.TestSnapshotSha256, StringComparison.OrdinalIgnoreCase) || test.TargetPath != candidate.TestTargetPath)
             return Results.Conflict(new { error = "Aynı commit için başarılı sandbox test kanıtı doğrulanamadı." });
         var installationToken = await tokenProvider.CreateRepositoryTokenAsync(githubInstallationId, repository, cancellationToken);
+        // A PR can be published with an installation ID supplied by the approval dialog
+        // even when the project was not connected through the setup callback. Persist that
+        // validated installation so later release and review actions can use it.
+        project.GitHubInstallationId = githubInstallationId;
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.release.pull-request.requested", Resource = $"{requestId:D}:{candidateId:D}" });
         await db.SaveChangesAsync(cancellationToken);
         using var push = new HttpRequestMessage(HttpMethod.Post, $"/internal/workspaces/{workspaceRequest.Id:D}/push-approved-branch");
@@ -3415,8 +3505,8 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         return Results.Conflict(new { error = "GitHub PR veya repository yetkilendirmesi bulunamadı." });
     var review = await db.ReleaseCandidateReviewRecords.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidateId, cancellationToken);
-    if (review?.Decision != "Approved" || review.ReviewedByUserId == candidate.CreatedByUserId)
-        return Results.Conflict(new { error = "Draft PR yalnız adayı oluşturan kişiden bağımsız yetkili onayından sonra hazır duruma alınabilir." });
+    if (review?.Decision != "Approved")
+        return Results.Conflict(new { error = "Draft PR yalnız yetkili kullanıcı onayından sonra hazır duruma alınabilir." });
     var repositoryParts = candidate.GitHubRepository.Split('/');
     if (repositoryParts.Length != 2)
         return Results.Conflict(new { error = "GitHub repository kaydı geçersiz." });
@@ -3436,9 +3526,22 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         if (!currentResponse.IsSuccessStatusCode)
             return Results.Problem("GitHub PR durumu doğrulanamadı.", statusCode: StatusCodes.Status502BadGateway);
         var current = await currentResponse.Content.ReadFromJsonAsync<GitHubPullRequestResponse>(cancellationToken: cancellationToken);
-        if (current is null || current.State != "open" || !current.Draft || string.IsNullOrWhiteSpace(current.NodeId) ||
-            !string.Equals(current.Head?.Sha, candidate.CommitSha, StringComparison.OrdinalIgnoreCase))
-            return Results.Conflict(new { error = "Yalnız açık draft PR, test edilen aynı commit ve bağımsız yetkili onayıyla hazır yapılabilir." });
+        if (current is null) return Results.Problem("GitHub PR yanıtı okunamadı.", statusCode: 502);
+        if (!string.Equals(current.Head?.Sha, candidate.CommitSha, StringComparison.OrdinalIgnoreCase))
+            return Results.Conflict(new { error = "GitHub PR commit’i test edilen commit ile eşleşmiyor. Güncel commit için yeni test ve sürüm adayı gerekli." });
+        // GitHub may already have completed the transition (or merged the PR)
+        // while the webhook was delayed. Synchronize without another mutation.
+        if (current.Merged || current.State == "open" && !current.Draft)
+        {
+            var state = current.Merged ? "merged" : "open";
+            if (!GitHubPullRequestStateSynchronizer.ApplyVerifiedSnapshot(candidate, state, false, current.Head?.Sha, current.UpdatedAt))
+                return Results.Conflict(new { error = "Daha yeni bir PR durumu kayıtlı; durumu yenileyin." });
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.github.pull-request.state-synced", Resource = $"{candidate.Id:D}:{current.Number}:{state}" });
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Ok(new { pullNumber = candidate.GitHubPullRequestNumber, htmlUrl = candidate.GitHubPullRequestUrl, state, commitSha = candidate.CommitSha });
+        }
+        if (current.State != "open") return Results.Conflict(new { error = "GitHub PR birleştirilmeden kapatılmış. PR’yi yeniden açın veya geçerli bir PR bağlayın." });
+        if (string.IsNullOrWhiteSpace(current.NodeId)) return Results.Problem("GitHub PR kimliği okunamadı.", statusCode: 502);
         var markedReady = await GitHubPullRequestLifecycle.MarkReadyForReviewAsync(github, current.NodeId, cancellationToken);
         using var verifiedResponse = await github.GetAsync($"repos/{repoPath}/pulls/{candidate.GitHubPullRequestNumber}", cancellationToken);
         if (!verifiedResponse.IsSuccessStatusCode)
@@ -3629,7 +3732,6 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
 app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid}/release-candidates/{candidateId:guid}/review", async (Guid projectId, Guid requestId, Guid candidateId, ReviewReleaseCandidate body, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
-    if (!user.IsInRole("TenantAdmin")) return Results.Forbid();
     var decision = body.Decision?.Trim();
     var note = body.Note?.Trim();
     if (decision is not ("Approved" or "Rejected")) return Results.ValidationProblem(new Dictionary<string, string[]> { ["decision"] = ["Karar Approved veya Rejected olmalı."] });
@@ -3637,9 +3739,9 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
     if (project is null) return Results.NotFound();
+    if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
     var candidate = await db.ReleaseCandidateRecords.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId && x.Id == candidateId, cancellationToken);
     if (candidate is null) return Results.NotFound();
-    if (candidate.CreatedByUserId == userId) return Results.Conflict(new { error = "Sürüm adayını oluşturan kişi bu aday için karar veremez." });
     if (await db.ReleaseCandidateReviewRecords.AnyAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidateId, cancellationToken))
         return Results.Conflict(new { error = "Bu aday için karar zaten kaydedilmiş. Yeni inceleme için yeni sürüm adayı oluşturun." });
     var request = await db.DevelopmentWorkspaceRequests.AsNoTracking()
@@ -3697,6 +3799,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
     var project = await db.DevelopmentProjects.AsNoTracking().Include(x => x.AccessGrants)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
     if (project is null) return Results.NotFound();
+    if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
     if (!CanViewProject(user, project.AccessGrants, userId)) return Results.Forbid();
     var request = await db.DevelopmentWorkspaceRequests.AsNoTracking()
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == requestId && x.Status == "Ready", cancellationToken);
@@ -5440,7 +5543,132 @@ app.MapDelete("/studio/projects/{projectId:guid}/architecture-plans/{planId:guid
     return Results.NoContent();
 }).RequireAuthorization().RequireRateLimiting("workspace-write");
 app.MapAierpMetrics();
+app.MapMethods("/studio/projects/{projectId:guid}/web-image-update", ["GET", "POST"], async (Guid projectId, HttpContext http, ClaimsPrincipal user, AIStudioDbContext db, IHttpClientFactory clients, GitHubAppInstallationTokenProvider tokenProvider, IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!TryScope(user, out var tenantId, out var userId) || !user.IsInRole("TenantAdmin")) return Results.Forbid();
+    var project = await db.DevelopmentProjects.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
+    if (project is null) return Results.NotFound();
+    if (configuration.GetValue<Guid>("WebImageUpdate:TenantId") != tenantId || configuration.GetValue<Guid>("WebImageUpdate:ProjectId") != projectId)
+        return http.Request.Method == "GET" ? Results.Ok(new { enabled = false, job = (object?)null }) : Results.Problem("Bu proje için ERP web ve API güncellemesi sunucuda etkinleştirilmemiş.", statusCode: 503);
+    var statusPackageId = Guid.Empty;
+    if (http.Request.Method == "GET")
+    {
+        if (!Guid.TryParse(http.Request.Query["packageId"].ToString(), out statusPackageId) || statusPackageId == Guid.Empty)
+            return Results.BadRequest(new { error = "Sürüm paketi kimliği gerekli." });
+        if (!await db.StudioReleasePackageRecords.AsNoTracking()
+            .AnyAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == statusPackageId, cancellationToken))
+            return Results.NotFound();
+    }
+    var jobId = Guid.NewGuid();
+    var tokenRecord = new StudioReleaseDeploymentRecord { Id = jobId, TenantId = tenantId, ProjectId = projectId };
+    using var client = clients.CreateClient("release-deployer");
+    if (!Uri.TryCreate(configuration["ReleaseDeployer:BaseUrl"], UriKind.Absolute, out var baseUri)) return Results.Problem("Dağıtım servisi yapılandırılmamış.", statusCode: 503);
+    client.BaseAddress = baseUri;
+    using var message = new HttpRequestMessage(http.Request.Method == "GET" ? HttpMethod.Get : HttpMethod.Post,
+        http.Request.Method == "GET" ? $"/internal/web-image-updates/{tenantId:D}/{projectId:D}?packageId={statusPackageId:D}" : "/internal/web-image-updates");
+    if (http.Request.Method == "POST")
+    {
+        var input = await http.Request.ReadFromJsonAsync<WebImageUpdateInput>(cancellationToken);
+        if (input is null || !input.Confirmation) return Results.BadRequest(new { error = "ERP web ve API güncelleme onayı gerekli." });
+        var package = await db.StudioReleasePackageRecords.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == input.PackageId, cancellationToken);
+        if (package is null) return Results.NotFound();
+        var version = await db.StudioReleaseVersionRecords.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == package.ReleaseVersionId, cancellationToken);
+        var candidate = version is null ? null : await db.ReleaseCandidateRecords.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Id == version.ReleaseCandidateId, cancellationToken);
+        var review = candidate is null ? null : await db.ReleaseCandidateReviewRecords.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidate.Id, cancellationToken);
+        if (candidate is null || review?.Decision != "Approved" || candidate.CommitSha != package.CommitSha || version!.CommitSha != package.CommitSha || !GitHubPullRequestReleaseRules.CanRelease(candidate))
+            return Results.Conflict(new { error = "Web ve API güncellemesi için yetkili onaylı, geçerli PR bağlantılı sürüm paketi gerekli." });
+        if (project.GitHubInstallationId is not long installationId || installationId <= 0)
+            return Results.Problem("Bu Studio projesinin GitHub App bağlantısı eksik. Proje ayarlarından GitHub’ı yeniden bağlayın, ardından güncellemeyi tekrar başlatın.", statusCode: 409);
+        var githubRepository = string.IsNullOrWhiteSpace(candidate.GitHubRepository)
+            ? GetGitHubRepositoryIdentifier(project.RepositoryUrl)
+            : candidate.GitHubRepository;
+        if (string.IsNullOrWhiteSpace(githubRepository))
+            return Results.Problem("Sürüm adayında GitHub deposu bulunamadı. Proje ayarlarındaki depo adresini doğrulayın.", statusCode: 409);
+
+        using var github = clients.CreateClient("github-api");
+        var installationToken = await tokenProvider.CreateRepositoryTokenAsync(installationId, githubRepository, cancellationToken);
+        github.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", installationToken);
+        var repoPath = string.Join('/', githubRepository.Split('/').Select(Uri.EscapeDataString));
+        var revisionsRequest = new HttpRequestMessage(HttpMethod.Get, $"/internal/application-image-revisions/{tenantId:D}/{projectId:D}");
+        revisionsRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateReleaseDeployerToken(configuration, tokenRecord, "release.application.update"));
+        using var revisionsResponse = await client.SendAsync(revisionsRequest, cancellationToken);
+        if (!revisionsResponse.IsSuccessStatusCode) return Results.Problem("Çalışan uygulama sürümleri alınamadı; hiçbir imaj güncellenmedi.", statusCode: 502);
+        var revisions = await revisionsResponse.Content.ReadFromJsonAsync<Dictionary<string, string?>>(cancellationToken: cancellationToken) ?? [];
+        var targets = new HashSet<string>(StringComparer.Ordinal);
+        var compareCache = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        var fallbackRevision = revisions.Values.FirstOrDefault(x => x is not null && System.Text.RegularExpressions.Regex.IsMatch(x, "^[a-fA-F0-9]{40}$"));
+        foreach (var (service, revision) in revisions)
+        {
+            if (string.Equals(revision, package.CommitSha, StringComparison.OrdinalIgnoreCase)) continue;
+            if (revision is null && (service is "platform-api" or "erp-web")) { targets.Add(service); continue; }
+            var baseRevision = revision ?? fallbackRevision;
+            if (baseRevision is null) { targets.Add(service); continue; }
+            if (!compareCache.TryGetValue(baseRevision, out var changedFiles))
+            {
+                using var compareResponse = await github.GetAsync($"repos/{repoPath}/compare/{baseRevision}...{package.CommitSha}", cancellationToken);
+                if (!compareResponse.IsSuccessStatusCode) return Results.Problem("Commit farkı GitHub’dan alınamadı; hiçbir imaj güncellenmedi.", statusCode: 502);
+                using var compareJson = await System.Text.Json.JsonDocument.ParseAsync(await compareResponse.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+                var root = compareJson.RootElement;
+                if (!root.TryGetProperty("files", out var filesElement) || filesElement.ValueKind != System.Text.Json.JsonValueKind.Array)
+                    return Results.Problem("GitHub commit farkı doğrulanamadı; hiçbir imaj güncellenmedi.", statusCode: 502);
+                changedFiles = filesElement.EnumerateArray().Select(x => x.TryGetProperty("filename", out var name) ? name.GetString() : null)
+                    .Where(x => !string.IsNullOrWhiteSpace(x)).Cast<string>().ToArray();
+                // GitHub caps compare responses at 300 files. In that case, conservatively
+                // rebuild this service because the path list may be incomplete.
+                if (changedFiles.Length >= 300) changedFiles = ["__all_runtime_projects__"];
+                compareCache[baseRevision] = changedFiles;
+            }
+            foreach (var target in MapChangedFilesToApplicationServices(changedFiles))
+                if (revisions.ContainsKey(target)) targets.Add(target);
+            if (changedFiles.Contains("__all_runtime_projects__", StringComparer.Ordinal)) targets.Add(service);
+        }
+        if (targets.Count == 0)
+        {
+            message.Content = JsonContent.Create(new { deploymentId = jobId, tenantId, projectId, packageId = package.Id, package.PackageSha256, package.CommitSha, package.Version, targets = Array.Empty<string>() });
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.release.application-update.no-changes", Resource = $"{jobId:D}:{package.Id:D}:{package.CommitSha}" });
+        }
+        else
+        {
+            message.Content = JsonContent.Create(new { deploymentId = jobId, tenantId, projectId, packageId = package.Id, package.PackageSha256, package.CommitSha, package.Version, targets = targets.Order(StringComparer.Ordinal).ToArray() });
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.release.application-update.requested", Resource = $"{jobId:D}:{package.Id:D}:{package.CommitSha}:{string.Join(',', targets.Order(StringComparer.Ordinal))}" });
+        }
+        await db.SaveChangesAsync(cancellationToken);
+    }
+    message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateReleaseDeployerToken(configuration, tokenRecord, "release.application.update"));
+    try
+    {
+        using var response = await client.SendAsync(message, cancellationToken);
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (http.Request.Method == "GET" && response.IsSuccessStatusCode)
+            return Results.Content("{\"enabled\":true,\"job\":" + (string.IsNullOrWhiteSpace(content) ? "null" : content) + "}", "application/json");
+        return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (HttpRequestException) { return Results.Problem("Dağıtım servisine erişilemiyor.", statusCode: 503); }
+}).RequireAuthorization();
 app.Run();
+
+static IEnumerable<string> MapChangedFilesToApplicationServices(IEnumerable<string> paths)
+{
+    var services = new HashSet<string>(StringComparer.Ordinal);
+    var dotnetServices = new[] { "platform-api", "ai-service", "plugin-host", "integration-host", "tenant-provisioning-worker", "workspace-runner", "workspace-sandbox" };
+    foreach (var raw in paths)
+    {
+        var path = raw.Replace('\\', '/');
+        if (path == "__all_runtime_projects__") { foreach (var service in dotnetServices.Append("erp-web")) services.Add(service); continue; }
+        if (path.StartsWith("frontend/erp-web/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/ErpWeb.Dockerfile" or "deploy/docker/erp-web.nginx.conf") services.Add("erp-web");
+        if (path.StartsWith("src/Hosts/AIERP.Api/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/Platform.Api.Dockerfile") services.Add("platform-api");
+        if (path.StartsWith("src/AI/AIERP.AIService/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/AIService.Dockerfile") services.Add("ai-service");
+        if (path.StartsWith("src/Extensions/AIERP.PluginHost/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/PluginHost.Dockerfile") services.Add("plugin-host");
+        if (path.StartsWith("src/Extensions/AIERP.IntegrationHost/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/IntegrationHost.Dockerfile") services.Add("integration-host");
+        if (path.StartsWith("src/Hosts/AIERP.TenantProvisioningWorker/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/TenantProvisioningWorker.Dockerfile" or "deploy/docker/tenant-provisioning-worker-entrypoint.sh") services.Add("tenant-provisioning-worker");
+        if (path.StartsWith("src/AI/AIERP.WorkspaceRunner/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/WorkspaceRunner.Dockerfile") services.Add("workspace-runner");
+        if (path.StartsWith("src/AI/AIERP.WorkspaceSandbox/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("deploy/docker/sandbox-overrides/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/WorkspaceSandbox.Dockerfile" or "deploy/pip-patches/requirements.txt" or "deploy/pip-patches/update-vendored-sbom.py" or "deploy/npm-patches/package.json" or "deploy/npm-patches/package-lock.json") services.Add("workspace-sandbox");
+        if (path.StartsWith("src/Platform/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("src/Observability/", StringComparison.OrdinalIgnoreCase) ||
+            path is "Directory.Build.props" or "Directory.Build.targets" or "Directory.Packages.props" or "NuGet.config" or "global.json")
+            foreach (var service in dotnetServices) services.Add(service);
+    }
+    return services;
+}
 
 static bool TrySerializeArchitecturePlan(ArchitecturePlan? plan, out string? json)
 {
@@ -5750,8 +5978,9 @@ internal sealed record RunnerTestRunRequest(string? TargetPath);
 internal sealed record RunnerWorkspaceBuildRequest(string? TargetPath);
 internal sealed record RunnerTestRunCreated(Guid JobId, string TargetPath, string CommitSha, string SnapshotSha256, bool HasUncommittedChanges, DateTimeOffset CreatedAt);
 internal sealed record RunnerTestRunStatus(Guid JobId, string TargetPath, string CommitSha, string SnapshotSha256, bool HasUncommittedChanges, string Status, string? Message, bool? Success, int? ExitCode, int DurationMilliseconds, string Output, DateTime? CompletedAt);
+internal sealed record RunnerLatestPassedTest(RunnerTestRunStatus? Test);
 internal sealed record CreateReleaseCandidate(Guid TestJobId);
-internal sealed record ReleaseCandidateView(Guid Id, Guid WorkspaceRequestId, string BranchName, string CommitSha, Guid TestJobId, string TestTargetPath, string TestSnapshotSha256, DateTimeOffset TestCompletedAt, DateTimeOffset CreatedAt, Guid CreatedByUserId, string? Decision, string? ReviewNote, DateTimeOffset? ReviewedAt, Guid? ReviewedByUserId, bool CanReview, int? GitHubPullRequestNumber, string? GitHubPullRequestUrl, string? GitHubPullRequestState);
+internal sealed record ReleaseCandidateView(Guid Id, Guid WorkspaceRequestId, string BranchName, string CommitSha, Guid TestJobId, string TestTargetPath, string TestSnapshotSha256, DateTimeOffset TestCompletedAt, DateTimeOffset CreatedAt, Guid CreatedByUserId, string? Decision, string? ReviewNote, DateTimeOffset? ReviewedAt, Guid? ReviewedByUserId, bool CanReview, [property: JsonPropertyName("githubPullRequestNumber")] int? GitHubPullRequestNumber, [property: JsonPropertyName("githubPullRequestUrl")] string? GitHubPullRequestUrl, [property: JsonPropertyName("githubPullRequestState")] string? GitHubPullRequestState);
 internal sealed record ReviewReleaseCandidate(string? Decision, string? Note);
 internal sealed record SubmitGitHubPullRequestReview(string? Event, string? Body);
 internal sealed record RequestGitHubReviewers(string[]? Reviewers);
@@ -5779,7 +6008,7 @@ internal sealed record RestoreProductionDatabase(Guid IdempotencyKey, Guid Expec
 internal sealed record DeployerRestoreProductionDeployment(Guid DeploymentId, Guid TenantId, Guid ProjectId, Guid PackageId, Guid IdempotencyKey, Guid ExpectedActiveDeploymentId, Guid BackupDeploymentId, Guid TargetDeploymentId, string PackageSha256, string CommitSha, string Version);
 internal sealed record StudioStagingDeploymentOperationResult(StudioReleaseDeploymentView Deployment, string BootstrapEmail, string BootstrapPassword);
 internal sealed record RunnerPushBranchResponse(string BranchName, string CommitSha, bool Pushed);
-internal sealed record GitHubPullRequestResponse(int Number, [property: JsonPropertyName("html_url")] string? HtmlUrl, string? State, bool Draft, [property: JsonPropertyName("head")] GitHubPullRequestHead? Head, [property: JsonPropertyName("updated_at")] DateTimeOffset? UpdatedAt, [property: JsonPropertyName("node_id")] string? NodeId);
+internal sealed record GitHubPullRequestResponse(int Number, [property: JsonPropertyName("html_url")] string? HtmlUrl, string? State, bool Draft, [property: JsonPropertyName("head")] GitHubPullRequestHead? Head, [property: JsonPropertyName("updated_at")] DateTimeOffset? UpdatedAt, [property: JsonPropertyName("node_id")] string? NodeId, bool Merged = false);
 internal sealed record GitHubPullRequestHead([property: JsonPropertyName("sha")] string? Sha);
 internal sealed record GitHubPullRequestReviewResponse(long Id, string? State, [property: JsonPropertyName("submitted_at")] DateTimeOffset? SubmittedAt);
 internal sealed record GitHubReviewCommentResponse(long Id, [property: JsonPropertyName("in_reply_to_id")] long? InReplyToId,
@@ -5797,3 +6026,5 @@ internal sealed record WorkspaceRequestView(Guid Id, Guid ProjectId, Guid Reques
     string? CommitSha, string? ProvisioningError, DateTimeOffset? ProvisionedAt, bool CanCancel = false,
     Guid? DevelopmentRequestId = null, string? DevelopmentRequestTitle = null, string? DevelopmentRequestDescription = null,
     string? WorkspaceBranchName = null, bool CanDelete = false);
+
+sealed record WebImageUpdateInput(Guid PackageId, bool Confirmation);

@@ -184,6 +184,41 @@ public sealed class CustomFormEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Customer_layout_exposes_tenant_custom_fields_and_can_publish_them()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        var definition = new CustomerCustomFieldDefinition { TenantId = TenantA, Code = "SEKTOR", Label = "Sektör" };
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.CustomerCustomFieldDefinitions.Add(definition);
+            await db.SaveChangesAsync();
+        }
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+        var created = await client.PostAsJsonAsync("/api/screen-views/customers/draft", new { name = "Cari" });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        using var document = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        var id = document.RootElement.GetProperty("id").GetGuid();
+        var customKey = $"custom:{definition.Id:D}";
+        var fields = document.RootElement.GetProperty("fields").EnumerateArray().Select(x => new
+        {
+            key = x.GetProperty("key").GetString(), label = x.GetProperty("label").GetString(),
+            visible = x.GetProperty("key").GetString() == customKey || x.GetProperty("visible").GetBoolean(),
+            position = x.GetProperty("position").GetInt32()
+        }).ToArray();
+        Assert.Contains(fields, x => x.key == customKey && x.visible);
+        Assert.Contains(fields, x => x.key == "taxOffice" && !x.visible);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{id}", new { expectedRevision = 1, name = "Cari", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{id}/publish", new { expectedRevision = 2 })).StatusCode);
+        var active = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/customers/active");
+        Assert.True(active.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == customKey).GetProperty("visible").GetBoolean());
+        SetIdentity(client, TenantB, UserB, "TenantAdmin");
+        var other = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/customers/active");
+        Assert.DoesNotContain(other.GetProperty("fields").EnumerateArray(), x => x.GetProperty("key").GetString() == customKey);
+    }
+
+    [Fact]
     public async Task Built_in_screen_layout_is_allowlisted_versioned_published_and_tenant_scoped()
     {
         await using var app = await StartApplicationAsync();

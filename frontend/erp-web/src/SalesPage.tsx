@@ -8967,7 +8967,7 @@ function SalesInvoiceTable({
   const visible = invoices.filter(
     (x) =>
       !search ||
-      `${x.code} ${x.deliveryCode} ${x.orderCode} ${x.customerName}`
+      `${x.code} ${x.deliveryCode} ${x.orderCode} ${x.customerName} ${x.customerTaxNumber ?? ""}`
         .toLocaleLowerCase("tr")
         .includes(search.toLocaleLowerCase("tr")),
   );
@@ -8993,6 +8993,8 @@ function SalesInvoiceTable({
         return item.orderCode || "—";
       case "customerName":
         return <b className="customer-name">{item.customerName}</b>;
+      case "customerTaxNumber":
+        return item.customerTaxNumber || "—";
       case "invoiceDate":
         return item.invoiceDate.split("-").reverse().join(".");
       case "lineCount":
@@ -9056,6 +9058,7 @@ function SalesInvoiceTable({
           </div>
         );
       default:
+        if (field.key.startsWith("custom:")) return item.listCustomFields?.[field.key] || "—";
         return null;
     }
   };

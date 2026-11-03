@@ -233,6 +233,18 @@ export default function App() {
   const [developerModeOpen, setDeveloperModeOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [standardMenu, setStandardMenu] = useState<{ revision: number; items: { page: string; label: string | null }[] } | null>(null);
+  useEffect(() => {
+    let active = true;
+    setStandardMenu(null);
+    if (!token || !tenant?.id) return;
+    const load = () => void api<{ revision: number; items: { page: string; label: string | null }[] }>("/api/custom-menus/standard/", token)
+      .then(layout => { if (active) setStandardMenu(layout); })
+      .catch(() => { if (active) setStandardMenu(null); });
+    load();
+    window.addEventListener("focus", load);
+    return () => { active = false; window.removeEventListener("focus", load); };
+  }, [token, tenant?.id]);
   const globalSearchPages: GlobalSearchResult[] = useMemo(() => {
     const pageResults: GlobalSearchResult[] = [
       { page: "dashboard", label: tx("overview"), description: "Platform" },
@@ -366,12 +378,27 @@ export default function App() {
           locale === "en" ? "Platform Customization" : "Platform Uyarlama",
       },
     ];
-    return [...pageResults, ...tenantModuleSearchItems].filter(
+    const visible = [...pageResults, ...tenantModuleSearchItems].filter(
       (result) =>
         !["audit", "access", "settings"].includes(result.page || "") ||
         tenant?.role === "TenantAdmin",
     );
-  }, [locale, tenant?.role, tenantModuleSearchItems]);
+    if (!standardMenu || standardMenu.revision === 0) return visible;
+    const settings = new Map(standardMenu.items.map((item, index) => [item.page, { ...item, index }]));
+    const renamed = visible.map(item => {
+      const setting = item.page ? settings.get(item.page) : undefined;
+      return setting?.label ? { ...item, label: setting.label } : item;
+    });
+    // Reorder within existing groups while preserving their positions and permission filtering.
+    const groups = new Map<string, GlobalSearchResult[]>();
+    for (const item of renamed) {
+      const key = item.description;
+      groups.set(key, [...(groups.get(key) ?? []), item]);
+    }
+    for (const items of groups.values()) items.sort((a, b) =>
+      (settings.get(a.page ?? "")?.index ?? Number.MAX_SAFE_INTEGER) - (settings.get(b.page ?? "")?.index ?? Number.MAX_SAFE_INTEGER));
+    return renamed.map(item => groups.get(item.description)!.shift()!);
+  }, [locale, tenant?.role, tenantModuleSearchItems, standardMenu]);
   const {
     page,
     setActivePage,
@@ -408,8 +435,12 @@ export default function App() {
         (result, index, array): result is GlobalSearchResult =>
           Boolean(result) &&
           array.findIndex((item) => item?.page === result?.page) === index,
-      ),
-    [globalSearchPages, globalQuickMenuPageIds, dashboardSearchResult],
+      ).sort((a, b) => {
+        if (!standardMenu || standardMenu.revision === 0) return 0;
+        const ranks = new Map(standardMenu.items.map((item, index) => [item.page, index]));
+        return (ranks.get(a.page ?? "") ?? Number.MAX_SAFE_INTEGER) - (ranks.get(b.page ?? "") ?? Number.MAX_SAFE_INTEGER);
+      }),
+    [globalSearchPages, globalQuickMenuPageIds, dashboardSearchResult, standardMenu],
   );
   const workspaceSearch = useWorkspaceSearch({
     pages: globalSearchPages,

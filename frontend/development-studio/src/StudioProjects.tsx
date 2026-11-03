@@ -10,6 +10,11 @@ import {
 import {
   ArrowLeft,
   ArrowUpRight,
+  Box,
+  CircleMinus,
+  CircleX,
+  Info,
+  Layers,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -33,6 +38,7 @@ import {
   X,
 } from "lucide-react";
 import { api, authorizedFetch } from "./api";
+import { WebImageUpdate } from "./WebImageUpdate";
 import { UiDesignPlanPreview, type UiDesignPlan } from "./UIDesigner";
 import { DatabaseEngineer } from "./DatabaseEngineer";
 import { ModuleSourceMappings } from "./ModuleSourceMappings";
@@ -418,6 +424,7 @@ type ProductionApproval = {
 type PullRequestDraft = {
   title: string;
   body: string;
+  draftSource?: "ai" | "template";
   risks: string[];
   limitations: string[];
   sourceBranch: string;
@@ -835,6 +842,7 @@ export function StudioProjects({
     [workspaceGitStatus, setWorkspaceGitStatus] =
       useState<WorkspaceGitStatus | null>(null),
     [gitStatusLoading, setGitStatusLoading] = useState(false),
+    [releaseTestEvidence, setReleaseTestEvidence] = useState<WorkspaceTestRunStatus | null>(null),
     [releaseCandidates, setReleaseCandidates] = useState<ReleaseCandidate[]>(
       [],
     ),
@@ -2256,6 +2264,7 @@ export function StudioProjects({
     try {
       const created = await api<{
         jobId: string;
+        targetPath: string;
         commitSha: string;
         snapshotSha256: string;
         hasUncommittedChanges: boolean;
@@ -2285,7 +2294,7 @@ export function StudioProjects({
         completedAt: null,
       };
       setTestExecution(status);
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 900; i++) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
         status = await api<WorkspaceTestRunStatus>(
           `/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-runs/${created.jobId}`,
@@ -2379,7 +2388,7 @@ export function StudioProjects({
         completedAt: null,
       };
       setBuildExecution(status);
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 900; i++) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
         status = await api<WorkspaceTestRunStatus>(
           `/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/build-runs/${created.jobId}`,
@@ -2417,7 +2426,7 @@ export function StudioProjects({
     setError("");
     try {
       let status = buildExecution;
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 900; i++) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
         status = await api<WorkspaceTestRunStatus>(
           `/studio/projects/${workspaceProject.id}/workspace-requests/${buildExecutionWorkspaceId}/build-runs/${buildExecution.jobId}`,
@@ -2455,7 +2464,7 @@ export function StudioProjects({
     setError("");
     try {
       let status = testExecution;
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 900; i++) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
         status = await api<WorkspaceTestRunStatus>(
           `/studio/projects/${workspaceProject.id}/workspace-requests/${testDiscoveryWorkspace.id}/test-runs/${testExecution.jobId}`,
@@ -3132,6 +3141,7 @@ export function StudioProjects({
     }
     setWorkspaceCommitLoading(true);
     setError("");
+    let committedResult: WorkspaceCommitResult | null = null;
     try {
       const changes = await api<WorkspaceChanges>(
         `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/changes`,
@@ -3171,7 +3181,7 @@ export function StudioProjects({
       }
       if (
         !window.confirm(
-          `Yalnızca şu onaylı dosyalar ${workspaceGitStatus.branchName} dalına commit edilecek. Uzak depoya push yapılmayacak.\n\n${paths.join("\n")}`,
+          `Yalnızca şu onaylı dosyalar ${workspaceGitStatus.branchName} dalına commit edilecek. Commit tamamlanınca değişikliklerle eşleşen test hedefi otomatik seçilip yalıtılmış sandbox'ta çalıştırılacak. Uzak depoya push yapılmayacak.\n\n${paths.join("\n")}`,
         )
       )
         return;
@@ -3188,6 +3198,7 @@ export function StudioProjects({
           }),
         },
       );
+      committedResult = result;
       setWorkspaceGitStatus((current) =>
         current
           ? {
@@ -3201,20 +3212,106 @@ export function StudioProjects({
       );
       setReleaseCandidates([]);
       setNotice(
-        `Commit oluşturuldu: ${result.commitSha.slice(0, 12)}. ${result.files.length} onaylı dosya commit edildi; uzak depoya push yapılmadı.`,
+        `Commit oluşturuldu: ${result.commitSha.slice(0, 12)}. İlgili test hedefleri bulunuyor…`,
       );
+
+      const discovery = await api<WorkspaceTestDiscovery>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/test-discovery`,
+        token,
+      );
+      const ignored = new Set(["src", "tests", "test", "frontend", "backend", "app", "csproj", "package", "json"]);
+      const pathTokens = (value: string) => value.toLowerCase().split(/[^a-z0-9]+/).filter((part) => part.length > 2 && !ignored.has(part));
+      const changedTokens = new Set(paths.flatMap(pathTokens));
+      const matchingTargets = discovery.targets
+        .filter((target) => target.canTest === true)
+        .map((target) => {
+          const targetTokens = new Set(pathTokens(target.path));
+          const score = [...targetTokens].reduce((total, part) => total + (changedTokens.has(part) ? part.length : 0), 0);
+          return { target, score };
+        })
+        .filter((candidate) => candidate.score > 0)
+        .sort((a, b) => b.score - a.score || a.target.path.localeCompare(b.target.path));
+      const target = matchingTargets[0]?.target;
+      if (!target) {
+        setTestDiscoveryWorkspace(gitStatusWorkspace);
+        setTestDiscovery(discovery);
+        setTestExecution(null);
+        setNotice(
+          `Commit oluşturuldu: ${result.commitSha.slice(0, 12)}. Değişen dosyalarla eşleşen otomatik çalıştırılabilir test bulunamadı; sürüm için test kanıtı oluşmadı.`,
+        );
+        return;
+      }
+
+      setTestDiscoveryWorkspace(gitStatusWorkspace);
+      setTestDiscovery(discovery);
+      setTestExecutionTarget(target.path);
+      setTestExecution(null);
+      setTestExecutionLoading(true);
+      setNotice(`Commit tamamlandı. İlgili test otomatik çalıştırılıyor: ${target.path}`);
+      const created = await api<{
+        jobId: string;
+        targetPath: string;
+        commitSha: string;
+        snapshotSha256: string;
+        hasUncommittedChanges: boolean;
+      }>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/test-runs`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ targetPath: target.path, executionConfirmed: true }),
+        },
+      );
+      let testStatus: WorkspaceTestRunStatus = {
+        jobId: created.jobId,
+        targetPath: created.targetPath,
+        commitSha: created.commitSha,
+        snapshotSha256: created.snapshotSha256,
+        hasUncommittedChanges: created.hasUncommittedChanges,
+        status: "Queued",
+        message: "Sandbox işi bekliyor.",
+        success: null,
+        exitCode: null,
+        durationMilliseconds: 0,
+        output: "",
+        completedAt: null,
+      };
+      setTestExecution(testStatus);
+      for (let i = 0; i < 900; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        testStatus = await api<WorkspaceTestRunStatus>(
+          `/studio/projects/${workspaceProject.id}/workspace-requests/${gitStatusWorkspace.id}/test-runs/${created.jobId}`,
+          token,
+        );
+        setTestExecution(testStatus);
+        if (["Passed", "Failed", "TimedOut", "QueueExpired", "DependencyUnavailable", "Rejected", "SandboxError"].includes(testStatus.status)) break;
+      }
+      setNotice(
+        testStatus.status === "Passed"
+          ? `Commit ${result.commitSha.slice(0, 12)} tamamlandı. ${target.path} testi başarılı.`
+          : `Commit ${result.commitSha.slice(0, 12)} oluşturuldu; ${target.path} testi ${testStatus.status} durumunda. Ayrıntılar Test Center'da.`,
+      );
+      await loadWorkspaceGitStatus(gitStatusWorkspace);
     } catch (e) {
-      setError((e as Error).message);
+      const message = (e as Error).message;
+      if (committedResult) {
+        setNotice(`Commit ${committedResult.commitSha.slice(0, 12)} oluşturuldu, ancak otomatik test başlatılamadı.`);
+        setError(`Commit korundu. Otomatik test hatası: ${message}`);
+      } else {
+        setError(message);
+      }
     } finally {
+      setTestExecutionLoading(false);
       setWorkspaceCommitLoading(false);
     }
   }
-  async function loadWorkspaceGitStatus(request: WorkspaceRequest) {
+  async function loadWorkspaceGitStatus(request: WorkspaceRequest, refreshGithub = false) {
     if (!workspaceProject) return;
     setGitStatusLoading(true);
     setError("");
     setGitStatusWorkspace(request);
     setWorkspaceGitStatus(null);
+    setReleaseTestEvidence(null);
     setReleaseCandidates([]);
     setReleaseVersions([]);
     setReleasePackages([]);
@@ -3245,7 +3342,7 @@ export function StudioProjects({
             workspaceProject.id +
             "/workspace-requests/" +
             request.id +
-            "/release-candidates",
+            "/release-candidates" + (refreshGithub ? "?refreshGithub=true" : ""),
           token,
         ),
         api<ReleaseVersion[]>(
@@ -3281,7 +3378,12 @@ export function StudioProjects({
           token,
         ),
       ]);
+      const evidence = await api<{ test: WorkspaceTestRunStatus | null }>(
+        `/studio/projects/${workspaceProject.id}/workspace-requests/${request.id}/test-runs/latest-passed?commitSha=${encodeURIComponent(status.headCommitSha)}`,
+        token,
+      );
       setWorkspaceGitStatus(status);
+      setReleaseTestEvidence(evidence.test);
       setReleaseCandidates(candidates);
       setReleaseVersions(versions);
       setReleasePackages(packages);
@@ -3299,7 +3401,7 @@ export function StudioProjects({
       !workspaceProject ||
       !gitStatusWorkspace ||
       !workspaceGitStatus ||
-      !testExecution ||
+      !releaseTestEvidence ||
       releaseCandidateSaving
     )
       return;
@@ -3311,7 +3413,7 @@ export function StudioProjects({
         token,
         {
           method: "POST",
-          body: JSON.stringify({ testJobId: testExecution.jobId }),
+          body: JSON.stringify({ testJobId: releaseTestEvidence.jobId }),
         },
       );
       setReleaseCandidates((current) => [
@@ -3515,7 +3617,7 @@ export function StudioProjects({
       return;
     if (
       !window.confirm(
-        `Bağımsız Studio onayı alınmış ${candidate.commitSha.slice(0, 12)} commit’ine bağlı GitHub draft PR #${candidate.githubPullRequestNumber} incelemeye açılacak ve GitHub inceleme bildirimleri gönderilecek. Devam edilsin mi?`,
+        `Yetkili Studio onayı alınmış ${candidate.commitSha.slice(0, 12)} commit’ine bağlı GitHub draft PR #${candidate.githubPullRequestNumber} incelemeye açılacak ve GitHub inceleme bildirimleri gönderilecek. Devam edilsin mi?`,
       )
     )
       return;
@@ -3535,7 +3637,9 @@ export function StudioProjects({
         ),
       );
       setNotice(
-        `GitHub PR #${candidate.githubPullRequestNumber} incelemeye hazır; bağımsız onay ve commit eşleşmesi doğrulandı.`,
+        result.state === "merged"
+          ? `GitHub PR #${candidate.githubPullRequestNumber} zaten birleştirilmiş; Studio durum kaydı güncellendi.`
+          : `GitHub PR #${candidate.githubPullRequestNumber} incelemeye hazır; Studio onayı ve commit eşleşmesi doğrulandı.`,
       );
     } catch (e) {
       setError((e as Error).message);
@@ -4026,7 +4130,7 @@ export function StudioProjects({
       );
       setNotice(
         decision === "Approved"
-          ? "Sürüm adayı yetkili tarafından onaylandı. Dağıtım başlatılmadı."
+          ? "Sürüm adayı yetkili kullanıcı tarafından onaylandı. Dağıtım başlatılmadı."
           : "Sürüm adayı reddedildi; karar geçmişe kaydedildi.",
       );
     } catch (e) {
@@ -5808,18 +5912,18 @@ export function StudioProjects({
             }
           }}
         >
-          <div className="modal">
+          <div className="modal studio-git-status-modal" role="dialog" aria-modal="true" aria-labelledby="studio-git-status-title">
             <div className="modal-head">
+              <span className="studio-git-status-mark"><Box size={28} /></span>
               <div>
-                <p className="eyebrow">SÜRÜM HAZIRLIĞI</p>
-                <h2>
-                  {workspaceProject?.name} /{" "}
-                  {workspaceGitStatus?.branchName ??
-                    gitStatusWorkspace.branchName}
+                <p className="eyebrow">SÜRÜM YAYINI</p>
+                <h2 id="studio-git-status-title">
+                  {workspaceProject?.name}
                 </h2>
               </div>
               <button
                 className="icon-button"
+                aria-label="Kapat"
                 onClick={() => {
                   setGitStatusWorkspace(null);
                   setWorkspaceGitStatus(null);
@@ -5829,9 +5933,7 @@ export function StudioProjects({
               </button>
             </div>
             <p className="muted modal-sub">
-              Git durumu ve başarılı sandbox test kanıtı doğrulanır. Yetkili
-              kullanıcılar koşullar sağlanınca denetlenebilir bir sürüm adayı
-              kaydedebilir. Paket üretimi ve dağıtım bu adımda yapılmaz.
+              Sürümünüzü hazırlayın, onaylayın ve ERP web uygulamasına yayınlayın.
             </p>
             {error && <div className="alert">{error}</div>}
             {gitStatusLoading ? (
@@ -5844,39 +5946,41 @@ export function StudioProjects({
                       workspaceGitStatus.totalChangedFiles === 0 &&
                       !workspaceGitStatus.truncated;
                     const testCurrent =
-                      testDiscoveryWorkspace?.id === gitStatusWorkspace.id &&
-                      testExecution?.status === "Passed" &&
-                      testExecution.commitSha ===
+                      releaseTestEvidence?.status === "Passed" &&
+                      releaseTestEvidence.success === true &&
+                      releaseTestEvidence.commitSha ===
                         workspaceGitStatus.headCommitSha &&
-                      !testExecution.hasUncommittedChanges;
+                      !releaseTestEvidence.hasUncommittedChanges;
                     const ready = clean && testCurrent;
                     const canManage =
                       workspaceProject?.accessLevel === "TenantAdmin" ||
                       workspaceProject?.accessLevel === "Maintainer";
                     const alreadySaved =
-                      !!testExecution &&
+                      !!releaseTestEvidence &&
                       releaseCandidates.some(
-                        (item) => item.testJobId === testExecution.jobId,
+                        (item) => item.testJobId === releaseTestEvidence.jobId,
                       );
                     return (
                       <>
-                        <section className="panel" style={{ marginBottom: 14 }}>
+                        <section className="panel studio-release-readiness">
                           <div className="panel-heading">
+                            <span className="studio-release-icon"><GitBranch size={24} /></span>
                             <div>
                               <b>
                                 {ready
-                                  ? "İnsan incelemesine hazır"
+                                  ? "Kontroller tamamlandı"
                                   : "Hazırlık koşulları tamamlanmadı"}
                               </b>
                               <small>
-                                {workspaceGitStatus.branchName} · HEAD{" "}
+                                Commit{" "}
                                 {workspaceGitStatus.headCommitSha.slice(0, 12)}
                               </small>
                             </div>
-                            <ShieldCheck size={18} />
+                            <Info size={18} />
                           </div>
                           <div className="requests-list">
-                            <article className="request-row">
+                            <article className={`request-row ${clean ? "is-passed" : "is-failed"}`}>
+                              {clean ? <CheckCircle2 size={22} /> : <CircleX size={22} />}
                               <div className="request-info">
                                 <b>
                                   {clean
@@ -5892,7 +5996,8 @@ export function StudioProjects({
                                 </small>
                               </div>
                             </article>
-                            <article className="request-row">
+                            <article className={`request-row ${testCurrent ? "is-passed" : "is-pending"}`}>
+                              {testCurrent ? <CheckCircle2 size={22} /> : <CircleMinus size={22} />}
                               <div className="request-info">
                                 <b>
                                   {testCurrent
@@ -5900,10 +6005,9 @@ export function StudioProjects({
                                     : "Güncel commit için başarılı test kanıtı yok"}
                                 </b>
                                 <small>
-                                  {testDiscoveryWorkspace?.id ===
-                                    gitStatusWorkspace.id && testExecution
-                                    ? `${testExecution.status} · HEAD ${testExecution.commitSha.slice(0, 12)}${testExecution.hasUncommittedChanges ? " · değişiklik içeren snapshot" : ""}`
-                                    : "Bu oturumda bu çalışma alanına ait test sonucu yok"}
+                                  {releaseTestEvidence
+                                    ? `${releaseTestEvidence.targetPath} · HEAD ${releaseTestEvidence.commitSha.slice(0, 12)}`
+                                    : "Bu commit için sunucuda başarılı test sonucu bulunamadı"}
                                 </small>
                               </div>
                             </article>
@@ -5942,45 +6046,50 @@ export function StudioProjects({
                                     void commitApprovedWorkspaceChanges()
                                   }
                                 >
+                                  <RefreshCw size={16} />
                                   {workspaceCommitLoading
-                                    ? "Commit hazırlanıyor…"
-                                    : "Onaylı değişiklikleri commit et"}
+                                    ? "Commit ve otomatik test…"
+                                    : "Commit et ve testi otomatik çalıştır"}
                                 </button>
                               </div>
                             )}
-                          <div className="boundary-note">
-                            <ShieldCheck size={17} />
-                            <span>
-                              <b>Kontrollü kayıt</b>Aday kaydı HEAD, dal ve test
-                              özetiyle denetim geçmişine yazılır. Uzak depo
-                              değişmez; paket ve dağıtım adımları çalışmaz.
-                            </span>
-                          </div>
                         </section>
+
                         {releaseCandidates.length > 0 && (
                           <section
-                            className="panel"
+                            className="panel release-main-panel"
                             style={{ marginBottom: 14 }}
                           >
                             <div className="panel-heading">
                               <div>
-                                <b>Kaydedilmiş sürüm adayları</b>
+                                <b>Sürüm ve yayın</b>
                                 <small>
-                                  Son {releaseCandidates.length} kayıt ·
-                                  veritabanında saklanır
+                                  Onaylı sürümünüzü web uygulamasına yayınlayın.
                                 </small>
                               </div>
+                              <button className="secondary small-button" disabled={gitStatusLoading} onClick={() => gitStatusWorkspace && void loadWorkspaceGitStatus(gitStatusWorkspace, true)}>
+                                <RefreshCw size={14} /> Durumu yenile
+                              </button>
                             </div>
                             <div className="requests-list">
                               {releaseCandidates.map((candidate) => (
                                 <article
-                                  className="request-row"
+                                  className="request-row studio-release-candidate"
                                   key={candidate.id}
                                 >
                                   <div className="request-symbol">
                                     <ShieldCheck size={17} />
                                   </div>
                                   <div className="request-info">
+                                    <div className="release-version-heading">
+                                      <div><span className="release-kicker">UYGULAMA YAYINI</span><h3>Sürüm {releaseVersions.find(item => item.releaseCandidateId === candidate.id)?.version ?? "adayı"}</h3></div>
+                                      <div className="release-status-badges">
+                                        <span className={candidate.decision === "Approved" ? "release-badge success" : "release-badge"}>{candidate.decision === "Approved" ? "Onaylandı" : candidate.decision === "Rejected" ? "Reddedildi" : "Onay bekliyor"}</span>
+                                        {candidate.githubPullRequestUrl && <a className="release-badge" href={candidate.githubPullRequestUrl} target="_blank" rel="noreferrer">PR #{candidate.githubPullRequestNumber} · {candidate.githubPullRequestState === "merged" ? "Birleştirildi" : candidate.githubPullRequestState === "draft" ? "Taslak" : candidate.githubPullRequestState === "open" ? "Açık" : candidate.githubPullRequestState}</a>}
+                                      </div>
+                                    </div>
+                                    <details className="release-details release-evidence"><summary>Commit ve doğrulama bilgileri</summary><div className="release-details-body">
+
                                     <b>
                                       {candidate.branchName} ·{" "}
                                       {candidate.commitSha.slice(0, 12)}
@@ -6033,7 +6142,7 @@ export function StudioProjects({
                                           target="_blank"
                                           rel="noreferrer"
                                         >
-                                          Open PR
+                                          GitHub’da aç
                                         </a>
                                       </small>
                                     )}
@@ -6061,6 +6170,7 @@ export function StudioProjects({
                                           .commitSha.slice(0, 12)}
                                       </small>
                                     )}
+                                    </div></details>
                                     {releaseVersions.find(
                                       (item) =>
                                         item.releaseCandidateId ===
@@ -6079,7 +6189,7 @@ export function StudioProjects({
                                         );
                                         return (
                                           <section
-                                            className="panel"
+                                            className="panel release-package-card"
                                             style={{
                                               gridColumn: "1 / -1",
                                               marginTop: 8,
@@ -6088,14 +6198,10 @@ export function StudioProjects({
                                             <div className="panel-heading">
                                               <div>
                                                 <b>
-                                                  {version.version} · sürüm
-                                                  paketi
+                                                  Yayın paketi
                                                 </b>
                                                 <small>
-                                                  Onaylı commit ve başarılı
-                                                  sandbox test kanıtı
-                                                  kullanılır. Paket oluşturma
-                                                  dağıtım başlatmaz.
+                                                  Onaylı committen oluşturulan sürüm dosyaları.
                                                 </small>
                                               </div>
                                               {!pkg &&
@@ -6107,7 +6213,7 @@ export function StudioProjects({
                                                     className="secondary small-button"
                                                     disabled={
                                                       releasePackageLoading !==
-                                                      null
+                                                      null || candidate.githubPullRequestState === "draft"
                                                     }
                                                     onClick={() =>
                                                       void createReleasePackage(
@@ -6122,6 +6228,15 @@ export function StudioProjects({
                                                   </button>
                                                 )}
                                             </div>
+                                            {!pkg && candidate.githubPullRequestState === "draft" && (
+                                              <div className="boundary-note" style={{ flexWrap: "wrap", gap: 10 }}>
+                                                <Info size={17} />
+                                                <span style={{ flex: "1 1 220px" }}><b>GitHub PR #{candidate.githubPullRequestNumber} taslak durumunda</b>Commit GitHub’a gönderildi. Paket oluşturmadan önce PR’yi incelemeye hazır duruma alın.</span>
+                                                <button className="secondary small-button" disabled={pullRequestReadyLoading === candidate.id} onClick={() => void markGitHubPullRequestReady(candidate)}>
+                                                  {pullRequestReadyLoading === candidate.id ? "Hazırlanıyor…" : "PR’yi incelemeye hazırla"}
+                                                </button>
+                                              </div>
+                                            )}
                                             {pkg && (
                                               <div className="request-row">
                                                 <div className="request-info">
@@ -6134,6 +6249,7 @@ export function StudioProjects({
                                                     ).toFixed(2)}{" "}
                                                     MiB
                                                   </b>
+                                                  <details className="release-details"><summary>Paket doğrulama bilgileri</summary>
                                                   <small>
                                                     SHA-256 {pkg.packageSha256}
                                                   </small>
@@ -6150,6 +6266,7 @@ export function StudioProjects({
                                                       pkg.createdAt,
                                                     ).toLocaleString("tr-TR")}
                                                   </small>
+                                                  </details>
                                                 </div>
                                                 <button
                                                   className="secondary small-button"
@@ -6175,6 +6292,7 @@ export function StudioProjects({
                                                 "Maintainer" ||
                                                 workspaceProject?.accessLevel ===
                                                   "TenantAdmin") && (
+                                                <details className="release-details release-staging"><summary>Diğer yayın seçenekleri</summary>
                                                 <div className="modal-foot">
                                                   <span>
                                                     Bağımsız onaylı paket;
@@ -6182,7 +6300,7 @@ export function StudioProjects({
                                                     yayınlanabilir.
                                                   </span>
                                                   <button
-                                                    className="primary small-button"
+                                                    className="secondary small-button"
                                                     disabled={
                                                       releaseDeploymentLoading
                                                     }
@@ -6194,11 +6312,17 @@ export function StudioProjects({
                                                       ? "Yayınlanıyor…"
                                                       : "Yerel staging’e yayınla"}
                                                   </button>
-                                                </div>
+                                                </div>                                                </details>
+
                                               )}
                                           </section>
                                         );
                                       })()}
+                                    {releaseVersions.find(item => item.releaseCandidateId === candidate.id) && releasePackages.find(item => item.releaseVersionId === releaseVersions.find(version => version.releaseCandidateId === candidate.id)!.id) && workspaceProject?.accessLevel === "TenantAdmin" && (() => {
+                                      const version = releaseVersions.find(item => item.releaseCandidateId === candidate.id)!;
+                                      const pkg = releasePackages.find(item => item.releaseVersionId === version.id)!;
+                                      return <WebImageUpdate projectId={workspaceProject.id} packageId={pkg.id} commitSha={pkg.commitSha} token={token} />;
+                                    })()}
                                   </div>
                                   {releaseDeployments.length > 0 && (
                                     <section
@@ -6669,13 +6793,7 @@ export function StudioProjects({
                                       "Maintainer" ||
                                       workspaceProject?.accessLevel ===
                                         "TenantAdmin") && (
-                                      <div
-                                        style={{
-                                          display: "flex",
-                                          gap: 6,
-                                          flexWrap: "wrap",
-                                        }}
-                                      >
+                                      <details className="release-details release-tools"><summary>GitHub inceleme araçları</summary><div className="release-tool-actions">
                                         {candidate.githubPullRequestState ===
                                           "draft" &&
                                           candidate.decision === "Approved" && (
@@ -6706,7 +6824,7 @@ export function StudioProjects({
                                             )
                                           }
                                         >
-                                          GitHub comment
+                                          Yorum ekle
                                         </button>
                                         <button
                                           className="secondary small-button"
@@ -6716,7 +6834,7 @@ export function StudioProjects({
                                             )
                                           }
                                         >
-                                          Request reviewers
+                                          İnceleme iste
                                         </button>
                                         <button
                                           className="secondary small-button"
@@ -6727,7 +6845,7 @@ export function StudioProjects({
                                             )
                                           }
                                         >
-                                          GitHub approve
+                                          GitHub’da onayla
                                         </button>
                                         <button
                                           className="secondary small-button"
@@ -6738,7 +6856,7 @@ export function StudioProjects({
                                             )
                                           }
                                         >
-                                          Request changes
+                                          Değişiklik iste
                                         </button>
                                         <button
                                           className="secondary small-button"
@@ -6748,7 +6866,7 @@ export function StudioProjects({
                                             )
                                           }
                                         >
-                                          Sync local comments
+                                          Yorumları GitHub’a aktar
                                         </button>
                                         <button
                                           className="secondary small-button"
@@ -6758,9 +6876,9 @@ export function StudioProjects({
                                             )
                                           }
                                         >
-                                          Import GitHub comments
+                                          Import Yorum ekles
                                         </button>
-                                      </div>
+                                      </div></details>
                                     )}
                                   {candidate.canReview && (
                                     <div style={{ display: "flex", gap: 6 }}>
@@ -6807,7 +6925,7 @@ export function StudioProjects({
                                         Sürüm ata
                                       </button>
                                     )}
-                                  {candidate.decision === "Approved" &&
+                                  {candidate.decision === "Approved" && !candidate.githubPullRequestNumber &&
                                     (workspaceProject?.accessLevel ===
                                       "Maintainer" ||
                                       workspaceProject?.accessLevel ===
@@ -6827,11 +6945,16 @@ export function StudioProjects({
                                   {pullRequestDraft?.candidateId ===
                                     candidate.id && (
                                     <section
-                                      className="panel"
-                                      style={{ gridColumn: "1 / -1" }}
+                                      className="panel pr-draft-panel"
                                     >
-                                      <div className="panel-heading">
-                                        <div>
+                                      {pullRequestDraft.draft.draftSource === "template" && (
+                                        <div className="boundary-note">
+                                          <Info size={17} />
+                                          <span><b>Şablon taslağı</b> AI sağlayıcısı istek sınırı döndürdü. Taslak, yazdığınız özet ve doğrulanmış test bilgisi kullanılarak hazırlandı; yayınlamadan önce inceleyin.</span>
+                                        </div>
+                                      )}
+                                      <div className="panel-heading pr-draft-heading">
+                                        <div className="pr-draft-branches">
                                           <b>{pullRequestDraft.draft.title}</b>
                                           <small>
                                             {
@@ -6868,7 +6991,7 @@ export function StudioProjects({
                                             ? "GitHub’a gönderiliyor…"
                                             : "Push edip draft PR oluştur"}
                                         </button>
-                                        <small>
+                                        <small className="pr-draft-publish-note">
                                           Yayın için yöneticinin GitHub App
                                           anahtarını yapılandırması gerekir.
                                           Installation ID gizli bilgi değildir.
@@ -6935,7 +7058,9 @@ export function StudioProjects({
                       </>
                     );
                   })()}
-                  <div className="panel-heading">
+                  <details className="release-details release-file-details"><summary>Dosya değişiklikleri ({workspaceGitStatus.totalChangedFiles})</summary>
+                  <div className="panel-heading studio-git-files-heading">
+                    <Layers size={22} />
                     <div>
                       <b>
                         {workspaceGitStatus.totalChangedFiles.toLocaleString(
@@ -6951,7 +7076,7 @@ export function StudioProjects({
                   {workspaceGitStatus.truncated && (
                     <div className="notice">İlk 200 dosya gösteriliyor.</div>
                   )}
-                  <div className="requests-list">
+                  <div className="requests-list studio-git-files">
                     {workspaceGitStatus.files.map((file, index) => (
                       <article
                         className="request-row"
@@ -6969,7 +7094,7 @@ export function StudioProjects({
                           disabled={gitDiffLoading}
                           onClick={() => void openWorkspaceGitDiff(file.path)}
                         >
-                          Diff
+                          <Code2 size={16} /> Diff
                         </button>
                       </article>
                     ))}
@@ -6979,16 +7104,11 @@ export function StudioProjects({
                       </div>
                     )}
                   </div>
+                  </details>
                 </>
               )
             )}
-            <div className="boundary-note">
-              <ShieldCheck size={17} />
-              <span>
-                <b>Dosya adlarıyla sınırlı inceleme</b>Git durum çıktısı sınırlı
-                sayıda yol döndürür; kaynak içerikleri AI’ye aktarılmaz.
-              </span>
-            </div>
+
             <div className="modal-foot">
               <span>
                 {workspaceGitStatus?.branchName ??
@@ -7479,8 +7599,7 @@ export function StudioProjects({
                             setCodeReviewConsent(e.target.checked)
                           }
                           required
-                          style={{ width: 16, marginTop: 3 }}
-                        />
+                              />
                         <span>
                           Bu dosyanın önceki ve güncel içeriğinin (toplam en
                           fazla 20 KiB) OpenAI’ye gönderilmesini onaylıyorum.
@@ -8394,14 +8513,7 @@ export function StudioProjects({
                     placeholder="Örn. Satış siparişlerine sevkiyat önceliği ekle"
                   />
                 </label>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 9,
-                    marginTop: 12,
-                  }}
-                >
+                <label className="studio-test-plan-consent">
                   <input
                     type="checkbox"
                     checked={architectConsent}
@@ -8755,7 +8867,7 @@ export function StudioProjects({
             }
           }}
         >
-          <div className="modal studio-test-discovery-modal">
+          <div className="modal studio-test-discovery-modal" role="dialog" aria-modal="true" aria-labelledby="studio-test-discovery-title">
             <div className="modal-head studio-test-discovery-header">
               <div className="studio-test-discovery-heading">
                 <span className="studio-test-discovery-mark">
@@ -8765,7 +8877,7 @@ export function StudioProjects({
                   <p className="eyebrow">
                     TEST CENTER <i>·</i> GÜVENLİ KURULUM
                   </p>
-                  <h2>{workspaceProject?.name} / Test ve build hedefleri</h2>
+                  <h2 id="studio-test-discovery-title">{workspaceProject?.name} / Test ve build hedefleri</h2>
                 </div>
               </div>
               <button
@@ -8903,7 +9015,7 @@ export function StudioProjects({
                       <div className="panel-heading">
                         <div>
                           <b>
-                            {testExecutionTarget} · {testExecution.status}
+                            {testExecutionTarget} · {testExecution.status === "Running" ? "Çalışıyor" : testExecution.status === "Queued" ? "Kuyrukta" : testExecution.status}
                           </b>
                           <small>
                             HEAD {testExecution.commitSha.slice(0, 12)} ·
@@ -8925,6 +9037,8 @@ export function StudioProjects({
                         </small>
                       </div>
                       {testExecution.output && (
+                        <>
+                        <small>{testExecution.status === "Running" ? "Canlı işlem çıktısı" : "İşlem çıktısı"}</small>
                         <pre
                           style={{
                             maxHeight: 260,
@@ -8939,6 +9053,7 @@ export function StudioProjects({
                         >
                           <code>{testExecution.output}</code>
                         </pre>
+                        </>
                       )}
                       {testExecution.status === "DependencyUnavailable" && (
                         <div className="boundary-note">
@@ -8969,6 +9084,7 @@ export function StudioProjects({
                       )}
                       {testExecution.status !== "Passed" &&
                         testExecution.status !== "Queued" &&
+                        testExecution.status !== "Running" &&
                         workspaceProject?.accessLevel !== "Viewer" && (
                           <button
                             className="secondary small-button"
@@ -8986,13 +9102,13 @@ export function StudioProjects({
                               : "AI ile hata analizi"}
                           </button>
                         )}
-                      {testExecution.status === "Queued" &&
+                      {["Queued", "Running"].includes(testExecution.status) &&
                         !testExecutionLoading && (
                           <button
                             className="secondary small-button"
                             onClick={() => void pollWorkspaceTestRun()}
                           >
-                            Durumu yenile
+                            Test durumunu yenile
                           </button>
                         )}
                     </section>
@@ -9004,7 +9120,7 @@ export function StudioProjects({
                         <div className="panel-heading">
                           <div>
                             <b>
-                              {buildExecutionTarget} · {buildExecution.status}
+                              {buildExecutionTarget} · {buildExecution.status === "Running" ? "Çalışıyor" : buildExecution.status === "Queued" ? "Kuyrukta" : buildExecution.status}
                             </b>
                             <small>
                               HEAD {buildExecution.commitSha.slice(0, 12)} ·
@@ -9023,6 +9139,8 @@ export function StudioProjects({
                           </small>
                         </div>
                         {buildExecution.output && (
+                          <>
+                          <small>{buildExecution.status === "Running" ? "Canlı işlem çıktısı" : "İşlem çıktısı"}</small>
                           <pre
                             style={{
                               maxHeight: 260,
@@ -9037,9 +9155,11 @@ export function StudioProjects({
                           >
                             <code>{buildExecution.output}</code>
                           </pre>
+                          </>
                         )}
                         {buildExecution.status !== "Built" &&
                           buildExecution.status !== "Queued" &&
+                          buildExecution.status !== "Running" &&
                           workspaceProject?.accessLevel !== "Viewer" && (
                             <button
                               className="secondary small-button"
@@ -9057,7 +9177,7 @@ export function StudioProjects({
                                 : "AI ile hata analizi"}
                             </button>
                           )}
-                        {buildExecution.status === "Queued" &&
+                        {["Queued", "Running"].includes(buildExecution.status) &&
                           !buildExecutionLoading && (
                             <button
                               className="secondary small-button"
@@ -9202,8 +9322,11 @@ export function StudioProjects({
               </section>
             )}
             {testDiscovery && workspaceProject?.accessLevel !== "Viewer" && (
-              <form onSubmit={createAITestPlan} style={{ marginTop: 18 }}>
-                <h3>AI Tester · senaryo taslağı</h3>
+              <form onSubmit={createAITestPlan} className="studio-test-plan-form">
+                <div className="studio-test-plan-heading">
+                  <span><Sparkles size={21} /></span>
+                  <div><h3>AI Tester · senaryo taslağı</h3><p>Test etmek istediğiniz davranışı açıklayın, incelemeye hazır senaryolar oluşturun.</p></div>
+                </div>
                 <label>
                   Test edilmesi gereken davranış
                   <textarea

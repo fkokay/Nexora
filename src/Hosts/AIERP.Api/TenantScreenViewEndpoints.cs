@@ -22,7 +22,11 @@ internal static class TenantScreenViewEndpoints
     [
         new("code", "Cari kodu", true), new("name", "Ünvan", true), new("groupName", "Cari grubu", true),
         new("type", "Tür", true), new("currencyCode", "Döviz", true), new("paymentTermDays", "Vade", true),
-        new("taxNumber", "Vergi no", true), new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
+        new("taxNumber", "Vergi no", true), new("status", "Durum", true),
+        new("identityNumber", "T.C. kimlik no", false), new("taxOffice", "Vergi dairesi", false),
+        new("riskLimit", "Risk limiti", false), new("parentCompanyName", "Ana firma", false),
+        new("subsidiaryCount", "Bağlı firma sayısı", false), new("createdAt", "Oluşturulma tarihi", false),
+        new("actions", "İşlemler", true, Fixed: true)
     ];
     private static readonly ScreenViewField[] CustomerDetailFields =
     [
@@ -167,7 +171,7 @@ internal static class TenantScreenViewEndpoints
     private static readonly ScreenViewField[] SalesInvoiceFields =
     [
         new("code", "Fatura no", true), new("deliveryCode", "İrsaliye", true), new("orderCode", "Sipariş", true),
-        new("customerName", "Müşteri", true), new("invoiceDate", "Fatura tarihi", true),
+        new("customerName", "Müşteri", true), new("customerTaxNumber", "Müşteri vergi no", false), new("invoiceDate", "Fatura tarihi", true),
         new("lineCount", "Satır", true), new("grandTotal", "Genel toplam", true),
         new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
     ];
@@ -579,28 +583,31 @@ internal static class TenantScreenViewEndpoints
         {
             if (!TryTenantContext(user, out var tenantId, out _, out _)) return Results.Forbid();
             if (!TryGetCatalog(screenKey, out var catalog)) return Results.NotFound();
+            catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
             var view = await db.TenantScreenViews.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key && x.IsPublished, ct);
-            return Results.Ok(view is null ? DefaultView(catalog) : ToView(view));
+            return Results.Ok(view is null ? DefaultView(catalog) : ToView(view, catalog));
         });
 
         views.MapGet("/{screenKey}/draft", async (string screenKey, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryTenantContext(user, out var tenantId, out _, out var role) || role != "TenantAdmin") return Results.Forbid();
             if (!TryGetCatalog(screenKey, out var catalog)) return Results.NotFound();
+            catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
             var draft = await db.TenantScreenViews.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key && !x.IsPublished &&
                     !db.TenantScreenViewRevisions.Any(revision => revision.TenantId == tenantId && revision.ScreenViewId == x.Id &&
                         (revision.ChangeKind == "Published" || revision.ChangeKind == "Superseded")), ct);
             var active = await db.TenantScreenViews.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key && x.IsPublished, ct);
-            return Results.Ok(new ScreenViewEditorState(catalog, active is null ? DefaultView(catalog) : ToView(active), draft is null ? null : ToView(draft)));
+            return Results.Ok(new ScreenViewEditorState(catalog, active is null ? DefaultView(catalog) : ToView(active, catalog), draft is null ? null : ToView(draft, catalog)));
         });
 
         views.MapPost("/{screenKey}/draft", async (string screenKey, ScreenViewDraftCreateRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
             if (!TryGetCatalog(screenKey, out var catalog)) return Results.NotFound();
+            catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
             if (await db.TenantScreenViews.AnyAsync(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key && !x.IsPublished &&
                 !db.TenantScreenViewRevisions.Any(revision => revision.TenantId == tenantId && revision.ScreenViewId == x.Id &&
                     (revision.ChangeKind == "Published" || revision.ChangeKind == "Superseded")), ct))
@@ -619,7 +626,7 @@ internal static class TenantScreenViewEndpoints
             db.TenantScreenViewRevisions.Add(RevisionOf(draft, userId, "DraftCreated"));
             AddAudit(db, tenantId, userId, "screen-view.draft-created", catalog.Key);
             await db.SaveChangesAsync(ct);
-            return Results.Created($"/api/screen-views/{catalog.Key}/draft", ToView(draft));
+            return Results.Created($"/api/screen-views/{catalog.Key}/draft", ToView(draft, catalog));
         });
 
         views.MapPut("/{viewId:guid}", async (Guid viewId, ScreenViewUpdateRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -630,6 +637,7 @@ internal static class TenantScreenViewEndpoints
             if (view.IsPublished) return Results.Conflict(new { error = "Yayımlanmış görünüm doğrudan değiştirilemez; yeni taslak oluşturun." });
             if (request.ExpectedRevision != view.Revision) return Results.Conflict(new { error = "Taslak başka bir kullanıcı tarafından değiştirildi. Yenileyip tekrar deneyin." });
             if (!TryGetCatalog(view.ScreenKey, out var catalog)) return Results.NotFound();
+            catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
             if (!TryNormalizeFields(request.Fields, catalog, out var fields, out var errors)) return Results.ValidationProblem(errors!);
             var name = NormalizeName(request.Name, catalog.Label);
             db.TenantScreenViewRevisions.Add(RevisionOf(view, userId, "Updated"));
@@ -638,7 +646,7 @@ internal static class TenantScreenViewEndpoints
             AddAudit(db, tenantId, userId, "screen-view.draft-updated", $"{view.ScreenKey}@{view.Revision}");
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Taslak eşzamanlı değiştirildi. Yenileyip tekrar deneyin." }); }
-            return Results.Ok(ToView(view));
+            return Results.Ok(ToView(view, catalog));
         });
 
         views.MapPost("/{viewId:guid}/publish", async (Guid viewId, ScreenViewPublishRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -649,7 +657,8 @@ internal static class TenantScreenViewEndpoints
             if (draft.IsPublished) return Results.Conflict(new { error = "Görünüm zaten yayımlanmış." });
             if (request.ExpectedRevision != draft.Revision) return Results.Conflict(new { error = "Taslak başka bir kullanıcı tarafından değiştirildi. Yenileyip tekrar deneyin." });
             if (!TryGetCatalog(draft.ScreenKey, out var catalog)) return Results.NotFound();
-            if (!TryNormalizeFields(ReadFields(draft.LayoutJson), catalog, out _, out var errors))
+            catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
+            if (!TryNormalizeFields(catalog.Key == "customers" ? WithFixedFields(catalog, ReadFields(draft.LayoutJson)) : ReadFields(draft.LayoutJson), catalog, out _, out var errors))
                 return Results.Conflict(new { error = "Görünüm tanımı artık geçerli değil.", details = errors });
             var previous = await db.TenantScreenViews.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ScreenKey == draft.ScreenKey && x.IsPublished, ct);
             if (previous is not null)
@@ -662,13 +671,14 @@ internal static class TenantScreenViewEndpoints
             AddAudit(db, tenantId, userId, "screen-view.published", $"{draft.ScreenKey}@{draft.Revision}");
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Görünüm eşzamanlı değiştirildi. Yenileyip tekrar deneyin." }); }
-            return Results.Ok(ToView(draft));
+            return Results.Ok(ToView(draft, catalog));
         });
 
         views.MapGet("/{screenKey}/history", async (string screenKey, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryTenantContext(user, out var tenantId, out _, out var role) || role != "TenantAdmin") return Results.Forbid();
             if (!TryGetCatalog(screenKey, out var catalog)) return Results.NotFound();
+            catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
             var items = await db.TenantScreenViewRevisions.AsNoTracking()
                 .Where(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key)
                 .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync(ct);
@@ -679,6 +689,7 @@ internal static class TenantScreenViewEndpoints
         {
             if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
             if (!TryGetCatalog(screenKey, out var catalog)) return Results.NotFound();
+            catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
             if (await db.TenantScreenViews.AnyAsync(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key && !x.IsPublished &&
                 !db.TenantScreenViewRevisions.Any(revision => revision.TenantId == tenantId && revision.ScreenViewId == x.Id &&
                     (revision.ChangeKind == "Published" || revision.ChangeKind == "Superseded")), ct))
@@ -686,7 +697,7 @@ internal static class TenantScreenViewEndpoints
             var old = await db.TenantScreenViewRevisions.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key && x.Id == revisionId, ct);
             if (old is null) return Results.NotFound();
-            if (!TryNormalizeFields(ReadFields(old.LayoutJson), catalog, out var fields, out var errors))
+            if (!TryNormalizeFields(catalog.Key == "customers" ? WithFixedFields(catalog, ReadFields(old.LayoutJson)) : ReadFields(old.LayoutJson), catalog, out var fields, out var errors))
                 return Results.Conflict(new { error = "Geçmiş görünüm artık geçerli değil.", details = errors });
             var now = DateTimeOffset.UtcNow;
             var draft = new TenantScreenView
@@ -699,7 +710,7 @@ internal static class TenantScreenViewEndpoints
             db.TenantScreenViewRevisions.Add(RevisionOf(draft, userId, $"RestoredDraft:{old.Revision}"));
             AddAudit(db, tenantId, userId, "screen-view.restore-draft-created", $"{catalog.Key}:revision:{old.Revision}");
             await db.SaveChangesAsync(ct);
-            return Results.Created($"/api/screen-views/{catalog.Key}/draft", ToView(draft));
+            return Results.Created($"/api/screen-views/{catalog.Key}/draft", ToView(draft, catalog));
         });
     }
 
@@ -1070,13 +1081,33 @@ internal static class TenantScreenViewEndpoints
     private static ScreenViewRecord DefaultView(ScreenViewCatalog catalog) => new(null, catalog.Key, catalog.Label, "Varsayılan", false, 0, catalog.Fields.Select((x, i) => new ScreenViewFieldLayout(x.Key, x.Label, x.DefaultVisible, i, x.Fixed)).ToArray());
     private static IReadOnlyList<ScreenViewFieldLayout> ReadFields(string json) => JsonSerializer.Deserialize<IReadOnlyList<ScreenViewFieldLayout>>(json, JsonOptions) ?? [];
     private static string NormalizeName(string? name, string fallback) => string.IsNullOrWhiteSpace(name) ? fallback : name.Trim()[..Math.Min(name.Trim().Length, 120)];
-    private static ScreenViewRecord ToView(TenantScreenView x) => new(x.Id, x.ScreenKey,
-        TryGetCatalog(x.ScreenKey, out var catalog) ? catalog.Label : x.ScreenKey, x.Name, x.IsPublished, x.Revision, WithFixedFields(x.ScreenKey, ReadFields(x.LayoutJson)));
+    private static async Task<ScreenViewCatalog> WithCustomerFieldsAsync(ScreenViewCatalog catalog, Guid tenantId, TenantDbContext db, CancellationToken ct)
+    {
+        if (catalog.Key is not ("customers" or "sales-invoices")) return catalog;
+        // Keep inactive definitions in the catalog so existing layouts and revisions remain editable.
+        var definitions = catalog.Key == "customers"
+            ? await db.CustomerCustomFieldDefinitions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId).OrderBy(x => x.Label)
+                .Select(x => new { x.Id, x.Label, x.IsActive }).ToListAsync(ct)
+            : await db.SalesInvoiceCustomFieldDefinitions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId).OrderBy(x => x.Label)
+                .Select(x => new { x.Id, x.Label, x.IsActive }).ToListAsync(ct);
+        var fields = catalog.Fields.Where(x => !x.Fixed).ToList();
+        fields.AddRange(definitions.Select(x => new ScreenViewField($"custom:{x.Id:D}",
+            (x.Label.Length > 65 ? x.Label[..65] : x.Label) + (x.IsActive ? "" : " (pasif)"), false)));
+        fields.AddRange(catalog.Fields.Where(x => x.Fixed));
+        return catalog with { Fields = fields };
+    }
+    private static ScreenViewRecord ToView(TenantScreenView x, ScreenViewCatalog catalog) => new(x.Id, x.ScreenKey,
+        catalog.Label, x.Name, x.IsPublished, x.Revision, WithFixedFields(catalog, ReadFields(x.LayoutJson)));
     private static ScreenViewRevisionView ToRevisionView(TenantScreenViewRevision x) => new(x.Id, x.Revision, x.Name, WithFixedFields(x.ScreenKey, x.LayoutJson is null ? [] : ReadFields(x.LayoutJson)), x.ChangeKind, x.ChangedByUserId, x.CreatedAt);
     private static IReadOnlyList<ScreenViewFieldLayout> WithFixedFields(string screenKey, IReadOnlyList<ScreenViewFieldLayout> fields)
     {
         if (!TryGetCatalog(screenKey, out var catalog)) return fields;
-
+        return WithFixedFields(catalog, fields);
+    }
+    private static IReadOnlyList<ScreenViewFieldLayout> WithFixedFields(ScreenViewCatalog catalog, IReadOnlyList<ScreenViewFieldLayout> fields)
+    {
         var ordered = fields.OrderBy(field => field.Position)
             .Select(field => field with { Fixed = catalog.Fields.SingleOrDefault(x => x.Key == field.Key)?.Fixed ?? false })
             .ToList();

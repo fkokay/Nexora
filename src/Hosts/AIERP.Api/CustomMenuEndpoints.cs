@@ -20,6 +20,7 @@ public static class CustomMenuEndpoints
     public static void MapCustomMenuEndpoints(this WebApplication app)
     {
         var menus = app.MapGroup("/api/custom-menus").WithTags("Tenant Custom Navigation").RequireAuthorization();
+        app.MapStandardMenuEndpoints();
 
         menus.MapGet("/targets", () => Results.Ok(Targets.Select(item => new CustomMenuTarget(item.Key, item.Value))));
 

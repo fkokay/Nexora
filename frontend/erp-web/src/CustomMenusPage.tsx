@@ -6,6 +6,7 @@ import { CustomMenuSummary } from "./custom-menus/components/CustomMenuSummary";
 import { CustomMenuEditor } from "./custom-menus/components/CustomMenuEditor";
 import { CustomMenuList } from "./custom-menus/components/CustomMenuList";
 import { CustomMenuInspector } from "./custom-menus/components/CustomMenuInspector";
+import { StandardMenuEditor } from "./custom-menus/components/StandardMenuEditor";
 
 export function TenantCustomMenuNavigation({
   token,
@@ -217,6 +218,7 @@ export default function CustomMenusPage({
           {notice}
         </div>
       )}
+      <StandardMenuEditor token={token} admin={admin} />
       <div className="custom-menu-layout">
         <CustomMenuEditor
           admin={admin}
