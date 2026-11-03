@@ -679,10 +679,8 @@ public static class ReportEndpoints
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         if (!Validate(request, out var normalized, out var errors)) return Results.ValidationProblem(errors!);
-        if (normalized!.Source == "customSql") return await RunCustomSqlAsync(normalized, user, db,
-            context.RequestServices.GetRequiredService<PlatformDbContext>(),
-            context.RequestServices.GetRequiredService<ITenantSqlCredentialReader>(),
-            context.RequestServices.GetRequiredService<IConfiguration>(), ct);
+        if (normalized!.Source == "customSql") return Results.Problem(
+            "SQL raporları, salt okunur veritabanı erişimi sağlanana kadar geçici olarak kullanılamıyor.", statusCode: 503);
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
         if (normalized!.Source == "salesInvoices") return await RunSalesInvoicesAsync(normalized, user, db, ct);
         if (normalized!.Source == "bankStatements") return await RunBankStatementsAsync(normalized, user, db, ct);
@@ -745,10 +743,8 @@ public static class ReportEndpoints
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         if (!Validate(request, out var normalized, out var errors)) return Results.ValidationProblem(errors!);
-        if (normalized!.Source == "customSql") return await ExportCustomSqlAsync(normalized, user,
-            context.RequestServices.GetRequiredService<PlatformDbContext>(),
-            context.RequestServices.GetRequiredService<ITenantSqlCredentialReader>(),
-            context.RequestServices.GetRequiredService<IConfiguration>(), ct);
+        if (normalized!.Source == "customSql") return Results.Problem(
+            "SQL raporları, salt okunur veritabanı erişimi sağlanana kadar geçici olarak kullanılamıyor.", statusCode: 503);
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
         if (normalized!.Source == "salesInvoices") return await ExportSalesInvoicesAsync(normalized, user, db, ct);
         if (normalized!.Source == "bankStatements") return await ExportBankStatementsAsync(normalized, user, db, ct);
@@ -5166,140 +5162,6 @@ public static class ReportEndpoints
         };
         return new AggregatePage(rows.Select(x => x with { GroupValue = x.GroupValue is SalesInvoiceStatus status ? status.ToString() : x.GroupValue }).ToArray(), total);
     }
-
-    private static async Task<IResult> RunCustomSqlAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext auditDb,
-        PlatformDbContext platformDb, ITenantSqlCredentialReader credentialReader, IConfiguration configuration, CancellationToken ct)
-    {
-        if (!TryTenantContext(user, out var activeTenantId, out var userId, out _)) return Results.Forbid();
-        var requestedIds = report.CompanyIds ?? [];
-        if (!requestedIds.Contains(activeTenantId)) return Results.Forbid();
-        var companyQuery = await GetAuthorizedSqlCompaniesAsync(platformDb, userId, requestedIds, ct);
-        if (companyQuery.Error is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["companyIds"] = [companyQuery.Error] });
-        var result = await ExecuteCustomSqlAsync(report, companyQuery.Companies, credentialReader, configuration, ct);
-        if (result.Error is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["sqlQuery"] = [result.Error] });
-        auditDb.AuditEvents.Add(new AuditEvent { TenantId = activeTenantId, UserId = userId, Action = "erp.report.sql-query.executed", Resource = $"companies:{companyQuery.Companies.Count};rows:{result.Result!.Rows.Count}" });
-        await auditDb.SaveChangesAsync(ct);
-        return Results.Ok(result.Result);
-    }
-
-    private static async Task<IResult> ExportCustomSqlAsync(NormalizedReport report, ClaimsPrincipal user,
-        PlatformDbContext platformDb, ITenantSqlCredentialReader credentialReader, IConfiguration configuration, CancellationToken ct)
-    {
-        if (!TryTenantContext(user, out var activeTenantId, out var userId, out _)) return Results.Forbid();
-        var requestedIds = report.CompanyIds ?? [];
-        if (!requestedIds.Contains(activeTenantId)) return Results.Forbid();
-        var companyQuery = await GetAuthorizedSqlCompaniesAsync(platformDb, userId, requestedIds, ct);
-        if (companyQuery.Error is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["companyIds"] = [companyQuery.Error] });
-        var result = await ExecuteCustomSqlAsync(report, companyQuery.Companies, credentialReader, configuration, ct);
-        if (result.Error is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["sqlQuery"] = [result.Error] });
-        var output = new StringBuilder().Append('\uFEFF')
-            .AppendLine(string.Join(',', result.Result!.Columns.Select(column => Csv(column.Label))));
-        foreach (var row in result.Result.Rows)
-            output.AppendLine(string.Join(',', result.Result.Columns.Select(column => CsvValue(row.GetValueOrDefault(column.Code)))));
-        return Results.File(Encoding.UTF8.GetBytes(output.ToString()), "text/csv; charset=utf-8", "nexora-sql-report.csv");
-    }
-
-    private static async Task<(IReadOnlyList<SqlReportCompany> Companies, string? Error)> GetAuthorizedSqlCompaniesAsync(
-        PlatformDbContext platformDb, Guid userId, IReadOnlyList<Guid> requestedIds, CancellationToken ct)
-    {
-        if (requestedIds.Count is < 1 or > 10 || requestedIds.Any(id => id == Guid.Empty) || requestedIds.Distinct().Count() != requestedIds.Count)
-            return ([], "1–10 farklı firma seçin.");
-        var authorized = await platformDb.TenantMemberships.AsNoTracking()
-            .Where(membership => membership.UserId == userId && membership.Tenant.IsActive && requestedIds.Contains(membership.TenantId))
-            .Join(platformDb.TenantDatabaseCatalog.AsNoTracking().Where(database => database.State == TenantDatabaseProvisioningState.Ready),
-                membership => membership.TenantId, database => database.TenantId,
-                (membership, database) => new { membership.TenantId, CompanyName = membership.Tenant.Name, database.DatabaseName })
-            .ToListAsync(ct);
-        if (authorized.Count != requestedIds.Count || authorized.Any(company => company.DatabaseName != TenantSqlCredentialPath.DatabaseName(company.TenantId, TenantSqlDatabaseComponent.Erp)))
-            return ([], "Seçilen firmaların tümüne erişim yetkiniz veya hazır veri tabanı yok.");
-        return (authorized.OrderBy(company => company.CompanyName, StringComparer.CurrentCultureIgnoreCase)
-            .Select(company => new SqlReportCompany(company.TenantId, company.CompanyName)).ToArray(), null);
-    }
-
-    private static async Task<(ReportResult? Result, string? Error)> ExecuteCustomSqlAsync(NormalizedReport report,
-        IReadOnlyList<SqlReportCompany> companies, ITenantSqlCredentialReader credentialReader, IConfiguration configuration, CancellationToken ct)
-    {
-        var template = configuration.GetConnectionString("Tenant");
-        if (string.IsNullOrWhiteSpace(template)) return (null, "Tenant SQL bağlantısı yapılandırılmamış.");
-        if (!TryValidateReadOnlySql(report.SqlQuery, out var validationError)) return (null, validationError);
-        var columnCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "companyName" };
-        var columns = new List<ReportColumn> { new("companyName", "Firma", "text") };
-        var rows = new List<IReadOnlyDictionary<string, object?>>();
-        var queryColumns = new List<(string Code, string Label, string DataType)>();
-        const int maximumRows = 500;
-        const int commandTimeoutSeconds = 20;
-        var rowsPerCompany = Math.Max(1, maximumRows / companies.Count);
-        try
-        {
-            foreach (var company in companies)
-            {
-                ct.ThrowIfCancellationRequested();
-                var expectedDatabase = TenantSqlCredentialPath.DatabaseName(company.TenantId, TenantSqlDatabaseComponent.Erp);
-                var credential = await credentialReader.ReadAsync(company.TenantId, TenantSqlDatabaseComponent.Erp,
-                    TenantSqlCredentialPath.ForTenant(company.TenantId, TenantSqlDatabaseComponent.Erp), ct);
-                var connectionString = TenantDatabaseRouting.BuildTenantConnectionString(template, company.TenantId, credential);
-                if (!string.Equals(credential.DatabaseName, expectedDatabase, StringComparison.Ordinal))
-                    return (null, "Firmanın salt okunur SQL bağlantısı doğrulanamadı.");
-                await using var connection = new SqlConnection(connectionString);
-                await connection.OpenAsync(ct);
-                await using var command = connection.CreateCommand();
-                command.CommandTimeout = commandTimeoutSeconds;
-                command.CommandText = report.SqlQuery!;
-                await using var reader = await command.ExecuteReaderAsync(ct);
-                if (queryColumns.Count == 0)
-                {
-                    for (var index = 0; index < reader.FieldCount; index++)
-                    {
-                        var label = string.IsNullOrWhiteSpace(reader.GetName(index)) ? $"Sütun {index + 1}" : reader.GetName(index);
-                        var codeBase = Regex.Replace(label.Trim().ToLowerInvariant(), @"[^a-z0-9_]+", "_").Trim('_');
-                        if (codeBase.Length == 0) codeBase = $"column_{index + 1}";
-                        var code = codeBase;
-                        for (var suffix = 2; !columnCodes.Add(code); suffix++) code = $"{codeBase}_{suffix}";
-                        queryColumns.Add((code, label, ReportSqlDataType(reader.GetFieldType(index))));
-                        columns.Add(new ReportColumn(code, label, queryColumns[^1].DataType));
-                    }
-                }
-                else if (reader.FieldCount != queryColumns.Count || Enumerable.Range(0, reader.FieldCount).Any(index => !string.Equals(reader.GetName(index), queryColumns[index].Label, StringComparison.OrdinalIgnoreCase)))
-                {
-                    return (null, "Seçilen firmalardaki SQL sorgusu aynı sütun adlarını ve sırayı döndürmelidir.");
-                }
-                var companyRows = 0;
-                while (companyRows < rowsPerCompany && rows.Count < maximumRows && await reader.ReadAsync(ct))
-                {
-                    var row = new Dictionary<string, object?>(StringComparer.Ordinal)
-                    {
-                        ["companyName"] = company.Name
-                    };
-                    for (var index = 0; index < queryColumns.Count; index++)
-                    {
-                        object? value = await reader.IsDBNullAsync(index, ct) ? null : reader.GetValue(index);
-                        if (value is byte[] bytes) value = Convert.ToBase64String(bytes);
-                        row[queryColumns[index].Code] = value;
-                    }
-                    rows.Add(row);
-                    companyRows++;
-                }
-            }
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception exception) when (exception is SqlException or InvalidOperationException or ArgumentException)
-        {
-            return (null, $"SQL sorgusu çalıştırılamadı: {exception.Message}");
-        }
-        return (new ReportResult("customSql", columns, rows, 1, maximumRows, rows.Count), null);
-    }
-
-    private static string ReportSqlDataType(Type type)
-    {
-        var actualType = Nullable.GetUnderlyingType(type) ?? type;
-        if (actualType == typeof(bool)) return "boolean";
-        if (actualType == typeof(DateTime) || actualType == typeof(DateOnly) || actualType == typeof(DateTimeOffset)) return "date";
-        if (actualType == typeof(byte) || actualType == typeof(short) || actualType == typeof(int) || actualType == typeof(long)) return "number";
-        if (actualType == typeof(decimal) || actualType == typeof(double) || actualType == typeof(float)) return "decimal";
-        return "text";
-    }
-
-    private sealed record SqlReportCompany(Guid TenantId, string Name);
 
     private static bool Validate(ReportRunRequest? request, out NormalizedReport? normalized, out Dictionary<string, string[]>? errors)
     {

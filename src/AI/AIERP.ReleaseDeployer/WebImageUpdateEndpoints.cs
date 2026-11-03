@@ -50,7 +50,7 @@ public static class WebImageUpdateEndpoints
                 // orphan block updates for services still managed by the active deployment.
                 if (!configuredServices.Contains(service))
                 {
-                    app.Logger.LogWarning("Skipping application image revision lookup for {Service}: it is not defined in the active Compose files", service);
+                    app.Logger.LogWarning("Skipping application image revision lookup: a supported service is not defined in the active Compose files");
                     continue;
                 }
                 var running = await docker(prefix.Concat(["ps", "--status", "running", "-q", service]), TimeSpan.FromSeconds(20), ct);
