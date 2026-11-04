@@ -4,6 +4,7 @@ import { WorkspaceSearchDialog } from "./WorkspaceSearchDialog";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { StandaloneStudioHeader } from "./StandaloneStudioHeader";
 import { WorkspacePageRouter } from "./WorkspacePageRouter";
+import { TenantCustomMenuNavigation } from "./CustomMenusPage";
 import {
   WorkspaceTabs,
   KeepAliveViews,
@@ -65,7 +66,7 @@ type Props = {
   onCloseDeveloperMode: () => void;
   onOpenLicenseSettings: () => void;
   onOpenStudioSource: () => void;
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, label?: string) => void;
   onCloseTab: (tabId: string) => void;
   onMoveTab: (draggedId: string, targetId: string) => void;
   onDismissError: () => void;
@@ -221,6 +222,11 @@ export function WorkspaceShellPage(props: Props) {
           onClose={onCloseTab}
           onMove={onMoveTab}
         />
+        {!standaloneStudio && (
+          <div className="custom-page-navigation">
+            <TenantCustomMenuNavigation token={token} page={page} onSelect={onNavigate} />
+          </div>
+        )}
         <section
           className="content"
           onChangeCapture={(event) => {

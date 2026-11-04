@@ -2856,6 +2856,41 @@ public sealed class TenantScreenViewRevision
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>A tenant-owned low-code page definition. The JSON contains allowlisted UI metadata only.</summary>
+public sealed class TenantCustomPage
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public string DefinitionJson { get; set; } = "{\"schemaVersion\":1,\"components\":[]}";
+    public int Revision { get; set; } = 1;
+    public bool IsPublished { get; set; }
+    public bool IsArchived { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<TenantCustomPageRevision> Revisions { get; set; } = new List<TenantCustomPageRevision>();
+}
+
+public sealed class TenantCustomPageRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid CustomPageId { get; set; }
+    public TenantCustomPage CustomPage { get; set; } = null!;
+    public int Revision { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public string DefinitionJson { get; set; } = "{\"schemaVersion\":1,\"components\":[]}";
+    public string ChangeKind { get; set; } = "Updated";
+    public Guid ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class TenantWorkflowDefinition
 {
     public Guid Id { get; set; } = Guid.NewGuid();

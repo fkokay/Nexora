@@ -16909,9 +16909,9 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
                     b.Property<string>("TargetPage")
                         .IsRequired()
-                        .HasMaxLength(40)
+                        .HasMaxLength(80)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(40)");
+                        .HasColumnType("varchar(80)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -21460,6 +21460,66 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
             modelBuilder.Entity("AIERP.Platform.Domain.TenantScreenView", b =>
                 {
                     b.Navigation("Revisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPage", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uniqueidentifier");
+                    b.Property<string>("Code").IsRequired().IsUnicode(false).HasMaxLength(40).HasColumnType("varchar(40)");
+                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("datetimeoffset");
+                    b.Property<Guid>("CreatedByUserId").HasColumnType("uniqueidentifier");
+                    b.Property<string>("DefinitionJson").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<string>("Description").HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<bool>("IsArchived").HasColumnType("bit");
+                    b.Property<bool>("IsPublished").HasColumnType("bit");
+                    b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("nvarchar(120)");
+                    b.Property<int>("Revision").IsConcurrencyToken().HasColumnType("int");
+                    b.Property<Guid>("TenantId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTimeOffset>("UpdatedAt").HasColumnType("datetimeoffset");
+                    b.Property<Guid>("UpdatedByUserId").HasColumnType("uniqueidentifier");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("TenantId", "Code", "IsPublished", "IsArchived").IsUnique().HasFilter("[IsPublished] = 0 AND [IsArchived] = 0").HasDatabaseName("IX_TenantCustomPages_Draft");
+                    b.HasIndex("TenantId", "Code", "IsPublished").IsUnique().HasFilter("[IsPublished] = 1").HasDatabaseName("IX_TenantCustomPages_Published");
+                    b.HasIndex("TenantId", "Code", "UpdatedAt");
+                    b.ToTable("TenantCustomPages", t =>
+                        {
+                            t.HasCheckConstraint("CK_TenantCustomPages_Revision", "[Revision] >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageRevision", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uniqueidentifier");
+                    b.Property<Guid>("ChangedByUserId").HasColumnType("uniqueidentifier");
+                    b.Property<string>("ChangeKind").IsRequired().IsUnicode(false).HasMaxLength(32).HasColumnType("varchar(32)");
+                    b.Property<string>("Code").IsRequired().IsUnicode(false).HasMaxLength(40).HasColumnType("varchar(40)");
+                    b.Property<Guid>("CustomPageId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("datetimeoffset");
+                    b.Property<string>("DefinitionJson").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<string>("Description").HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("nvarchar(120)");
+                    b.Property<int>("Revision").HasColumnType("int");
+                    b.Property<Guid>("TenantId").HasColumnType("uniqueidentifier");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("TenantId", "CustomPageId", "Revision").IsUnique();
+                    b.ToTable("TenantCustomPageRevisions", t =>
+                        {
+                            t.HasCheckConstraint("CK_TenantCustomPageRevisions_Revision", "[Revision] >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPage", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null).WithMany().HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Revisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.TenantCustomPage", "CustomPage").WithMany("Revisions").HasForeignKey("TenantId", "CustomPageId").HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("CustomPage");
                 });
 #pragma warning restore 612, 618
         }

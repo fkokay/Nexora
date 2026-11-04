@@ -49,6 +49,31 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.Property(x => x.Sha256).HasMaxLength(64).IsUnicode(false).IsFixedLength();
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<TenantCustomPage>(e =>
+        {
+            e.ToTable("TenantCustomPages", table => table.HasCheckConstraint("CK_TenantCustomPages_Revision", "[Revision] >= 1"));
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code, x.IsPublished }, "IX_TenantCustomPages_Published").IsUnique().HasFilter("[IsPublished] = 1");
+            e.HasIndex(x => new { x.TenantId, x.Code, x.IsPublished, x.IsArchived }, "IX_TenantCustomPages_Draft").IsUnique().HasFilter("[IsPublished] = 0 AND [IsArchived] = 0");
+            e.HasIndex(x => new { x.TenantId, x.Code, x.UpdatedAt });
+            e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired(); e.Property(x => x.Description).HasMaxLength(500);
+            e.Property(x => x.DefinitionJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantCustomPageRevision>(e =>
+        {
+            e.ToTable("TenantCustomPageRevisions", table => table.HasCheckConstraint("CK_TenantCustomPageRevisions_Revision", "[Revision] >= 1"));
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.CustomPageId, x.Revision }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired(); e.Property(x => x.Description).HasMaxLength(500);
+            e.Property(x => x.DefinitionJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.ChangeKind).HasMaxLength(32).IsUnicode(false).IsRequired();
+            e.HasOne(x => x.CustomPage).WithMany(x => x.Revisions).HasForeignKey(x => new { x.TenantId, x.CustomPageId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<ManufacturingWorkCenterAnnualCapacityRule>(e =>
         {
             e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });

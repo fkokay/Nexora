@@ -323,6 +323,12 @@ export default function App() {
       icon: FileText,
     },
     {
+      id: "custom-pages",
+      title: "Sayfa tasarımcısı",
+      description: "Yeni tenant sayfaları oluşturun, taslakları önizleyip yayımlayın.",
+      icon: Pencil,
+    },
+    {
       id: "workflows",
       title: "İş akışları",
       description: "Onay ve görev adımlarını görsel olarak düzenleyin.",
@@ -389,7 +395,7 @@ export default function App() {
       description:
         "Alanları ekle, formları ve kayıt listelerini işine göre ayarla.",
       icon: FileText,
-      toolIds: ["custom-forms", "screen-views", "custom-lists"],
+      toolIds: ["custom-pages", "custom-forms", "screen-views", "custom-lists"],
     },
     {
       title: "İş süreçlerini otomatikleştir",
@@ -2080,6 +2086,7 @@ export default function App() {
                 "custom-lists",
                 "screen-views",
                 "custom-menus",
+                "custom-pages",
               ];
               return (
                 <>

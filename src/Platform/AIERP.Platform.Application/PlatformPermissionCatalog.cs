@@ -235,6 +235,16 @@ public static class PlatformPermissionCatalog
         else if (path.Equals("/api/location-definitions", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/location-definitions/", StringComparison.OrdinalIgnoreCase))
             resource = Resources.First(x => x.ResourceType == "erp.customer-locations");
+        else if (path.Equals("/api/custom-pages", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/custom-pages/", StringComparison.OrdinalIgnoreCase))
+        {
+            // Published pages are runtime content reached through tenant navigation;
+            // use the same read permission as menu navigation. Draft management stays
+            // under the low-code customization permission family.
+            resource = normalizedRoute.EndsWith("/{code}/published", StringComparison.OrdinalIgnoreCase)
+                ? Resources.First(x => x.ResourceType == "erp.custom-menus")
+                : Resources.First(x => x.ResourceType == "erp.tenant-customizations");
+        }
         resource ??= Resources.Where(x => path.Equals(x.RoutePrefix, StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith(x.RoutePrefix.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(x => x.RoutePrefix.Length).FirstOrDefault();

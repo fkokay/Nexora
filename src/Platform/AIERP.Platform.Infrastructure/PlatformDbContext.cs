@@ -32,6 +32,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<TenantCustomFormSubmission> TenantCustomFormSubmissions => Set<TenantCustomFormSubmission>();
     public DbSet<TenantScreenView> TenantScreenViews => Set<TenantScreenView>();
     public DbSet<TenantScreenViewRevision> TenantScreenViewRevisions => Set<TenantScreenViewRevision>();
+    public DbSet<TenantCustomPage> TenantCustomPages => Set<TenantCustomPage>();
+    public DbSet<TenantCustomPageRevision> TenantCustomPageRevisions => Set<TenantCustomPageRevision>();
     public DbSet<TenantWorkflowDefinition> TenantWorkflowDefinitions => Set<TenantWorkflowDefinition>();
     public DbSet<TenantWorkflowInstance> TenantWorkflowInstances => Set<TenantWorkflowInstance>();
     public DbSet<TenantWorkflowAction> TenantWorkflowActions => Set<TenantWorkflowAction>();
@@ -2676,6 +2678,33 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasOne(x => x.ScreenView).WithMany(x => x.Revisions).HasForeignKey(x => new { x.TenantId, x.ScreenViewId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
         });
+        modelBuilder.Entity<TenantCustomPage>(e =>
+        {
+            e.ToTable("TenantCustomPages", table => table.HasCheckConstraint("CK_TenantCustomPages_Revision", "[Revision] >= 1"));
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code, x.IsPublished }, "IX_TenantCustomPages_Published").IsUnique().HasFilter("[IsPublished] = 1");
+            e.HasIndex(x => new { x.TenantId, x.Code, x.IsPublished, x.IsArchived }, "IX_TenantCustomPages_Draft").IsUnique().HasFilter("[IsPublished] = 0 AND [IsArchived] = 0");
+            e.HasIndex(x => new { x.TenantId, x.Code, x.UpdatedAt });
+            e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.Property(x => x.DefinitionJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantCustomPageRevision>(e =>
+        {
+            e.ToTable("TenantCustomPageRevisions", table => table.HasCheckConstraint("CK_TenantCustomPageRevisions_Revision", "[Revision] >= 1"));
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.CustomPageId, x.Revision }).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.Property(x => x.DefinitionJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.ChangeKind).HasMaxLength(32).IsUnicode(false).IsRequired();
+            e.HasOne(x => x.CustomPage).WithMany(x => x.Revisions).HasForeignKey(x => new { x.TenantId, x.CustomPageId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<TenantSavedReport>(e =>
         {
             e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
@@ -2714,7 +2743,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.Position });
             e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false);
             e.Property(x => x.Label).HasMaxLength(80);
-            e.Property(x => x.TargetPage).HasMaxLength(40).IsUnicode(false);
+            e.Property(x => x.TargetPage).HasMaxLength(80).IsUnicode(false);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<BillOfMaterial>(e =>

@@ -20,6 +20,7 @@ const TenantModuleScreen = lazy(() =>
   })),
 );
 const CustomMenusPage = lazy(() => import("./CustomMenusPage"));
+const TenantCustomPage = lazy(() => import("./TenantCustomPage"));
 const CustomFormsPage = lazy(() => import("./CustomFormsPage"));
 const WorkflowPage = lazy(() => import("./WorkflowPage"));
 const BusinessRulesPage = lazy(() => import("./BusinessRulesPage"));
@@ -216,6 +217,8 @@ export function WorkspacePageRouter({
     return <WorkflowPage token={token} role={tenant.role} />;
   if (page === "custom-forms")
     return <CustomFormsPage token={token} role={tenant.role} />;
+  if (page.startsWith("custom-page:"))
+    return <TenantCustomPage token={token} code={page.slice("custom-page:".length)} />;
   if (page.startsWith("module:") && selectedModuleMenu)
     return <TenantModuleScreen token={token} selection={selectedModuleMenu} />;
   if (page === "customers" || page === "customer-create")

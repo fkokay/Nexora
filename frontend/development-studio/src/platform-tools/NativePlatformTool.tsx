@@ -4,6 +4,7 @@ import BusinessRulesPage from "./erp-src/BusinessRulesPage";
 import ReportsPage from "./erp-src/ReportsPage";
 import BuiltInScreenViewsPage from "./erp-src/BuiltInScreenViewsPage";
 import CustomMenusPage from "./erp-src/CustomMenusPage";
+import CustomPagesPage from "./erp-src/CustomPagesPage";
 
 type NativeToolId =
   | "custom-forms"
@@ -12,7 +13,8 @@ type NativeToolId =
   | "reports"
   | "custom-lists"
   | "screen-views"
-  | "custom-menus";
+  | "custom-menus"
+  | "custom-pages";
 
 type Props = {
   toolId: string;
@@ -36,6 +38,8 @@ export default function NativePlatformTool({ toolId, token, role }: Props) {
       return <BuiltInScreenViewsPage token={token} role={role} />;
     case "custom-menus":
       return <CustomMenusPage token={token} role={role} />;
+    case "custom-pages":
+      return <CustomPagesPage token={token} role={role} />;
     default:
       return null;
   }

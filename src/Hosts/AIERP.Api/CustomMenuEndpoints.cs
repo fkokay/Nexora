@@ -23,11 +23,12 @@ public static class CustomMenuEndpoints
         var menus = app.MapGroup("/api/custom-menus").WithTags("Tenant Custom Navigation").RequireAuthorization();
         app.MapStandardMenuEndpoints();
 
-        menus.MapGet("/targets", async (ClaimsPrincipal user, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
+        menus.MapGet("/targets", async (ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
             if (!TryTenant(user, out var tenantId, out var userId, out var role)
                 || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
-            return Results.Ok(Targets.Select(item => new CustomMenuTarget(item.Key, item.Value)));
+            var targets = await GetTargetsAsync(db, tenantId, ct);
+            return Results.Ok(targets.Select(item => new CustomMenuTarget(item.Key, item.Value)));
         });
 
         menus.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
@@ -38,15 +39,17 @@ public static class CustomMenuEndpoints
                 .OrderBy(x => x.Position).ThenBy(x => x.CreatedAt)
                 .Select(x => new { x.Id, x.Code, x.Label, x.TargetPage, x.Position, x.CreatedAt, x.UpdatedAt })
                 .Take(MaxEntries).ToListAsync(ct);
+            var targets = await GetTargetsAsync(db, tenantId, ct);
             return Results.Ok(entries.Select(x => new CustomMenuEntryView(x.Id, x.Code, x.Label, x.TargetPage,
-                Targets.GetValueOrDefault(x.TargetPage, ""), x.Position, x.CreatedAt, x.UpdatedAt)));
+                targets.GetValueOrDefault(x.TargetPage, "Yayımlanmış sayfa bulunamadı"), x.Position, x.CreatedAt, x.UpdatedAt)));
         });
 
         menus.MapPost("/", async (CustomMenuWriteRequest request, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
             if (!TryTenant(user, out var tenantId, out var userId, out var role)
                 || !await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct)) return Results.Forbid();
-            if (!Validate(request, out var code, out var label, out var targetPage, out var errors)) return Results.ValidationProblem(errors!);
+            var targets = await GetTargetsAsync(db, tenantId, ct);
+            if (!Validate(request, targets, out var code, out var label, out var targetPage, out var errors)) return Results.ValidationProblem(errors!);
             if (await db.TenantCustomMenuEntries.AnyAsync(x => x.TenantId == tenantId && x.Code == code, ct))
                 return Results.Conflict(new { error = "Bu menü kodu zaten kullanılıyor." });
             var count = await db.TenantCustomMenuEntries.CountAsync(x => x.TenantId == tenantId, ct);
@@ -60,14 +63,15 @@ public static class CustomMenuEndpoints
             db.TenantCustomMenuEntries.Add(entry);
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.custom-menu.created", Resource = entry.Code });
             await db.SaveChangesAsync(ct);
-            return Results.Created($"/api/custom-menus/{entry.Id}", ToView(entry));
+            return Results.Created($"/api/custom-menus/{entry.Id}", ToView(entry, targets));
         });
 
         menus.MapPut("/{entryId:guid}", async (Guid entryId, CustomMenuWriteRequest request, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
             if (!TryTenant(user, out var tenantId, out var userId, out var role)
                 || !await IsAllowedAsync(authorizer, tenantId, userId, role, "update", ct)) return Results.Forbid();
-            if (!Validate(request, out var code, out var label, out var targetPage, out var errors)) return Results.ValidationProblem(errors!);
+            var targets = await GetTargetsAsync(db, tenantId, ct);
+            if (!Validate(request, targets, out var code, out var label, out var targetPage, out var errors)) return Results.ValidationProblem(errors!);
             var entry = await db.TenantCustomMenuEntries.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == entryId, ct);
             if (entry is null) return Results.NotFound();
             if (await db.TenantCustomMenuEntries.AnyAsync(x => x.TenantId == tenantId && x.Id != entry.Id && x.Code == code, ct))
@@ -75,7 +79,7 @@ public static class CustomMenuEndpoints
             entry.Code = code!; entry.Label = label!; entry.TargetPage = targetPage!; entry.UpdatedByUserId = userId; entry.UpdatedAt = DateTimeOffset.UtcNow;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "erp.custom-menu.updated", Resource = entry.Code });
             await db.SaveChangesAsync(ct);
-            return Results.Ok(ToView(entry));
+            return Results.Ok(ToView(entry, targets));
         });
 
         menus.MapPut("/order", async (ReorderCustomMenuRequest request, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
@@ -107,7 +111,19 @@ public static class CustomMenuEndpoints
         });
     }
 
-    private static bool Validate(CustomMenuWriteRequest request, out string? code, out string? label, out string? targetPage,
+    private static async Task<IReadOnlyDictionary<string, string>> GetTargetsAsync(TenantDbContext db, Guid tenantId, CancellationToken ct)
+    {
+        var targets = Targets.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
+        var pages = await db.TenantCustomPages.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.IsPublished && !x.IsArchived)
+            .OrderBy(x => x.Name)
+            .Select(x => new { x.Code, x.Name })
+            .ToListAsync(ct);
+        foreach (var page in pages) targets[$"custom-page:{page.Code}"] = page.Name;
+        return targets;
+    }
+
+    private static bool Validate(CustomMenuWriteRequest request, IReadOnlyDictionary<string, string> targets, out string? code, out string? label, out string? targetPage,
         out Dictionary<string, string[]>? errors)
     {
         code = request.Code?.Trim().ToLowerInvariant(); label = request.Label?.Trim(); targetPage = request.TargetPage?.Trim();
@@ -116,14 +132,14 @@ public static class CustomMenuEndpoints
             errors["code"] = ["Kod küçük harfle başlamalı ve en fazla 40 küçük harf, rakam, tire veya alt çizgi içermelidir."];
         if (string.IsNullOrWhiteSpace(label) || label.Length > 80)
             errors["label"] = ["Menü adı 1-80 karakter olmalıdır."];
-        if (string.IsNullOrWhiteSpace(targetPage) || !Targets.ContainsKey(targetPage))
+        if (string.IsNullOrWhiteSpace(targetPage) || targetPage.Length > 80 || !targets.ContainsKey(targetPage))
             errors["targetPage"] = ["Yalnız katalogdaki güvenli ERP sayfaları hedeflenebilir."];
         if (errors.Count == 0) { errors = null; return true; }
         return false;
     }
 
-    private static CustomMenuEntryView ToView(TenantCustomMenuEntry entry) =>
-        new(entry.Id, entry.Code, entry.Label, entry.TargetPage, Targets[entry.TargetPage], entry.Position, entry.CreatedAt, entry.UpdatedAt);
+    private static CustomMenuEntryView ToView(TenantCustomMenuEntry entry, IReadOnlyDictionary<string, string> targets) =>
+        new(entry.Id, entry.Code, entry.Label, entry.TargetPage, targets.GetValueOrDefault(entry.TargetPage, "Yayımlanmış sayfa bulunamadı"), entry.Position, entry.CreatedAt, entry.UpdatedAt);
 
     private static bool TryTenant(ClaimsPrincipal principal, out Guid tenantId, out Guid userId, out string role)
     {

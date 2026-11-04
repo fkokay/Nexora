@@ -1,0 +1,25 @@
+.tenant-custom-page { max-width: 1440px; margin: 0 auto; padding: 24px; color: var(--text-h, #10213b); }
+.tenant-custom-page-header { display: flex; align-items: center; gap: 14px; padding: 18px 20px; margin-bottom: 20px; background: var(--bg, #fff); border: 1px solid var(--border, #dbe3ef); border-radius: 14px; }
+.tenant-custom-page-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 12px; color: #6645e8; background: #f0ecff; }
+.tenant-custom-page-header h1 { margin: 0; font-size: 1.35rem; }
+.tenant-custom-page-header p { margin: 5px 0 0; color: var(--text, #66758b); }
+.tenant-custom-page-content { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: 16px; }
+.tenant-custom-page-content > * { grid-column: span 12; min-width: 0; }
+.tenant-custom-page-content > .tenant-page-metric { grid-column: span 4; }
+.tenant-page-block, .tenant-page-metric { padding: 18px; border: 1px solid var(--border, #dbe3ef); border-radius: 12px; background: var(--bg, #fff); }
+.tenant-page-block h3 { margin: 0 0 10px; font-size: 1rem; }
+.tenant-page-block p { margin: 8px 0; color: var(--text, #66758b); white-space: pre-wrap; }
+.tenant-page-metric { display: flex; flex-direction: column; gap: 7px; }
+.tenant-page-metric span, .tenant-page-metric small { color: var(--text, #66758b); }
+.tenant-page-metric strong { font-size: 1.6rem; }
+.tenant-page-button { justify-self: start; padding: 9px 14px; border: 1px solid var(--border, #dbe3ef); border-radius: 8px; color: #58657a; background: #f4f6fa; }
+.tenant-page-table { overflow: hidden; }
+.tenant-page-table-scroll { overflow-x: auto; }
+.tenant-page-table table { width: 100%; border-collapse: collapse; }
+.tenant-page-table th, .tenant-page-table td { padding: 10px 12px; border-bottom: 1px solid var(--border, #dbe3ef); text-align: left; }
+.tenant-page-table th { background: #f7f8fc; }
+.tenant-page-spacer { min-height: 24px; }
+.tenant-custom-page-state { display: flex; align-items: center; gap: 10px; margin: 24px; padding: 16px; border: 1px solid var(--border, #dbe3ef); border-radius: 10px; background: var(--bg, #fff); }
+.tenant-custom-page-error { color: #b42318; background: #fff6f5; border-color: #f5c2be; }
+@media (max-width: 760px) { .tenant-custom-page { padding: 14px; } .tenant-custom-page-content > .tenant-page-metric { grid-column: span 6; } }
+@media (max-width: 480px) { .tenant-custom-page-content > .tenant-page-metric { grid-column: span 12; } }

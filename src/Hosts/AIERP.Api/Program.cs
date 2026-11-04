@@ -219,6 +219,7 @@ app.MapAccessControlEndpoints();
 app.MapLowCodeCapabilityEndpoints();
 app.MapCustomFormEndpoints();
 app.MapTenantScreenViewEndpoints();
+app.MapTenantCustomPageEndpoints();
 app.MapWorkflowEndpoints();
 app.MapBusinessRuleEndpoints();
 app.MapReportEndpoints();

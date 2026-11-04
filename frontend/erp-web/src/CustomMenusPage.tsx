@@ -16,7 +16,7 @@ export function TenantCustomMenuNavigation({
 }: {
   token: string;
   page: string;
-  onSelect: (page: string) => void;
+  onSelect: (page: string, label?: string) => void;
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   useEffect(() => {
@@ -47,7 +47,7 @@ export function TenantCustomMenuNavigation({
             key={entry.id}
             title={entry.targetLabel}
             className={`nav-item ${page === entry.targetPage ? "active" : ""}`}
-            onClick={() => onSelect(entry.targetPage)}
+            onClick={() => onSelect(entry.targetPage, entry.label)}
           >
             <span className="custom-menu-dot" aria-hidden="true" />
             {entry.label}
