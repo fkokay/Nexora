@@ -3334,6 +3334,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var databaseName = $"custom-form-{Guid.NewGuid():N}";
         builder.Services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase(databaseName));
         builder.Services.AddAuthentication("report-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
+        builder.Services.AddSingleton<AIERP.Platform.Application.IPlatformPermissionAuthorizer, CustomizationTestPermissionAuthorizer>();
         builder.Services.AddAuthorization();
 
         var app = builder.Build();

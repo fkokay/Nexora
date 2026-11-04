@@ -96,6 +96,7 @@ public sealed class WarehouseLocationScreenViewsIntegrationTests
         var databaseRoot = new InMemoryDatabaseRoot();
         builder.Services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase(databaseName, databaseRoot));
         builder.Services.AddAuthentication("warehouse-screen-view-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("warehouse-screen-view-test", _ => { });
+        builder.Services.AddSingleton<AIERP.Platform.Application.IPlatformPermissionAuthorizer, CustomizationTestPermissionAuthorizer>();
         builder.Services.AddAuthorization();
         var app = builder.Build();
         app.UseAuthentication();
