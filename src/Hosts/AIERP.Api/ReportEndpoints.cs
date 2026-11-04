@@ -5173,7 +5173,7 @@ public static class ReportEndpoints
         return "text";
     }
 
-    private static bool Validate(ReportRunRequest? request, out NormalizedReport? normalized, out Dictionary<string, string[]>? errors)
+    internal static bool Validate(ReportRunRequest? request, out NormalizedReport? normalized, out Dictionary<string, string[]>? errors)
     {
         normalized = null; errors = new Dictionary<string, string[]>();
         if (request?.Source == "customSql")
