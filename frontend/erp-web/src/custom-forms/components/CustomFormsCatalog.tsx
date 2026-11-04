@@ -8,8 +8,9 @@ import {
   Send,
   ShieldCheck,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { Field, Form, Submission } from "../types";
+import { getDefaultFieldValues, groupFieldsBySection, isFieldRequired, isFieldVisible } from "../types";
 
 type Props = {
   forms: Form[];
@@ -18,13 +19,15 @@ type Props = {
   catalogSelection: Form | null;
   selectedId: string | null;
   admin: boolean;
+  canManageDrafts: boolean;
+  canUpdate: boolean;
+  canPublish: boolean;
+  canReadHistory: boolean;
   busy: boolean;
-  values: Record<string, string>;
   decisionReason: Record<string, string>;
   onSelect: (form: Form) => void;
-  onValuesChange: (values: Record<string, string>) => void;
   onDecisionReasonChange: (values: Record<string, string>) => void;
-  onSubmit: (form: Form) => void;
+  onSubmit: (form: Form, values: Record<string, string>) => Promise<boolean>;
   onEdit: (form: Form) => void;
   onOpenHistory: (form: Form) => void;
   onMutate: (url: string, body?: unknown) => void;
@@ -32,6 +35,7 @@ type Props = {
     field: Field,
     value: string,
     onChange: (value: string) => void,
+    required?: boolean,
   ) => ReactNode;
 };
 
@@ -42,11 +46,13 @@ export function CustomFormsCatalog({
   catalogSelection,
   selectedId,
   admin,
+  canManageDrafts,
+  canUpdate,
+  canPublish,
+  canReadHistory,
   busy,
-  values,
   decisionReason,
   onSelect,
-  onValuesChange,
   onDecisionReasonChange,
   onSubmit,
   onEdit,
@@ -54,9 +60,28 @@ export function CustomFormsCatalog({
   onMutate,
   control,
 }: Props) {
+  const [valuesByForm, setValuesByForm] = useState<Record<string, Record<string, string>>>({});
   const drafts = forms.filter((form) => form.status === "Draft");
-  const updateValue = (code: string, value: string) =>
-    onValuesChange({ ...values, [code]: value });
+  const valuesKey = (form: Form) => `${form.id}:${form.version}`;
+  const valuesFor = (form: Form) => valuesByForm[valuesKey(form)] ?? getDefaultFieldValues(form.fields);
+  const updateValue = (form: Form, code: string, value: string) => {
+    const key = valuesKey(form);
+    setValuesByForm((current) => ({
+      ...current,
+      [key]: { ...(current[key] ?? getDefaultFieldValues(form.fields)), [code]: value },
+    }));
+  };
+  const submitForm = async (form: Form) => {
+    const submittedValues = valuesFor(form);
+    if (await onSubmit(form, submittedValues)) {
+      const key = valuesKey(form);
+      setValuesByForm((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+    }
+  };
   return (
     <>
       <section className="forms-section">
@@ -81,7 +106,9 @@ export function CustomFormsCatalog({
           </div>
         ) : (
           <div className="published-grid">
-            {published.map((form) => (
+            {published.map((form) => {
+              const formValues = valuesFor(form);
+              return (
               <article
                 className={`published-card ${selectedId === form.id ? "is-selected" : ""}`}
                 key={form.id}
@@ -111,7 +138,11 @@ export function CustomFormsCatalog({
                     className="primary"
                     onClick={() => {
                       onSelect(form);
-                      onValuesChange({});
+                      const key = valuesKey(form);
+                      setValuesByForm((current) => current[key] ? current : ({
+                          ...current,
+                          [key]: getDefaultFieldValues(form.fields),
+                      }));
                       document
                         .getElementById(`fill-${form.id}`)
                         ?.scrollIntoView({
@@ -124,27 +155,35 @@ export function CustomFormsCatalog({
                   </button>
                 </div>
                 <div id={`fill-${form.id}`} className="form-fill">
-                  <div className="submission-fields">
-                    {form.fields.map((field) => (
-                      <label key={field.code}>
-                        {field.label}
-                        {field.isRequired && <i>*</i>}
-                        {control(field, values[field.code] ?? "", (value) =>
-                          updateValue(field.code, value),
-                        )}
-                      </label>
-                    ))}
-                  </div>
+                  {groupFieldsBySection(form.fields.filter((field) => isFieldVisible(field, formValues, form.fields))).map((group, groupIndex) => (
+                    <section className="form-field-section" key={`${group.title ?? "general"}-${groupIndex}`}>
+                      {group.title && <h4>{group.title}</h4>}
+                      <div className="submission-fields">
+                        {group.fields.map((field) => (
+                          <label key={field.code}>
+                            {field.label}
+                            {isFieldRequired(field, formValues, form.fields) && <i>*</i>}
+                            {field.helpText && <small className="field-help-text">{field.helpText}</small>}
+                            {control(field, formValues[field.code] ?? "", (value) =>
+                              updateValue(form, field.code, value),
+                              isFieldRequired(field, formValues, form.fields),
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
                   <button
                     className="primary full"
                     disabled={busy}
-                    onClick={() => onSubmit(form)}
+                    onClick={() => void submitForm(form)}
                   >
                     <Send size={15} /> Yanıtı gönder
                   </button>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -181,7 +220,7 @@ export function CustomFormsCatalog({
               <dt>Gerekli alan</dt>
               <dd>
                 {
-                  catalogSelection.fields.filter((field) => field.isRequired)
+                  catalogSelection.fields.filter((field) => field.isRequired || field.requiredWhenFieldCode)
                     .length
                 }
               </dd>
@@ -195,14 +234,15 @@ export function CustomFormsCatalog({
                 {field.label}
                 <small>
                   {field.dataType}
-                  {field.isRequired ? " · Zorunlu" : ""}
+                  {field.isRequired ? " · Zorunlu" : field.requiredWhenFieldCode ? " · Koşula bağlı zorunlu" : ""}
+                  {field.sectionTitle ? ` · ${field.sectionTitle}` : ""}
                 </small>
               </span>
             ))}
           </div>
         </aside>
       )}
-      {admin && (
+      {canManageDrafts && (
         <section className="forms-section">
           <div className="section-heading">
             <div>
@@ -211,6 +251,11 @@ export function CustomFormsCatalog({
             </div>
             <span>{drafts.length} taslak</span>
           </div>
+          {!admin && (
+            <p className="forms-authoring-note" role="note">
+              Taslak, yayın ve geçmiş işlemleri size tanımlanan low-code izinlerine göre kullanılabilir.
+            </p>
+          )}
           <div className="draft-list">
             {drafts.map((form) => (
               <article className="draft-row" key={form.id}>
@@ -225,57 +270,68 @@ export function CustomFormsCatalog({
                   </small>
                 </div>
                 <div className="draft-actions">
-                  <button className="secondary" onClick={() => onEdit(form)}>
+                  {canUpdate && <button className="secondary" onClick={() => onEdit(form)}>
                     Düzenle
-                  </button>
-                  <button
-                    className="secondary"
-                    onClick={() => onOpenHistory(form)}
-                  >
-                    <History size={15} /> Geçmiş
-                  </button>
-                  <button
-                    className="primary"
-                    disabled={busy}
-                    onClick={() =>
-                      onMutate(`/api/custom-forms/${form.id}/publish`)
-                    }
-                  >
-                    <Check size={15} /> Yayımla
-                  </button>
+                  </button>}
+                  {canReadHistory && (
+                    <button
+                      className="secondary"
+                      onClick={() => onOpenHistory(form)}
+                    >
+                      <History size={15} /> Geçmiş
+                    </button>
+                  )}
+                  {canPublish && (
+                    <button
+                      className="primary"
+                      disabled={busy}
+                      onClick={() =>
+                        onMutate(`/api/custom-forms/${form.id}/publish`)
+                      }
+                    >
+                      <Check size={15} /> Yayımla
+                    </button>
+                  )}
                 </div>
               </article>
             ))}
-            {published.map((form) => (
-              <article className="draft-row published-management" key={form.id}>
-                <div className="form-card-icon">
-                  <ShieldCheck size={17} />
-                </div>
-                <div className="draft-info">
-                  <b>{form.name}</b>
-                  <small>
-                    {form.code} · Yayımlanmış v{form.version}
-                  </small>
-                </div>
-                <div className="draft-actions">
-                  <button
-                    className="secondary"
-                    onClick={() => onOpenHistory(form)}
-                  >
-                    <History size={15} /> Geçmiş
-                  </button>
-                  <button
-                    className="secondary"
-                    disabled={busy}
-                    onClick={() =>
-                      onMutate(`/api/custom-forms/${form.id}/draft`)
-                    }
-                  >
-                    <Plus size={15} /> Yeni sürüm
-                  </button>
-                </div>
-              </article>
-            ))}
+            {published.map((form) => {
+              const existingDraft = drafts.find((draft) => draft.code === form.code);
+              return (
+                <article className="draft-row published-management" key={form.id}>
+                  <div className="form-card-icon">
+                    <ShieldCheck size={17} />
+                  </div>
+                  <div className="draft-info">
+                    <b>{form.name}</b>
+                    <small>
+                      {form.code} · Yayımlanmış v{form.version}
+                    </small>
+                  </div>
+                  <div className="draft-actions">
+                    {canReadHistory && (
+                      <button
+                        className="secondary"
+                        onClick={() => onOpenHistory(form)}
+                      >
+                        <History size={15} /> Geçmiş
+                      </button>
+                    )}
+                    {canUpdate && (existingDraft ? (
+                      <span className="status-chip">Taslak v{existingDraft.version} mevcut</span>
+                    ) : (
+                      <button
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => onMutate(`/api/custom-forms/${form.id}/draft`)}
+                      >
+                        <Plus size={15} /> Yeni sürüm
+                      </button>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </section>
       )}

@@ -6,6 +6,7 @@ type Props = {
   busy: boolean;
   state: EditorState;
   history: Revision[];
+  canRestoreDraft: boolean;
   onRefresh: () => void;
   onRestore: (revision: Revision) => void;
 };
@@ -15,6 +16,7 @@ export default function ScreenViewHistory({
   busy,
   state,
   history,
+  canRestoreDraft,
   onRefresh,
   onRestore,
 }: Props) {
@@ -52,7 +54,7 @@ export default function ScreenViewHistory({
                 )}
               </small>
             </div>
-            <button
+            {canRestoreDraft && <button
               type="button"
               className="secondary small-button"
               disabled={busy || Boolean(state.draft)}
@@ -60,7 +62,7 @@ export default function ScreenViewHistory({
             >
               <RotateCcw size={14} />
               {en ? "Use as draft" : "Taslağa al"}
-            </button>
+            </button>}
           </article>
         ))}
         {history.length === 0 && (

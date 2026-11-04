@@ -27,6 +27,7 @@ public static class PlatformPermissionCatalog
         new("erp.business-rules", "/api/business-rules", "Tenant business rule definitions and evaluation history"),
         new("erp.reports", "/api/reports", "Tenant report definitions and execution"),
         new("erp.custom-menus", "/api/custom-menus", "Tenant custom navigation entries"),
+        new("erp.tenant-customizations", "/api/tenant-customizations/packages", "Tenant low-code customization packages and snapshots"),
         new("erp.ai-settings", "/api/ai-settings", "Tenant AI provider settings and API credentials"),
         new("erp.customer-groups", "/api/customer-groups", "Customer groups"),
         new("erp.customers", "/api/customers", "Customer and supplier accounts"),
@@ -175,10 +176,17 @@ public static class PlatformPermissionCatalog
             && method.Equals("POST", StringComparison.OrdinalIgnoreCase)
             && normalizedRoute.EndsWith("/publish", StringComparison.OrdinalIgnoreCase))
         {
-            // Publishing changes the active layout; it is an update, with the
-            // endpoint's existing TenantAdmin check remaining authoritative.
+            // Publishing activates a draft and is governed by the dedicated
+            // execute permission, matching the screen-view endpoint.
             resource = Resources.First(x => x.ResourceType == "erp.screen-views");
-            explicitUpdateAction = true;
+            explicitExecuteAction = true;
+        }
+        else if (path.StartsWith("/api/tenant-customizations/packages/snapshots/", StringComparison.OrdinalIgnoreCase)
+            && method.Equals("POST", StringComparison.OrdinalIgnoreCase)
+            && normalizedRoute.EndsWith("/restore", StringComparison.OrdinalIgnoreCase))
+        {
+            resource = Resources.First(x => x.ResourceType == "erp.tenant-customizations");
+            explicitExecuteAction = true;
         }
         else if (path.StartsWith("/api/sales/invoices/", StringComparison.OrdinalIgnoreCase)
             && method.Equals("POST", StringComparison.OrdinalIgnoreCase)

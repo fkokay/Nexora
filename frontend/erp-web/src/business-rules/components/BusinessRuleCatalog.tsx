@@ -3,6 +3,10 @@ import type { Rule, TriggerField, Workflow } from "../types";
 
 type Props = {
   admin: boolean;
+  canDesign: boolean;
+  canManageDrafts: boolean;
+  canUpdate: boolean;
+  canPublish: boolean;
   busy: boolean;
   published: Rule[];
   drafts: Rule[];
@@ -17,6 +21,10 @@ type Props = {
 
 export function BusinessRuleCatalog({
   admin,
+  canDesign,
+  canManageDrafts,
+  canUpdate,
+  canPublish,
   busy,
   published,
   drafts,
@@ -45,68 +53,76 @@ export function BusinessRuleCatalog({
               oluşturun.
             </p>
           ) : (
-            published.map((rule) => (
-              <article
-                className={`rule-card active-rule ${selectedRule?.id === rule.id ? "is-selected" : ""}`}
-                key={rule.id}
-              >
-                <div className="rule-card-top">
-                  <div className="rules-badge">
-                    <Zap size={16} />
-                  </div>
-                  <span className="active-pill">
-                    <i />
-                    Yayımlandı · v{rule.version}
-                  </span>
-                </div>
-                <h3>{rule.name}</h3>
-                <p>
-                  {triggerLabel(rule.trigger)} ·{" "}
-                  {rule.description || "Açıklama eklenmemiş."}
-                </p>
-                <button
-                  className="rule-select"
-                  type="button"
-                  aria-pressed={selectedRule?.id === rule.id}
-                  onClick={() => onSelect(rule.id)}
+            published.map((rule) => {
+              const existingDraft = drafts.find((draft) => draft.code === rule.code);
+              return (
+                <article
+                  className={`rule-card active-rule ${selectedRule?.id === rule.id ? "is-selected" : ""}`}
+                  key={rule.id}
                 >
-                  Ayrıntıyı aç
-                </button>
-                <div className="rule-readable">
-                  <b>EĞER</b>
-                  {rule.conditions.map((condition, index) => (
-                    <span key={index}>
-                      {index ? "VE " : ""}
-                      {fields.find((field) => field.code === condition.field)
-                        ?.label ?? condition.field}{" "}
-                      {condition.operator} “{condition.value}”
+                  <div className="rule-card-top">
+                    <div className="rules-badge">
+                      <Zap size={16} />
+                    </div>
+                    <span className="active-pill">
+                      <i />
+                      Yayımlandı · v{rule.version}
                     </span>
-                  ))}
-                  <b>İSE</b>
-                  <span>
-                    {publishedWorkflows.find(
-                      (flow) => flow.code === rule.workflowCode,
-                    )?.name ?? rule.workflowCode}{" "}
-                    akışını başlat
-                  </span>
-                </div>
-                {admin && (
-                  <div className="rule-card-actions">
-                    <button
-                      className="secondary"
-                      onClick={() =>
-                        onPost(`/api/business-rules/${rule.id}/draft`)
-                      }
-                    >
-                      <RotateCcw size={14} /> Yeni sürüm düzenle
-                    </button>
                   </div>
-                )}
-              </article>
-            ))
+                  <h3>{rule.name}</h3>
+                  <p>
+                    {triggerLabel(rule.trigger)} ·{" "}
+                    {rule.description || "Açıklama eklenmemiş."}
+                  </p>
+                  <button
+                    className="rule-select"
+                    type="button"
+                    aria-pressed={selectedRule?.id === rule.id}
+                    onClick={() => onSelect(rule.id)}
+                  >
+                    Ayrıntıyı aç
+                  </button>
+                  <div className="rule-readable">
+                    <b>EĞER</b>
+                    {rule.conditions.map((condition, index) => (
+                      <span key={index}>
+                        {index ? "VE " : ""}
+                        {fields.find((field) => field.code === condition.field)
+                          ?.label ?? condition.field}{" "}
+                        {condition.operator} “{condition.value}”
+                      </span>
+                    ))}
+                    <b>İSE</b>
+                    <span>
+                      {publishedWorkflows.find(
+                        (flow) => flow.code === rule.workflowCode,
+                      )?.name ?? rule.workflowCode}{" "}
+                      akışını başlat
+                    </span>
+                  </div>
+                  {canUpdate && (
+                    <div className="rule-card-actions">
+                      {existingDraft ? (
+                        <span className="active-pill">
+                          Taslak v{existingDraft.version} mevcut
+                        </span>
+                      ) : (
+                        <button
+                          className="secondary"
+                          disabled={busy}
+                          onClick={() => onPost(`/api/business-rules/${rule.id}/draft`)}
+                        >
+                          <RotateCcw size={14} /> Yeni sürüm düzenle
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </article>
+              );
+            })
           )}
         </section>
-        {admin && (
+        {canManageDrafts && (
           <section className="rule-panel">
             <div className="rule-panel-heading">
               <div>
@@ -115,6 +131,11 @@ export function BusinessRuleCatalog({
               </div>
               <span>{drafts.length}</span>
             </div>
+            {!admin && (
+              <p className="rules-authoring-note" role="note">
+                Taslak ve yayın işlemleri size tanımlanan low-code izinlerine göre kullanılabilir.
+              </p>
+            )}
             {drafts.length === 0 ? (
               <p className="rules-empty">Henüz taslak kural yok.</p>
             ) : (
@@ -128,18 +149,20 @@ export function BusinessRuleCatalog({
                         {rule.version} · {rule.conditions.length} koşul
                       </small>
                     </div>
-                    <button className="secondary" onClick={() => onEdit(rule)}>
+                    {canUpdate && <button className="secondary" onClick={() => onEdit(rule)}>
                       Düzenle
-                    </button>
-                    <button
-                      className="primary"
-                      disabled={busy}
-                      onClick={() =>
-                        onPost(`/api/business-rules/${rule.id}/publish`)
-                      }
-                    >
-                      <Check size={14} /> Yayımla
-                    </button>
+                    </button>}
+                    {canPublish && (
+                      <button
+                        className="primary"
+                        disabled={busy}
+                        onClick={() =>
+                          onPost(`/api/business-rules/${rule.id}/publish`)
+                        }
+                      >
+                        <Check size={14} /> Yayımla
+                      </button>
+                    )}
                   </article>
                 ))}
               </div>
@@ -147,7 +170,7 @@ export function BusinessRuleCatalog({
           </section>
         )}
       </div>
-      {admin && selectedRule && (
+      {canDesign && selectedRule && (
         <aside className="rule-inspector" aria-label="Seçili kural ayrıntısı">
           <div>
             <p className="eyebrow">
@@ -191,7 +214,7 @@ export function BusinessRuleCatalog({
               </span>
             ))}
           </div>
-          {selectedRule.status === "Draft" && (
+          {selectedRule.status === "Draft" && canUpdate && (
             <button className="secondary" onClick={() => onEdit(selectedRule)}>
               Taslağı düzenle
             </button>

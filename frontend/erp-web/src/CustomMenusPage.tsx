@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { authenticatedFetch } from "./authApi";
+import { useLowCodeCapabilities } from "./useLowCodeCapabilities";
 import "./custom-menus.css";
 import type { Entry, Target } from "./custom-menus/types";
 import { CustomMenuSummary } from "./custom-menus/components/CustomMenuSummary";
@@ -75,6 +76,9 @@ export default function CustomMenusPage({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const admin = role === "TenantAdmin";
+  const capabilityState = useLowCodeCapabilities(token);
+  const permissions = capabilityState.customMenus;
+  const canDesign = permissions.canCreate || permissions.canUpdate;
   const selectedEntry =
     entries.find((entry) => entry.id === selectedId) ?? entries[0] ?? null;
 
@@ -119,8 +123,9 @@ export default function CustomMenusPage({
     setTargets(nextTargets);
   }, [request]);
   useEffect(() => {
+    if (!permissions.canRead) return;
     void refresh().catch((e) => setError((e as Error).message));
-  }, [refresh]);
+  }, [permissions.canRead, refresh]);
 
   function reset() {
     setEditing("");
@@ -202,11 +207,14 @@ export default function CustomMenusPage({
     }
   }
 
+  if (capabilityState.loading) return <div className="low-code-access-state" role="status">Yetkiler yükleniyor…</div>;
+  if (!permissions.canRead) return <div className="low-code-access-state" role="alert">Menü ayarlarını görüntüleme izniniz yok.</div>;
   return (
     <div className="custom-menus-page">
       <CustomMenuSummary
         entryCount={entries.length}
         targetCount={targets.length}
+        developerEdit={canDesign && !admin}
       />
       {error && (
         <div className="custom-menu-alert error" role="alert">
@@ -218,10 +226,10 @@ export default function CustomMenusPage({
           {notice}
         </div>
       )}
-      <StandardMenuEditor token={token} admin={admin} />
+      <StandardMenuEditor token={token} canDesign={permissions.canUpdate} developerEdit={permissions.canUpdate && !admin} />
       <div className="custom-menu-layout">
         <CustomMenuEditor
-          admin={admin}
+          canDesign={editing ? permissions.canUpdate : permissions.canCreate}
           busy={busy}
           editing={Boolean(editing)}
           code={code}
@@ -238,7 +246,9 @@ export default function CustomMenusPage({
         <CustomMenuList
           entries={entries}
           selectedId={selectedEntry?.id ?? ""}
-          admin={admin}
+          canCreate={permissions.canCreate}
+          canUpdate={permissions.canUpdate}
+          canDelete={permissions.canDelete}
           busy={busy}
           editing={Boolean(editing)}
           canAdd={entries.length < 30}
@@ -260,7 +270,7 @@ export default function CustomMenusPage({
               ? entries.findIndex((entry) => entry.id === selectedEntry.id)
               : -1
           }
-          admin={admin}
+          canUpdate={permissions.canUpdate}
           onEdit={startEdit}
         />
       </div>

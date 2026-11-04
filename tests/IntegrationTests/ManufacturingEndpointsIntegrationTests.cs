@@ -1793,6 +1793,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
             .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
         builder.Services.AddDbContext<PlatformDbContext>(options => options.UseInMemoryDatabase(databaseName + "-platform"));
         builder.Services.AddAuthentication("report-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
+        builder.Services.AddSingleton<AIERP.Platform.Application.IPlatformPermissionAuthorizer, CustomizationTestPermissionAuthorizer>();
         builder.Services.AddAuthorization();
         var app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapManufacturingEndpoints(); app.MapSalesOrderEndpoints();
         if (includeWorkflowRoutes) { app.MapWorkflowEndpoints(); app.MapBusinessRuleEndpoints(); }

@@ -18,6 +18,7 @@ public static partial class TenantBusinessRuleEngine
     public const string SalesQuoteAccepted = "sales-quote.accepted";
     public const string PurchaseOrderCreated = "purchase-order.created";
     public const string ProjectTaskCompleted = "project.task-completed";
+    public const string CustomFormSubmitted = "custom-form.submitted";
     private static readonly IReadOnlyList<TenantBusinessRuleTrigger> Triggers =
     [
         new(PurchaseRequestSubmitted, "Satın alma talebi gönderildi", "Talep kaydedilip gönderildiğinde değerlendirilir.",
@@ -42,6 +43,12 @@ public static partial class TenantBusinessRuleEngine
             new("projectCode", "Proje kodu", "text"), new("projectName", "Proje adı", "text"),
             new("plannedHours", "Planlanan saat", "number"), new("completionDate", "Tamamlanma tarihi", "date"),
             new("completedByUserId", "Tamamlayan kullanıcı kodu", "text")
+        ]),
+        new(CustomFormSubmitted, "Özel form gönderildi", "Yayımlanmış özel form gönderildiğinde koşulları değerlendirip onay akışını başlatın.",
+        [
+            new("formCode", "Form kodu", "text"), new("formName", "Form adı", "text"),
+            new("formVersion", "Form sürümü", "number"), new("fieldCount", "Dolu alan sayısı", "number"),
+            new("submittedByUserId", "Gönderen kullanıcı kodu", "text")
         ])
     ];
 
@@ -101,7 +108,7 @@ public static partial class TenantBusinessRuleEngine
     {
         if (op == "IsEmpty") return string.IsNullOrWhiteSpace(actual);
         if (op == "IsNotEmpty") return !string.IsNullOrWhiteSpace(actual);
-        if (field is "lineCount" or "grandTotal" or "plannedHours")
+        if (field is "lineCount" or "grandTotal" or "plannedHours" or "formVersion" or "fieldCount")
         {
             if (!decimal.TryParse(actual, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var left)
                 || !decimal.TryParse(expected, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var right)) return false;

@@ -33,8 +33,8 @@ export function BusinessRulesHeader({
             yönlendirin.
           </p>
         </div>
-        {admin && (
-          <button className="primary" disabled={!canCreate} onClick={onCreate}>
+        {canCreate && (
+          <button className="primary" onClick={onCreate}>
             <Plus size={16} /> Yeni kural
           </button>
         )}

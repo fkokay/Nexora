@@ -13,21 +13,33 @@ internal static class BusinessRuleEndpoints
     {
         var rules = app.MapGroup("/api/business-rules").WithTags("Tenant Business Rules").RequireAuthorization();
 
-        rules.MapGet("/catalog", () => Results.Ok(TenantBusinessRuleEngine.SupportedTriggers));
-
-        rules.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        rules.MapGet("/catalog", async (ClaimsPrincipal user, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!Context(user, out var tenantId, out _, out var role)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
+            return Results.Ok(TenantBusinessRuleEngine.SupportedTriggers);
+        });
+
+        rules.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
+        {
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
             var query = db.TenantBusinessRuleDefinitions.AsNoTracking()
                 .Where(x => x.TenantId == tenantId && (x.Status == "Draft" || x.Status == "Published" || x.Status == "Archived"));
-            if (role != "TenantAdmin") query = query.Where(x => x.Status == "Published");
+            var canManageDrafts = await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct)
+                || await IsAllowedAsync(authorizer, tenantId, userId, role, "update", ct)
+                || await IsAllowedAsync(authorizer, tenantId, userId, role, "execute", ct);
+            if (!canManageDrafts) query = query.Where(x => x.Status == "Published");
             var definitions = await query.OrderBy(x => x.Code).ThenByDescending(x => x.Version).Take(200).ToListAsync(ct);
             return Results.Ok(definitions.Select(ToView));
         });
 
-        rules.MapPost("/", async (BusinessRuleWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        rules.MapPost("/", async (BusinessRuleWriteRequest request, ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct)) return Results.Forbid();
             var trigger = string.IsNullOrWhiteSpace(request.Trigger) ? TenantBusinessRuleEngine.PurchaseRequestSubmitted : request.Trigger.Trim();
             if (!Validate(request.Code, request.Name, request.Description, request.WorkflowCode, trigger, request.Conditions, out var conditions, out var errors))
                 return Results.ValidationProblem(errors!);
@@ -48,9 +60,11 @@ internal static class BusinessRuleEndpoints
             return Results.Created($"/api/business-rules/{rule.Id}", ToView(rule));
         });
 
-        rules.MapPut("/{id:guid}", async (Guid id, BusinessRuleWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        rules.MapPut("/{id:guid}", async (Guid id, BusinessRuleWriteRequest request, ClaimsPrincipal user,
+            TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "update", ct, id)) return Results.Forbid();
             var rule = await db.TenantBusinessRuleDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (rule is null) return Results.NotFound();
             if (rule.Status != "Draft") return Results.Conflict(new { error = "Yalnızca taslak iş kuralı düzenlenebilir." });
@@ -65,9 +79,11 @@ internal static class BusinessRuleEndpoints
             return Results.Ok(ToView(rule));
         });
 
-        rules.MapPost("/{id:guid}/publish", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        rules.MapPost("/{id:guid}/publish", async (Guid id, ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "execute", ct, id)) return Results.Forbid();
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             var rule = await db.TenantBusinessRuleDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (rule is null) return Results.NotFound();
@@ -91,12 +107,21 @@ internal static class BusinessRuleEndpoints
             return Results.Ok(ToView(rule));
         });
 
-        rules.MapPost("/{id:guid}/draft", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        rules.MapPost("/{id:guid}/draft", async (Guid id, ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct, id)) return Results.Forbid();
             var source = await db.TenantBusinessRuleDefinitions.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && (x.Status == "Published" || x.Status == "Archived"), ct);
             if (source is null) return Results.NotFound();
+            var existingDraft = await db.TenantBusinessRuleDefinitions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.Code == source.Code && x.Status == "Draft")
+                .OrderByDescending(x => x.Version)
+                .Select(x => new { x.Id, x.Version })
+                .FirstOrDefaultAsync(ct);
+            if (existingDraft is not null)
+                return Results.Conflict(new { error = "Bu iş kuralı için zaten bir taslak sürüm var.", draftId = existingDraft.Id, draftVersion = existingDraft.Version });
             var version = (await db.TenantBusinessRuleDefinitions.Where(x => x.TenantId == tenantId && x.Code == source.Code)
                 .Select(x => (int?)x.Version).MaxAsync(ct) ?? source.Version) + 1;
             var now = DateTimeOffset.UtcNow;
@@ -112,9 +137,11 @@ internal static class BusinessRuleEndpoints
             return Results.Created($"/api/business-rules/{draft.Id}", ToView(draft));
         });
 
-        rules.MapGet("/evaluations", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        rules.MapGet("/evaluations", async (ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!AdminContext(user, out var tenantId, out _)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
             var evaluations = await db.TenantBusinessRuleEvaluations.AsNoTracking().Where(x => x.TenantId == tenantId)
                 .OrderByDescending(x => x.CreatedAt).Take(200).ToListAsync(ct);
             return Results.Ok(evaluations.Select(x => new BusinessRuleEvaluationView(x.Id, x.RuleId, x.EventId,
@@ -188,6 +215,21 @@ internal static class BusinessRuleEndpoints
             "OperationalProjectTask", $"{project.Code} · {task.Code} · {task.Name}", actorUserId, facts, ct);
     }
 
+    internal static Task<bool> ApplyCustomFormSubmittedRulesAsync(TenantDbContext db, TenantCustomFormSubmission submission,
+        int populatedFieldCount, CancellationToken ct)
+    {
+        var facts = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["formCode"] = submission.FormCode,
+            ["formName"] = submission.FormName,
+            ["formVersion"] = submission.FormVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["fieldCount"] = populatedFieldCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["submittedByUserId"] = submission.SubmittedByUserId.ToString("D")
+        };
+        return EvaluateAndRouteAsync(db, submission.TenantId, submission.Id, TenantBusinessRuleEngine.CustomFormSubmitted,
+            "CustomFormSubmission", $"{submission.FormName} · {submission.FormCode}", submission.SubmittedByUserId, facts, ct);
+    }
+
     internal static Task<bool> IsSalesQuoteAwaitingApprovalAsync(TenantDbContext db, Guid tenantId, Guid quoteId, CancellationToken ct) =>
         db.TenantWorkflowInstances.AnyAsync(x => x.TenantId == tenantId && x.SubjectType == "SalesQuote"
             && x.SubjectId == quoteId && x.Status == "Pending", ct);
@@ -258,8 +300,26 @@ internal static class BusinessRuleEndpoints
         if (!Guid.TryParse(user.FindFirstValue("tenant_id"), out tenantId) || !Guid.TryParse(user.FindFirstValue("sub"), out userId)) return false;
         role = user.FindFirstValue("role") ?? ""; return role is "TenantAdmin" or "TenantDeveloper" or "TenantUser";
     }
-    private static bool AdminContext(ClaimsPrincipal user, out Guid tenantId, out Guid userId) =>
-        Context(user, out tenantId, out userId, out var role) && role == "TenantAdmin";
+    private static Task<bool> IsAllowedAsync(IPlatformPermissionAuthorizer authorizer, Guid tenantId,
+        Guid userId, string role, string action, CancellationToken ct, Guid? ruleId = null)
+    {
+        var definition = PlatformPermissionCatalog.Definitions.FirstOrDefault(x =>
+            x.ResourceType == "erp.business-rules" && x.Action == action);
+        if (definition is null) return Task.FromResult(false);
+        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["subject.userId"] = userId.ToString("D"),
+            ["subject.role"] = role,
+            ["resource.type"] = definition.ResourceType,
+            ["resource.tenantId"] = tenantId.ToString("D"),
+            ["request.method"] = action is "read" ? "GET" : action is "update" ? "PUT" : "POST",
+            ["request.action"] = action
+        };
+        if (ruleId is not null) attributes["resource.route.id"] = ruleId.Value.ToString("D");
+        return authorizer.IsAllowedAsync(tenantId, userId, role,
+            new ResolvedPlatformPermission(definition, attributes), ct);
+    }
+
     private static IReadOnlyList<TenantBusinessRuleCondition> ReadConditions(string json) =>
         JsonSerializer.Deserialize<List<TenantBusinessRuleCondition>>(json, JsonOptions) ?? [];
     private static BusinessRuleDefinitionView ToView(TenantBusinessRuleDefinition item) => new(item.Id, item.Code, item.Name,

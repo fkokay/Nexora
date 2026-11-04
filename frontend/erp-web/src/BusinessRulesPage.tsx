@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { authenticatedFetch } from "./authApi";
+import { useLowCodeCapabilities } from "./useLowCodeCapabilities";
 import "./business-rules.css";
 import { BusinessRulesHeader } from "./business-rules/components/BusinessRulesHeader";
 import { RuleBuilder } from "./business-rules/components/RuleBuilder";
 import { BusinessRuleCatalog } from "./business-rules/components/BusinessRuleCatalog";
 import { BusinessRuleHistory } from "./business-rules/components/BusinessRuleHistory";
+import {
+  BusinessRuleTemplateGallery,
+  type BusinessRuleTemplate,
+} from "./business-rules/components/BusinessRuleTemplateGallery";
 import type {
   Condition,
   Evaluation,
@@ -51,6 +56,10 @@ export default function BusinessRulesPage({
   role: string;
 }) {
   const admin = role === "TenantAdmin";
+  const capabilityState = useLowCodeCapabilities(token);
+  const permissions = capabilityState.businessRules;
+  const canReadWorkflows = capabilityState.workflows.canRead;
+  const canDesign = permissions.canCreate || permissions.canUpdate;
   const [rules, setRules] = useState<Rule[]>([]),
     [workflows, setWorkflows] = useState<Workflow[]>([]),
     [evaluations, setEvaluations] = useState<Evaluation[]>([]);
@@ -97,11 +106,13 @@ export default function BusinessRulesPage({
     [token],
   );
   const refresh = useCallback(async () => {
-    const [r, w, catalog] = await Promise.all([
+    const [r, catalog] = await Promise.all([
       request<Rule[]>("/api/business-rules/"),
-      request<Workflow[]>("/api/workflows/definitions"),
       request<Trigger[]>("/api/business-rules/catalog"),
     ]);
+    const w = canReadWorkflows
+      ? await request<Workflow[]>("/api/workflows/definitions")
+      : [];
     setRules(r);
     setWorkflows(w);
     setTriggerCatalog(catalog);
@@ -109,10 +120,11 @@ export default function BusinessRulesPage({
       setEvaluations(
         await request<Evaluation[]>("/api/business-rules/evaluations"),
       );
-  }, [request, admin]);
+  }, [request, admin, canReadWorkflows]);
   useEffect(() => {
+    if (!permissions.canRead) return;
     void refresh().catch((e) => setError((e as Error).message));
-  }, [refresh]);
+  }, [permissions.canRead, refresh]);
   const publishedWorkflows = useMemo(
       () => workflows.filter((x) => x.status === "Published"),
       [workflows],
@@ -165,6 +177,24 @@ export default function BusinessRulesPage({
     setTrigger(first);
     setWorkflowCode(publishedWorkflows[0]?.code ?? "");
     setConditions([defaultCondition(first)]);
+  }
+  function useRuleTemplate(template: BusinessRuleTemplate) {
+    const existing = new Set(rules.map((rule) => rule.code.toLowerCase()));
+    let availableCode = template.code;
+    let suffix = 2;
+    while (existing.has(availableCode.toLowerCase())) {
+      availableCode = `${template.code}-${suffix++}`;
+    }
+    setEditing(null);
+    setCode(availableCode);
+    setName(template.name);
+    setDescription(template.description);
+    setTrigger(template.trigger);
+    setWorkflowCode(publishedWorkflows[0]?.code ?? "");
+    setConditions(template.conditions.map((condition) => ({ ...condition })));
+    setBuilderOpen(true);
+    setError("");
+    setNotice("");
   }
   function editRule(rule: Rule) {
     setEditing(rule);
@@ -225,6 +255,8 @@ export default function BusinessRulesPage({
     }
   }
   const archived = rules.filter((rule) => rule.status === "Archived");
+  if (capabilityState.loading) return <div className="low-code-access-state" role="status">Yetkiler yükleniyor…</div>;
+  if (!permissions.canRead) return <div className="low-code-access-state" role="alert">İş kurallarını görüntüleme izniniz yok.</div>;
   return (
     <div className="business-rules-page">
       <BusinessRulesHeader
@@ -233,7 +265,7 @@ export default function BusinessRulesPage({
         draftCount={drafts.length}
         evaluationCount={evaluations.length}
         matchedCount={evaluations.filter((item) => item.matched).length}
-        canCreate={!!triggerCatalog.length}
+        canCreate={permissions.canCreate && canReadWorkflows && !!triggerCatalog.length}
         onCreate={newRule}
       />
       {error && <div className="rules-alert error">{error}</div>}
@@ -243,7 +275,14 @@ export default function BusinessRulesPage({
           <button onClick={() => setNotice("")}>Kapat</button>
         </div>
       )}
-      {admin && builderOpen && (
+      {permissions.canCreate && !builderOpen && !error && (
+        <BusinessRuleTemplateGallery
+          triggerCatalog={triggerCatalog}
+          hasPublishedWorkflow={publishedWorkflows.length > 0}
+          onSelect={useRuleTemplate}
+        />
+      )}
+      {canDesign && builderOpen && (
         <RuleBuilder
           editing={editing}
           code={code}
@@ -289,6 +328,10 @@ export default function BusinessRulesPage({
       )}
       <BusinessRuleCatalog
         admin={admin}
+        canDesign={canDesign}
+        canManageDrafts={canDesign || permissions.canPublish}
+        canUpdate={permissions.canUpdate}
+        canPublish={permissions.canPublish}
         busy={busy}
         published={published}
         drafts={drafts}

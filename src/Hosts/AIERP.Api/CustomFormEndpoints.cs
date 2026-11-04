@@ -14,27 +14,38 @@ internal static partial class CustomFormEndpoints
     {
         var forms = app.MapGroup("/api/custom-forms").WithTags("Tenant Custom Forms").RequireAuthorization();
 
-        forms.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        forms.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out _, out var role)) return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
             var query = db.TenantCustomFormDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId);
-            query = role == "TenantAdmin" ? query.Where(x => x.Status == "Draft" || x.Status == "Published") : query.Where(x => x.Status == "Published");
+            var canManageDrafts = await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct)
+                || await IsAllowedAsync(authorizer, tenantId, userId, role, "update", ct)
+                || await IsAllowedAsync(authorizer, tenantId, userId, role, "execute", ct);
+            query = canManageDrafts
+                ? query.Where(x => x.Status == "Draft" || x.Status == "Published")
+                : query.Where(x => x.Status == "Published");
             var items = await query.OrderBy(x => x.Code).ThenByDescending(x => x.Version).ToListAsync(ct);
             return Results.Ok(items.Select(ToFormView));
         });
 
-        forms.MapGet("/submissions", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        forms.MapGet("/submissions", async (ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
             var query = db.TenantCustomFormSubmissions.AsNoTracking().Where(x => x.TenantId == tenantId);
             if (role != "TenantAdmin") query = query.Where(x => x.SubmittedByUserId == userId);
             var submissions = await query.OrderByDescending(x => x.SubmittedAt).Take(200).ToListAsync(ct);
             return Results.Ok(submissions.Select(ToSubmissionView));
         });
 
-        forms.MapPost("/", async (CustomFormCreateRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        forms.MapPost("/", async (CustomFormCreateRequest request, ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct)) return Results.Forbid();
             if (!ValidMetadata(request.Code, request.Name, request.Description, request.Fields, out var fields, out var error))
                 return Results.ValidationProblem(error!);
             var code = request.Code!.Trim();
@@ -54,9 +65,11 @@ internal static partial class CustomFormEndpoints
             return Results.Created($"/api/custom-forms/{form.Id}", ToFormView(form));
         });
 
-        forms.MapPut("/{formId:guid}", async (Guid formId, CustomFormUpdateRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        forms.MapPut("/{formId:guid}", async (Guid formId, CustomFormUpdateRequest request, ClaimsPrincipal user,
+            TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "update", ct, formId: formId)) return Results.Forbid();
             var form = await db.TenantCustomFormDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == formId, ct);
             if (form is null) return Results.NotFound();
             if (form.Status != "Draft") return Results.Conflict(new { error = "Yalnız taslak form düzenlenebilir. Yayımlanan sürümden yeni taslak oluşturun." });
@@ -71,12 +84,26 @@ internal static partial class CustomFormEndpoints
             return Results.Ok(ToFormView(form));
         });
 
-        forms.MapPost("/{formId:guid}/draft", async (Guid formId, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        forms.MapPost("/{formId:guid}/draft", async (Guid formId, ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct, formId: formId)) return Results.Forbid();
             var source = await db.TenantCustomFormDefinitions.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == formId && x.Status == "Published", ct);
             if (source is null) return Results.NotFound();
+            var existingDraft = await db.TenantCustomFormDefinitions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.Code == source.Code && x.Status == "Draft")
+                .OrderByDescending(x => x.Version)
+                .Select(x => new { x.Id, x.Version })
+                .FirstOrDefaultAsync(ct);
+            if (existingDraft is not null)
+                return Results.Conflict(new
+                {
+                    error = "Bu form için zaten bir taslak sürüm var.",
+                    draftId = existingDraft.Id,
+                    draftVersion = existingDraft.Version
+                });
             var nextVersion = await db.TenantCustomFormDefinitions.Where(x => x.TenantId == tenantId && x.Code == source.Code)
                 .Select(x => (int?)x.Version).MaxAsync(ct) ?? source.Version;
             var now = DateTimeOffset.UtcNow;
@@ -93,9 +120,11 @@ internal static partial class CustomFormEndpoints
             return Results.Created($"/api/custom-forms/{draft.Id}", ToFormView(draft));
         });
 
-        forms.MapPost("/{formId:guid}/publish", async (Guid formId, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        forms.MapPost("/{formId:guid}/publish", async (Guid formId, ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "execute", ct, formId: formId)) return Results.Forbid();
             var form = await db.TenantCustomFormDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == formId, ct);
             if (form is null) return Results.NotFound();
             if (form.Status != "Draft") return Results.Conflict(new { error = "Yalnız taslak form yayımlanabilir." });
@@ -115,18 +144,22 @@ internal static partial class CustomFormEndpoints
             return Results.Ok(ToFormView(form));
         });
 
-        forms.MapGet("/{formId:guid}/history", async (Guid formId, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        forms.MapGet("/{formId:guid}/history", async (Guid formId, ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out _, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct, formId: formId)) return Results.Forbid();
             if (!await db.TenantCustomFormDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == formId, ct)) return Results.NotFound();
             var revisions = await db.TenantCustomFormRevisions.AsNoTracking().Where(x => x.TenantId == tenantId && x.FormId == formId)
                 .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync(ct);
             return Results.Ok(revisions.Select(ToRevisionView));
         });
 
-        forms.MapPost("/{formId:guid}/restore", async (Guid formId, CustomFormRestoreRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        forms.MapPost("/{formId:guid}/restore", async (Guid formId, CustomFormRestoreRequest request, ClaimsPrincipal user,
+            TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "execute", ct, formId: formId)) return Results.Forbid();
             var form = await db.TenantCustomFormDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == formId, ct);
             if (form is null) return Results.NotFound();
             if (form.Status != "Draft") return Results.Conflict(new { error = "Önce yayımlanan sürümden yeni bir taslak oluşturun." });
@@ -143,9 +176,11 @@ internal static partial class CustomFormEndpoints
             return Results.Ok(ToFormView(form));
         });
 
-        forms.MapPost("/{formId:guid}/submissions", async (Guid formId, CustomFormSubmitRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        forms.MapPost("/{formId:guid}/submissions", async (Guid formId, CustomFormSubmitRequest request, ClaimsPrincipal user,
+            TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct, formId: formId)) return Results.Forbid();
             var form = await db.TenantCustomFormDefinitions.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == formId && x.Status == "Published", ct);
             if (form is null) return Results.NotFound();
@@ -162,13 +197,17 @@ internal static partial class CustomFormEndpoints
             };
             db.TenantCustomFormSubmissions.Add(submission);
             AddAudit(db, tenantId, userId, "custom-form.submitted", $"{form.Code}@{form.Version}:{submission.Id}");
+            var populatedFieldCount = validation.Values.Count(x => !string.IsNullOrWhiteSpace(x.Value));
+            await BusinessRuleEndpoints.ApplyCustomFormSubmittedRulesAsync(db, submission, populatedFieldCount, ct);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/custom-forms/submissions/{submission.Id}", ToSubmissionView(submission));
         });
 
-        forms.MapGet("/{formId:guid}/submissions", async (Guid formId, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        forms.MapGet("/{formId:guid}/submissions", async (Guid formId, ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct, formId: formId)) return Results.Forbid();
             if (!await db.TenantCustomFormDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Id == formId, ct)) return Results.NotFound();
             var query = db.TenantCustomFormSubmissions.AsNoTracking().Where(x => x.TenantId == tenantId && x.FormId == formId);
             if (role != "TenantAdmin") query = query.Where(x => x.SubmittedByUserId == userId);
@@ -177,14 +216,18 @@ internal static partial class CustomFormEndpoints
         });
 
         forms.MapPost("/submissions/{submissionId:guid}/decision", async (Guid submissionId, CustomFormDecisionRequest request,
-            ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+            ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "execute", ct, submissionId: submissionId)) return Results.Forbid();
             if (request.Decision is not ("Approved" or "Rejected") || string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 500)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["decision"] = ["Choose Approved or Rejected and provide a reason of at most 500 characters."] });
             var submission = await db.TenantCustomFormSubmissions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == submissionId, ct);
             if (submission is null) return Results.NotFound();
             if (submission.Status != "Submitted") return Results.Conflict(new { error = "Yalnız bekleyen form gönderimleri karara bağlanabilir." });
+            if (await db.TenantWorkflowInstances.AnyAsync(x => x.TenantId == tenantId
+                && x.SubjectType == "CustomFormSubmission" && x.SubjectId == submission.Id && x.Status == "Pending", ct))
+                return Results.Conflict(new { error = "Bu gönderim yayımlanmış iş akışında inceleniyor. Kararı İş Akışları ekranından verin." });
             submission.Status = request.Decision; submission.DecidedByUserId = userId;
             submission.DecidedAt = DateTimeOffset.UtcNow; submission.DecisionReason = request.Reason.Trim();
             AddAudit(db, tenantId, userId, "custom-form.decided", $"{submission.FormCode}:{submission.Id}:{submission.Status}");
@@ -218,6 +261,27 @@ internal static partial class CustomFormEndpoints
     }
 
     private static string? NormalizeDescription(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static Task<bool> IsAllowedAsync(IPlatformPermissionAuthorizer authorizer, Guid tenantId,
+        Guid userId, string role, string action, CancellationToken ct, Guid? formId = null, Guid? submissionId = null)
+    {
+        var definition = PlatformPermissionCatalog.Definitions.FirstOrDefault(x =>
+            x.ResourceType == "erp.custom-forms" && x.Action == action);
+        if (definition is null) return Task.FromResult(false);
+        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["subject.userId"] = userId.ToString("D"),
+            ["subject.role"] = role,
+            ["resource.type"] = definition.ResourceType,
+            ["resource.tenantId"] = tenantId.ToString("D"),
+            ["request.method"] = action is "read" ? "GET" : action is "update" ? "PUT" : "POST",
+            ["request.action"] = action
+        };
+        if (formId is not null) attributes["resource.route.formId"] = formId.Value.ToString("D");
+        if (submissionId is not null) attributes["resource.route.submissionId"] = submissionId.Value.ToString("D");
+        return authorizer.IsAllowedAsync(tenantId, userId, role,
+            new ResolvedPlatformPermission(definition, attributes), ct);
+    }
 
     private static IReadOnlyList<DynamicFormField> ReadFields(string json) =>
         JsonSerializer.Deserialize<List<DynamicFormField>>(json, JsonOptions) ?? [];

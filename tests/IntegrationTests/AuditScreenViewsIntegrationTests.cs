@@ -74,6 +74,7 @@ public sealed class AuditScreenViewsIntegrationTests
         var databaseRoot = new InMemoryDatabaseRoot();
         builder.Services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase(databaseName, databaseRoot));
         builder.Services.AddAuthentication("audit-screen-view-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("audit-screen-view-test", _ => { });
+        builder.Services.AddSingleton<AIERP.Platform.Application.IPlatformPermissionAuthorizer, CustomizationTestPermissionAuthorizer>();
         builder.Services.AddAuthorization();
         var app = builder.Build();
         app.UseAuthentication();

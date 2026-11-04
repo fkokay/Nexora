@@ -70,6 +70,7 @@ public sealed class WorkflowLicenseTierIntegrationTests
         builder.Services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase(database));
         builder.Services.AddDbContext<PlatformDbContext>(options => options.UseInMemoryDatabase(database + "-platform"));
         builder.Services.AddAuthentication("workflow-license-test").AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("workflow-license-test", _ => { });
+        builder.Services.AddScoped<AIERP.Platform.Application.IPlatformPermissionAuthorizer, PlatformPermissionAuthorizer>();
         builder.Services.AddAuthorization();
         var app = builder.Build();
         app.UseAuthentication(); app.UseAuthorization(); app.MapWorkflowEndpoints();

@@ -1,9 +1,9 @@
 import { ClipboardCheck, Plus } from "lucide-react";
 import { localizedText } from "../../locale";
 
-type Props = { admin: boolean; onNew: () => void };
+type Props = { canDesign: boolean; onNew: () => void };
 
-export function WorkflowPageHeader({ admin, onNew }: Props) {
+export function WorkflowPageHeader({ canDesign, onNew }: Props) {
   return (
     <header className="workflow-hero screen-page-header">
       <div className="workflow-hero-icon">
@@ -24,7 +24,7 @@ export function WorkflowPageHeader({ admin, onNew }: Props) {
           )}
         </p>
       </div>
-      {admin && (
+      {canDesign && (
         <button className="primary" onClick={onNew}>
           <Plus size={17} /> {localizedText("Yeni iş akışı", "New workflow")}
         </button>

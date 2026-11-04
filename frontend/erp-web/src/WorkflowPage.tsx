@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { authenticatedFetch } from "./authApi";
+import { useLowCodeCapabilities } from "./useLowCodeCapabilities";
 import { localizedText, localizedUiText } from "./locale";
 import { WorkflowPageHeader } from "./workflows/components/WorkflowPageHeader";
 import { WorkflowSummary } from "./workflows/components/WorkflowSummary";
 import { WorkflowBuilder } from "./workflows/components/WorkflowBuilder";
 import { WorkflowCatalogPanels } from "./workflows/components/WorkflowCatalogPanels";
 import { WorkflowInbox } from "./workflows/components/WorkflowInbox";
+import {
+  WorkflowTemplateGallery,
+  type WorkflowTemplate,
+} from "./workflows/components/WorkflowTemplateGallery";
 import type {
   WorkflowDefinition,
   WorkflowInstance,
@@ -23,6 +28,9 @@ export default function WorkflowPage({
   role: string;
 }) {
   const admin = role === "TenantAdmin";
+  const capabilityState = useLowCodeCapabilities(token);
+  const permissions = capabilityState.workflows;
+  const canDesign = permissions.canCreate || permissions.canUpdate;
   const [definitions, setDefinitions] = useState<WorkflowDefinition[]>([]),
     [instances, setInstances] = useState<WorkflowInstance[]>([]);
   const [editing, setEditing] = useState<WorkflowDefinition | null>(null),
@@ -88,8 +96,9 @@ export default function WorkflowPage({
     }
   }, [request]);
   useEffect(() => {
+    if (!permissions.canRead) return;
     void refresh().catch((e) => setError((e as Error).message));
-  }, [refresh]);
+  }, [permissions.canRead, refresh]);
   const drafts = useMemo(
       () => definitions.filter((x) => x.status === "Draft"),
       [definitions],
@@ -120,6 +129,22 @@ export default function WorkflowPage({
         approverRole: "TenantAdmin",
       },
     ]);
+  }
+  function useTemplate(template: WorkflowTemplate) {
+    setEditing(null);
+    const existing = new Set(definitions.map((item) => item.code.toLowerCase()));
+    let availableCode = template.code;
+    let suffix = 2;
+    while (existing.has(availableCode.toLowerCase())) {
+      availableCode = `${template.code}-${suffix++}`;
+    }
+    setCode(availableCode);
+    setName(template.name);
+    setDescription(template.description);
+    setSteps(template.steps.map((step) => ({ ...step })));
+    setBuilderOpen(true);
+    setError("");
+    setNotice("");
   }
   function editWorkflow(item: WorkflowDefinition) {
     setEditing(item);
@@ -182,9 +207,11 @@ export default function WorkflowPage({
     setStarting(null);
     setSubjectTitle("");
   }
+  if (capabilityState.loading) return <div className="low-code-access-state" role="status">Yetkiler yükleniyor…</div>;
+  if (!permissions.canRead) return <div className="low-code-access-state" role="alert">İş akışlarını görüntüleme izniniz yok.</div>;
   return (
     <div className="workflow-page">
-      <WorkflowPageHeader admin={admin} onNew={newWorkflow} />
+      <WorkflowPageHeader canDesign={permissions.canCreate} onNew={newWorkflow} />
       {error && (
         <div className="workflow-alert error" role="alert">
           <span>{localizedUiText(error)}</span>
@@ -224,13 +251,16 @@ export default function WorkflowPage({
           awaitingDecisionCount={approvalTasks.length}
         />
       )}
+      {permissions.canCreate && !loading && !error && !builderOpen && (
+        <WorkflowTemplateGallery onSelect={useTemplate} />
+      )}
       {loading && (
         <section className="workflow-loading" role="status" aria-live="polite">
           <span className="workflow-spinner" aria-hidden="true" />{" "}
           {localizedText("İş akışları yükleniyor…", "Loading workflows…")}
         </section>
       )}
-      {admin && builderOpen && (
+      {canDesign && builderOpen && (
         <WorkflowBuilder
           editing={editing}
           busy={busy}
@@ -267,6 +297,9 @@ export default function WorkflowPage({
       {!loading && !error && (
         <WorkflowCatalogPanels
           admin={admin}
+          canManageDrafts={canDesign || permissions.canPublish}
+          canUpdate={permissions.canUpdate}
+          canPublish={permissions.canPublish}
           published={published}
           drafts={drafts}
           busy={busy}

@@ -10,6 +10,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
     /// <summary>The signed-in tenant identity when this context serves an HTTP request.</summary>
     public Guid? ExecutionTenantId => auditExecutionContext?.TenantId;
     public DbSet<TenantStandardMenuLayout> TenantStandardMenuLayouts => Set<TenantStandardMenuLayout>();
+    public DbSet<TenantCustomizationPackageSnapshot> TenantCustomizationPackageSnapshots => Set<TenantCustomizationPackageSnapshot>();
 
     public DbSet<ManufacturingWorkCenterAnnualCapacityRule> ManufacturingWorkCenterAnnualCapacityRules => Set<ManufacturingWorkCenterAnnualCapacityRule>();
     public DbSet<ManufacturingWorkCenterShiftRotation> ManufacturingWorkCenterShiftRotations => Set<ManufacturingWorkCenterShiftRotation>();
@@ -36,6 +37,16 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.HasKey(x => x.TenantId);
             e.Property(x => x.LayoutJson).IsRequired();
             e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantCustomizationPackageSnapshot>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            e.Property(x => x.Name).HasMaxLength(120);
+            e.Property(x => x.PackageJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.Sha256).HasMaxLength(64).IsUnicode(false).IsFixedLength();
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<ManufacturingWorkCenterAnnualCapacityRule>(e =>

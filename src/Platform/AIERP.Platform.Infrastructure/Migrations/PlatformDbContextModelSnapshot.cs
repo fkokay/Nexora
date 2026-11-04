@@ -12091,6 +12091,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         },
                         new
                         {
+                            Code = "erp.tenant-customizations.read",
+                            Action = "read",
+                            Description = "read · Tenant low-code customization packages and snapshots",
+                            ResourceType = "erp.tenant-customizations"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-customizations.create",
+                            Action = "create",
+                            Description = "create · Tenant low-code customization packages and snapshots",
+                            ResourceType = "erp.tenant-customizations"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-customizations.update",
+                            Action = "update",
+                            Description = "update · Tenant low-code customization packages and snapshots",
+                            ResourceType = "erp.tenant-customizations"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-customizations.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant low-code customization packages and snapshots",
+                            ResourceType = "erp.tenant-customizations"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-customizations.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant low-code customization packages and snapshots",
+                            ResourceType = "erp.tenant-customizations"
+                        },
+                        new
+                        {
                             Code = "erp.customer-locations.read",
                             Action = "read",
                             Description = "read · Customer address province and district definitions",

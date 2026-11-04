@@ -1,6 +1,6 @@
 import { Eye, GripVertical, Plus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { fieldTypes, type Field, type Form } from "../types";
+import { fieldTypes, groupFieldsBySection, isFieldRequired, isFieldVisible, type Field, type Form } from "../types";
 
 type Props = {
   selected: Form | null;
@@ -30,6 +30,7 @@ type Props = {
     field: Field,
     value: string,
     onChange: (value: string) => void,
+    required?: boolean,
   ) => ReactNode;
 };
 
@@ -60,6 +61,9 @@ export function CustomFormBuilder(props: Props) {
     onValidatePreview,
     control,
   } = props;
+  const effectiveValues = Object.fromEntries(
+    fields.map((field) => [field.code, values[field.code] ?? field.defaultValue ?? ""]),
+  ) as Record<string, string>;
   return (
     <section className="form-builder">
       <div className="builder-title">
@@ -141,7 +145,7 @@ export function CustomFormBuilder(props: Props) {
               <h3>Form alanları</h3>
               <p>
                 Soldaki bileşenleri forma sürükleyin veya tıklayın. Tutamaktan
-                sürükleyerek sıralayın.
+                sürükleyerek sıralayın. Ardışık alanlara aynı bölüm adını vererek gruplayın.
               </p>
             </div>
             <span className="field-count">{fields.length}/40 alan</span>
@@ -276,6 +280,17 @@ export function CustomFormBuilder(props: Props) {
                       <option>Choice</option>
                     </select>
                   </label>
+                  <label className="field-section-config">
+                    Bölüm adı
+                    <input
+                      maxLength={80}
+                      value={field.sectionTitle ?? ""}
+                      onChange={(event) => onUpdateField(index, {
+                        sectionTitle: event.target.value || null,
+                      })}
+                      placeholder="Örn. İletişim bilgileri"
+                    />
+                  </label>
                   <label className="required-toggle">
                     <input
                       type="checkbox"
@@ -289,20 +304,128 @@ export function CustomFormBuilder(props: Props) {
                     Zorunlu
                   </label>
                   {field.dataType === "Text" && (
-                    <label>
-                      Azami karakter
-                      <input
-                        type="number"
-                        min="1"
-                        max="1000"
-                        value={field.maxLength ?? 250}
-                        onChange={(event) =>
-                          onUpdateField(index, {
-                            maxLength: Number(event.target.value),
-                          })
-                        }
-                      />
-                    </label>
+                    <>
+                      <label>
+                        Asgari karakter
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          max={field.maxLength ?? 250}
+                          value={field.minLength ?? 0}
+                          onChange={(event) =>
+                            onUpdateField(index, { minLength: Number(event.target.value) })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Azami karakter
+                        <input
+                          type="number"
+                          step="1"
+                          min={field.minLength ?? 0}
+                          max="1000"
+                          value={field.maxLength ?? 250}
+                          onChange={(event) =>
+                            onUpdateField(index, {
+                              maxLength: Number(event.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                      <div className="field-text-presentation">
+                        <label>
+                          Biçim doğrulama
+                          <select
+                            value={field.textFormat ?? "None"}
+                            onChange={(event) => {
+                              const textFormat = event.target.value as NonNullable<Field["textFormat"]>;
+                              onUpdateField(index, {
+                                textFormat,
+                                isMultiline: textFormat === "None" ? field.isMultiline ?? false : false,
+                              });
+                            }}
+                          >
+                            <option value="None">Yok</option>
+                            <option value="Email">E-posta</option>
+                            <option value="Url">Web adresi</option>
+                            <option value="Phone">Telefon</option>
+                          </select>
+                        </label>
+                        <label>
+                          Yer tutucu metin
+                          <input
+                            maxLength={120}
+                            value={field.placeholder ?? ""}
+                            onChange={(event) => onUpdateField(index, { placeholder: event.target.value || null })}
+                            placeholder="Örn. Talep nedenini yazın"
+                          />
+                        </label>
+                        <label className="required-toggle">
+                          <input
+                            type="checkbox"
+                            checked={field.isMultiline ?? false}
+                            disabled={field.textFormat != null && field.textFormat !== "None"}
+                            onChange={(event) => onUpdateField(index, { isMultiline: event.target.checked })}
+                          />
+                          Çok satırlı giriş
+                        </label>
+                      </div>
+                    </>
+                  )}
+                  {field.dataType === "Decimal" && (
+                    <div className="field-number-limits">
+                      <label>
+                        En düşük değer
+                        <input
+                          type="number"
+                          step="any"
+                          value={field.minValue ?? ""}
+                          onChange={(event) => onUpdateField(index, {
+                            minValue: event.target.value === "" ? null : Number(event.target.value),
+                          })}
+                          placeholder="Sınırsız"
+                        />
+                      </label>
+                      <label>
+                        En yüksek değer
+                        <input
+                          type="number"
+                          step="any"
+                          value={field.maxValue ?? ""}
+                          onChange={(event) => onUpdateField(index, {
+                            maxValue: event.target.value === "" ? null : Number(event.target.value),
+                          })}
+                          placeholder="Sınırsız"
+                        />
+                      </label>
+                    </div>
+                  )}
+                  {field.dataType === "Date" && (
+                    <div className="field-date-limits">
+                      <label>
+                        En erken tarih
+                        <input
+                          type="date"
+                          max={field.maxDate ?? undefined}
+                          value={field.minDate ?? ""}
+                          onChange={(event) => onUpdateField(index, {
+                            minDate: event.target.value || null,
+                          })}
+                        />
+                      </label>
+                      <label>
+                        En geç tarih
+                        <input
+                          type="date"
+                          min={field.minDate ?? undefined}
+                          value={field.maxDate ?? ""}
+                          onChange={(event) => onUpdateField(index, {
+                            maxDate: event.target.value || null,
+                          })}
+                        />
+                      </label>
+                    </div>
                   )}
                   {field.dataType === "Choice" && (
                     <label className="options-field">
@@ -319,6 +442,152 @@ export function CustomFormBuilder(props: Props) {
                         }
                       />
                     </label>
+                  )}
+                  <label className="field-help-config">
+                    Yardım metni
+                    <input
+                      maxLength={240}
+                      value={field.helpText ?? ""}
+                      onChange={(event) => onUpdateField(index, { helpText: event.target.value || null })}
+                      placeholder="Alanla ilgili kısa açıklama"
+                    />
+                  </label>
+                  <label className="field-default-config">
+                    Varsayılan değer
+                    {control(field, field.defaultValue ?? "", (value) =>
+                      onUpdateField(index, { defaultValue: value || null }), false)}
+                  </label>
+                  {index > 0 && (
+                    <div className="field-visibility-condition">
+                      <label>
+                        Görünürlük koşulu
+                        <select
+                          value={field.visibleWhenFieldCode ?? ""}
+                          onChange={(event) => {
+                            const sourceCode = event.target.value;
+                            const source = fields
+                              .slice(0, index)
+                              .find((item) => item.code === sourceCode);
+                            onUpdateField(index, {
+                              visibleWhenFieldCode: sourceCode || null,
+                              visibleWhenValue: sourceCode
+                                ? source?.dataType === "Boolean"
+                                  ? "true"
+                                  : source?.dataType === "Choice"
+                                    ? source.options?.[0] ?? ""
+                                    : ""
+                                : null,
+                            });
+                          }}
+                        >
+                          <option value="">Her zaman göster</option>
+                          {fields.slice(0, index).map((source) => (
+                            <option key={source.code} value={source.code}>
+                              {source.label || source.code}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {field.visibleWhenFieldCode && (() => {
+                        const source = fields
+                          .slice(0, index)
+                          .find((item) => item.code === field.visibleWhenFieldCode);
+                        if (!source) return null;
+                        const choices = source.dataType === "Boolean"
+                          ? [{ value: "true", label: "Evet" }, { value: "false", label: "Hayır" }]
+                          : source.dataType === "Choice"
+                            ? (source.options ?? []).map((value) => ({ value, label: value }))
+                            : null;
+                        return (
+                          <label>
+                            Yanıt şu olduğunda
+                            {choices ? (
+                              <select
+                                value={field.visibleWhenValue ?? ""}
+                                onChange={(event) =>
+                                  onUpdateField(index, { visibleWhenValue: event.target.value })
+                                }
+                              >
+                                <option value="">Değer seçin</option>
+                                {choices.map((choice) => (
+                                  <option key={choice.value} value={choice.value}>{choice.label}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                value={field.visibleWhenValue ?? ""}
+                                onChange={(event) =>
+                                  onUpdateField(index, { visibleWhenValue: event.target.value })
+                                }
+                                placeholder="Eşleşecek değeri yazın"
+                              />
+                            )}
+                          </label>
+                        );
+                      })()}
+                      <small>Koşullu alanlar, kaynak alan yanıtı eşleşince görünür.</small>
+                    </div>
+                  )}
+                  {index > 0 && (
+                    <div className="field-visibility-condition">
+                      <label>
+                        Zorunluluk koşulu
+                        <select
+                          value={field.requiredWhenFieldCode ?? ""}
+                          onChange={(event) => {
+                            const sourceCode = event.target.value;
+                            const source = fields.slice(0, index).find((item) => item.code === sourceCode);
+                            onUpdateField(index, {
+                              requiredWhenFieldCode: sourceCode || null,
+                              requiredWhenValue: sourceCode
+                                ? source?.dataType === "Boolean"
+                                  ? "true"
+                                  : source?.dataType === "Choice"
+                                    ? source.options?.[0] ?? ""
+                                    : ""
+                                : null,
+                            });
+                          }}
+                        >
+                          <option value="">Ek koşul yok</option>
+                          {fields.slice(0, index).map((source) => (
+                            <option key={source.code} value={source.code}>{source.label || source.code}</option>
+                          ))}
+                        </select>
+                      </label>
+                      {field.requiredWhenFieldCode && (() => {
+                        const source = fields.slice(0, index).find((item) => item.code === field.requiredWhenFieldCode);
+                        if (!source) return null;
+                        const choices = source.dataType === "Boolean"
+                          ? [{ value: "true", label: "Evet" }, { value: "false", label: "Hayır" }]
+                          : source.dataType === "Choice"
+                            ? (source.options ?? []).map((value) => ({ value, label: value }))
+                            : null;
+                        return (
+                          <label>
+                            Yanıt şu olduğunda zorunlu
+                            {choices ? (
+                              <select
+                                value={field.requiredWhenValue ?? ""}
+                                onChange={(event) => onUpdateField(index, { requiredWhenValue: event.target.value })}
+                              >
+                                <option value="">Değer seçin</option>
+                                {choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
+                              </select>
+                            ) : (
+                              <input
+                                type={source.dataType === "Decimal" ? "number" : source.dataType === "Date" ? "date" : "text"}
+                                step={source.dataType === "Decimal" ? "any" : undefined}
+                                value={field.requiredWhenValue ?? ""}
+                                onChange={(event) => onUpdateField(index, { requiredWhenValue: event.target.value })}
+                                placeholder="Eşleşecek değeri yazın"
+                              />
+                            )}
+                          </label>
+                        );
+                      })()}
+                      <small>Koşul eşleştiğinde alan doldurulmalıdır. Alan gizliyse zorunlu tutulmaz.</small>
+                    </div>
                   )}
                   <button
                     type="button"
@@ -340,17 +609,24 @@ export function CustomFormBuilder(props: Props) {
             </div>
             <h3>{name || "Form başlığı"}</h3>
             <p>{description || "Form açıklaması burada görünür."}</p>
-            <div className="submission-fields">
-              {fields.map((field) => (
-                <label key={field.code}>
-                  {field.label}
-                  {field.isRequired && <i>*</i>}
-                  {control(field, values[field.code] ?? "", (value) =>
-                    onValueChange(field.code, value),
-                  )}
-                </label>
-              ))}
-            </div>
+            {groupFieldsBySection(fields.filter((field) => isFieldVisible(field, effectiveValues, fields))).map((group, groupIndex) => (
+              <section className="form-field-section" key={`${group.title ?? "general"}-${groupIndex}`}>
+                {group.title && <h4>{group.title}</h4>}
+                <div className="submission-fields">
+                  {group.fields.map((field) => (
+                    <label key={field.code}>
+                      {field.label}
+                      {isFieldRequired(field, effectiveValues, fields) && <i>*</i>}
+                      {field.helpText && <small className="field-help-text">{field.helpText}</small>}
+                      {control(field, effectiveValues[field.code] ?? "", (value) =>
+                        onValueChange(field.code, value),
+                        isFieldRequired(field, effectiveValues, fields),
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
         </>
       )}
@@ -381,34 +657,40 @@ export function CustomFormBuilder(props: Props) {
               {fields.length === 0 ? (
                 <p className="empty-state compact">Önizlenecek alan yok.</p>
               ) : (
-                <div className="submission-fields">
-                  {fields.map((field) => (
-                    <label key={field.code}>
-                      {field.label}
-                      {field.isRequired && <i aria-label="Zorunlu">*</i>}
-                      {control(field, values[field.code] ?? "", (value) =>
-                        onValueChange(field.code, value),
-                      )}
-                      {previewErrors[field.code] && (
-                        <small className="preview-field-error" role="alert">
-                          {previewErrors[field.code]}
-                        </small>
-                      )}
-                      <small className="preview-field-hint">
-                        {field.dataType === "Text"
-                          ? `Metin · en fazla ${field.maxLength ?? 250} karakter`
-                          : field.dataType === "Decimal"
-                            ? "Sayı"
-                            : field.dataType === "Date"
-                              ? "Tarih"
-                              : field.dataType === "Boolean"
-                                ? "Evet / Hayır"
-                                : `Seçim · ${(field.options ?? []).length} seçenek`}
-                        {field.isRequired ? " · Zorunlu" : ""}
-                      </small>
-                    </label>
-                  ))}
-                </div>
+                groupFieldsBySection(fields.filter((field) => isFieldVisible(field, effectiveValues, fields))).map((group, groupIndex) => (
+                  <section className="form-field-section" key={`${group.title ?? "general"}-${groupIndex}`}>
+                    {group.title && <h4>{group.title}</h4>}
+                    <div className="submission-fields">
+                      {group.fields.map((field) => (
+                        <label key={field.code}>
+                          {field.label}
+                          {isFieldRequired(field, effectiveValues, fields) && <i aria-label="Zorunlu">*</i>}
+                          {field.helpText && <small className="field-help-text">{field.helpText}</small>}
+                          {control(field, effectiveValues[field.code] ?? "", (value) =>
+                            onValueChange(field.code, value),
+                          )}
+                          {previewErrors[field.code] && (
+                            <small className="preview-field-error" role="alert">
+                              {previewErrors[field.code]}
+                            </small>
+                          )}
+                          <small className="preview-field-hint">
+                            {field.dataType === "Text"
+                              ? `Metin · ${field.minLength ?? 0}–${field.maxLength ?? 250} karakter${field.textFormat && field.textFormat !== "None" ? ` · ${field.textFormat === "Email" ? "E-posta" : field.textFormat === "Url" ? "Web adresi" : "Telefon"}` : ""}`
+                              : field.dataType === "Decimal"
+                                ? `Sayı${field.minValue != null ? ` · en az ${field.minValue}` : ""}${field.maxValue != null ? ` · en çok ${field.maxValue}` : ""}`
+                                : field.dataType === "Date"
+                                  ? `Tarih${field.minDate ? ` · en erken ${field.minDate}` : ""}${field.maxDate ? ` · en geç ${field.maxDate}` : ""}`
+                                  : field.dataType === "Boolean"
+                                    ? "Evet / Hayır"
+                                    : `Seçim · ${(field.options ?? []).length} seçenek`}
+                          {field.isRequired ? " · Zorunlu" : field.requiredWhenFieldCode ? " · Koşula bağlı zorunlu" : ""}
+                          </small>
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+                ))
               )}
             </section>
             <div className="preview-validation-footer">

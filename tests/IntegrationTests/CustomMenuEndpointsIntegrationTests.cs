@@ -114,6 +114,7 @@ public sealed class CustomMenuEndpointsIntegrationTests
         builder.WebHost.UseTestServer();
         builder.Services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase(databaseName));
         builder.Services.AddAuthentication("report-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
+        builder.Services.AddSingleton<AIERP.Platform.Application.IPlatformPermissionAuthorizer, CustomizationTestPermissionAuthorizer>();
         builder.Services.AddAuthorization();
         var app = builder.Build();
         app.UseAuthentication(); app.UseAuthorization(); app.MapCustomMenuEndpoints();

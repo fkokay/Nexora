@@ -25,7 +25,7 @@ public static class DashboardWidgetEndpoints
 
         widgets.MapPost("/", async (AddDashboardWidgetRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
-            if (!TryTenant(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenant(user, out var tenantId, out var userId, out var role) || role is not ("TenantAdmin" or "TenantDeveloper")) return Results.Forbid();
             if (request.SavedReportId == Guid.Empty) return Results.ValidationProblem(new Dictionary<string, string[]> { ["savedReportId"] = ["Kayıtlı rapor seçilmelidir."] });
             var report = await db.TenantSavedReports.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SavedReportId, ct);
             if (report is null) return Results.NotFound();
@@ -46,7 +46,7 @@ public static class DashboardWidgetEndpoints
 
         widgets.MapPut("/order", async (ReorderDashboardWidgetsRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
-            if (!TryTenant(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenant(user, out var tenantId, out var userId, out var role) || role is not ("TenantAdmin" or "TenantDeveloper")) return Results.Forbid();
             if (request.WidgetIds is null || request.WidgetIds.Count > MaxWidgets || request.WidgetIds.Distinct().Count() != request.WidgetIds.Count)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["widgetIds"] = ["Sıralama benzersiz ve en fazla 12 widget içermelidir."] });
             var tenantWidgets = await db.TenantDashboardWidgets.Where(x => x.TenantId == tenantId).ToListAsync(ct);
@@ -62,7 +62,7 @@ public static class DashboardWidgetEndpoints
 
         widgets.MapDelete("/{widgetId:guid}", async (Guid widgetId, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
-            if (!TryTenant(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenant(user, out var tenantId, out var userId, out var role) || role is not ("TenantAdmin" or "TenantDeveloper")) return Results.Forbid();
             var widget = await db.TenantDashboardWidgets.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == widgetId, ct);
             if (widget is null) return Results.NotFound();
             var report = await db.TenantSavedReports.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == widget.SavedReportId)

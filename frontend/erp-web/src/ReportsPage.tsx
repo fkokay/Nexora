@@ -76,6 +76,7 @@ export default function ReportsPage({
   const loadGeneration = useRef(0);
   const queryGeneration = useRef(0);
   const admin = role === "TenantAdmin";
+  const canDesign = admin || role === "TenantDeveloper";
   const english = useSyncExternalStore(
     subscribeLocale,
     isEnglishLocale,
@@ -660,7 +661,7 @@ export default function ReportsPage({
                     : tx("Kaynak kullanılamıyor", "Source unavailable")}
               </small>
             </div>
-            <button
+            {canDesign && <button
               type="button"
               className="secondary small-button"
               disabled={busy}
@@ -668,7 +669,7 @@ export default function ReportsPage({
             >
               <Plus size={14} /> {tx("Yeni", "New")}{" "}
               {isList ? tx("liste", "list") : tx("rapor", "report")}
-            </button>
+            </button>}
           </div>
           <div className="report-form-grid">
             <label>
@@ -931,7 +932,7 @@ export default function ReportsPage({
                       )
                     : tx("Örn. Aktif müşteriler", "e.g. Active customers")
                 }
-                disabled={!admin || !!drilldownBase || busy}
+                disabled={!canDesign || !!drilldownBase || busy}
               />
             </label>
             <div>
@@ -957,7 +958,7 @@ export default function ReportsPage({
                     ? tx("Listeyi görüntüle", "View list")
                     : tx("Raporu çalıştır", "Run report")}
               </button>
-              {admin && (
+              {canDesign && (
                 <button
                   type="button"
                   className="secondary"
@@ -1019,6 +1020,15 @@ export default function ReportsPage({
               "Yalnızca katalogdaki alanlar sorgulanır. Kayıtlar aktif tenant ile filtrelenir; liste/rapor çalıştırmaları ve tanım değişiklikleri audit kaydına yazılır.",
               "Only catalog fields can be queried. Records are filtered to the active tenant; list/report runs and definition changes are written to the audit log.",
             )}
+            {canDesign && !admin && (
+              <>
+                <br />
+                {tx(
+                  "Kaydettiğiniz liste ve rapor değişiklikleri firma genelinde hemen etkinleşir.",
+                  "Saved list and report changes take effect for the whole company immediately.",
+                )}
+              </>
+            )}
           </div>
           {busy && (
             <p className="report-loading" role="status" aria-live="polite">
@@ -1078,6 +1088,7 @@ export default function ReportsPage({
         <SavedReportsPanel
           isList={isList}
           admin={admin}
+          canDesign={canDesign}
           loading={loading}
           busy={busy}
           loadError={loadError}

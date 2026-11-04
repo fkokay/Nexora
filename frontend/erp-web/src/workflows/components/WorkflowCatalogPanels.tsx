@@ -13,6 +13,9 @@ import type { WorkflowDefinition } from "../types";
 
 type Props = {
   admin: boolean;
+  canManageDrafts: boolean;
+  canUpdate: boolean;
+  canPublish: boolean;
   published: WorkflowDefinition[];
   drafts: WorkflowDefinition[];
   busy: boolean;
@@ -29,6 +32,9 @@ type Props = {
 
 export function WorkflowCatalogPanels({
   admin,
+  canManageDrafts,
+  canUpdate,
+  canPublish,
   published,
   drafts,
   busy,
@@ -183,7 +189,7 @@ export function WorkflowCatalogPanels({
           </div>
         )}
       </section>
-      {admin && (
+      {canManageDrafts && (
         <section
           className="workflow-panel"
           aria-labelledby="workflow-admin-title"
@@ -199,6 +205,14 @@ export function WorkflowCatalogPanels({
             </div>
             <span>{drafts.length}</span>
           </div>
+            {!admin && (
+            <p className="workflow-authoring-note" role="note">
+              {localizedText(
+                "Taslak ve yayın işlemleri size tanımlanan low-code izinlerine göre kullanılabilir.",
+                "Drafting and publishing actions depend on your assigned low-code permissions.",
+              )}
+            </p>
+          )}
           {drafts.length + published.length === 0 ? (
             <p className="workflow-empty">
               {localizedText(
@@ -222,50 +236,54 @@ export function WorkflowCatalogPanels({
                     </small>
                   </div>
                   <div className="workflow-definition-actions">
-                    <button
+                    {canUpdate && <button
                       className="secondary"
                       onClick={() => editWorkflow(item)}
                     >
                       {localizedText("Düzenle", "Edit")}
-                    </button>
-                    <button
-                      className="primary"
-                      disabled={busy}
-                      onClick={() =>
-                        void post(
-                          `/api/workflows/definitions/${item.id}/publish`,
-                        )
-                      }
-                    >
-                      <Check size={15} /> {localizedText("Yayımla", "Publish")}
-                    </button>
+                    </button>}
+                    {canPublish && (
+                      <button
+                        className="primary"
+                        disabled={busy}
+                        onClick={() =>
+                          void post(
+                            `/api/workflows/definitions/${item.id}/publish`,
+                          )
+                        }
+                      >
+                        <Check size={15} /> {localizedText("Yayımla", "Publish")}
+                      </button>
+                    )}
                   </div>
                 </article>
               ))}
-              {published.map((item) => (
-                <article className="workflow-definition" key={item.id}>
-                  <div className="workflow-card-symbol">
-                    <ShieldCheck size={18} />
-                  </div>
-                  <div className="workflow-definition-info">
-                    <b>{item.name}</b>
-                    <small>
-                      {item.code} · {localizedText("Yayımlanmış", "Published")}{" "}
-                      v{item.version}
-                    </small>
-                  </div>
-                  <button
-                    className="secondary"
-                    disabled={busy}
-                    onClick={() =>
-                      void post(`/api/workflows/definitions/${item.id}/draft`)
-                    }
-                  >
-                    <Plus size={15} />{" "}
-                    {localizedText("Yeni sürüm", "New version")}
-                  </button>
-                </article>
-              ))}
+              {published.map((item) => {
+                const existingDraft = drafts.find((draft) => draft.code === item.code);
+                return (
+                  <article className="workflow-definition" key={item.id}>
+                    <div className="workflow-card-symbol">
+                      <ShieldCheck size={18} />
+                    </div>
+                    <div className="workflow-definition-info">
+                      <b>{item.name}</b>
+                      <small>
+                        {item.code} · {localizedText("Yayımlanmış", "Published")} v{item.version}
+                        {existingDraft && ` · ${localizedText(`Taslak v${existingDraft.version} mevcut`, `Draft v${existingDraft.version} exists`)}`}
+                      </small>
+                    </div>
+                    {canUpdate && !existingDraft && (
+                      <button
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => void post(`/api/workflows/definitions/${item.id}/draft`)}
+                      >
+                        <Plus size={15} /> {localizedText("Yeni sürüm", "New version")}
+                      </button>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -22,11 +23,17 @@ public static class CustomMenuEndpoints
         var menus = app.MapGroup("/api/custom-menus").WithTags("Tenant Custom Navigation").RequireAuthorization();
         app.MapStandardMenuEndpoints();
 
-        menus.MapGet("/targets", () => Results.Ok(Targets.Select(item => new CustomMenuTarget(item.Key, item.Value))));
-
-        menus.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        menus.MapGet("/targets", async (ClaimsPrincipal user, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenant(user, out var tenantId, out _, out _)) return Results.Forbid();
+            if (!TryTenant(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
+            return Results.Ok(Targets.Select(item => new CustomMenuTarget(item.Key, item.Value)));
+        });
+
+        menus.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
+        {
+            if (!TryTenant(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
             var entries = await db.TenantCustomMenuEntries.AsNoTracking().Where(x => x.TenantId == tenantId)
                 .OrderBy(x => x.Position).ThenBy(x => x.CreatedAt)
                 .Select(x => new { x.Id, x.Code, x.Label, x.TargetPage, x.Position, x.CreatedAt, x.UpdatedAt })
@@ -35,9 +42,10 @@ public static class CustomMenuEndpoints
                 Targets.GetValueOrDefault(x.TargetPage, ""), x.Position, x.CreatedAt, x.UpdatedAt)));
         });
 
-        menus.MapPost("/", async (CustomMenuWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        menus.MapPost("/", async (CustomMenuWriteRequest request, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenant(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenant(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct)) return Results.Forbid();
             if (!Validate(request, out var code, out var label, out var targetPage, out var errors)) return Results.ValidationProblem(errors!);
             if (await db.TenantCustomMenuEntries.AnyAsync(x => x.TenantId == tenantId && x.Code == code, ct))
                 return Results.Conflict(new { error = "Bu menü kodu zaten kullanılıyor." });
@@ -55,9 +63,10 @@ public static class CustomMenuEndpoints
             return Results.Created($"/api/custom-menus/{entry.Id}", ToView(entry));
         });
 
-        menus.MapPut("/{entryId:guid}", async (Guid entryId, CustomMenuWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        menus.MapPut("/{entryId:guid}", async (Guid entryId, CustomMenuWriteRequest request, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenant(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenant(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "update", ct)) return Results.Forbid();
             if (!Validate(request, out var code, out var label, out var targetPage, out var errors)) return Results.ValidationProblem(errors!);
             var entry = await db.TenantCustomMenuEntries.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == entryId, ct);
             if (entry is null) return Results.NotFound();
@@ -69,9 +78,10 @@ public static class CustomMenuEndpoints
             return Results.Ok(ToView(entry));
         });
 
-        menus.MapPut("/order", async (ReorderCustomMenuRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        menus.MapPut("/order", async (ReorderCustomMenuRequest request, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenant(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenant(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "update", ct)) return Results.Forbid();
             if (request.EntryIds is null || request.EntryIds.Count > MaxEntries || request.EntryIds.Distinct().Count() != request.EntryIds.Count)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["entryIds"] = ["Sıralama benzersiz ve en fazla 30 menü öğesi içermelidir."] });
             var entries = await db.TenantCustomMenuEntries.Where(x => x.TenantId == tenantId).ToListAsync(ct);
@@ -84,9 +94,10 @@ public static class CustomMenuEndpoints
             return Results.Ok(request.EntryIds);
         });
 
-        menus.MapDelete("/{entryId:guid}", async (Guid entryId, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        menus.MapDelete("/{entryId:guid}", async (Guid entryId, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenant(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenant(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "delete", ct)) return Results.Forbid();
             var entry = await db.TenantCustomMenuEntries.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == entryId, ct);
             if (entry is null) return Results.NotFound();
             db.TenantCustomMenuEntries.Remove(entry);
@@ -119,6 +130,19 @@ public static class CustomMenuEndpoints
         tenantId = default; userId = default; role = principal.FindFirstValue("role") ?? "";
         return Guid.TryParse(principal.FindFirstValue("tenant_id"), out tenantId)
             && Guid.TryParse(principal.FindFirstValue("sub"), out userId) && !string.IsNullOrWhiteSpace(role);
+    }
+
+    private static async Task<bool> IsAllowedAsync(IPlatformPermissionAuthorizer authorizer, Guid tenantId, Guid userId,
+        string role, string action, CancellationToken ct)
+    {
+        var definition = PlatformPermissionCatalog.Definitions.Single(x => x.ResourceType == "erp.custom-menus" && x.Action == action);
+        var permission = new ResolvedPlatformPermission(definition, new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["subject.userId"] = userId.ToString("D"), ["subject.role"] = role,
+            ["resource.type"] = definition.ResourceType, ["resource.tenantId"] = tenantId.ToString("D"),
+            ["request.action"] = action
+        });
+        return await authorizer.IsAllowedAsync(tenantId, userId, role, permission, ct);
     }
 }
 

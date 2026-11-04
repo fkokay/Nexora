@@ -17312,6 +17312,22 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.ToTable("TenantStandardMenuLayouts");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomizationPackageSnapshot", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uniqueidentifier");
+                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("datetimeoffset");
+                    b.Property<Guid>("CreatedByUserId").HasColumnType("uniqueidentifier");
+                    b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("nvarchar(120)");
+                    b.Property<string>("PackageJson").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<string>("Sha256").IsRequired().HasMaxLength(64).IsUnicode(false).IsFixedLength().HasColumnType("char(64)");
+                    b.Property<Guid>("TenantId").HasColumnType("uniqueidentifier");
+                    b.Property<int>("Version").HasColumnType("int");
+                    b.HasKey("Id");
+                    b.HasIndex("TenantId", "CreatedAt");
+                    b.HasIndex("TenantId", "Version").IsUnique();
+                    b.ToTable("TenantCustomizationPackageSnapshots");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantWorkflowAction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -20933,6 +20949,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.TenantStandardMenuLayout", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomizationPackageSnapshot", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", null)
                         .WithMany()

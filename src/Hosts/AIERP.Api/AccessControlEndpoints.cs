@@ -81,7 +81,7 @@ internal static class AccessControlEndpoints
             if (!TryGetTenantAdmin(user, out var tenantId) || !TryGetUserId(user, out var actorId)) return Results.Forbid();
             if (!await IsCurrentTenantAdminAsync(db, tenantId, actorId, ct)) return Results.Forbid();
             if (request.UserId == Guid.Empty || !IsTenantRole(request.Role))
-                return Validation("membership", "Choose an existing active platform user and the TenantUser or TenantAdmin role.");
+                return Validation("membership", "Choose an existing active platform user and a valid tenant role.");
 
             await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
             var licenseError = await CheckWritableLicenseAsync(db, tenantId, ct);
@@ -114,7 +114,7 @@ internal static class AccessControlEndpoints
         {
             if (!TryGetTenantAdmin(user, out var tenantId) || !TryGetUserId(user, out var actorId)) return Results.Forbid();
             if (!await IsCurrentTenantAdminAsync(db, tenantId, actorId, ct)) return Results.Forbid();
-            if (!IsTenantRole(request.Role)) return Validation("role", "Choose TenantUser or TenantAdmin.");
+            if (!IsTenantRole(request.Role)) return Validation("role", "Choose TenantUser, TenantDeveloper, or TenantAdmin.");
             await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
             var licenseError = await CheckWritableLicenseAsync(db, tenantId, ct);
             if (licenseError is not null) return licenseError;
@@ -272,7 +272,7 @@ internal static class AccessControlEndpoints
     private static IResult Validation(string key, string message) =>
         Results.ValidationProblem(new Dictionary<string, string[]> { [key] = [message] });
 
-    private static bool IsTenantRole(string? role) => role?.Trim() is "TenantUser" or "TenantAdmin";
+    private static bool IsTenantRole(string? role) => role?.Trim() is "TenantUser" or "TenantDeveloper" or "TenantAdmin";
 
     private static bool IsExactEmail(string? value)
     {
