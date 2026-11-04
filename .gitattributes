@@ -3,6 +3,8 @@
 ###############################################################################
 * text=auto
 deploy/linux/*.sh text eol=lf
+deploy/docker/sandbox-overrides/patch/*.patch text eol=lf
+deploy/docker/sandbox-overrides/**/APKBUILD text eol=lf
 
 ###############################################################################
 # Set default behavior for command prompt diff.
