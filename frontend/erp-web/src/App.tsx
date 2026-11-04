@@ -548,7 +548,7 @@ export default function App() {
     destination.searchParams.set("platformOrigin", window.location.origin);
     const labels: Record<string, string> = {
       dashboard: "Genel Bakış",
-      customers: "Cari Yönetimi",
+      customers: "Cari Hesaplar",
       "crm-opportunities": "CRM Fırsatları",
       "human-resources": "İnsan Kaynakları",
       "fixed-assets": "Sabit Kıymetler",
