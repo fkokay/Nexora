@@ -21,7 +21,7 @@ export function CustomerDirectoryHeader({
     <div className="page-heading customer-heading">
       <div>
         <p className="eyebrow">ERP CORE · CARİ</p>
-        <h1>Cari Yönetimi</h1>
+        <h1>Cari Hesaplar</h1>
         <p className="muted">
           Müşteri ve tedarikçi kartlarını firma bazında yönetin.
         </p>

@@ -11,7 +11,7 @@ public static class StandardMenuEndpoints
     private static readonly StandardMenuDefinition[] Catalog =
     [
         new("dashboard", "Genel Bakış", "Platform"),
-        new("customers", "Cari Yönetimi", "Satış & cari"), new("customer-create", "Yeni Cari Kart", "Satış & cari"),
+        new("customers", "Cari Hesaplar", "Satış & cari"), new("customer-create", "Yeni Cari Kart", "Satış & cari"),
         new("sales-invoice-create", "İrsaliyesiz satış faturası girişi", "Satış & cari"), new("finance-account-create", "Yeni Kasa Tanımla", "Satış & cari"),
         new("crm-opportunities", "CRM Fırsatları", "Satış & cari"), new("crm-opportunity-create", "Yeni fırsat", "Satış & cari"),
         new("inventory-stock", "Stok Kartları", "Stok & Depo"), new("inventory-stock-create", "Yeni stok kartı", "Stok & Depo"), new("inventory-cost", "Stok Değerleme", "Stok & Depo"), new("inventory-warehouses", "Depo Yönetimi", "Stok & Depo"), new("inventory-transfers", "Depolar arası transferler", "Stok & Depo"), new("inventory-locations", "Raf ve Konumlar", "Stok & Depo"), new("inventory-tracking", "Lot / Seri İzleme", "Stok & Depo"),
