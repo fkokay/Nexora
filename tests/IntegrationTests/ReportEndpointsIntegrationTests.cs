@@ -37,7 +37,7 @@ public sealed class ReportEndpointsIntegrationTests
     }
 
     [Fact]
-    public async Task Tenant_report_catalog_matches_the_read_only_assistant_source_allowlist()
+    public async Task Tenant_report_catalog_matches_the_read_only_assistant_source_allowlist_except_custom_sql()
     {
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
@@ -48,9 +48,27 @@ public sealed class ReportEndpointsIntegrationTests
         var catalog = await response.Content.ReadFromJsonAsync<JsonElement[]>();
         var sources = catalog!.Select(source => source.GetProperty("code").GetString()!).ToArray();
 
+        // Keep existing SQL report definitions discoverable while execution is disabled.
+        Assert.Contains("customSql", sources);
         Assert.Equal(ErpReportSources.All.OrderBy(source => source, StringComparer.Ordinal),
-            sources.OrderBy(source => source, StringComparer.Ordinal));
+            sources.Where(source => source != "customSql").OrderBy(source => source, StringComparer.Ordinal));
         Assert.Contains("bankStatementLines", sources);
+    }
+
+    [Theory]
+    [InlineData("/api/reports/run")]
+    [InlineData("/api/reports/export")]
+    public async Task Custom_sql_reports_are_unavailable_until_a_read_only_connection_is_provisioned(string endpoint)
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var definition = new { source = "customSql", sqlQuery = "SELECT 1 AS value", companyIds = new[] { TenantA }, page = 1, pageSize = 50 };
+
+        var response = await client.PostAsJsonAsync(endpoint, definition);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Contains("salt okunur", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]

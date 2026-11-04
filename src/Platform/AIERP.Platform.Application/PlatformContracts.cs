@@ -13,7 +13,7 @@ public sealed record CustomerView(Guid Id, string Code, string Name, Counterpart
     bool IsActive, DateTimeOffset CreatedAt, byte[] RowVersion, Guid? GroupId = null, string? GroupName = null,
     string CurrencyCode = "TRY", decimal? RiskLimit = null, int PaymentTermDays = 0,
     string? IdentityNumber = null, string? TaxOffice = null, Guid? ParentCompanyId = null,
-    string? ParentCompanyName = null, int SubsidiaryCount = 0);
+    string? ParentCompanyName = null, int SubsidiaryCount = 0, IReadOnlyDictionary<string, string>? CustomFields = null);
 public sealed record CustomerWriteRequest(string Code, string Name, CounterpartyType Type, string? TaxNumber,
     bool IsActive = true, byte[]? RowVersion = null, Guid? GroupId = null, string CurrencyCode = "TRY",
     decimal? RiskLimit = null, int PaymentTermDays = 0, IReadOnlyDictionary<string, string?>? CustomFields = null,
@@ -210,7 +210,8 @@ public sealed record SalesDeliveryInvoiceLineWriteRequest(int OrderLineNumber, d
 public sealed record SalesDeliveryInvoiceWriteRequest(Guid CustomerId, DateOnly InvoiceDate, IReadOnlyList<SalesDeliveryInvoiceLineWriteRequest>? Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
 public sealed record SalesInvoiceSummary(Guid Id, string Code, Guid? DeliveryId, string? DeliveryCode, Guid? OrderId,
     string? OrderCode, Guid CustomerId, string CustomerName, DateOnly InvoiceDate, string CurrencyCode,
-    SalesInvoiceStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt);
+    SalesInvoiceStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
+    string? CustomerTaxNumber = null, IReadOnlyDictionary<string, string>? ListCustomFields = null);
 public sealed record SalesInvoiceCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record SalesInvoiceCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);

@@ -1,0 +1,19 @@
+# Opt-in host web updates. Keep the deployment files and .env in a private host
+# directory, mounted read-only. Use the SAME project name and effective Compose
+# files as the running installation; never expose these paths in request data.
+services:
+  ai-service:
+    environment:
+      WebImageUpdate__TenantId: ${WEB_UPDATE_TENANT_ID:?Set the host owner tenant ID}
+      WebImageUpdate__ProjectId: ${WEB_UPDATE_PROJECT_ID:?Set the approved source project ID}
+  release-deployer:
+    environment:
+      WebImageUpdate__TenantId: ${WEB_UPDATE_TENANT_ID:?Set the host owner tenant ID}
+      WebImageUpdate__ProjectId: ${WEB_UPDATE_PROJECT_ID:?Set the approved source project ID}
+      WebImageUpdate__ComposeProject: ${WEB_UPDATE_COMPOSE_PROJECT:?Set the running Compose project name}
+      WebImageUpdate__EnvFile: /web-deployment/.env
+      WebImageUpdate__ComposeFiles__0: /web-deployment/docker-compose.yml
+      WebImageUpdate__ComposeFiles__1: /web-deployment/docker-compose.override.yml
+      WebImageUpdate__StudioUrl: ${PUBLIC_STUDIO_ORIGIN:?Set the public Studio URL}
+    volumes:
+      - ${WEB_UPDATE_DEPLOYMENT_DIRECTORY:?Set the private deployment directory}:/web-deployment:ro

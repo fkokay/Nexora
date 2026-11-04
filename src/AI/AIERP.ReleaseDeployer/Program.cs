@@ -644,6 +644,23 @@ app.MapPost("/internal/deployments/production/restore", async (RestoreProduction
     }
 }).RequireAuthorization();
 
+app.MapWebImageUpdates(configuration, DeployerState.Gate,
+    async (body, source, ct) =>
+    {
+        var root = Path.GetFullPath(configuration["ReleaseDeployer:PackageRoot"] ?? "/release-packages");
+        var path = ReleaseDeployerPath.SafeChild(root, $"{body.PackageId:N}.zip");
+        var metadataPath = ReleaseDeployerPath.SafeChild(root, $"{body.PackageId:N}.json");
+        var metadata = JsonSerializer.Deserialize<PackageMetadata>(await File.ReadAllTextAsync(metadataPath, ct), JsonConfig.Options)
+            ?? throw new InvalidDataException("Paket metadata dosyası geçersiz.");
+        if (metadata.PackageId != body.PackageId || metadata.CommitSha != body.CommitSha || metadata.PackageSha256 != body.PackageSha256 || metadata.Version != body.Version)
+            throw new InvalidDataException("Paket metadata bilgileri eşleşmiyor.");
+        await ExtractVerifiedPackageAsync(path, body.PackageSha256, source, body.PackageId, body.Version, body.CommitSha, metadata.FileCount, ct);
+    },
+    async (args, timeout, ct) =>
+    {
+        var result = await RunDockerAsync(args, timeout, ct);
+        return (result.ExitCode, result.StandardOutput + "\n" + result.StandardError);
+    });
 app.Run();
 
 static async Task BackupActiveProductionProjectsAsync(IConfiguration configuration, string signingKey, ILogger logger, CancellationToken cancellationToken)
@@ -815,7 +832,7 @@ static async Task ExtractVerifiedPackageAsync(string packagePath, string expecte
         if (entry.FullName == "AIERP-RELEASE.json") continue;
         var relative = NormalizeArchivePath(entry.FullName);
         if (!expected.TryGetValue(relative, out var file) || !found.Add(relative)) throw new InvalidDataException("Sürüm arşivinde manifest dışı veya yinelenen dosya bulundu.");
-        if (entry.Length > 16 * 1024 * 1024 || expandedBytes + entry.Length > 100 * 1024 * 1024) throw new InvalidDataException("Sürüm arşivi boyut sınırını aşıyor.");
+        if (entry.Length > 16 * 1024 * 1024 || expandedBytes + entry.Length > 200 * 1024 * 1024) throw new InvalidDataException("Sürüm arşivi boyut sınırını aşıyor.");
         var unixMode = (entry.ExternalAttributes >> 16) & 0xF000;
         if (unixMode == 0xA000 || entry.Name.Length == 0) throw new InvalidDataException("Sembolik bağlantı veya geçersiz arşiv kaydı reddedildi.");
         expandedBytes += entry.Length;
@@ -835,7 +852,7 @@ static async Task ExtractVerifiedPackageAsync(string packagePath, string expecte
                 while ((read = await input.ReadAsync(buffer, cancellationToken)) != 0)
                 {
                     copiedBytes += read;
-                    if (copiedBytes > 16 * 1024 * 1024 || expandedBytes - entry.Length + copiedBytes > 100 * 1024 * 1024)
+                    if (copiedBytes > 16 * 1024 * 1024 || expandedBytes - entry.Length + copiedBytes > 200 * 1024 * 1024)
                         throw new InvalidDataException("Sürüm arşivi boyut sınırını aşıyor.");
                     contentHash.AppendData(buffer, 0, read);
                     await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);

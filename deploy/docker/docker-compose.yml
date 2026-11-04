@@ -622,9 +622,26 @@ services:
     depends_on:
       workspace-test-jobs-init:
         condition: service_completed_successfully
+      workspace-release-packages-init:
+        condition: service_completed_successfully
     networks:
       - studio-internal
     restart: unless-stopped
+
+  workspace-release-packages-init:
+    image: busybox:1.37.0
+    command: ["sh", "-c", "chown 1654:1654 /release-packages && chmod 0750 /release-packages"]
+    volumes:
+      - aierp-release-packages:/release-packages
+    network_mode: none
+    user: "0:0"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 16
+    mem_limit: 64m
+    restart: "no"
 
   workspace-test-jobs-init:
     image: busybox:1.37.0
@@ -645,7 +662,9 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/ReleaseDeployer.Dockerfile
+    group_add: ["1654"]
     environment:
+      DOCKER_CONFIG: /deployer-state/docker-config
       ASPNETCORE_URLS: http://+:8080
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       Authentication__Issuer: AIERP
@@ -747,6 +766,7 @@ services:
       WorkspaceSandbox__TempRoot: /tmp/test-jobs
       WorkspaceSandbox__PackageCacheRoot: /package-cache
       WorkspaceSandbox__MaxDependencyCacheBytes: "536870912"
+      WorkspaceSandbox__BuildMaxNodeCount: ${WORKSPACE_SANDBOX_BUILD_MAX_NODE_COUNT:-2}
     depends_on:
       workspace-runner:
         condition: service_started
@@ -767,8 +787,8 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 256
-    mem_limit: 2g
-    cpus: 2.0
+    mem_limit: ${WORKSPACE_SANDBOX_MEMORY_LIMIT:-10g}
+    cpus: ${WORKSPACE_SANDBOX_CPUS:-6.0}
     volumes:
       - aierp-test-jobs:/test-jobs
       - ${WORKSPACE_SANDBOX_PACKAGE_CACHE_PATH:-./sandbox-package-cache-runtime}:/package-cache:ro

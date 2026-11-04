@@ -1786,6 +1786,7 @@ function CustomersPage({
     field: BuiltInScreenLayoutField,
     item: CustomerItem,
   ) {
+    if (field.key.startsWith("custom:")) return item.customFields?.[field.key] || "—";
     switch (field.key) {
       case "code":
         return <span className="customer-code">{item.code}</span>;
@@ -1818,6 +1819,18 @@ function CustomersPage({
         return `${item.paymentTermDays} gün`;
       case "taxNumber":
         return <span className="tax-cell">{item.taxNumber || "—"}</span>;
+      case "identityNumber":
+        return item.identityNumber || "—";
+      case "taxOffice":
+        return item.taxOffice || "—";
+      case "riskLimit":
+        return item.riskLimit == null ? "—" : item.riskLimit.toLocaleString("tr-TR");
+      case "parentCompanyName":
+        return item.parentCompanyName || "—";
+      case "subsidiaryCount":
+        return item.subsidiaryCount ?? 0;
+      case "createdAt":
+        return new Date(item.createdAt).toLocaleDateString("tr-TR");
       case "status":
         return (
           <span className={`active-pill ${item.isActive ? "yes" : "no"}`}>

@@ -8,15 +8,14 @@ export function CustomMenuSummary({ entryCount, targetCount }: Props) {
           <p className="eyebrow">TENANT UYARLAMA</p>
           <h1>Özel menüler</h1>
           <p className="muted">
-            Kullanıcılarınız için ERP çalışma alanına kısayollar ekleyin ve
-            sıralayın.
+            ERP menülerini düzenleyin, çalışma alanına özel kısayollar ekleyin.
           </p>
         </div>
-        <span className="custom-menu-count">{entryCount} / 30 öğe</span>
+        <span className="custom-menu-count">{entryCount} / 30 özel kısayol</span>
       </div>
       <section className="custom-menu-kpis" aria-label="Özel menü özeti">
         <article>
-          <span>Tanımlı menü</span>
+          <span>Özel kısayol</span>
           <b>{entryCount}</b>
         </article>
         <article>

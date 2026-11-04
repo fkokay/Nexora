@@ -28,6 +28,8 @@ import type {
   SavedReport,
   SavedReportRevision,
   Result,
+  SqlCompany,
+  SqlSchemaTable,
 } from "./reports/reportTypes";
 
 const defaultDefinition: Definition = {
@@ -52,10 +54,14 @@ export default function ReportsPage({
   onNavigate?: (page: string) => void;
 }) {
   const [sources, setSources] = useState<Source[]>([]);
+  const [companies, setCompanies] = useState<SqlCompany[]>([]);
+  const [sqlSchemaTables, setSqlSchemaTables] = useState<SqlSchemaTable[]>([]);
+  const [schemaSearch, setSchemaSearch] = useState("");
   const [saved, setSaved] = useState<SavedReport[]>([]);
   const [history, setHistory] = useState<SavedReportRevision[]>([]);
   const [selectedRevision, setSelectedRevision] = useState(0);
   const [definition, setDefinition] = useState<Definition>(defaultDefinition);
+  const [fieldSearch, setFieldSearch] = useState("");
   const [name, setName] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [result, setResult] = useState<Result | null>(null);
@@ -65,6 +71,7 @@ export default function ReportsPage({
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const sqlQueryRef = useRef<HTMLTextAreaElement | null>(null);
   const mounted = useRef(false);
   const loadGeneration = useRef(0);
   const queryGeneration = useRef(0);
@@ -77,8 +84,27 @@ export default function ReportsPage({
   const locale = english ? "en-US" : "tr-TR";
   const kind = mode === "list" ? "List" : "Report";
   const isList = mode === "list";
+  const isSqlQuery = definition.source === "customSql";
   const source = sources.find((x) => x.code === definition.source);
   const columns = source?.columns ?? [];
+  const matchingColumns = useMemo(() => {
+    const query = fieldSearch.trim().toLocaleLowerCase(english ? "en" : "tr");
+    return columns.filter((column) =>
+      !query || `${localizedCatalogLabel(column.label)} ${column.code}`.toLocaleLowerCase(english ? "en" : "tr").includes(query),
+    );
+  }, [columns, english, fieldSearch]);
+  const matchingSqlSchema = useMemo(() => {
+    const query = schemaSearch.trim().toLocaleLowerCase(english ? "en" : "tr");
+    return sqlSchemaTables
+      .map((table) => ({
+        ...table,
+        columns: table.columns.filter((column) =>
+          !query || `${table.schema}.${table.name} ${column.name}`.toLocaleLowerCase(english ? "en" : "tr").includes(query),
+        ),
+      }))
+      .filter((table) => table.columns.length > 0)
+      .slice(0, 20);
+  }, [english, schemaSearch, sqlSchemaTables]);
   const groupingFields =
     definition.groupByFields ??
     (definition.groupBy ? [definition.groupBy] : []);
@@ -142,13 +168,17 @@ export default function ReportsPage({
     setLoadError("");
     setError("");
     try {
-      const [catalog, reports] = await Promise.all([
+      const [catalog, reports, availableCompanies, schemaTables] = await Promise.all([
         request<Source[]>("/api/reports/catalog"),
         request<SavedReport[]>(`/api/reports/?kind=${kind}`),
+        request<SqlCompany[]>("/api/reports/companies"),
+        request<SqlSchemaTable[]>("/api/reports/sql-schema"),
       ]);
       if (!mounted.current || generation !== loadGeneration.current) return;
       setSources(catalog);
       setSaved(reports);
+      setCompanies(availableCompanies);
+      setSqlSchemaTables(schemaTables);
     } catch (e) {
       if (!mounted.current || generation !== loadGeneration.current) return;
       const message = (e as Error).message;
@@ -186,6 +216,20 @@ export default function ReportsPage({
       page: patch.page ?? 1,
     }));
     setResult(null);
+  }
+  function insertSqlToken(token: string) {
+    const editor = sqlQueryRef.current;
+    const query = definition.sqlQuery ?? "";
+    const start = editor?.selectionStart ?? query.length;
+    const end = editor?.selectionEnd ?? query.length;
+    const before = query.slice(0, start), after = query.slice(end);
+    const inserted = `${before.length > 0 && !/\s$/.test(before) ? " " : ""}${token}`;
+    update({ sqlQuery: `${before}${inserted}${after}` });
+    requestAnimationFrame(() => {
+      const cursor = before.length + inserted.length;
+      editor?.focus();
+      editor?.setSelectionRange(cursor, cursor);
+    });
   }
   function newReport() {
     setDrilldownBase(null);
@@ -640,8 +684,10 @@ export default function ReportsPage({
                   setDefinition({
                     ...defaultDefinition,
                     source: e.target.value,
-                    columns: nextColumns.slice(0, 5).map((c) => c.code),
-                    sortBy: nextColumns[0]?.code ?? defaultDefinition.sortBy,
+                    columns: e.target.value === "customSql" ? [] : nextColumns.slice(0, 5).map((c) => c.code),
+                    sortBy: e.target.value === "customSql" ? "sql" : nextColumns[0]?.code ?? defaultDefinition.sortBy,
+                    sqlQuery: e.target.value === "customSql" ? "" : undefined,
+                    companyIds: e.target.value === "customSql" ? companies.map((company) => company.id) : undefined,
                   });
                   setResult(null);
                 }}
@@ -661,7 +707,65 @@ export default function ReportsPage({
                 )}
               </select>
             </label>
-            {!isList && (
+            {isSqlQuery && (
+              <>
+                <div className="report-sql-query">
+                  <label htmlFor="report-sql-query">{tx("SQL sorgusu (salt okunur SELECT)", "SQL query (read-only SELECT)")}</label>
+                  <textarea
+                    id="report-sql-query"
+                    ref={sqlQueryRef}
+                    rows={11}
+                    spellCheck={false}
+                    value={definition.sqlQuery ?? ""}
+                    placeholder={'SELECT i.Code AS FaturaNo, c.Name AS Cari, c.TaxNumber AS VergiNo, i.GrandTotal\nFROM dbo.SalesInvoices AS i\nJOIN dbo.CustomerAccounts AS c ON c.Id = i.CustomerId'}
+                    onChange={(event) => update({ sqlQuery: event.target.value })}
+                  />
+                  <small>{tx("Sorgu seçtiğiniz firmalarda ayrı ayrı çalıştırılır; sonuçlarda Firma sütunu bulunur. En fazla 500 satır döndürülür.", "The query runs separately for each selected company; results include a Company column and are capped at 500 rows.")}</small>
+                  <div className="report-sql-schema">
+                    <input
+                      type="search"
+                      aria-label={tx("Tablo ve alan ara", "Search tables and fields")}
+                      placeholder={tx("Tablo ve alan ara…", "Search tables and fields…")}
+                      value={schemaSearch}
+                      onChange={(event) => setSchemaSearch(event.target.value)}
+                    />
+                    <div className="report-sql-schema-results">
+                      {matchingSqlSchema.map((table) => (
+                        <section key={`${table.schema}.${table.name}`}>
+                          <button type="button" className="report-sql-schema-table" onClick={() => insertSqlToken(`[${table.schema}].[${table.name}]`)}>
+                            [{table.schema}].[{table.name}]
+                          </button>
+                          {table.columns.map((column) => (
+                            <button type="button" key={column.name} onClick={() => insertSqlToken(`[${column.name}]`)}>
+                              <span>{column.name}</span><small>{column.dataType}</small>
+                            </button>
+                          ))}
+                        </section>
+                      ))}
+                      {matchingSqlSchema.length === 0 && <small>{tx("Eşleşen tablo veya alan yok.", "No matching tables or fields.")}</small>}
+                    </div>
+                  </div>
+                </div>
+                <fieldset className="report-columns report-sql-companies" disabled={busy || loading}>
+                  <legend>{tx("Sorgunun çalışacağı firmalar", "Companies to query")}</legend>
+                  <div>
+                    {companies.map((company) => (
+                      <label key={company.id}>
+                        <input
+                          type="checkbox"
+                          checked={(definition.companyIds ?? []).includes(company.id)}
+                          onChange={(event) => update({ companyIds: event.target.checked
+                            ? [...new Set([...(definition.companyIds ?? []), company.id])]
+                            : (definition.companyIds ?? []).filter((id) => id !== company.id) })}
+                        />
+                        {company.name}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </>
+            )}
+            {!isSqlQuery && !isList && (
               <fieldset
                 className="report-columns report-group-fields"
                 disabled={busy}
@@ -723,7 +827,7 @@ export default function ReportsPage({
                 </select>
               </label>
             )}
-            {groupingFields.length === 0 && (
+            {!isSqlQuery && groupingFields.length === 0 && (
               <label>
                 {tx("Sıralama alanı", "Sort field")}
                 <select
@@ -739,7 +843,7 @@ export default function ReportsPage({
                 </select>
               </label>
             )}
-            <label className="report-sort-direction">
+            {!isSqlQuery && <label className="report-sort-direction">
               <span>
                 {groupingFields.length > 0
                   ? tx("Grup sırası", "Group order")
@@ -756,16 +860,24 @@ export default function ReportsPage({
                   ? tx("Azalan", "Descending")
                   : tx("Artan", "Ascending")}
               </button>
-            </label>
-            <fieldset className="report-columns" disabled={busy}>
+            </label>}
+            {!isSqlQuery && <fieldset className="report-columns" disabled={busy}>
               <legend>
                 {isList
                   ? tx("Görünen alanlar", "Visible fields")
                   : tx("Sütunlar", "Columns")}{" "}
                 · {definition.columns.length}/12
               </legend>
+              <input
+                className="report-column-search"
+                type="search"
+                aria-label={tx("Alanlarda ara", "Search fields")}
+                placeholder={tx("Alanlarda ara", "Search fields")}
+                value={fieldSearch}
+                onChange={(event) => setFieldSearch(event.target.value)}
+              />
               <div>
-                {columns.map((column) => (
+                {matchingColumns.map((column) => (
                   <label key={column.code}>
                     <input
                       type="checkbox"
@@ -788,8 +900,8 @@ export default function ReportsPage({
                   </label>
                 ))}
               </div>
-            </fieldset>
-            <ReportFilters
+            </fieldset>}
+            {!isSqlQuery && <ReportFilters
               columns={columns}
               filters={definition.filters}
               busy={busy}
@@ -800,7 +912,7 @@ export default function ReportsPage({
                   filters: definition.filters.filter((_, i) => i !== index),
                 })
               }
-            />
+            />}
           </div>
           <div className="report-builder-footer">
             <label>
@@ -830,7 +942,8 @@ export default function ReportsPage({
                   busy ||
                   loading ||
                   sources.length === 0 ||
-                  definition.columns.length === 0 ||
+                  (!isSqlQuery && definition.columns.length === 0) ||
+                  (isSqlQuery && (!definition.sqlQuery?.trim() || !(definition.companyIds?.length))) ||
                   definition.filters.some(
                     (x) => x.operator !== "isNull" && !x.value.trim(),
                   )
@@ -853,7 +966,8 @@ export default function ReportsPage({
                     loading ||
                     !!drilldownBase ||
                     !name.trim() ||
-                    definition.columns.length === 0
+                    (!isSqlQuery && definition.columns.length === 0) ||
+                    (isSqlQuery && (!definition.sqlQuery?.trim() || !(definition.companyIds?.length)))
                   }
                   onClick={() => void save()}
                 >

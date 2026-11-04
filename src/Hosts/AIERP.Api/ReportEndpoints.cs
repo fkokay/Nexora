@@ -4,9 +4,12 @@ using System.Text;
 using System.Text.Json;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 public static class ReportEndpoints
 {
@@ -348,6 +351,7 @@ public static class ReportEndpoints
             if (!TryTenantContext(user, out _, out _, out var role)) return Results.Forbid();
             var sources = new List<ReportSource>
             {
+                new("customSql", "SQL sorgusu", [], []),
                 new("customers", "Cari hesaplar", CustomerColumns, CustomerAggregates),
                 new("salesInvoices", "Satış faturaları", SalesInvoiceColumns, SalesInvoiceAggregates),
                 new("purchaseOrders", "Satın alma siparişleri", PurchaseOrderColumns, PurchaseOrderAggregates),
@@ -381,6 +385,46 @@ public static class ReportEndpoints
             sources.Add(new("inventoryTransfers", "Depolar arası transferler", InventoryTransferColumns, []));
             if (role == "TenantAdmin") sources.Add(new("workflowInstances", "İş akışı geçmişi", WorkflowInstanceColumns, WorkflowInstanceAggregates));
             return Results.Ok(sources);
+        });
+
+        reports.MapGet("/companies", async (ClaimsPrincipal user, PlatformDbContext platformDb, CancellationToken ct) =>
+        {
+            if (!TryTenantContext(user, out _, out var userId, out _)) return Results.Forbid();
+            var companies = await platformDb.TenantMemberships.AsNoTracking()
+                .Where(membership => membership.UserId == userId && membership.Tenant.IsActive)
+                .Join(platformDb.TenantDatabaseCatalog.AsNoTracking().Where(database => database.State == TenantDatabaseProvisioningState.Ready),
+                    membership => membership.TenantId, database => database.TenantId,
+                    (membership, database) => new { membership.TenantId, CompanyName = membership.Tenant.Name, database.DatabaseName })
+                .Where(company => company.DatabaseName == "AIERPTenant_" + company.TenantId.ToString("N"))
+                .OrderBy(company => company.CompanyName)
+                .Select(company => new { id = company.TenantId, name = company.CompanyName })
+                .ToListAsync(ct);
+            return Results.Ok(companies);
+        });
+
+        reports.MapGet("/sql-schema", (ClaimsPrincipal user, TenantDbContext tenantDb) =>
+        {
+            if (!TryTenantContext(user, out _, out _, out _)) return Results.Forbid();
+            var tables = tenantDb.Model.GetEntityTypes()
+                .Select(entity =>
+                {
+                    var tableName = entity.GetTableName();
+                    var schemaName = entity.GetSchema() ?? "dbo";
+                    if (tableName is null) return null;
+                    var store = StoreObjectIdentifier.Table(tableName, entity.GetSchema());
+                    var columns = entity.GetProperties().Select(property => new
+                    {
+                        name = property.GetColumnName(store) ?? property.Name,
+                        dataType = ReportSqlDataType(property.ClrType)
+                    }).OrderBy(column => column.name).ToArray();
+                    return new { schema = schemaName, name = tableName, columns };
+                })
+                .Where(table => table is not null)
+                .GroupBy(table => $"{table!.schema}.{table.name}", StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First()!)
+                .OrderBy(table => table.schema).ThenBy(table => table.name)
+                .ToArray();
+            return Results.Ok(tables);
         });
 
         reports.MapGet("/", async (string? kind, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -635,6 +679,8 @@ public static class ReportEndpoints
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         if (!Validate(request, out var normalized, out var errors)) return Results.ValidationProblem(errors!);
+        if (normalized!.Source == "customSql") return Results.Problem(
+            "SQL raporları, salt okunur veritabanı erişimi sağlanana kadar geçici olarak kullanılamıyor.", statusCode: 503);
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
         if (normalized!.Source == "salesInvoices") return await RunSalesInvoicesAsync(normalized, user, db, ct);
         if (normalized!.Source == "bankStatements") return await RunBankStatementsAsync(normalized, user, db, ct);
@@ -697,6 +743,8 @@ public static class ReportEndpoints
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         if (!Validate(request, out var normalized, out var errors)) return Results.ValidationProblem(errors!);
+        if (normalized!.Source == "customSql") return Results.Problem(
+            "SQL raporları, salt okunur veritabanı erişimi sağlanana kadar geçici olarak kullanılamıyor.", statusCode: 503);
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
         if (normalized!.Source == "salesInvoices") return await ExportSalesInvoicesAsync(normalized, user, db, ct);
         if (normalized!.Source == "bankStatements") return await ExportBankStatementsAsync(normalized, user, db, ct);
@@ -5115,9 +5163,32 @@ public static class ReportEndpoints
         return new AggregatePage(rows.Select(x => x with { GroupValue = x.GroupValue is SalesInvoiceStatus status ? status.ToString() : x.GroupValue }).ToArray(), total);
     }
 
+    private static string ReportSqlDataType(Type type)
+    {
+        var actualType = Nullable.GetUnderlyingType(type) ?? type;
+        if (actualType == typeof(bool)) return "boolean";
+        if (actualType == typeof(DateTime) || actualType == typeof(DateOnly) || actualType == typeof(DateTimeOffset)) return "date";
+        if (actualType == typeof(byte) || actualType == typeof(short) || actualType == typeof(int) || actualType == typeof(long)) return "number";
+        if (actualType == typeof(decimal) || actualType == typeof(double) || actualType == typeof(float)) return "decimal";
+        return "text";
+    }
+
     private static bool Validate(ReportRunRequest? request, out NormalizedReport? normalized, out Dictionary<string, string[]>? errors)
     {
         normalized = null; errors = new Dictionary<string, string[]>();
+        if (request?.Source == "customSql")
+        {
+            if (!TryValidateReadOnlySql(request.SqlQuery, out var sqlError))
+                errors["sqlQuery"] = [sqlError!];
+            if (request.CompanyIds is not { Count: > 0 and <= 10 } || request.CompanyIds.Distinct().Count() != request.CompanyIds.Count)
+                errors["companyIds"] = ["1–10 farklı ve erişilebilir firma seçin."];
+            if (request.Filters is { Count: > 0 } || !string.IsNullOrWhiteSpace(request.SortBy) && request.SortBy != "sql")
+                errors["definition"] = ["SQL raporlarında filtre ve sıralama SQL sorgusunun içinde tanımlanmalıdır."];
+            if (errors.Count > 0) return false;
+            normalized = new NormalizedReport("customSql", [], [], "sql", request.Descending,
+                Math.Clamp(request.Page, 1, 100000), Math.Clamp(request.PageSize, 1, 500), SqlQuery: request.SqlQuery!.Trim(), CompanyIds: request.CompanyIds!.Distinct().ToArray());
+            return true;
+        }
         var columns = request is null ? [] : ColumnsForSource(request.Source);
         var aggregates = request is null ? [] : AggregatesForSource(request.Source);
         if (request is null || columns.Count == 0) errors["source"] = ["Desteklenmeyen rapor kaynağı."];
@@ -5292,7 +5363,82 @@ public static class ReportEndpoints
         if (errors.Count > 0 || request is null) return false;
         normalized = new NormalizedReport(request.Source, request.Columns!.ToArray(), request.Filters?.ToArray() ?? [],
             sortBy, request.Descending, Math.Clamp(request.Page, 1, 100000), Math.Clamp(request.PageSize, 1, 200),
-            groupFields.FirstOrDefault(), groupFields.Length == 0 ? null : aggregate ?? "count", groupFields);
+            groupFields.FirstOrDefault(), groupFields.Length == 0 ? null : aggregate ?? "count", groupFields,
+            request.SqlQuery, request.CompanyIds);
+        return true;
+    }
+
+    private static bool TryValidateReadOnlySql(string? sql, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(sql) || sql.Length > 10000)
+        {
+            error = "SQL sorgusu 1–10.000 karakter olmalıdır.";
+            return false;
+        }
+
+        var code = new StringBuilder(sql.Length);
+        for (var index = 0; index < sql.Length; index++)
+        {
+            var current = sql[index];
+            if (current == '\'')
+            {
+                code.Append(' ');
+                index++;
+                var closed = false;
+                while (index < sql.Length)
+                {
+                    if (sql[index] == '\'' && index + 1 < sql.Length && sql[index + 1] == '\'') { index += 2; continue; }
+                    if (sql[index] == '\'') { closed = true; break; }
+                    index++;
+                }
+                if (!closed) { error = "SQL metin sabitinde tırnak kapanmamış."; return false; }
+                continue;
+            }
+            if (current == '[' || current == '"')
+            {
+                var closing = current == '[' ? ']' : '"';
+                code.Append(' ');
+                index++;
+                var closed = false;
+                while (index < sql.Length)
+                {
+                    if (sql[index] == closing && index + 1 < sql.Length && sql[index + 1] == closing) { code.Append(closing); index += 2; continue; }
+                    if (sql[index] == closing) { closed = true; break; }
+                    code.Append(sql[index]);
+                    index++;
+                }
+                if (!closed) { error = "SQL alan adında tırnak kapanmamış."; return false; }
+                code.Append(' ');
+                continue;
+            }
+            if (current == ';' || current == '#' || current == '-' && index + 1 < sql.Length && sql[index + 1] == '-' ||
+                current == '/' && index + 1 < sql.Length && sql[index + 1] == '*')
+            {
+                error = "Tek bir salt okunur SELECT sorgusu kullanın; yorum, batch ve noktalı virgül kullanılamaz.";
+                return false;
+            }
+            code.Append(current);
+        }
+
+        var normalized = code.ToString();
+        if (!Regex.IsMatch(normalized, @"^\s*(SELECT|WITH)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            error = "Sorgu SELECT veya WITH ... SELECT ile başlamalıdır.";
+            return false;
+        }
+        if (Regex.IsMatch(normalized,
+                @"\b(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC(?:UTE)?|WAITFOR|INTO|OPENROWSET|OPENQUERY|OPENDATASOURCE|BULK|BACKUP|RESTORE|DBCC|USE|GRANT|DENY|REVOKE|KILL|SHUTDOWN|NEXT\s+VALUE|UPDLOCK|XLOCK|TABLOCKX|HOLDLOCK|XP_[A-Z0-9_]+)\b|\b(master|msdb|model|tempdb)\s*\.|\b(sys\s*\.\s*databases)\b|(?:\b[A-Za-z_][\w$#]*\s*\.\s*){2,}[A-Za-z_][\w$#]*",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            error = "Sorgu yalnızca okuma yapabilir; yazma, kilitleme, dış kaynak ve başka veritabanı erişimi kapalıdır.";
+            return false;
+        }
+        if (Regex.IsMatch(normalized, @"\b[A-Za-z_][\w$#]*\s*\.\s*[A-Za-z_][\w$#]*\s*\(", RegexOptions.CultureInvariant))
+        {
+            error = "Şemaya bağlı kullanıcı fonksiyonları çalıştırılamaz.";
+            return false;
+        }
         return true;
     }
 
@@ -5655,11 +5801,11 @@ public sealed record SupplierReturnReportRow(Guid Id, string Code, string Invoic
 public sealed record ReportAggregateOption(string Code, string Label);
 public sealed record ReportSource(string Code, string Label, IReadOnlyList<ReportColumn> Columns, IReadOnlyList<ReportAggregateOption> Aggregates);
 public sealed record ReportFilter(string Field, string Operator, string? Value);
-public sealed record ReportRunRequest(string Source, IReadOnlyList<string>? Columns, IReadOnlyList<ReportFilter>? Filters, string? SortBy, bool Descending, int Page = 1, int PageSize = 50, string? GroupBy = null, string? Aggregate = null, IReadOnlyList<string>? GroupByFields = null);
+public sealed record ReportRunRequest(string Source, IReadOnlyList<string>? Columns, IReadOnlyList<ReportFilter>? Filters, string? SortBy, bool Descending, int Page = 1, int PageSize = 50, string? GroupBy = null, string? Aggregate = null, IReadOnlyList<string>? GroupByFields = null, string? SqlQuery = null, IReadOnlyList<Guid>? CompanyIds = null);
 public sealed record ReportPageRequest(int Page = 1, int PageSize = 50);
 public sealed record ReportSaveRequest(string? Name, ReportRunRequest? Definition, string? Kind = null, int? ExpectedRevision = null);
 public sealed record RestoreSavedReportRequest(int ExpectedRevision);
-public sealed record NormalizedReport(string Source, IReadOnlyList<string> Columns, IReadOnlyList<ReportFilter> Filters, string SortBy, bool Descending, int Page, int PageSize, string? GroupBy = null, string? Aggregate = null, IReadOnlyList<string> GroupByFields = null!);
+public sealed record NormalizedReport(string Source, IReadOnlyList<string> Columns, IReadOnlyList<ReportFilter> Filters, string SortBy, bool Descending, int Page, int PageSize, string? GroupBy = null, string? Aggregate = null, IReadOnlyList<string> GroupByFields = null!, string? SqlQuery = null, IReadOnlyList<Guid>? CompanyIds = null);
 public sealed record ReportAggregateRow(object? GroupValue, int RowCount, decimal? Value, IReadOnlyList<object?>? GroupValues = null);
 public sealed record AggregatePage(IReadOnlyList<ReportAggregateRow> Rows, int TotalGroups);
 public sealed record ReportResult(string Source, IReadOnlyList<ReportColumn> Columns, IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows, int Page, int PageSize, int TotalCount, string? GroupBy = null, string? Aggregate = null, IReadOnlyList<ReportAggregateRow>? Groups = null, int TotalGroups = 0, IReadOnlyList<string>? GroupByFields = null);

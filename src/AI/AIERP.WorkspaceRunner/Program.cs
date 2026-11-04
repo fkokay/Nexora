@@ -767,7 +767,15 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/build-runs/{jobId:guid}", as
         if (manifest is null || manifest.Operation != "build" || manifest.WorkspaceId != workspaceId || manifest.Id != jobId) return Results.NotFound();
         await WorkspaceSecurity.ExpireStaleTestJobAsync(jobDirectory, cancellationToken);
         var resultPath = Path.Combine(jobDirectory, "result.json");
-        if (!File.Exists(resultPath)) return Results.Ok(new WorkspaceTestRunStatus(jobId, manifest.TargetPath, manifest.CommitSha, manifest.SnapshotSha256, manifest.HasUncommittedChanges, "Queued", "Sandbox build işi bekliyor veya çalışıyor.", null, null, 0, "", null));
+        if (!File.Exists(resultPath))
+        {
+            var startedPath = Path.Combine(jobDirectory, "started.json");
+            var started = File.Exists(startedPath);
+            var elapsed = started ? (int)Math.Clamp((DateTime.UtcNow - File.GetLastWriteTimeUtc(startedPath)).TotalMilliseconds, 0, int.MaxValue) : 0;
+            var progress = started ? await WorkspaceSecurity.ReadTestProgressAsync(jobDirectory, cancellationToken) : null;
+            return Results.Ok(new WorkspaceTestRunStatus(jobId, manifest.TargetPath, manifest.CommitSha, manifest.SnapshotSha256, manifest.HasUncommittedChanges,
+                started ? "Running" : "Queued", started ? progress?.Message ?? "Sandbox işi çalışıyor." : "Sandbox işi kuyrukta; çalışmaya başlayınca durum güncellenecek.", null, null, elapsed, progress?.Output ?? "", null));
+        }
         await using var resultStream = File.OpenRead(resultPath);
         var result = await System.Text.Json.JsonSerializer.DeserializeAsync<WorkspaceSandboxTestResult>(resultStream, options, cancellationToken);
         return result is null ? Results.Problem("Sandbox geçersiz build sonucu döndürdü.", statusCode: StatusCodes.Status502BadGateway)
@@ -791,13 +799,33 @@ app.MapGet("/internal/workspaces/{workspaceId:guid}/test-runs/{jobId:guid}", asy
         var manifest = await System.Text.Json.JsonSerializer.DeserializeAsync<WorkspaceSandboxJob>(manifestStream, jsonOptions, cancellationToken);
         if (manifest is null || manifest.WorkspaceId != workspaceId || manifest.Id != jobId) return Results.NotFound();
         await WorkspaceSecurity.ExpireStaleTestJobAsync(jobDirectory, cancellationToken);
-        if (!File.Exists(resultPath)) return Results.Ok(new WorkspaceTestRunStatus(jobId, manifest.TargetPath, manifest.CommitSha, manifest.SnapshotSha256, manifest.HasUncommittedChanges, "Queued", "Sandbox işi bekliyor veya çalışıyor.", null, null, 0, "", null));
+        if (!File.Exists(resultPath))
+        {
+            var startedPath = Path.Combine(jobDirectory, "started.json");
+            var started = File.Exists(startedPath);
+            var elapsed = started ? (int)Math.Clamp((DateTime.UtcNow - File.GetLastWriteTimeUtc(startedPath)).TotalMilliseconds, 0, int.MaxValue) : 0;
+            var progress = started ? await WorkspaceSecurity.ReadTestProgressAsync(jobDirectory, cancellationToken) : null;
+            return Results.Ok(new WorkspaceTestRunStatus(jobId, manifest.TargetPath, manifest.CommitSha, manifest.SnapshotSha256, manifest.HasUncommittedChanges,
+                started ? "Running" : "Queued", started ? progress?.Message ?? "Sandbox işi çalışıyor." : "Sandbox işi kuyrukta; çalışmaya başlayınca durum güncellenecek.", null, null, elapsed, progress?.Output ?? "", null));
+        }
         await using var resultStream = File.OpenRead(resultPath);
         var result = await System.Text.Json.JsonSerializer.DeserializeAsync<WorkspaceSandboxTestResult>(resultStream, jsonOptions, cancellationToken);
         return result is null ? Results.Problem("Sandbox geçersiz sonuç döndürdü.", statusCode: StatusCodes.Status502BadGateway)
             : Results.Ok(new WorkspaceTestRunStatus(jobId, manifest.TargetPath, manifest.CommitSha, manifest.SnapshotSha256, manifest.HasUncommittedChanges, result.Status, result.Message, result.Success, result.ExitCode, result.DurationMilliseconds, result.Output, File.GetLastWriteTimeUtc(resultPath)));
     }
     catch (System.Text.Json.JsonException) { return Results.Problem("Sandbox sonucu okunamadı.", statusCode: StatusCodes.Status502BadGateway); }
+}).RequireAuthorization("AIServiceTestJobReader");
+app.MapGet("/internal/workspaces/{workspaceId:guid}/test-runs/latest-passed", async (Guid workspaceId, string? commitSha, ClaimsPrincipal caller, CancellationToken cancellationToken) =>
+{
+    if (!WorkspaceSecurity.IsWorkspaceScopedServiceCaller(caller, workspaceId)) return Results.Forbid();
+    if (commitSha is null || !WorkspaceSecurity.IsCommitSha(commitSha)) return Results.BadRequest(new { error = "Commit kimliği geçersiz." });
+    try
+    {
+        var latest = await WorkspaceSecurity.FindLatestPassedTestAsync(TestJobRootPath, workspaceId, commitSha, cancellationToken);
+        return Results.Ok(new { test = latest });
+    }
+    catch (IOException) { return Results.Problem("Sandbox test kanıtları okunamadı.", statusCode: StatusCodes.Status503ServiceUnavailable); }
+    catch (UnauthorizedAccessException) { return Results.Problem("Sandbox test kanıtları okunamadı.", statusCode: StatusCodes.Status503ServiceUnavailable); }
 }).RequireAuthorization("AIServiceTestJobReader");
 app.MapGet("/internal/workspaces/{workspaceId:guid}/search", (Guid workspaceId, string? query, ClaimsPrincipal caller, IConfiguration configuration) =>
 {
@@ -857,6 +885,7 @@ internal sealed record WorkspaceBuildRunRequest(string? TargetPath);
 internal sealed record WorkspaceSandboxJob(Guid Id, Guid WorkspaceId, string TargetPath, string CommitSha, string SnapshotSha256, bool HasUncommittedChanges, DateTimeOffset CreatedAt, string Operation = "test");
 internal sealed record WorkspaceTestRunCreated(Guid JobId, string TargetPath, string CommitSha, string SnapshotSha256, bool HasUncommittedChanges, DateTimeOffset CreatedAt);
 internal sealed record WorkspaceSandboxTestResult(bool Success, string Status, string Message, int ExitCode, string Output, int DurationMilliseconds);
+internal sealed record WorkspaceSandboxProgress(string Message, string Output);
 internal sealed record WorkspaceTestRunStatus(Guid JobId, string TargetPath, string CommitSha, string SnapshotSha256, bool HasUncommittedChanges, string Status, string? Message, bool? Success, int? ExitCode, int DurationMilliseconds, string Output, DateTime? CompletedAt);
 internal sealed record WorkspaceGitStatus(string BranchName, string HeadCommitSha, int TotalChangedFiles, bool Truncated, IReadOnlyList<WorkspaceGitFileStatus> Files);
 internal sealed record WorkspaceGitFileStatus(string Path, string Status);
@@ -866,6 +895,54 @@ internal sealed record GitResult(int ExitCode, string Output, bool OutputTruncat
 
 internal static class WorkspaceSecurity
 {
+    internal static async Task<WorkspaceTestRunStatus?> FindLatestPassedTestAsync(string jobRoot, Guid workspaceId, string commitSha, CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(jobRoot)) throw new DirectoryNotFoundException("Sandbox job root is unavailable.");
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        WorkspaceTestRunStatus? latest = null;
+        foreach (var directory in Directory.EnumerateDirectories(jobRoot))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!Guid.TryParseExact(Path.GetFileName(directory), "N", out var jobId)) continue;
+            var manifestPath = Path.Combine(directory, "job.json");
+            var resultPath = Path.Combine(directory, "result.json");
+            if (!File.Exists(manifestPath) || !File.Exists(resultPath)) continue;
+            try
+            {
+                if (new FileInfo(manifestPath).Length > 65536 || new FileInfo(resultPath).Length > 262144) continue;
+                await using var manifestStream = File.OpenRead(manifestPath);
+                var manifest = await System.Text.Json.JsonSerializer.DeserializeAsync<WorkspaceSandboxJob>(manifestStream, options, cancellationToken);
+                if (manifest is null || manifest.Id != jobId || manifest.WorkspaceId != workspaceId || manifest.Operation != "test" ||
+                    manifest.HasUncommittedChanges || !string.Equals(manifest.CommitSha, commitSha, StringComparison.OrdinalIgnoreCase) ||
+                    !IsSha256(manifest.SnapshotSha256) || string.IsNullOrWhiteSpace(manifest.TargetPath) || manifest.TargetPath.Length > 512) continue;
+                await using var resultStream = File.OpenRead(resultPath);
+                var result = await System.Text.Json.JsonSerializer.DeserializeAsync<WorkspaceSandboxTestResult>(resultStream, options, cancellationToken);
+                if (result is null || !result.Success || result.Status != "Passed" || result.ExitCode != 0) continue;
+                var completedAt = File.GetLastWriteTimeUtc(resultPath);
+                if (latest?.CompletedAt is not null && latest.CompletedAt >= completedAt) continue;
+                latest = new WorkspaceTestRunStatus(jobId, manifest.TargetPath, manifest.CommitSha, manifest.SnapshotSha256,
+                    manifest.HasUncommittedChanges, result.Status, result.Message, result.Success, result.ExitCode,
+                    result.DurationMilliseconds, result.Output, completedAt);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            catch (System.Text.Json.JsonException) { }
+        }
+        return latest;
+    }
+
+    internal static async Task<WorkspaceSandboxProgress?> ReadTestProgressAsync(string jobDirectory, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var path = Path.Combine(jobDirectory, "progress.json");
+            if (!File.Exists(path)) return null;
+            await using var stream = File.OpenRead(path);
+            return await System.Text.Json.JsonSerializer.DeserializeAsync<WorkspaceSandboxProgress>(stream, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web), cancellationToken);
+        }
+        catch (IOException) { return null; }
+        catch (System.Text.Json.JsonException) { return null; }
+    }
     private const int MaxSavedCodeChangesPerWorkspace = 200;
     internal const int MaxPatchableSourceBytes = 2 * 1024 * 1024;
     private const int MaxCodeChangeBackupBytes = 3 * 1024 * 1024;
@@ -1800,7 +1877,7 @@ internal static class WorkspaceSecurity
         var now = DateTimeOffset.UtcNow;
         var startedPath = Path.Combine(jobDirectory, "started.json");
         var expired = File.Exists(startedPath)
-            ? now - File.GetLastWriteTimeUtc(startedPath) > TimeSpan.FromMinutes(10)
+            ? now - File.GetLastWriteTimeUtc(startedPath) > TimeSpan.FromMinutes(30)
             : now - manifest.CreatedAt > TimeSpan.FromMinutes(20);
         if (!expired) return;
 
@@ -1832,6 +1909,7 @@ internal static class WorkspaceSecurity
             throw new InvalidDataException("Release package metadata is invalid.");
         const int maxFiles = 20_000;
         const long maxBytes = 100 * 1024 * 1024;
+        const long maxSourceBytes = 200 * 1024 * 1024;
         const long maxFileBytes = 16 * 1024 * 1024;
         var fullPackageRoot = Path.GetFullPath(packageRoot);
         Directory.CreateDirectory(fullPackageRoot);
@@ -1860,18 +1938,35 @@ internal static class WorkspaceSecurity
                         var attributes = File.GetAttributes(fullPath);
                         if ((attributes & FileAttributes.ReparsePoint) != 0) continue;
                         var name = Path.GetFileName(fullPath);
-                        if (name.StartsWith(".", StringComparison.Ordinal) || IsSecretTestPath(name)) continue;
+                        if (name.StartsWith(".", StringComparison.Ordinal)) continue;
                         var relative = string.IsNullOrEmpty(relativeDirectory) ? name : $"{relativeDirectory}/{name}";
                         if (string.Equals(relative, "AIERP-RELEASE.json", StringComparison.OrdinalIgnoreCase))
                             throw new InvalidDataException("Source archive already contains reserved AIERP-RELEASE.json manifest path.");
                         if ((attributes & FileAttributes.Directory) != 0)
                         {
-                            if (!ExcludedDirectoryNames.Contains(name)) queue.Enqueue((fullPath, relative));
+                            if (!IsSecretTestPath(name) && !ExcludedDirectoryNames.Contains(name) &&
+                                !(relativeDirectory.Length == 0 && name.Equals("artifacts", StringComparison.OrdinalIgnoreCase)))
+                                queue.Enqueue((fullPath, relative));
                             continue;
                         }
+                        byte[]? committedSource = null;
+                        if (IsSecretTestPath(name))
+                        {
+                            if (!Path.GetExtension(name).Equals(".cs", StringComparison.OrdinalIgnoreCase)) continue;
+                            var blob = await RunGit(root, ["-C", workspace!, "rev-parse", "--verify", $"HEAD:{relative}"], TimeSpan.FromSeconds(20), cancellationToken);
+                            var blobId = blob.Output.Trim();
+                            if (blob.ExitCode != 0 || blob.OutputTruncated || !IsCommitSha(blobId)) continue;
+                            if (new FileInfo(fullPath).Length > maxFileBytes) throw new InvalidDataException($"Release package contains a file larger than 16 MiB: {relative}");
+                            committedSource = await File.ReadAllBytesAsync(fullPath, cancellationToken);
+                            using var hash = IncrementalHash.CreateHash(blobId.Length == 40 ? HashAlgorithmName.SHA1 : HashAlgorithmName.SHA256);
+                            hash.AppendData(Encoding.UTF8.GetBytes($"blob {committedSource.Length}\0"));
+                            hash.AppendData(committedSource);
+                            if (!string.Equals(Convert.ToHexString(hash.GetHashAndReset()), blobId, StringComparison.OrdinalIgnoreCase))
+                                throw new InvalidDataException($"Gizli dosya adı içeren C# kaynağı commit ile eşleşmiyor: {relative}.");
+                        }
                         var info = new FileInfo(fullPath);
-                        if (info.Length > maxFileBytes) throw new InvalidDataException("Release package contains a file larger than 16 MiB.");
-                        if (sourceBytes + info.Length > maxBytes) throw new InvalidDataException("Release package source exceeds 100 MiB.");
+                        if (info.Length > maxFileBytes) throw new InvalidDataException($"Release package contains a file larger than 16 MiB: {relative}");
+                        if (sourceBytes + info.Length > maxSourceBytes) throw new InvalidDataException("Release package source exceeds 200 MiB.");
                         if (files.Count >= maxFiles) throw new InvalidDataException("Release package exceeds 20,000 files.");
                         await using var hashSource = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
                         var digest = await SHA256.HashDataAsync(hashSource, cancellationToken);
@@ -1880,9 +1975,13 @@ internal static class WorkspaceSecurity
                         if (string.Equals(relative, request.TestTargetPath, StringComparison.Ordinal)) targetIncluded = true;
                         var entry = archive.CreateEntry(relative, CompressionLevel.Optimal);
                         entry.LastWriteTime = new DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
-                        await using var source = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
                         await using var target = entry.Open();
-                        await source.CopyToAsync(target, cancellationToken);
+                        if (committedSource is not null) await target.WriteAsync(committedSource, cancellationToken);
+                        else
+                        {
+                            await using var source = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                            await source.CopyToAsync(target, cancellationToken);
+                        }
                     }
                 }
                 if (files.Count == 0 || !targetIncluded) throw new InvalidDataException("Release package omitted its sandbox test target.");
@@ -1924,7 +2023,7 @@ internal static class WorkspaceSecurity
     {
         if (!TryResolveDirectory(root, workspaceId, null, out var workspace, out _)) throw new DirectoryNotFoundException("Workspace checkout not found.");
         const int maxFiles = 20_000;
-        const long maxBytes = 100 * 1024 * 1024;
+        const long maxBytes = 200 * 1024 * 1024;
         const long maxFileBytes = 16 * 1024 * 1024;
         var queue = new Queue<(string FullPath, string Relative)>(); queue.Enqueue((workspace!, ""));
         long bytes = 0; var count = 0; var targetIncluded = false;
@@ -1940,27 +2039,50 @@ internal static class WorkspaceSecurity
                     var attributes = File.GetAttributes(fullPath);
                     if ((attributes & FileAttributes.ReparsePoint) != 0) continue;
                     var name = Path.GetFileName(fullPath);
-                    if (name.StartsWith('.') || IsSecretTestPath(name)) continue;
+                    if (name.StartsWith('.')) continue;
                     var relative = string.IsNullOrEmpty(relativeDirectory) ? name : $"{relativeDirectory}/{name}";
                     if ((attributes & FileAttributes.Directory) != 0)
                     {
-                        if (!ExcludedDirectoryNames.Contains(name)) queue.Enqueue((fullPath, relative));
+                        // Root-level artifacts contain generated release packages, not test source.
+                        if (!IsSecretTestPath(name) && !ExcludedDirectoryNames.Contains(name) &&
+                            !(relativeDirectory.Length == 0 && name.Equals("artifacts", StringComparison.OrdinalIgnoreCase)))
+                            queue.Enqueue((fullPath, relative));
                         continue;
                     }
+                    byte[]? committedSource = null;
+                    if (IsSecretTestPath(name))
+                    {
+                        if (!Path.GetExtension(name).Equals(".cs", StringComparison.OrdinalIgnoreCase)) continue;
+                        var blob = await RunGit(root, ["-C", workspace!, "rev-parse", "--verify", $"HEAD:{relative}"], TimeSpan.FromSeconds(20), cancellationToken);
+                        var blobId = blob.Output.Trim();
+                        if (blob.ExitCode != 0 || blob.OutputTruncated || !IsCommitSha(blobId)) continue;
+                        if (new FileInfo(fullPath).Length > maxFileBytes) throw new InvalidDataException($"Test snapshot includes a file larger than 16 MiB: {relative}");
+                        committedSource = await File.ReadAllBytesAsync(fullPath, cancellationToken);
+                        using var hash = IncrementalHash.CreateHash(blobId.Length == 40 ? HashAlgorithmName.SHA1 : HashAlgorithmName.SHA256);
+                        hash.AppendData(Encoding.UTF8.GetBytes($"blob {committedSource.Length}\0"));
+                        hash.AppendData(committedSource);
+                        if (!string.Equals(Convert.ToHexString(hash.GetHashAndReset()), blobId, StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidDataException($"Gizli dosya adı içeren C# kaynağı commit ile eşleşmiyor: {relative}. Değişikliği commit edip yeniden deneyin.");
+                    }
                     var info = new FileInfo(fullPath);
-                    if (info.Length > maxFileBytes) throw new InvalidDataException("Test snapshot includes a file larger than 16 MiB.");
-                    if (bytes + info.Length > maxBytes) throw new InvalidDataException("Test snapshot exceeds 100 MiB.");
+                    var fileLength = committedSource?.LongLength ?? info.Length;
+                    if (fileLength > maxFileBytes) throw new InvalidDataException($"Test snapshot includes a file larger than 16 MiB: {relative}");
+                    if (bytes + fileLength > maxBytes) throw new InvalidDataException("Test snapshot exceeds 200 MiB.");
                     if (++count > maxFiles) throw new InvalidDataException("Test snapshot exceeds 20,000 files.");
-                    bytes += info.Length;
+                    bytes += fileLength;
                     if (string.Equals(relative, targetPath, StringComparison.Ordinal)) targetIncluded = true;
                     var entry = archive.CreateEntry(relative, CompressionLevel.Fastest);
-                    await using var source = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
                     await using var target = entry.Open();
-                    await source.CopyToAsync(target, cancellationToken);
+                    if (committedSource is not null) await target.WriteAsync(committedSource, cancellationToken);
+                    else
+                    {
+                        await using var source = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
+                        await source.CopyToAsync(target, cancellationToken);
+                    }
                 }
             }
         }
-        if (new FileInfo(archivePath).Length > maxBytes) throw new InvalidDataException("Compressed test snapshot exceeds 100 MiB.");
+        if (new FileInfo(archivePath).Length > maxBytes) throw new InvalidDataException("Compressed test snapshot exceeds 200 MiB.");
         if (!targetIncluded) throw new InvalidDataException("Selected test project was omitted from the safe source snapshot.");
     }
     private static bool IsSecretTestPath(string name) => name.Contains("secret", StringComparison.OrdinalIgnoreCase) ||

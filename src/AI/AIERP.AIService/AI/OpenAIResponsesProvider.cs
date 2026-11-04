@@ -773,6 +773,7 @@ public sealed class OpenAIResponsesProvider(HttpClient httpClient, IConfiguratio
         message.Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
         using var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         var responseBody = await ReadBoundedAsync(response.Content, 64 * 1024, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests) throw CreateRateLimitException(response);
         if (!response.IsSuccessStatusCode) throw new AIProviderResponseException($"OpenAI request failed with HTTP {(int)response.StatusCode}.");
         using var document = JsonDocument.Parse(responseBody);
         if (document.RootElement.TryGetProperty("status", out var status) && status.GetString() != "completed")

@@ -17,6 +17,7 @@ RUN dotnet publish src/AI/AIERP.ReleaseDeployer/AIERP.ReleaseDeployer.csproj -c 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
 RUN apk upgrade --no-cache
 COPY --from=docker /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker /usr/local/libexec/docker/cli-plugins/docker-buildx /usr/local/libexec/docker/cli-plugins/docker-buildx
 COPY --from=compose-build /src/bin/build/docker-compose /usr/local/libexec/docker/cli-plugins/docker-compose
 WORKDIR /app
 COPY --from=build /app/publish .
