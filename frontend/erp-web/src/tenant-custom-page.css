@@ -19,6 +19,17 @@
 .tenant-page-table th, .tenant-page-table td { padding: 10px 12px; border-bottom: 1px solid var(--border, #dbe3ef); text-align: left; }
 .tenant-page-table th { background: #f7f8fc; }
 .tenant-page-spacer { min-height: 24px; }
+.tenant-page-form { display: grid; gap: 14px; }
+.tenant-page-form-field { display: grid; gap: 6px; color: var(--text-h, #10213b); font-weight: 600; }
+.tenant-page-form-field > span b { color: #c24150; }
+.tenant-page-form-field input:not([type="checkbox"]), .tenant-page-form-field select, .tenant-page-form-field textarea { width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid var(--border, #dbe3ef); border-radius: 8px; color: inherit; background: var(--bg, #fff); font: inherit; font-weight: 400; }
+.tenant-page-form-field textarea { min-height: 96px; resize: vertical; }
+.tenant-page-form-field input[type="checkbox"] { width: 18px; height: 18px; }
+.tenant-page-form-field small { color: var(--text, #66758b); font-weight: 400; }
+.tenant-page-submit { justify-self: start; padding: 10px 16px; border: 0; border-radius: 8px; color: #fff; background: #6242d8; font-weight: 700; cursor: pointer; }
+.tenant-page-submit:disabled { opacity: .6; cursor: wait; }
+.tenant-page-form-error { color: #b42318 !important; }
+.tenant-page-form-success { border-color: #b9e6d3; background: #f0fbf5; }
 .tenant-custom-page-state { display: flex; align-items: center; gap: 10px; margin: 24px; padding: 16px; border: 1px solid var(--border, #dbe3ef); border-radius: 10px; background: var(--bg, #fff); }
 .tenant-custom-page-error { color: #b42318; background: #fff6f5; border-color: #f5c2be; }
 @media (max-width: 760px) { .tenant-custom-page { padding: 14px; } .tenant-custom-page-content > .tenant-page-metric { grid-column: span 6; } }

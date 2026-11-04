@@ -5,6 +5,7 @@ import "./custom-pages.css";
 
 type PageSummary = { id: string; code: string; name: string; description: string | null; revision: number; isPublished: boolean; updatedAt: string };
 type PageDetail = PageSummary & { definitionJson: string };
+type CustomFormSummary = { id: string; code: string; name: string; status: string };
 type ComponentType = "heading" | "text" | "metric" | "card" | "section" | "divider" | "spacer" | "button" | "dataTable" | "form";
 type PageComponent = { id: string; type: ComponentType; props: Record<string, string | number | boolean | string[]> };
 type PageDefinition = { schemaVersion: 1; components: PageComponent[] };
@@ -18,13 +19,14 @@ const palette: { type: ComponentType; label: string; sample: PageComponent["prop
   { type: "spacer", label: "Boşluk", sample: {} },
   { type: "button", label: "Eylem düğmesi", sample: { label: "İşlem", variant: "primary" } },
   { type: "dataTable", label: "Liste alanı", sample: { title: "Kayıtlar", columns: ["Kod", "Ad", "Durum"] } },
-  { type: "form", label: "Form alanı", sample: { title: "Yeni kayıt", description: "Form alanları özel formlar aracından tanımlanır." } },
+  { type: "form", label: "Özel form", sample: { title: "Form", formCode: "" } },
 ];
 const emptyDefinition: PageDefinition = { schemaVersion: 1, components: [] };
 const titleFor = (type: ComponentType) => palette.find((item) => item.type === type)?.label ?? type;
 
 export default function CustomPagesPage({ token }: { token: string; role: string }) {
   const [pages, setPages] = useState<PageSummary[]>([]);
+  const [forms, setForms] = useState<CustomFormSummary[]>([]);
   const [current, setCurrent] = useState<PageDetail | null>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -56,6 +58,11 @@ export default function CustomPagesPage({ token }: { token: string; role: string
     finally { setLoading(false); }
   }, [request]);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    void request<CustomFormSummary[]>("/api/custom-forms/")
+      .then((items) => setForms(items.filter((item) => item.status === "Published")))
+      .catch(() => setForms([]));
+  }, [request]);
 
   const resetEditor = () => {
     setCurrent(null); setCreating(false); setName(""); setCode(""); setDescription(""); setDefinition(emptyDefinition); setPreview(false); setError(""); setNotice("");
@@ -124,9 +131,9 @@ export default function CustomPagesPage({ token }: { token: string; role: string
       case "spacer": return <div key={component.id} className="custom-page-preview-spacer" />;
       case "button": return <button key={component.id} type="button" className="custom-page-preview-button">{String(props.label || "İşlem")}</button>;
       case "dataTable": return <article key={component.id} className="custom-page-preview-card"><b>{String(props.title || "Liste")}</b><div className="custom-page-preview-table">{Array.isArray(props.columns) ? props.columns.map((column) => <span key={column}>{column}</span>) : <span>Kayıt listesi</span>}</div></article>;
-      case "form": return <article key={component.id} className="custom-page-preview-card"><b>{String(props.title || "Form")}</b><p>{String(props.description || "Form alanlarını Özel formlar aracından hazırlayın.")}</p><input placeholder={String(props.placeholder || "Örnek alan")}/></article>;
+      case "form": return <article key={component.id} className="custom-page-preview-card"><b>{String(props.title || "Form")}</b><p>{forms.find((form) => form.code === props.formCode)?.name || "Yayımlanmış form seçin"}</p></article>;
     }
-  }), [definition]);
+  }), [definition, forms]);
 
   return <main className="custom-pages-tool">
     <header className="custom-pages-header"><span className="custom-pages-header-icon"><LayoutTemplate size={21}/></span><div><span className="custom-pages-eyebrow">LOW-CODE SAYFA TASARIMI</span><h1>Sayfa tasarımcısı</h1><p>Yeni çalışma alanı sayfaları oluşturun. Mevcut ERP ekranlarının düzeni için Ekran düzenleri aracını kullanın.</p></div><button type="button" className="custom-pages-primary" onClick={startNew}><FilePlus2 size={16}/> Yeni sayfa</button></header>
@@ -141,7 +148,7 @@ export default function CustomPagesPage({ token }: { token: string; role: string
           {error && <div className="custom-pages-message error" role="alert">{error}</div>}{notice && <div className="custom-pages-message success" role="status">{notice}</div>}
           <div className={`custom-pages-builder ${preview ? "is-preview" : ""}`}>
             {!preview && <aside className="custom-pages-palette"><h3>Bileşen ekle</h3><p>Sayfaya yerleştirmek için seçin.</p>{palette.map((item) => <button type="button" key={item.type} onClick={() => addComponent(item)} disabled={!!current?.isPublished}><Plus size={14}/><span>{item.label}</span></button>)}</aside>}
-            <section className="custom-pages-canvas"><div className="custom-pages-canvas-bar"><span>{preview ? "Önizleme" : "Sayfa görünümü"}</span><small>{definition.components.length} bileşen</small></div>{definition.components.length === 0 ? <div className="custom-pages-canvas-empty"><LayoutTemplate size={23}/><b>Sayfanız henüz boş</b><span>Soldan bileşen ekleyin veya sayfa bilgilerini düzenleyin.</span></div> : preview ? <div className="custom-pages-preview">{rendered}</div> : <div className="custom-pages-components">{definition.components.map((component, index) => <article className="custom-pages-component" key={component.id}><div className="custom-pages-component-top"><span><b>{titleFor(component.type)}</b><small>{component.id}</small></span><div><button type="button" title="Yukarı taşı" onClick={() => moveComponent(index, -1)} disabled={index === 0 || !!current?.isPublished}><ArrowUp size={14}/></button><button type="button" title="Aşağı taşı" onClick={() => moveComponent(index, 1)} disabled={index === definition.components.length - 1 || !!current?.isPublished}><ArrowDown size={14}/></button><button type="button" title="Kaldır" className="danger" onClick={() => removeComponent(component.id)} disabled={!!current?.isPublished}><Trash2 size={14}/></button></div></div><div className="custom-pages-component-fields">{Object.entries(component.props).map(([key, value]) => <label key={key}>{key === "text" ? "Metin" : key === "title" ? "Başlık" : key === "label" ? "Düğme metni" : key === "value" ? "Değer" : key === "description" ? "Açıklama" : key}<input value={Array.isArray(value) ? value.join(", ") : String(value)} readOnly={!!current?.isPublished} onChange={(event) => updateComponent(component.id, key, key === "columns" ? event.target.value.split(",").map((column) => column.trim()).filter(Boolean) : event.target.value)} /></label>)}</div></article>)}</div>}</section>
+            <section className="custom-pages-canvas"><div className="custom-pages-canvas-bar"><span>{preview ? "Önizleme" : "Sayfa görünümü"}</span><small>{definition.components.length} bileşen</small></div>{definition.components.length === 0 ? <div className="custom-pages-canvas-empty"><LayoutTemplate size={23}/><b>Sayfanız henüz boş</b><span>Soldan bileşen ekleyin veya sayfa bilgilerini düzenleyin.</span></div> : preview ? <div className="custom-pages-preview">{rendered}</div> : <div className="custom-pages-components">{definition.components.map((component, index) => <article className="custom-pages-component" key={component.id}><div className="custom-pages-component-top"><span><b>{titleFor(component.type)}</b><small>{component.id}</small></span><div><button type="button" title="Yukarı taşı" onClick={() => moveComponent(index, -1)} disabled={index === 0 || !!current?.isPublished}><ArrowUp size={14}/></button><button type="button" title="Aşağı taşı" onClick={() => moveComponent(index, 1)} disabled={index === definition.components.length - 1 || !!current?.isPublished}><ArrowDown size={14}/></button><button type="button" title="Kaldır" className="danger" onClick={() => removeComponent(component.id)} disabled={!!current?.isPublished}><Trash2 size={14}/></button></div></div><div className="custom-pages-component-fields">{component.type === "form" && <><label>Yayımlanmış form<select value={String(component.props.formCode || "")} disabled={!!current?.isPublished} onChange={(event) => updateComponent(component.id, "formCode", event.target.value)}><option value="">Form seçin</option>{forms.map((form) => <option key={form.id} value={form.code}>{form.name} · {form.code}</option>)}</select></label>{forms.length === 0 && <small>Önce Özel formlar aracında bir form oluşturup yayımlayın.</small>}</>}{Object.entries(component.props).filter(([key]) => key !== "formCode").map(([key, value]) => <label key={key}>{key === "text" ? "Metin" : key === "title" ? "Başlık" : key === "label" ? "Düğme metni" : key === "value" ? "Değer" : key === "description" ? "Açıklama" : key}<input value={Array.isArray(value) ? value.join(", ") : String(value)} readOnly={!!current?.isPublished} onChange={(event) => updateComponent(component.id, key, key === "columns" ? event.target.value.split(",").map((column) => column.trim()).filter(Boolean) : event.target.value)} /></label>)}</div></article>)}</div>}</section>
           </div>
           <footer className="custom-pages-editor-footer"><span>{current ? `Sürüm ${current.revision} · ${current.isPublished ? "Yayımlandı" : "Taslak"}` : "Henüz kaydedilmedi"}</span><span>Değişiklikler önce taslak olarak saklanır.</span></footer>
         </>}

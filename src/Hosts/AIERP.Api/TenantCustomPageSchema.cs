@@ -10,7 +10,7 @@ internal static class TenantCustomPageSchema
     private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal) { "schemaVersion", "components" };
     private static readonly HashSet<string> ComponentKeys = new(StringComparer.Ordinal) { "id", "type", "props", "children" };
     private static readonly HashSet<string> SafeProps = new(StringComparer.Ordinal)
-    { "title", "text", "label", "value", "description", "variant", "size", "icon", "source", "columns", "format", "target", "required", "placeholder" };
+    { "title", "text", "label", "value", "description", "variant", "size", "icon", "source", "columns", "format", "target", "required", "placeholder", "formCode" };
 
     public static bool Validate(string json, out string? error)
     {

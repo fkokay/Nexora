@@ -1,149 +1,132 @@
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { AlertCircle, LayoutTemplate } from "lucide-react";
 import { api } from "./erpApi";
 import "./tenant-custom-page.css";
 
-type ComponentDefinition = {
-  id: string;
-  type: string;
-  props?: Record<string, unknown>;
-  children?: ComponentDefinition[];
+type DynamicField = {
+  code: string; label: string; dataType: "Text" | "Decimal" | "Date" | "Boolean" | "Choice";
+  isRequired: boolean; maxLength?: number; options?: string[] | null; placeholder?: string | null;
+  helpText?: string | null; isMultiline?: boolean; defaultValue?: string | null;
+  visibleWhenFieldCode?: string | null; visibleWhenValue?: string | null;
+  requiredWhenFieldCode?: string | null; requiredWhenValue?: string | null;
+  minLength?: number; minValue?: number | null; maxValue?: number | null;
+  minDate?: string | null; maxDate?: string | null;
 };
-type PageDefinition = {
-  id: string;
-  code: string;
-  name: string;
-  description?: string | null;
-  revision: number;
-  definitionJson: string;
+type EmbeddedForm = { id: string; code: string; name: string; description?: string | null; version: number; fields: DynamicField[] };
+type ComponentDefinition = {
+  id: string; type: string; props?: Record<string, unknown>; children?: ComponentDefinition[];
+};
+type PublishedPage = {
+  id: string; code: string; name: string; description?: string | null; revision: number;
+  definitionJson: string; forms: EmbeddedForm[];
 };
 
 const textValue = (value: unknown, fallback = "") =>
-  typeof value === "string" || typeof value === "number"
-    ? String(value)
-    : fallback;
+  typeof value === "string" || typeof value === "number" ? String(value) : fallback;
 
-function renderComponent(component: ComponentDefinition) {
+function EmbeddedCustomForm({ form, token }: { form: EmbeddedForm; token: string }) {
+  const [values, setValues] = useState<Record<string, string | null>>(() =>
+    Object.fromEntries(form.fields.map((field) => [field.code, field.defaultValue ?? (field.dataType === "Boolean" ? "false" : "")])));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const isVisible = (field: DynamicField) => !field.visibleWhenFieldCode || field.visibleWhenValue == null
+    || values[field.visibleWhenFieldCode]?.trim() === field.visibleWhenValue.trim()
+    || (form.fields.find((source) => source.code === field.visibleWhenFieldCode)?.dataType === "Decimal"
+      && Number(values[field.visibleWhenFieldCode]) === Number(field.visibleWhenValue));
+  const isRequired = (field: DynamicField) => field.isRequired || (!!field.requiredWhenFieldCode
+    && field.requiredWhenValue != null && (values[field.requiredWhenFieldCode]?.trim() === field.requiredWhenValue.trim()
+      || (form.fields.find((source) => source.code === field.requiredWhenFieldCode)?.dataType === "Decimal"
+        && Number(values[field.requiredWhenFieldCode]) === Number(field.requiredWhenValue))));
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setBusy(true); setError("");
+    try {
+      await api(`/api/custom-forms/${form.id}/submissions`, token, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values }),
+      });
+      setSubmitted(true);
+    } catch (cause) { setError((cause as Error).message || "Form gönderilemedi."); }
+    finally { setBusy(false); }
+  };
+  if (submitted) return <section className="tenant-page-block tenant-page-form tenant-page-form-success" role="status"><h3>{form.name}</h3><p>Formunuz gönderildi.</p></section>;
+  return <form className="tenant-page-block tenant-page-form" onSubmit={(event) => void submit(event)}>
+    <h3>{form.name}</h3>{form.description && <p>{form.description}</p>}
+    {form.fields.filter(isVisible).map((field) => {
+      const required = isRequired(field);
+      return <label className="tenant-page-form-field" key={field.code}>
+        <span>{field.label}{required && <b aria-hidden="true"> *</b>}</span>
+        {field.dataType === "Boolean" ? <input type="checkbox" checked={values[field.code] === "true"} onChange={(event) => setValues((current) => ({ ...current, [field.code]: String(event.target.checked) }))} />
+          : field.dataType === "Choice" ? <select required={required} value={values[field.code] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.code]: event.target.value }))}><option value="">Seçin</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}</select>
+          : field.isMultiline ? <textarea required={required} minLength={field.minLength || undefined} maxLength={field.maxLength || undefined} placeholder={field.placeholder ?? ""} value={values[field.code] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.code]: event.target.value }))} />
+          : <input required={required} minLength={field.dataType === "Text" ? field.minLength || undefined : undefined} maxLength={field.dataType === "Text" ? field.maxLength || undefined : undefined} min={field.dataType === "Decimal" ? field.minValue ?? undefined : field.dataType === "Date" ? field.minDate ?? undefined : undefined} max={field.dataType === "Decimal" ? field.maxValue ?? undefined : field.dataType === "Date" ? field.maxDate ?? undefined : undefined} type={field.dataType === "Date" ? "date" : field.dataType === "Decimal" ? "number" : "text"} step={field.dataType === "Decimal" ? "any" : undefined} placeholder={field.placeholder ?? ""} value={values[field.code] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.code]: event.target.value }))} />}
+        {field.helpText && <small>{field.helpText}</small>}
+      </label>;
+    })}
+    {error && <p className="tenant-page-form-error" role="alert">{error}</p>}
+    <button className="tenant-page-submit" type="submit" disabled={busy}>{busy ? "Gönderiliyor…" : "Gönder"}</button>
+  </form>;
+}
+
+function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string) {
   const props = component.props ?? {};
   const title = textValue(props.title);
   const text = textValue(props.text ?? props.label);
   const description = textValue(props.description);
   const value = textValue(props.value);
-  const children = (component.children ?? []).map(renderComponent);
+  const children = (component.children ?? []).map((child) => renderComponent(child, forms, token));
 
   switch (component.type) {
-    case "heading":
-      return <h2 key={component.id}>{title || text}</h2>;
-    case "text":
-      return <p key={component.id}>{text || description}</p>;
-    case "metric":
-      return (
-        <article className="tenant-page-metric" key={component.id}>
-          {title && <span>{title}</span>}
-          <strong>{value || text || "—"}</strong>
-          {description && <small>{description}</small>}
-        </article>
-      );
-    case "card":
-    case "section":
-      return (
-        <section className={`tenant-page-block tenant-page-${component.type}`} key={component.id}>
-          {title && <h3>{title}</h3>}
-          {description && <p>{description}</p>}
-          {text && <p>{text}</p>}
-          {children}
-        </section>
-      );
-    case "divider":
-      return <hr key={component.id} />;
-    case "spacer":
-      return <div className="tenant-page-spacer" aria-hidden="true" key={component.id} />;
-    case "button":
-      // Page definitions are inert: buttons are display-only until an approved
-      // action binding is added to the low-code runtime.
-      return (
-        <button className="tenant-page-button" type="button" disabled key={component.id}>
-          {text || title || "Eylem"}
-        </button>
-      );
+    case "heading": return <h2 key={component.id}>{title || text}</h2>;
+    case "text": return <p key={component.id}>{text || description}</p>;
+    case "metric": return <article className="tenant-page-metric" key={component.id}>{title && <span>{title}</span>}<strong>{value || text || "—"}</strong>{description && <small>{description}</small>}</article>;
+    case "card": case "section": return <section className={`tenant-page-block tenant-page-${component.type}`} key={component.id}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{text && <p>{text}</p>}{children}</section>;
+    case "divider": return <hr key={component.id} />;
+    case "spacer": return <div className="tenant-page-spacer" aria-hidden="true" key={component.id} />;
+    case "button": return <button className="tenant-page-button" type="button" disabled key={component.id}>{text || title || "Eylem"}</button>;
     case "dataTable": {
-      const columns = Array.isArray(props.columns)
-        ? props.columns.filter((column): column is string => typeof column === "string").slice(0, 20)
-        : [];
-      return (
-        <section className="tenant-page-block tenant-page-table" key={component.id}>
-          {title && <h3>{title}</h3>}
-          {columns.length > 0 ? (
-            <div className="tenant-page-table-scroll">
-              <table>
-                <thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
-                <tbody><tr><td colSpan={columns.length}>Bu görünüm için veri kaynağı henüz bağlanmadı.</td></tr></tbody>
-              </table>
-            </div>
-          ) : <p>Bu tabloya henüz sütun eklenmemiş.</p>}
-        </section>
-      );
+      const columns = Array.isArray(props.columns) ? props.columns.filter((column): column is string => typeof column === "string").slice(0, 20) : [];
+      return <section className="tenant-page-block tenant-page-table" key={component.id}>{title && <h3>{title}</h3>}{columns.length > 0 ? <div className="tenant-page-table-scroll"><table><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody><tr><td colSpan={columns.length}>Bu görünüm için veri kaynağı henüz bağlanmadı.</td></tr></tbody></table></div> : <p>Bu tabloya henüz sütun eklenmemiş.</p>}</section>;
     }
-    case "form":
-      return (
-        <section className="tenant-page-block tenant-page-form" key={component.id}>
-          {title && <h3>{title}</h3>}
-          <p>{description || text || "Bu form taslak olarak hazırlandı. Alanlar form tasarımcısından tanımlanabilir."}</p>
-        </section>
-      );
-    default:
-      return null;
+    case "form": {
+      const formCode = textValue(props.formCode);
+      const form = forms.find((item) => item.code === formCode);
+      return form ? <EmbeddedCustomForm key={component.id} form={form} token={token} /> : <section className="tenant-page-block tenant-page-form" key={component.id}><h3>{title || "Form"}</h3><p>Bu sayfa için seçilen form artık yayımlanmış değil.</p></section>;
+    }
+    default: return null;
   }
 }
 
 export default function TenantCustomPage({ code, token }: { code: string; token: string }) {
-  const [page, setPage] = useState<PageDefinition | null>(null);
+  const [page, setPage] = useState<PublishedPage | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError("");
-    setPage(null);
-    void api<PageDefinition>(`/api/custom-pages/${encodeURIComponent(code)}/published`, token)
+    setLoading(true); setError(""); setPage(null);
+    void api<PublishedPage>(`/api/custom-pages/${encodeURIComponent(code)}/published`, token)
       .then((result) => {
         if (!active) return;
         const definition = JSON.parse(result.definitionJson) as { schemaVersion?: unknown; components?: unknown };
-        if (definition.schemaVersion !== 1 || !Array.isArray(definition.components))
-          throw new Error("Yayımlanan sayfa tanımı geçersiz.");
+        if (definition.schemaVersion !== 1 || !Array.isArray(definition.components)) throw new Error("Yayımlanan sayfa tanımı geçersiz.");
         setPage(result);
       })
-      .catch((cause: unknown) => {
-        if (active) setError((cause as Error).message || "Sayfa yüklenemedi.");
-      })
+      .catch((cause: unknown) => { if (active) setError((cause as Error).message || "Sayfa yüklenemedi."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [code, token]);
 
   if (loading) return <div className="tenant-custom-page-state" role="status">Sayfa yükleniyor…</div>;
-  if (error || !page) return (
-    <div className="tenant-custom-page-state tenant-custom-page-error" role="alert">
-      <AlertCircle size={18} />
-      <span>{error || "Yayımlanmış sayfa bulunamadı."}</span>
-    </div>
-  );
+  if (error || !page) return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert"><AlertCircle size={18} /><span>{error || "Yayımlanmış sayfa bulunamadı."}</span></div>;
 
   let components: ComponentDefinition[] = [];
   try {
     const definition = JSON.parse(page.definitionJson) as { components?: ComponentDefinition[] };
     components = Array.isArray(definition.components) ? definition.components : [];
-  } catch {
-    return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert">Sayfa tanımı okunamadı.</div>;
-  }
+  } catch { return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert">Sayfa tanımı okunamadı.</div>; }
 
-  return (
-    <main className="tenant-custom-page">
-      <header className="tenant-custom-page-header">
-        <span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span>
-        <div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div>
-      </header>
-      <div className="tenant-custom-page-content">{components.map(renderComponent)}</div>
-    </main>
-  );
+  return <main className="tenant-custom-page">
+    <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div></header>
+    <div className="tenant-custom-page-content">{components.map((component) => renderComponent(component, page.forms ?? [], token))}</div>
+  </main>;
 }

@@ -41,7 +41,15 @@ internal static class TenantCustomPageEndpoints
             if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "read", ct, "erp.custom-menus")) return Results.Forbid();
             var page = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && x.Code == code && x.IsPublished)
                 .Select(x => new PageDefinition(x.Id, x.Code, x.Name, x.Description, x.Revision, x.DefinitionJson)).SingleOrDefaultAsync(ct);
-            return page is null ? Results.NotFound() : Results.Ok(page);
+            if (page is null) return Results.NotFound();
+            var formCodes = ReferencedFormCodes(page.DefinitionJson);
+            var forms = await db.TenantCustomFormDefinitions.AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.Status == "Published" && formCodes.Contains(x.Code))
+                .Select(x => new { x.Id, x.Code, x.Name, x.Description, x.Version, x.FieldsJson })
+                .ToListAsync(ct);
+            var embeddedForms = forms.Select(x => new EmbeddedForm(x.Id, x.Code, x.Name, x.Description, x.Version,
+                JsonSerializer.Deserialize<List<DynamicFormField>>(x.FieldsJson, JsonOptions) ?? [])).ToArray();
+            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, page.DefinitionJson, embeddedForms));
         });
 
         pages.MapPost("/drafts", async (DraftRequest? request, ClaimsPrincipal user, TenantDbContext db,
@@ -87,6 +95,16 @@ internal static class TenantCustomPageEndpoints
             if (draft is null) return Results.NotFound();
             if (draft.IsPublished || request?.ExpectedRevision != draft.Revision) return Results.Conflict(new { error = "Taslak değişti veya zaten yayımlandı.", currentRevision = draft.Revision });
             if (!TenantCustomPageSchema.Validate(draft.DefinitionJson, out var error)) return Results.BadRequest(new { error });
+            if (HasUnconfiguredForm(draft.DefinitionJson)) return Results.Conflict(new { error = "Sayfadaki her özel form bileşeni için yayımlanmış bir form seçin." });
+            var referencedForms = ReferencedFormCodes(draft.DefinitionJson);
+            if (referencedForms.Count > 0)
+            {
+                var publishedForms = await db.TenantCustomFormDefinitions.AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.Status == "Published" && referencedForms.Contains(x.Code))
+                    .Select(x => x.Code).ToListAsync(ct);
+                var missingForms = referencedForms.Except(publishedForms, StringComparer.Ordinal).ToArray();
+                if (missingForms.Length > 0) return Results.Conflict(new { error = "Sayfada yayımlanmamış veya bulunamayan özel formlar var.", formCodes = missingForms });
+            }
             var previous = await db.TenantCustomPages.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Code == draft.Code && x.IsPublished, ct);
             if (previous is not null)
             {
@@ -141,6 +159,43 @@ internal static class TenantCustomPageEndpoints
     }
     private static bool ValidCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Length <= 40 && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
     private static string? CleanDescription(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static HashSet<string> ReferencedFormCodes(string json)
+    {
+        var codes = new HashSet<string>(StringComparer.Ordinal);
+        using var document = JsonDocument.Parse(json);
+        CollectFormCodes(document.RootElement, codes);
+        return codes;
+    }
+    private static bool HasUnconfiguredForm(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return HasUnconfiguredForm(document.RootElement);
+    }
+    private static bool HasUnconfiguredForm(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Array) return element.EnumerateArray().Any(HasUnconfiguredForm);
+        if (element.ValueKind != JsonValueKind.Object) return false;
+        if (element.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "form"
+            && (!element.TryGetProperty("props", out var props) || props.ValueKind != JsonValueKind.Object
+                || !props.TryGetProperty("formCode", out var code) || code.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(code.GetString()))) return true;
+        return element.EnumerateObject().Any(property => (property.Value.ValueKind is JsonValueKind.Array or JsonValueKind.Object) && HasUnconfiguredForm(property.Value));
+    }
+    private static void CollectFormCodes(JsonElement element, HashSet<string> codes)
+    {
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray()) CollectFormCodes(item, codes);
+            return;
+        }
+        if (element.ValueKind != JsonValueKind.Object) return;
+        if (element.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String
+            && type.GetString() == "form" && element.TryGetProperty("props", out var props)
+            && props.ValueKind == JsonValueKind.Object && props.TryGetProperty("formCode", out var code)
+            && code.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(code.GetString()))
+            codes.Add(code.GetString()!);
+        foreach (var property in element.EnumerateObject())
+            if (property.Value.ValueKind is JsonValueKind.Array or JsonValueKind.Object) CollectFormCodes(property.Value, codes);
+    }
     private static bool TryContext(ClaimsPrincipal user, out Guid tenant, out Guid userId, out string role)
     { tenant = default; userId = default; role = user.FindFirstValue("role") ?? ""; return Guid.TryParse(user.FindFirstValue("tenant_id"), out tenant) && Guid.TryParse(user.FindFirstValue("sub"), out userId) && role.Length > 0; }
     private static async Task<bool> Allowed(IPlatformPermissionAuthorizer auth, Guid tenant, Guid userId, string role, string action, CancellationToken ct, string resourceType = "erp.tenant-customizations")
@@ -159,6 +214,8 @@ internal static class TenantCustomPageEndpoints
     private sealed record RevisionRequest(int ExpectedRevision);
     private sealed record PageSummary(Guid Id, string Code, string Name, string? Description, int Revision, bool IsPublished, bool IsArchived, DateTimeOffset UpdatedAt);
     private sealed record PageDefinition(Guid Id, string Code, string Name, string? Description, int Revision, string DefinitionJson);
+    private sealed record PublishedPage(Guid Id, string Code, string Name, string? Description, int Revision, string DefinitionJson, IReadOnlyList<EmbeddedForm> Forms);
+    private sealed record EmbeddedForm(Guid Id, string Code, string Name, string? Description, int Version, IReadOnlyList<DynamicFormField> Fields);
     private sealed record PageDetail(Guid Id, string Code, string Name, string? Description, int Revision, bool IsPublished, bool IsArchived, string DefinitionJson, DateTimeOffset UpdatedAt);
     private sealed record RevisionDetail(Guid Id, int Revision, string Code, string Name, string? Description, string ChangeKind, Guid ChangedByUserId, DateTimeOffset CreatedAt, string DefinitionJson);
 }
