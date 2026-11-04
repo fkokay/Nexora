@@ -355,6 +355,9 @@ function CustomersPage({
   onOpenSalesInvoice: (invoiceId: string) => void;
   onOpenPurchaseInvoices: (supplier: { id: string; name: string }) => void;
 }) {
+  const canDesignCustomerFields =
+    role === "TenantAdmin" || role === "TenantDeveloper";
+  const canManageCustomerFieldPolicy = role === "TenantAdmin";
   const [items, setItems] = useState<CustomerItem[]>([]),
     [groups, setGroups] = useState<CustomerGroupItem[]>([]),
     [companyOptions, setCompanyOptions] = useState<CustomerCompanyOption[]>([]),
@@ -1244,7 +1247,7 @@ function CustomersPage({
             label: customerFieldLabel,
             dataType: customerFieldType,
             maxLength: Number(customerFieldMaxLength),
-            isRequired: customerFieldRequired,
+            isRequired: canManageCustomerFieldPolicy && customerFieldRequired,
           }),
         },
       );
@@ -1322,20 +1325,23 @@ function CustomersPage({
         return;
       }
     }
-    const requiredValue = await promptCustomerValue(
-      "Zorunluluk ayarı",
-      "Zorunlu yapmak için tüm mevcut carilerde değer bulunmalıdır.",
-      field.isRequired ? "true" : "false",
-      {
-        valueLabel: "Zorunlu alan",
-        choices: [
-          { value: "true", label: "Evet" },
-          { value: "false", label: "Hayır" },
-        ],
-      },
-    );
-    if (requiredValue === null) return;
-    const isRequired = requiredValue === "true";
+    let isRequired: boolean | undefined;
+    if (canManageCustomerFieldPolicy) {
+      const requiredValue = await promptCustomerValue(
+        "Zorunluluk ayarı",
+        "Zorunlu yapmak için tüm mevcut carilerde değer bulunmalıdır.",
+        field.isRequired ? "true" : "false",
+        {
+          valueLabel: "Zorunlu alan",
+          choices: [
+            { value: "true", label: "Evet" },
+            { value: "false", label: "Hayır" },
+          ],
+        },
+      );
+      if (requiredValue === null) return;
+      isRequired = requiredValue === "true";
+    }
     setBusy(true);
     setError("");
     try {
@@ -2353,7 +2359,7 @@ function CustomersPage({
                 </h2>
               </div>
               <div className="customer-field-modal-actions">
-                {role === "TenantAdmin" && (
+                {canDesignCustomerFields && (
                   <button
                     type="button"
                     className="secondary small-button"
@@ -2531,7 +2537,7 @@ function CustomersPage({
         </div>
       )}
       {fieldCustomer &&
-        role === "TenantAdmin" &&
+        canDesignCustomerFields &&
         customerFieldDefinitionScreen !== "closed" && (
           <div
             className="modal-backdrop customer-field-definition-backdrop"
@@ -2610,14 +2616,18 @@ function CustomersPage({
                           >
                             Sürüm geçmişi
                           </button>
-                          <button
-                            type="button"
-                            className="row-action danger-action"
-                            disabled={busy}
-                            onClick={() => void deactivateCustomerField(field)}
-                          >
-                            Devre dışı bırak
-                          </button>
+                          {canManageCustomerFieldPolicy && (
+                            <button
+                              type="button"
+                              className="row-action danger-action"
+                              disabled={busy}
+                              onClick={() =>
+                                void deactivateCustomerField(field)
+                              }
+                            >
+                              Devre dışı bırak
+                            </button>
+                          )}
                         </div>
                       </article>
                     ))}
@@ -2722,16 +2732,23 @@ function CustomersPage({
                       </label>
                     )}
                   </div>
-                  <label className="check-row">
-                    <input
-                      type="checkbox"
-                      checked={customerFieldRequired}
-                      onChange={(e) =>
-                        setCustomerFieldRequired(e.target.checked)
-                      }
-                    />{" "}
-                    Bu alanı zorunlu yap
-                  </label>
+                  {canManageCustomerFieldPolicy ? (
+                    <label className="check-row">
+                      <input
+                        type="checkbox"
+                        checked={customerFieldRequired}
+                        onChange={(e) =>
+                          setCustomerFieldRequired(e.target.checked)
+                        }
+                      />{" "}
+                      Bu alanı zorunlu yap
+                    </label>
+                  ) : (
+                    <p className="muted customer-fields-description">
+                      Zorunluluk ve devre dışı bırakma ayarlarını firma
+                      yöneticisi yönetir.
+                    </p>
+                  )}
                   <div className="modal-foot">
                     <span>Mevcut kayıtlar yeni zorunlu değer isteyebilir.</span>
                     <div>
@@ -2786,16 +2803,20 @@ function CustomersPage({
                             )}
                           </small>
                         </div>
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          disabled={busy}
-                          onClick={() =>
-                            void restoreCustomerFieldMetadataRevision(revision)
-                          }
-                        >
-                          Bu sürümü geri yükle
-                        </button>
+                        {canManageCustomerFieldPolicy && (
+                          <button
+                            type="button"
+                            className="secondary small-button"
+                            disabled={busy}
+                            onClick={() =>
+                              void restoreCustomerFieldMetadataRevision(
+                                revision,
+                              )
+                            }
+                          >
+                            Bu sürümü geri yükle
+                          </button>
+                        )}
                       </article>
                     ))}
                   </div>

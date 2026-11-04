@@ -49,7 +49,9 @@ function supportsColumnWidth(screenKey: string) {
 type Props = {
   en: boolean;
   busy: boolean;
-  admin: boolean;
+  canDesign: boolean;
+  canCreateDraft: boolean;
+  canPublish: boolean;
   state: EditorState;
   fields: LayoutField[];
   name: string;
@@ -68,7 +70,9 @@ type Props = {
 export default function ScreenViewEditor({
   en,
   busy,
-  admin,
+  canDesign,
+  canCreateDraft,
+  canPublish,
   state,
   fields,
   name,
@@ -112,7 +116,7 @@ export default function ScreenViewEditor({
             <Clock3 size={14} />
             {en ? "Draft" : "Taslak"} · v{state.draft.revision}
           </span>
-        ) : admin ? (
+        ) : canCreateDraft ? (
           <button
             className="secondary small-button"
             disabled={busy}
@@ -127,7 +131,7 @@ export default function ScreenViewEditor({
           </span>
         )}
       </div>
-      {state.draft && admin ? (
+      {state.draft && canDesign ? (
         <>
           <label className="screen-view-name">
             {en ? "Draft name" : "Taslak adı"}
@@ -303,20 +307,37 @@ export default function ScreenViewEditor({
             <span>
               {visibleCount} {en ? "visible columns" : "görünür sütun"}
             </span>
+            {canDesign && !canPublish && (
+              <small>
+                {en
+                  ? "Publishing requires the assigned publish permission."
+                  : "Yayımlama için ayrıca yayın izni gerekir."}
+              </small>
+            )}
             <button className="secondary" disabled={busy} onClick={onSaveDraft}>
               <Save size={15} />
               {en ? "Save draft" : "Taslağı kaydet"}
             </button>
-            <button
-              className="primary"
-              disabled={busy || state.draft.revision < 1}
-              onClick={onPublishDraft}
-            >
-              <Send size={15} />
-              {en ? "Publish" : "Yayımla"}
-            </button>
+            {canPublish && (
+              <button
+                className="primary"
+                disabled={busy || state.draft.revision < 1}
+                onClick={onPublishDraft}
+              >
+                <Send size={15} />
+                {en ? "Publish" : "Yayımla"}
+              </button>
+            )}
           </div>
         </>
+      ) : state.draft && canPublish ? (
+        <div className="screen-view-empty">
+          <Clock3 size={18} />
+          <span>{en ? "A draft is ready for your approval." : "Taslak yayımlama onayınızı bekliyor."}</span>
+          <button className="primary" disabled={busy} onClick={onPublishDraft}>
+            <Send size={15} /> {en ? "Publish" : "Yayımla"}
+          </button>
+        </div>
       ) : (
         <div className="screen-view-empty">
           <Check size={18} />

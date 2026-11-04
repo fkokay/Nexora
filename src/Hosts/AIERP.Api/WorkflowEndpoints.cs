@@ -13,18 +13,25 @@ internal static class WorkflowEndpoints
     {
         var workflows = app.MapGroup("/api/workflows").WithTags("Tenant Workflows").RequireAuthorization();
 
-        workflows.MapGet("/definitions", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        workflows.MapGet("/definitions", async (ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!Context(user, out var tenantId, out _, out var role)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
             var query = db.TenantWorkflowDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && (x.Status == "Published" || x.Status == "Draft"));
-            if (role != "TenantAdmin") query = query.Where(x => x.Status == "Published");
+            var canManageDrafts = await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct)
+                || await IsAllowedAsync(authorizer, tenantId, userId, role, "update", ct)
+                || await IsAllowedAsync(authorizer, tenantId, userId, role, "execute", ct);
+            if (!canManageDrafts) query = query.Where(x => x.Status == "Published");
             var definitions = await query.OrderBy(x => x.Code).ThenByDescending(x => x.Version).Take(200).ToListAsync(ct);
             return Results.Ok(definitions.Select(ToDefinitionView));
         });
 
-        workflows.MapPost("/definitions", async (WorkflowDefinitionWriteRequest request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
+        workflows.MapPost("/definitions", async (WorkflowDefinitionWriteRequest request, ClaimsPrincipal user,
+            TenantDbContext db, PlatformDbContext platformDb, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct)) return Results.Forbid();
             var licenseError = await CheckAdvancedWorkflowLicenseAsync(platformDb, tenantId, ct);
             if (licenseError is not null) return licenseError;
             if (!ValidateDefinition(request.Code, request.Name, request.Description, request.Steps, out var steps, out var errors))
@@ -45,9 +52,12 @@ internal static class WorkflowEndpoints
             return Results.Created($"/api/workflows/definitions/{definition.Id}", ToDefinitionView(definition));
         });
 
-        workflows.MapPut("/definitions/{id:guid}", async (Guid id, WorkflowDefinitionWriteRequest request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
+        workflows.MapPut("/definitions/{id:guid}", async (Guid id, WorkflowDefinitionWriteRequest request,
+            ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb,
+            IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "update", ct, id)) return Results.Forbid();
             var licenseError = await CheckAdvancedWorkflowLicenseAsync(platformDb, tenantId, ct);
             if (licenseError is not null) return licenseError;
             var definition = await db.TenantWorkflowDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
@@ -63,9 +73,11 @@ internal static class WorkflowEndpoints
             return Results.Ok(ToDefinitionView(definition));
         });
 
-        workflows.MapPost("/definitions/{id:guid}/publish", async (Guid id, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
+        workflows.MapPost("/definitions/{id:guid}/publish", async (Guid id, ClaimsPrincipal user,
+            TenantDbContext db, PlatformDbContext platformDb, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "execute", ct, id)) return Results.Forbid();
             var licenseError = await CheckAdvancedWorkflowLicenseAsync(platformDb, tenantId, ct);
             if (licenseError is not null) return licenseError;
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -85,13 +97,22 @@ internal static class WorkflowEndpoints
             return Results.Ok(ToDefinitionView(definition));
         });
 
-        workflows.MapPost("/definitions/{id:guid}/draft", async (Guid id, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
+        workflows.MapPost("/definitions/{id:guid}/draft", async (Guid id, ClaimsPrincipal user,
+            TenantDbContext db, PlatformDbContext platformDb, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!AdminContext(user, out var tenantId, out var userId)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct, id)) return Results.Forbid();
             var licenseError = await CheckAdvancedWorkflowLicenseAsync(platformDb, tenantId, ct);
             if (licenseError is not null) return licenseError;
             var source = await db.TenantWorkflowDefinitions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.Status == "Published", ct);
             if (source is null) return Results.NotFound();
+            var existingDraft = await db.TenantWorkflowDefinitions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.Code == source.Code && x.Status == "Draft")
+                .OrderByDescending(x => x.Version)
+                .Select(x => new { x.Id, x.Version })
+                .FirstOrDefaultAsync(ct);
+            if (existingDraft is not null)
+                return Results.Conflict(new { error = "Bu iş akışı için zaten bir taslak sürüm var.", draftId = existingDraft.Id, draftVersion = existingDraft.Version });
             var next = (await db.TenantWorkflowDefinitions.Where(x => x.TenantId == tenantId && x.Code == source.Code).Select(x => (int?)x.Version).MaxAsync(ct) ?? source.Version) + 1;
             var now = DateTimeOffset.UtcNow;
             var draft = new TenantWorkflowDefinition
@@ -124,12 +145,16 @@ internal static class WorkflowEndpoints
 
         workflows.MapPost("/definitions/{id:guid}/instances", async (Guid id, WorkflowStartRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
-            if (!Context(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+            if (!Context(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
             var definition = await db.TenantWorkflowDefinitions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.Status == "Published", ct);
             if (definition is null) return Results.NotFound();
             if (string.IsNullOrWhiteSpace(request.SubjectType) || request.SubjectType.Trim().Length > 80
                 || string.IsNullOrWhiteSpace(request.SubjectTitle) || request.SubjectTitle.Trim().Length > 160)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["subject"] = ["Kayıt türü 1–80, başlık 1–160 karakter olmalıdır."] });
+            var subjectType = request.SubjectType.Trim();
+            var subjectBindingError = await ValidateBusinessSubjectForStartAsync(db, tenantId, userId, role,
+                subjectType, request.SubjectId, ct);
+            if (subjectBindingError is not null) return subjectBindingError;
             var context = request.Context ?? new Dictionary<string, string?>();
             if (context.Count > 100 || context.Any(x => x.Key.Length is 0 or > 80 || x.Value?.Length > 2000)
                 || JsonSerializer.SerializeToUtf8Bytes(context, JsonOptions).Length > 32 * 1024)
@@ -140,7 +165,7 @@ internal static class WorkflowEndpoints
             {
                 TenantId = tenantId, DefinitionId = definition.Id, DefinitionCode = definition.Code, DefinitionName = definition.Name,
                 DefinitionVersion = definition.Version, StepsJsonSnapshot = JsonSerializer.Serialize(steps.Steps, JsonOptions),
-                SubjectType = request.SubjectType.Trim(), SubjectTitle = request.SubjectTitle.Trim(), SubjectId = request.SubjectId,
+                SubjectType = subjectType, SubjectTitle = request.SubjectTitle.Trim(), SubjectId = request.SubjectId,
                 ContextJson = JsonSerializer.Serialize(context, JsonOptions), StartedByUserId = userId
             };
             db.TenantWorkflowInstances.Add(instance);
@@ -149,7 +174,8 @@ internal static class WorkflowEndpoints
             return Results.Created($"/api/workflows/instances/{instance.Id}", ToInstanceView(instance, []));
         });
 
-        workflows.MapPost("/instances/{id:guid}/decision", async (Guid id, WorkflowDecisionRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        workflows.MapPost("/instances/{id:guid}/decision", async (Guid id, WorkflowDecisionRequest request, ClaimsPrincipal user,
+            TenantDbContext db, PlatformDbContext platformDb, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
             if (!Context(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
             if (request.Decision is not ("Approved" or "Rejected") || request.Comment?.Trim().Length > 500
@@ -158,8 +184,34 @@ internal static class WorkflowEndpoints
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             var instance = await db.TenantWorkflowInstances.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (instance is null) return Results.NotFound();
-            var transition = TenantWorkflowSchema.Decide(instance.Status, ReadSteps(instance.StepsJsonSnapshot), instance.CurrentStepIndex,
-                userId, instance.StartedByUserId, role, request.Decision!, allowRequesterDecision: role == "TenantAdmin" && instance.SubjectType == "PurchaseRequest" && request.Decision == "Approved");
+            var bindingError = await ValidateExistingBusinessSubjectBindingAsync(db, platformDb, instance, ct);
+            if (bindingError is not null) return bindingError;
+            TenantCustomFormSubmission? customFormSubmission = null;
+            if (instance.SubjectType == "CustomFormSubmission" && instance.SubjectId is not null
+                && await db.TenantBusinessRuleEvaluations.AsNoTracking().AnyAsync(
+                    x => x.TenantId == tenantId && x.WorkflowInstanceId == instance.Id, ct))
+            {
+                customFormSubmission = db.Database.IsSqlServer()
+                    ? await db.TenantCustomFormSubmissions.FromSqlInterpolated(
+                        $"SELECT * FROM [dbo].[TenantCustomFormSubmissions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {instance.SubjectId.Value}")
+                        .SingleOrDefaultAsync(ct)
+                    : await db.TenantCustomFormSubmissions.SingleOrDefaultAsync(
+                        x => x.TenantId == tenantId && x.Id == instance.SubjectId.Value, ct);
+                if (customFormSubmission is null || customFormSubmission.Status != "Submitted")
+                    return Results.Conflict(new { error = "Bağlı özel form gönderimi artık karar beklemiyor." });
+            }
+            var steps = ReadSteps(instance.StepsJsonSnapshot);
+            var requesterIsAssignedApprover = instance.CurrentStepIndex >= 0 && instance.CurrentStepIndex < steps.Count
+                && string.Equals(steps[instance.CurrentStepIndex]?.ApproverRole, role, StringComparison.Ordinal);
+            var requesterHasDecisionPermission = request.Decision == "Approved" && userId == instance.StartedByUserId
+                && role != "TenantAdmin"
+                && await IsAllowedAsync(authorizer, tenantId, userId, role, "execute", ct, instance.DefinitionId);
+            var allowRequesterDecision = request.Decision == "Approved"
+                && (requesterIsAssignedApprover || requesterHasDecisionPermission
+                    || role == "TenantAdmin" && instance.SubjectType == "PurchaseRequest");
+            var transition = TenantWorkflowSchema.Decide(instance.Status, steps, instance.CurrentStepIndex,
+                userId, instance.StartedByUserId, role, request.Decision!, allowRequesterDecision,
+                allowRequesterRoleOverride: requesterHasDecisionPermission);
             if (!transition.IsAllowed) return transition.Error switch
             {
                 "The requester cannot decide their own workflow." or "The user is not assigned to the current workflow step." => Results.Forbid(),
@@ -222,6 +274,15 @@ internal static class WorkflowEndpoints
                 purchaseOrder.Status = transition.Status == "Approved" ? PurchaseOrderStatus.Open : PurchaseOrderStatus.Rejected;
                 Audit(db, tenantId, userId, transition.Status == "Approved" ? "purchase-order.approved-by-workflow" : "purchase-order.rejected-by-workflow", purchaseOrder.Code);
             }
+            if (customFormSubmission is not null && transition.IsComplete)
+            {
+                customFormSubmission.Status = transition.Status;
+                customFormSubmission.DecidedByUserId = userId;
+                customFormSubmission.DecidedAt = DateTimeOffset.UtcNow;
+                customFormSubmission.DecisionReason = CleanDescription(request.Comment);
+                Audit(db, tenantId, userId, "custom-form.decided-by-workflow",
+                    $"{customFormSubmission.FormCode}:{customFormSubmission.Id}:{customFormSubmission.Status}");
+            }
             Audit(db, tenantId, userId, "workflow.decision", $"{instance.Id}:{request.Decision}:{instance.CurrentStepIndex}");
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Bu adım başka bir kullanıcı tarafından zaten işlendi. Listeyi yenileyin." }); }
@@ -252,8 +313,108 @@ internal static class WorkflowEndpoints
         role = user.FindFirstValue("role") ?? ""; return role is "TenantAdmin" or "TenantDeveloper" or "TenantUser";
     }
 
-    private static bool AdminContext(ClaimsPrincipal user, out Guid tenantId, out Guid userId) =>
-        Context(user, out tenantId, out userId, out var role) && role == "TenantAdmin";
+    private static Task<bool> IsAllowedAsync(IPlatformPermissionAuthorizer authorizer, Guid tenantId,
+        Guid userId, string role, string action, CancellationToken ct, Guid? definitionId = null)
+    {
+        var definition = PlatformPermissionCatalog.Definitions.FirstOrDefault(x =>
+            x.ResourceType == "erp.workflows" && x.Action == action);
+        if (definition is null) return Task.FromResult(false);
+        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["subject.userId"] = userId.ToString("D"),
+            ["subject.role"] = role,
+            ["resource.type"] = definition.ResourceType,
+            ["resource.tenantId"] = tenantId.ToString("D"),
+            ["request.method"] = action is "read" ? "GET" : action is "update" ? "PUT" : "POST",
+            ["request.action"] = action
+        };
+        if (definitionId is not null) attributes["resource.route.id"] = definitionId.Value.ToString("D");
+        return authorizer.IsAllowedAsync(tenantId, userId, role,
+            new ResolvedPlatformPermission(definition, attributes), ct);
+    }
+
+    private static async Task<IResult?> ValidateBusinessSubjectForStartAsync(TenantDbContext db, Guid tenantId,
+        Guid userId, string role, string subjectType, Guid? subjectId, CancellationToken ct)
+    {
+        if (subjectType == "CustomFormSubmission") return Results.Forbid();
+        if (subjectId is null) return null;
+        switch (subjectType)
+        {
+            case "PurchaseRequest":
+            {
+                var request = await db.PurchaseRequests.AsNoTracking()
+                    .Where(x => x.TenantId == tenantId && x.Id == subjectId.Value)
+                    .Select(x => new { x.RequestedByUserId, x.Status }).SingleOrDefaultAsync(ct);
+                if (request is null) return Results.NotFound();
+                if (request.Status != PurchaseRequestStatus.Submitted)
+                    return Results.Conflict(new { error = "Yalnızca gönderilmiş satın alma talepleri iş akışına bağlanabilir." });
+                if (role != "TenantAdmin" && request.RequestedByUserId != userId) return Results.Forbid();
+                return null;
+            }
+            case "SalesQuote":
+            {
+                if (role != "TenantAdmin") return Results.Forbid();
+                var exists = await db.SalesQuotes.AnyAsync(x => x.TenantId == tenantId && x.Id == subjectId.Value
+                    && x.Status == SalesQuoteStatus.Accepted, ct);
+                return exists ? null : Results.Conflict(new { error = "Yalnızca kabul edilmiş ve aynı tenant'a ait teklifler iş akışına bağlanabilir." });
+            }
+            case "PurchaseOrder":
+            {
+                if (role != "TenantAdmin") return Results.Forbid();
+                var exists = await db.PurchaseOrders.AnyAsync(x => x.TenantId == tenantId && x.Id == subjectId.Value
+                    && x.Status == PurchaseOrderStatus.PendingApproval, ct);
+                return exists ? null : Results.Conflict(new { error = "Yalnızca onay bekleyen ve aynı tenant'a ait siparişler iş akışına bağlanabilir." });
+            }
+            default:
+                return null;
+        }
+    }
+
+    private static async Task<IResult?> ValidateExistingBusinessSubjectBindingAsync(TenantDbContext db,
+        PlatformDbContext platformDb, TenantWorkflowInstance instance, CancellationToken ct)
+    {
+        if (instance.SubjectId is null) return null;
+        var isBusinessRuleWorkflow = await db.TenantBusinessRuleEvaluations.AsNoTracking()
+            .AnyAsync(x => x.TenantId == instance.TenantId && x.WorkflowInstanceId == instance.Id, ct);
+        var starterRole = isBusinessRuleWorkflow ? null : await platformDb.TenantMemberships.AsNoTracking()
+            .Where(x => x.TenantId == instance.TenantId && x.UserId == instance.StartedByUserId)
+            .Select(x => x.Role).SingleOrDefaultAsync(ct);
+        switch (instance.SubjectType)
+        {
+            case "PurchaseRequest":
+            {
+                var request = await db.PurchaseRequests.AsNoTracking()
+                    .Where(x => x.TenantId == instance.TenantId && x.Id == instance.SubjectId.Value)
+                    .Select(x => new { x.RequestedByUserId, x.Status }).SingleOrDefaultAsync(ct);
+                if (request is null) return Results.Conflict(new { error = "Bağlı satın alma talebi bulunamadı; işlem durduruldu." });
+                if (request.Status != PurchaseRequestStatus.Submitted)
+                    return Results.Conflict(new { error = "Bağlı satın alma talebi artık iş akışı kararına uygun değil." });
+                if (!isBusinessRuleWorkflow && request.RequestedByUserId != instance.StartedByUserId && starterRole != "TenantAdmin")
+                    return Results.Conflict(new { error = "İş akışını başlatan kullanıcı bağlı satın alma talebinin sahibi değil; işlem durduruldu." });
+                return null;
+            }
+            case "SalesQuote":
+            {
+                var exists = await db.SalesQuotes.AnyAsync(x => x.TenantId == instance.TenantId && x.Id == instance.SubjectId.Value
+                    && x.Status == SalesQuoteStatus.Accepted, ct);
+                if (!exists) return Results.Conflict(new { error = "Bağlı satış teklifi bulunamadı veya artık kabul edilmiş durumda değil." });
+                if (!isBusinessRuleWorkflow && starterRole != "TenantAdmin")
+                    return Results.Conflict(new { error = "Satış teklifi bağlantısı yetkili bir başlatıcı tarafından kurulmamış; işlem durduruldu." });
+                return null;
+            }
+            case "PurchaseOrder":
+            {
+                var exists = await db.PurchaseOrders.AnyAsync(x => x.TenantId == instance.TenantId && x.Id == instance.SubjectId.Value
+                    && x.Status == PurchaseOrderStatus.PendingApproval, ct);
+                if (!exists) return Results.Conflict(new { error = "Bağlı satın alma siparişi bulunamadı veya artık onay beklemiyor." });
+                if (!isBusinessRuleWorkflow && starterRole != "TenantAdmin")
+                    return Results.Conflict(new { error = "Sipariş bağlantısı yetkili bir başlatıcı tarafından kurulmamış; işlem durduruldu." });
+                return null;
+            }
+            default:
+                return null;
+        }
+    }
 
     private static IReadOnlyList<TenantWorkflowStep> ReadSteps(string json) => JsonSerializer.Deserialize<List<TenantWorkflowStep>>(json, JsonOptions) ?? [];
     private static TenantWorkflowStep CurrentStep(TenantWorkflowInstance instance)

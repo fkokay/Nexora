@@ -649,7 +649,7 @@ export function SalesPage({
             label: quoteFieldLabel,
             dataType: quoteFieldType,
             maxLength: Number(quoteFieldMaxLength),
-            isRequired: quoteFieldRequired,
+            isRequired: role === "TenantAdmin" && quoteFieldRequired,
           }),
         },
       );
@@ -702,7 +702,7 @@ export function SalesPage({
             label: orderFieldLabel,
             dataType: orderFieldType,
             maxLength: Number(orderFieldMaxLength),
-            isRequired: orderFieldRequired,
+            isRequired: role === "TenantAdmin" && orderFieldRequired,
           }),
         },
       );
@@ -735,15 +735,19 @@ export function SalesPage({
       if (raw === null) return;
       maxLength = Number(raw);
     }
-    const answer = window.prompt(
-      "Taslaklarda zorunlu olsun mu? Evet/Hayır. Zorunlu yapmak için tüm taslak tekliflerde değer olmalıdır.",
-      field.isRequired ? "Evet" : "Hayır",
-    );
-    if (answer === null) return;
-    const normalized = answer.trim().toLocaleLowerCase("tr-TR");
-    if (!["evet", "hayır", "hayir"].includes(normalized)) {
-      setError("Zorunluluk için Evet veya Hayır yazın.");
-      return;
+    let isRequired: boolean | undefined;
+    if (role === "TenantAdmin") {
+      const answer = window.prompt(
+        "Taslaklarda zorunlu olsun mu? Evet/Hayır. Zorunlu yapmak için tüm taslak tekliflerde değer olmalıdır.",
+        field.isRequired ? "Evet" : "Hayır",
+      );
+      if (answer === null) return;
+      const normalized = answer.trim().toLocaleLowerCase("tr-TR");
+      if (!["evet", "hayır", "hayir"].includes(normalized)) {
+        setError("Zorunluluk için Evet veya Hayır yazın.");
+        return;
+      }
+      isRequired = normalized === "evet";
     }
     setQuoteFieldBusy(true);
     setError("");
@@ -756,7 +760,7 @@ export function SalesPage({
           body: JSON.stringify({
             label,
             maxLength,
-            isRequired: normalized === "evet",
+            ...(isRequired === undefined ? {} : { isRequired }),
           }),
         },
       );
@@ -1362,7 +1366,7 @@ export function SalesPage({
               </p>
             </div>
             <div className="heading-actions">
-              {activeTab === "quotes" && role === "TenantAdmin" && (
+              {activeTab === "quotes" && (role === "TenantAdmin" || role === "TenantDeveloper") && (
                 <>
                   <button
                     className="secondary"
@@ -1624,14 +1628,16 @@ export function SalesPage({
                     >
                       Tanımı düzenle
                     </button>{" "}
-                    <button
-                      type="button"
-                      className="row-action danger-action"
-                      disabled={quoteFieldBusy}
-                      onClick={() => void deactivateQuoteField(field)}
-                    >
-                      Devre dışı bırak
-                    </button>
+                    {role === "TenantAdmin" && (
+                      <button
+                        type="button"
+                        className="row-action danger-action"
+                        disabled={quoteFieldBusy}
+                        onClick={() => void deactivateQuoteField(field)}
+                      >
+                        Devre dışı bırak
+                      </button>
+                    )}
                   </div>
                 </article>
               ))}
@@ -1641,7 +1647,7 @@ export function SalesPage({
                 </div>
               )}
             </div>
-            {role === "TenantAdmin" && (
+            {(role === "TenantAdmin" || role === "TenantDeveloper") && (
               <form
                 onSubmit={createQuoteField}
                 className="panel"
@@ -1707,14 +1713,18 @@ export function SalesPage({
                     </label>
                   )}
                 </div>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={quoteFieldRequired}
-                    onChange={(e) => setQuoteFieldRequired(e.target.checked)}
-                  />{" "}
-                  Bu alanı zorunlu yap
-                </label>
+                {role === "TenantAdmin" ? (
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={quoteFieldRequired}
+                      onChange={(e) => setQuoteFieldRequired(e.target.checked)}
+                    />{" "}
+                    Bu alanı zorunlu yap
+                  </label>
+                ) : (
+                  <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+                )}
                 <div className="modal-foot">
                   <span>Mevcut taslak teklifleri önce doldurun.</span>
                   <button className="secondary" disabled={quoteFieldBusy}>
@@ -1776,7 +1786,7 @@ export function SalesPage({
                 <div className="empty-small">Henüz sipariş alanı yok.</div>
               )}
             </div>
-            {role === "TenantAdmin" && (
+            {(role === "TenantAdmin" || role === "TenantDeveloper") && (
               <form
                 onSubmit={createOrderField}
                 className="panel"
@@ -1844,14 +1854,18 @@ export function SalesPage({
                     </label>
                   )}
                 </div>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={orderFieldRequired}
-                    onChange={(e) => setOrderFieldRequired(e.target.checked)}
-                  />{" "}
-                  Bu alanı zorunlu yap
-                </label>
+                {role === "TenantAdmin" ? (
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={orderFieldRequired}
+                      onChange={(e) => setOrderFieldRequired(e.target.checked)}
+                    />{" "}
+                    Bu alanı zorunlu yap
+                  </label>
+                ) : (
+                  <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+                )}
                 <div className="modal-foot">
                   <span>Açık sipariş varsa önce değerleri tamamlayın.</span>
                   <button className="secondary" disabled={orderFieldBusy}>
@@ -3748,7 +3762,7 @@ function PurchasingPanel({
           label: requestFieldLabel,
           dataType: requestFieldType,
           maxLength: Number(requestFieldMaxLength),
-          isRequired: requestFieldRequired,
+          isRequired: role === "TenantAdmin" && requestFieldRequired,
         }),
       });
       setRequestFieldCode("");
@@ -3776,7 +3790,7 @@ function PurchasingPanel({
           label: orderFieldLabel,
           dataType: orderFieldType,
           maxLength: Number(orderFieldMaxLength),
-          isRequired: orderFieldRequired,
+          isRequired: role === "TenantAdmin" && orderFieldRequired,
         }),
       });
       setOrderFieldCode("");
@@ -3804,13 +3818,20 @@ function PurchasingPanel({
       (!Number.isInteger(maxLength) || maxLength < 1 || maxLength > 500)
     )
       return;
-    const isRequired = window.confirm("Bu alan zorunlu olsun mu?");
+    const isRequired =
+      role === "TenantAdmin"
+        ? window.confirm("Bu alan zorunlu olsun mu?")
+        : undefined;
     setBusy(true);
     setError("");
     try {
       await api(`/api/purchasing/orders/custom-fields/${field.id}`, token, {
         method: "PUT",
-        body: JSON.stringify({ label, maxLength, isRequired }),
+        body: JSON.stringify({
+          label,
+          maxLength,
+          ...(isRequired === undefined ? {} : { isRequired }),
+        }),
       });
       setNotice("Sipariş alanı güncellendi; yeni tanım sürümü kaydedildi.");
       await load();
@@ -3921,13 +3942,20 @@ function PurchasingPanel({
       (!Number.isInteger(maxLength) || maxLength < 1 || maxLength > 500)
     )
       return;
-    const required = window.confirm("Bu alan zorunlu olsun mu?");
+    const required =
+      role === "TenantAdmin"
+        ? window.confirm("Bu alan zorunlu olsun mu?")
+        : undefined;
     setBusy(true);
     setError("");
     try {
       await api(`/api/purchasing/requests/custom-fields/${field.id}`, token, {
         method: "PUT",
-        body: JSON.stringify({ label, maxLength, isRequired: required }),
+        body: JSON.stringify({
+          label,
+          maxLength,
+          ...(required === undefined ? {} : { isRequired: required }),
+        }),
       });
       setNotice("Talep özel alanı güncellendi; yeni tanım sürümü kaydedildi.");
       await load();
@@ -4310,7 +4338,7 @@ function PurchasingPanel({
           label: supplierQuoteFieldLabel,
           dataType: supplierQuoteFieldType,
           maxLength: Number(supplierQuoteFieldMaxLength),
-          isRequired: supplierQuoteFieldRequired,
+          isRequired: role === "TenantAdmin" && supplierQuoteFieldRequired,
         }),
       });
       setSupplierQuoteFieldCode("");
@@ -4340,7 +4368,10 @@ function PurchasingPanel({
       (!Number.isInteger(maxLength) || maxLength < 1 || maxLength > 500)
     )
       return;
-    const isRequired = window.confirm("Bu alan zorunlu olsun mu?");
+    const isRequired =
+      role === "TenantAdmin"
+        ? window.confirm("Bu alan zorunlu olsun mu?")
+        : undefined;
     setBusy(true);
     setError("");
     try {
@@ -4349,7 +4380,11 @@ function PurchasingPanel({
         token,
         {
           method: "PUT",
-          body: JSON.stringify({ label, maxLength, isRequired }),
+          body: JSON.stringify({
+          label,
+          maxLength,
+          ...(isRequired === undefined ? {} : { isRequired }),
+        }),
         },
       );
       setNotice("Tedarikçi teklifi alanı güncellendi.");
@@ -4397,7 +4432,7 @@ function PurchasingPanel({
           label: receiptFieldLabel,
           dataType: receiptFieldType,
           maxLength: Number(receiptFieldMaxLength),
-          isRequired: receiptFieldRequired,
+          isRequired: role === "TenantAdmin" && receiptFieldRequired,
         }),
       });
       setReceiptFieldCode("");
@@ -4425,15 +4460,20 @@ function PurchasingPanel({
       (!Number.isInteger(maxLength) || maxLength < 1 || maxLength > 500)
     )
       return;
-    const isRequired = window.confirm(
-      "Yeni mal kabullerde bu alan zorunlu olsun mu?",
-    );
+    const isRequired =
+      role === "TenantAdmin"
+        ? window.confirm("Yeni mal kabullerde bu alan zorunlu olsun mu?")
+        : undefined;
     setBusy(true);
     setError("");
     try {
       await api(`/api/purchasing/receipts/custom-fields/${field.id}`, token, {
         method: "PUT",
-        body: JSON.stringify({ label, maxLength, isRequired }),
+        body: JSON.stringify({
+          label,
+          maxLength,
+          ...(isRequired === undefined ? {} : { isRequired }),
+        }),
       });
       setNotice("Mal kabul alanı güncellendi.");
       await load();
@@ -4828,7 +4868,7 @@ function PurchasingPanel({
               </small>
             </div>
             <div className="heading-actions">
-              {role === "TenantAdmin" && (
+              {(role === "TenantAdmin" || role === "TenantDeveloper") && (
                 <button
                   className="secondary small-button"
                   onClick={() => setRequestFieldSettingsOpen(true)}
@@ -4993,7 +5033,7 @@ function PurchasingPanel({
           )}
         </section>
       )}
-      {requestFieldSettingsOpen && role === "TenantAdmin" && (
+      {requestFieldSettingsOpen && (role === "TenantAdmin" || role === "TenantDeveloper") && (
         <div
           className="modal-backdrop"
           onMouseDown={(e) => {
@@ -5050,13 +5090,15 @@ function PurchasingPanel({
                     >
                       Sürüm geçmişi
                     </button>
-                    <button
-                      className="row-action danger-action"
-                      disabled={busy}
-                      onClick={() => void deactivateRequestCustomField(field)}
-                    >
-                      Devre dışı bırak
-                    </button>
+                    {role === "TenantAdmin" && (
+                      <button
+                        className="row-action danger-action"
+                        disabled={busy}
+                        onClick={() => void deactivateRequestCustomField(field)}
+                      >
+                        Devre dışı bırak
+                      </button>
+                    )}
                   </article>
                 ))}
                 {requestFieldDefinitions.length === 0 && (
@@ -5100,16 +5142,18 @@ function PurchasingPanel({
                             )}
                           </small>
                         </div>
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          disabled={busy}
-                          onClick={() =>
-                            void restoreRequestFieldRevision(revision)
-                          }
-                        >
-                          Bu sürümü geri yükle
-                        </button>
+                        {role === "TenantAdmin" && (
+                          <button
+                            type="button"
+                            className="secondary small-button"
+                            disabled={busy}
+                            onClick={() =>
+                              void restoreRequestFieldRevision(revision)
+                            }
+                          >
+                            Bu sürümü geri yükle
+                          </button>
+                        )}
                       </article>
                     ))}
                     {requestFieldMetadataHistory.length === 0 && (
@@ -5182,14 +5226,18 @@ function PurchasingPanel({
                     </label>
                   )}
                 </div>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={requestFieldRequired}
-                    onChange={(e) => setRequestFieldRequired(e.target.checked)}
-                  />{" "}
-                  Yeni taleplerde zorunlu olsun
-                </label>
+                {role === "TenantAdmin" ? (
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={requestFieldRequired}
+                      onChange={(e) => setRequestFieldRequired(e.target.checked)}
+                    />{" "}
+                    Yeni taleplerde zorunlu olsun
+                  </label>
+                ) : (
+                  <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+                )}
                 <div className="modal-foot">
                   <span>
                     Zorunlu alanı mevcut talepler varken açmak için önce
@@ -5217,7 +5265,7 @@ function PurchasingPanel({
           </div>
         </div>
       )}
-      {role === "TenantAdmin" && (
+      {(role === "TenantAdmin" || role === "TenantDeveloper") && (
         <section className="panel" style={{ marginBottom: 16 }}>
           <div className="panel-heading">
             <div>
@@ -5246,13 +5294,15 @@ function PurchasingPanel({
                 >
                   Edit
                 </button>
-                <button
-                  className="row-action danger-action"
-                  disabled={busy}
-                  onClick={() => void deactivateSupplierQuoteCustomField(field)}
-                >
-                  Disable
-                </button>
+                {role === "TenantAdmin" && (
+                  <button
+                    className="row-action danger-action"
+                    disabled={busy}
+                    onClick={() => void deactivateSupplierQuoteCustomField(field)}
+                  >
+                    Disable
+                  </button>
+                )}
               </article>
             ))}
             {supplierQuoteFieldDefinitions.length === 0 && (
@@ -5319,16 +5369,20 @@ function PurchasingPanel({
                 </label>
               )}
             </div>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={supplierQuoteFieldRequired}
-                onChange={(e) =>
-                  setSupplierQuoteFieldRequired(e.target.checked)
-                }
-              />{" "}
-              Tekliflerde zorunlu olsun
-            </label>
+            {role === "TenantAdmin" ? (
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={supplierQuoteFieldRequired}
+                  onChange={(e) =>
+                    setSupplierQuoteFieldRequired(e.target.checked)
+                  }
+                />{" "}
+                Tekliflerde zorunlu olsun
+              </label>
+            ) : (
+              <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+            )}
             <div className="modal-foot">
               <span>
                 Zorunlu alan açmak için önce mevcut teklifler doldurulmalıdır.
@@ -5340,7 +5394,7 @@ function PurchasingPanel({
           </form>
         </section>
       )}
-      {!requestsOnly && role === "TenantAdmin" && (
+      {!requestsOnly && (role === "TenantAdmin" || role === "TenantDeveloper") && (
         <details className="panel purchase-settings-panel">
           <summary className="panel-heading">
             <div>
@@ -5377,13 +5431,15 @@ function PurchasingPanel({
                 >
                   Sürüm geçmişi
                 </button>
-                <button
-                  className="row-action danger-action"
-                  disabled={busy}
-                  onClick={() => void deactivateOrderCustomField(field)}
-                >
-                  Devre dışı bırak
-                </button>
+                {role === "TenantAdmin" && (
+                  <button
+                    className="row-action danger-action"
+                    disabled={busy}
+                    onClick={() => void deactivateOrderCustomField(field)}
+                  >
+                    Devre dışı bırak
+                  </button>
+                )}
               </article>
             ))}
           </div>
@@ -5417,14 +5473,16 @@ function PurchasingPanel({
                         {new Date(revision.createdAt).toLocaleString("tr-TR")}
                       </small>
                     </div>
-                    <button
-                      type="button"
-                      className="secondary small-button"
-                      disabled={busy}
-                      onClick={() => void restoreOrderFieldRevision(revision)}
-                    >
-                      Bu sürümü geri yükle
-                    </button>
+                {role === "TenantAdmin" && (
+                  <button
+                    type="button"
+                    className="secondary small-button"
+                    disabled={busy}
+                    onClick={() => void restoreOrderFieldRevision(revision)}
+                  >
+                    Bu sürümü geri yükle
+                  </button>
+                )}
                   </article>
                 ))}
               </div>
@@ -5485,14 +5543,18 @@ function PurchasingPanel({
                 </label>
               )}
             </div>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={orderFieldRequired}
-                onChange={(e) => setOrderFieldRequired(e.target.checked)}
-              />{" "}
-              Zorunlu alan
-            </label>
+            {role === "TenantAdmin" ? (
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={orderFieldRequired}
+                  onChange={(e) => setOrderFieldRequired(e.target.checked)}
+                />{" "}
+                Zorunlu alan
+              </label>
+            ) : (
+              <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+            )}
             <div className="modal-foot">
               <span>Sipariş oluştururken doldurulur.</span>
               <button className="secondary" disabled={busy}>
@@ -5502,7 +5564,7 @@ function PurchasingPanel({
           </form>
         </details>
       )}
-      {!requestsOnly && role === "TenantAdmin" && (
+      {!requestsOnly && (role === "TenantAdmin" || role === "TenantDeveloper") && (
         <details className="panel purchase-settings-panel">
           <summary className="panel-heading">
             <div>
@@ -5532,13 +5594,15 @@ function PurchasingPanel({
                 >
                   D&#252;zenle
                 </button>
-                <button
-                  className="row-action danger-action"
-                  disabled={busy}
-                  onClick={() => void deactivateReceiptCustomField(field)}
-                >
-                  Devre d&#305;&#351;&#305; b&#305;rak
-                </button>
+                {role === "TenantAdmin" && (
+                  <button
+                    className="row-action danger-action"
+                    disabled={busy}
+                    onClick={() => void deactivateReceiptCustomField(field)}
+                  >
+                    Devre d&#305;&#351;&#305; b&#305;rak
+                  </button>
+                )}
               </article>
             ))}
             {receiptFieldDefinitions.length === 0 && (
@@ -5602,14 +5666,18 @@ function PurchasingPanel({
                 </label>
               )}
             </div>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={receiptFieldRequired}
-                onChange={(e) => setReceiptFieldRequired(e.target.checked)}
-              />{" "}
-              Mal kabulde zorunlu
-            </label>
+            {role === "TenantAdmin" ? (
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={receiptFieldRequired}
+                  onChange={(e) => setReceiptFieldRequired(e.target.checked)}
+                />{" "}
+                Mal kabulde zorunlu
+              </label>
+            ) : (
+              <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+            )}
             <div className="modal-foot">
               <span>
                 Her mal kabul kayd&#305; alan tan&#305;m

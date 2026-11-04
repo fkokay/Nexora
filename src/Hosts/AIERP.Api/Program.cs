@@ -216,6 +216,7 @@ app.Use(async (context, next) =>
 });
 app.UseAuthorization();
 app.MapAccessControlEndpoints();
+app.MapLowCodeCapabilityEndpoints();
 app.MapCustomFormEndpoints();
 app.MapTenantScreenViewEndpoints();
 app.MapWorkflowEndpoints();
@@ -224,6 +225,7 @@ app.MapReportEndpoints();
 app.MapDashboardWidgetEndpoints();
 app.MapErpDashboardSummaryEndpoints();
 app.MapCustomMenuEndpoints();
+app.MapTenantCustomizationPackageEndpoints();
 app.MapCrmEndpoints();
 app.MapManufacturingEndpoints();
 app.MapHumanResourcesEndpoints();
@@ -1118,7 +1120,10 @@ customers.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbCon
 customers.MapPost("/custom-fields", async (CustomerCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired) return Results.Forbid();
     var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") ||
         string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
@@ -1129,7 +1134,7 @@ customers.MapPost("/custom-fields", async (CustomerCustomFieldCreateRequest body
     await db.CustomerCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
     if (body.IsRequired && await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId))
         return Results.Conflict(new { error = "Mevcut cari kartları için değerler tamamlanmadan yeni bir alan zorunlu açılamaz. Önce isteğe bağlı oluşturup kartları doldurun." });
-    var definition = new CustomerCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    var definition = new CustomerCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = isTenantAdmin && body.IsRequired };
     db.CustomerCustomFieldDefinitions.Add(definition);
     db.CustomerCustomFieldDefinitionRevisions.Add(ToCustomerCustomFieldRevision(definition, GetUserId(principal), "Created"));
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "customer-custom-field.created", Resource = code });
@@ -1141,7 +1146,10 @@ customers.MapPost("/custom-fields", async (CustomerCustomFieldCreateRequest body
 customers.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, CustomerCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired is not null) return Results.Forbid();
     var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(label) || label.Length > 120) return Results.ValidationProblem(new Dictionary<string, string[]> { ["label"] = ["Alan etiketi zorunludur ve en fazla 120 karakter olabilir."] });
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -1895,7 +1903,10 @@ stockItems.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbCo
 stockItems.MapPost("/custom-fields", async (StockCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired) return Results.Forbid();
     var code = body.Code?.Trim().ToUpperInvariant();
     var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") ||
@@ -1907,7 +1918,7 @@ stockItems.MapPost("/custom-fields", async (StockCustomFieldCreateRequest body, 
     await using var transaction = await db.Database.BeginTransactionAsync();
     await db.StockItemCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[StockItemCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
     var definition = new StockItemCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label,
-        DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+        DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = isTenantAdmin && body.IsRequired };
     if (definition.IsRequired && await db.StockItems.AnyAsync(x => x.TenantId == tenantId))
         return Results.Conflict(new { error = "Mevcut stok kartları için değerler tamamlanmadan yeni bir alan zorunlu olarak açılamaz. Önce alanı isteğe bağlı oluşturup tüm kartları doldurun." });
     db.StockItemCustomFieldDefinitions.Add(definition);
@@ -1937,7 +1948,10 @@ stockItems.MapDelete("/custom-fields/{definitionId:guid}", async (Guid definitio
 stockItems.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, StockCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired is not null) return Results.Forbid();
     var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(label) || label.Length > 120)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Alan etiketi zorunlu ve en fazla 120 karakter olmalıdır."] });
@@ -2196,7 +2210,10 @@ warehouses.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbCo
 warehouses.MapPost("/custom-fields", async (WarehouseCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired) return Results.Forbid();
     var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") ||
         string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) ||
@@ -2206,7 +2223,7 @@ warehouses.MapPost("/custom-fields", async (WarehouseCustomFieldCreateRequest bo
         return Results.Conflict(new { error = "Bu tenant için özel alan kodu daha önce kullanılmış." });
     await using var transaction = await db.Database.BeginTransactionAsync();
     var definition = new WarehouseCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType,
-        MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+        MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = isTenantAdmin && body.IsRequired };
     if (definition.IsRequired && await db.Warehouses.AnyAsync(x => x.TenantId == tenantId))
         return Results.Conflict(new { error = "Mevcut depolar doldurulmadan yeni alan zorunlu yapılamaz. Önce isteğe bağlı oluşturun." });
     db.WarehouseCustomFieldDefinitions.Add(definition);
@@ -2219,7 +2236,10 @@ warehouses.MapPost("/custom-fields", async (WarehouseCustomFieldCreateRequest bo
 warehouses.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, WarehouseCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired is not null) return Results.Forbid();
     var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket ve uzunluk sınırları geçerli olmalıdır."] });
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -3107,13 +3127,16 @@ salesQuotes.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbC
 });
 salesQuotes.MapPost("/custom-fields", async (SalesQuoteCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired) return Results.Forbid();
     var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve metin uzunluğu geçerli olmalıdır."] });
     if (await db.SalesQuoteCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." });
     if (body.IsRequired && await db.SalesQuotes.AnyAsync(x => x.TenantId == tenantId && x.Status == SalesQuoteStatus.Draft)) return Results.Conflict(new { error = "Mevcut taslak tekliflere değer girilmeden alan zorunlu açılamaz. Önce isteğe bağlı oluşturun." });
-    var definition = new SalesQuoteCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    var definition = new SalesQuoteCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = isTenantAdmin && body.IsRequired };
     db.SalesQuoteCustomFieldDefinitions.Add(definition); db.SalesQuoteCustomFieldDefinitionRevisions.Add(ToSalesQuoteCustomFieldRevision(definition, GetUserId(principal), "Created"));
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-quote-custom-field.created", Resource = code });
     try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." }); }
@@ -3121,7 +3144,10 @@ salesQuotes.MapPost("/custom-fields", async (SalesQuoteCustomFieldCreateRequest 
 });
 salesQuotes.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, SalesQuoteCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired is not null) return Results.Forbid();
     var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya metin uzunluğu geçersiz."] });
     await using var tx = await db.Database.BeginTransactionAsync();
     var definition = await db.SalesQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
@@ -3423,7 +3449,10 @@ salesOrders.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbC
 });
 salesOrders.MapPost("/custom-fields", async (SalesOrderCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired) return Results.Forbid();
     var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve metin uzunluğu geçerli olmalıdır."] });
@@ -3432,14 +3461,17 @@ salesOrders.MapPost("/custom-fields", async (SalesOrderCustomFieldCreateRequest 
     if (body.IsRequired && await db.SalesQuotes.AnyAsync(q => q.TenantId == tenantId && q.Status == SalesQuoteStatus.Accepted && !db.SalesOrders.Any(o => o.TenantId == tenantId && o.QuoteId == q.Id) &&
         !db.SalesQuoteCustomFieldValues.Any(v => v.TenantId == tenantId && v.QuoteId == q.Id && v.Value != "" && db.SalesQuoteCustomFieldDefinitions.Any(d => d.TenantId == tenantId && d.Id == v.DefinitionId && d.Code == code))))
         return Results.Conflict(new { error = "Siparişe dönüşmemiş kabul edilmiş teklifler bu kod için değer taşımalıdır. Önce teklif alanını oluşturup değeri teklifte saklayın." });
-    var definition = new SalesOrderCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    var definition = new SalesOrderCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = isTenantAdmin && body.IsRequired };
     db.SalesOrderCustomFieldDefinitions.Add(definition); db.SalesOrderCustomFieldDefinitionRevisions.Add(ToSalesOrderCustomFieldRevision(definition, GetUserId(principal), "Created"));
     try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." }); }
     return Results.Created($"/api/sales/orders/custom-fields/{definition.Id}", new SalesOrderCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
 });
 salesOrders.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, SalesOrderCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired is not null) return Results.Forbid();
     var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya metin uzunluğu geçersiz."] });
     await using var tx = await db.Database.BeginTransactionAsync();
     var definition = await db.SalesOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
@@ -4023,20 +4055,26 @@ salesInvoiceCustomFields.MapGet("/custom-fields", async (ClaimsPrincipal princip
 });
 salesInvoiceCustomFields.MapPost("/custom-fields", async (SalesInvoiceCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired) return Results.Forbid();
     var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve metin uzunluğu geçerli olmalıdır."] });
     if (await db.SalesInvoiceCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." });
     if (body.IsRequired && await db.SalesInvoices.AnyAsync(x => x.TenantId == tenantId && x.Status == SalesInvoiceStatus.Posted)) return Results.Conflict(new { error = "Açık faturalarda doldurulmadan zorunlu alan açılamaz." });
-    var definition = new SalesInvoiceCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    var definition = new SalesInvoiceCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = isTenantAdmin && body.IsRequired };
     db.SalesInvoiceCustomFieldDefinitions.Add(definition); db.SalesInvoiceCustomFieldDefinitionRevisions.Add(ToSalesInvoiceCustomFieldRevision(definition, GetUserId(principal), "Created"));
     try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." }); }
     return Results.Created($"/api/sales/invoices/custom-fields/{definition.Id}", new SalesInvoiceCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
 });
 salesInvoiceCustomFields.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, SalesInvoiceCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired is not null) return Results.Forbid();
     var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya metin uzunluğu geçersiz."] });
     await using var tx = await db.Database.BeginTransactionAsync();
     var definition = await db.SalesInvoiceCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesInvoiceCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
@@ -4857,7 +4895,10 @@ purchaseRequests.MapGet("/custom-fields", async (ClaimsPrincipal principal, Tena
 purchaseRequests.MapPost("/custom-fields", async (PurchaseRequestCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired) return Results.Forbid();
     var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
     if (code is null || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$")
         || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType)
@@ -4868,7 +4909,7 @@ purchaseRequests.MapPost("/custom-fields", async (PurchaseRequestCustomFieldCrea
     if (body.IsRequired && await db.PurchaseRequests.AnyAsync(x => x.TenantId == tenantId))
         return Results.Conflict(new { error = "Zorunlu alan oluşturmadan önce mevcut satın alma taleplerini tamamlayın veya alanı isteğe bağlı oluşturun." });
     var definition = new PurchaseRequestCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType,
-        MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+        MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = isTenantAdmin && body.IsRequired };
     db.PurchaseRequestCustomFieldDefinitions.Add(definition);
     db.PurchaseRequestCustomFieldDefinitionRevisions.Add(ToPurchaseRequestCustomFieldRevision(definition, GetUserId(principal), "Created"));
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "purchase-request-custom-field.created", Resource = code });
@@ -4878,7 +4919,10 @@ purchaseRequests.MapPost("/custom-fields", async (PurchaseRequestCustomFieldCrea
 purchaseRequests.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, PurchaseRequestCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired is not null) return Results.Forbid();
     var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(label) || label.Length > 120) return Results.ValidationProblem(new Dictionary<string, string[]> { ["label"] = ["Etiket zorunludur ve en fazla 120 karakter olabilir."] });
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -5184,13 +5228,16 @@ purchaseSupplierQuotes.MapGet("/custom-fields", async (ClaimsPrincipal principal
 });
 purchaseSupplierQuotes.MapPost("/custom-fields", async (PurchaseSupplierQuoteCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired) return Results.Forbid();
     var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, türü ve uzunluğu geçerli olmalıdır."] });
     if (await db.PurchaseSupplierQuoteCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Alan kodu tenant içinde zaten kullanılmış." });
     if (body.IsRequired && await db.PurchaseSupplierQuotes.AnyAsync(x => x.TenantId == tenantId && x.Status == PurchaseSupplierQuoteStatus.Submitted)) return Results.Conflict(new { error = "Mevcut teklifler doldurulmadan zorunlu alan açılamaz." });
-    var definition = new PurchaseSupplierQuoteCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    var definition = new PurchaseSupplierQuoteCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = isTenantAdmin && body.IsRequired };
     db.PurchaseSupplierQuoteCustomFieldDefinitions.Add(definition); db.PurchaseSupplierQuoteCustomFieldDefinitionRevisions.Add(ToPurchaseSupplierQuoteCustomFieldRevision(definition, GetUserId(principal), "Created"));
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "purchase-supplier-quote-custom-field.created", Resource = code });
     try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Alan kodu tenant içinde zaten kullanılmış." }); }
@@ -5198,7 +5245,10 @@ purchaseSupplierQuotes.MapPost("/custom-fields", async (PurchaseSupplierQuoteCus
 });
 purchaseSupplierQuotes.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, PurchaseSupplierQuoteCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired is not null) return Results.Forbid();
     var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya metin uzunluğu geçersiz."] });
     await using var tx = await db.Database.BeginTransactionAsync();
     var definition = await db.PurchaseSupplierQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseSupplierQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
@@ -5540,12 +5590,15 @@ purchaseReceiptFields.MapGet("/custom-fields", async (ClaimsPrincipal principal,
 });
 purchaseReceiptFields.MapPost("/custom-fields", async (PurchaseReceiptCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired) return Results.Forbid();
     var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve uzunluğu geçerli olmalıdır."] });
     if (await db.PurchaseReceiptCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Alan kodu tenant içinde zaten kullanılmış." });
-    var definition = new PurchaseReceiptCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    var definition = new PurchaseReceiptCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = isTenantAdmin && body.IsRequired };
     db.PurchaseReceiptCustomFieldDefinitions.Add(definition); db.PurchaseReceiptCustomFieldDefinitionRevisions.Add(ToPurchaseReceiptCustomFieldRevision(definition, GetUserId(principal), "Created"));
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "purchase-receipt-custom-field.created", Resource = code });
     try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Alan kodu tenant içinde zaten kullanılmış." }); }
@@ -5553,7 +5606,10 @@ purchaseReceiptFields.MapPost("/custom-fields", async (PurchaseReceiptCustomFiel
 });
 purchaseReceiptFields.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, PurchaseReceiptCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired is not null) return Results.Forbid();
     var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya uzunluk geçersiz."] });
     await using var tx = await db.Database.BeginTransactionAsync();
     var definition = await db.PurchaseReceiptCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseReceiptCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();
@@ -5593,13 +5649,16 @@ purchaseOrders.MapGet("/custom-fields", async (ClaimsPrincipal principal, Tenant
 });
 purchaseOrders.MapPost("/custom-fields", async (PurchaseOrderCustomFieldCreateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired) return Results.Forbid();
     var code = body.Code?.Trim().ToUpperInvariant(); var label = body.Label?.Trim();
     if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve metin uzunluğu geçerli olmalıdır."] });
     if (await db.PurchaseOrderCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." });
     if (body.IsRequired && await db.PurchaseOrders.AnyAsync(x => x.TenantId == tenantId && (x.Status == PurchaseOrderStatus.Open || x.Status == PurchaseOrderStatus.PartiallyReceived || x.Status == PurchaseOrderStatus.PendingApproval))) return Results.Conflict(new { error = "Açık siparişler doldurulmadan zorunlu alan açılamaz." });
-    var definition = new PurchaseOrderCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = body.IsRequired };
+    var definition = new PurchaseOrderCustomFieldDefinition { TenantId = tenantId, Code = code, Label = label, DataType = body.DataType, MaxLength = body.DataType == CustomFieldDataType.Text ? body.MaxLength : 0, IsRequired = isTenantAdmin && body.IsRequired };
     db.PurchaseOrderCustomFieldDefinitions.Add(definition); db.PurchaseOrderCustomFieldDefinitionRevisions.Add(ToPurchaseOrderCustomFieldRevision(definition, GetUserId(principal), "Created"));
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "purchase-order-custom-field.created", Resource = code });
     try { await db.SaveChangesAsync(); } catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." }); }
@@ -5607,7 +5666,10 @@ purchaseOrders.MapPost("/custom-fields", async (PurchaseOrderCustomFieldCreateRe
 });
 purchaseOrders.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionId, PurchaseOrderCustomFieldUpdateRequest body, ClaimsPrincipal principal, TenantDbContext db) =>
 {
-    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); var role = principal.FindFirstValue("role");
+    var isTenantAdmin = role == "TenantAdmin";
+    if (!isTenantAdmin && role != "TenantDeveloper") return Results.Forbid();
+    if (!isTenantAdmin && body.IsRequired is not null) return Results.Forbid();
     var label = body.Label?.Trim(); if (string.IsNullOrWhiteSpace(label) || label.Length > 120 || body.MaxLength is < 0 or > 500) return Results.ValidationProblem(new Dictionary<string, string[]> { ["definition"] = ["Etiket veya uzunluk sınırı geçersiz."] });
     await using var tx = await db.Database.BeginTransactionAsync();
     var definition = await db.PurchaseOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {definitionId}").SingleOrDefaultAsync();

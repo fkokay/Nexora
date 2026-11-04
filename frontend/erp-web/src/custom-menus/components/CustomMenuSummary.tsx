@@ -1,6 +1,6 @@
-type Props = { entryCount: number; targetCount: number };
+type Props = { entryCount: number; targetCount: number; developerEdit: boolean };
 
-export function CustomMenuSummary({ entryCount, targetCount }: Props) {
+export function CustomMenuSummary({ entryCount, targetCount, developerEdit }: Props) {
   return (
     <>
       <div className="page-heading">
@@ -10,6 +10,11 @@ export function CustomMenuSummary({ entryCount, targetCount }: Props) {
           <p className="muted">
             ERP menülerini düzenleyin, çalışma alanına özel kısayollar ekleyin.
           </p>
+          {developerEdit && (
+            <p className="muted">
+              Menü değişiklikleri firma genelinde hemen uygulanır.
+            </p>
+          )}
         </div>
         <span className="custom-menu-count">{entryCount} / 30 özel kısayol</span>
       </div>

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -23,9 +24,10 @@ public static class StandardMenuEndpoints
     public static void MapStandardMenuEndpoints(this WebApplication app)
     {
         var menus = app.MapGroup("/api/custom-menus/standard").RequireAuthorization();
-        menus.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        menus.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenant(user, out var tenant, out _, out _)) return Results.Forbid();
+            if (!TryTenant(user, out var tenant, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenant, userId, role, "read", ct)) return Results.Forbid();
             var saved = await db.TenantStandardMenuLayouts.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenant, ct);
             var stored = saved is null ? [] : JsonSerializer.Deserialize<StandardMenuItem[]>(saved.LayoutJson, JsonOptions) ?? [];
             var byPage = stored.ToDictionary(x => x.Page, StringComparer.Ordinal);
@@ -36,9 +38,10 @@ public static class StandardMenuEndpoints
                 .Select(x => new StandardMenuView(x.item.Page, x.item.Label, x.item.Group, byPage.GetValueOrDefault(x.item.Page)?.Label)).ToArray();
             return Results.Ok(new StandardMenuLayoutView(saved?.Revision ?? 0, ordered));
         });
-        menus.MapPut("/", async (StandardMenuUpdate request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        menus.MapPut("/", async (StandardMenuUpdate request, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenant(user, out var tenant, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenant(user, out var tenant, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenant, userId, role, "update", ct)) return Results.Forbid();
             var allowed = Catalog.Select(x => x.Page).ToHashSet(StringComparer.Ordinal);
             if (request.Items is null || request.Items.Count != allowed.Count || request.Items.Any(x => x is null || !allowed.Contains(x.Page ?? "") || x.Label?.Length > 80 || x.Label?.Any(char.IsControl) == true) || request.Items.Select(x => x.Page).Distinct(StringComparer.Ordinal).Count() != allowed.Count)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["items"] = ["Menü öğeleri geçerli, benzersiz ve eksiksiz olmalı; adlar en fazla 80 karakter içermelidir."] });
@@ -58,6 +61,18 @@ public static class StandardMenuEndpoints
     {
         role = user.FindFirstValue("role") ?? ""; userId = Guid.Empty;
         return Guid.TryParse(user.FindFirstValue("tenant_id"), out tenant) && Guid.TryParse(user.FindFirstValue("sub"), out userId);
+    }
+    private static async Task<bool> IsAllowedAsync(IPlatformPermissionAuthorizer authorizer, Guid tenantId, Guid userId,
+        string role, string action, CancellationToken ct)
+    {
+        var definition = PlatformPermissionCatalog.Definitions.Single(x => x.ResourceType == "erp.custom-menus" && x.Action == action);
+        var permission = new ResolvedPlatformPermission(definition, new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["subject.userId"] = userId.ToString("D"), ["subject.role"] = role,
+            ["resource.type"] = definition.ResourceType, ["resource.tenantId"] = tenantId.ToString("D"),
+            ["request.action"] = action
+        });
+        return await authorizer.IsAllowedAsync(tenantId, userId, role, permission, ct);
     }
     private sealed record StandardMenuDefinition(string Page, string Label, string Group);
     private sealed record StandardMenuItem(string Page, string? Label);

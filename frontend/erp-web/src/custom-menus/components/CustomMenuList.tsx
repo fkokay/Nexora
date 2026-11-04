@@ -4,7 +4,9 @@ import type { Entry } from "../types";
 type Props = {
   entries: Entry[];
   selectedId: string;
-  admin: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
   busy: boolean;
   editing: boolean;
   canAdd: boolean;
@@ -18,7 +20,9 @@ type Props = {
 export function CustomMenuList({
   entries,
   selectedId,
-  admin,
+  canCreate,
+  canUpdate,
+  canDelete,
   busy,
   editing,
   canAdd,
@@ -61,7 +65,7 @@ export function CustomMenuList({
               </small>
             </span>
           </button>
-          {admin && (
+          {canUpdate && (
             <div className="custom-menu-entry-actions">
               <button
                 type="button"
@@ -90,7 +94,7 @@ export function CustomMenuList({
               >
                 <Edit2 size={16} />
               </button>
-              <button
+              {canDelete && <button
                 type="button"
                 className="icon-button danger"
                 disabled={busy}
@@ -98,12 +102,12 @@ export function CustomMenuList({
                 aria-label="Sil"
               >
                 <Trash2 size={16} />
-              </button>
+              </button>}
             </div>
           )}
         </div>
       ))}
-      {admin && canAdd && !editing && (
+      {canCreate && canAdd && !editing && (
         <button type="button" className="custom-menu-add-row" onClick={onAdd}>
           <Plus size={16} /> Menü öğesi oluştur
         </button>

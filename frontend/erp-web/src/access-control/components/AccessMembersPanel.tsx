@@ -95,6 +95,7 @@ export function AccessMembersPanel(props: Props) {
               onChange={(event) => setMemberRole(event.target.value)}
             >
               <option value="TenantUser">TenantUser</option>
+              <option value="TenantDeveloper">TenantDeveloper</option>
               <option value="TenantAdmin">TenantAdmin</option>
             </select>
           </label>
@@ -159,6 +160,7 @@ export function AccessMembersPanel(props: Props) {
             onChange={(event) => setMemberRole(event.target.value)}
           >
             <option value="TenantUser">TenantUser</option>
+            <option value="TenantDeveloper">TenantDeveloper</option>
             <option value="TenantAdmin">TenantAdmin</option>
           </select>
         </label>
@@ -206,6 +208,7 @@ export function AccessMembersPanel(props: Props) {
                   }
                 >
                   <option value="TenantUser">TenantUser</option>
+                  <option value="TenantDeveloper">TenantDeveloper</option>
                   <option value="TenantAdmin">TenantAdmin</option>
                 </select>
               </label>

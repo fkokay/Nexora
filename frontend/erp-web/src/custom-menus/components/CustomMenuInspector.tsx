@@ -4,14 +4,14 @@ import type { Entry } from "../types";
 type Props = {
   entry: Entry | null;
   entryIndex: number;
-  admin: boolean;
+  canUpdate: boolean;
   onEdit: (entry: Entry) => void;
 };
 
 export function CustomMenuInspector({
   entry,
   entryIndex,
-  admin,
+  canUpdate,
   onEdit,
 }: Props) {
   return (
@@ -52,7 +52,7 @@ export function CustomMenuInspector({
               <dd>{entry.position + 1}</dd>
             </div>
           </dl>
-          {admin && (
+          {canUpdate && (
             <button
               className="secondary"
               type="button"

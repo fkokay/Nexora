@@ -1,16 +1,39 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { authenticatedFetch } from "./authApi";
+import { useLowCodeCapabilities } from "./useLowCodeCapabilities";
 import { ClipboardList, FilePlus2, Plus } from "lucide-react";
 import "./custom-forms.css";
 import { CustomFormBuilder } from "./custom-forms/components/CustomFormBuilder";
 import { CustomFormsCatalog } from "./custom-forms/components/CustomFormsCatalog";
 import { CustomFormsHistoryPanel } from "./custom-forms/components/CustomFormsHistoryPanel";
 import {
+  CustomFormTemplateGallery,
+  type CustomFormTemplate,
+} from "./custom-forms/components/CustomFormTemplateGallery";
+import {
   type Field,
   type Form,
   type Revision,
   type Submission,
+  isFieldVisible,
+  isFieldRequired,
+  getDefaultFieldValues,
 } from "./custom-forms/types";
+
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isValidPhone(value: string) {
+  if (!/^\+?[0-9\s().-]+$/.test(value)) return false;
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 7 && digits.length <= 15;
+}
 
 export default function CustomFormsPage({
   token,
@@ -20,6 +43,9 @@ export default function CustomFormsPage({
   role: string;
 }) {
   const admin = role === "TenantAdmin";
+  const capabilityState = useLowCodeCapabilities(token);
+  const permissions = capabilityState.customForms;
+  const canDesign = permissions.canCreate || permissions.canUpdate;
   const [forms, setForms] = useState<Form[]>([]),
     [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selected, setSelected] = useState<Form | null>(null),
@@ -82,8 +108,9 @@ export default function CustomFormsPage({
     );
   }, [request]);
   useEffect(() => {
+    if (!permissions.canRead) return;
     void refresh().catch((e) => setError((e as Error).message));
-  }, [refresh]);
+  }, [permissions.canRead, refresh]);
   const published = useMemo(
     () => forms.filter((x) => x.status === "Published"),
     [forms],
@@ -102,10 +129,33 @@ export default function CustomFormsPage({
         dataType: "Text",
         isRequired: false,
         maxLength: 250,
+        minLength: 0,
+        minValue: null,
+        maxValue: null,
+        minDate: null,
+        maxDate: null,
+        textFormat: "None",
         options: [],
       },
     ]);
     setValues({});
+    setBuilderPreview(false);
+    setPreviewErrors({});
+    setMode("builder");
+  }
+  function useFormTemplate(template: CustomFormTemplate) {
+    const existing = new Set(forms.map((form) => form.code.toLowerCase()));
+    let availableCode = template.code;
+    let suffix = 2;
+    while (existing.has(availableCode.toLowerCase())) {
+      availableCode = `${template.code}-${suffix++}`;
+    }
+    setSelected(null);
+    setName(template.name);
+    setCode(availableCode);
+    setDescription(template.description);
+    setFields(template.fields.map((field) => ({ ...field, options: [...(field.options ?? [])] })));
+    setValues(getDefaultFieldValues(template.fields));
     setBuilderPreview(false);
     setPreviewErrors({});
     setMode("builder");
@@ -116,7 +166,7 @@ export default function CustomFormsPage({
     setCode(form.code);
     setDescription(form.description ?? "");
     setFields(form.fields.map((f) => ({ ...f, options: f.options ?? [] })));
-    setValues({});
+    setValues(getDefaultFieldValues(form.fields));
     setBuilderPreview(false);
     setPreviewErrors({});
     setMode("builder");
@@ -143,6 +193,12 @@ export default function CustomFormsPage({
       dataType,
       isRequired: false,
       maxLength: dataType === "Text" ? 250 : 0,
+      minLength: 0,
+      minValue: null,
+      maxValue: null,
+      minDate: null,
+      maxDate: null,
+      textFormat: "None",
       options: dataType === "Choice" ? ["Seçenek 1", "Seçenek 2"] : [],
     };
   }
@@ -162,6 +218,12 @@ export default function CustomFormsPage({
             ...field,
             ...patch,
             maxLength: 0,
+            minLength: 0,
+            minValue: null,
+            maxValue: null,
+            minDate: null,
+            maxDate: null,
+            textFormat: "None",
             options: ["Seçenek 1", "Seçenek 2"],
           };
         if (patch.dataType && patch.dataType !== "Choice")
@@ -170,6 +232,31 @@ export default function CustomFormsPage({
             ...patch,
             options: [],
             maxLength: patch.dataType === "Text" ? field.maxLength || 250 : 0,
+            minLength: patch.dataType === "Text" ? field.minLength ?? 0 : 0,
+            minValue:
+              patch.dataType === "Decimal" && field.dataType === "Decimal"
+                ? field.minValue ?? null
+                : null,
+            maxValue:
+              patch.dataType === "Decimal" && field.dataType === "Decimal"
+                ? field.maxValue ?? null
+                : null,
+            minDate:
+              patch.dataType === "Date" && field.dataType === "Date"
+                ? field.minDate ?? null
+                : null,
+            maxDate:
+              patch.dataType === "Date" && field.dataType === "Date"
+                ? field.maxDate ?? null
+                : null,
+            textFormat:
+              patch.dataType === "Text" && field.dataType === "Text"
+                ? field.textFormat ?? "None"
+                : "None",
+            isMultiline:
+              patch.dataType === "Text" && field.dataType === "Text"
+                ? field.isMultiline ?? false
+                : false,
           };
         return { ...field, ...patch };
       }),
@@ -237,19 +324,33 @@ export default function CustomFormsPage({
       setError((e as Error).message);
     }
   }
-  async function submit(form: Form) {
+  async function submit(form: Form, submittedValues: Record<string, string>): Promise<boolean> {
+    const effectiveValues = { ...getDefaultFieldValues(form.fields), ...submittedValues };
+    for (const field of form.fields) {
+      if (isFieldVisible(field, effectiveValues, form.fields)
+        && isFieldRequired(field, effectiveValues, form.fields)
+        && !String(effectiveValues[field.code] ?? "").trim()) {
+        setError(`“${field.label}” alanı zorunludur.`);
+        return false;
+      }
+    }
     setBusy(true);
     setError("");
     try {
       await request(`/api/custom-forms/${form.id}/submissions`, {
         method: "POST",
-        body: JSON.stringify({ values }),
+        body: JSON.stringify({ values: submittedValues }),
       });
-      setValues({});
       setNotice("Yanıtınız gönderildi.");
-      await refresh();
+      try {
+        await refresh();
+      } catch (refreshError) {
+        setError(`Yanıt gönderildi ancak liste yenilenemedi: ${(refreshError as Error).message}`);
+      }
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -281,6 +382,16 @@ export default function CustomFormsPage({
           <option key={option}>{option}</option>
         ))}
       </select>
+    ) : field.dataType === "Text" && field.isMultiline ? (
+      <textarea
+        required={required}
+        maxLength={field.maxLength ?? undefined}
+        minLength={field.minLength ?? undefined}
+        placeholder={field.placeholder ?? undefined}
+        rows={4}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     ) : (
       <input
         required={required}
@@ -289,32 +400,56 @@ export default function CustomFormsPage({
             ? "number"
             : field.dataType === "Date"
               ? "date"
-              : "text"
+              : field.dataType === "Text" && field.textFormat === "Email"
+                ? "email"
+                : field.dataType === "Text" && field.textFormat === "Url"
+                  ? "url"
+                  : field.dataType === "Text" && field.textFormat === "Phone"
+                    ? "tel"
+                    : "text"
         }
         step={field.dataType === "Decimal" ? "any" : undefined}
         maxLength={
           field.dataType === "Text" ? (field.maxLength ?? undefined) : undefined
         }
+        minLength={field.dataType === "Text" ? (field.minLength ?? undefined) : undefined}
+        min={field.dataType === "Date" ? (field.minDate ?? undefined) : field.dataType === "Decimal" ? (field.minValue ?? undefined) : undefined}
+        max={field.dataType === "Date" ? (field.maxDate ?? undefined) : field.dataType === "Decimal" ? (field.maxValue ?? undefined) : undefined}
+        placeholder={field.dataType === "Text" ? (field.placeholder ?? undefined) : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
     );
   function validatePreview(): Record<string, string> {
     const errors: Record<string, string> = {};
+    const effectiveValues = { ...getDefaultFieldValues(fields), ...values };
     for (const field of fields) {
-      const value = (values[field.code] ?? "").trim();
+      if (!isFieldVisible(field, effectiveValues, fields)) continue;
+      const value = (effectiveValues[field.code] ?? "").trim();
       if (!value) {
-        if (field.isRequired) errors[field.code] = "Bu alan zorunludur.";
+        if (isFieldRequired(field, effectiveValues, fields)) errors[field.code] = "Bu alan zorunludur.";
         continue;
       }
       if (field.dataType === "Text" && value.length > (field.maxLength ?? 250))
         errors[field.code] =
           `En fazla ${field.maxLength ?? 250} karakter girilebilir.`;
+      else if (field.dataType === "Text" && value.length < (field.minLength ?? 0))
+        errors[field.code] = `En az ${field.minLength ?? 0} karakter girilmelidir.`;
+      else if (field.dataType === "Text" && field.textFormat === "Email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+        errors[field.code] = "Geçerli bir e-posta adresi girin.";
+      else if (field.dataType === "Text" && field.textFormat === "Url" && !isHttpUrl(value))
+        errors[field.code] = "http:// veya https:// ile başlayan geçerli bir adres girin.";
+      else if (field.dataType === "Text" && field.textFormat === "Phone" && !isValidPhone(value))
+        errors[field.code] = "7–15 rakam içeren geçerli bir telefon girin.";
       else if (
         field.dataType === "Decimal" &&
         !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value)
       )
         errors[field.code] = "Nokta kullanarak geçerli bir sayı girin.";
+      else if (field.dataType === "Decimal" && field.minValue != null && Number(value) < field.minValue)
+        errors[field.code] = `En az ${field.minValue} girilmelidir.`;
+      else if (field.dataType === "Decimal" && field.maxValue != null && Number(value) > field.maxValue)
+        errors[field.code] = `En fazla ${field.maxValue} girilmelidir.`;
       else if (
         field.dataType === "Date" &&
         (!/^\d{4}-\d{2}-\d{2}$/.test(value) ||
@@ -322,6 +457,10 @@ export default function CustomFormsPage({
           new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) !== value)
       )
         errors[field.code] = "Geçerli bir tarih girin.";
+      else if (field.dataType === "Date" && field.minDate != null && value < field.minDate)
+        errors[field.code] = `En erken ${field.minDate} tarihi seçilebilir.`;
+      else if (field.dataType === "Date" && field.maxDate != null && value > field.maxDate)
+        errors[field.code] = `En geç ${field.maxDate} tarihi seçilebilir.`;
       else if (
         field.dataType === "Boolean" &&
         value !== "true" &&
@@ -337,6 +476,8 @@ export default function CustomFormsPage({
     setPreviewErrors(errors);
     return errors;
   }
+  if (capabilityState.loading) return <div className="low-code-access-state" role="status">Yetkiler yükleniyor…</div>;
+  if (!permissions.canRead) return <div className="low-code-access-state" role="alert">Özel formları görüntüleme izniniz yok.</div>;
   return (
     <div className="forms-page">
       <header className="forms-hero">
@@ -350,7 +491,7 @@ export default function CustomFormsPage({
             İş süreçleri için form tasarlayın, yayımlayın ve yanıtları yönetin.
           </p>
         </div>
-        {admin && (
+        {permissions.canCreate && (
           <button className="primary" onClick={startNew}>
             <Plus size={17} /> Yeni form
           </button>
@@ -385,6 +526,9 @@ export default function CustomFormsPage({
           </article>
         </section>
       )}
+      {permissions.canCreate && mode === "catalog" && (
+        <CustomFormTemplateGallery onSelect={useFormTemplate} />
+      )}
       <div className="forms-tabs">
         <button
           className={mode === "catalog" ? "active" : ""}
@@ -392,7 +536,7 @@ export default function CustomFormsPage({
         >
           <ClipboardList size={16} /> Formlar <span>{published.length}</span>
         </button>
-        {admin && mode !== "catalog" && (
+        {canDesign && mode !== "catalog" && (
           <button
             className={mode === "builder" ? "active" : ""}
             onClick={() => setMode("builder")}
@@ -401,7 +545,7 @@ export default function CustomFormsPage({
           </button>
         )}
       </div>
-      {mode === "builder" && admin && (
+      {mode === "builder" && canDesign && (
         <CustomFormBuilder
           selected={selected}
           name={name}
@@ -437,7 +581,7 @@ export default function CustomFormsPage({
           control={control}
         />
       )}
-      {mode === "history" && selected && admin && (
+      {mode === "history" && selected && permissions.canRead && (
         <CustomFormsHistoryPanel
           selected={selected}
           history={history}
@@ -458,13 +602,15 @@ export default function CustomFormsPage({
           catalogSelection={catalogSelection}
           selectedId={selected?.id ?? null}
           admin={admin}
+          canManageDrafts={canDesign || permissions.canPublish}
+          canUpdate={permissions.canUpdate}
+          canPublish={permissions.canPublish}
+          canReadHistory={permissions.canRead}
           busy={busy}
-          values={values}
           decisionReason={decisionReason}
           onSelect={setSelected}
-          onValuesChange={setValues}
           onDecisionReasonChange={setDecisionReason}
-          onSubmit={(form) => void submit(form)}
+          onSubmit={submit}
           onEdit={edit}
           onOpenHistory={(form) => void openHistory(form)}
           onMutate={(url, body) => void mutate(url, body)}

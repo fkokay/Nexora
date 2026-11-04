@@ -126,7 +126,8 @@ export default function DashboardWidgets({
   const [selectedReport, setSelectedReport] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const canEdit = role === "TenantAdmin";
+  const canEdit = role === "TenantAdmin" || role === "TenantDeveloper";
+  const developerEdit = role === "TenantDeveloper";
 
   async function loadPreview(widget: Widget) {
     const requestSequence =
@@ -309,6 +310,11 @@ export default function DashboardWidgets({
           <p className="muted">
             Kayıtlı raporları firmanızın ana ekranına ekleyin ve sıralayın.
           </p>
+          {developerEdit && (
+            <p className="muted">
+              Değişiklikler tüm firmaya hemen uygulanır.
+            </p>
+          )}
         </div>
         {canEdit && (
           <div className="dashboard-widget-add">

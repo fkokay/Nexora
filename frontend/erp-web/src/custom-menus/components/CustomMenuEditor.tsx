@@ -3,7 +3,7 @@ import { Save, X } from "lucide-react";
 import type { Target } from "../types";
 
 type Props = {
-  admin: boolean;
+  canDesign: boolean;
   busy: boolean;
   editing: boolean;
   code: string;
@@ -19,7 +19,7 @@ type Props = {
 };
 
 export function CustomMenuEditor({
-  admin,
+  canDesign,
   busy,
   editing,
   code,
@@ -51,7 +51,7 @@ export function CustomMenuEditor({
           </button>
         )}
       </div>
-      {admin ? (
+      {canDesign ? (
         <form onSubmit={onSubmit}>
           <label className="custom-menu-field">
             Menü kodu
@@ -112,8 +112,8 @@ export function CustomMenuEditor({
         </form>
       ) : (
         <div className="custom-menu-readonly">
-          Özel menüleri yalnız TenantAdmin düzenleyebilir. Mevcut menüler
-          çalışma alanı kenar çubuğunda görünür.
+          Özel menü düzenleme yetkisi gerekir. Mevcut menüler çalışma alanı
+          kenar çubuğunda görünür.
         </div>
       )}
     </section>

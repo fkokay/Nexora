@@ -2992,6 +2992,18 @@ public sealed class TenantStandardMenuLayout
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+public sealed class TenantCustomizationPackageSnapshot
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public int Version { get; set; }
+    public string Name { get; set; } = "";
+    public string PackageJson { get; set; } = "{}";
+    public string Sha256 { get; set; } = "";
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class TenantCustomMenuEntry
 {
     public Guid Id { get; set; } = Guid.NewGuid();

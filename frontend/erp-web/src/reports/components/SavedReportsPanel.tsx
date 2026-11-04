@@ -5,6 +5,7 @@ import type { SavedReport, Source } from "../reportTypes";
 type Props = {
   isList: boolean;
   admin: boolean;
+  canDesign: boolean;
   loading: boolean;
   busy: boolean;
   loadError: string;
@@ -21,6 +22,7 @@ type Props = {
 export function SavedReportsPanel({
   isList,
   admin,
+  canDesign,
   loading,
   busy,
   loadError,
@@ -98,32 +100,28 @@ export function SavedReportsPanel({
                 {new Date(report.updatedAt).toLocaleDateString(locale)}
               </small>
             </button>
+            {canDesign && (
+              <button
+                type="button"
+                className="report-delete-saved"
+                title={
+                  isList
+                    ? tx("Listeyi çoğalt", "Duplicate list")
+                    : tx("Raporu çoğalt", "Duplicate report")
+                }
+                aria-label={
+                  isList
+                    ? tx(`Listeyi çoğalt: ${report.name}`, `Duplicate list: ${report.name}`)
+                    : tx(`Raporu çoğalt: ${report.name}`, `Duplicate report: ${report.name}`)
+                }
+                disabled={busy}
+                onClick={() => onDuplicate(report)}
+              >
+                <Copy size={15} />
+              </button>
+            )}
             {admin && (
               <>
-                <button
-                  type="button"
-                  className="report-delete-saved"
-                  title={
-                    isList
-                      ? tx("Listeyi çoğalt", "Duplicate list")
-                      : tx("Raporu çoğalt", "Duplicate report")
-                  }
-                  aria-label={
-                    isList
-                      ? tx(
-                          `Listeyi çoğalt: ${report.name}`,
-                          `Duplicate list: ${report.name}`,
-                        )
-                      : tx(
-                          `Raporu çoğalt: ${report.name}`,
-                          `Duplicate report: ${report.name}`,
-                        )
-                  }
-                  disabled={busy}
-                  onClick={() => onDuplicate(report)}
-                >
-                  <Copy size={15} />
-                </button>
                 <button
                   type="button"
                   className="report-delete-saved"
@@ -157,7 +155,7 @@ export function SavedReportsPanel({
           {tx("Henüz kayıtlı", "No saved")}{" "}
           {isList ? tx("liste", "lists") : tx("rapor", "reports")}{" "}
           {tx("yok.", "yet.")}
-          {admin
+          {canDesign
             ? ` ${tx("Bir", "Create a")} ${isList ? tx("liste", "list") : tx("rapor", "report")} ${tx("tasarlayıp kaydedin.", "and save it.")}`
             : tx(
                 " Yöneticinizden görünüm paylaşmasını isteyin.",

@@ -16,6 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import "./developer-mode.css";
+import { TenantCustomizationPackagePanel } from "./TenantCustomizationPackagePanel";
 
 type Props = {
   page: string;
@@ -423,6 +424,9 @@ export function DeveloperModePanel({
                 </section>
               )}
             </div>
+            {activeTab === "technical" && (
+              <TenantCustomizationPackagePanel token={token} locale={locale} />
+            )}
             <div className="developer-mode-hint">
               <GitBranch size={15} />
               <span>

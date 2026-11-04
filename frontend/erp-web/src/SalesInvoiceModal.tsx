@@ -265,7 +265,7 @@ export function SalesInvoiceModal({
             label: fieldLabel,
             dataType: fieldType,
             maxLength: Number(fieldMaxLength),
-            isRequired: fieldRequired,
+            isRequired: role === "TenantAdmin" && fieldRequired,
           }),
         },
       );
@@ -295,7 +295,9 @@ export function SalesInvoiceModal({
       (!Number.isInteger(maxLength) || maxLength < 1 || maxLength > 500)
     )
       return;
-    const isRequired = window.confirm("Bu alan zorunlu olsun mu?");
+    const isRequired = role === "TenantAdmin"
+      ? window.confirm("Bu alan zorunlu olsun mu?")
+      : undefined;
     setCustomFieldBusy(true);
     setError("");
     try {
@@ -304,7 +306,11 @@ export function SalesInvoiceModal({
         token,
         {
           method: "PUT",
-          body: JSON.stringify({ label, maxLength, isRequired }),
+          body: JSON.stringify({
+            label,
+            maxLength,
+            ...(isRequired === undefined ? {} : { isRequired }),
+          }),
         },
       );
       setNotice("Fatura alanı yeni sürüm olarak kaydedildi.");
@@ -649,7 +655,7 @@ export function SalesInvoiceModal({
               </span>
             </section>
             {invoice &&
-              (invoice.customFields?.length > 0 || role === "TenantAdmin") && (
+              (invoice.customFields?.length > 0 || role === "TenantAdmin" || role === "TenantDeveloper") && (
                 <section className="panel invoice-custom-fields">
                   <div className="panel-heading">
                     <div>
@@ -665,7 +671,7 @@ export function SalesInvoiceModal({
                         )}
                       </small>
                     </div>
-                    {role === "TenantAdmin" && (
+                    {(role === "TenantAdmin" || role === "TenantDeveloper") && (
                       <button
                         type="button"
                         className="secondary small-button"
@@ -749,7 +755,7 @@ export function SalesInvoiceModal({
                               >
                                 Geçmiş
                               </button>
-                              {role === "TenantAdmin" && (
+                              {(role === "TenantAdmin" || role === "TenantDeveloper") && (
                                 <>
                                   <button
                                     type="button"
@@ -761,16 +767,18 @@ export function SalesInvoiceModal({
                                   >
                                     Tanımı düzenle
                                   </button>
-                                  <button
-                                    type="button"
-                                    className="row-action danger-action"
-                                    disabled={customFieldBusy}
-                                    onClick={() =>
-                                      void deactivateInvoiceCustomField(field)
-                                    }
-                                  >
-                                    Devre dışı
-                                  </button>
+                                  {role === "TenantAdmin" && (
+                                    <button
+                                      type="button"
+                                      className="row-action danger-action"
+                                      disabled={customFieldBusy}
+                                      onClick={() =>
+                                        void deactivateInvoiceCustomField(field)
+                                      }
+                                    >
+                                      Devre dışı
+                                    </button>
+                                  )}
                                 </>
                               )}
                             </span>
@@ -797,7 +805,7 @@ export function SalesInvoiceModal({
                       Henüz fatura alanı tanımlanmadı.
                     </div>
                   )}
-                  {role === "TenantAdmin" && fieldFormOpen && (
+                  {(role === "TenantAdmin" || role === "TenantDeveloper") && fieldFormOpen && (
                     <form
                       className="invoice-field-create"
                       onSubmit={createInvoiceCustomField}
@@ -860,14 +868,18 @@ export function SalesInvoiceModal({
                           </label>
                         )}
                       </div>
-                      <label className="check-row">
-                        <input
-                          type="checkbox"
-                          checked={fieldRequired}
-                          onChange={(e) => setFieldRequired(e.target.checked)}
-                        />{" "}
-                        Zorunlu alan
-                      </label>
+                      {role === "TenantAdmin" ? (
+                        <label className="check-row">
+                          <input
+                            type="checkbox"
+                            checked={fieldRequired}
+                            onChange={(e) => setFieldRequired(e.target.checked)}
+                          />{" "}
+                          Zorunlu alan
+                        </label>
+                      ) : (
+                        <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+                      )}
                       <div className="modal-foot">
                         <span>Faturalar varsa yeni zorunlu alan açılamaz.</span>
                         <button className="primary" disabled={customFieldBusy}>

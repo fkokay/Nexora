@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -579,9 +580,10 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("finance-credit-movements", "Gerçekleşen kredi hareketleri", FinanceCreditMovementFields)
         }));
 
-        views.MapGet("/{screenKey}/active", async (string screenKey, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        views.MapGet("/{screenKey}/active", async (string screenKey, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out _, out _)) return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
             if (!TryGetCatalog(screenKey, out var catalog)) return Results.NotFound();
             catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
             var view = await db.TenantScreenViews.AsNoTracking()
@@ -589,23 +591,26 @@ internal static class TenantScreenViewEndpoints
             return Results.Ok(view is null ? DefaultView(catalog) : ToView(view, catalog));
         });
 
-        views.MapGet("/{screenKey}/draft", async (string screenKey, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        views.MapGet("/{screenKey}/draft", async (string screenKey, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out _, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
+            var canManageDrafts = await CanManageDraftsAsync(authorizer, tenantId, userId, role, ct);
             if (!TryGetCatalog(screenKey, out var catalog)) return Results.NotFound();
             catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
-            var draft = await db.TenantScreenViews.AsNoTracking()
+            var draft = canManageDrafts ? await db.TenantScreenViews.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key && !x.IsPublished &&
                     !db.TenantScreenViewRevisions.Any(revision => revision.TenantId == tenantId && revision.ScreenViewId == x.Id &&
-                        (revision.ChangeKind == "Published" || revision.ChangeKind == "Superseded")), ct);
+                        (revision.ChangeKind == "Published" || revision.ChangeKind == "Superseded")), ct) : null;
             var active = await db.TenantScreenViews.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key && x.IsPublished, ct);
             return Results.Ok(new ScreenViewEditorState(catalog, active is null ? DefaultView(catalog) : ToView(active, catalog), draft is null ? null : ToView(draft, catalog)));
         });
 
-        views.MapPost("/{screenKey}/draft", async (string screenKey, ScreenViewDraftCreateRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        views.MapPost("/{screenKey}/draft", async (string screenKey, ScreenViewDraftCreateRequest request, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct)) return Results.Forbid();
             if (!TryGetCatalog(screenKey, out var catalog)) return Results.NotFound();
             catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
             if (await db.TenantScreenViews.AnyAsync(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key && !x.IsPublished &&
@@ -629,9 +634,10 @@ internal static class TenantScreenViewEndpoints
             return Results.Created($"/api/screen-views/{catalog.Key}/draft", ToView(draft, catalog));
         });
 
-        views.MapPut("/{viewId:guid}", async (Guid viewId, ScreenViewUpdateRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        views.MapPut("/{viewId:guid}", async (Guid viewId, ScreenViewUpdateRequest request, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "update", ct)) return Results.Forbid();
             var view = await db.TenantScreenViews.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == viewId, ct);
             if (view is null) return Results.NotFound();
             if (view.IsPublished) return Results.Conflict(new { error = "Yayımlanmış görünüm doğrudan değiştirilemez; yeni taslak oluşturun." });
@@ -649,9 +655,10 @@ internal static class TenantScreenViewEndpoints
             return Results.Ok(ToView(view, catalog));
         });
 
-        views.MapPost("/{viewId:guid}/publish", async (Guid viewId, ScreenViewPublishRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        views.MapPost("/{viewId:guid}/publish", async (Guid viewId, ScreenViewPublishRequest request, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "execute", ct)) return Results.Forbid();
             var draft = await db.TenantScreenViews.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == viewId, ct);
             if (draft is null) return Results.NotFound();
             if (draft.IsPublished) return Results.Conflict(new { error = "Görünüm zaten yayımlanmış." });
@@ -674,9 +681,10 @@ internal static class TenantScreenViewEndpoints
             return Results.Ok(ToView(draft, catalog));
         });
 
-        views.MapGet("/{screenKey}/history", async (string screenKey, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        views.MapGet("/{screenKey}/history", async (string screenKey, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out _, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
             if (!TryGetCatalog(screenKey, out var catalog)) return Results.NotFound();
             catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
             var items = await db.TenantScreenViewRevisions.AsNoTracking()
@@ -685,9 +693,10 @@ internal static class TenantScreenViewEndpoints
             return Results.Ok(items.Select(ToRevisionView));
         });
 
-        views.MapPost("/{screenKey}/draft-from-revision/{revisionId:guid}", async (string screenKey, Guid revisionId, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        views.MapPost("/{screenKey}/draft-from-revision/{revisionId:guid}", async (string screenKey, Guid revisionId, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
-            if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role != "TenantAdmin") return Results.Forbid();
+            if (!TryTenantContext(user, out var tenantId, out var userId, out var role)
+                || !await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct)) return Results.Forbid();
             if (!TryGetCatalog(screenKey, out var catalog)) return Results.NotFound();
             catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
             if (await db.TenantScreenViews.AnyAsync(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key && !x.IsPublished &&
@@ -720,6 +729,25 @@ internal static class TenantScreenViewEndpoints
         if (!Guid.TryParse(user.FindFirstValue("tenant_id"), out tenantId) || !Guid.TryParse(user.FindFirstValue("sub"), out userId)) return false;
         role = user.FindFirstValue("role") ?? "";
         return true;
+    }
+
+    private static async Task<bool> CanManageDraftsAsync(IPlatformPermissionAuthorizer authorizer, Guid tenantId,
+        Guid userId, string role, CancellationToken ct) =>
+        await IsAllowedAsync(authorizer, tenantId, userId, role, "create", ct)
+        || await IsAllowedAsync(authorizer, tenantId, userId, role, "update", ct)
+        || await IsAllowedAsync(authorizer, tenantId, userId, role, "execute", ct);
+
+    private static async Task<bool> IsAllowedAsync(IPlatformPermissionAuthorizer authorizer, Guid tenantId,
+        Guid userId, string role, string action, CancellationToken ct)
+    {
+        var definition = PlatformPermissionCatalog.Definitions.Single(x => x.ResourceType == "erp.screen-views" && x.Action == action);
+        var permission = new ResolvedPlatformPermission(definition, new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["subject.userId"] = userId.ToString("D"), ["subject.role"] = role,
+            ["resource.type"] = definition.ResourceType, ["resource.tenantId"] = tenantId.ToString("D"),
+            ["request.action"] = action
+        });
+        return await authorizer.IsAllowedAsync(tenantId, userId, role, permission, ct);
     }
 
     private static bool TryGetCatalog(string key, out ScreenViewCatalog catalog)
@@ -1190,6 +1218,35 @@ internal static class TenantScreenViewEndpoints
         }
         normalized = result;
         return true;
+    }
+
+    internal static bool ValidatePackageLayout(string screenKey, string layoutJson,
+        IReadOnlyList<ScreenViewFieldLayout> packagedCustomFields, out string[] errors)
+    {
+        errors = [];
+        if (!TryGetCatalog(screenKey, out var catalog))
+        {
+            errors = ["Ekran anahtarı bu sürümde desteklenmiyor."];
+            return false;
+        }
+        IReadOnlyList<ScreenViewFieldLayout>? fields;
+        try { fields = JsonSerializer.Deserialize<List<ScreenViewFieldLayout>>(layoutJson, JsonOptions); }
+        catch (JsonException)
+        {
+            errors = ["Ekran düzeni okunamadı."];
+            return false;
+        }
+        IReadOnlyList<ScreenViewFieldLayout> customFields = catalog.Key is "customers" or "sales-invoices"
+            ? packagedCustomFields : Array.Empty<ScreenViewFieldLayout>();
+        var expandedCatalog = catalog with
+        {
+            Fields = catalog.Fields.Where(field => !field.Fixed)
+                .Concat(customFields.Select(field => new ScreenViewField(field.Key, field.Label, false)))
+                .Concat(catalog.Fields.Where(field => field.Fixed)).ToArray()
+        };
+        if (TryNormalizeFields(fields, expandedCatalog, out _, out var validationErrors)) return true;
+        errors = validationErrors?.Values.SelectMany(messages => messages).ToArray() ?? new[] { "Ekran düzeni geçersiz." };
+        return false;
     }
 
     private static void AddAudit(TenantDbContext db, Guid tenantId, Guid userId, string action, string resource) =>

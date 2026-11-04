@@ -548,7 +548,7 @@ export function InventoryPage({
             label: customFieldLabel,
             dataType: customFieldType,
             maxLength: Number(customFieldMaxLength),
-            isRequired: customFieldRequired,
+            isRequired: role === "TenantAdmin" && customFieldRequired,
           }),
         },
       );
@@ -692,15 +692,19 @@ export function InventoryPage({
       setError("Metin uzunluğu 1–500 arasında tam sayı olmalıdır.");
       return;
     }
-    const requiredAnswer = window.prompt(
-      "Alan zorunlu olsun mu? Evet veya Hayır. Zorunlu yapmak için tüm mevcut stok kartlarında değer bulunmalıdır.",
-      definition.isRequired ? "Evet" : "Hayır",
-    );
-    if (requiredAnswer === null) return;
-    const answer = requiredAnswer.trim().toLocaleLowerCase("tr-TR");
-    if (!["evet", "hayır", "hayir"].includes(answer)) {
-      setError("Zorunluluk için Evet veya Hayır yazın.");
-      return;
+    let isRequired: boolean | undefined;
+    if (role === "TenantAdmin") {
+      const requiredAnswer = window.prompt(
+        "Alan zorunlu olsun mu? Evet veya Hayır. Zorunlu yapmak için tüm mevcut stok kartlarında değer bulunmalıdır.",
+        definition.isRequired ? "Evet" : "Hayır",
+      );
+      if (requiredAnswer === null) return;
+      const answer = requiredAnswer.trim().toLocaleLowerCase("tr-TR");
+      if (!["evet", "hayır", "hayir"].includes(answer)) {
+        setError("Zorunluluk için Evet veya Hayır yazın.");
+        return;
+      }
+      isRequired = answer === "evet";
     }
     setCustomFieldBusy(true);
     setError("");
@@ -713,7 +717,7 @@ export function InventoryPage({
           body: JSON.stringify({
             label,
             maxLength,
-            isRequired: answer === "evet",
+            ...(isRequired === undefined ? {} : { isRequired }),
           }),
         },
       );
@@ -1246,7 +1250,7 @@ export function InventoryPage({
             label: warehouseFieldLabel,
             dataType: warehouseFieldType,
             maxLength: Number(warehouseFieldMaxLength),
-            isRequired: warehouseFieldRequired,
+            isRequired: role === "TenantAdmin" && warehouseFieldRequired,
           }),
         },
       );
@@ -1280,15 +1284,19 @@ export function InventoryPage({
       if (raw === null) return;
       maxLength = Number(raw);
     }
-    const answer = window.prompt(
-      "Zorunlu olsun mu? Evet/Hayır. Mevcut depolarda değer bulunmalıdır.",
-      field.isRequired ? "Evet" : "Hayır",
-    );
-    if (answer === null) return;
-    const requiredAnswer = answer.trim().toLocaleLowerCase("tr-TR");
-    if (!["evet", "hayır", "hayir"].includes(requiredAnswer)) {
-      setError("Zorunluluk için Evet veya Hayır yazın.");
-      return;
+    let isRequired: boolean | undefined;
+    if (role === "TenantAdmin") {
+      const answer = window.prompt(
+        "Zorunlu olsun mu? Evet/Hayır. Mevcut depolarda değer bulunmalıdır.",
+        field.isRequired ? "Evet" : "Hayır",
+      );
+      if (answer === null) return;
+      const requiredAnswer = answer.trim().toLocaleLowerCase("tr-TR");
+      if (!["evet", "hayır", "hayir"].includes(requiredAnswer)) {
+        setError("Zorunluluk için Evet veya Hayır yazın.");
+        return;
+      }
+      isRequired = requiredAnswer === "evet";
     }
     setWarehouseFieldBusy(true);
     setError("");
@@ -1301,7 +1309,7 @@ export function InventoryPage({
           body: JSON.stringify({
             label,
             maxLength,
-            isRequired: requiredAnswer === "evet",
+            ...(isRequired === undefined ? {} : { isRequired }),
           }),
         },
       );
@@ -2160,7 +2168,7 @@ export function InventoryPage({
                     >
                       Depoları yönet
                     </button>
-                    {role === "TenantAdmin" && (
+                    {(role === "TenantAdmin" || role === "TenantDeveloper") && (
                       <button
                         className="secondary"
                         onClick={() => void openWarehouseFieldCatalog()}
@@ -2836,7 +2844,7 @@ export function InventoryPage({
                           >
                             Değer geçmişi
                           </button>
-                          {role === "TenantAdmin" && (
+                          {(role === "TenantAdmin" || role === "TenantDeveloper") && (
                             <div>
                               <button
                                 type="button"
@@ -2856,16 +2864,18 @@ export function InventoryPage({
                               >
                                 Sürüm geçmişi
                               </button>{" "}
-                              <button
-                                type="button"
-                                className="row-action"
-                                disabled={customFieldBusy}
-                                onClick={() =>
-                                  void deactivateCustomField(field)
-                                }
-                              >
-                                Alanı devre dışı bırak
-                              </button>
+                              {role === "TenantAdmin" && (
+                                <button
+                                  type="button"
+                                  className="row-action"
+                                  disabled={customFieldBusy}
+                                  onClick={() =>
+                                    void deactivateCustomField(field)
+                                  }
+                                >
+                                  Alanı devre dışı bırak
+                                </button>
+                              )}
                             </div>
                           )}
                         </article>
@@ -3010,7 +3020,7 @@ export function InventoryPage({
                     </div>
                   </section>
                 )}
-                {role === "TenantAdmin" && (
+                {(role === "TenantAdmin" || role === "TenantDeveloper") && (
                   <form
                     onSubmit={createCustomField}
                     className="panel"
@@ -3083,16 +3093,22 @@ export function InventoryPage({
                         </label>
                       )}
                     </div>
-                    <label className="check-row">
-                      <input
-                        type="checkbox"
-                        checked={customFieldRequired}
-                        onChange={(e) =>
-                          setCustomFieldRequired(e.target.checked)
-                        }
-                      />{" "}
-                      Bu alanı zorunlu yap
-                    </label>
+                    {role === "TenantAdmin" ? (
+                      <label className="check-row">
+                        <input
+                          type="checkbox"
+                          checked={customFieldRequired}
+                          onChange={(e) =>
+                            setCustomFieldRequired(e.target.checked)
+                          }
+                        />{" "}
+                        Bu alanı zorunlu yap
+                      </label>
+                    ) : (
+                      <p className="muted">
+                        Geliştirici tarafından eklenen alanlar isteğe bağlıdır.
+                      </p>
+                    )}
                     <div className="modal-foot">
                       <span>Mevcut kartlarda önce değerleri tamamlayın.</span>
                       <button className="secondary" disabled={customFieldBusy}>
@@ -4082,7 +4098,7 @@ export function InventoryPage({
                       {field.isRequired ? " · zorunlu" : ""} · v{field.version}
                     </small>
                   </div>
-                  {role === "TenantAdmin" && (
+                  {(role === "TenantAdmin" || role === "TenantDeveloper") && (
                     <div>
                       <button
                         type="button"
@@ -4092,14 +4108,16 @@ export function InventoryPage({
                       >
                         Tanımı düzenle
                       </button>{" "}
-                      <button
-                        type="button"
-                        className="row-action danger-action"
-                        disabled={warehouseFieldBusy}
-                        onClick={() => void deactivateWarehouseField(field)}
-                      >
-                        Devre dışı bırak
-                      </button>
+                      {role === "TenantAdmin" && (
+                        <button
+                          type="button"
+                          className="row-action danger-action"
+                          disabled={warehouseFieldBusy}
+                          onClick={() => void deactivateWarehouseField(field)}
+                        >
+                          Devre dışı bırak
+                        </button>
+                      )}
                     </div>
                   )}
                 </article>
@@ -4110,7 +4128,7 @@ export function InventoryPage({
                 </div>
               )}
             </div>
-            {role === "TenantAdmin" && (
+            {(role === "TenantAdmin" || role === "TenantDeveloper") && (
               <form
                 onSubmit={createWarehouseField}
                 className="panel warehouse-field-create-form"
@@ -4179,16 +4197,20 @@ export function InventoryPage({
                     </label>
                   )}
                 </div>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={warehouseFieldRequired}
-                    onChange={(e) =>
-                      setWarehouseFieldRequired(e.target.checked)
-                    }
-                  />{" "}
-                  Bu alanı zorunlu yap
-                </label>
+                {role === "TenantAdmin" ? (
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={warehouseFieldRequired}
+                      onChange={(e) =>
+                        setWarehouseFieldRequired(e.target.checked)
+                      }
+                    />{" "}
+                    Bu alanı zorunlu yap
+                  </label>
+                ) : (
+                  <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+                )}
                 <div className="modal-foot">
                   <span>Mevcut depo değerlerini önce tamamlayın.</span>
                   <button className="secondary" disabled={warehouseFieldBusy}>
@@ -4406,7 +4428,7 @@ export function InventoryPage({
                 </div>
               </div>
             </form>
-            {role === "TenantAdmin" && (
+            {(role === "TenantAdmin" || role === "TenantDeveloper") && (
               <form
                 onSubmit={createWarehouseField}
                 className="panel warehouse-field-create-form"
@@ -4475,16 +4497,20 @@ export function InventoryPage({
                     </label>
                   )}
                 </div>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={warehouseFieldRequired}
-                    onChange={(e) =>
-                      setWarehouseFieldRequired(e.target.checked)
-                    }
-                  />{" "}
-                  Bu alanı zorunlu yap
-                </label>
+                {role === "TenantAdmin" ? (
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={warehouseFieldRequired}
+                      onChange={(e) =>
+                        setWarehouseFieldRequired(e.target.checked)
+                      }
+                    />{" "}
+                    Bu alanı zorunlu yap
+                  </label>
+                ) : (
+                  <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+                )}
                 <div className="modal-foot">
                   <span>Mevcut depo değerlerini önce tamamlayın.</span>
                   <button className="secondary" disabled={warehouseFieldBusy}>

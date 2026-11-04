@@ -11,6 +11,7 @@ import type {
 } from "./built-in-screen-views/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
+import { useLowCodeCapabilities } from "./useLowCodeCapabilities";
 import { LayoutTemplate, ShieldCheck } from "lucide-react";
 import "./built-in-screen-views.css";
 
@@ -43,7 +44,6 @@ async function api<T>(
 
 export default function BuiltInScreenViewsPage({
   token,
-  role,
   locale = "tr",
 }: {
   token: string;
@@ -61,7 +61,9 @@ export default function BuiltInScreenViewsPage({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const loadSequence = useRef(0);
-  const admin = role === "TenantAdmin";
+  const capabilityState = useLowCodeCapabilities(token);
+  const permissions = capabilityState.screenViews;
+  const canDesign = permissions.canCreate || permissions.canUpdate;
   const selectedCatalog = catalogs.find((catalog) => catalog.key === screenKey);
   const screenLabel =
     en && screenKey === "manufacturing-mrp-lines"
@@ -323,13 +325,14 @@ export default function BuiltInScreenViewsPage({
   );
 
   useEffect(() => {
+    if (!permissions.canRead) return;
     void load();
     return () => {
       loadSequence.current++;
     };
-  }, [load]);
+  }, [load, permissions.canRead]);
   useEffect(() => {
-    if (!admin) return;
+    if (!permissions.canRead) return;
     let active = true;
     void api<Revision[]>(
       token,
@@ -344,7 +347,7 @@ export default function BuiltInScreenViewsPage({
     return () => {
       active = false;
     };
-  }, [admin, screenKey, state?.draft?.revision, state?.active.revision, token]);
+  }, [permissions.canRead, screenKey, state?.draft?.revision, state?.active.revision, token]);
 
   const visibleFields = useMemo(
     () =>
@@ -502,6 +505,8 @@ export default function BuiltInScreenViewsPage({
     }
   }
 
+  if (capabilityState.loading) return <div className="low-code-access-state" role="status">Yetkiler yükleniyor…</div>;
+  if (!permissions.canRead) return <div className="low-code-access-state" role="alert">Ekran düzenlerini görüntüleme izniniz yok.</div>;
   return (
     <section className="screen-view-page">
       <header className="screen-view-hero screen-page-header">
@@ -817,7 +822,9 @@ export default function BuiltInScreenViewsPage({
           <ScreenViewEditor
             en={en}
             busy={busy}
-            admin={admin}
+            canDesign={canDesign}
+            canCreateDraft={permissions.canCreate}
+            canPublish={permissions.canPublish}
             state={state}
             fields={fields}
             name={name}
@@ -839,12 +846,13 @@ export default function BuiltInScreenViewsPage({
             visibleFields={visibleFields}
             previewGroups={previewGroups}
           />
-          {admin && (
+          {permissions.canRead && (
             <ScreenViewHistory
               en={en}
               busy={busy}
               state={state}
               history={history}
+              canRestoreDraft={permissions.canCreate}
               onRefresh={() => void load()}
               onRestore={(revision) => void restoreDraft(revision)}
             />
