@@ -44,3 +44,23 @@
 @media(prefers-reduced-motion:reduce){.studio-root.studio-dashboard-reference .studio-adaptation-card {transition:none}}
 
 .studio-root.studio-dashboard-reference .studio-adaptation-open {justify-content:flex-start;padding-top:0;border-top:0}
+.studio-root.studio-dashboard-reference .studio-adaptation-flows {grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.studio-root.studio-dashboard-reference .studio-adaptation-flow {display:grid;grid-template-columns:48px minmax(0,1fr);align-content:start;gap:12px 14px;min-height:176px;padding:20px;border:1px solid #deddf4;border-radius:16px;background:linear-gradient(145deg,#fff,#fbfaff);box-shadow:0 5px 16px #6254960a}
+.studio-root.studio-dashboard-reference .studio-adaptation-flow-icon {display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:#eee9ff;color:#7048e8}
+.studio-root.studio-dashboard-reference .studio-adaptation-flow-copy h3 {margin:2px 0 7px;color:#232347;font-size:15px;font-weight:750;line-height:1.35}
+.studio-root.studio-dashboard-reference .studio-adaptation-flow-copy p {margin:0;color:#697098;font-size:11px;line-height:1.6}
+.studio-root.studio-dashboard-reference .studio-adaptation-flow-links {grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;padding-top:14px;border-top:1px solid #ecebfa}
+.studio-root.studio-dashboard-reference .studio-adaptation-flow-links a {display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid #e1dcfa;border-radius:9px;background:#fff;color:#5d36cf;font-size:11px;font-weight:700;text-decoration:none;transition:background .15s,border-color .15s}
+.studio-root.studio-dashboard-reference .studio-adaptation-flow-links a:hover {border-color:#b7a5f5;background:#f7f4ff}
+.studio-root.studio-dashboard-reference .studio-adaptation-advanced {margin-top:18px;border:1px solid #e4e2f1;border-radius:13px;background:#fff;overflow:hidden}
+.studio-root.studio-dashboard-reference .studio-adaptation-advanced-toggle {display:flex;width:100%;align-items:center;justify-content:space-between;padding:14px 17px;border:0;background:transparent;color:#4c4b70;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.studio-root.studio-dashboard-reference .studio-adaptation-advanced-toggle svg {transition:transform .15s}
+.studio-root.studio-dashboard-reference .studio-adaptation-advanced-toggle[aria-expanded=true] svg {transform:rotate(90deg)}
+.studio-root.studio-dashboard-reference .studio-adaptation-advanced-list {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:0 12px 12px}
+.studio-root.studio-dashboard-reference .studio-adaptation-advanced-list a {display:flex;align-items:center;gap:10px;min-width:0;padding:11px;border:1px solid #eceaf6;border-radius:10px;color:#6252a5;text-decoration:none}
+.studio-root.studio-dashboard-reference .studio-adaptation-advanced-list a:hover {background:#faf9ff;border-color:#d7cdf9}
+.studio-root.studio-dashboard-reference .studio-adaptation-advanced-list a span {display:grid;gap:3px;min-width:0;flex:1}
+.studio-root.studio-dashboard-reference .studio-adaptation-advanced-list b {color:#343456;font-size:11px}
+.studio-root.studio-dashboard-reference .studio-adaptation-advanced-list small {color:#7e829e;font-size:9px;line-height:1.4}
+@media(max-width:1350px){.studio-root.studio-dashboard-reference .studio-adaptation-flows{grid-template-columns:repeat(2,minmax(0,1fr))}.studio-root.studio-dashboard-reference .studio-adaptation-advanced-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:780px){.studio-root.studio-dashboard-reference .studio-adaptation-flows,.studio-root.studio-dashboard-reference .studio-adaptation-advanced-list{grid-template-columns:minmax(0,1fr)}.studio-root.studio-dashboard-reference .studio-adaptation-flow{min-height:0}}

@@ -109,6 +109,55 @@ const studioModuleStarters = [
     description: "Metindeki kelime ve karakter sayısını hesaplar.",
   },
 ] as const;
+type LowCodeSample = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  package: {
+    schemaVersion: number;
+    exportedAt: string;
+    forms: { code: string; name: string; description: string; fieldsJson: string }[];
+    workflows: { code: string; name: string; description: string; stepsJson: string }[];
+    businessRules: { code: string; name: string; description: string; trigger: string; conditionsJson: string; workflowCode: string }[];
+    screenViews: unknown[];
+    reports: unknown[];
+    customMenus: unknown[];
+    customFields: unknown[];
+    standardMenuLayoutJson: null;
+  };
+};
+const lowCodeSamples: LowCodeSample[] = [
+  {
+    id: "customer-feedback",
+    name: "Müşteri geri bildirim formu",
+    description: "Müşteriden konu, öncelik ve açıklama bilgilerini alan düzenlenebilir bir form taslağı kurar.",
+    category: "Form",
+    package: {
+      schemaVersion: 1, exportedAt: "2026-01-01T00:00:00Z",
+      forms: [{ code: "ornek_musteri_geri_bildirim", name: "Müşteri geri bildirimi", description: "Müşteri talep ve geri bildirimlerini toplayın.", fieldsJson: JSON.stringify([
+        { code: "customerName", label: "Ad Soyad", dataType: "Text", isRequired: true, maxLength: 120, placeholder: "Adınızı yazın", sectionTitle: "İletişim" },
+        { code: "email", label: "E-posta", dataType: "Text", isRequired: true, maxLength: 254, textFormat: "Email" },
+        { code: "subject", label: "Konu", dataType: "Choice", isRequired: true, maxLength: 0, options: ["Ürün", "Teslimat", "Fatura", "Diğer"], sectionTitle: "Geri bildirim" },
+        { code: "priority", label: "Öncelik", dataType: "Choice", isRequired: true, maxLength: 0, options: ["Normal", "Yüksek", "Acil"] },
+        { code: "message", label: "Açıklama", dataType: "Text", isRequired: true, maxLength: 1000, minLength: 10, isMultiline: true, placeholder: "Talebinizi açıklayın" },
+      ]) }],
+      workflows: [], businessRules: [], screenViews: [], reports: [], customMenus: [], customFields: [], standardMenuLayoutJson: null,
+    },
+  },
+  {
+    id: "purchase-order-approval",
+    name: "Yüksek tutarlı sipariş onayı",
+    description: "10.000 üzerindeki yeni satın alma siparişleri için yönetici onay taslağı ve otomasyon kuralı kurar.",
+    category: "Otomasyon",
+    package: {
+      schemaVersion: 1, exportedAt: "2026-01-01T00:00:00Z", forms: [],
+      workflows: [{ code: "ornek_satinalma_yuksek_tutar", name: "Yüksek tutarlı satın alma onayı", description: "Yönetici onay adımı içeren örnek akış.", stepsJson: JSON.stringify([{ name: "Yönetici onayı", approverRole: "TenantAdmin" }]) }],
+      businessRules: [{ code: "ornek_satinalma_tutar_kontrolu", name: "Yüksek tutarlı siparişi onaya gönder", description: "10.000 üzerindeki yeni satın alma siparişlerinde yönetici onay akışını başlatır.", trigger: "purchase-order.created", conditionsJson: JSON.stringify([{ field: "grandTotal", operator: "GreaterThan", value: "10000" }]), workflowCode: "ornek_satinalma_yuksek_tutar" }],
+      screenViews: [], reports: [], customMenus: [], customFields: [], standardMenuLayoutJson: null,
+    },
+  },
+];
 type LoginResponse = {
   accessToken: string;
   displayName: string;
@@ -194,6 +243,8 @@ export default function App() {
   const [marketplaceQuery, setMarketplaceQuery] = useState("");
   const [toolQuery, setToolQuery] = useState("");
   const [marketplaceBusy, setMarketplaceBusy] = useState("");
+  const [sampleInstallBusy, setSampleInstallBusy] = useState("");
+  const [installedSamples, setInstalledSamples] = useState<string[]>([]);
   const [analyticsRange, setAnalyticsRange] = useState(180);
   const [analyticsProject, setAnalyticsProject] = useState("all");
   const projectsRequestId = useRef(0);
@@ -332,6 +383,44 @@ export default function App() {
       normalizeToolSearch(toolQuery.trim()),
     ),
   );
+  const adaptationFlows = [
+    {
+      title: "Form ve ekranları düzenle",
+      description:
+        "Alanları ekle, formları ve kayıt listelerini işine göre ayarla.",
+      icon: FileText,
+      toolIds: ["custom-forms", "screen-views", "custom-lists"],
+    },
+    {
+      title: "İş süreçlerini otomatikleştir",
+      description:
+        "Onay adımlarını ve koşullara bağlı iş kurallarını tek akışta kur.",
+      icon: Zap,
+      toolIds: ["workflows", "business-rules"],
+    },
+    {
+      title: "Çalışma alanını kişiselleştir",
+      description:
+        "Menüleri ve raporları düzenleyerek ekibi için sadeleştir.",
+      icon: FolderKanban,
+      toolIds: ["custom-menus", "reports"],
+    },
+  ].map((flow) => ({
+    ...flow,
+    tools: flow.toolIds
+      .map((id) => availablePlatformTools.find((tool) => tool.id === id))
+      .filter((tool): tool is (typeof availablePlatformTools)[number] => !!tool),
+  }));
+  const filteredAdaptationFlows = adaptationFlows
+    .map((flow) => ({
+      ...flow,
+      tools: flow.tools.filter((tool) => filteredPlatformTools.includes(tool)),
+    }))
+    .filter((flow) => flow.tools.length > 0);
+  const advancedPlatformTools = filteredPlatformTools.filter((tool) =>
+    ["modules", "source-workspaces", "settings"].includes(tool.id),
+  );
+  const [showAdvancedTools, setShowAdvancedTools] = useState(false);
   const platformToolHref = (toolId: string) => {
     const url = new URL("/", platformOrigin);
     url.searchParams.set("platformTool", toolId);
@@ -365,6 +454,25 @@ export default function App() {
           token,
         ),
       );
+      try {
+        const pkg = await api<{
+          forms?: { code: string }[];
+          workflows?: { code: string }[];
+          businessRules?: { code: string }[];
+        }>("/api/tenant-customizations/packages/export", token);
+        const installed = lowCodeSamples
+          .filter((sample) => {
+            const formCodes = new Set((pkg.forms || []).map((item) => item.code));
+            const workflowCodes = new Set((pkg.workflows || []).map((item) => item.code));
+            const ruleCodes = new Set((pkg.businessRules || []).map((item) => item.code));
+            if (sample.id === "customer-feedback") return formCodes.has("ornek_musteri_geri_bildirim");
+            return workflowCodes.has("ornek_satinalma_yuksek_tutar") || ruleCodes.has("ornek_satinalma_tutar_kontrolu");
+          })
+          .map((sample) => sample.id);
+        setInstalledSamples(installed);
+      } catch {
+        // Marketplace module access can be available without low-code package read access.
+      }
     } catch (cause) {
       setMarketplaceError((cause as Error).message);
     } finally {
@@ -712,6 +820,31 @@ export default function App() {
     setRequestProjectId("");
     setError("");
     setShowRequest(true);
+  }
+
+  async function installLowCodeSample(sample: LowCodeSample) {
+    if (!token || !tenant || sampleInstallBusy) return;
+    setSampleInstallBusy(sample.id);
+    setMarketplaceError("");
+    setMarketplaceNotice("");
+    try {
+      const result = await api<{ imported: string[]; skipped: string[]; note?: string }>(
+        "/api/tenant-customizations/packages/import",
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ package: sample.package, confirmImmediateApply: false }),
+        },
+      );
+      setInstalledSamples((current) => current.includes(sample.id) ? current : [...current, sample.id]);
+      setMarketplaceNotice(
+        `${sample.name} kuruldu. ${result.imported.length} taslak tanım eklendi${result.skipped.length ? `; ${result.skipped.length} mevcut tanım atlandı` : ""}. Taslakları ilgili Formlar veya İş akışları aracından gözden geçirip yayımlayın.`,
+      );
+    } catch (reason) {
+      setMarketplaceError((reason as Error).message || "Örnek kurulamadı.");
+    } finally {
+      setSampleInstallBusy("");
+    }
   }
 
   function openRequestForEdit(request: DevelopmentRequest) {
@@ -1515,14 +1648,47 @@ export default function App() {
                   {marketplaceNotice}
                 </div>
               )}
+              <section className="studio-marketplace-starters studio-marketplace-installable">
+                <header>
+                  <div>
+                    <span>DOĞRUDAN KURULABİLİR</span>
+                    <h2>Hazır low-code örnekleri</h2>
+                    <p>Örnek tanımları tenant çalışma alanınıza taslak olarak kurun; inceleyip yayımladıktan sonra kullanıma açın.</p>
+                  </div>
+                  <b>{lowCodeSamples.length} örnek</b>
+                </header>
+                <div className="studio-marketplace-starter-grid">
+                  {lowCodeSamples.map((sample) => (
+                    <article className="studio-marketplace-starter" key={sample.id}>
+                      <div className="studio-marketplace-starter-top">
+                        <span>{sample.category === "Form" ? <FileText size={17} /> : <Zap size={17} />}</span>
+                        <small>{sample.category}</small>
+                      </div>
+                      <h3>{sample.name}</h3>
+                      <p>{sample.description}</p>
+                      <div className="studio-marketplace-sample-footnote">
+                        {sample.category === "Form" ? "Özel form taslağı" : "İş akışı ve iş kuralı taslağı"} · veri kaydı oluşturmaz
+                      </div>
+                      <button
+                        className="primary small-button"
+                        type="button"
+                        disabled={!!sampleInstallBusy || installedSamples.includes(sample.id)}
+                        onClick={() => void installLowCodeSample(sample)}
+                      >
+                        {sampleInstallBusy === sample.id ? <RefreshCw size={14} className="studio-sample-spin" /> : installedSamples.includes(sample.id) ? <Check size={14} /> : <Plus size={14} />}
+                        {sampleInstallBusy === sample.id ? "Kuruluyor…" : installedSamples.includes(sample.id) ? "Kuruldu" : "Çalışma alanına kur"}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </section>
               <section className="studio-marketplace-starters">
                 <header>
                   <div>
-                    <span>ÖRNEKLER</span>
-                    <h2>Kendi modülünüz için başlangıç şablonları</h2>
+                    <span>GELİŞTİRİCİ ŞABLONLARI</span>
+                    <h2>Kod modülü geliştirme</h2>
                     <p>
-                      Şablon seçtiğinizde modül adı ve teknik kodu geliştirme
-                      talebine aktarılır.
+                      Bunlar doğrudan kurulan modül değildir. Kaynak kodu temel alıp WASM modülü geliştirme talebi açar.
                     </p>
                   </div>
                   <b>{studioModuleStarters.length} şablon</b>
@@ -1782,11 +1948,10 @@ export default function App() {
               >
                 <header className="studio-adaptation-section-heading">
                   <div>
-                    <span>ARAÇLAR</span>
-                    <h2>Çalışma alanınızı yapılandırın</h2>
+                    <span>BAŞLANGIÇ</span>
+                    <h2>Neyi düzenlemek istiyorsunuz?</h2>
                     <p>
-                      Bir araç seçtiğinizde ekran Studio çalışma alanı içinde
-                      açılır.
+                      İhtiyacınızı seçin; ilgili tasarım adımlarını burada bulun.
                     </p>
                   </div>
                   <label className="studio-adaptation-search">
@@ -1800,56 +1965,82 @@ export default function App() {
                     />
                   </label>
                 </header>
-                <div className="studio-adaptation-grid">
-                  {filteredPlatformTools.map((tool) => {
-                    const ToolIcon = tool.icon;
-                    const internal =
-                      tool.id === "modules" || tool.id === "source-workspaces";
-                    const href =
-                      tool.id === "modules"
-                        ? "#marketplace"
-                        : tool.id === "source-workspaces"
-                          ? "#projects"
-                          : `#tool-${tool.id}`;
+                <div className="studio-adaptation-grid studio-adaptation-flows">
+                  {filteredAdaptationFlows.map((flow) => {
+                    const FlowIcon = flow.icon;
                     return (
-                      <a
-                        className="studio-adaptation-card"
-                        data-tool={tool.id}
-                        key={tool.id}
-                        href={internal ? href : `#tool-${tool.id}`}
-                        aria-label={`${tool.title} ekranını aç`}
+                      <article
+                        className="studio-adaptation-flow"
+                        key={flow.title}
                       >
-                        <div className="studio-adaptation-card-top">
-                          <span className="studio-adaptation-icon">
-                            <ToolIcon size={27} />
-                          </span>
-                          <span className="studio-adaptation-index">
-                            {String(
-                              availablePlatformTools.findIndex(
-                                (item) => item.id === tool.id,
-                              ) + 1,
-                            ).padStart(2, "0")}
-                          </span>
-                        </div>
-                        <div className="studio-adaptation-card-copy">
-                          <h3>{tool.title}</h3>
-                          <p>{tool.description}</p>
-                        </div>
-                        <span className="studio-adaptation-open">
-                          Studio’da aç <ArrowUpRight size={15} />
+                        <span className="studio-adaptation-flow-icon">
+                          <FlowIcon size={23} />
                         </span>
-                        <ToolIcon
-                          className="studio-adaptation-watermark"
-                          size={85}
-                          aria-hidden="true"
-                        />
-                      </a>
+                        <div className="studio-adaptation-flow-copy">
+                          <h3>{flow.title}</h3>
+                          <p>{flow.description}</p>
+                        </div>
+                        <div className="studio-adaptation-flow-links">
+                          {flow.tools.map((tool) => (
+                            <a href={`#tool-${tool.id}`} key={tool.id}>
+                              {tool.title}
+                              <ArrowUpRight size={13} />
+                            </a>
+                          ))}
+                        </div>
+                      </article>
                     );
                   })}
                 </div>
+                {advancedPlatformTools.length > 0 && (
+                  <section className="studio-adaptation-advanced">
+                    <button
+                      type="button"
+                      className="studio-adaptation-advanced-toggle"
+                      aria-expanded={showAdvancedTools || !!toolQuery.trim()}
+                      onClick={() => setShowAdvancedTools((value) => !value)}
+                    >
+                      <span>
+                        {showAdvancedTools || toolQuery.trim()
+                          ? "Gelişmiş araçları gizle"
+                          : "Gelişmiş araçları göster"}
+                      </span>
+                      <ChevronRight size={16} />
+                    </button>
+                    {(showAdvancedTools || !!toolQuery.trim()) && (
+                      <div className="studio-adaptation-advanced-list">
+                        {advancedPlatformTools.map((tool) => {
+                          const ToolIcon = tool.icon;
+                          const href =
+                            tool.id === "modules"
+                              ? "#marketplace"
+                              : tool.id === "source-workspaces"
+                                ? "#projects"
+                                : `#tool-${tool.id}`;
+                          return (
+                            <a href={href} key={tool.id}>
+                              <ToolIcon size={17} />
+                              <span>
+                                <b>{tool.title}</b>
+                                <small>{tool.description}</small>
+                              </span>
+                              <ArrowUpRight size={14} />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                )}
                 <p className="studio-adaptation-results" role="status">
-                  {filteredPlatformTools.length} /{" "}
-                  {availablePlatformTools.length} araç
+                  {filteredAdaptationFlows.reduce(
+                    (count, flow) => count + flow.tools.length,
+                    0,
+                  ) +
+                    (showAdvancedTools || !!toolQuery.trim()
+                      ? advancedPlatformTools.length
+                      : 0)}{" "}
+                  araç erişilebilir
                 </p>
                 {filteredPlatformTools.length === 0 && (
                   <div className="studio-adaptation-empty">
