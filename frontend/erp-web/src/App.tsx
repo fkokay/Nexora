@@ -216,7 +216,6 @@ export default function App() {
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [platformStatus, setPlatformStatus] = useState<
     "checking" | "ready" | "unavailable"
   >("checking");
@@ -293,7 +292,6 @@ export default function App() {
   }, [token, tenant?.id, locale]);
   const globalSearchPages: GlobalSearchResult[] = useMemo(() => {
     const pageResults: GlobalSearchResult[] = [
-      { page: "dashboard", label: tx("overview"), description: "Platform" },
       {
         page: "customers",
         label: tx("customers"),
@@ -474,13 +472,9 @@ export default function App() {
     pageResults: globalSearchPages,
     onSelectModule: setSelectedModuleMenu,
   });
-  const dashboardSearchResult = globalSearchPages.find(
-    (result) => result.page === "dashboard",
-  );
   const globalQuickLinks = useMemo(
     () =>
       [
-        dashboardSearchResult,
         ...globalQuickMenuPageIds.map((key) =>
           globalSearchPages.find((result) => result.page === key),
         ),
@@ -493,7 +487,7 @@ export default function App() {
         const ranks = new Map(standardMenu.items.map((item, index) => [item.page, index]));
         return (ranks.get(a.page ?? "") ?? Number.MAX_SAFE_INTEGER) - (ranks.get(b.page ?? "") ?? Number.MAX_SAFE_INTEGER);
       }),
-    [globalSearchPages, globalQuickMenuPageIds, dashboardSearchResult, standardMenu],
+    [globalSearchPages, globalQuickMenuPageIds, standardMenu],
   );
   const workspaceSearch = useWorkspaceSearch({
     pages: globalSearchPages,
@@ -600,7 +594,6 @@ export default function App() {
     destination.searchParams.set("contextPage", contextPage);
     destination.searchParams.set("platformOrigin", window.location.origin);
     const labels: Record<string, string> = {
-      dashboard: "Genel Bakış",
       customers: "Cari Hesaplar",
       "crm-opportunities": "CRM Fırsatları",
       "human-resources": "İnsan Kaynakları",
@@ -683,10 +676,9 @@ export default function App() {
     setPlatformStatus("checking");
     setError("");
     try {
-      setDashboard(await api<Dashboard>("/api/dashboard", access));
+      await api<Dashboard>("/api/dashboard", access);
       setPlatformStatus("ready");
     } catch (e) {
-      setDashboard(null);
       setPlatformStatus("unavailable");
       setError((e as Error).message);
     }
@@ -784,7 +776,6 @@ export default function App() {
       setToken(result.accessToken);
       setTenant(null);
       setTenants([]);
-      setDashboard(null);
       setPlatformSession(true);
       setPage("platform-tenants");
     } catch (e) {
@@ -819,7 +810,6 @@ export default function App() {
       }).catch(() => {});
     setToken("");
     setTenant(null);
-    setDashboard(null);
     setPlatformStatus("checking");
     setTenants([]);
     setPlatformSession(false);
@@ -924,7 +914,6 @@ export default function App() {
       dirtyTabs={dirtyTabs}
       error={error}
       notice={notice}
-      dashboard={dashboard}
       platformStatus={platformStatus}
       selectedModuleMenu={selectedModuleMenu}
       pendingCustomerInvoiceId={pendingCustomerInvoiceId}

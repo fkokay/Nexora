@@ -78,20 +78,6 @@ export function SettingsContent({
           }
         >
           {row(
-            english ? "Default start page" : "Varsayılan başlangıç ekranı",
-            <select
-              value={values.defaultPage}
-              onChange={(event) => onUpdate("defaultPage", event.target.value)}
-            >
-              <option value="launcher">
-                {english ? "Module search" : "Arama ekranı"}
-              </option>
-              <option value="dashboard">
-                {english ? "Home dashboard" : "Ana Sayfa"}
-              </option>
-            </select>,
-          )}
-          {row(
             english ? "Default language" : "Varsayılan dil",
             <select
               value={values.locale}

@@ -30,7 +30,7 @@ import {
   type Locale,
 } from "./WorkspaceComponents";
 import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
-import type { Dashboard, Tenant, Theme } from "./erp-types";
+import type { Tenant, Theme } from "./erp-types";
 type ApiRequest = typeof import("./erpApi").api;
 
 const workbenchRailItems = [
@@ -237,7 +237,6 @@ type Props = {
   dirtyTabs: Set<string>;
   error: string;
   notice: string;
-  dashboard: Dashboard | null;
   platformStatus: string;
   selectedModuleMenu: ModuleMenuSelection | null;
   pendingCustomerInvoiceId: string | null;
@@ -307,7 +306,6 @@ export function WorkspaceShellPage(props: Props) {
     dirtyTabs,
     error,
     notice,
-    dashboard,
     platformStatus,
     selectedModuleMenu,
     pendingCustomerInvoiceId,
@@ -375,7 +373,7 @@ export function WorkspaceShellPage(props: Props) {
       return true;
     }
   });
-  const showRightWidgets = !standaloneStudio && page !== "dashboard" && rightWidgetsOpen;
+  const showRightWidgets = !standaloneStudio && rightWidgetsOpen;
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -483,20 +481,16 @@ export function WorkspaceShellPage(props: Props) {
               className="workspace-breadcrumb"
               aria-label={locale === "en" ? "Breadcrumb" : "Sayfa yolu"}
             >
-              <button type="button" onClick={() => onNavigate("dashboard")}>
+              <button type="button" onClick={() => onNavigate("launcher")}>
                 <Home size={14} aria-hidden="true" />
                 <span>{locale === "en" ? "Home" : "Ana Sayfa"}</span>
               </button>
-              {page !== "dashboard" && (
-                <>
-                  <ChevronRight size={13} aria-hidden="true" />
-                  {currentSubrouteTitle ? <>
-                    <span>{activeTabLabel}</span>
-                    <ChevronRight size={13} aria-hidden="true" />
-                    <span aria-current="page">{currentSubrouteTitle}</span>
-                  </> : <span aria-current="page">{activeTabLabel}</span>}
-                </>
-              )}
+              <ChevronRight size={13} aria-hidden="true" />
+              {currentSubrouteTitle ? <>
+                <span>{activeTabLabel}</span>
+                <ChevronRight size={13} aria-hidden="true" />
+                <span aria-current="page">{currentSubrouteTitle}</span>
+              </> : <span aria-current="page">{activeTabLabel}</span>}
             </nav>
           )}
           {error && (
@@ -531,7 +525,6 @@ export function WorkspaceShellPage(props: Props) {
                 token={token}
                 tenant={tenant}
                 locale={locale}
-                dashboard={dashboard}
                 platformStatus={platformStatus}
                 selectedModuleMenu={selectedModuleMenu}
                 pendingCustomerInvoiceId={pendingCustomerInvoiceId}

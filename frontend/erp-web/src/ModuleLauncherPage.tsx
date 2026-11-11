@@ -17,7 +17,6 @@ import {
   CloudSun,
   FileText,
   Landmark,
-  LayoutDashboard,
   LocateFixed,
   MapPin,
   Moon,
@@ -673,8 +672,6 @@ export function ModuleLauncher({
   const icon = (result: GlobalSearchResult, size = 32) =>
     result.kind === "customer" ? (
       <Users size={size} />
-    ) : result.page === "dashboard" ? (
-      <LayoutDashboard size={size} />
     ) : result.page?.startsWith("sales-") ? (
       <ShoppingCart size={size} />
     ) : result.page?.startsWith("inventory-") ? (
