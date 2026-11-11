@@ -92,6 +92,8 @@ services:
       Studio__Origins__2: ${PUBLIC_INGRESS_ORIGIN:-http://localhost:5174}
       Studio__Origins__3: ${PUBLIC_STUDIO_ORIGIN:-https://nexorastudio.ozgurteknolojiyazilim.com}
       SSL_CERT_FILE: /tmp/nexora-ca-bundle.crt
+      # The nginx front ends reach the API over the Compose bridge network; trust X-Forwarded-For only from there.
+      ReverseProxy__KnownNetworks__0: ${TRUSTED_PROXY_NETWORK:-172.16.0.0/12}
     entrypoint: ["sh", "-c"]
     command: ["cat /etc/ssl/certs/ca-certificates.crt /run/secrets/vault-ca.crt > /tmp/nexora-ca-bundle.crt && exec dotnet AIERP.Api.dll"]
     ports:
