@@ -19,7 +19,7 @@ Mevcut uygulamada oturum açma, şirket seçimi ve gösterge panelinin yanı sı
    Copy-Item .env.example deploy/docker/.env
    ```
 
-2. `deploy/docker/.env` içindeki örnek değerleri kendi yerel ortamınıza göre düzenleyin.
+2. `deploy/docker/.env` içindeki örnek değerleri kendi yerel ortamınıza göre düzenleyin. `AUTH_SIGNING_KEY`, `WORKSPACE_RUNNER_SIGNING_KEY` ve `RELEASE_DEPLOYER_SIGNING_KEY` birbirinden farklı rastgele değerler olmalıdır. Workspace Runner ve Release Deployer kullanıcı belirteci anahtarını görmez; böylece biri ele geçirilse bile kullanıcı ya da Deployer belirteci üretemez. Mevcut bir `.env` dosyası kullanıyorsanız bu iki anahtarı ekleyin; eksik olduklarında Compose başlamaz.
 3. Uygulama servislerini başlatın:
 
    ```powershell

@@ -15,7 +15,53 @@ namespace AIERP.Platform.UnitTests;
 public sealed class ReleaseDeployerOrchestrationAcceptanceTests
 {
     private const string SigningKey = "release-deployer-isolated-acceptance-test-key-2026";
+    private const string UserTokenSigningKey = "platform-user-token-acceptance-test-key-not-for-deployer";
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
+
+    [Fact]
+    public async Task Deployer_rejects_tokens_signed_with_the_user_key_or_missing_the_ai_service_identity()
+    {
+        var testRoot = Path.Combine(Path.GetTempPath(), $"aierp-deployer-auth-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(testRoot);
+        var fakeLog = Path.Combine(testRoot, "docker-arguments.log");
+        var modeFile = Path.Combine(testRoot, "fake-docker-mode.txt");
+        await File.WriteAllTextAsync(fakeLog, string.Empty);
+        await File.WriteAllTextAsync(modeFile, "success");
+        var deployer = StartDeployer(testRoot, fakeLog, modeFile);
+        try
+        {
+            using var client = await ConnectAsync(deployer.Process, deployer.Port);
+            var deployment = await PreparePackageAsync(testRoot, "auth-boundary");
+
+            async Task<HttpStatusCode> DeployWith(string token)
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Post, "/internal/deployments/staging")
+                {
+                    Content = JsonContent.Create(deployment.Body, options: WebJson)
+                };
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                using var response = await client.SendAsync(request);
+                return response.StatusCode;
+            }
+
+            // A service holding only the user-token key (platform-api, workspace-runner) cannot mint deployer tokens.
+            Assert.Equal(HttpStatusCode.Unauthorized,
+                await DeployWith(CreateToken(deployment.Body, "staging", signingKey: UserTokenSigningKey)));
+            // Correct scope claims are not enough without the AI Service identity.
+            Assert.Equal(HttpStatusCode.Forbidden,
+                await DeployWith(CreateToken(deployment.Body, "staging", includeServiceClaim: false)));
+            Assert.Empty(await File.ReadAllLinesAsync(fakeLog));
+            Assert.False(Directory.Exists(Path.Combine(testRoot, "staging-releases")));
+        }
+        finally
+        {
+            try { if (!deployer.Process.HasExited) deployer.Process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            try { await deployer.Process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10)); } catch (TimeoutException) { }
+            deployer.Process.Dispose();
+            // The target is a unique test-owned temporary directory created above.
+            if (Directory.Exists(testRoot)) Directory.Delete(testRoot, recursive: true);
+        }
+    }
 
     [Fact]
     public void Deployment_secrets_no_longer_store_shared_tenant_runtime_password_and_read_legacy_records()
@@ -446,7 +492,9 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
         start.ArgumentList.Add(assembly);
         start.Environment["ASPNETCORE_URLS"] = $"http://127.0.0.1:{port}";
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Test";
-        start.Environment["Authentication__SigningKey"] = SigningKey;
+        // Mirrors Compose: the deployer verifies its dedicated key, never the user-token key.
+        start.Environment["ReleaseDeployer__SigningKey"] = SigningKey;
+        start.Environment["Authentication__SigningKey"] = UserTokenSigningKey;
         start.Environment["Authentication__Issuer"] = "AIERP";
         start.Environment["Authentication__Audience"] = "AIERP.ReleaseDeployer";
         start.Environment["ReleaseDeployer__PackageRoot"] = Path.Combine(root, "packages");
@@ -536,17 +584,19 @@ public sealed class ReleaseDeployerOrchestrationAcceptanceTests
         return new PreparedDeployment(body);
     }
 
-    private static string CreateToken(DeploymentRequest body, string environment)
+    private static string CreateToken(DeploymentRequest body, string environment, string signingKey = SigningKey,
+        bool includeServiceClaim = true)
     {
         var scope = environment == "staging" ? "release.staging.deploy" : "release.production.deploy";
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim("deployment_id", body.DeploymentId.ToString("D")),
-            new Claim("tenant_id", body.TenantId.ToString("D")),
-            new Claim("project_id", body.ProjectId.ToString("D")),
-            new Claim("scope", scope)
+            new("deployment_id", body.DeploymentId.ToString("D")),
+            new("tenant_id", body.TenantId.ToString("D")),
+            new("project_id", body.ProjectId.ToString("D")),
+            new("scope", scope)
         };
-        var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SigningKey)), SecurityAlgorithms.HmacSha256);
+        if (includeServiceClaim) claims.Add(new Claim("service", "AIERP.AIService"));
+        var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)), SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken("AIERP", "AIERP.ReleaseDeployer", claims, DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow.AddMinutes(10), credentials);
         return new JwtSecurityTokenHandler().WriteToken(token);
     }

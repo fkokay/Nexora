@@ -340,6 +340,9 @@ services:
       Vault__TenantSqlCredentialReader__SecretIdFile: /run/secrets/vault_tenant_sql_reader_secret_id
       StudioKnowledge__RetentionDays: ${STUDIO_KNOWLEDGE_RETENTION_DAYS:-180}
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
+      # The AI Service is the only issuer of runner and deployer tokens; each audience has its own key.
+      WorkspaceRunner__SigningKey: ${WORKSPACE_RUNNER_SIGNING_KEY:?Set WORKSPACE_RUNNER_SIGNING_KEY in .env}
+      ReleaseDeployer__SigningKey: ${RELEASE_DEPLOYER_SIGNING_KEY:?Set RELEASE_DEPLOYER_SIGNING_KEY in .env}
       Frontend__Origins__0: http://localhost:5173
       Frontend__Origins__1: http://localhost:5174
       Frontend__Origins__2: http://localhost:5175
@@ -591,7 +594,8 @@ services:
       dockerfile: deploy/docker/WorkspaceRunner.Dockerfile
     environment:
       ASPNETCORE_URLS: http://+:8080
-      Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
+      # Not the user-token key: the runner only verifies AI Service tokens and must not be able to mint user tokens.
+      WorkspaceRunner__SigningKey: ${WORKSPACE_RUNNER_SIGNING_KEY:?Set WORKSPACE_RUNNER_SIGNING_KEY in .env}
       Authentication__Issuer: AIERP
       Authentication__Audience: AIERP.WorkspaceRunner
       Workspace__RootPath: /workspaces
@@ -666,7 +670,8 @@ services:
     environment:
       DOCKER_CONFIG: /deployer-state/docker-config
       ASPNETCORE_URLS: http://+:8080
-      Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
+      # Not the user-token key: tokens accepted here drive Docker, so only the AI Service may hold this key.
+      ReleaseDeployer__SigningKey: ${RELEASE_DEPLOYER_SIGNING_KEY:?Set RELEASE_DEPLOYER_SIGNING_KEY in .env}
       Authentication__Issuer: AIERP
       Authentication__Audience: AIERP.ReleaseDeployer
       Database__SeparationEnabled: "true"

@@ -16,11 +16,14 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 DeployerState.AllowTestDockerOverride = ReleaseDeployerDockerExecutionPolicy.IsTestOverrideAllowed(builder.Environment.EnvironmentName);
 builder.Services.AddAierpHttpMetrics();
-var signingKey = builder.Configuration["Authentication:SigningKey"];
+// Deployer tokens drive Docker on the host, so they are signed with a key shared only with the AI Service.
+// The Authentication:SigningKey fallback keeps existing installations starting until the dedicated key is set.
+var signingKey = builder.Configuration["ReleaseDeployer:SigningKey"] is { Length: > 0 } deployerSigningKey
+    ? deployerSigningKey : builder.Configuration["Authentication:SigningKey"];
 DatabaseIsolationConfiguration.RequireEnabled(builder.Configuration, "Release Deployer");
 const bool separationEnabled = true;
 if (string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32)
-    throw new InvalidOperationException("Authentication:SigningKey must contain at least 32 bytes.");
+    throw new InvalidOperationException("ReleaseDeployer:SigningKey (or Authentication:SigningKey) must contain at least 32 bytes.");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
     options.MapInboundClaims = false;
@@ -32,7 +35,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         ValidateLifetime = true, ClockSkew = TimeSpan.FromSeconds(15)
     };
 });
-builder.Services.AddAuthorization();
+// Only the AI Service may call the deployer; scope claims alone do not identify the issuing service.
+builder.Services.AddAuthorization(options => options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser().RequireClaim("service", "AIERP.AIService").Build());
 var app = builder.Build();
 var environmentName = builder.Environment.EnvironmentName;
 // Capture process configuration outside request handlers. IConfiguration is a
