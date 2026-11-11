@@ -31,10 +31,10 @@ internal static class TenantScreenViewEndpoints
     ];
     private static readonly ScreenViewField[] CustomerDetailFields =
     [
-        new("groupName", "Cari grubu", true), new("taxNumber", "Vergi no", true),
-        new("identityNumber", "T.C. kimlik no", true), new("taxOffice", "Vergi dairesi", true),
-        new("currencyCode", "Para birimi", true), new("paymentTermDays", "Vade", true),
-        new("riskLimit", "Risk limiti", true)
+        new("groupName", "Cari grubu", true, Section: "Genel Bilgiler"), new("taxNumber", "Vergi no", true, Section: "Genel Bilgiler"),
+        new("identityNumber", "T.C. kimlik no", true, Section: "Genel Bilgiler"), new("taxOffice", "Vergi dairesi", true, Section: "Diğer"),
+        new("currencyCode", "Para birimi", true, Section: "Finans"), new("paymentTermDays", "Vade", true, Section: "Finans"),
+        new("riskLimit", "Risk limiti", true, Section: "Finans")
     ];
     private static readonly ScreenViewField[] AuditEventFields =
     [
@@ -138,6 +138,7 @@ internal static class TenantScreenViewEndpoints
     private static readonly ScreenViewField[] SalesQuoteFields =
     [
         new("code", "Teklif no", true), new("customerName", "Müşteri", true),
+        new("salesperson", "Plasiyer", true), new("salesOrderCode", "Sipariş no", true),
         new("quoteDate", "Teklif tarihi", true), new("validUntil", "Geçerlilik", true),
         new("lineCount", "Satır", true), new("grandTotal", "Genel toplam", true),
         new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
@@ -624,7 +625,9 @@ internal static class TenantScreenViewEndpoints
             var draft = new TenantScreenView
             {
                 TenantId = tenantId, ScreenKey = catalog.Key, Name = name,
-                LayoutJson = active?.LayoutJson ?? JsonSerializer.Serialize(DefaultView(catalog).Fields, JsonOptions),
+                LayoutJson = request.UseStandard
+                    ? SerializeLayout(DefaultView(catalog).Fields, DefaultView(catalog).PageSettings)
+                    : active?.LayoutJson ?? SerializeLayout(DefaultView(catalog).Fields, DefaultView(catalog).PageSettings),
                 Revision = 1, CreatedByUserId = userId, UpdatedByUserId = userId, CreatedAt = now, UpdatedAt = now
             };
             db.TenantScreenViews.Add(draft);
@@ -647,7 +650,14 @@ internal static class TenantScreenViewEndpoints
             if (!TryNormalizeFields(request.Fields, catalog, out var fields, out var errors)) return Results.ValidationProblem(errors!);
             var name = NormalizeName(request.Name, catalog.Label);
             db.TenantScreenViewRevisions.Add(RevisionOf(view, userId, "Updated"));
-            view.Name = name; view.LayoutJson = JsonSerializer.Serialize(fields, JsonOptions);
+            CustomerPageSettings? pageSettings = null;
+            if (catalog.Key == "customers")
+            {
+                pageSettings = NormalizePageSettings(request.PageSettings ?? ReadPageSettings(view.LayoutJson), out var pageSettingsError);
+                if (pageSettingsError is not null)
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["pageSettings"] = [pageSettingsError] });
+            }
+            view.Name = name; view.LayoutJson = SerializeLayout(fields, pageSettings);
             view.Revision++; view.UpdatedByUserId = userId; view.UpdatedAt = DateTimeOffset.UtcNow;
             AddAudit(db, tenantId, userId, "screen-view.draft-updated", $"{view.ScreenKey}@{view.Revision}");
             try { await db.SaveChangesAsync(ct); }
@@ -712,7 +722,7 @@ internal static class TenantScreenViewEndpoints
             var draft = new TenantScreenView
             {
                 TenantId = tenantId, ScreenKey = catalog.Key, Name = old.Name,
-                LayoutJson = JsonSerializer.Serialize(fields, JsonOptions), Revision = 1,
+                LayoutJson = SerializeLayout(fields, catalog.Key == "customers" ? ReadPageSettings(old.LayoutJson) : null), Revision = 1,
                 CreatedByUserId = userId, UpdatedByUserId = userId, CreatedAt = now, UpdatedAt = now
             };
             db.TenantScreenViews.Add(draft);
@@ -1106,8 +1116,38 @@ internal static class TenantScreenViewEndpoints
         return false;
     }
 
-    private static ScreenViewRecord DefaultView(ScreenViewCatalog catalog) => new(null, catalog.Key, catalog.Label, "Varsayılan", false, 0, catalog.Fields.Select((x, i) => new ScreenViewFieldLayout(x.Key, x.Label, x.DefaultVisible, i, x.Fixed)).ToArray());
-    private static IReadOnlyList<ScreenViewFieldLayout> ReadFields(string json) => JsonSerializer.Deserialize<IReadOnlyList<ScreenViewFieldLayout>>(json, JsonOptions) ?? [];
+    private static ScreenViewRecord DefaultView(ScreenViewCatalog catalog) => new(null, catalog.Key, catalog.Label, "Varsayılan", false, 0, catalog.Fields.Select((x, i) => new ScreenViewFieldLayout(x.Key, x.Label, x.DefaultVisible, i, x.Fixed, x.Section)).ToArray(), catalog.Key == "customers" ? DefaultCustomerPageSettings : null);
+    private static readonly CustomerPageSettings DefaultCustomerPageSettings = new("Cari Hesaplar", "Müşteri ve tedarikçi kartlarını firma bazında yönetin.", "Cari ara", "Cari kodu, unvanı veya vergi no ile ara", "Cari türü", "Durum", "Filtrele", true, true);
+    private static IReadOnlyList<ScreenViewFieldLayout> ReadFields(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        var fields = root.ValueKind == JsonValueKind.Array ? root : root.ValueKind == JsonValueKind.Object && root.TryGetProperty("fields", out var nested) ? nested : default;
+        return fields.ValueKind == JsonValueKind.Array ? JsonSerializer.Deserialize<IReadOnlyList<ScreenViewFieldLayout>>(fields.GetRawText(), JsonOptions) ?? [] : [];
+    }
+    private static CustomerPageSettings? ReadPageSettings(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("pageSettings", out var settings)
+            ? JsonSerializer.Deserialize<CustomerPageSettings>(settings.GetRawText(), JsonOptions) ?? DefaultCustomerPageSettings
+            : DefaultCustomerPageSettings;
+    }
+    private static string SerializeLayout(IReadOnlyList<ScreenViewFieldLayout> fields, CustomerPageSettings? pageSettings) =>
+        pageSettings is null ? JsonSerializer.Serialize(fields, JsonOptions) : JsonSerializer.Serialize(new ScreenViewLayoutDocument(fields, pageSettings), JsonOptions);
+    private static CustomerPageSettings? NormalizePageSettings(CustomerPageSettings? requested, out string? error)
+    {
+        error = null;
+        if (requested is null) return DefaultCustomerPageSettings;
+        static bool valid(string? value, int maximum) => !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= maximum && !value.Any(char.IsControl);
+        if (!valid(requested.Title, 120) || !valid(requested.Description, 300) || !valid(requested.SearchLabel, 60)
+            || !valid(requested.SearchPlaceholder, 120) || !valid(requested.TypeFilterLabel, 60) || !valid(requested.StatusFilterLabel, 60)
+            || !valid(requested.ApplyLabel, 40))
+        {
+            error = "Sayfa metinleri boş olmamalı ve alan uzunluklarını aşmamalıdır.";
+            return null;
+        }
+        return requested with { Title = requested.Title.Trim(), Description = requested.Description.Trim(), SearchLabel = requested.SearchLabel.Trim(), SearchPlaceholder = requested.SearchPlaceholder.Trim(), TypeFilterLabel = requested.TypeFilterLabel.Trim(), StatusFilterLabel = requested.StatusFilterLabel.Trim(), ApplyLabel = requested.ApplyLabel.Trim() };
+    }
     private static string NormalizeName(string? name, string fallback) => string.IsNullOrWhiteSpace(name) ? fallback : name.Trim()[..Math.Min(name.Trim().Length, 120)];
     private static async Task<ScreenViewCatalog> WithCustomerFieldsAsync(ScreenViewCatalog catalog, Guid tenantId, TenantDbContext db, CancellationToken ct)
     {
@@ -1127,7 +1167,7 @@ internal static class TenantScreenViewEndpoints
         return catalog with { Fields = fields };
     }
     private static ScreenViewRecord ToView(TenantScreenView x, ScreenViewCatalog catalog) => new(x.Id, x.ScreenKey,
-        catalog.Label, x.Name, x.IsPublished, x.Revision, WithFixedFields(catalog, ReadFields(x.LayoutJson)));
+        catalog.Label, x.Name, x.IsPublished, x.Revision, WithFixedFields(catalog, ReadFields(x.LayoutJson)), catalog.Key == "customers" ? ReadPageSettings(x.LayoutJson) : null);
     private static ScreenViewRevisionView ToRevisionView(TenantScreenViewRevision x) => new(x.Id, x.Revision, x.Name, WithFixedFields(x.ScreenKey, x.LayoutJson is null ? [] : ReadFields(x.LayoutJson)), x.ChangeKind, x.ChangedByUserId, x.CreatedAt);
     private static IReadOnlyList<ScreenViewFieldLayout> WithFixedFields(string screenKey, IReadOnlyList<ScreenViewFieldLayout> fields)
     {
@@ -1137,7 +1177,11 @@ internal static class TenantScreenViewEndpoints
     private static IReadOnlyList<ScreenViewFieldLayout> WithFixedFields(ScreenViewCatalog catalog, IReadOnlyList<ScreenViewFieldLayout> fields)
     {
         var ordered = fields.OrderBy(field => field.Position)
-            .Select(field => field with { Fixed = catalog.Fields.SingleOrDefault(x => x.Key == field.Key)?.Fixed ?? false })
+            .Select(field =>
+            {
+                var metadata = catalog.Fields.SingleOrDefault(x => x.Key == field.Key);
+                return field with { Fixed = metadata?.Fixed ?? false, Section = string.IsNullOrWhiteSpace(field.Section) ? metadata?.Section : field.Section };
+            })
             .ToList();
         var existingKeys = ordered.Select(field => field.Key).ToHashSet(StringComparer.Ordinal);
         var missing = catalog.Fields.Where(field => !existingKeys.Contains(field.Key)).ToArray();
@@ -1151,7 +1195,7 @@ internal static class TenantScreenViewEndpoints
         var merged = new List<ScreenViewFieldLayout>(ordered.Count + missing.Length);
         merged.AddRange(ordered.Take(insertionIndex));
         merged.AddRange(missing.Select(field => new ScreenViewFieldLayout(
-            field.Key, field.Label, field.DefaultVisible, 0, field.Fixed)));
+            field.Key, field.Label, field.DefaultVisible, 0, field.Fixed, field.Section)));
         merged.AddRange(ordered.Skip(insertionIndex));
         return merged.Select((field, position) => field with { Position = position }).ToArray();
     }
@@ -1230,7 +1274,7 @@ internal static class TenantScreenViewEndpoints
             return false;
         }
         IReadOnlyList<ScreenViewFieldLayout>? fields;
-        try { fields = JsonSerializer.Deserialize<List<ScreenViewFieldLayout>>(layoutJson, JsonOptions); }
+        try { fields = ReadFields(layoutJson); }
         catch (JsonException)
         {
             errors = ["Ekran düzeni okunamadı."];
@@ -1252,13 +1296,15 @@ internal static class TenantScreenViewEndpoints
     private static void AddAudit(TenantDbContext db, Guid tenantId, Guid userId, string action, string resource) =>
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = action, Resource = resource });
 
-    private sealed record ScreenViewDraftCreateRequest(string? Name);
-    private sealed record ScreenViewUpdateRequest(int ExpectedRevision, string? Name, IReadOnlyList<ScreenViewFieldLayout>? Fields);
+    private sealed record ScreenViewDraftCreateRequest(string? Name, bool UseStandard = false);
+    private sealed record ScreenViewUpdateRequest(int ExpectedRevision, string? Name, IReadOnlyList<ScreenViewFieldLayout>? Fields, CustomerPageSettings? PageSettings = null);
+    private sealed record CustomerPageSettings(string Title, string Description, string SearchLabel, string SearchPlaceholder, string TypeFilterLabel, string StatusFilterLabel, string ApplyLabel, bool ShowTypeFilter, bool ShowStatusFilter);
+    private sealed record ScreenViewLayoutDocument(IReadOnlyList<ScreenViewFieldLayout> Fields, CustomerPageSettings PageSettings);
     private sealed record ScreenViewPublishRequest(int ExpectedRevision);
     private sealed record ScreenViewCatalog(string Key, string Label, IReadOnlyList<ScreenViewField> Fields);
-    private sealed record ScreenViewField(string Key, string Label, bool DefaultVisible, bool Fixed = false);
+    private sealed record ScreenViewField(string Key, string Label, bool DefaultVisible, bool Fixed = false, string? Section = null);
     internal sealed record ScreenViewFieldLayout(string Key, string Label, bool Visible, int Position, bool Fixed = false, string? Section = null, int? Width = null);
-    private sealed record ScreenViewRecord(Guid? Id, string ScreenKey, string ScreenLabel, string Name, bool IsPublished, int Revision, IReadOnlyList<ScreenViewFieldLayout> Fields);
+    private sealed record ScreenViewRecord(Guid? Id, string ScreenKey, string ScreenLabel, string Name, bool IsPublished, int Revision, IReadOnlyList<ScreenViewFieldLayout> Fields, CustomerPageSettings? PageSettings);
     private sealed record ScreenViewEditorState(ScreenViewCatalog Catalog, ScreenViewRecord Active, ScreenViewRecord? Draft);
     private sealed record ScreenViewRevisionView(Guid Id, int Revision, string Name, IReadOnlyList<ScreenViewFieldLayout> Fields, string ChangeKind, Guid ChangedByUserId, DateTimeOffset CreatedAt);
 }

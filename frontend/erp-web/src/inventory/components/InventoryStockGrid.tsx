@@ -32,7 +32,7 @@ export function InventoryStockGrid({
   pagination,
 }: Props) {
   const widths: Record<string, number> = {
-    code: 115,
+    code: 180,
     name: 190,
     category: 110,
     quantityOnHand: 120,
@@ -45,7 +45,7 @@ export function InventoryStockGrid({
     actions: 180,
   };
   const minimumWidths: Record<string, number> = {
-    code: 90,
+    code: 130,
     name: 140,
     category: 90,
     quantityOnHand: 100,
@@ -58,7 +58,14 @@ export function InventoryStockGrid({
     actions: 165,
   };
   return (
-    <>
+    <section className="panel inventory-stock-grid-panel">
+      <header className="inventory-stock-grid-heading">
+        <div>
+          <h2>Stok listesi</h2>
+          <p>{balances.length.toLocaleString("tr-TR")} kayıt</p>
+        </div>
+        <span>{balancesLoading ? "Bakiyeler yükleniyor…" : `${pageBalances.length} satır gösteriliyor`}</span>
+      </header>
       <div className="customer-table-wrap">
         <AdvancedDataGrid
           className="customer-table inventory-table"
@@ -121,6 +128,6 @@ export function InventoryStockGrid({
         </AdvancedDataGrid>
       </div>
       {pagination}
-    </>
+    </section>
   );
 }

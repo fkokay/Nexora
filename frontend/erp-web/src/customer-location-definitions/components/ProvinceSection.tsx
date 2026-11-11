@@ -166,11 +166,16 @@ function ProvinceGrid({
   );
 }
 
-type Props = ProvinceFormProps & ProvinceGridProps;
+type Props = ProvinceFormProps & ProvinceGridProps & {
+  totalCount: number;
+  query: string;
+  onQueryChange: (value: string) => void;
+};
 
 export function ProvinceSection(props: Props) {
   const {
     provinces,
+    totalCount,
     districts,
     selectedProvinceId,
     loading,
@@ -185,25 +190,37 @@ export function ProvinceSection(props: Props) {
     onActiveChange,
     onSubmit,
     onCancel,
+    query,
+    onQueryChange,
   } = props;
   return (
     <section className="panel">
       <div className="panel-heading">
         <div>
           <h2>İl tanımları</h2>
-          <p>{provinces.length} il · varsayılan Türkiye listesi</p>
+          <p>{totalCount} il · varsayılan Türkiye listesi</p>
         </div>
       </div>
-      <ProvinceForm
-        editingId={editingId}
-        name={name}
-        active={active}
-        busy={busy}
-        onNameChange={onNameChange}
-        onActiveChange={onActiveChange}
-        onSubmit={onSubmit}
-        onCancel={onCancel}
-      />
+      <section className="location-definition-summary" aria-label="İl tanımları özeti">
+        <article><span>Toplam il</span><b>{totalCount}</b></article>
+        <article><span>Listelenen</span><b>{provinces.length}</b></article>
+        <article><span>İlçe tanımları</span><b>{districts.length}</b></article>
+      </section>
+      <section className="location-definition-filter-card" aria-label="İl filtreleri">
+        <div>
+          <h3>Filtreler</h3>
+          <p>İl adını yazarak tanımları daraltın.</p>
+        </div>
+        <label>
+          Ara
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="İl adı ara"
+          />
+        </label>
+      </section>
       <ProvinceGrid
         provinces={provinces}
         districts={districts}
@@ -213,6 +230,16 @@ export function ProvinceSection(props: Props) {
         onSelect={onSelect}
         onEdit={onEdit}
         onToggle={onToggle}
+      />
+      <ProvinceForm
+        editingId={editingId}
+        name={name}
+        active={active}
+        busy={busy}
+        onNameChange={onNameChange}
+        onActiveChange={onActiveChange}
+        onSubmit={onSubmit}
+        onCancel={onCancel}
       />
     </section>
   );

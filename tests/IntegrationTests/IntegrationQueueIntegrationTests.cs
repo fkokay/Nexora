@@ -174,12 +174,17 @@ public sealed class IntegrationQueueIntegrationTests
             var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
             var tenant = await db.Tenants.SingleAsync(x => x.Id == TenantA);
             var customer = new CustomerAccount { TenantId = TenantA, Tenant = tenant, Code = "C-1", Name = "Contoso", TaxNumber = "1234567890" };
+            customer.Addresses.Add(new CustomerAddress
+            {
+                TenantId = TenantA, Customer = customer, Kind = CustomerAddressKind.Billing,
+                Label = "Fatura", AddressLine = "Test Sokak 1", City = "İstanbul", CountryCode = "TR", IsDefault = true
+            });
             var quote = new SalesQuote { TenantId = TenantA, Tenant = tenant, Customer = customer, Code = "Q-1", QuoteDate = new DateOnly(2026, 10, 1), ValidUntil = new DateOnly(2026, 10, 31) };
             var order = new SalesOrder { TenantId = TenantA, Tenant = tenant, Customer = customer, Quote = quote, Code = "SO-1", OrderDate = new DateOnly(2026, 10, 2), CurrencyCode = "TRY" };
             var warehouse = new Warehouse { TenantId = TenantA, Tenant = tenant, Code = "WH-1", Name = "Main" };
             var delivery = new SalesDelivery { TenantId = TenantA, Order = order, Warehouse = warehouse, Code = "DN-1", DeliveryDate = new DateOnly(2026, 10, 3) };
-            var invoice = new SalesInvoice { Id = invoiceId, TenantId = TenantA, Tenant = tenant, Customer = customer, Order = order, Delivery = delivery, Code = "INV-1", InvoiceDate = new DateOnly(2026, 10, 4), CurrencyCode = "TRY", GrandTotal = 120m, Subtotal = 100m, TaxTotal = 20m };
-            invoice.Lines.Add(new SalesInvoiceLine { TenantId = TenantA, Invoice = invoice, OrderLineNumber = 1, StockCode = "ITEM-1", StockName = "Widget", UnitCode = "EA", Quantity = 2, UnitPrice = 50m, VatPercent = 20m, LineSubtotal = 100m, TaxAmount = 20m, LineTotal = 120m });
+            var invoice = new SalesInvoice { Id = invoiceId, TenantId = TenantA, Tenant = tenant, Customer = customer, Order = order, Delivery = delivery, Code = "INV-1", InvoiceDate = new DateOnly(2026, 10, 4), CurrencyCode = "TRY", GrandTotal = 120m, Subtotal = 100m, TaxTotal = 20m, EDocumentScenario = "TEMELFATURA", EDocumentTypeCode = "SATIS" };
+            invoice.Lines.Add(new SalesInvoiceLine { TenantId = TenantA, Invoice = invoice, OrderLineNumber = 1, StockCode = "ITEM-1", StockName = "Widget", UnitCode = "C62", Quantity = 2, UnitPrice = 50m, VatPercent = 20m, LineSubtotal = 100m, TaxAmount = 20m, LineTotal = 120m });
             db.SalesInvoices.Add(invoice);
             await db.SaveChangesAsync();
         }
@@ -195,7 +200,7 @@ public sealed class IntegrationQueueIntegrationTests
         Assert.Equal("Contoso", preview.GetProperty("document").GetProperty("customer").GetProperty("name").GetString());
         Assert.Equal("ITEM-1", preview.GetProperty("document").GetProperty("lines")[0].GetProperty("stockCode").GetString());
         var response = await creator.PostAsJsonAsync("/api/e-documents/submissions", new { documentType = "e-invoice", documentId = invoiceId });
-        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.True(response.StatusCode == HttpStatusCode.Accepted, await response.Content.ReadAsStringAsync());
         var operationId = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("operationId").GetGuid();
 
         using var sameUser = app.GetTestClient();
@@ -230,6 +235,11 @@ public sealed class IntegrationQueueIntegrationTests
             var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
             var tenant = await db.Tenants.SingleAsync(x => x.Id == TenantA);
             var customer = new CustomerAccount { TenantId = TenantA, Tenant = tenant, Code = "C-DISP-1", Name = "Synthetic Buyer", TaxNumber = "1111111111" };
+            customer.Addresses.Add(new CustomerAddress
+            {
+                TenantId = TenantA, Customer = customer, Kind = CustomerAddressKind.Billing,
+                Label = "Fatura", AddressLine = "Test Sokak 1", City = "İstanbul", CountryCode = "TR", IsDefault = true
+            });
             var quote = new SalesQuote { TenantId = TenantA, Tenant = tenant, Customer = customer, Code = "Q-DISP-1", QuoteDate = new DateOnly(2026, 10, 1), ValidUntil = new DateOnly(2026, 10, 31) };
             var order = new SalesOrder { TenantId = TenantA, Tenant = tenant, Customer = customer, Quote = quote, Code = "SO-DISP-1", OrderDate = new DateOnly(2026, 10, 2), CurrencyCode = "TRY" };
             var orderLine = new SalesOrderLine { TenantId = TenantA, Order = order, LineNumber = 1, StockCode = "SYN-ITEM-1", StockName = "Synthetic Item", UnitCode = "EA", Quantity = 2 };
@@ -251,26 +261,9 @@ public sealed class IntegrationQueueIntegrationTests
         creator.DefaultRequestHeaders.Add("Idempotency-Key", "dispatch-prepare-synthetic-1");
         var sources = await creator.GetFromJsonAsync<JsonElement>("/api/e-documents/source-documents?documentType=e-dispatch");
         Assert.Equal("DN-DISP-1", sources[0].GetProperty("number").GetString());
-        var preview = await creator.GetFromJsonAsync<JsonElement>($"/api/e-documents/source-documents/e-dispatch/{deliveryId:D}/preview");
-        Assert.Equal("e-dispatch", preview.GetProperty("documentType").GetString());
-        Assert.Equal("Synthetic Buyer", preview.GetProperty("document").GetProperty("customer").GetProperty("name").GetString());
-        Assert.Equal("SYN-ITEM-1", preview.GetProperty("document").GetProperty("lines")[0].GetProperty("stockCode").GetString());
-        var response = await creator.PostAsJsonAsync("/api/e-documents/submissions", new { documentType = "e-dispatch", documentId = deliveryId });
-        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
-        var operationId = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("operationId").GetGuid();
-        await using (var scope = app.Services.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
-            Assert.Equal("AwaitingApproval", (await db.IntegrationOperations.SingleAsync(x => x.Id == operationId)).Status);
-        }
-
-        Assert.Equal(HttpStatusCode.Conflict, (await creator.PostAsync($"/api/e-documents/submissions/{operationId:D}/approve", null)).StatusCode);
-        using var otherAdmin = app.GetTestClient();
-        otherAdmin.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString("D"));
-        otherAdmin.DefaultRequestHeaders.Add("X-Test-Role", "TenantAdmin");
-        otherAdmin.DefaultRequestHeaders.Add("X-Test-User", Guid.NewGuid().ToString("D"));
-        Assert.Equal("DN-DISP-1", (await otherAdmin.GetFromJsonAsync<JsonElement>($"/api/e-documents/submissions/{operationId:D}")).GetProperty("documentNumber").GetString());
-        Assert.Equal(HttpStatusCode.Accepted, (await otherAdmin.PostAsync($"/api/e-documents/submissions/{operationId:D}/approve", null)).StatusCode);
+        var preview = await creator.GetAsync($"/api/e-documents/source-documents/e-dispatch/{deliveryId:D}/preview");
+        Assert.Equal(HttpStatusCode.BadRequest, preview.StatusCode);
+        Assert.Contains("trendyol_dispatch_creation_unsupported", await preview.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     private static async Task<WebApplication> StartApplicationAsync()
@@ -284,6 +277,7 @@ public sealed class IntegrationQueueIntegrationTests
         });
         builder.Services.AddDbContext<PlatformDbContext>(options => options.UseInMemoryDatabase(databaseName));
         builder.Services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase(databaseName));
+        builder.Services.AddHttpClient();
         builder.Services.AddAuthentication("report-test")
             .AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
         builder.Services.AddAuthorization();

@@ -11,7 +11,7 @@ export function PurchaseDeliveryNotesHeader({
     <div className="page-heading purchase-note-commandbar">
       <div>
         <p className="eyebrow">SATIN ALMA · TEDARİKÇİ BELGELERİ</p>
-        <h1>Tedarikçi irsaliyeleri</h1>
+        <h1>Satınalma İrsaliyeleri</h1>
         <p className="muted">
           Tedarikçi belge numarası ve sipariş miktarlarını kaydedin; mal kabul
           öncesi veya sonrasında bağlantı kurun.

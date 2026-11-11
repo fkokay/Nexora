@@ -56,6 +56,7 @@ type Props = {
   screenKey: string;
   onNameChange: (value: string) => void;
   onCreateDraft: () => void;
+  onCreateStandardDraft: () => void;
   onSaveDraft: () => void;
   onPublishDraft: () => void;
   onUpdateField: (key: string, update: Partial<LayoutField>) => void;
@@ -74,6 +75,7 @@ export default function ScreenViewEditor({
   screenKey,
   onNameChange,
   onCreateDraft,
+  onCreateStandardDraft,
   onSaveDraft,
   onPublishDraft,
   onUpdateField,
@@ -98,14 +100,24 @@ export default function ScreenViewEditor({
             {en ? "Draft" : "Taslak"} · v{state.draft.revision}
           </span>
         ) : admin ? (
-          <button
-            className="secondary small-button"
-            disabled={busy}
-            onClick={onCreateDraft}
-          >
-            <Plus size={15} />
-            {en ? "Create draft" : "Taslak oluştur"}
-          </button>
+          <div className="screen-view-draft-actions">
+            <button
+              className="secondary small-button"
+              disabled={busy}
+              onClick={onCreateDraft}
+            >
+              <Plus size={15} />
+              {en ? "Create draft" : "Taslak oluştur"}
+            </button>
+            {state.active.id && <button
+              className="secondary small-button"
+              disabled={busy}
+              onClick={onCreateStandardDraft}
+              title={en ? "Start a new draft from the built-in default layout" : "Yerleşik standart düzenden yeni bir taslak başlat"}
+            >
+              {en ? "Restore standard" : "Standarta dön"}
+            </button>}
+          </div>
         ) : (
           <span className="screen-view-readonly">
             {en ? "Read only" : "Salt okunur"}

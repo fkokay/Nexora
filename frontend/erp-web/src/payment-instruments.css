@@ -282,5 +282,13 @@ html[data-theme="dark"] #root .main-area .payment-instruments-page > .page-headi
 
 /* Keep the search row flush with the table controls in the shared list panel. */
 .payment-instrument-list-toolbar { margin: 0; padding: 11px 14px; }
+.payment-instrument-filter-card { display: grid; grid-template-columns: minmax(170px, .34fr) minmax(0, 1fr); align-items: center; gap: 18px; margin: 0 0 14px; padding: 14px 16px; border: 1px solid #dce4ed; border-radius: 12px; background: #fff; }
+.payment-instrument-filter-heading h2 { margin: 0; color: #172b45; font-size: 15px; }
+.payment-instrument-filter-heading p { margin: 4px 0 0; color: #64748b; font-size: 11px; line-height: 1.45; }
+.payment-instrument-filter-card .payment-instrument-list-toolbar { padding: 0; border: 0; background: transparent; }
+html[data-theme="dark"] .payment-instrument-filter-card { border-color: var(--erp-border); background: var(--erp-surface); }
+html[data-theme="dark"] .payment-instrument-filter-heading h2 { color: var(--erp-text); }
+html[data-theme="dark"] .payment-instrument-filter-heading p { color: var(--erp-muted); }
+@media(max-width:760px) { .payment-instrument-filter-card { grid-template-columns: 1fr; gap: 10px; } }
 .payment-instrument-search label { height: 36px; border-radius: 5px; }
 .payment-instrument-search button { min-height: 36px; }

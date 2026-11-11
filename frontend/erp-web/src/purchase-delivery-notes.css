@@ -40,6 +40,12 @@
 .purchase-delivery-notes-page .purchase-note-list-panel .customer-table { min-width: 900px; }
 .purchase-delivery-notes-page .purchase-note-list-panel .customer-table th { position: sticky; top: 0; z-index: 1; color: #536982; background: #f3f6fa; font-size: 9px; }
 .purchase-delivery-notes-page .purchase-note-list-panel .customer-table td { font-size: 10px; }
+.purchase-delivery-notes-page>.purchase-note-filter-card { display: grid; gap: 10px; padding: 14px 15px; }
+.purchase-delivery-notes-page>.purchase-note-filter-card .panel-heading { margin: 0; }
+.purchase-delivery-notes-page>.purchase-note-filter-card .panel-heading h2 { margin: 0; color: #203958; font-size: 14px; }
+.purchase-delivery-notes-page>.purchase-note-filter-card .panel-heading p { margin: 4px 0 0; color: #687b91; font-size: 11px; }
+.purchase-delivery-notes-page>.purchase-note-filter-card .form-inline { margin: 0; }
+.purchase-delivery-notes-page>.purchase-note-filter-card .form-inline>input { flex: 1; }
 .purchase-delivery-notes-page .purchase-note-order-controls { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(240px,.9fr); gap: 12px; align-items: end; }
 .purchase-delivery-notes-page .purchase-note-order-controls>label { display: grid; gap: 5px; color: #455d79; font-size: 10px; font-weight: 650; }
 .purchase-delivery-notes-page .purchase-note-compose-panel .panel-heading>svg { color: #0f6cbd; }
@@ -57,6 +63,7 @@
   .purchase-delivery-notes-page.has-selected-order { grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); align-items: start; }
   .purchase-delivery-notes-page.has-selected-order>.page-heading,
   .purchase-delivery-notes-page.has-selected-order>.purchase-note-overview,
+  .purchase-delivery-notes-page.has-selected-order>.purchase-note-filter-card,
   .purchase-delivery-notes-page.has-selected-order>.alert,
   .purchase-delivery-notes-page.has-selected-order>.notice,
   .purchase-delivery-notes-page.has-selected-order>.purchase-note-list-panel,

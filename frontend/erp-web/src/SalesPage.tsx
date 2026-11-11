@@ -5,6 +5,7 @@ import {
   FileText,
   Package,
   Plus,
+  Printer,
   Search,
   Settings,
   ShieldCheck,
@@ -14,6 +15,8 @@ import SalesDocumentGrid from "./sales/components/SalesDocumentGrid";
 import SalesListPagination from "./sales/components/SalesListPagination";
 import SalesListToolbar from "./sales/components/SalesListToolbar";
 import SalesInvoiceFromDeliveryDialog from "./sales/components/SalesInvoiceFromDeliveryDialog";
+import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
+import { SalesQuotePdfTools } from "./sales/components/SalesQuotePdfTools";
 import AdvancedDataGrid from "./AdvancedDataGrid";
 import PurchaseInvoiceEntryPage from "./PurchaseInvoiceEntryPage";
 import PurchaseSupplierQuotesPage from "./PurchaseSupplierQuotesPage";
@@ -60,15 +63,128 @@ type SalesOrderCustomFieldValue = AppTypes.SalesOrderCustomFieldValue;
 type SalesOrderDetail = AppTypes.SalesOrderDetail;
 type SalesOrderSummary = AppTypes.SalesOrderSummary;
 type SalesPageKey = AppTypes.SalesPageKey;
+
+type CustomerSalesAction = { page: string; customerId: string; customer?: SalesCustomer };
+const customerSalesActionStorageKey = "nexora.customer-sales-action";
+const customerSalesActionPrefillKey = "nexora.customer-sales-action-prefill";
+function takeCustomerSalesAction(page: string): string {
+  const raw = sessionStorage.getItem(customerSalesActionStorageKey);
+  if (!raw) return "";
+  try {
+    const action = JSON.parse(raw) as CustomerSalesAction;
+    if (action.page !== page) return "";
+    sessionStorage.removeItem(customerSalesActionStorageKey);
+    if (action.customer?.id === action.customerId)
+      sessionStorage.setItem(customerSalesActionPrefillKey, JSON.stringify(action.customer));
+    return action.customerId;
+  } catch {
+    sessionStorage.removeItem(customerSalesActionStorageKey);
+    return "";
+  }
+}
 type SalesQuoteCustomFieldDefinition = AppTypes.SalesQuoteCustomFieldDefinition;
 type SalesQuoteCustomFieldRevision = AppTypes.SalesQuoteCustomFieldRevision;
 type SalesQuoteCustomFieldValue = AppTypes.SalesQuoteCustomFieldValue;
 type SalesQuoteDetail = AppTypes.SalesQuoteDetail;
+type SalesQuoteRevisionSummary = AppTypes.SalesQuoteRevisionSummary;
 type SalesQuoteSummary = AppTypes.SalesQuoteSummary;
+type QuoteSalesperson = { id: string; personnelCode: string; fullName: string; status: string };
+async function loadCustomerPickerPage(token: string): Promise<{ items: SalesCustomer[]; totalCount: number }> {
+  const [customers, combined] = await Promise.all([
+    api<{ items: SalesCustomer[]; totalCount: number }>("/api/customers/?type=Customer&status=Active&page=1&pageSize=100", token),
+    api<{ items: SalesCustomer[]; totalCount: number }>("/api/customers/?type=Both&status=Active&page=1&pageSize=100", token),
+  ]);
+  return { items: [...customers.items, ...combined.items], totalCount: customers.totalCount + combined.totalCount };
+}
+async function loadStockItemPickerPage(token: string): Promise<{ items: StockItem[]; totalCount: number }> {
+  const page = await api<{ items: StockItem[]; totalCount: number }>(
+    "/api/stock/items/?page=1&pageSize=100",
+    token,
+  );
+  return { items: page.items.filter((item) => item.isActive), totalCount: page.totalCount };
+}
 type StockItem = AppTypes.StockItem;
 type StockItemUnitConversion = AppTypes.StockItemUnitConversion;
 type Warehouse = AppTypes.Warehouse;
 type WarehouseLocationOption = AppTypes.WarehouseLocationOption;
+type SalesQuoteExchangeRates = { baseCurrencyCode: string; rates: { currencyCode: string; rate: number; rateDate: string }[] };
+
+function AsyncStockItemPicker({
+  token,
+  selectedId,
+  initialItems,
+  onSelect,
+}: {
+  token: string;
+  selectedId: string;
+  initialItems: StockItem[];
+  onSelect: (item: StockItem) => void;
+}) {
+  const selected = initialItems.find((item) => item.id === selectedId);
+  const [query, setQuery] = useState(selected ? `${selected.code} · ${selected.name}` : "");
+  const [results, setResults] = useState<StockItem[]>([]);
+  const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    if (selected) setQuery(`${selected.code} · ${selected.name}`);
+  }, [selected?.id]);
+  useEffect(() => {
+    const value = query.trim();
+    if (!open || value.length < 2 || value === (selected ? `${selected.code} · ${selected.name}` : "")) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const timer = window.setTimeout(() => {
+      void api<{ items: StockItem[] }>(
+        `/api/stock/items/?q=${encodeURIComponent(value)}&page=1&pageSize=25`,
+        token,
+      ).then((page) => {
+        if (!cancelled) setResults(page.items.filter((item) => item.isActive));
+      }).catch(() => {
+        if (!cancelled) setResults([]);
+      }).finally(() => {
+        if (!cancelled) setSearching(false);
+      });
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query, open, token, selected?.id]);
+  return (
+    <div className="async-stock-picker">
+      <input
+        type="search"
+        value={query}
+        placeholder="Stok kodu veya adıyla ara"
+        aria-label="Stok kodu veya adıyla ara"
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setOpen(true);
+        }}
+      />
+      {open && query.trim().length >= 2 && (
+        <div className="async-stock-picker-results" role="listbox">
+          {searching && <div className="async-stock-picker-empty">Stok kartları aranıyor…</div>}
+          {!searching && results.map((item) => (
+            <button type="button" role="option" key={item.id} onClick={() => {
+              onSelect(item);
+              setQuery(`${item.code} · ${item.name}`);
+              setOpen(false);
+            }}>
+              <b>{item.code} · {item.name}</b><small>{item.unitCode}</small>
+            </button>
+          ))}
+          {!searching && results.length === 0 && <div className="async-stock-picker-empty">Eşleşen aktif stok kartı bulunamadı.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function SalesPage({
   token,
@@ -80,19 +196,54 @@ export function SalesPage({
   initialSupplier,
   onInitialSupplierOpened,
   openInvoiceCreate = false,
+  createInvoicePage = false,
   createOrderPage = false,
+  createQuotePage = false,
+  createDeliveryPage = false,
 }: {
   token: string;
   role: string;
   section: SalesPageKey;
-  onNavigate: (page: SalesPageKey) => void;
+  onNavigate: (page: SalesPageKey, label?: string) => void;
   initialInvoiceId?: string | null;
   onInitialInvoiceOpened?: () => void;
   initialSupplier?: { id: string; name: string } | null;
   onInitialSupplierOpened?: () => void;
   openInvoiceCreate?: boolean;
+  createInvoicePage?: boolean;
   createOrderPage?: boolean;
+  createQuotePage?: boolean;
+  createDeliveryPage?: boolean;
 }) {
+  const salesActionPage = createOrderPage
+    ? "sales-order-create"
+    : createQuotePage
+      ? "sales-quote-create"
+      : createInvoicePage
+        ? "sales-invoice-create"
+        : createDeliveryPage
+          ? "sales-delivery-create"
+          : "";
+  const [actionCustomerId, setActionCustomerId] = useState(() =>
+    salesActionPage ? takeCustomerSalesAction(salesActionPage) : "",
+  );
+  useEffect(() => {
+    if (!salesActionPage) return;
+    const pendingCustomerId = takeCustomerSalesAction(salesActionPage);
+    if (pendingCustomerId) setActionCustomerId(pendingCustomerId);
+    const receiveCustomerAction = (event: Event) => {
+      const action = (event as CustomEvent<CustomerSalesAction>).detail;
+      if (!action || action.page !== salesActionPage) return;
+      sessionStorage.removeItem(customerSalesActionStorageKey);
+      setActionCustomerId(action.customerId);
+      if (action.customer?.id === action.customerId)
+        setCustomers((current) => current.some((item) => item.id === action.customerId)
+          ? current
+          : [...current, action.customer!]);
+    };
+    window.addEventListener("nexora:customer-sales-action", receiveCustomerAction);
+    return () => window.removeEventListener("nexora:customer-sales-action", receiveCustomerAction);
+  }, [salesActionPage]);
   const today = localDateString(),
     validDefault = localDateString(new Date(Date.now() + 14 * 86400000));
   const [quotes, setQuotes] = useState<SalesQuoteSummary[]>([]),
@@ -101,9 +252,47 @@ export function SalesPage({
     [customers, setCustomers] = useState<SalesCustomer[]>([]),
     [stockItems, setStockItems] = useState<StockItem[]>([]),
     [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  useEffect(() => {
+    if (!actionCustomerId) return;
+    try {
+      const cachedCustomer = sessionStorage.getItem(customerSalesActionPrefillKey);
+      if (cachedCustomer) {
+        sessionStorage.removeItem(customerSalesActionPrefillKey);
+        const customer = JSON.parse(cachedCustomer) as SalesCustomer;
+        if (customer.id === actionCustomerId) {
+          setCustomers((current) => current.some((item) => item.id === customer.id)
+            ? current
+            : [...current, customer]);
+          return;
+        }
+      }
+    } catch {
+      sessionStorage.removeItem(customerSalesActionPrefillKey);
+    }
+    let active = true;
+    void api<SalesCustomer>(`/api/customers/${actionCustomerId}`, token)
+      .then((customer) => {
+        if (!active) return;
+        setCustomers((current) =>
+          current.some((item) => item.id === customer.id)
+            ? current
+            : [...current, customer],
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [actionCustomerId, token]);
   const [salesListPage, setSalesListPage] = useState(1),
     [salesListTotal, setSalesListTotal] = useState(0);
   const [invoiceCreateOpen, setInvoiceCreateOpen] = useState(openInvoiceCreate);
+  const [quoteStatusFilter, setQuoteStatusFilter] = useState("");
+  const [quoteDateFrom, setQuoteDateFrom] = useState("");
+  const [quoteDateTo, setQuoteDateTo] = useState("");
+  const [quoteStatusDraft, setQuoteStatusDraft] = useState("");
+  const [quoteDateFromDraft, setQuoteDateFromDraft] = useState("");
+  const [quoteDateToDraft, setQuoteDateToDraft] = useState("");
   const defaultOrderLayout: BuiltInScreenLayoutField[] = [
     { key: "code", label: "Sipariş no", visible: true, position: 0 },
     { key: "quoteCode", label: "Kaynak teklif", visible: true, position: 1 },
@@ -123,16 +312,18 @@ export function SalesPage({
   const defaultQuoteLayout: BuiltInScreenLayoutField[] = [
     { key: "code", label: "Teklif no", visible: true, position: 0 },
     { key: "customerName", label: "Müşteri", visible: true, position: 1 },
-    { key: "quoteDate", label: "Teklif tarihi", visible: true, position: 2 },
-    { key: "validUntil", label: "Geçerlilik", visible: true, position: 3 },
-    { key: "lineCount", label: "Satır", visible: true, position: 4 },
-    { key: "grandTotal", label: "Genel toplam", visible: true, position: 5 },
-    { key: "status", label: "Durum", visible: true, position: 6 },
+    { key: "salesperson", label: "Plasiyer", visible: true, position: 2 },
+    { key: "salesOrderCode", label: "Sipariş no", visible: true, position: 3 },
+    { key: "quoteDate", label: "Teklif tarihi", visible: true, position: 4 },
+    { key: "validUntil", label: "Geçerlilik", visible: true, position: 5 },
+    { key: "lineCount", label: "Satır", visible: true, position: 6 },
+    { key: "grandTotal", label: "Genel toplam", visible: true, position: 7 },
+    { key: "status", label: "Durum", visible: true, position: 8 },
     {
       key: "actions",
       label: "İşlemler",
       visible: true,
-      position: 7,
+      position: 9,
       fixed: true,
     },
   ];
@@ -165,13 +356,18 @@ export function SalesPage({
     [notice, setNotice] = useState(""),
     [search, setSearch] = useState(""),
     [selectedSalesId, setSelectedSalesId] = useState<string | null>(null);
-  const [modal, setModal] = useState(false),
-    [detail, setDetail] = useState<SalesQuoteDetail | null>(null),
+  const [detail, setDetail] = useState<SalesQuoteDetail | null>(null),
+    [quoteRevisions, setQuoteRevisions] = useState<SalesQuoteRevisionSummary[]>([]),
+    [quoteDetailTab, setQuoteDetailTab] = useState<"information" | "revisions">("information"),
+    [quotePrintOpen, setQuotePrintOpen] = useState(false),
+    [revisesQuoteId, setRevisesQuoteId] = useState<string | null>(null),
+    [editingQuoteId, setEditingQuoteId] = useState<string | null>(null),
     [orderDetail, setOrderDetail] = useState<SalesOrderDetail | null>(null),
     [invoiceId, setInvoiceId] = useState<string | null>(null),
     [directOrderCode, setDirectOrderCode] = useState(""),
     [directOrderDate, setDirectOrderDate] = useState(today),
     [directDeliveryDate, setDirectDeliveryDate] = useState(""),
+    [directOrderSalespersonId, setDirectOrderSalespersonId] = useState(""),
     [directOrderFields, setDirectOrderFields] = useState<
       Record<string, string>
     >({}),
@@ -182,20 +378,26 @@ export function SalesPage({
         unitPrice: "0",
         discountPercent: "0",
         vatPercent: "20",
+        isVatIncluded: false,
         unitCode: "",
+        currencyCode: "TRY",
       },
     ]);
   useEffect(() => {
     if (!detail && !orderDetail) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (quotePrintOpen) {
+          setQuotePrintOpen(false);
+          return;
+        }
         setDetail(null);
         setOrderDetail(null);
       }
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [detail, orderDetail]);
+  }, [detail, orderDetail, quotePrintOpen]);
   useEffect(() => {
     if (section === "sales-invoices" && initialInvoiceId) {
       setInvoiceId(initialInvoiceId);
@@ -204,7 +406,7 @@ export function SalesPage({
   }, [section, initialInvoiceId]);
   useEffect(() => {
     if (section === "sales-invoices" && openInvoiceCreate)
-      setInvoiceCreateOpen(true);
+      void prepareInvoiceCreate();
   }, [section, openInvoiceCreate]);
   useEffect(() => {
     if (section === "sales-purchase-invoices" && initialSupplier)
@@ -237,11 +439,29 @@ export function SalesPage({
     setError("");
   }, [activeTab]);
   const [code, setCode] = useState(""),
-    [customerId, setCustomerId] = useState(""),
+    [customerId, setCustomerId] = useState(() =>
+      createOrderPage || createQuotePage ? actionCustomerId : "",
+    ),
+    [isProspectQuote, setIsProspectQuote] = useState(false),
+    [prospectCustomerName, setProspectCustomerName] = useState(""),
     [quoteDate, setQuoteDate] = useState(today),
     [validUntil, setValidUntil] = useState(validDefault),
     [currencyCode, setCurrencyCode] = useState("TRY"),
-    [notes, setNotes] = useState("");
+    [notes, setNotes] = useState(""),
+    [deliveryTerms, setDeliveryTerms] = useState(""),
+    [salespersonEmployeeId, setSalespersonEmployeeId] = useState("");
+  useEffect(() => {
+    if (actionCustomerId && (createOrderPage || createQuotePage))
+      setCustomerId(actionCustomerId);
+  }, [actionCustomerId, createOrderPage, createQuotePage]);
+  useEffect(() => {
+    if (!actionCustomerId || (!createOrderPage && !createQuotePage)) return;
+    const customer = customers.find((item) => item.id === actionCustomerId);
+    if (customer) setCurrencyCode(customer.currencyCode);
+  }, [actionCustomerId, createOrderPage, createQuotePage, customers]);
+  const [quoteSalespeople, setQuoteSalespeople] = useState<QuoteSalesperson[]>([]);
+  const [quoteExchangeRates, setQuoteExchangeRates] = useState<SalesQuoteExchangeRates>({ baseCurrencyCode: "TRY", rates: [] });
+  const [quoteExchangeRatesLoading, setQuoteExchangeRatesLoading] = useState(false);
   const [lines, setLines] = useState([
     {
       stockItemId: "",
@@ -249,12 +469,48 @@ export function SalesPage({
       unitPrice: "0",
       discountPercent: "0",
       vatPercent: "20",
+      isVatIncluded: false,
       unitCode: "",
+      currencyCode: "",
+      exchangeRateOverride: "",
     },
   ]);
   const [quoteUnits, setQuoteUnits] = useState<
     Record<string, StockItemUnitConversion[]>
   >({});
+  const [quoteStockLabels, setQuoteStockLabels] = useState<Record<string, string>>({});
+  const [quoteStockTotalCount, setQuoteStockTotalCount] = useState(0);
+  const [customerPickerTotalCount, setCustomerPickerTotalCount] = useState(0);
+  const quoteStockBaseTotalCount = useRef(0);
+  const quoteStockSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quoteStockSearchSequence = useRef(0);
+  function searchQuoteStockItems(value: string) {
+    quoteStockSearchSequence.current += 1;
+    const requestSequence = quoteStockSearchSequence.current;
+    if (quoteStockSearchTimer.current) clearTimeout(quoteStockSearchTimer.current);
+    const query = value.trim();
+    if (query.length < 2) {
+      setQuoteStockTotalCount(quoteStockBaseTotalCount.current);
+      return;
+    }
+    quoteStockSearchTimer.current = setTimeout(async () => {
+      try {
+        const page = await api<{ items: StockItem[]; totalCount: number }>(
+          `/api/stock/items/?q=${encodeURIComponent(query)}&page=1&pageSize=50`,
+          token,
+        );
+        if (requestSequence !== quoteStockSearchSequence.current) return;
+        setQuoteStockTotalCount(page.totalCount);
+        setStockItems((current) => {
+          const byId = new Map(current.map((item) => [item.id, item]));
+          page.items.filter((item) => item.isActive).forEach((item) => byId.set(item.id, item));
+          return [...byId.values()];
+        });
+      } catch (e) {
+        if (requestSequence === quoteStockSearchSequence.current) setError((e as Error).message);
+      }
+    }, 300);
+  }
   const [orderFieldDefinitions, setOrderFieldDefinitions] = useState<
       SalesOrderCustomFieldDefinition[]
     >([]),
@@ -303,6 +559,13 @@ export function SalesPage({
             : tab === "orders"
               ? "/api/sales/orders/"
               : "/api/sales/invoices/";
+        const quoteFilterParams = new URLSearchParams();
+        if (tab === "quotes") {
+          if (quoteStatusFilter) quoteFilterParams.set("status", quoteStatusFilter);
+          if (quoteDateFrom) quoteFilterParams.set("dateFrom", quoteDateFrom);
+          if (quoteDateTo) quoteFilterParams.set("dateTo", quoteDateTo);
+        }
+        const quoteFilterQuery = quoteFilterParams.toString();
         const [page, warehouseItems, orderPage] = await Promise.all([
           api<{
             items:
@@ -312,7 +575,7 @@ export function SalesPage({
             page: number;
             totalCount: number;
           }>(
-            `${endpoint}?q=${encodeURIComponent(query.trim())}&page=${targetPage}&pageSize=25`,
+            `${endpoint}?q=${encodeURIComponent(query.trim())}&page=${targetPage}&pageSize=25${quoteFilterQuery ? `&${quoteFilterQuery}` : ""}`,
             token,
           ),
           api<Warehouse[]>("/api/warehouses/", token),
@@ -337,6 +600,27 @@ export function SalesPage({
         setWarehouses(warehouseItems.filter((x) => x.isActive));
         return;
       }
+      if (tab === "purchases" || tab === "requests") {
+        const [supplierPage, combinedPage, warehouseItems] = await Promise.all([
+          tab === "purchases"
+            ? api<{ items: SalesCustomer[] }>(
+                "/api/customers/?type=Supplier&status=Active&page=1&pageSize=100",
+                token,
+              )
+            : Promise.resolve({ items: [] as SalesCustomer[] }),
+          tab === "purchases"
+            ? api<{ items: SalesCustomer[] }>(
+                "/api/customers/?type=Both&status=Active&page=1&pageSize=100",
+                token,
+              )
+            : Promise.resolve({ items: [] as SalesCustomer[] }),
+          api<Warehouse[]>("/api/warehouses/", token),
+        ]);
+        setCustomers([...supplierPage.items, ...combinedPage.items]);
+        setStockItems([]);
+        setWarehouses(warehouseItems.filter((x) => x.isActive));
+        return;
+      }
       const [
         quotes,
         orders,
@@ -349,14 +633,14 @@ export function SalesPage({
         loadAllPages<SalesOrderSummary>("/api/sales/orders/", token),
         loadAllPages<SalesInvoiceSummary>("/api/sales/invoices/", token),
         loadAllPages<SalesCustomer>("/api/customers/", token),
-        loadStockItemCatalog(token),
+        loadStockItemPickerPage(token),
         api<Warehouse[]>("/api/warehouses/", token),
       ]);
       setQuotes(quotes);
       setOrders(orders);
       setInvoices(invoices);
       setCustomers(customers);
-      setStockItems(stockCatalog.filter((x) => x.isActive));
+      setStockItems(stockCatalog.items.filter((x) => x.isActive));
       setWarehouses(warehouseItems.filter((x) => x.isActive));
     } catch (e) {
       setError((e as Error).message);
@@ -384,12 +668,15 @@ export function SalesPage({
       setError((error as Error).message);
     }
   }
-  const salesRequestKey = useRef({ tab: activeTab, query: search });
+  const salesRequestKey = useRef({ tab: activeTab, query: search, quoteStatusFilter, quoteDateFrom, quoteDateTo });
   useEffect(() => {
     const changed =
       salesRequestKey.current.tab !== activeTab ||
-      salesRequestKey.current.query !== search;
-    salesRequestKey.current = { tab: activeTab, query: search };
+      salesRequestKey.current.query !== search ||
+      salesRequestKey.current.quoteStatusFilter !== quoteStatusFilter ||
+      salesRequestKey.current.quoteDateFrom !== quoteDateFrom ||
+      salesRequestKey.current.quoteDateTo !== quoteDateTo;
+    salesRequestKey.current = { tab: activeTab, query: search, quoteStatusFilter, quoteDateFrom, quoteDateTo };
     const page = changed ? 1 : salesListPage;
     if (changed && salesListPage !== 1) setSalesListPage(1);
     const delay =
@@ -402,7 +689,7 @@ export function SalesPage({
       void load(page, search, activeTab);
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [token, activeTab, search, salesListPage]);
+  }, [token, activeTab, search, salesListPage, quoteStatusFilter, quoteDateFrom, quoteDateTo]);
   useEffect(() => {
     let cancelled = false;
     api<{ fields: BuiltInScreenLayoutField[] }>(
@@ -465,34 +752,94 @@ export function SalesPage({
       setQuoteFieldBusy(false);
     }
   }
-  async function openQuoteModal() {
+  async function openQuoteCreatePage(navigateToPage = true) {
     setError("");
+    setRevisesQuoteId(null);
+    setEditingQuoteId(null);
     setQuoteFieldValues({});
     setQuoteUnits({});
+    setQuoteStockLabels({});
+    setCustomerId("");
+    setIsProspectQuote(false);
+    setProspectCustomerName("");
+    setCode(`T-${today.slice(0, 4)}-${String(Date.now()).slice(-4)}`);
+    setQuoteDate(today);
+    setValidUntil(validDefault);
+    setNotes("");
+    setDeliveryTerms("");
+    setSalespersonEmployeeId("");
+    setLines([
+      {
+        stockItemId: "",
+        quantity: "1",
+        unitPrice: "0",
+        discountPercent: "0",
+        vatPercent: "20",
+        isVatIncluded: false,
+        unitCode: "",
+        currencyCode: "",
+        exchangeRateOverride: "",
+      },
+    ]);
     setBusy(true);
     try {
-      const [fields, loadedCustomers, stockCatalog] = await Promise.all([
+      const [fields, loadedCustomers, stockCatalog, salespeople] = await Promise.all([
         api<SalesQuoteCustomFieldDefinition[]>(
           "/api/sales/quotes/custom-fields",
           token,
         ),
         customers.length
-          ? Promise.resolve(customers)
-          : loadAllPages<SalesCustomer>("/api/customers/", token),
+          ? Promise.resolve({ items: customers, totalCount: customerPickerTotalCount || customers.length })
+          : loadCustomerPickerPage(token),
         stockItems.length
-          ? Promise.resolve(stockItems)
-          : loadStockItemCatalog(token),
+          ? Promise.resolve({ items: stockItems, totalCount: quoteStockTotalCount || stockItems.length })
+          : loadStockItemPickerPage(token),
+        quoteSalespeople.length ? Promise.resolve(quoteSalespeople) : api<QuoteSalesperson[]>("/api/hr/employees/", token),
       ]);
       setQuoteFieldDefinitions(fields);
-      setCustomers(loadedCustomers);
-      setStockItems(stockCatalog.filter((item) => item.isActive));
-      setModal(true);
+      setCustomers(loadedCustomers.items);
+      setCustomerPickerTotalCount(loadedCustomers.totalCount);
+      setStockItems(stockCatalog.items);
+      quoteStockBaseTotalCount.current = stockCatalog.totalCount;
+      setQuoteStockTotalCount(stockCatalog.totalCount);
+      setQuoteSalespeople(salespeople.filter((employee) => employee.status === "Active"));
+      if (navigateToPage) onNavigate("sales-quote-create");
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
   }
+  useEffect(() => {
+    if (!createQuotePage) return;
+    const pendingEditId = sessionStorage.getItem("nexora.sales-quote.edit-id");
+    if (pendingEditId) {
+      sessionStorage.removeItem("nexora.sales-quote.edit-id");
+      if (pendingEditId !== editingQuoteId) void beginQuoteEdit(pendingEditId, false);
+      return;
+    }
+    if (!revisesQuoteId && !editingQuoteId) void openQuoteCreatePage(false);
+  }, [createQuotePage, token, revisesQuoteId, editingQuoteId]);
+  useEffect(() => {
+    if (!createQuotePage) return;
+    let cancelled = false;
+    setQuoteExchangeRatesLoading(true);
+    api<SalesQuoteExchangeRates>(`/api/sales/quotes/exchange-rates?rateDate=${encodeURIComponent(quoteDate)}`, token)
+      .then((rates) => { if (!cancelled) setQuoteExchangeRates(rates); })
+      .catch((e) => { if (!cancelled) setError((e as Error).message); })
+      .finally(() => { if (!cancelled) setQuoteExchangeRatesLoading(false); });
+    return () => { cancelled = true; };
+  }, [createQuotePage, quoteDate, token]);
+  useEffect(() => {
+    if (!createOrderPage) return;
+    let cancelled = false;
+    setQuoteExchangeRatesLoading(true);
+    api<SalesQuoteExchangeRates>(`/api/sales/quotes/exchange-rates?rateDate=${encodeURIComponent(directOrderDate)}`, token)
+      .then((rates) => { if (!cancelled) setQuoteExchangeRates(rates); })
+      .catch((e) => { if (!cancelled) setError((e as Error).message); })
+      .finally(() => { if (!cancelled) setQuoteExchangeRatesLoading(false); });
+    return () => { cancelled = true; };
+  }, [createOrderPage, directOrderDate, token]);
   async function loadQuoteUnits(itemId: string) {
     if (!itemId || quoteUnits[itemId]) return;
     try {
@@ -511,12 +858,13 @@ export function SalesPage({
 
   async function openDirectOrderModal() {
     setError("");
-    setCustomerId("");
+    setCustomerId(actionCustomerId);
     setDirectOrderFields({});
+    setDirectOrderSalespersonId("");
     setQuoteUnits({});
     setBusy(true);
     try {
-      const [fields, loadedCustomers, stockCatalog] = await Promise.all([
+      const [fields, loadedCustomers, stockCatalog, salespeople] = await Promise.all([
         api<SalesOrderCustomFieldDefinition[]>(
           "/api/sales/orders/custom-fields",
           token,
@@ -527,10 +875,12 @@ export function SalesPage({
         stockItems.length
           ? Promise.resolve(stockItems)
           : loadStockItemCatalog(token),
+        quoteSalespeople.length ? Promise.resolve(quoteSalespeople) : api<QuoteSalesperson[]>("/api/hr/employees/", token),
       ]);
       setOrderFieldDefinitions(fields);
       setCustomers(loadedCustomers);
       setStockItems(stockCatalog.filter((item) => item.isActive));
+      setQuoteSalespeople(salespeople.filter((employee) => employee.status === "Active"));
       setDirectOrderDate(today);
       setDirectDeliveryDate("");
       setDirectOrderLines([
@@ -540,12 +890,35 @@ export function SalesPage({
           unitPrice: "0",
           discountPercent: "0",
           vatPercent: "20",
+          isVatIncluded: false,
           unitCode: "",
+          currencyCode: currencyCode || "TRY",
         },
       ]);
       setDirectOrderCode(
         `S-${today.replaceAll("-", "")}-${String(Date.now()).slice(-4)}`,
       );
+      const editOrderId = sessionStorage.getItem("nexora.sales-order.edit-id");
+      if (editOrderId) {
+        const existing = await api<SalesOrderDetail>(`/api/sales/orders/${editOrderId}`, token);
+        setDirectOrderCode(existing.code);
+        setCustomerId(existing.customerId);
+        setDirectOrderSalespersonId(existing.salespersonEmployeeId || "");
+        setCurrencyCode(existing.currencyCode);
+        setDirectOrderDate(existing.orderDate);
+        setDirectDeliveryDate(existing.requestedDeliveryDate || "");
+        setDirectOrderFields(Object.fromEntries((existing.customFields || []).map((field) => [field.code, field.value])));
+        setDirectOrderLines(existing.lines.map((line) => ({
+          stockItemId: line.stockItemId,
+          quantity: String(line.quantity),
+          unitPrice: String(line.enteredUnitPrice ?? line.unitPrice),
+          discountPercent: String(line.discountPercent),
+          vatPercent: String(line.vatPercent),
+          isVatIncluded: line.isVatIncluded ?? false,
+          unitCode: line.enteredUnitCode || line.unitCode,
+          currencyCode: line.enteredCurrencyCode || existing.currencyCode,
+        })));
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -554,11 +927,11 @@ export function SalesPage({
   }
   useEffect(() => {
     if (createOrderPage) void openDirectOrderModal();
-  }, [createOrderPage, token]);
+  }, [actionCustomerId, createOrderPage, token]);
   function updateDirectOrderLine(
     index: number,
     key: keyof (typeof directOrderLines)[number],
-    value: string,
+    value: string | boolean,
   ) {
     setDirectOrderLines((current) =>
       current.map((line, i) =>
@@ -566,26 +939,105 @@ export function SalesPage({
       ),
     );
   }
+  function selectDirectOrderStock(index: number, stockItemId: string) {
+    const selectedItem = stockItems.find((item) => item.id === stockItemId);
+    if (!selectedItem) return;
+    const previousLine = directOrderLines[index];
+    const editingOrder = Boolean(sessionStorage.getItem("nexora.sales-order.edit-id"));
+    const shouldRefreshPrice = !editingOrder || !previousLine?.stockItemId || previousLine.stockItemId === stockItemId || window.confirm(
+      `Stok kartı değişti. Tanımlı satış fiyatı ${selectedItem.salesListPrice ?? 0} ${selectedItem.priceCurrencyCode || currencyCode} olarak güncellensin mi?`,
+    );
+    void loadQuoteUnits(stockItemId);
+    setDirectOrderLines((current) => current.map((line, rowIndex) => rowIndex !== index ? line : {
+      ...line,
+      stockItemId,
+      unitCode: selectedItem.unitCode || "",
+      ...(shouldRefreshPrice ? {
+        unitPrice: String(selectedItem.salesListPrice ?? 0),
+        currencyCode: selectedItem.priceCurrencyCode || customers.find((customer) => customer.id === customerId)?.currencyCode || "TRY",
+        vatPercent: String(selectedItem.salesVatPercent ?? 20),
+        discountPercent: String(selectedItem.salesDiscountPercent ?? 0),
+      } : {}),
+    }));
+  }
+  const quoteLineFxRate = (sourceCurrency: string) => {
+    const source = sourceCurrency.toUpperCase();
+    const target = currencyCode.toUpperCase();
+    if (source === target) return 1;
+    const rates = new Map(quoteExchangeRates.rates.map((item) => [item.currencyCode.toUpperCase(), item.rate]));
+    const sourceRate = source === quoteExchangeRates.baseCurrencyCode ? 1 : rates.get(source);
+    const targetRate = target === quoteExchangeRates.baseCurrencyCode ? 1 : rates.get(target);
+    return sourceRate && targetRate ? sourceRate / targetRate : null;
+  };
+  const quoteLineEffectiveFxRate = (line: (typeof lines)[number]) => {
+    const entered = line.currencyCode || currencyCode;
+    if (entered.toUpperCase() === currencyCode.toUpperCase()) return 1;
+    if (line.exchangeRateOverride.trim()) {
+      const override = Number(line.exchangeRateOverride);
+      return Number.isFinite(override) && override > 0 ? override : null;
+    }
+    const computed = quoteLineFxRate(entered);
+    return computed === null ? null : Math.round(computed * 100000000) / 100000000;
+  };
   const directOrderTotals = directOrderLines.reduce(
     (totals, line) => {
-      const gross = Number(line.quantity || 0) * Number(line.unitPrice || 0);
+      const gross = Number(line.quantity || 0) * Number(line.unitPrice || 0) * (quoteLineFxRate(line.currencyCode || currencyCode) ?? 0);
       const discount = (gross * Number(line.discountPercent || 0)) / 100;
       const net = gross - discount;
-      const vat = (net * Number(line.vatPercent || 0)) / 100;
+      const vatPercent = Number(line.vatPercent || 0);
+      const vat = (net * vatPercent) / 100;
       return {
         subtotal: totals.subtotal + gross,
         discount: totals.discount + discount,
         vat: totals.vat + vat,
         total: totals.total + net + vat,
+        taxableByRate: { ...totals.taxableByRate, [vatPercent]: (totals.taxableByRate[vatPercent] || 0) + net },
+        vatByRate: { ...totals.vatByRate, [vatPercent]: (totals.vatByRate[vatPercent] || 0) + vat },
       };
     },
-    { subtotal: 0, discount: 0, vat: 0, total: 0 },
+    { subtotal: 0, discount: 0, vat: 0, total: 0, taxableByRate: {} as Record<number, number>, vatByRate: {} as Record<number, number> },
   );
   const formatOrderMoney = (value: number) =>
     new Intl.NumberFormat("tr-TR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value);
+  const renderOrderCurrency = (value: number, currency: string) => {
+    const formatted = formatOrderMoney(Number.isFinite(value) ? value : 0);
+    return (
+      <output className="sales-total-amount" aria-label={`${formatted} ${currency}`}>
+        <b>{formatted}</b>
+        <small>{currency === "TRY" ? "TL" : currency}</small>
+      </output>
+    );
+  };
+  const quoteLineAmounts = (line: (typeof lines)[number]) => {
+    const round = (value: number) => Math.round(value * 100) / 100;
+    const enteredSubtotal = round(Number(line.quantity || 0) * Number(line.unitPrice || 0) * (quoteLineEffectiveFxRate(line) ?? 0));
+    const vatPercent = Number(line.vatPercent || 0);
+    const subtotal = line.isVatIncluded && vatPercent > 0 ? round(enteredSubtotal / (1 + vatPercent / 100)) : enteredSubtotal;
+    const discount = round(subtotal * Number(line.discountPercent || 0) / 100);
+    const tax = round((subtotal - discount) * vatPercent / 100);
+    return { subtotal, discount, tax, total: subtotal - discount + tax };
+  };
+  const quoteTotals = lines.reduce(
+    (totals, line) => {
+      const amount = quoteLineAmounts(line);
+      const vatPercent = Number(line.vatPercent || 0);
+      const taxable = amount.subtotal - amount.discount;
+      return {
+        subtotal: totals.subtotal + amount.subtotal,
+        discount: totals.discount + amount.discount,
+        tax: totals.tax + amount.tax,
+        total: totals.total + amount.total,
+        taxableByRate: { ...totals.taxableByRate, [vatPercent]: (totals.taxableByRate[vatPercent] || 0) + taxable },
+        taxByRate: { ...totals.taxByRate, [vatPercent]: (totals.taxByRate[vatPercent] || 0) + amount.tax },
+      };
+    },
+    { subtotal: 0, discount: 0, tax: 0, total: 0, taxableByRate: {} as Record<number, number>, taxByRate: {} as Record<number, number> },
+  );
+  const hasMissingQuoteFx = lines.some((line) => quoteLineEffectiveFxRate(line) === null);
+  const quoteCurrencies = [...new Set([currencyCode, quoteExchangeRates.baseCurrencyCode, "TRY", "USD", "EUR", "GBP", ...quoteExchangeRates.rates.map((rate) => rate.currencyCode), ...stockItems.map((item) => item.priceCurrencyCode || "")])].filter(Boolean).sort();
   async function createDirectOrder(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -597,18 +1049,25 @@ export function SalesPage({
       setBusy(false);
       return;
     }
+    if (quoteExchangeRatesLoading || directOrderLines.some((line) => quoteLineFxRate(line.currencyCode || customer.currencyCode || "TRY") === null)) {
+      setError(quoteExchangeRatesLoading ? "Sipariş tarihi için döviz kurları yükleniyor. Lütfen bekleyin." : "Seçili satır dövizlerinden sipariş dövizine çevrim için kur bulunamadı.");
+      setBusy(false);
+      return;
+    }
     try {
+      const editOrderId = sessionStorage.getItem("nexora.sales-order.edit-id");
       const created = await api<SalesOrderSummary>(
-        "/api/sales/orders/",
+        editOrderId ? `/api/sales/orders/${editOrderId}` : "/api/sales/orders/",
         token,
         {
-          method: "POST",
+          method: editOrderId ? "PUT" : "POST",
           body: JSON.stringify({
             code: directOrderCode,
             customerId,
             orderDate: directOrderDate,
             requestedDeliveryDate: directDeliveryDate || null,
             currencyCode: customer.currencyCode,
+            salespersonEmployeeId: directOrderSalespersonId || null,
             customFields: directOrderFields,
             lines: directOrderLines.map((x) => ({
               stockItemId: x.stockItemId,
@@ -616,16 +1075,19 @@ export function SalesPage({
               unitPrice: Number(x.unitPrice),
               discountPercent: Number(x.discountPercent),
               vatPercent: Number(x.vatPercent),
+              isVatIncluded: x.isVatIncluded,
               unitCode:
                 x.unitCode ||
                 stockItems.find((item) => item.id === x.stockItemId)?.unitCode,
+              currencyCode: x.currencyCode || customer.currencyCode || "TRY",
             })),
           }),
         },
       );
+      sessionStorage.removeItem("nexora.sales-order.edit-id");
       setCustomerId("");
       setDirectOrderFields({});
-      setNotice(`${created.code} siparişi oluşturuldu.`);
+      setNotice(`${created.code} siparişi ${editOrderId ? "güncellendi" : "oluşturuldu"}.`);
       onNavigate("sales-orders");
     } catch (e) {
       setError((e as Error).message);
@@ -806,7 +1268,7 @@ export function SalesPage({
   function updateLine(
     index: number,
     key: keyof (typeof lines)[number],
-    value: string,
+    value: string | boolean,
   ) {
     setLines((current) =>
       current.map((line, i) =>
@@ -814,37 +1276,109 @@ export function SalesPage({
       ),
     );
   }
+  async function beginQuoteEdit(id: string, navigateToPage = true) {
+    setBusy(true);
+    setError("");
+    try {
+      const [quote, fields, loadedCustomers, stockCatalog, salespeople] = await Promise.all([
+        api<SalesQuoteDetail>(`/api/sales/quotes/${id}`, token),
+        api<SalesQuoteCustomFieldDefinition[]>("/api/sales/quotes/custom-fields", token),
+        customers.length ? Promise.resolve({ items: customers, totalCount: customerPickerTotalCount || customers.length }) : loadCustomerPickerPage(token),
+        stockItems.length ? Promise.resolve({ items: stockItems, totalCount: quoteStockTotalCount || stockItems.length }) : loadStockItemPickerPage(token),
+        quoteSalespeople.length ? Promise.resolve(quoteSalespeople) : api<QuoteSalesperson[]>("/api/hr/employees/", token),
+      ]);
+      if (quote.status !== "Draft" || quote.hasSalesOrder) {
+        setError("Yalnızca siparişe dönüşmemiş taslak teklifler düzenlenebilir.");
+        return;
+      }
+      setCustomers(loadedCustomers.items);
+      setCustomerPickerTotalCount(loadedCustomers.totalCount);
+      setStockItems(stockCatalog.items);
+      quoteStockBaseTotalCount.current = stockCatalog.totalCount;
+      setQuoteStockTotalCount(stockCatalog.totalCount);
+      setQuoteSalespeople(salespeople.filter((employee) => employee.status === "Active"));
+      setQuoteStockLabels(Object.fromEntries(quote.lines.map((line) => [line.stockItemId, `${line.stockCode} · ${line.stockName}`])));
+      setQuoteFieldDefinitions(fields);
+      setEditingQuoteId(quote.id);
+      setRevisesQuoteId(null);
+      setCode(quote.code);
+      setCustomerId(quote.customerId ?? "");
+      setIsProspectQuote(!quote.customerId);
+      setProspectCustomerName(quote.customerId ? "" : quote.customerName);
+      setCurrencyCode(quote.currencyCode);
+      setQuoteDate(quote.quoteDate);
+      setValidUntil(quote.validUntil);
+      setNotes(quote.notes || "");
+      setDeliveryTerms(quote.deliveryTerms || "");
+      setSalespersonEmployeeId(quote.salespersonEmployeeId || "");
+      setQuoteFieldValues(Object.fromEntries((quote.customFields || []).map((field) => [field.code, field.value])));
+      setLines(quote.lines.map((line) => ({
+        stockItemId: line.stockItemId,
+        quantity: String(line.quantity),
+        unitPrice: String(line.enteredUnitPrice ?? line.unitPrice),
+        discountPercent: String(line.discountPercent),
+        vatPercent: String(line.vatPercent),
+        isVatIncluded: line.isVatIncluded ?? false,
+        unitCode: line.enteredUnitCode || line.unitCode,
+        currencyCode: line.enteredCurrencyCode || quote.currencyCode,
+        exchangeRateOverride: String(line.exchangeRateToQuoteCurrency ?? 1),
+      })));
+      setDetail(null);
+      if (navigateToPage) {
+        sessionStorage.setItem("nexora.sales-quote.edit-id", quote.id);
+        onNavigate("sales-quote-create", "Teklif Düzenleme");
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function createQuote(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
     setNotice("");
     const customer = customers.find((x) => x.id === customerId);
-    if (!customer) {
-      setError("Müşteri seçin.");
+    if ((!isProspectQuote && !customer) || (isProspectQuote && !prospectCustomerName.trim())) {
+      setError(isProspectQuote ? "Teklif alıcısının adını girin." : "Müşteri seçin veya kayıtsız alıcı seçeneğini açın.");
+      setBusy(false);
+      return;
+    }
+    if (quoteExchangeRatesLoading || hasMissingQuoteFx) {
+      setError(quoteExchangeRatesLoading
+        ? "Teklif tarihi için döviz kurları yükleniyor. Lütfen bekleyin."
+        : "Seçili satır dövizlerinden teklif dövizine çevrim için kur bulunamadı.");
       setBusy(false);
       return;
     }
     try {
-      const created = await api<SalesQuoteSummary>(
-        "/api/sales/quotes/",
+      const saved = await api<SalesQuoteSummary>(
+        editingQuoteId ? `/api/sales/quotes/${editingQuoteId}` : "/api/sales/quotes/",
         token,
         {
-          method: "POST",
+          method: editingQuoteId ? "PUT" : "POST",
           body: JSON.stringify({
             code,
-            customerId,
+            customerId: isProspectQuote ? null : customerId,
+            prospectCustomerName: isProspectQuote ? prospectCustomerName.trim() : null,
             quoteDate,
             validUntil,
-            currencyCode: customer.currencyCode,
+            currencyCode: isProspectQuote ? currencyCode : customer!.currencyCode,
             notes: notes || null,
+            deliveryTerms: deliveryTerms || null,
+            salespersonEmployeeId: salespersonEmployeeId || null,
             customFields: quoteFieldValues,
+            revisesQuoteId,
             lines: lines.map((x) => ({
               stockItemId: x.stockItemId,
               quantity: Number(x.quantity),
               unitPrice: Number(x.unitPrice),
               discountPercent: Number(x.discountPercent),
               vatPercent: Number(x.vatPercent),
+              isVatIncluded: x.isVatIncluded,
+              currencyCode: x.currencyCode || currencyCode,
+              exchangeRateToQuoteCurrency: quoteLineEffectiveFxRate(x),
               unitCode:
                 x.unitCode ||
                 stockItems.find((item) => item.id === x.stockItemId)?.unitCode,
@@ -854,7 +1388,10 @@ export function SalesPage({
       );
       setCode("");
       setNotes("");
+      setDeliveryTerms("");
       setQuoteFieldValues({});
+      setRevisesQuoteId(null);
+      setEditingQuoteId(null);
       setLines([
         {
           stockItemId: "",
@@ -862,13 +1399,16 @@ export function SalesPage({
           unitPrice: "0",
           discountPercent: "0",
           vatPercent: "20",
+          isVatIncluded: false,
           unitCode: "",
+          currencyCode: "",
+          exchangeRateOverride: "",
         },
       ]);
-      setModal(false);
-      setNotice("Teklif taslağı kaydedildi.");
+      setNotice(editingQuoteId ? "Teklif taslağı güncellendi." : "Teklif taslağı kaydedildi.");
+      onNavigate("sales-quotes");
       await load();
-      await openQuote(created.id);
+      await openQuote(saved.id);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -878,11 +1418,14 @@ export function SalesPage({
   async function openQuote(id: string) {
     setError("");
     try {
-      const quote = await api<SalesQuoteDetail>(
-        `/api/sales/quotes/${id}`,
-        token,
-      );
+      const [quote, revisions] = await Promise.all([
+        api<SalesQuoteDetail>(`/api/sales/quotes/${id}`, token),
+        api<SalesQuoteRevisionSummary[]>(`/api/sales/quotes/${id}/revisions`, token),
+      ]);
       setDetail(quote);
+      setQuoteRevisions(revisions);
+      setQuoteDetailTab("information");
+      setQuotePrintOpen(false);
       setQuoteDetailValues(
         Object.fromEntries(
           (quote.customFields || []).map((field) => [field.code, field.value]),
@@ -891,6 +1434,36 @@ export function SalesPage({
     } catch (e) {
       setError((e as Error).message);
     }
+  }
+  async function beginQuoteRevision() {
+    if (!detail) return;
+    const source = detail;
+    await openQuoteCreatePage(false);
+    setCustomerId(source.customerId ?? "");
+    setCurrencyCode(source.currencyCode);
+    setQuoteDate(today);
+    setValidUntil(source.validUntil > today ? source.validUntil : validDefault);
+    setNotes(source.notes || "");
+    setDeliveryTerms(source.deliveryTerms || "");
+    setSalespersonEmployeeId(source.salespersonEmployeeId || "");
+    setCode(`${source.code}-R${source.revisionNumber + 1}`.slice(0, 40));
+    setQuoteStockLabels(Object.fromEntries(source.lines.map((line) => [line.stockItemId, `${line.stockCode} · ${line.stockName}`])));
+    setLines(source.lines.map((line) => ({
+      stockItemId: line.stockItemId,
+      quantity: String(line.quantity),
+      unitPrice: String(line.enteredUnitPrice ?? line.unitPrice),
+      discountPercent: String(line.discountPercent),
+      vatPercent: String(line.vatPercent),
+        isVatIncluded: line.isVatIncluded ?? false,
+      unitCode: line.enteredUnitCode || line.unitCode,
+      currencyCode: line.enteredCurrencyCode || source.currencyCode,
+      exchangeRateOverride: String(line.exchangeRateToQuoteCurrency ?? 1),
+    })));
+    setQuoteFieldValues(Object.fromEntries((source.customFields || []).map((field) => [field.code, field.value])));
+    setRevisesQuoteId(source.id);
+    setEditingQuoteId(null);
+    setDetail(null);
+    onNavigate("sales-quote-create");
   }
   async function saveQuoteFieldValues(e: React.FormEvent) {
     e.preventDefault();
@@ -1107,7 +1680,11 @@ export function SalesPage({
             ? "Reddedildi"
             : "Süresi doldu";
   const visibleQuoteFields = quoteScreenFields
-    .filter((field) => field.key === "actions" || field.visible)
+    .filter(
+      (field) =>
+        field.key !== "revisionNumber" &&
+        (field.key === "actions" || field.visible),
+    )
     .sort((a, b) =>
       a.key === "actions"
         ? 1
@@ -1142,11 +1719,29 @@ export function SalesPage({
               void openQuote(item.id);
             }}
           >
-            {item.code}
+            {item.code} ({item.revisionNumber})
           </button>
         );
       case "customerName":
-        return <b className="customer-name">{item.customerName}</b>;
+        return <span className="quote-customer-cell">{item.customerCode && <small>{item.customerCode}</small>}<b className="customer-name">{item.customerName}</b></span>;
+      case "revisionNumber":
+        return item.revisionNumber;
+      case "salesperson":
+        return item.salespersonName || "—";
+      case "salesOrderCode":
+        return item.salesOrderId && item.salesOrderCode ? (
+          <button
+            type="button"
+            className="erp-link-button customer-code"
+            aria-label={`${item.salesOrderCode} sipariş ayrıntılarını aç`}
+            onClick={(event) => {
+              event.stopPropagation();
+              void openOrder(item.salesOrderId!);
+            }}
+          >
+            {item.salesOrderCode}
+          </button>
+        ) : "—";
       case "quoteDate":
         return item.quoteDate.split("-").reverse().join(".");
       case "validUntil":
@@ -1171,68 +1766,30 @@ export function SalesPage({
         );
       case "actions":
         return (
-          <div className="row-actions">
-            <button
-              className="row-action"
-              disabled={busy}
-              onClick={() => void openQuote(item.id)}
-            >
-              Detay
-            </button>
+          <SalesRowActionsMenu label={item.code}>
+            <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void openQuote(item.id)}>Detay</button>
             {item.status === "Draft" && (
               <>
-                <button
-                  className="row-action"
-                  disabled={busy}
-                  onClick={() => void sendQuote(item)}
-                >
-                  İletildi yap
-                </button>
+                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void beginQuoteEdit(item.id)}>Düzenle</button>
+                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void sendQuote(item)}>İletildi yap</button>
                 {role === "TenantAdmin" && (
-                  <button
-                    className="row-action danger-action"
-                    disabled={busy}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void deleteQuote(item);
-                    }}
-                  >
-                    Sil
-                  </button>
+                  <button role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void deleteQuote(item)}>Sil</button>
                 )}
               </>
             )}
             {item.status === "Sent" && (
               <>
-                <button
-                  className="row-action"
-                  disabled={busy}
-                  onClick={() => void decideQuote(item, "accept")}
-                >
-                  Kabul et
-                </button>
-                <button
-                  className="row-action danger-action"
-                  disabled={busy}
-                  onClick={() => void decideQuote(item, "reject")}
-                >
-                  Reddet
-                </button>
+                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void decideQuote(item, "accept")}>Kabul et</button>
+                <button role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void decideQuote(item, "reject")}>Reddet</button>
               </>
             )}
             {item.status === "Accepted" && !item.hasSalesOrder && (
-              <button
-                className="row-action"
-                disabled={busy}
-                onClick={() => void convertQuote(item)}
-              >
-                Sipariş oluştur
-              </button>
+              <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void convertQuote(item)}>Sipariş oluştur</button>
             )}
             {item.status === "Accepted" && item.hasSalesOrder && (
-              <span className="cell-subtitle">Sipariş hazır</span>
+              <span className="sales-row-menu-note">Sipariş hazır</span>
             )}
-          </div>
+          </SalesRowActionsMenu>
         );
       default:
         return null;
@@ -1289,27 +1846,18 @@ export function SalesPage({
         );
       case "actions":
         return (
-          <div className="row-actions">
-            <button
-              className="row-action"
-              onClick={() => void openOrder(item.id)}
-            >
-              Detay
-            </button>
-            {role === "TenantAdmin" && (
-              <button
-                type="button"
-                className="row-action danger-action"
-                disabled={busy}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void deleteOrder(item);
-                }}
-              >
-                Sil
-              </button>
+          <SalesRowActionsMenu label={item.code}>
+            <button role="menuitem" className="sales-row-menu-item" onClick={() => void openOrder(item.id)}>Detay</button>
+            {item.status === "Open" && (
+              <button role="menuitem" className="sales-row-menu-item" onClick={() => {
+                sessionStorage.setItem("nexora.sales-order.edit-id", item.id);
+                onNavigate("sales-order-create");
+              }}>Düzenle</button>
             )}
-          </div>
+            {role === "TenantAdmin" && (
+              <button role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void deleteOrder(item)}>Sil</button>
+            )}
+          </SalesRowActionsMenu>
         );
       default:
         return null;
@@ -1323,8 +1871,7 @@ export function SalesPage({
             <p className="eyebrow">ERP CORE · SATIŞ</p>
             <h1>Yeni Sipariş</h1>
             <p className="muted">
-              Müşteri ve stok satırlarını belirleyerek bağımsız satış siparişi
-              oluşturun.
+              Müşteri, teslim tarihi ve sipariş satırlarını düzenleyin.
             </p>
           </div>
           <div className="heading-actions">
@@ -1335,10 +1882,27 @@ export function SalesPage({
             >
               Vazgeç
             </button>
+            <button className="primary" type="submit" form="sales-direct-order-form" disabled={busy || quoteExchangeRatesLoading || directOrderLines.some((line) => quoteLineFxRate(line.currencyCode || currencyCode) === null)}>
+              {busy ? "Kaydediliyor…" : sessionStorage.getItem("nexora.sales-order.edit-id") ? "Siparişi kaydet" : "Sipariş oluştur"}
+            </button>
           </div>
         </div>
       )}
-      {!createOrderPage &&
+      {createQuotePage && (
+        <div className="page-heading customer-heading">
+          <div>
+            <h1>{editingQuoteId ? "Teklif Düzenleme" : revisesQuoteId ? "Teklif Revizyonu" : "Yeni Teklif"}</h1>
+            <p className="muted">{editingQuoteId ? "Taslak teklif bilgilerini ve satırlarını güncelleyin." : revisesQuoteId ? "Önceki teklif korunur; değişiklikler yeni revizyon taslağı olarak kaydedilir." : "Müşteri ve teklif satırlarını girerek yeni bir satış teklifi oluşturun."}</p>
+          </div>
+          <div className="heading-actions">
+            <button className="secondary" type="button" onClick={() => onNavigate("sales-quotes")}>Vazgeç</button>
+            <button className="primary" type="submit" form="sales-quote-create-form" disabled={busy || quoteExchangeRatesLoading || hasMissingQuoteFx}>
+              {busy ? "Kaydediliyor…" : editingQuoteId ? "Değişiklikleri kaydet" : revisesQuoteId ? "Revizyon taslağını oluştur" : "Teklif taslağı oluştur"}
+            </button>
+          </div>
+        </div>
+      )}
+      {!createOrderPage && !createQuotePage &&
         activeTab !== "purchases" &&
         activeTab !== "requests" &&
         activeTab !== "purchase-quotes" &&
@@ -1346,10 +1910,10 @@ export function SalesPage({
         activeTab !== "purchase-receipts" &&
         activeTab !== "purchase-invoice-entry" &&
         activeTab !== "purchase-invoice-drafts" &&
-        activeTab !== "deliveries" && (
+        activeTab !== "deliveries" && !createInvoicePage && (
           <div className="page-heading customer-heading">
             <div>
-              <p className="eyebrow">ERP CORE · SATIŞ</p>
+              {activeTab !== "invoices" && activeTab !== "quotes" && activeTab !== "orders" && <p className="eyebrow">ERP CORE · SATIŞ</p>}
               <h1>
                 {activeTab === "quotes"
                   ? "Satış Teklifleri"
@@ -1374,34 +1938,38 @@ export function SalesPage({
                   >
                     Teklif alanları
                   </button>
-                  <button
-                    className="secondary"
-                    onClick={() => void openOrderFieldCatalog()}
-                  >
-                    Sipariş alanları
-                  </button>
                 </>
               )}
               {activeTab === "orders" && (
-                <button
-                  className="primary"
-                  onClick={() => onNavigate("sales-order-create")}
-                >
-                  <Plus size={17} /> Yeni sipariş
-                </button>
+                <>
+                  {(role === "TenantAdmin" || role === "TenantDeveloper") && (
+                    <button
+                      className="secondary"
+                      onClick={() => void openOrderFieldCatalog()}
+                    >
+                      Sipariş alanları
+                    </button>
+                  )}
+                  <button
+                    className="primary"
+                    onClick={() => onNavigate("sales-order-create")}
+                  >
+                    <Plus size={17} /> Yeni sipariş
+                  </button>
+                </>
               )}
               {activeTab === "quotes" && (
                 <button
                   className="primary"
-                  onClick={() => void openQuoteModal()}
+                  onClick={() => void openQuoteCreatePage()}
                 >
                   <Plus size={17} /> Yeni teklif
                 </button>
               )}
-              {activeTab === "invoices" && (
+              {activeTab === "invoices" && !createInvoicePage && (
                 <button
                   className="primary"
-                  onClick={() => setInvoiceCreateOpen(true)}
+                  onClick={() => onNavigate("sales-invoice-create")}
                 >
                   <Plus size={17} /> Fatura oluştur
                 </button>
@@ -1409,7 +1977,7 @@ export function SalesPage({
             </div>
           </div>
         )}
-      {error && (
+      {error && !createInvoicePage && (
         <div className="alert inline-alert">
           {error}
           <button onClick={() => setError("")}>
@@ -1417,7 +1985,7 @@ export function SalesPage({
           </button>
         </div>
       )}
-      {notice && (
+      {notice && !createInvoicePage && (
         <div className="notice">
           {notice}
           <button onClick={() => setNotice("")}>
@@ -1425,7 +1993,7 @@ export function SalesPage({
           </button>
         </div>
       )}
-      {!createOrderPage &&
+      {!createOrderPage && !createQuotePage &&
         activeTab !== "purchases" &&
         activeTab !== "requests" &&
         activeTab !== "purchase-quotes" &&
@@ -1433,18 +2001,33 @@ export function SalesPage({
         activeTab !== "purchase-receipts" &&
         activeTab !== "purchase-invoice-entry" &&
         activeTab !== "purchase-invoice-drafts" &&
-        activeTab !== "deliveries" && (
+        activeTab !== "deliveries" && !createInvoicePage && (
           <>
             <SalesListToolbar
               activeTab={activeTab as "quotes" | "orders" | "invoices"}
               total={salesListTotal}
+              quoteRows={quotes}
+              orderRows={orders}
+              invoiceRows={invoices}
               loading={loading}
               search={search}
               onSearchChange={setSearch}
+              quoteStatus={quoteStatusDraft}
+              onQuoteStatusChange={setQuoteStatusDraft}
+              onApplyQuoteFilters={() => {
+                setQuoteStatusFilter(quoteStatusDraft);
+                setQuoteDateFrom(quoteDateFromDraft);
+                setQuoteDateTo(quoteDateToDraft);
+                setSalesListPage(1);
+              }}
+              quoteDateFrom={quoteDateFromDraft}
+              onQuoteDateFromChange={setQuoteDateFromDraft}
+              quoteDateTo={quoteDateToDraft}
+              onQuoteDateToChange={setQuoteDateToDraft}
             />
           </>
         )}
-      {!createOrderPage &&
+      {!createOrderPage && !createQuotePage &&
         (activeTab === "purchase-quotes" ? (
           <PurchaseSupplierQuotesPage
             token={token}
@@ -1489,6 +2072,8 @@ export function SalesPage({
             warehouses={warehouses}
             customers={customers}
             stockItems={stockItems}
+            initialCreate={createDeliveryPage}
+            initialCustomerId={actionCustomerId}
           />
         ) : activeTab === "invoices" ? (
           <SalesInvoiceTable
@@ -1505,30 +2090,55 @@ export function SalesPage({
             token={token}
             role={role}
             createOpen={invoiceCreateOpen}
+            entryPage={createInvoicePage}
             createFromOrder={true}
+            initialCustomerId={createInvoicePage ? actionCustomerId : ""}
             setCreateOpen={(open) =>
-              open ? void prepareInvoiceCreate() : setInvoiceCreateOpen(false)
+              open
+                ? void prepareInvoiceCreate()
+                : createInvoicePage
+                  ? onNavigate("sales-invoices")
+                  : setInvoiceCreateOpen(false)
             }
             onInvoiceCreated={async (id) => {
               await load();
-              openInvoice(id);
+              if (createInvoicePage) {
+                onNavigate("sales-invoices");
+              } else {
+                openInvoice(id);
+              }
             }}
             onChanged={() => load()}
           />
         ) : activeTab === "quotes" ? (
-          <SalesDocumentGrid
-            gridId="sales-quotes"
-            fields={visibleQuoteFields}
-            items={filtered}
-            selectedId={selectedSalesId}
-            loading={loading}
-            loadingMessage="Teklifler yükleniyor…"
-            emptyMessage="Henüz satış teklifi yok."
-            search={search}
-            searchEmptyMessage="Aramanızla eşleşen teklif yok."
-            onSelect={setSelectedSalesId}
-            renderCell={renderQuoteField}
-          />
+          <section
+            className="sales-document-list-card"
+            aria-label="Satış teklifi listesi"
+          >
+            <div className="sales-document-list-heading">
+              <div>
+                <h2>Teklif kayıtları</h2>
+                <p>
+                  {loading
+                    ? "Kayıtlar yükleniyor…"
+                    : `${filtered.length} kayıt gösteriliyor`}
+                </p>
+              </div>
+            </div>
+            <SalesDocumentGrid
+              gridId="sales-quotes"
+              fields={visibleQuoteFields}
+              items={filtered}
+              selectedId={selectedSalesId}
+              loading={loading}
+              loadingMessage="Teklifler yükleniyor…"
+              emptyMessage="Henüz satış teklifi yok."
+              search={search}
+              searchEmptyMessage="Aramanızla eşleşen teklif yok."
+              onSelect={setSelectedSalesId}
+              renderCell={renderQuoteField}
+            />
+          </section>
         ) : (
           <section
             className="sales-document-list-card"
@@ -1562,7 +2172,7 @@ export function SalesPage({
       {(activeTab === "quotes" ||
         activeTab === "orders" ||
         activeTab === "invoices") &&
-        !createOrderPage && (
+        !createOrderPage && !createQuotePage && (
           <SalesListPagination
             page={salesListPage}
             total={salesListTotal}
@@ -1570,17 +2180,6 @@ export function SalesPage({
             onPageChange={setSalesListPage}
           />
         )}
-      {activeTab === "quotes" && !createOrderPage && (
-        <div className="boundary-note">
-          <ShieldCheck size={17} />
-          <span>
-            <b>Sipariş ve sevkiyat</b>Kabul edilen teklif siparişe dönüşür;
-            irsaliyeler sipariş miktarını, depo stok çıkışını ve iptal için ters
-            stok hareketini birlikte yönetir. Fatura ve tahsilat sonraki
-            adımdır.
-          </span>
-        </div>
-      )}
       {quoteFieldCatalogOpen && (
         <div
           className="modal-backdrop"
@@ -1589,7 +2188,7 @@ export function SalesPage({
               setQuoteFieldCatalogOpen(false);
           }}
         >
-          <div className="modal">
+          <div className="modal quote-field-catalog-modal">
             <div className="modal-head">
               <div>
                 <p className="eyebrow">SATIŞ YÖNETİMİ · TENANT ALANLARI</p>
@@ -1887,14 +2486,14 @@ export function SalesPage({
       )}{" "}
       {createOrderPage && (
         <div className="sales-order-create-page">
-          <section className="sales-order-create-card">
+      <section className="sales-order-create-card">
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">SATIŞ YÖNETİMİ</p>
-                <h2>Bağımsız satış siparişi</h2>
+                <h2>{sessionStorage.getItem("nexora.sales-order.edit-id") ? "Sipariş düzenleme bilgileri" : "Sipariş bilgileri"}</h2>
               </div>
             </div>
-            <form onSubmit={createDirectOrder}>
+            <form id="sales-direct-order-form" onSubmit={createDirectOrder}>
               <div className="form-two">
                 <label>
                   Sipariş no
@@ -1910,6 +2509,13 @@ export function SalesPage({
                   <SalesCustomerPopupSelect
                     customers={customers}
                     selectedId={customerId}
+                    totalCount={customerPickerTotalCount || customers.length}
+                    token={token}
+                    onSearchResults={(results) => setCustomers((current) => {
+                      const byId = new Map(current.map((customer) => [customer.id, customer]));
+                      results.forEach((customer) => byId.set(customer.id, customer));
+                      return [...byId.values()];
+                    })}
                     onSelect={(customer) => {
                       setCustomerId(customer.id);
                       setCurrencyCode(customer.currencyCode || "TRY");
@@ -1937,248 +2543,69 @@ export function SalesPage({
                   />
                 </label>
               </div>
-              <p className="muted">
-                Teklif seçmeden doğrudan sipariş oluşturun. Miktar ve fiyat
-                seçilen birim içindir; toplamlar sunucuda hesaplanır.
-              </p>
+              <div className="form-two quote-salesperson-field">
+                <label>
+                  Plasiyer
+                  <SearchableRecordPicker
+                    options={quoteSalespeople.map((employee) => ({
+                      id: employee.id,
+                      label: `${employee.personnelCode} · ${employee.fullName}`,
+                      searchText: `${employee.personnelCode} ${employee.fullName}`,
+                    }))}
+                    selectedId={directOrderSalespersonId}
+                    onSelect={setDirectOrderSalespersonId}
+                    title="Plasiyer seçin"
+                    placeholder="Plasiyer seçin (isteğe bağlı)"
+                    searchPlaceholder="Personel kodu veya adıyla ara"
+                    emptyMessage="Aramanızla eşleşen plasiyer bulunamadı."
+                    clearable
+                    clearLabel="Plasiyer seçimini kaldır"
+                  />
+                </label>
+              </div>
               <div className="quote-lines-heading">
                 <b>Sipariş satırları</b>
-                <button
-                  type="button"
-                  className="secondary small-button"
-                  onClick={() =>
-                    setDirectOrderLines((current) => [
-                      ...current,
-                      {
-                        stockItemId: "",
-                        quantity: "1",
-                        unitPrice: "0",
-                        discountPercent: "0",
-                        vatPercent: "20",
-                        unitCode: "",
-                      },
-                    ])
-                  }
-                >
-                  <Plus size={14} /> Satır ekle
-                </button>
               </div>
-              {directOrderLines.map((line, index) => (
-                <div className="quote-line" key={index}>
-                  <div className="quote-line-title">
-                    <b>Satır {index + 1}</b>
-                    {directOrderLines.length > 1 && (
-                      <button
-                        type="button"
-                        className="row-action"
-                        onClick={() =>
-                          setDirectOrderLines((current) =>
-                            current.filter((_, i) => i !== index),
-                          )
-                        }
-                      >
-                        Kaldır
-                      </button>
-                    )}
-                  </div>
-                  <label>
-                    Stok kartı
-                    <SearchableRecordPicker
-                      options={stockItems.map((x) => ({
-                        id: x.id,
-                        label: `${x.code} · ${x.name}`,
-                        description: x.unitCode,
-                        searchText: x.unitCode,
-                      }))}
-                      selectedId={line.stockItemId}
-                      onSelect={(id) => {
-                        void loadQuoteUnits(id);
-                        updateDirectOrderLine(index, "stockItemId", id);
-                        updateDirectOrderLine(
-                          index,
-                          "unitCode",
-                          stockItems.find((x) => x.id === id)?.unitCode || "",
-                        );
-                      }}
-                      title="Stok kartı seçin"
-                      placeholder="Stok seçin"
-                      searchPlaceholder="Stok kodu veya adıyla ara"
-                      emptyMessage="Aramanızla eşleşen stok kartı bulunamadı."
-                      required
-                    />
-                  </label>
-                  <div className="form-two order-line-pricing">
-                    <label>
-                      Miktar
-                      <input
-                        type="number"
-                        min="0.0001"
-                        step="0.0001"
-                        value={line.quantity}
-                        onChange={(e) =>
-                          updateDirectOrderLine(
-                            index,
-                            "quantity",
-                            e.target.value,
-                          )
-                        }
-                        required
-                      />
-                    </label>
-                    <label>
-                      Birim
-                      <select
-                        value={
-                          line.unitCode ||
-                          stockItems.find((x) => x.id === line.stockItemId)
-                            ?.unitCode ||
-                          ""
-                        }
-                        onChange={(e) =>
-                          updateDirectOrderLine(
-                            index,
-                            "unitCode",
-                            e.target.value,
-                          )
-                        }
-                        required
-                      >
-                        <option
-                          value={
-                            stockItems.find((x) => x.id === line.stockItemId)
-                              ?.unitCode || ""
-                          }
-                        >
-                          {stockItems.find((x) => x.id === line.stockItemId)
-                            ?.unitCode || "Temel birim"}
-                        </option>
-                        {(quoteUnits[line.stockItemId] || [])
-                          .filter((x) => x.isActive)
-                          .map((unit) => (
-                            <option key={unit.id} value={unit.unitCode}>
-                              {unit.unitCode} (×{unit.factorToBase})
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label>
-                      Birim fiyat
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.0001"
-                        value={line.unitPrice}
-                        onChange={(e) =>
-                          updateDirectOrderLine(
-                            index,
-                            "unitPrice",
-                            e.target.value,
-                          )
-                        }
-                        required
-                      />
-                    </label>
-                  </div>
-                  <div className="form-two order-line-tax">
-                    <label>
-                      İskonto %
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={line.discountPercent}
-                        onChange={(e) =>
-                          updateDirectOrderLine(
-                            index,
-                            "discountPercent",
-                            e.target.value,
-                          )
-                        }
-                        required
-                      />
-                    </label>
-                    <label>
-                      KDV %
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={line.vatPercent}
-                        onChange={(e) =>
-                          updateDirectOrderLine(
-                            index,
-                            "vatPercent",
-                            e.target.value,
-                          )
-                        }
-                        required
-                      />
-                    </label>
-                    <div className="order-line-total">
-                      <span>
-                        Ara toplam{" "}
-                        <b>
-                          {formatOrderMoney(
-                            Number(line.quantity || 0) *
-                              Number(line.unitPrice || 0) *
-                              (1 - Number(line.discountPercent || 0) / 100),
-                          )}{" "}
-                          {customers.find((x) => x.id === customerId)
-                            ?.currencyCode || "TRY"}
-                        </b>
-                      </span>
-                      <span>
-                        KDV dahil{" "}
-                        <b>
-                          {formatOrderMoney(
-                            Number(line.quantity || 0) *
-                              Number(line.unitPrice || 0) *
-                              (1 - Number(line.discountPercent || 0) / 100) *
-                              (1 + Number(line.vatPercent || 0) / 100),
-                          )}{" "}
-                          {customers.find((x) => x.id === customerId)
-                            ?.currencyCode || "TRY"}
-                        </b>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <section className="order-grand-total">
-                <div>
-                  <span>Ara toplam</span>
-                  <b>
-                    {formatOrderMoney(directOrderTotals.subtotal)}{" "}
-                    {customers.find((x) => x.id === customerId)?.currencyCode ||
-                      "TRY"}
-                  </b>
-                </div>
-                <div>
-                  <span>İskonto</span>
-                  <b>
-                    − {formatOrderMoney(directOrderTotals.discount)}{" "}
-                    {customers.find((x) => x.id === customerId)?.currencyCode ||
-                      "TRY"}
-                  </b>
-                </div>
-                <div>
-                  <span>KDV</span>
-                  <b>
-                    {formatOrderMoney(directOrderTotals.vat)}{" "}
-                    {customers.find((x) => x.id === customerId)?.currencyCode ||
-                      "TRY"}
-                  </b>
-                </div>
-                <div className="grand">
-                  <span>Genel toplam</span>
-                  <b>
-                    {formatOrderMoney(directOrderTotals.total)}{" "}
-                    {customers.find((x) => x.id === customerId)?.currencyCode ||
-                      "TRY"}
-                  </b>
-                </div>
+              <div className="quote-lines-table-wrap">
+                <table className="quote-lines-table direct-order-lines-table">
+                  <thead><tr><th>#</th><th>Stok kartı</th><th>Miktar</th><th>Birim</th><th>Birim fiyat</th><th>Döviz</th><th>Kur</th><th>İskonto %</th><th>KDV %</th><th>KDV türü</th><th>Ara toplam</th><th>İskonto</th><th>KDV tutarı</th><th>Satır toplamı</th></tr></thead>
+                  <tbody>
+                    {directOrderLines.map((line, index) => {
+                      const itemUnit = stockItems.find((item) => item.id === line.stockItemId)?.unitCode || "";
+                      const lineCurrency = line.currencyCode || currencyCode || "TRY";
+                      const fxRate = quoteLineFxRate(lineCurrency);
+                      const enteredSubtotal = Number(line.quantity || 0) * Number(line.unitPrice || 0) * (fxRate ?? 0);
+                      const subtotal = line.isVatIncluded && Number(line.vatPercent) > 0 ? enteredSubtotal / (1 + Number(line.vatPercent) / 100) : enteredSubtotal;
+                      const discount = subtotal * Number(line.discountPercent || 0) / 100;
+                      const tax = (subtotal - discount) * Number(line.vatPercent || 0) / 100;
+                      return <tr key={index}>
+                        <td className="quote-line-index"><span>{index + 1}</span><button type="button" className="quote-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setDirectOrderLines((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : [{ stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}>×</button></td>
+                        <td className="quote-stock-cell"><SearchableRecordPicker options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))} selectedId={line.stockItemId} onSelect={(id) => selectDirectOrderStock(index, id)} title="Stok kartı seçin" placeholder="Stok seçin" searchPlaceholder="Stok kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen stok kartı bulunamadı." required /></td>
+                        <td><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateDirectOrderLine(index, "quantity", event.target.value)} required /></td>
+                        <td><select aria-label={`Satır ${index + 1} birim`} value={line.unitCode || itemUnit} onChange={(event) => updateDirectOrderLine(index, "unitCode", event.target.value)} required><option value={itemUnit || line.unitCode}>{itemUnit || line.unitCode || "Temel birim"}</option>{(quoteUnits[line.stockItemId] || []).filter((unit) => unit.isActive).map((unit) => <option key={unit.id} value={unit.unitCode}>{unit.unitCode} (×{unit.factorToBase})</option>)}</select></td>
+                        <td><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateDirectOrderLine(index, "unitPrice", event.target.value)} required /></td>
+                        <td><select aria-label={`Satır ${index + 1} para birimi`} value={lineCurrency} onChange={(event) => updateDirectOrderLine(index, "currencyCode", event.target.value)}>{quoteCurrencies.map((currency) => <option key={currency} value={currency}>{currency}</option>)}</select></td>
+                        <td><input aria-label={`Satır ${index + 1} döviz kuru`} value={fxRate === null ? "Kur yok" : formatOrderMoney(fxRate)} disabled /></td>
+                        <td><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateDirectOrderLine(index, "discountPercent", event.target.value)} required /></td>
+                        <td><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateDirectOrderLine(index, "vatPercent", event.target.value)} required /></td>
+                        <td><select aria-label={`Satır ${index + 1} KDV dahil veya hariç`} value={line.isVatIncluded ? "included" : "excluded"} onChange={(event) => updateDirectOrderLine(index, "isVatIncluded", event.target.value === "included")}><option value="excluded">KDV hariç</option><option value="included">KDV dâhil</option></select></td>
+                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(subtotal)} disabled /></td>
+                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(discount)} disabled /></td>
+                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(tax)} disabled /></td>
+                        <td className="quote-amount-cell quote-row-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(subtotal - discount + tax)} disabled /></td>
+                      </tr>;
+                    })}
+                    <tr className="quote-line-add-row"><td colSpan={14}><button type="button" className="secondary small-button" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={() => setDirectOrderLines((current) => [...current, { stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}><Plus size={14} /> Satır ekle <small>Ctrl+Shift+Enter</small></button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <section className="order-grand-total quote-total-breakdown" aria-label="Sipariş toplamları">
+                <div><span>Mal / hizmet toplamı</span>{renderOrderCurrency(directOrderTotals.subtotal, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
+                <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderOrderCurrency(directOrderTotals.discount, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</span></div>
+                {Object.keys(directOrderTotals.taxableByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`order-tax-${rate}`}><span>KDV %{rate} matrahı</span>{renderOrderCurrency(directOrderTotals.taxableByRate[rate], customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>)}
+                {Object.keys(directOrderTotals.vatByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`order-vat-${rate}`}><span>KDV %{rate}</span>{renderOrderCurrency(directOrderTotals.vatByRate[rate], customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>)}
+                <div><span>KDV toplamı</span>{renderOrderCurrency(directOrderTotals.vat, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
+                <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderOrderCurrency(directOrderTotals.total, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
               </section>
               {orderFieldDefinitions.length > 0 && (
                 <section className="panel" style={{ marginTop: 14 }}>
@@ -2244,12 +2671,6 @@ export function SalesPage({
                 </section>
               )}
               <div className="modal-foot">
-                <span>
-                  <ShieldCheck size={14} />
-                  {customers.find((x) => x.id === customerId)?.currencyCode ||
-                    "TRY"}{" "}
-                  · Teklif bağlantısı yok
-                </span>
                 <div>
                   <button
                     type="button"
@@ -2259,8 +2680,8 @@ export function SalesPage({
                   >
                     Vazgeç
                   </button>
-                  <button className="primary" disabled={busy}>
-                    {busy ? "Kaydediliyor…" : "Sipariş oluştur"}
+                  <button className="primary" disabled={busy || quoteExchangeRatesLoading || directOrderLines.some((line) => quoteLineFxRate(line.currencyCode || currencyCode) === null)}>
+                    {busy ? "Kaydediliyor…" : sessionStorage.getItem("nexora.sales-order.edit-id") ? "Siparişi kaydet" : "Sipariş oluştur"}
                   </button>
                 </div>
               </div>
@@ -2268,24 +2689,27 @@ export function SalesPage({
           </section>
         </div>
       )}
-      {modal && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setModal(false);
-          }}
-        >
-          <div className="modal quote-modal">
-            <div className="modal-head">
+      {createQuotePage && (
+        <div className="sales-order-create-page">
+          <section className="sales-order-create-card">
+            <div className="panel-heading">
               <div>
                 <p className="eyebrow">SATIŞ YÖNETİMİ</p>
-                <h2>Yeni satış teklifi</h2>
+                <h2>{editingQuoteId ? "Teklif düzenleme bilgileri" : "Teklif bilgileri"}</h2>
               </div>
-              <button className="icon-button" onClick={() => setModal(false)}>
-                <X size={19} />
-              </button>
             </div>
-            <form onSubmit={createQuote}>
+            <form id="sales-quote-create-form" onSubmit={createQuote}>
+              <label className="check-row quote-prospect-toggle">
+                <input type="checkbox" checked={isProspectQuote} onChange={(event) => {
+                  setIsProspectQuote(event.target.checked);
+                  setCustomerId("");
+                  setProspectCustomerName("");
+                }} />
+                <span className="quote-prospect-toggle-copy">
+                  <b>Kayıtlı cari olmadan teklif oluştur</b>
+                  <small>Cari kartı açmadan yeni bir müşteri adına teklif hazırlayın.</small>
+                </span>
+              </label>
               <div className="form-two">
                 <label>
                   Teklif no
@@ -2297,17 +2721,27 @@ export function SalesPage({
                     placeholder="T-2026-0001"
                   />
                 </label>
-                <label>
+                {isProspectQuote ? <>
+                  <label>Teklif alıcısı adı<input value={prospectCustomerName} onChange={(event) => setProspectCustomerName(event.target.value)} required maxLength={200} placeholder="Firma veya kişi adı" /></label>
+                  <label>Teklif dövizi<input value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value.toUpperCase())} required maxLength={3} minLength={3} placeholder="TRY" /></label>
+                </> : <label>
                   Müşteri
                   <SalesCustomerPopupSelect
                     customers={customers}
                     selectedId={customerId}
+                    totalCount={customerPickerTotalCount || customers.length}
+                    token={token}
+                    onSearchResults={(results) => setCustomers((current) => {
+                      const byId = new Map(current.map((customer) => [customer.id, customer]));
+                      results.forEach((customer) => byId.set(customer.id, customer));
+                      return [...byId.values()];
+                    })}
                     onSelect={(customer) => {
                       setCustomerId(customer.id);
                       setCurrencyCode(customer.currencyCode || "TRY");
                     }}
                   />
-                </label>
+                </label>}
               </div>
               <div className="form-two">
                 <label>
@@ -2329,168 +2763,168 @@ export function SalesPage({
                   />
                 </label>
               </div>
-              <p className="muted">
-                Miktar ve fiyat seçilen birim içindir; kayıt stok kartının temel
-                birimine çevrilir.
-              </p>
+              <div className="form-two quote-salesperson-field">
+                <label>
+                  Plasiyer
+                  <SearchableRecordPicker
+                    options={quoteSalespeople.map((employee) => ({
+                      id: employee.id,
+                      label: `${employee.personnelCode} · ${employee.fullName}`,
+                      searchText: `${employee.personnelCode} ${employee.fullName}`,
+                    }))}
+                    selectedId={salespersonEmployeeId}
+                    onSelect={setSalespersonEmployeeId}
+                    title="Plasiyer seçin"
+                    placeholder="Plasiyer seçin (isteğe bağlı)"
+                    searchPlaceholder="Personel kodu veya adıyla ara"
+                    emptyMessage="Aramanızla eşleşen plasiyer bulunamadı."
+                    clearable
+                    clearLabel="Plasiyer seçimini kaldır"
+                  />
+                </label>
+              </div>
+              <label className="sales-quote-terms">
+                <span>Teslimat koşulları <span className="optional-label">İsteğe bağlı</span></span>
+                <textarea
+                  value={deliveryTerms}
+                  onChange={(e) => setDeliveryTerms(e.target.value)}
+                  maxLength={1000}
+                  rows={3}
+                  placeholder="Teslimat süresi, yeri ve teslim şekli gibi bilgileri yazın."
+                />
+              </label>
               <div className="quote-lines-heading">
                 <b>Teklif satırları</b>
-                <button
-                  type="button"
-                  className="secondary small-button"
-                  onClick={() =>
-                    setLines((current) => [
-                      ...current,
-                      {
-                        stockItemId: "",
-                        quantity: "1",
-                        unitPrice: "0",
-                        discountPercent: "0",
-                        vatPercent: "20",
-                        unitCode: "",
-                      },
-                    ])
-                  }
-                >
-                  <Plus size={14} /> Satır ekle
-                </button>
               </div>
-              {lines.map((line, index) => (
-                <div className="quote-line" key={index}>
-                  <div className="quote-line-title">
-                    <b>Satır {index + 1}</b>
-                    {lines.length > 1 && (
-                      <button
-                        type="button"
-                        className="row-action"
-                        onClick={() =>
-                          setLines((current) =>
-                            current.filter((_, i) => i !== index),
-                          )
-                        }
-                      >
-                        Kaldır
-                      </button>
-                    )}
-                  </div>
-                  <label>
-                    Stok kartı
-                    <SearchableRecordPicker
-                      options={stockItems.map((x) => ({
-                        id: x.id,
-                        label: `${x.code} · ${x.name}`,
-                        description: x.unitCode,
-                        searchText: x.unitCode,
-                      }))}
-                      selectedId={line.stockItemId}
-                      onSelect={(id) => {
-                        void loadQuoteUnits(id);
-                        updateLine(index, "stockItemId", id);
-                        updateLine(
-                          index,
-                          "unitCode",
-                          stockItems.find((x) => x.id === id)?.unitCode || "",
-                        );
-                      }}
-                      title="Stok kartı seçin"
-                      placeholder="Stok seçin"
-                      searchPlaceholder="Stok kodu veya adıyla ara"
-                      emptyMessage="Aramanızla eşleşen stok kartı bulunamadı."
-                      required
-                    />
-                  </label>
-                  <div className="form-two order-line-pricing">
-                    <label>
-                      Miktar
-                      <input
-                        type="number"
-                        min="0.0001"
-                        step="0.0001"
-                        value={line.quantity}
-                        onChange={(e) =>
-                          updateLine(index, "quantity", e.target.value)
-                        }
-                        required
-                      />
-                    </label>
-                    <label>
-                      Birim
-                      <select
-                        value={
-                          line.unitCode ||
-                          stockItems.find((x) => x.id === line.stockItemId)
-                            ?.unitCode ||
-                          ""
-                        }
-                        onChange={(e) =>
-                          updateLine(index, "unitCode", e.target.value)
-                        }
-                        required
-                      >
-                        <option
-                          value={
-                            stockItems.find((x) => x.id === line.stockItemId)
-                              ?.unitCode || ""
-                          }
+              <div className="quote-lines-table-wrap">
+                <table className="quote-lines-table">
+                  <thead>
+                    <tr>
+                      <th>#</th><th>Stok kartı</th><th>Miktar</th><th>Birim</th>
+                      <th>Birim fiyat</th><th>Döviz</th><th>Kur</th><th>İskonto %</th><th>KDV %</th>
+                      <th>KDV</th><th>Ara toplam</th><th>İskonto</th><th>KDV tutarı</th><th>Satır toplamı</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((line, index) => {
+                      const amount = quoteLineAmounts(line);
+                      const itemUnit = stockItems.find((item) => item.id === line.stockItemId)?.unitCode || "";
+                      const lineCurrency = line.currencyCode || currencyCode;
+                      const lineFxRate = quoteLineEffectiveFxRate(line);
+                      return (
+                        <tr key={index}>
+                          <td className="quote-line-index"><span>{index + 1}</span><button type="button" className="quote-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setLines((current) => current.filter((_, rowIndex) => rowIndex !== index))}>×</button></td>
+                          <td className="quote-stock-cell">
+                            <SearchableRecordPicker
+                              options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))}
+                              selectedId={line.stockItemId}
+                              selectedLabel={quoteStockLabels[line.stockItemId]}
+                              onSearchChange={searchQuoteStockItems}
+                              totalCount={quoteStockTotalCount}
+                              triggerVariant="ellipsis"
+                              onSelect={(id) => {
+                                void loadQuoteUnits(id);
+                                const selectedItem = stockItems.find((item) => item.id === id);
+                                setLines((current) => current.map((currentLine, rowIndex) => rowIndex === index ? {
+                                  ...currentLine,
+                                  stockItemId: id,
+                                  unitCode: selectedItem?.unitCode || "",
+                                  unitPrice: String(selectedItem?.salesListPrice ?? 0),
+                                  discountPercent: String(selectedItem?.salesDiscountPercent ?? 0),
+                                  vatPercent: String(selectedItem?.salesVatPercent ?? 20),
+                                  isVatIncluded: false,
+                                  currencyCode: selectedItem?.priceCurrencyCode || currencyCode,
+                                } : currentLine));
+                                if (selectedItem) setQuoteStockLabels((current) => ({ ...current, [id]: `${selectedItem.code} · ${selectedItem.name}` }));
+                              }}
+                              title="Stok kartı seçin"
+                              placeholder="Stok seçin"
+                              searchPlaceholder="Stok kodu veya adıyla ara"
+                              emptyMessage="Aramanızla eşleşen stok kartı bulunamadı."
+                              required
+                            />
+                          </td>
+                          <td><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateLine(index, "quantity", event.target.value)} required /></td>
+                          <td>
+                            <select aria-label={`Satır ${index + 1} birim`} value={line.unitCode || itemUnit} onChange={(event) => updateLine(index, "unitCode", event.target.value)} required>
+                              <option value={itemUnit || line.unitCode}>{itemUnit || line.unitCode || "Temel birim"}</option>
+                              {(quoteUnits[line.stockItemId] || []).filter((unit) => unit.isActive).map((unit) => <option key={unit.id} value={unit.unitCode}>{unit.unitCode} (×{unit.factorToBase})</option>)}
+                            </select>
+                          </td>
+                          <td><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} required /></td>
+                          <td>
+                              <select aria-label={`Satır ${index + 1} para birimi`} value={lineCurrency} onChange={(event) => {
+                                updateLine(index, "currencyCode", event.target.value);
+                                updateLine(index, "exchangeRateOverride", "");
+                              }}>
+                              {quoteCurrencies.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
+                            </select>
+                            {line.currencyCode && line.currencyCode !== currencyCode && (
+                              <small className="quote-fx-hint">
+                                {quoteLineFxRate(line.currencyCode) === null
+                                  ? "Kur bulunamadı"
+                                  : `1 ${line.currencyCode} = ${formatOrderMoney(quoteLineFxRate(line.currencyCode)!)} ${currencyCode}`}
+                              </small>
+                            )}
+                          </td>
+                          <td><input aria-label={`Satır ${index + 1} döviz kuru`} type="number" min="0.00000001" step="0.00000001" value={lineCurrency.toUpperCase() === currencyCode.toUpperCase() ? "1" : line.exchangeRateOverride || (lineFxRate === null ? "" : String(lineFxRate))} disabled={lineCurrency.toUpperCase() === currencyCode.toUpperCase()} onChange={(event) => updateLine(index, "exchangeRateOverride", event.target.value)} /></td>
+                          <td><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateLine(index, "discountPercent", event.target.value)} required /></td>
+                          <td><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateLine(index, "vatPercent", event.target.value)} required /></td>
+                          <td><select aria-label={`Satır ${index + 1} KDV dahil mi`} value={line.isVatIncluded ? "included" : "excluded"} onChange={(event) => updateLine(index, "isVatIncluded", event.target.value === "included")}><option value="excluded">Hariç</option><option value="included">Dahil</option></select></td>
+                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(amount.subtotal)} disabled /></td>
+                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(amount.discount)} disabled /></td>
+                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(amount.tax)} disabled /></td>
+                          <td className="quote-amount-cell quote-row-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(amount.total)} disabled /></td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="quote-line-add-row">
+                      <td colSpan={14}>
+                        <button
+                          type="button"
+                          className="secondary small-button"
+                          data-line-add-shortcut
+                          title="Ctrl+Shift+Enter ile satır ekle"
+                          onClick={() => setLines((current) => [...current, {
+                            stockItemId: "",
+                            quantity: "1",
+                            unitPrice: "0",
+                            discountPercent: "0",
+                            vatPercent: "20",
+                            isVatIncluded: false,
+                            unitCode: "",
+                            currencyCode: "",
+                            exchangeRateOverride: "",
+                          }])}
                         >
-                          {stockItems.find((x) => x.id === line.stockItemId)
-                            ?.unitCode || "Temel birim"}
-                        </option>
-                        {(quoteUnits[line.stockItemId] || [])
-                          .filter((x) => x.isActive)
-                          .map((unit) => (
-                            <option key={unit.id} value={unit.unitCode}>
-                              {unit.unitCode} (×{unit.factorToBase})
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label>
-                      Birim fiyat
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.0001"
-                        value={line.unitPrice}
-                        onChange={(e) =>
-                          updateLine(index, "unitPrice", e.target.value)
-                        }
-                        required
-                      />
-                    </label>
-                  </div>
-                  <div className="form-two order-line-tax">
-                    <label>
-                      İskonto %
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={line.discountPercent}
-                        onChange={(e) =>
-                          updateLine(index, "discountPercent", e.target.value)
-                        }
-                        required
-                      />
-                    </label>
-                    <label>
-                      KDV %
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={line.vatPercent}
-                        onChange={(e) =>
-                          updateLine(index, "vatPercent", e.target.value)
-                        }
-                        required
-                      />
-                    </label>
-                  </div>
-                </div>
-              ))}
+                          <Plus size={14} /> Satır ekle
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div className="quote-totals-layout">
+              <label className="sales-quote-terms quote-description">
+                <span>Açıklama ve satış koşulları <span className="optional-label">İsteğe bağlı</span></span>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  maxLength={1000}
+                  rows={7}
+                  placeholder="Teklife ilişkin açıklama, ödeme ve diğer satış koşullarını yazın."
+                />
+              </label>
+              <section className="order-grand-total quote-grand-total quote-total-breakdown" aria-label="Teklif toplamları">
+                <div><span>Mal / hizmet toplamı</span>{renderOrderCurrency(quoteTotals.subtotal, currencyCode)}</div>
+                <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderOrderCurrency(quoteTotals.discount, currencyCode)}</span></div>
+                {Object.keys(quoteTotals.taxableByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`quote-tax-${rate}`}><span>KDV %{rate} matrahı</span>{renderOrderCurrency(quoteTotals.taxableByRate[rate], currencyCode)}</div>)}
+                {Object.keys(quoteTotals.taxByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`quote-vat-${rate}`}><span>KDV %{rate}</span>{renderOrderCurrency(quoteTotals.taxByRate[rate], currencyCode)}</div>)}
+                <div><span>KDV toplamı</span>{renderOrderCurrency(quoteTotals.tax, currencyCode)}</div>
+                <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderOrderCurrency(quoteTotals.total, currencyCode)}</div>
+              </section>
+              </div>
+              {quoteFieldDefinitions.length > 0 && (
               <section className="panel" style={{ marginTop: 14 }}>
                 <div className="panel-heading">
                   <div>
@@ -2551,60 +2985,29 @@ export function SalesPage({
                     </label>
                   ))}
                 </div>
-                {quoteFieldDefinitions.length === 0 && (
-                  <div className="empty-small">
-                    Henüz teklif özel alanı tanımlanmadı.
-                  </div>
-                )}
               </section>
-              <label>
-                Teklif notu <span className="optional-label">İsteğe bağlı</span>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  maxLength={1000}
-                  rows={3}
-                />
-              </label>
-              <div className="modal-foot">
-                <span>
-                  <ShieldCheck size={14} />
-                  {currencyCode} · Tutarlar sunucuda hesaplanır
-                </span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setModal(false)}
-                  >
-                    Vazgeç
-                  </button>
-                  <button className="primary" disabled={busy}>
-                    {busy ? "Kaydediliyor…" : "Teklif taslağı oluştur"}
-                  </button>
-                </div>
-              </div>
+              )}
             </form>
-          </div>
+          </section>
         </div>
       )}
-      {detail && (
+      {detail && createPortal(
         <div
-          className="modal-backdrop"
+          className="modal-backdrop sales-quote-detail-backdrop"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setDetail(null);
           }}
         >
           <div
-            className="modal ledger-modal sales-detail-modal"
+            className="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="sales-quote-detail-title"
           >
             <div className="modal-head">
               <div>
-                <p className="eyebrow">{detail.code} · SATIŞ TEKLİFİ</p>
-                <h2 id="sales-quote-detail-title">{detail.customerName}</h2>
+                <h2 id="sales-quote-detail-title">Teklif Detay</h2>
+                <p className="sales-quote-detail-subtitle">Teklif No: <b>{detail.code}</b></p>
               </div>
               <button
                 type="button"
@@ -2615,36 +3018,57 @@ export function SalesPage({
                 <X size={19} />
               </button>
             </div>
-            <div className="balance-banner">
-              <div>
-                <small>Genel toplam · {detail.currencyCode}</small>
-                <b>
-                  {detail.grandTotal.toLocaleString("tr-TR", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}{" "}
-                  {detail.currencyCode}
-                </b>
-                <span>
-                  Ara toplam{" "}
-                  {detail.subtotal.toLocaleString("tr-TR", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  · İskonto{" "}
-                  {detail.discountTotal.toLocaleString("tr-TR", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  · KDV{" "}
-                  {detail.taxTotal.toLocaleString("tr-TR", {
-                    minimumFractionDigits: 2,
-                  })}
-                </span>
+            <nav className="sales-quote-detail-tabs" role="tablist" aria-label="Teklif detay bölümleri">
+              {([
+                ["information", "Teklif Bilgileri"],
+                ["revisions", "Teklif Geçmişi"],
+              ] as const).map(([key, label]) => (
+                <button key={key} type="button" role="tab" aria-selected={quoteDetailTab === key} className={quoteDetailTab === key ? "active" : ""} onClick={() => setQuoteDetailTab(key)}>{label}{key === "revisions" && <span>{quoteRevisions.length}</span>}</button>
+              ))}
+            </nav>
+            <div className="sales-detail-content">
+            {quoteDetailTab === "information" && <>
+            <section className="sales-quote-readonly-form" aria-label="Teklif üst bilgileri">
+              <label><span>Teklif alıcısı</span><input readOnly value={`${detail.customerCode ? `${detail.customerCode} · ` : ""}${detail.customerName}`} /></label>
+              <label><span>Durum</span><input readOnly value={statusName(detail.status)} /></label>
+              <label><span>Teklif tarihi</span><input readOnly value={detail.quoteDate} /></label>
+              <label><span>Geçerlilik tarihi</span><input readOnly value={detail.validUntil} /></label>
+              <label><span>Para birimi</span><input readOnly value={detail.currencyCode} /></label>
+              <label><span>Plasiyer</span><input readOnly value={detail.salespersonName || "—"} /></label>
+              {detail.deliveryTerms && <label className="wide"><span>Teslimat koşulları</span><textarea readOnly rows={2} value={detail.deliveryTerms} /></label>}
+            </section>
+            </>}
+            {quoteDetailTab === "revisions" && <section className="panel sales-quote-revisions">
+              <div className="sales-quote-revisions-heading">
+                <div className="sales-quote-revisions-title">
+                  <b>Revizyon geçmişi</b>
+                  <small>Önceki teklif sürümleri korunur.</small>
+                </div>
+                <div className="sales-quote-revisions-actions">
+                  <span className="sales-quote-revision-count">{quoteRevisions.length} sürüm</span>
+                  {!detail.hasSalesOrder && quoteRevisions[quoteRevisions.length - 1]?.id === detail.id && (
+                  <button type="button" className="secondary small-button" disabled={busy} onClick={() => void beginQuoteRevision()}>
+                    Yeni revizyon oluştur
+                  </button>
+                  )}
+                </div>
               </div>
-              <span className="ledger-currency">
-                {statusName(detail.status)}
-              </span>
-            </div>
-            <div className="ledger-list invoice-lines-wrap">
+              <div className="requests-list sales-quote-revisions-list">
+                {quoteRevisions.map((revision) => (
+                  <button type="button" className="request-row" key={revision.id} onClick={() => revision.id !== detail.id && void openQuote(revision.id)} disabled={revision.id === detail.id}>
+                    <div className="request-info">
+                      <b>Revizyon {revision.revisionNumber} · {revision.code}</b>
+                      <small>{statusName(revision.status)} · {revision.quoteDate} · {revision.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {revision.currencyCode}</small>
+                    </div>
+                    {revision.id === detail.id && <span className="quote-status accepted">Açık</span>}
+                  </button>
+                ))}
+              </div>
+            </section>}
+            {quoteDetailTab === "information" && <>
+            <section className="sales-quote-lines-section">
+            <h3 className="sales-quote-section-title">Teklif Satırları</h3>
+            <div className="ledger-list sales-quote-lines">
               <table className="customer-table quote-detail-table">
                 <thead>
                   <tr>
@@ -2672,10 +3096,16 @@ export function SalesPage({
                         {line.unitCode}
                       </td>
                       <td>
-                        {line.unitPrice.toLocaleString("tr-TR", {
+                        {(line.enteredUnitPrice ?? line.unitPrice).toLocaleString("tr-TR", {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 4,
-                        })}
+                        })}{" "}{line.enteredCurrencyCode || detail.currencyCode}
+                        {line.enteredCurrencyCode && line.enteredCurrencyCode !== detail.currencyCode && (
+                          <small className="cell-subtitle">
+                            Kur: 1 {line.enteredCurrencyCode} = {Number(line.exchangeRateToQuoteCurrency || 1).toLocaleString("tr-TR", { maximumFractionDigits: 8 })} {detail.currencyCode}
+                            {" · "}{line.unitPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {detail.currencyCode}
+                          </small>
+                        )}
                       </td>
                       <td>
                         {line.discountAmount.toLocaleString("tr-TR", {
@@ -2699,8 +3129,23 @@ export function SalesPage({
                 </tbody>
               </table>
             </div>
-            {detail.notes && <p className="quote-notes">{detail.notes}</p>}
-            {detail.status === "Draft" && detail.customFields.length > 0 && (
+            </section>
+            <div className="sales-quote-total-row">
+              {detail.notes && (
+                <label className="sales-quote-notes-field">
+                  <span>Notlar</span>
+                  <textarea readOnly rows={5} value={detail.notes} />
+                </label>
+              )}
+              <section className="sales-quote-totals-panel">
+                <div><span>Ara toplam</span><b>{detail.subtotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {detail.currencyCode}</b></div>
+                <div><span>Toplam iskonto</span><b>{detail.discountTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {detail.currencyCode}</b></div>
+                <div><span>Toplam KDV</span><b>{detail.taxTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {detail.currencyCode}</b></div>
+                <div className="grand-total"><span>Genel toplam</span><b>{detail.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {detail.currencyCode}</b></div>
+              </section>
+            </div>
+            </>}
+            {quoteDetailTab === "information" && detail.status === "Draft" && detail.customFields.length > 0 && (
               <form
                 onSubmit={saveQuoteFieldValues}
                 className="panel"
@@ -2773,7 +3218,7 @@ export function SalesPage({
                 </div>
               </form>
             )}
-            {quoteValueHistoryField && (
+            {quoteDetailTab === "information" && quoteValueHistoryField && (
               <section className="panel" style={{ marginTop: 14 }}>
                 <div className="panel-heading">
                   <div>
@@ -2837,6 +3282,15 @@ export function SalesPage({
                   </button>
                 </>
               )}
+              {detail.status === "Rejected" && (
+                <button
+                  className="primary"
+                  disabled={busy}
+                  onClick={() => void decideQuote(detail, "accept")}
+                >
+                  Reddedilen teklifi kabul et
+                </button>
+              )}
               {detail.status === "Accepted" && !detail.hasSalesOrder && (
                 <button
                   className="primary"
@@ -2852,14 +3306,19 @@ export function SalesPage({
                 </span>
               )}
             </div>
+            </div>
             <div className="modal-foot">
-              <span>
-                Teklif tarihi {detail.quoteDate} · Son geçerlilik{" "}
-                {detail.validUntil}
-              </span>
+              <div className="sales-quote-footer-summary" aria-label="Teklif özeti">
+                <span className="sales-quote-footer-revision">Revizyon {detail.revisionNumber}</span>
+                <span><small>Teklif tarihi</small><b>{detail.quoteDate}</b></span>
+                <span><small>Son geçerlilik</small><b>{detail.validUntil}</b></span>
+              </div>
               <div>
                 <button className="secondary" onClick={() => setDetail(null)}>
                   Kapat
+                </button>
+                <button className="secondary sales-quote-print-trigger" onClick={() => setQuotePrintOpen(true)}>
+                  <Printer size={15} /> Yazdır / Önizle
                 </button>
                 {detail.status === "Draft" && (
                   <button
@@ -2873,9 +3332,19 @@ export function SalesPage({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
-      {orderDetail && (
+      {detail && quotePrintOpen && createPortal(
+        <SalesQuotePdfTools
+          quote={detail}
+          token={token}
+          isAdmin={role === "TenantAdmin"}
+          onClose={() => setQuotePrintOpen(false)}
+        />,
+        document.body,
+      )}
+      {orderDetail && createPortal(
         <SalesOrderModal
           order={orderDetail}
           token={token}
@@ -2887,7 +3356,8 @@ export function SalesPage({
             await openOrder(orderDetail.id);
           }}
           onInvoiceCreated={openInvoice}
-        />
+        />,
+        document.body,
       )}
       {invoiceId && (
         <SalesInvoiceModal
@@ -3133,10 +3603,16 @@ function PurchaseInvoicesScreen({
           </small>
         </div>
       </div>
+      <section className="panel sales-list-filter-card purchase-invoice-filter-card" aria-label="Alış faturası filtreleri">
+        <div className="sales-list-filter-heading">
+          <h2>Filtreler</h2>
+          <p>Faturaları belge numarası, tedarikçi veya mal kabul bilgisine göre daraltın.</p>
+        </div>
       <div className="customer-toolbar">
         <label className="customer-search">
           <Search size={16} />
           <input
+            aria-label="Fatura numarası, tedarikçi veya mal kabul ara"
             value={query}
             onChange={(e) => {
               setPage(1);
@@ -3169,6 +3645,7 @@ function PurchaseInvoicesScreen({
           Yenile
         </button>
       </div>
+      </section>
       <section
         className="purchase-invoice-list-card"
         aria-label="Alış faturası listesi"
@@ -3447,7 +3924,8 @@ function PurchasingPanel({
     [editor, setEditor] = useState(false),
     [detail, setDetail] = useState<PurchaseOrderDetail | null>(null);
   const [requestSearch, setRequestSearch] = useState(""),
-    [requestStatus, setRequestStatus] = useState("");
+    [requestStatus, setRequestStatus] = useState(""),
+    [orderSearch, setOrderSearch] = useState("");
   const [invoiceId, setInvoiceId] = useState<string | null>(null),
     [invoiceReceiptId, setInvoiceReceiptId] = useState<string | null>(null),
     [invoiceCode, setInvoiceCode] = useState(""),
@@ -3525,7 +4003,7 @@ function PurchasingPanel({
             page: number;
             totalCount: number;
           }>(
-            `/api/purchasing/orders/?page=${targetOrderPage}&pageSize=${purchasePageSize}`,
+            `/api/purchasing/orders/?page=${targetOrderPage}&pageSize=${purchasePageSize}${orderSearch.trim() ? `&q=${encodeURIComponent(orderSearch.trim())}` : ""}`,
             token,
           ),
           api<PurchaseRequestPage>(
@@ -3566,8 +4044,11 @@ function PurchasingPanel({
     }
   }
   useEffect(() => {
-    void load(requestsOnly ? 1 : requestPage, orderPage);
-  }, [token, requestsOnly, requestSearch, requestStatus]);
+    const timer = window.setTimeout(() => {
+      void load(requestsOnly ? 1 : requestPage, requestsOnly ? 1 : orderPage);
+    }, requestsOnly && requestSearch.trim() ? 250 : 0);
+    return () => window.clearTimeout(timer);
+  }, [token, requestsOnly, requestSearch, requestStatus, orderSearch]);
   useEffect(() => {
     if (requestsOnly) return;
     let cancelled = false;
@@ -4858,30 +5339,23 @@ function PurchasingPanel({
         </div>
       )}
       {requestsOnly && (
-        <section className="panel" style={{ marginBottom: 16 }}>
+        <>
+          <div className="customer-summary purchase-request-summary">
+            <div className="customer-summary-icon">
+              <FileText size={19} />
+            </div>
+            <div>
+              <b>{requestTotal} satın alma talebi</b>
+              <small>Talepleri, onay durumlarını ve sipariş bağlantılarını izleyin.</small>
+            </div>
+          </div>
+          <section className="panel purchase-request-filter-card" aria-label="Satın alma talebi filtreleri">
           <div className="panel-heading">
             <div>
-              <b>Satın alma talepleri</b>
+              <b>Filtreler</b>
               <small>
-                Onaylanan taleplerde tedarikçi ve fiyatları girerek bağlantılı
-                sipariş oluşturun.
+                Talepleri numara, açıklama, talep sahibi veya durumuna göre daraltın.
               </small>
-            </div>
-            <div className="heading-actions">
-              {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-                <button
-                  className="secondary small-button"
-                  onClick={() => setRequestFieldSettingsOpen(true)}
-                >
-                  <Settings size={14} /> Talep alanları
-                </button>
-              )}
-              <button
-                className="primary small-button"
-                onClick={beginRequestCreate}
-              >
-                <Plus size={14} /> Talep oluştur
-              </button>
             </div>
           </div>
           <div className="customer-toolbar purchase-request-toolbar">
@@ -4913,55 +5387,59 @@ function PurchasingPanel({
               {loading ? "Yükleniyor…" : `${requestTotal} talep`}
             </span>
           </div>
-          <div className="requests-list">
-            {purchaseRequests.map((request) => (
-              <article
-                className={`request-row ${selectedRequestSummary?.id === request.id ? "erp-selected-request" : ""}`}
-                key={request.id}
-                onClick={() => setSelectedRequestId(request.id)}
-              >
-                <div className="request-info">
-                  <b>
-                    {request.code} · {request.description}
-                  </b>
-                  <small>
-                    {request.requestedByName} ·{" "}
-                    {request.requestDate.split("-").reverse().join(".")} ·{" "}
-                    {request.lineCount} kalem
-                    {request.neededByDate
-                      ? ` · ihtiyaç ${request.neededByDate.split("-").reverse().join(".")}`
-                      : ""}
-                  </small>
-                </div>
-                <span
-                  className={`quote-status ${request.status === "Approved" || request.status === "Ordered" ? "accepted" : request.status === "Rejected" ? "rejected" : "sent"}`}
-                >
-                  {request.status === "Submitted"
-                    ? "Onay bekliyor"
-                    : request.status === "Approved"
-                      ? "Onaylandı"
-                      : request.status === "Ordered"
-                        ? "Siparişe dönüştü"
-                        : "Reddedildi"}
-                </span>
+          </section>
+          <section className="panel purchase-request-list-card" style={{ marginBottom: 16 }}>
+          <div className="panel-heading">
+            <div>
+              <b>Talep listesi</b>
+              <small>{loading ? "Kayıtlar yükleniyor…" : `${requestTotal} kayıt`}</small>
+            </div>
+            <div className="heading-actions">
+              {(role === "TenantAdmin" || role === "TenantDeveloper") && (
                 <button
-                  className="row-action"
-                  onClick={() => void openRequest(request.id)}
+                  className="secondary small-button"
+                  onClick={() => setRequestFieldSettingsOpen(true)}
                 >
-                  İncele
+                  <Settings size={14} /> Talep alanları
                 </button>
-              </article>
-            ))}
-            {purchaseRequests.length === 0 && (
-              <div className="empty-small">
-                {requestStatus === "Approved"
-                  ? "Onaylanmış satın alma talebi yok."
-                  : requestSearch.trim() || requestStatus
-                    ? "Filtrelerle eşleşen satın alma talebi yok."
-                    : "Henüz satın alma talebi yok."}
-              </div>
-            )}
+              )}
+              <button
+                className="primary small-button"
+                onClick={beginRequestCreate}
+              >
+                <Plus size={14} /> Talep oluştur
+              </button>
+            </div>
           </div>
+          <div className="requests-list purchase-request-table-wrap">
+            <table className="purchase-request-table">
+              <thead><tr><th>Talep no</th><th>Açıklama</th><th>Talep sahibi</th><th>Talep tarihi</th><th>İhtiyaç tarihi</th><th>Kalem</th><th>Durum</th><th>İşlemler</th></tr></thead>
+              <tbody>
+                {purchaseRequests.map((request) => (
+                  <tr key={request.id} className={selectedRequestSummary?.id === request.id ? "erp-selected-request" : ""} onClick={() => setSelectedRequestId(request.id)}>
+                    <td><button type="button" className="purchase-request-code" onClick={(event) => { event.stopPropagation(); setSelectedRequestId(request.id); }}>{request.code}</button></td>
+                    <td className="purchase-request-description">{request.description}</td>
+                    <td>{request.requestedByName || "—"}</td>
+                    <td>{request.requestDate.split("-").reverse().join(".")}</td>
+                    <td>{request.neededByDate?.split("-").reverse().join(".") || "—"}</td>
+                    <td>{request.lineCount}</td>
+                    <td><span className={`quote-status ${request.status === "Approved" || request.status === "Ordered" ? "accepted" : request.status === "Rejected" ? "rejected" : "sent"}`}>{request.status === "Submitted" ? "Onay bekliyor" : request.status === "Approved" ? "Onaylandı" : request.status === "Ordered" ? "Siparişe dönüştü" : "Reddedildi"}</span></td>
+                    <td><button className="row-action" onClick={(event) => { event.stopPropagation(); void openRequest(request.id); }}>İncele</button></td>
+                  </tr>
+                ))}
+                {purchaseRequests.length === 0 && <tr><td colSpan={8} className="purchase-request-empty">{requestStatus === "Approved" ? "Onaylanmış satın alma talebi yok." : requestSearch.trim() || requestStatus ? "Filtrelerle eşleşen satın alma talebi yok." : "Henüz satın alma talebi yok."}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {requestTotal > purchasePageSize && (
+            <div className="purchase-request-pagination">
+              <span>{requestTotal} talep · Sayfa {requestPage} / {Math.ceil(requestTotal / purchasePageSize)}</span>
+              <div>
+                <button className="secondary small-button" disabled={requestPage <= 1 || loading} onClick={() => void load(requestPage - 1)}>Önceki</button>
+                <button className="secondary small-button" disabled={requestPage >= Math.ceil(requestTotal / purchasePageSize) || loading} onClick={() => void load(requestPage + 1)}>Sonraki</button>
+              </div>
+            </div>
+          )}
           {selectedRequestSummary && (
             <aside className="erp-record-pane purchase-request-selection">
               <div className="erp-record-heading">
@@ -5006,32 +5484,8 @@ function PurchasingPanel({
               </dl>
             </aside>
           )}
-          {requestTotal > purchasePageSize && (
-            <div className="table-pagination">
-              <span>
-                Sayfa {requestPage}/{Math.ceil(requestTotal / purchasePageSize)}
-              </span>
-              <div>
-                <button
-                  className="secondary small-button"
-                  disabled={requestPage <= 1}
-                  onClick={() => void load(requestPage - 1)}
-                >
-                  Önceki
-                </button>
-                <button
-                  className="secondary small-button"
-                  disabled={
-                    requestPage >= Math.ceil(requestTotal / purchasePageSize)
-                  }
-                  onClick={() => void load(requestPage + 1)}
-                >
-                  Sonraki
-                </button>
-              </div>
-            </div>
-          )}
         </section>
+        </>
       )}
       {requestFieldSettingsOpen && (role === "TenantAdmin" || role === "TenantDeveloper") && (
         <div
@@ -5264,6 +5718,96 @@ function PurchasingPanel({
             </div>
           </div>
         </div>
+      )}
+      {!requestsOnly && (
+        <section className="panel purchase-order-filter-card" aria-label="Tedarikçi siparişi filtreleri">
+          <div className="panel-heading">
+            <div>
+              <b>Filtreler</b>
+              <small>Siparişleri belge numarası veya tedarikçi adına göre daraltın.</small>
+            </div>
+            <button className="secondary small-button" disabled={loading} onClick={() => void load(requestPage, orderPage)}>
+              Yenile
+            </button>
+          </div>
+          <label className="customer-search purchase-order-search">
+            <Search size={15} />
+            <input
+              type="search"
+              aria-label="Tedarikçi siparişlerinde ara"
+              placeholder="Sipariş no veya tedarikçi ara"
+              value={orderSearch}
+              onChange={(event) => {
+                setOrderPage(1);
+                setOrderSearch(event.target.value);
+              }}
+            />
+          </label>
+        </section>
+      )}
+      {!requestsOnly && (
+        <section className="panel purchase-order-list-card" aria-label="Tedarikçi siparişi listesi">
+          <div className="panel-heading">
+            <div>
+              <b>Sipariş listesi</b>
+              <small>{loading ? "Kayıtlar yükleniyor…" : `${orders.length} kayıt gösteriliyor · ${orderTotal} toplam`}</small>
+            </div>
+          </div>
+      <div className="customer-table-wrap">
+        <table className="customer-table quote-table">
+          <thead>
+            <ScreenViewGroupHeader fields={visibleOrderScreenFields} />
+            <tr>
+              {visibleOrderScreenFields.map((field) => (
+                <th key={field.key}>{field.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={visibleOrderScreenFields.length}
+                  className="table-empty"
+                >
+                  Satın alma siparişleri yükleniyor…
+                </td>
+              </tr>
+            ) : orders.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={visibleOrderScreenFields.length}
+                  className="table-empty"
+                >
+                  {orderSearch.trim()
+                    ? "Aramanızla eşleşen tedarikçi siparişi yok."
+                    : "Henüz satın alma siparişi yok."}
+                </td>
+              </tr>
+            ) : (
+              orders.map((item) => (
+                <tr
+                  key={item.id}
+                  className={
+                    selectedOrderSummary?.id === item.id
+                      ? "erp-selected-row"
+                      : ""
+                  }
+                  onClick={() => setSelectedOrderId(item.id)}
+                  aria-selected={selectedOrderSummary?.id === item.id}
+                >
+                  {visibleOrderScreenFields.map((field) => (
+                    <td key={field.key}>
+                      {renderPurchaseOrderField(field, item)}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+        </section>
       )}
       {(role === "TenantAdmin" || role === "TenantDeveloper") && (
         <section className="panel" style={{ marginBottom: 16 }}>
@@ -5690,58 +6234,7 @@ function PurchasingPanel({
           </form>
         </details>
       )}
-      <div className="customer-table-wrap">
-        <table className="customer-table quote-table">
-          <thead>
-            <ScreenViewGroupHeader fields={visibleOrderScreenFields} />
-            <tr>
-              {visibleOrderScreenFields.map((field) => (
-                <th key={field.key}>{field.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={visibleOrderScreenFields.length}
-                  className="table-empty"
-                >
-                  Satın alma siparişleri yükleniyor…
-                </td>
-              </tr>
-            ) : orders.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={visibleOrderScreenFields.length}
-                  className="table-empty"
-                >
-                  Henüz satın alma siparişi yok.
-                </td>
-              </tr>
-            ) : (
-              orders.map((item) => (
-                <tr
-                  key={item.id}
-                  className={
-                    selectedOrderSummary?.id === item.id
-                      ? "erp-selected-row"
-                      : ""
-                  }
-                  onClick={() => setSelectedOrderId(item.id)}
-                  aria-selected={selectedOrderSummary?.id === item.id}
-                >
-                  {visibleOrderScreenFields.map((field) => (
-                    <td key={field.key}>
-                      {renderPurchaseOrderField(field, item)}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+
       {!requestsOnly && selectedOrderSummary && (
         <aside className="erp-record-pane sales-selected-record">
           <div className="erp-record-heading">
@@ -5914,6 +6407,8 @@ function PurchasingPanel({
                 <button
                   type="button"
                   className="secondary small-button"
+                  data-line-add-shortcut
+                  title="Ctrl+Shift+Enter ile satır ekle"
                   onClick={() =>
                     setLines((current) => [
                       ...current,
@@ -5951,28 +6446,15 @@ function PurchasingPanel({
                   </div>
                   <label>
                     Stok kartı
-                    <SearchableRecordPicker
-                      options={stockItems.map((x) => ({
-                        id: x.id,
-                        label: `${x.code} · ${x.name}`,
-                        description: x.unitCode,
-                        searchText: x.unitCode,
-                      }))}
+                    <AsyncStockItemPicker
+                      token={token}
                       selectedId={line.stockItemId}
-                      onSelect={(id) => {
-                        void loadPurchaseOrderUnits(id);
-                        updateLine(index, "stockItemId", id);
-                        updateLine(
-                          index,
-                          "unitCode",
-                          stockItems.find((x) => x.id === id)?.unitCode || "",
-                        );
+                      initialItems={stockItems}
+                      onSelect={(item) => {
+                        void loadPurchaseOrderUnits(item.id);
+                        updateLine(index, "stockItemId", item.id);
+                        updateLine(index, "unitCode", item.unitCode || "");
                       }}
-                      title="Stok kartı seçin"
-                      placeholder="Stok seçin"
-                      searchPlaceholder="Stok kodu veya adıyla ara"
-                      emptyMessage="Aramanızla eşleşen stok kartı bulunamadı."
-                      required
                     />
                   </label>
                   <div className="form-two order-line-pricing">
@@ -6131,10 +6613,6 @@ function PurchasingPanel({
                 />
               </label>
               <div className="modal-foot">
-                <span>
-                  <ShieldCheck size={14} />
-                  Tutarlar sunucuda hesaplanır
-                </span>
                 <div>
                   <button
                     type="button"
@@ -6850,37 +7328,24 @@ function PurchasingPanel({
                   <div className="form-two">
                     <label>
                       Stok kartı
-                      <SearchableRecordPicker
-                        options={stockItems
-                          .filter((x) => x.isActive)
-                          .map((x) => ({
-                            id: x.id,
-                            label: `${x.code} · ${x.name}`,
-                            description: x.unitCode,
-                            searchText: x.unitCode,
-                          }))}
+                      <AsyncStockItemPicker
+                        token={token}
                         selectedId={line.stockItemId}
-                        onSelect={(id) => {
-                          void loadRequestUnits(id);
+                        initialItems={stockItems}
+                        onSelect={(item) => {
+                          void loadRequestUnits(item.id);
                           setRequestLines((current) =>
                             current.map((row, i) =>
                               i === index
                                 ? {
                                     ...row,
-                                    stockItemId: id,
-                                    unitCode:
-                                      stockItems.find((x) => x.id === id)
-                                        ?.unitCode || "",
+                                    stockItemId: item.id,
+                                    unitCode: item.unitCode || "",
                                   }
                                 : row,
                             ),
                           );
                         }}
-                        title="Stok kartı seçin"
-                        placeholder="Stok seçin"
-                        searchPlaceholder="Stok kodu veya adıyla ara"
-                        emptyMessage="Aramanızla eşleşen aktif stok kartı bulunamadı."
-                        required
                       />
                     </label>
                     <label>
@@ -7590,10 +8055,6 @@ function PurchasingPanel({
                       />
                     </label>
                     <div className="modal-foot">
-                      <span>
-                        Tutarlar sunucuda hesaplanır; teklif para birimi
-                        tedarikçi kartından alınır.
-                      </span>
                       <div>
                         <button
                           type="button"
@@ -8074,6 +8535,7 @@ function SalesOrderModal({
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [editor, setEditor] = useState(false);
+  const [detailTab, setDetailTab] = useState<"information" | "deliveries">("information");
   const [customFieldValues, setCustomFieldValues] = useState<
     Record<string, string>
   >(() =>
@@ -8386,21 +8848,22 @@ function SalesOrderModal({
   const activeReservation = order.lines.some((x) => x.reservationId !== null);
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop sales-order-detail-backdrop"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="modal ledger-modal sales-detail-modal"
+        className="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="sales-order-detail-title"
       >
         <div className="modal-head">
           <div>
-            <p className="eyebrow">{order.code} · SATIŞ SİPARİŞİ</p>
-            <h2 id="sales-order-detail-title">{order.customerName}</h2>
+            <p className="eyebrow">SATIŞ SİPARİŞİ DETAYI</p>
+            <h2 id="sales-order-detail-title">Sipariş Detay</h2>
+            <p className="sales-quote-detail-subtitle">Sipariş No: <b>{order.code}</b></p>
           </div>
           <button
             type="button"
@@ -8427,43 +8890,20 @@ function SalesOrderModal({
             </button>
           </div>
         )}
-        <div className="balance-banner">
-          <div>
-            <small>
-              {order.quoteCode} teklifinden · {order.currencyCode}
-            </small>
-            <b>
-              {order.grandTotal.toLocaleString("tr-TR", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}{" "}
-              {order.currencyCode}
-            </b>
-            <span>
-              Ara toplam{" "}
-              {order.subtotal.toLocaleString("tr-TR", {
-                minimumFractionDigits: 2,
-              })}{" "}
-              · İskonto{" "}
-              {order.discountTotal.toLocaleString("tr-TR", {
-                minimumFractionDigits: 2,
-              })}{" "}
-              · KDV{" "}
-              {order.taxTotal.toLocaleString("tr-TR", {
-                minimumFractionDigits: 2,
-              })}
-            </span>
-          </div>
-          <span
-            className={`quote-status ${order.status === "Fulfilled" ? "accepted" : "sent"}`}
-          >
-            {order.status === "Fulfilled"
-              ? "Tamamlandı"
-              : order.status === "Cancelled"
-                ? "İptal"
-                : "Açık"}
-          </span>
-        </div>
+        <nav className="sales-quote-detail-tabs" role="tablist" aria-label="Sipariş detay bölümleri">
+          {([ ["information", "Sipariş Bilgileri"], ["deliveries", "İrsaliye Geçmişi"] ] as const).map(([key, label]) => (
+            <button key={key} type="button" role="tab" aria-selected={detailTab === key} className={detailTab === key ? "active" : ""} onClick={() => setDetailTab(key)}>{label}{key === "deliveries" && <span>{deliveries.length}</span>}</button>
+          ))}
+        </nav>
+        <div className="sales-detail-content">
+        {detailTab === "information" && <>
+        <h3 className="sales-quote-section-title">Sipariş Üst Bilgileri</h3>
+        <section className="sales-quote-overview-grid">
+          <article><small>Müşteri</small><b>{order.customerName}</b></article>
+          <article><small>Durum</small><b><span className={`quote-status ${order.status === "Fulfilled" ? "accepted" : order.status === "Cancelled" ? "rejected" : "sent"}`}>{order.status === "Fulfilled" ? "Tamamlandı" : order.status === "Cancelled" ? "İptal" : "Açık"}</span></b></article>
+          <article><small>İstenen teslim tarihi</small><b>{order.requestedDeliveryDate || "—"}</b></article>
+          <article><small>Para birimi</small><b>{order.currencyCode}</b></article>
+        </section>
         {order.status === "Open" && (
           <form
             className="panel"
@@ -8570,8 +9010,45 @@ function SalesOrderModal({
             )}
           </form>
         )}
-        <div className="ledger-list">
-          <AdvancedDataGrid className="customer-table quote-detail-table">
+        <div className="sales-order-lines-heading">
+          <h3 className="sales-quote-section-title">Sipariş Satırları</h3>
+          {order.status === "Open" && !activeReservation && (
+            <button className="secondary small-button" type="button" onClick={() => {
+              setReservationWarehouseId(warehouses.find((warehouse) => warehouse.isActive)?.id || "");
+              setReservationRequestId(crypto.randomUUID());
+              setReservationEditor(true);
+            }}>
+              Stok ayır
+            </button>
+          )}
+        </div>
+        {reservationEditor && detailTab === "information" && (
+          <form className="delivery-editor" onSubmit={reserveOrderStock}>
+            <label>
+              Rezervasyon deposu
+              <SearchableRecordPicker
+                options={warehouses.filter((warehouse) => warehouse.isActive).map((warehouse) => ({ id: warehouse.id, label: `${warehouse.code} · ${warehouse.name}` }))}
+                selectedId={reservationWarehouseId}
+                onSelect={setReservationWarehouseId}
+                title="Rezervasyon deposu seçin"
+                placeholder="Depo seçin"
+                searchPlaceholder="Depo kodu veya adıyla ara"
+                emptyMessage="Aramanızla eşleşen aktif depo bulunamadı."
+                required
+              />
+            </label>
+            <p className="muted">Siparişin teslim edilmemiş ürün miktarları seçilen depoda rezerve edilir.</p>
+            <div className="modal-foot">
+              <span>Bu işlem stok hareketi oluşturmaz.</span>
+              <div>
+                <button type="button" className="secondary" onClick={() => setReservationEditor(false)}>Vazgeç</button>
+                <button className="primary" disabled={busy || !reservationWarehouseId}>Stok ayır</button>
+              </div>
+            </div>
+          </form>
+        )}
+        <div className="ledger-list sales-quote-lines">
+          <AdvancedDataGrid className="customer-table quote-detail-table" enableRowSelection={false}>
             <thead>
               <ScreenViewGroupHeader fields={visibleOrderLineFields} />
               <tr>
@@ -8608,10 +9085,19 @@ function SalesOrderModal({
                           ""
                         )
                       ) : field.key === "unitPrice" ? (
-                        line.unitPrice.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 4,
-                        })
+                        <span className="sales-order-line-price">
+                          <span>
+                            {(line.enteredUnitPrice ?? line.unitPrice).toLocaleString("tr-TR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 4,
+                            })} {line.enteredCurrencyCode || order.currencyCode}
+                          </span>
+                          {line.enteredCurrencyCode && line.enteredCurrencyCode !== order.currencyCode && (
+                            <small>
+                              Kur {Number(line.exchangeRateToOrderCurrency || 1).toLocaleString("tr-TR", { maximumFractionDigits: 8 })} · {line.unitPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {order.currencyCode}
+                            </small>
+                          )}
+                        </span>
                       ) : (
                         line.lineTotal.toLocaleString("tr-TR", {
                           minimumFractionDigits: 2,
@@ -8624,25 +9110,17 @@ function SalesOrderModal({
             </tbody>
           </AdvancedDataGrid>
         </div>
+        <h3 className="sales-quote-section-title sales-quote-totals-title">Toplamlar</h3>
+        <section className="sales-quote-totals-panel">
+          <div><span>Ara toplam</span><b>{order.subtotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
+          <div><span>Toplam iskonto</span><b>{order.discountTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
+          <div><span>Toplam KDV</span><b>{order.taxTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
+          <div className="grand-total"><span>Genel toplam</span><b>{order.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currencyCode}</b></div>
+        </section>
+        </>}
+        {detailTab === "deliveries" && <>
         <div className="delivery-history-head">
           <b>İrsaliyeler</b>
-          {order.status === "Open" && !activeReservation && (
-            <button
-              className="secondary"
-              disabled={
-                busy || warehouses.filter((x) => x.isActive).length === 0
-              }
-              onClick={() => {
-                setReservationWarehouseId(
-                  warehouses.find((x) => x.isActive)?.id || "",
-                );
-                setReservationRequestId(crypto.randomUUID());
-                setReservationEditor(true);
-              }}
-            >
-              Stok ayır
-            </button>
-          )}
           {order.status === "Open" &&
             activeReservation &&
             role === "TenantAdmin" && (
@@ -8668,48 +9146,6 @@ function SalesOrderModal({
             </button>
           )}
         </div>
-        {reservationEditor && (
-          <form className="delivery-editor" onSubmit={reserveOrderStock}>
-            <label>
-              Rezervasyon deposu
-              <SearchableRecordPicker
-                options={warehouses
-                  .filter((x) => x.isActive)
-                  .map((x) => ({ id: x.id, label: `${x.code} · ${x.name}` }))}
-                selectedId={reservationWarehouseId}
-                onSelect={setReservationWarehouseId}
-                title="Rezervasyon deposu seçin"
-                placeholder="Depo seçin"
-                searchPlaceholder="Depo kodu veya adıyla ara"
-                emptyMessage="Aramanızla eşleşen aktif depo bulunamadı."
-                required
-              />
-            </label>
-            <p className="muted">
-              Siparişin teslim edilmemiş tüm miktarları için yeterli
-              kullanılabilir stok kontrol edilir. Rezervasyon, bu depodan başka
-              çıkış ve transferler için kullanılabilir miktarı azaltır.
-            </p>
-            <div className="modal-foot">
-              <span>Bu işlem stok hareketi oluşturmaz.</span>
-              <div>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setReservationEditor(false)}
-                >
-                  Vazgeç
-                </button>
-                <button
-                  className="primary"
-                  disabled={busy || !reservationWarehouseId}
-                >
-                  {busy ? "Ayrılıyor…" : "Stok ayır"}
-                </button>
-              </div>
-            </div>
-          </form>
-        )}
         {editor && (
           <form className="delivery-editor" onSubmit={createDelivery}>
             <div className="form-two">
@@ -8878,15 +9314,7 @@ function SalesOrderModal({
             ))
           )}
         </div>
-        <div className="modal-foot">
-          <span>
-            Sipariş tarihi {order.orderDate} · Kaynak teklif {order.quoteCode}
-          </span>
-          <div>
-            <button className="secondary" onClick={onClose}>
-              Kapat
-            </button>
-          </div>
+        </>}
         </div>
       </div>
     </div>
@@ -8907,7 +9335,9 @@ function SalesInvoiceTable({
   token,
   role,
   createOpen,
+  entryPage = false,
   createFromOrder = false,
+  initialCustomerId = "",
   setCreateOpen,
   onInvoiceCreated,
   onChanged,
@@ -8925,7 +9355,9 @@ function SalesInvoiceTable({
   token: string;
   role: string;
   createOpen: boolean;
+  entryPage?: boolean;
   createFromOrder?: boolean;
+  initialCustomerId?: string;
   setCreateOpen: (open: boolean) => void;
   onInvoiceCreated: (id: string) => Promise<void>;
   onChanged: () => Promise<void>;
@@ -8971,14 +9403,14 @@ function SalesInvoiceTable({
       window.clearTimeout(timer);
     };
   }, [createOpen, deliveryPage, deliverySearch, token]);
-  async function createFromDelivery(item: SalesDeliverySummary) {
+  async function createFromDelivery(item: SalesDeliverySummary, eDocument?: Record<string, string | null>, accountingProfileCode?: string, invoiceType: "Wholesale" | "Retail" = "Wholesale") {
     setDeliveryBusyId(item.id);
     setDeliveryError("");
     try {
       const invoice = await api<SalesInvoiceSummary>(
         `/api/sales/deliveries/${item.id}/invoice`,
         token,
-        { method: "POST" },
+        { method: "POST", body: JSON.stringify({ eDocument: eDocument ?? null, accountingProfileCode: accountingProfileCode ?? null, invoiceType }) },
       );
       setCreateOpen(false);
       setDeliverySearch("");
@@ -9087,25 +9519,15 @@ function SalesInvoiceTable({
         );
       case "actions":
         return (
-          <div className="row-actions">
-            <button
-              className="row-action"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpen(item.id);
-              }}
-            >
-              Detay
-            </button>
+          <SalesRowActionsMenu label={item.code}>
+            <button role="menuitem" className="sales-row-menu-item" onClick={() => onOpen(item.id)}>Detay</button>
             {role === "TenantAdmin" && item.status === "Posted" && (
               <button
                 type="button"
-                className="row-action danger-action"
+                role="menuitem"
+                className="sales-row-menu-item danger-action"
                 disabled={busy}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void voidInvoice(item);
-                }}
+                onClick={() => void voidInvoice(item)}
               >
                 İptal et
               </button>
@@ -9113,17 +9535,15 @@ function SalesInvoiceTable({
             {role === "TenantAdmin" && (
               <button
                 type="button"
-                className="row-action danger-action"
+                role="menuitem"
+                className="sales-row-menu-item danger-action"
                 disabled={busy}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void deleteInvoice(item);
-                }}
+                onClick={() => void deleteInvoice(item)}
               >
                 Sil
               </button>
             )}
-          </div>
+          </SalesRowActionsMenu>
         );
       default:
         if (field.key.startsWith("custom:")) return item.listCustomFields?.[field.key] || "—";
@@ -9148,7 +9568,7 @@ function SalesInvoiceTable({
           </button>
         </div>
       )}
-      <section
+      {!entryPage && <section
         className="sales-invoice-list-card"
         aria-label="Satış faturası listesi"
       >
@@ -9174,7 +9594,7 @@ function SalesInvoiceTable({
           }}
           renderCell={(field, item) => render(item, field)}
         />
-      </section>
+      </section>}
       {createOpen && (
         <SalesInvoiceFromDeliveryDialog
           deliveries={deliveries}
@@ -9183,7 +9603,9 @@ function SalesInvoiceTable({
           stockItems={stockItems}
           warehouses={warehouses}
           token={token}
-          initialMode={createFromOrder ? "standalone" : "delivery"}
+          initialMode={entryPage || createFromOrder ? "standalone" : "delivery"}
+          fullPage={entryPage}
+          initialCustomerId={initialCustomerId}
           total={deliveryTotal}
           page={deliveryPage}
           search={deliverySearch}
@@ -9200,7 +9622,7 @@ function SalesInvoiceTable({
             setDeliveryPage(1);
           }}
           onPageChange={setDeliveryPage}
-          onCreateInvoice={(delivery) => void createFromDelivery(delivery)}
+          onCreateInvoice={(delivery, eDocument, accountingProfileCode, invoiceType) => void createFromDelivery(delivery, eDocument, accountingProfileCode, invoiceType)}
           onInvoiceCreated={onInvoiceCreated}
         />
       )}
@@ -9212,13 +9634,50 @@ function SalesCustomerPopupSelect({
   customers,
   selectedId,
   onSelect,
+  totalCount,
+  token,
+  onSearchResults,
 }: {
   customers: SalesCustomer[];
   selectedId: string;
   onSelect: (customer: SalesCustomer) => void;
+  totalCount: number;
+  token: string;
+  onSearchResults: (customers: SalesCustomer[]) => void;
 }) {
   const [open, setOpen] = useState(false),
-    [query, setQuery] = useState("");
+    [query, setQuery] = useState(""),
+    [resultCount, setResultCount] = useState(totalCount);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSequence = useRef(0);
+  useEffect(() => () => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+  }, []);
+  function updateQuery(value: string) {
+    setQuery(value);
+    searchSequence.current += 1;
+    const requestSequence = searchSequence.current;
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const term = value.trim();
+    if (term.length < 2) {
+      setResultCount(totalCount);
+      return;
+    }
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const [customerPage, bothPage] = await Promise.all([
+          api<{ items: SalesCustomer[]; totalCount: number }>(`/api/customers/?q=${encodeURIComponent(term)}&type=Customer&status=Active&page=1&pageSize=50`, token),
+          api<{ items: SalesCustomer[]; totalCount: number }>(`/api/customers/?q=${encodeURIComponent(term)}&type=Both&status=Active&page=1&pageSize=50`, token),
+        ]);
+        if (requestSequence === searchSequence.current) {
+          setResultCount(customerPage.totalCount + bothPage.totalCount);
+          onSearchResults([...customerPage.items, ...bothPage.items]);
+        }
+      } catch {
+        // Keep the currently loaded options available if remote search fails.
+      }
+    }, 350);
+  }
   const selected = customers.find((customer) => customer.id === selectedId);
   const eligible = customers.filter(
     (customer) => customer.isActive && customer.type !== "Supplier",
@@ -9249,6 +9708,9 @@ function SalesCustomerPopupSelect({
         aria-expanded={open}
         onClick={() => {
           setQuery("");
+          setResultCount(totalCount);
+          searchSequence.current += 1;
+          if (searchTimer.current) clearTimeout(searchTimer.current);
           setOpen(true);
         }}
       >
@@ -9291,12 +9753,17 @@ function SalesCustomerPopupSelect({
                 <Search size={15} />
                 <input
                   type="search"
+                  aria-label="Müşteri kodu veya unvanıyla ara"
                   autoFocus
                   value={query}
-                  onChange={(event) => setQuery(event.target.value)}
+                  onChange={(event) => updateQuery(event.target.value)}
                   placeholder="Müşteri kodu veya unvanıyla ara"
                 />
               </label>
+              <div className="searchable-record-results-heading">
+                <span>Sonuçlar</span>
+                <small>{resultCount} kayıt · ilk {visible.length} gösteriliyor</small>
+              </div>
               <div
                 className="customer-picker-options"
                 role="listbox"

@@ -49,6 +49,8 @@ export default function OperationalDefinitionsPage({
   const tx = (tr: string, english: string) => (en ? english : tr);
   const [rows, setRows] = useState<Definition[]>([]);
   const [kind, setKind] = useState<DefinitionKind>("Workplace");
+  const [kindFilter, setKindFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [editing, setEditing] = useState<Definition | null>(null);
@@ -129,6 +131,15 @@ export default function OperationalDefinitionsPage({
       : value === "Branch"
         ? tx("Şube", "Branch")
         : tx("Fabrika", "Factory");
+  const filteredRows = rows.filter((row) => {
+    const term = search.trim().toLocaleLowerCase(en ? "en-US" : "tr-TR");
+    return (
+      (!kindFilter || row.kind === kindFilter) &&
+      `${row.code} ${row.name} ${kindName(row.kind)}`
+        .toLocaleLowerCase(en ? "en-US" : "tr-TR")
+        .includes(term)
+    );
+  });
 
   return (
     <div className="operational-definitions-page">
@@ -153,6 +164,18 @@ export default function OperationalDefinitionsPage({
           </button>
         </div>
       )}
+      <section className="reference-summary-grid" aria-label={tx("Tanım özeti", "Definition summary")}>
+        <div className="reference-summary-card violet"><div><small>{tx("Toplam tanım", "Total definitions")}</small><strong>{rows.length}</strong></div></div>
+        <div className="reference-summary-card green"><div><small>{tx("Etkin", "Active")}</small><strong>{rows.filter((row) => row.isActive).length}</strong></div></div>
+        <div className="reference-summary-card red"><div><small>{tx("Devre dışı", "Inactive")}</small><strong>{rows.filter((row) => !row.isActive).length}</strong></div></div>
+      </section>
+      <section className="panel op-definitions-filter-card" aria-label={tx("Tanım filtreleri", "Definition filters")}>
+        <div className="panel-heading"><div><h2>{tx("Filtreler", "Filters")}</h2><p>{tx("Tanımları tür, kod veya ada göre daraltın.", "Narrow definitions by type, code or name.")}</p></div></div>
+        <div className="customer-toolbar">
+          <input aria-label={tx("Tanımlarda ara", "Search definitions")} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tx("Kod veya ad ara", "Search code or name")} />
+          <label>{tx("Tür", "Type")}<select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}><option value="">{tx("Tüm türler", "All types")}</option><option value="Workplace">{tx("İş yeri", "Workplace")}</option><option value="Branch">{tx("Şube", "Branch")}</option><option value="Factory">{tx("Fabrika", "Factory")}</option></select></label>
+        </div>
+      </section>
       <section className="panel op-definitions-panel">
         <div className="panel-heading">
           <div>
@@ -165,6 +188,22 @@ export default function OperationalDefinitionsPage({
             </p>
           </div>
         </div>
+        <div className="panel-heading op-definitions-grid-heading"><div><h2>{tx("Tanım listesi", "Definition list")}</h2><p>{loading ? tx("Kayıtlar yükleniyor…", "Loading records…") : `${filteredRows.length} / ${rows.length} ${tx("kayıt", "records")}`}</p></div></div>
+        <DefinitionGrid
+          rows={filteredRows}
+          loading={loading}
+          busy={busy}
+          tx={tx}
+          kindName={kindName}
+          onEdit={(row) => {
+            setEditing(row);
+            setKind(row.kind);
+            setCode(row.code);
+            setName(row.name);
+          }}
+          onToggle={(row) => void toggle(row)}
+        />
+        <div className="panel-heading op-definitions-form-heading"><div><h2>{editing ? tx("Tanımı düzenle", "Edit definition") : tx("Tanım ekle", "Add definition")}</h2><p>{tx("İş yeri, şube veya fabrika tanımı oluşturun.", "Create a workplace, branch or factory definition.")}</p></div></div>
         <DefinitionForm
           tx={tx}
           kind={kind}
@@ -177,20 +216,6 @@ export default function OperationalDefinitionsPage({
           onCodeChange={setCode}
           onNameChange={setName}
           onCancel={clearForm}
-        />
-        <DefinitionGrid
-          rows={rows}
-          loading={loading}
-          busy={busy}
-          tx={tx}
-          kindName={kindName}
-          onEdit={(row) => {
-            setEditing(row);
-            setKind(row.kind);
-            setCode(row.code);
-            setName(row.name);
-          }}
-          onToggle={(row) => void toggle(row)}
         />
       </section>
       <OperationalDefinitionLinks tx={tx} onNavigate={onNavigate} />

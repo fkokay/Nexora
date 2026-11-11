@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { authenticatedFetch } from "./authApi";
-import { ArrowRight, Play, Plus, Save, Sparkles } from "lucide-react";
+import { ArrowRight, Database, Play, Plus, Save, Search, Sparkles, X } from "lucide-react";
 import {
   isEnglishLocale,
   localizedCatalogLabel,
@@ -57,6 +57,7 @@ export default function ReportsPage({
   const [companies, setCompanies] = useState<SqlCompany[]>([]);
   const [sqlSchemaTables, setSqlSchemaTables] = useState<SqlSchemaTable[]>([]);
   const [schemaSearch, setSchemaSearch] = useState("");
+  const [sqlSchemaOpen, setSqlSchemaOpen] = useState(false);
   const [saved, setSaved] = useState<SavedReport[]>([]);
   const [history, setHistory] = useState<SavedReportRevision[]>([]);
   const [selectedRevision, setSelectedRevision] = useState(0);
@@ -226,6 +227,7 @@ export default function ReportsPage({
     const before = query.slice(0, start), after = query.slice(end);
     const inserted = `${before.length > 0 && !/\s$/.test(before) ? " " : ""}${token}`;
     update({ sqlQuery: `${before}${inserted}${after}` });
+    setSqlSchemaOpen(false);
     requestAnimationFrame(() => {
       const cursor = before.length + inserted.length;
       editor?.focus();
@@ -722,30 +724,60 @@ export default function ReportsPage({
                     onChange={(event) => update({ sqlQuery: event.target.value })}
                   />
                   <small>{tx("Sorgu seçtiğiniz firmalarda ayrı ayrı çalıştırılır; sonuçlarda Firma sütunu bulunur. En fazla 500 satır döndürülür.", "The query runs separately for each selected company; results include a Company column and are capped at 500 rows.")}</small>
-                  <div className="report-sql-schema">
-                    <input
-                      type="search"
-                      aria-label={tx("Tablo ve alan ara", "Search tables and fields")}
-                      placeholder={tx("Tablo ve alan ara…", "Search tables and fields…")}
-                      value={schemaSearch}
-                      onChange={(event) => setSchemaSearch(event.target.value)}
-                    />
-                    <div className="report-sql-schema-results">
-                      {matchingSqlSchema.map((table) => (
-                        <section key={`${table.schema}.${table.name}`}>
-                          <button type="button" className="report-sql-schema-table" onClick={() => insertSqlToken(`[${table.schema}].[${table.name}]`)}>
-                            [{table.schema}].[{table.name}]
-                          </button>
-                          {table.columns.map((column) => (
-                            <button type="button" key={column.name} onClick={() => insertSqlToken(`[${column.name}]`)}>
-                              <span>{column.name}</span><small>{column.dataType}</small>
-                            </button>
+                  <button
+                    type="button"
+                    className="report-sql-schema-open secondary"
+                    onClick={() => setSqlSchemaOpen(true)}
+                  >
+                    <Database size={16} />
+                    {tx("Tablo ve alanları görüntüle", "Browse tables and fields")}
+                    <span>{sqlSchemaTables.length} {tx("tablo", "tables")}</span>
+                  </button>
+                  {sqlSchemaOpen && (
+                    <div className="report-sql-schema-backdrop" onMouseDown={(event) => {
+                      if (event.target === event.currentTarget) setSqlSchemaOpen(false);
+                    }}>
+                      <section className="report-sql-schema-dialog" role="dialog" aria-modal="true" aria-labelledby="report-sql-schema-title">
+                        <header>
+                          <div className="report-sql-schema-heading-icon"><Database size={19} /></div>
+                          <div>
+                            <p className="eyebrow">{tx("SORGUNUZ İÇİN", "FOR YOUR QUERY")}</p>
+                            <h2 id="report-sql-schema-title">{tx("Tablo ve alanlar", "Tables and fields")}</h2>
+                            <p>{tx("Bir tablo veya alan seçin; sorgu alanına eklenir.", "Select a table or field to insert it into the query.")}</p>
+                          </div>
+                          <button type="button" className="report-sql-schema-close" aria-label={tx("Kapat", "Close")} onClick={() => setSqlSchemaOpen(false)}><X size={18} /></button>
+                        </header>
+                        <label className="report-sql-schema-search">
+                          <Search size={16} />
+                          <input
+                            autoFocus
+                            type="search"
+                            aria-label={tx("Tablo ve alan ara", "Search tables and fields")}
+                            placeholder={tx("Tablo, alan veya veri türü ara…", "Search table, field, or data type…")}
+                            value={schemaSearch}
+                            onChange={(event) => setSchemaSearch(event.target.value)}
+                          />
+                          <span>{matchingSqlSchema.length} / {sqlSchemaTables.length}</span>
+                        </label>
+                        <div className="report-sql-schema-results">
+                          {matchingSqlSchema.map((table) => (
+                            <section key={`${table.schema}.${table.name}`}>
+                              <button type="button" className="report-sql-schema-table" onClick={() => insertSqlToken(`[${table.schema}].[${table.name}]`)}>
+                                <span><small>{table.schema}</small><b>{table.name}</b></span><ArrowRight size={15} />
+                              </button>
+                              {table.columns.map((column) => (
+                                <button type="button" className="report-sql-schema-column" key={column.name} onClick={() => insertSqlToken(`[${column.name}]`)}>
+                                  <span>{column.name}</span><small>{column.dataType}</small>
+                                </button>
+                              ))}
+                            </section>
                           ))}
-                        </section>
-                      ))}
-                      {matchingSqlSchema.length === 0 && <small>{tx("Eşleşen tablo veya alan yok.", "No matching tables or fields.")}</small>}
+                          {matchingSqlSchema.length === 0 && <div className="report-sql-schema-empty">{tx("Eşleşen tablo veya alan yok.", "No matching tables or fields.")}</div>}
+                        </div>
+                        <footer><span>{tx("Tablo adı eklemek için tablo satırını, alan eklemek için alan adını seçin.", "Choose a table row to insert its name, or a field to insert its column name.")}</span><button className="secondary" type="button" onClick={() => setSqlSchemaOpen(false)}>{tx("Tamam", "Done")}</button></footer>
+                      </section>
                     </div>
-                  </div>
+                  )}
                 </div>
                 <fieldset className="report-columns report-sql-companies" disabled={busy || loading}>
                   <legend>{tx("Sorgunun çalışacağı firmalar", "Companies to query")}</legend>

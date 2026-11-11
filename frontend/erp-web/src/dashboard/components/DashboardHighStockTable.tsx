@@ -1,4 +1,5 @@
 import { Activity, ChevronRight } from "lucide-react";
+import type { CSSProperties } from "react";
 import type { ErpDashboardStockItem } from "../types";
 
 type Props = {
@@ -8,6 +9,7 @@ type Props = {
   canReadInventory: boolean;
   money: (value: number, code?: string) => string;
   onNavigate: (page: string) => void;
+  style?: CSSProperties;
 };
 
 export default function DashboardHighStockTable({
@@ -17,9 +19,10 @@ export default function DashboardHighStockTable({
   canReadInventory,
   money,
   onNavigate,
+  style,
 }: Props) {
   return (
-    <section className="erp-home-panel dashboard-reference-stock-table">
+    <section className="erp-home-panel dashboard-reference-stock-table" style={style}>
       <header>
         <div>
           <h2>

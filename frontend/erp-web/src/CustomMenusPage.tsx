@@ -9,55 +9,6 @@ import { CustomMenuList } from "./custom-menus/components/CustomMenuList";
 import { CustomMenuInspector } from "./custom-menus/components/CustomMenuInspector";
 import { StandardMenuEditor } from "./custom-menus/components/StandardMenuEditor";
 
-export function TenantCustomMenuNavigation({
-  token,
-  page,
-  onSelect,
-}: {
-  token: string;
-  page: string;
-  onSelect: (page: string, label?: string) => void;
-}) {
-  const [entries, setEntries] = useState<Entry[]>([]);
-  useEffect(() => {
-    let active = true;
-    void authenticatedFetch("/api/custom-menus/", token, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (response) =>
-        response.ok ? (response.json() as Promise<Entry[]>) : [],
-      )
-      .then((items) => {
-        if (active) setEntries(items);
-      })
-      .catch(() => {
-        if (active) setEntries([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [token]);
-  if (entries.length === 0) return null;
-  return (
-    <>
-      <div className="side-label custom-menu-label">ÖZEL MENÜLER</div>
-      <nav aria-label="Özel menüler">
-        {entries.map((entry) => (
-          <button
-            key={entry.id}
-            title={entry.targetLabel}
-            className={`nav-item ${page === entry.targetPage ? "active" : ""}`}
-            onClick={() => onSelect(entry.targetPage, entry.label)}
-          >
-            <span className="custom-menu-dot" aria-hidden="true" />
-            {entry.label}
-          </button>
-        ))}
-      </nav>
-    </>
-  );
-}
-
 export default function CustomMenusPage({
   token,
   role,

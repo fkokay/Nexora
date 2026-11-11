@@ -558,6 +558,15 @@ html[data-theme="dark"] .hr-page .hr-status { border-color: #37547a; background:
 /* Keep the directory at full width; creation lives in a modal dialog. */
 .hr-employee-workspace { grid-template-columns: minmax(0, 1fr); }
 .hr-employee-directory .panel-heading > .primary { flex-shrink: 0; }
+.hr-filter-card { display: grid; grid-template-columns: minmax(170px, .35fr) minmax(0, 1fr); align-items: center; gap: 16px; padding: 13px 16px; border: 1px solid var(--hr-line); border-radius: 11px; background: var(--hr-surface); }
+.hr-filter-heading h2 { margin: 0; color: var(--hr-text); font-size: 15px; }
+.hr-filter-heading p { margin: 4px 0 0; color: var(--hr-muted); font-size: 11px; line-height: 1.45; }
+.hr-filter-card .hr-list-toolbar { align-items: end; margin: 0; padding: 0; border: 0; background: transparent; }
+.hr-list-search { display: grid; gap: 5px; color: var(--hr-muted); font-size: 10px; font-weight: 650; }
+.hr-list-search input { width: 100%; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid var(--hr-line); border-radius: 8px; background: var(--hr-surface); color: var(--hr-text); font: inherit; font-size: 11px; }
+.hr-list-search input:focus { outline: 2px solid color-mix(in srgb, var(--hr-accent) 30%, transparent); outline-offset: 1px; }
+html[data-theme="dark"] .hr-filter-card { border-color: var(--hr-line); background: var(--hr-surface); }
+@media(max-width:760px) { .hr-filter-card { grid-template-columns: 1fr; gap: 10px; } }
 .hr-employee-dialog { box-sizing: border-box; width: min(760px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 40px); margin: auto; padding: 24px; overflow-y: auto; color: var(--hr-text); }
 .hr-employee-dialog::backdrop { background: rgb(10 28 48 / 55%); }
 .hr-dialog-close { display: flex; justify-content: flex-end; margin-bottom: 4px; }

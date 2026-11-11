@@ -40,6 +40,24 @@ export default function ScreenViewPreview({
   visibleFields,
   previewGroups,
 }: Props) {
+  if (screenKey === "customer-details") {
+    const sections = [...new Set(visibleFields.map((field) => field.section?.trim() || (en ? "General information" : "Genel Bilgiler")))];
+    const sampleValue = (key: string) => ({
+      groupName: en ? "Wholesale" : "Toptan",
+      taxNumber: "1234567890",
+      identityNumber: "—",
+      taxOffice: en ? "Kadıköy" : "Kadıköy",
+      currencyCode: "TRY",
+      paymentTermDays: en ? "30 days" : "30 gün",
+      riskLimit: en ? "250,000 TRY" : "250.000 TRY",
+    } as Record<string, string>)[key] ?? "—";
+    return <section className="panel screen-view-preview customer-detail-layout-preview">
+      <div className="screen-view-panel-head"><div><p className="eyebrow">{en ? "SAFE PREVIEW" : "GÜVENLİ ÖNİZLEME"}</p><h2>{screenLabel}</h2><p>{en ? "Synthetic customer detail card" : "Örnek cari detay kartı"}</p></div><span className="screen-view-preview-badge"><Eye size={14}/>{en ? "Preview" : "Önizleme"}</span></div>
+      <header><small>{en ? "CUSTOMER" : "MÜŞTERİ"}</small><strong>{en ? "Sample Customer Ltd." : "Örnek Müşteri Ltd."}</strong><span>{en ? "CARI-001 · Active" : "CARI-001 · Aktif"}</span></header>
+      <nav aria-label={en ? "Preview detail tabs" : "Önizleme detay sekmeleri"}>{sections.map((section) => <span key={section}>{section}</span>)}<span>{en ? "Contact" : "İletişim"}</span></nav>
+      {sections.map((section) => <section className="customer-detail-layout-preview-section" key={section}><h3>{section}</h3><dl>{visibleFields.filter((field) => (field.section?.trim() || (en ? "General information" : "Genel Bilgiler")) === section).map((field) => <div key={field.key}><dt>{field.label}</dt><dd>{sampleValue(field.key)}</dd></div>)}</dl></section>)}
+    </section>;
+  }
   return (
     <section className="panel screen-view-preview">
       <div className="screen-view-panel-head">

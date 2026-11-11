@@ -163,6 +163,19 @@ html[data-theme="dark"] .op-project-detail-grid .advanced-grid-table thead th{ba
 
 /* Empty result state replaces the wide, feature-heavy project grid. */
 .op-project-search { max-width: none; }
+.op-project-filter-card { display: grid; grid-template-columns: minmax(150px, .3fr) minmax(0, 1.7fr); align-items: center; gap: 16px; margin: 0 0 14px; padding: 14px 16px; border: 1px solid #dce5ef; border-radius: 11px; background: #fff; box-shadow: 0 4px 16px #183b6509; }
+.op-project-filter-heading h2 { margin: 0; color: #23314b; font-size: 15px; }
+.op-project-filter-heading p { margin: 4px 0 0; color: #718198; font-size: 11px; line-height: 1.45; }
+.op-project-filter-fields { display: grid; grid-template-columns: minmax(190px, .8fr) minmax(0, 1.2fr); align-items: end; gap: 12px; }
+.op-project-filter-fields .op-project-search { max-width: none; margin: 0; }
+.op-project-filter-fields .op-project-filters { margin: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.op-project-filter-fields .op-project-check { grid-column: 1 / -1; }
+html[data-theme="dark"] .op-project-filter-card { border-color: var(--erp-border); background: var(--erp-surface); box-shadow: none; }
+html[data-theme="dark"] .op-project-filter-heading h2 { color: var(--erp-text); }
+html[data-theme="dark"] .op-project-filter-heading p { color: var(--erp-muted); }
+@media(max-width:1050px) { .op-project-filter-card { grid-template-columns: 1fr; gap: 10px; } }
+@media(max-width:680px) { .op-project-filter-fields { grid-template-columns: 1fr; } .op-project-filter-fields .op-project-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media(max-width:560px) { .op-project-filter-fields .op-project-filters { grid-template-columns: 1fr; } .op-project-filter-fields .op-project-check { grid-column: auto; } }
 .op-project-register-wrap:has(.op-project-empty-list) { max-height: none; overflow: visible; border: 0; }
 .op-project-empty-list,
 .op-project-loading {

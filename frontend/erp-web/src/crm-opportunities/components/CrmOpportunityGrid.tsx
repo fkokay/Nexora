@@ -19,6 +19,43 @@ type Props = {
   onClearFilters: () => void;
 };
 
+function CrmOpportunityEmptyState({
+  query,
+  filter,
+  onCreate,
+  onClearFilters,
+}: Pick<Props, "query" | "filter" | "onCreate" | "onClearFilters">) {
+  const hasFilters = Boolean(query.trim() || filter);
+  return (
+    <div className={`crm-empty crm-empty-explained${hasFilters ? " crm-empty-filtered" : ""}`} role="status">
+      <div className="crm-empty-icon">
+        <Target size={23} aria-hidden="true" />
+      </div>
+      <b>{hasFilters ? "Bu aramayla eşleşen fırsat yok" : "Satış hattınız henüz boş"}</b>
+      <span>
+        {hasFilters
+          ? "Girilen kod, fırsat adı veya müşteri adıyla eşleşen bir kayıt bulunamadı. Arama metnini ve aşama filtresini kontrol edip yeniden deneyin."
+          : "Henüz CRM fırsatı oluşturulmadığı için listelenecek kayıt bulunmuyor. İlk fırsatınızı ekleyerek müşteri, tahmini tutar, kazanma olasılığı ve takip tarihini satış hattınızda izlemeye başlayabilirsiniz."}
+      </span>
+      {hasFilters ? (
+        <>
+          <div className="crm-active-filters">
+            {query.trim() && <span>Arama: “{query.trim()}”</span>}
+            {filter && <span>Aşama: {stageLabels[filter] || filter}</span>}
+          </div>
+          <button type="button" className="secondary small-button" onClick={onClearFilters}>
+            Aramayı ve filtreleri temizle
+          </button>
+        </>
+      ) : (
+        <button type="button" className="primary crm-empty-action" onClick={onCreate}>
+          <span aria-hidden="true">＋</span>İlk fırsatı oluştur
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function CrmOpportunityGrid({
   items,
   fields,
@@ -57,47 +94,6 @@ export function CrmOpportunityGrid({
             sürebilir.
           </span>
         </div>
-      ) : items.length === 0 ? (
-        <div
-          className={`crm-empty crm-empty-explained${query.trim() || filter ? " crm-empty-filtered" : ""}`}
-        >
-          <div className="crm-empty-icon">
-            <Target size={23} aria-hidden="true" />
-          </div>
-          <b>
-            {query.trim() || filter
-              ? "Bu aramayla eşleşen fırsat yok"
-              : "Satış hattınız henüz boş"}
-          </b>
-          <span>
-            {query.trim() || filter
-              ? "Girilen kod, fırsat adı veya müşteri adıyla eşleşen bir kayıt bulunamadı. Arama metnini ve aşama filtresini kontrol edip yeniden deneyin."
-              : "Henüz CRM fırsatı oluşturulmadığı için listelenecek kayıt bulunmuyor. İlk fırsatınızı ekleyerek müşteri, tahmini tutar, kazanma olasılığı ve takip tarihini satış hattınızda izlemeye başlayabilirsiniz."}
-          </span>
-          {query.trim() || filter ? (
-            <div className="crm-active-filters">
-              {query.trim() && <span>Arama: “{query.trim()}”</span>}
-              {filter && <span>Aşama: {stageLabels[filter] || filter}</span>}
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="primary crm-empty-action"
-              onClick={onCreate}
-            >
-              <span aria-hidden="true">＋</span>İlk fırsatı oluştur
-            </button>
-          )}
-          {(query.trim() || filter) && (
-            <button
-              type="button"
-              className="secondary small-button"
-              onClick={onClearFilters}
-            >
-              Aramayı ve filtreleri temizle
-            </button>
-          )}
-        </div>
       ) : (
         <>
           <p className="crm-scroll-hint">
@@ -126,7 +122,7 @@ export function CrmOpportunityGrid({
                     probabilityPercent: 105,
                     expectedCloseDate: 135,
                     nextActivityAt: 145,
-                    actions: 136,
+                    actions: 68,
                   })[field.key] ?? 120,
               )}
               minimumColumnWidths={fields.map(
@@ -140,7 +136,7 @@ export function CrmOpportunityGrid({
                     probabilityPercent: 90,
                     expectedCloseDate: 112,
                     nextActivityAt: 122,
-                    actions: 120,
+                    actions: 60,
                   })[field.key] ?? 80,
               )}
             >
@@ -155,26 +151,37 @@ export function CrmOpportunityGrid({
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
-                  <tr
-                    key={item.id}
-                    tabIndex={0}
-                    aria-selected={selectedId === item.id}
-                    onClick={() => onSelect(item)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onSelect(item);
-                      }
-                    }}
-                  >
-                    {fields.map((field) => (
-                      <td key={field.key} data-column={field.key}>
-                        {renderField(item, field)}
-                      </td>
-                    ))}
+                {items.length === 0 ? (
+                  <tr className="crm-empty-row">
+                    <td colSpan={fields.length}>
+                      <CrmOpportunityEmptyState
+                        query={query}
+                        filter={filter}
+                        onCreate={onCreate}
+                        onClearFilters={onClearFilters}
+                      />
+                    </td>
                   </tr>
-                ))}
+                ) : items.map((item) => (
+                    <tr
+                      key={item.id}
+                      tabIndex={0}
+                      aria-selected={selectedId === item.id}
+                      onClick={() => onSelect(item)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onSelect(item);
+                        }
+                      }}
+                    >
+                      {fields.map((field) => (
+                        <td key={field.key} data-column={field.key}>
+                          {renderField(item, field)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
               </tbody>
             </AdvancedDataGrid>
           </div>

@@ -5,7 +5,7 @@ import type {
   CustomerItem,
 } from "../../erp-types";
 
-export type CustomerDetailTab = "general" | "contact" | "finance" | "other";
+export type CustomerDetailTab = string;
 
 type Props = {
   customer: CustomerItem | null;
@@ -19,6 +19,10 @@ type Props = {
   onEdit: () => void;
   onInvoices: () => void;
   onLedger: () => void;
+  onNewOrder: () => void;
+  onNewQuote: () => void;
+  onNewDelivery: () => void;
+  onNewInvoice: () => void;
   onAddresses: () => void;
   onFields: () => void;
   onBackdropClose: () => void;
@@ -36,20 +40,27 @@ export function CustomerDetailPanel({
   onEdit,
   onInvoices,
   onLedger,
+  onNewOrder,
+  onNewQuote,
+  onNewDelivery,
+  onNewInvoice,
   onAddresses,
   onFields,
   onBackdropClose,
 }: Props) {
   if (!customer) return null;
-  const visibleFields = fields.filter((field) =>
-    tab === "general"
-      ? ["groupName", "taxNumber", "identityNumber"].includes(field.key)
-      : tab === "finance"
-        ? ["currencyCode", "paymentTermDays", "riskLimit"].includes(field.key)
-        : tab === "other"
-          ? ["taxOffice"].includes(field.key)
-          : false,
-  );
+  const fallbackSection = (key: string) =>
+    ["groupName", "taxNumber", "identityNumber"].includes(key) ? "Genel Bilgiler"
+      : ["currencyCode", "paymentTermDays", "riskLimit"].includes(key) ? "Finans"
+        : key === "taxOffice" ? "Diğer" : "Genel Bilgiler";
+  const detailSections = [...new Set(fields.map((field) => field.section?.trim() || fallbackSection(field.key)))];
+  const tabs = [...detailSections.map((section) => ({ label: section, value: `section:${section}` })), { label: "İletişim", value: "contact" }];
+  const activeTab = tab === "contact" ? "contact"
+    : tabs.some((item) => item.value === tab) ? tab
+      : tabs.find((item) => item.value.startsWith("section:"))?.value ?? "contact";
+  const activeSection = activeTab.startsWith("section:") ? activeTab.slice("section:".length) : null;
+  const visibleFields = fields.filter((field) => activeSection !== null
+    && (field.section?.trim() || fallbackSection(field.key)) === activeSection);
   const valueFor = (key: string) =>
     key === "groupName"
       ? customer.groupName || "Atanmamış"
@@ -100,6 +111,12 @@ export function CustomerDetailPanel({
                 {customer.isActive ? "Aktif" : "Pasif"}
               </span>
             </small>
+            <span className={`customer-einvoice-summary${customer.isEInvoiceRegistered ? " is-registered" : ""}`}>
+              {customer.isEInvoiceRegistered ? "E-Fatura mükellefi" : "E-Fatura mükellefi değil"}
+              {customer.isEInvoiceRegistered && customer.eInvoiceRecipientAlias
+                ? ` · ${customer.eInvoiceRecipientAlias}`
+                : ""}
+            </span>
           </div>
           <div className="customer-detail-header-actions">
             <button className="secondary small-button" onClick={onEdit}>
@@ -116,17 +133,13 @@ export function CustomerDetailPanel({
           </div>
         </div>
         <nav className="customer-detail-tabs" aria-label="Cari detay sekmeleri">
-          {[
-            { label: "Genel Bilgiler", value: "general" },
-            { label: "İletişim", value: "contact" },
-            { label: "Finans", value: "finance" },
-            { label: "Diğer", value: "other" },
-          ].map((item) => (
+          {tabs.map((item) => (
             <button
               type="button"
               key={item.value}
-              className={tab === item.value ? "active" : ""}
-              onClick={() => onTabChange(item.value as CustomerDetailTab)}
+              className={activeTab === item.value ? "active" : ""}
+              aria-selected={activeTab === item.value}
+              onClick={() => onTabChange(item.value)}
             >
               {item.label}
             </button>
@@ -140,7 +153,7 @@ export function CustomerDetailPanel({
             </div>
           ))}
         </dl>
-        {tab === "contact" && (
+        {activeTab === "contact" && (
           <section className="customer-default-address">
             <div className="customer-default-address-icon">
               <MapPin size={16} />
@@ -198,7 +211,7 @@ export function CustomerDetailPanel({
             </button>
           )}
           <button className="secondary small-button" onClick={onLedger}>
-            Hareketler
+            Cari Hesap Hareketleri
           </button>
           <button className="secondary small-button" onClick={onAddresses}>
             Adresler
@@ -207,6 +220,17 @@ export function CustomerDetailPanel({
             Özel alanlar
           </button>
         </div>
+        {["Customer", "Both", "Dealer"].includes(customer.type) && (
+          <section className="customer-detail-quick-actions" aria-label="Cari işlemleri">
+            <h3>Cari ile işlemler</h3>
+            <div className="erp-record-actions">
+              <button className="secondary small-button" onClick={onNewOrder}>Yeni sipariş</button>
+              <button className="secondary small-button" onClick={onNewQuote}>Yeni teklif</button>
+              <button className="secondary small-button" onClick={onNewDelivery}>Yeni irsaliye</button>
+              <button className="secondary small-button" onClick={onNewInvoice}>Yeni fatura</button>
+            </div>
+          </section>
+        )}
       </section>
     </aside>
   );

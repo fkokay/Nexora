@@ -45,20 +45,13 @@ export function DeliveryNotesListPanel({
   const pageCount = Math.max(1, Math.ceil(currentTotal / deliveryNotePageSize));
 
   return (
-    <section className="panel purchase-note-list-panel">
+    <>
+    <section className="panel purchase-note-filter-card" aria-label="Gelen irsaliye filtreleri">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">BELGE LİSTESİ</p>
-          <b>Gelen irsaliyeler</b>
-          <small>
-            {isSearching
-              ? `${searchTotal} eşleşme · sayfa ${searchPage} / ${Math.max(1, Math.ceil(searchTotal / deliveryNotePageSize))}`
-              : `${total} kayıt · sayfa ${page} / ${Math.max(1, Math.ceil(total / deliveryNotePageSize))}`}
-          </small>
+          <h2>Filtreler</h2>
+          <p>İrsaliyeleri belge, sipariş, tedarikçi veya mal kabul bilgisine göre arayın.</p>
         </div>
-        <button className="secondary" disabled={loading} onClick={onRefresh}>
-          <RefreshCw size={15} /> Yenile
-        </button>
       </div>
       <form className="form-inline" onSubmit={onSearch}>
         <input
@@ -76,6 +69,22 @@ export function DeliveryNotesListPanel({
           </button>
         )}
       </form>
+    </section>
+    <section className="panel purchase-note-list-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">BELGE LİSTESİ</p>
+          <b>Gelen irsaliyeler</b>
+          <small>
+            {isSearching
+              ? `${searchTotal} eşleşme · sayfa ${searchPage} / ${Math.max(1, Math.ceil(searchTotal / deliveryNotePageSize))}`
+              : `${total} kayıt · sayfa ${page} / ${Math.max(1, Math.ceil(total / deliveryNotePageSize))}`}
+          </small>
+        </div>
+        <button className="secondary" disabled={loading} onClick={onRefresh}>
+          <RefreshCw size={15} /> Yenile
+        </button>
+      </div>
       <div className="ledger-list">
         <AdvancedDataGrid
           hideSearch
@@ -181,5 +190,6 @@ export function DeliveryNotesListPanel({
         </div>
       </div>
     </section>
+    </>
   );
 }

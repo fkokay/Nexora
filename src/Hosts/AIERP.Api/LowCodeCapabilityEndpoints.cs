@@ -6,10 +6,13 @@ internal static class LowCodeCapabilityEndpoints
     private static readonly (string Name, string Resource)[] Resources =
     [
         ("customForms", "erp.custom-forms"),
+        ("customData", "erp.custom-data"),
         ("businessRules", "erp.business-rules"),
         ("workflows", "erp.workflows"),
         ("customMenus", "erp.custom-menus"),
         ("screenViews", "erp.screen-views"),
+        // Draft and publish routes for custom pages are authorized by this resource family.
+        ("customPages", "erp.tenant-customizations"),
         ("customizationPackages", "erp.tenant-customizations")
     ];
 
@@ -51,7 +54,7 @@ internal static class LowCodeCapabilityEndpoints
             }
 
             return Results.Ok(result);
-        }).RequireAuthorization();
+        }).RequireAuthorization(policy => policy.RequireAuthenticatedUser());
     }
 }
 

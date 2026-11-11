@@ -10,7 +10,11 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
     /// <summary>The signed-in tenant identity when this context serves an HTTP request.</summary>
     public Guid? ExecutionTenantId => auditExecutionContext?.TenantId;
     public DbSet<TenantStandardMenuLayout> TenantStandardMenuLayouts => Set<TenantStandardMenuLayout>();
+    public DbSet<TenantUserPreference> TenantUserPreferences => Set<TenantUserPreference>();
     public DbSet<TenantCustomizationPackageSnapshot> TenantCustomizationPackageSnapshots => Set<TenantCustomizationPackageSnapshot>();
+    public DbSet<TenantDocumentNumberTemplate> TenantDocumentNumberTemplates => Set<TenantDocumentNumberTemplate>();
+    public DbSet<TenantDocumentNumberCounter> TenantDocumentNumberCounters => Set<TenantDocumentNumberCounter>();
+    public DbSet<SalesQuotePdfTemplate> SalesQuotePdfTemplates => Set<SalesQuotePdfTemplate>();
 
     public DbSet<ManufacturingWorkCenterAnnualCapacityRule> ManufacturingWorkCenterAnnualCapacityRules => Set<ManufacturingWorkCenterAnnualCapacityRule>();
     public DbSet<ManufacturingWorkCenterShiftRotation> ManufacturingWorkCenterShiftRotations => Set<ManufacturingWorkCenterShiftRotation>();
@@ -23,6 +27,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
     public DbSet<PurchaseInvoiceDraftLine> PurchaseInvoiceDraftLines => Set<PurchaseInvoiceDraftLine>();
     public DbSet<DirectCashBudgetPlan> DirectCashBudgetPlans => Set<DirectCashBudgetPlan>();
     public DbSet<DirectCashBudgetLine> DirectCashBudgetLines => Set<DirectCashBudgetLine>();
+    public DbSet<AccountingRuleProfile> AccountingRuleProfiles => Set<AccountingRuleProfile>();
     public DbSet<PayrollEmployeeWorkplaceAssignment> PayrollEmployeeWorkplaceAssignments => Set<PayrollEmployeeWorkplaceAssignment>();
     public DbSet<WorkplaceDefinition> WorkplaceDefinitions => Set<WorkplaceDefinition>();
     public DbSet<PayrollWorkplaceCalendar> PayrollWorkplaceCalendars => Set<PayrollWorkplaceCalendar>();
@@ -32,10 +37,69 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<TenantDocumentNumberTemplate>(e =>
+        {
+            e.ToTable("TenantDocumentNumberTemplates");
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.DocumentType, x.ScenarioCode }).IsUnique().HasFilter(null);
+            e.Property(x => x.DocumentType).HasMaxLength(32).IsUnicode(false).IsRequired();
+            e.Property(x => x.ScenarioCode).HasMaxLength(32).IsUnicode(false);
+            e.Property(x => x.Pattern).HasMaxLength(80).IsRequired();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantDocumentNumberCounter>(e =>
+        {
+            e.ToTable("TenantDocumentNumberCounters");
+            e.HasKey(x => new { x.TenantId, x.DocumentType, x.ScenarioKey, x.PeriodKey });
+            e.Property(x => x.DocumentType).HasMaxLength(32).IsUnicode(false);
+            e.Property(x => x.ScenarioKey).HasMaxLength(32).IsUnicode(false);
+            e.Property(x => x.PeriodKey).HasMaxLength(8).IsUnicode(false);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesQuotePdfTemplate>(e =>
+        {
+            e.ToTable("SalesQuotePdfTemplates");
+            e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(80).IsRequired();
+            e.Property(x => x.Heading).HasMaxLength(100).IsRequired();
+            e.Property(x => x.IntroText).HasMaxLength(500).IsRequired();
+            e.Property(x => x.FooterText).HasMaxLength(500).IsRequired();
+            e.Property(x => x.AccentColor).HasMaxLength(7).IsUnicode(false).IsRequired();
+            e.Property(x => x.FontFamily).HasMaxLength(32).IsRequired();
+            e.Property(x => x.Layout).HasMaxLength(16).IsUnicode(false).IsRequired();
+            e.Property(x => x.LogoDataUrl).HasMaxLength(350_000).IsRequired();
+            e.Property(x => x.LogoPosition).HasMaxLength(8).IsUnicode(false).IsRequired();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<AccountingRuleProfile>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.ProfileCode }).IsUnique();
+            e.Property(x => x.ProfileCode).HasMaxLength(32).IsUnicode(false);
+            e.Property(x => x.Name).HasMaxLength(120);
+            e.Property(x => x.JurisdictionCode).HasMaxLength(8).IsUnicode(false);
+            e.Property(x => x.ReportingStandard).HasMaxLength(32).IsUnicode(false);
+            e.Property(x => x.BaseCurrencyCode).HasMaxLength(3).IsUnicode(false);
+            e.Property(x => x.ParametersJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.OfficialSourceUrl).HasMaxLength(500);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<TenantStandardMenuLayout>(e =>
         {
             e.HasKey(x => x.TenantId);
             e.Property(x => x.LayoutJson).IsRequired();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantUserPreference>(e =>
+        {
+            e.ToTable("TenantUserPreferences");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.UserId, x.PreferenceKey }).IsUnique();
+            e.Property(x => x.PreferenceKey).HasMaxLength(80).IsUnicode(false).IsRequired();
+            e.Property(x => x.ValueJson).HasColumnType("nvarchar(max)").IsRequired();
             e.Property(x => x.Revision).IsConcurrencyToken();
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -116,9 +180,35 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
         });
         modelBuilder.Entity<SalesInvoice>(e =>
         {
+            e.Property(x => x.EDocumentScenario).HasMaxLength(32);
+            e.Property(x => x.EDocumentTypeCode).HasMaxLength(32);
+            e.Property(x => x.EDocumentRecipientAlias).HasMaxLength(255);
+            e.Property(x => x.ECommercePurchaseUrl).HasMaxLength(255);
+            e.Property(x => x.ECommercePaymentTaxId).HasMaxLength(11);
+            e.Property(x => x.ECommercePaymentTitle).HasMaxLength(255);
+            e.Property(x => x.ECommercePaymentAlias).HasMaxLength(255);
+            e.Property(x => x.ECommercePaymentAgentName).HasMaxLength(127);
+            e.Property(x => x.ECommercePaymentType).HasMaxLength(127);
+            e.Property(x => x.ECommercePaymentMeans).HasMaxLength(32);
+            e.Property(x => x.ECommercePaymentInstructionNote).HasMaxLength(255);
+            e.Property(x => x.ECommerceIntermediaryCountry).HasMaxLength(127);
+            e.Property(x => x.ECommerceIntermediaryCountryCode).HasMaxLength(3);
+            e.Property(x => x.ECommerceIntermediaryCity).HasMaxLength(127);
+            e.Property(x => x.ECommerceIntermediaryDistrict).HasMaxLength(127);
+            e.Property(x => x.DeliveryCarrierTaxId).HasMaxLength(11);
+            e.Property(x => x.DeliveryCarrierName).HasMaxLength(255);
+            e.Property(x => x.DeliveryCarrierSurname).HasMaxLength(255);
             e.HasIndex(x => new { x.TenantId, x.StandaloneDeliveryId }).IsUnique().HasFilter("[StandaloneDeliveryId] IS NOT NULL");
             e.HasOne<StandaloneSalesDelivery>().WithOne().HasForeignKey<SalesInvoice>(x => new { x.TenantId, x.StandaloneDeliveryId })
                 .HasPrincipalKey<StandaloneSalesDelivery>(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PurchaseInvoice>(e =>
+        {
+            e.Property(x => x.ProviderScenario).HasMaxLength(32);
+            e.Property(x => x.ProviderInvoiceTypeCode).HasMaxLength(32);
+            e.Property(x => x.ProviderSenderAlias).HasMaxLength(255);
+            e.HasIndex(x => new { x.TenantId, x.ProviderInvoiceUuid }).IsUnique()
+                .HasFilter("[ProviderInvoiceUuid] IS NOT NULL");
         });
         modelBuilder.Entity<SalesInvoiceLine>(e =>
         {

@@ -18,7 +18,7 @@
   background: #fff;
   color: #66809b;
 }
-.searchable-record-modal .customer-search:focus-within { border-color: #2580c9; box-shadow: 0 0 0 3px #2580c91b; }
+.searchable-record-modal .customer-search:focus-within { border-color: #91a2b7; box-shadow: 0 0 0 2px rgb(31 52 77 / 9%); }
 .searchable-record-modal .customer-search input { min-height: 42px; color: #172b45; font-size: 13px; }
 .searchable-record-results-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #30445e; font-size: 12px; font-weight: 700; }
 .searchable-record-results-heading small { color: #75869a; font-size: 11px; font-weight: 500; }
@@ -34,6 +34,7 @@
 html[data-theme="dark"] .searchable-record-modal .modal-head h2,
 html[data-theme="dark"] .searchable-record-option-name { color: #e6edf5; }
 html[data-theme="dark"] .searchable-record-modal .customer-search { border-color: #3a4559; background: #111827; }
+html[data-theme="dark"] .searchable-record-modal .customer-search:focus-within { border-color: #71839b; box-shadow: 0 0 0 2px rgb(173 190 212 / 14%); }
 html[data-theme="dark"] .searchable-record-modal .customer-search input { color: #edf3fb; }
 html[data-theme="dark"] .searchable-record-results-heading { color: #d3deeb; }
 html[data-theme="dark"] .searchable-record-results-heading small,

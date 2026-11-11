@@ -8,7 +8,9 @@ export async function api<T>(url: string, token?: string, init?: RequestInit): P
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: string; title?: string; traceId?: string; errors?: Record<string, string[]> } | null
     const validation = Object.values(payload?.errors ?? {}).flat().join(' ')
-    const message = payload?.error || validation || payload?.title || `İstek başarısız (${response.status}).`
+    const message = payload?.error === 'tenant_context_required'
+      ? 'Aktif firma oturumu bulunamadı. Çıkış yapıp doğru firmayı yeniden seçin.'
+      : payload?.error || validation || payload?.title || `İstek başarısız (${response.status}).`
     const trace = payload?.traceId && !message.includes(payload.traceId) ? ` İz kimliği: ${payload.traceId}.` : ''
     throw new Error(response.status === 401 ? 'Oturum geçersiz. Yeniden giriş yapın.' : response.status === 403 ? 'Bu işlem için yetkiniz yok.' : message + trace)
   }

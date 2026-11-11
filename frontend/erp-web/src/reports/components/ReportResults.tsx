@@ -34,6 +34,18 @@ export function ReportResults({
   onDrillIntoGroup,
   onPageChange,
 }: Props) {
+  const localizeValue = (value: unknown) => {
+    if (typeof value !== "string" || locale.toLocaleLowerCase().startsWith("en"))
+      return value;
+    const labels: Record<string, string> = {
+      Customer: "Müşteri",
+      Supplier: "Tedarikçi",
+      Both: "Müşteri & Tedarikçi",
+      Dealer: "Bayi",
+      Employee: "Personel",
+    };
+    return labels[value] ?? value;
+  };
   return (
     <section
       className="report-result"
@@ -168,7 +180,7 @@ export function ReportResults({
                               ? new Date(
                                   String(row[c.code]),
                                 ).toLocaleDateString(locale)
-                              : String(row[c.code])}
+                            : String(localizeValue(row[c.code]))}
                       </td>
                     ))}
                   </tr>

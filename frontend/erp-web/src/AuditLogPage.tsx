@@ -119,17 +119,6 @@ export function AuditLogPage({ token }: { token: string }) {
           </button>
         </div>
       )}
-      <AuditRetentionSettings
-        retention={retention}
-        retentionDays={retentionDays}
-        busy={retentionBusy}
-        error={retentionError}
-        notice={retentionNotice}
-        onDaysChange={setRetentionDays}
-        onClearError={() => setRetentionError("")}
-        onClearNotice={() => setRetentionNotice("")}
-        onSubmit={saveRetention}
-      />
       <div className="customer-summary">
         <div className="customer-summary-icon">
           <FileText size={19} />
@@ -143,25 +132,31 @@ export function AuditLogPage({ token }: { token: string }) {
           Yalnız TenantAdmin
         </span>
       </div>
-      <AuditLogFilters
-        search={search}
-        from={from}
-        to={to}
-        onSearchChange={setSearch}
-        onFromChange={(value) => {
-          setPage(1);
-          setFrom(value);
-        }}
-        onToChange={(value) => {
-          setPage(1);
-          setTo(value);
-        }}
-        onApply={() => {
-          setPage(1);
-          setFilter(search.trim());
-        }}
-        onRefresh={() => void load()}
-      />
+      <section className="panel audit-filter-card" aria-label="Denetim kayıtları filtreleri">
+        <div className="audit-filter-heading">
+          <h2>Filtreler</h2>
+          <p>İşlemleri metin ve tarih aralığına göre daraltın.</p>
+        </div>
+        <AuditLogFilters
+          search={search}
+          from={from}
+          to={to}
+          onSearchChange={setSearch}
+          onFromChange={(value) => {
+            setPage(1);
+            setFrom(value);
+          }}
+          onToChange={(value) => {
+            setPage(1);
+            setTo(value);
+          }}
+          onApply={() => {
+            setPage(1);
+            setFilter(search.trim());
+          }}
+          onRefresh={() => void load()}
+        />
+      </section>
       <div className="audit-workbench">
         <section className="erp-list-pane audit-list-pane">
           <div className="erp-pane-heading">
@@ -203,6 +198,17 @@ export function AuditLogPage({ token }: { token: string }) {
           </button>
         </div>
       </div>
+      <AuditRetentionSettings
+        retention={retention}
+        retentionDays={retentionDays}
+        busy={retentionBusy}
+        error={retentionError}
+        notice={retentionNotice}
+        onDaysChange={setRetentionDays}
+        onClearError={() => setRetentionError("")}
+        onClearNotice={() => setRetentionNotice("")}
+        onSubmit={saveRetention}
+      />
     </div>
   );
 }

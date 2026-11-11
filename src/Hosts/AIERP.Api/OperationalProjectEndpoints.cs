@@ -243,7 +243,7 @@ internal static partial class OperationalProjectEndpoints
             if (errors is not null) return Results.ValidationProblem(errors);
             var code = request.Code!.Trim().ToUpperInvariant();
             if (await db.OperationalProjects.AnyAsync(x => x.TenantId == tenantId && x.Code == code, ct)) return Results.Conflict(new { error = "Proje kodu firma içinde zaten kullanılıyor." });
-            if (request.CustomerAccountId.HasValue && !await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == request.CustomerAccountId.Value && x.Type != CounterpartyType.Supplier, ct))
+            if (request.CustomerAccountId.HasValue && !await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == request.CustomerAccountId.Value && x.Type != CounterpartyType.Supplier && x.Type != CounterpartyType.Employee, ct))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["customerAccountId"] = ["Müşteri hesabı bulunamadı veya bu firmaya ait değil."] });
             var now = DateTimeOffset.UtcNow;
             var row = new OperationalProject { TenantId = tenantId, Code = code, Name = request.Name!.Trim(), CustomerAccountId = request.CustomerAccountId,
@@ -264,7 +264,7 @@ internal static partial class OperationalProjectEndpoints
             if (row.Status is OperationalProjectStatus.Completed or OperationalProjectStatus.Cancelled) return Results.Conflict(new { error = "Tamamlanan veya iptal edilen proje düzenlenemez." });
             var code = request.Code!.Trim().ToUpperInvariant();
             if (await db.OperationalProjects.AnyAsync(x => x.TenantId == tenantId && x.Id != id && x.Code == code, ct)) return Results.Conflict(new { error = "Proje kodu firma içinde zaten kullanılıyor." });
-            if (request.CustomerAccountId.HasValue && !await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == request.CustomerAccountId.Value && x.Type != CounterpartyType.Supplier, ct))
+            if (request.CustomerAccountId.HasValue && !await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == request.CustomerAccountId.Value && x.Type != CounterpartyType.Supplier && x.Type != CounterpartyType.Employee, ct))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["customerAccountId"] = ["Müşteri hesabı bulunamadı veya bu firmaya ait değil."] });
             row.Code = code; row.Name = request.Name!.Trim(); row.CustomerAccountId = request.CustomerAccountId; row.StartDate = request.StartDate; row.EndDate = request.EndDate;
             row.BudgetAmount = decimal.Round(request.BudgetAmount, 2); row.CurrencyCode = request.CurrencyCode!.Trim().ToUpperInvariant(); row.Notes = Clean(request.Notes);

@@ -251,21 +251,29 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
         hasFilters={hasFilters}
         pageSize={pageSize}
       />
-      <InventoryTrackingFilters
-        query={query}
-        onQueryChange={setQuery}
-        trackingMode={trackingMode}
-        onTrackingModeChange={setTrackingMode}
-        warehouseId={warehouseId}
-        onWarehouseSelect={setWarehouseId}
-        warehouses={warehouses}
-        warehousesLoading={warehousesLoading}
-        warehouseError={warehouseError}
-        hasFilters={hasFilters}
-        loading={loading}
-        onSubmit={submit}
-        onClear={clearFilters}
-      />
+      <section className="inventory-tracking-filter-card" aria-label="Lot ve seri filtreleri">
+        <div className="inventory-tracking-filter-heading">
+          <div>
+            <h2>Filtreler</h2>
+            <p>Lot veya seri kodu, iz türü ve depo seçerek listeyi daraltın.</p>
+          </div>
+        </div>
+        <InventoryTrackingFilters
+          query={query}
+          onQueryChange={setQuery}
+          trackingMode={trackingMode}
+          onTrackingModeChange={setTrackingMode}
+          warehouseId={warehouseId}
+          onWarehouseSelect={setWarehouseId}
+          warehouses={warehouses}
+          warehousesLoading={warehousesLoading}
+          warehouseError={warehouseError}
+          hasFilters={hasFilters}
+          loading={loading}
+          onSubmit={submit}
+          onClear={clearFilters}
+        />
+      </section>
       <InventoryTrackingResults
         loading={loading}
         error={error}

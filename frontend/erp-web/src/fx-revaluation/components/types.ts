@@ -24,6 +24,7 @@ export type FxRevaluationCreateFormProps = {
 export type FxRevaluationVoucherGridProps = {
   token: string
   vouchers: FxRevaluationVoucherSummary[]
+  emptyMessage: string
   money: FxRevaluationMoneyFormatter
   onOpen: (id: string) => void
 }

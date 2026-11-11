@@ -352,24 +352,10 @@ export default function PaymentInstrumentsPage({
         summary={summary}
         portfolioSummary={portfolioSummary}
       />
-      {showCreate && (
-        <PaymentInstrumentCreateForm
-          draft={draft}
-          busy={busy}
-          onDraftChange={setDraft}
-          onSubmit={(event) => void create(event)}
-        />
-      )}
-      <section className="panel payment-instrument-list">
-        <div className="payment-instrument-list-heading">
-          <div>
-            <h3>
-              <FileText size={17} /> Portföy kayıtları
-            </h3>
-            <p>
-              {totalCount} kayıt · sayfa {page} · firma veritabanı kapsamı
-            </p>
-          </div>
+      <section className="payment-instrument-filter-card" aria-label="Çek ve senet filtreleri">
+        <div className="payment-instrument-filter-heading">
+          <h2>Filtreler</h2>
+          <p>Portföy kayıtlarını numara, cari, durum veya türe göre daraltın.</p>
         </div>
         <PaymentInstrumentListToolbar
           searchDraft={searchDraft}
@@ -388,6 +374,18 @@ export default function PaymentInstrumentsPage({
             setKindFilter(value);
           }}
         />
+      </section>
+      <section className="panel payment-instrument-list">
+        <div className="payment-instrument-list-heading">
+          <div>
+            <h3>
+              <FileText size={17} /> Portföy kayıtları
+            </h3>
+            <p>
+              {totalCount} kayıt · sayfa {page} · firma veritabanı kapsamı
+            </p>
+          </div>
+        </div>
         <PaymentInstrumentGrid
           fields={visibleFields}
           items={visible}
@@ -427,6 +425,14 @@ export default function PaymentInstrumentsPage({
           </div>
         )}
       </section>
+      {showCreate && (
+        <PaymentInstrumentCreateForm
+          draft={draft}
+          busy={busy}
+          onDraftChange={setDraft}
+          onSubmit={(event) => void create(event)}
+        />
+      )}
       <div className="boundary-note payment-instrument-boundary">
         <ShieldCheck size={16} />
         <span>

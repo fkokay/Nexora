@@ -55,6 +55,27 @@ export default function CampaignsSection({
   };
 
   return (
+    <>
+    <section className="sales-campaign-summary" aria-label="Kampanya özeti">
+      <article><span>Toplam kampanya</span><b>{campaigns.length}</b></article>
+      <article><span>Etkin kampanya</span><b>{campaigns.filter((campaign) => campaign.isActive).length}</b></article>
+      <article><span>Toplam uygulama</span><b>{campaigns.reduce((sum, campaign) => sum + campaign.applicationCount, 0).toLocaleString("tr-TR")}</b></article>
+    </section>
+    <section className="panel sales-campaign-filter-card" aria-label="Kampanya filtreleri">
+      <div className="sales-campaign-filter-heading">
+        <h2>Filtreler</h2>
+        <p>Kampanyaları kod veya ada göre daraltın.</p>
+      </div>
+      <label className="sales-campaign-search">
+        Kampanya ara
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Kod veya kampanya adı"
+        />
+      </label>
+    </section>
     <section className="panel sales-campaign-workbench">
       <div className="panel-heading">
         <div>
@@ -68,15 +89,6 @@ export default function CampaignsSection({
           Yenile
         </button>
       </div>
-      <label className="sales-campaign-search">
-        Kampanya ara
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Kod veya kampanya adı"
-        />
-      </label>
       <div className="sales-campaign-layout">
         <div className="table-scroll">
           <AdvancedDataGrid
@@ -199,5 +211,6 @@ export default function CampaignsSection({
         )}
       </div>
     </section>
+    </>
   );
 }

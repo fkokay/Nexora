@@ -90,6 +90,9 @@ export async function migrateLegacyRefreshToken(): Promise<void> {
 }
 
 export async function authorizedFetch(url: string, token?: string, init?: RequestInit): Promise<Response> {
+  const currentToken = typeof localStorage !== 'undefined'
+    ? localStorage.getItem('aierp.accessToken') || token
+    : token
   const send = (accessToken?: string) => fetch(url, {
     ...init,
     // Tenant/project authorization can change during the GitHub callback flow.
@@ -98,14 +101,15 @@ export async function authorizedFetch(url: string, token?: string, init?: Reques
     credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...init?.headers
+      ...init?.headers,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
     }
   })
-  let response = await send(token)
-  if (response.status === 401 && token && !url.startsWith('/api/auth/')) {
+  let response = await send(currentToken)
+  if (response.status === 401 && currentToken && !url.startsWith('/api/auth/')) {
     const renewedToken = await refreshAccessToken()
     if (renewedToken) response = await send(renewedToken)
+    if (response.status === 401) expireSession()
   }
   return response
 }

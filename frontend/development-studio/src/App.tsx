@@ -16,6 +16,7 @@ import {
   CircleHelp,
   ClipboardCheck,
   Code2,
+  Database,
   FileText,
   FolderKanban,
   GitBranch,
@@ -325,8 +326,14 @@ export default function App() {
     {
       id: "custom-pages",
       title: "Sayfa tasarımcısı",
-      description: "Yeni tenant sayfaları oluşturun, taslakları önizleyip yayımlayın.",
+      description: "Yeni sayfalar oluşturun, ızgara ekleyin ve veri kolonlarını düzenleyin.",
       icon: Pencil,
+    },
+    {
+      id: "custom-data",
+      title: "Veri modelleri",
+      description: "Tenant’a özel kayıt türleri ve alanlar tanımlayıp sayfalara veri kaynağı olarak bağlayın.",
+      icon: Database,
     },
     {
       id: "workflows",
@@ -345,20 +352,6 @@ export default function App() {
       title: "Rapor oluşturucu",
       description: "İş verileri için raporları yapılandırın.",
       icon: Activity,
-    },
-    {
-      id: "custom-lists",
-      title: "Dinamik listeler",
-      description:
-        "Liste görünümlerini ve kullanıcıya sunulan kayıtları düzenleyin.",
-      icon: ListTodo,
-    },
-    {
-      id: "screen-views",
-      title: "Ekran düzenleri",
-      description:
-        "Tablo ve kayıt ekranlarında alanların görünümünü ayarlayın.",
-      icon: Boxes,
     },
     {
       id: "custom-menus",
@@ -391,11 +384,11 @@ export default function App() {
   );
   const adaptationFlows = [
     {
-      title: "Form ve ekranları düzenle",
+      title: "Sayfa ve ekran tasarımcısı",
       description:
-        "Alanları ekle, formları ve kayıt listelerini işine göre ayarla.",
+        "Boş ERP sayfası üzerinde bileşenleri yerleştir; formları, veri modellerini, listeleri ve mevcut ekranları aynı çalışma alanında düzenle.",
       icon: FileText,
-      toolIds: ["custom-pages", "custom-forms", "screen-views", "custom-lists"],
+      toolIds: ["custom-pages", "custom-data"],
     },
     {
       title: "İş süreçlerini otomatikleştir",
@@ -2083,10 +2076,9 @@ export default function App() {
                 "workflows",
                 "business-rules",
                 "reports",
-                "custom-lists",
-                "screen-views",
                 "custom-menus",
                 "custom-pages",
+                "custom-data",
               ];
               return (
                 <>
@@ -2110,6 +2102,7 @@ export default function App() {
                           toolId={tool.id}
                           token={token}
                           role={tenant.role}
+                          platformOrigin={platformOrigin}
                         />
                       </Suspense>
                     </div>

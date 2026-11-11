@@ -68,6 +68,7 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   externalPagination?: boolean;
   hideSearch?: boolean;
   enableRowSelection?: boolean;
+  onSelectionChange?: (keys: string[]) => void;
   serverData?: ServerData;
   onImportRows?: (rows: ImportedRow[]) => void | Promise<void>;
   onEditRows?: (rows: EditedRow[]) => void | Promise<void>;
@@ -384,6 +385,7 @@ export default function AdvancedDataGrid({
   externalPagination = false,
   hideSearch = false,
   enableRowSelection = true,
+  onSelectionChange,
   serverData,
   onImportRows,
   onEditRows,
@@ -462,7 +464,34 @@ export default function AdvancedDataGrid({
   } | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const cancelEditRef = useRef(false);
+  useEffect(() => {
+    const closeMenusOnOutsidePointer = (event: PointerEvent) => {
+      const toolbar = toolbarRef.current;
+      if (!toolbar || !(event.target instanceof Node)) return;
+      toolbar
+        .querySelectorAll<HTMLDetailsElement>(".advanced-grid-menu[open]")
+        .forEach((menu) => {
+          if (!menu.contains(event.target as Node)) menu.open = false;
+        });
+    };
+    const closeMenusOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const menu = toolbarRef.current?.querySelector<HTMLDetailsElement>(
+        ".advanced-grid-menu[open]",
+      );
+      if (!menu) return;
+      menu.open = false;
+      event.stopPropagation();
+    };
+    document.addEventListener("pointerdown", closeMenusOnOutsidePointer, true);
+    document.addEventListener("keydown", closeMenusOnEscape, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenusOnOutsidePointer, true);
+      document.removeEventListener("keydown", closeMenusOnEscape, true);
+    };
+  }, []);
   const remoteQuery = (overrides: Partial<GridQuery>) =>
     serverData?.onQueryChange({
       search: query,
@@ -666,6 +695,10 @@ export default function AdvancedDataGrid({
       visiblePageKeys.length > 0 &&
       visiblePageKeys.every((key) => selected.has(key));
   const selectedRows = filteredRows.filter((row) => selected.has(row.key));
+  const selectedKeySignature = selectedRows.map((row) => row.key).join("|");
+  useEffect(() => {
+    onSelectionChange?.(selectedKeySignature ? selectedKeySignature.split("|") : []);
+  }, [onSelectionChange, selectedKeySignature]);
   const virtualized = pageRows.length > 180,
     rowHeight =
       settings.density === "compact"
@@ -898,17 +931,18 @@ export default function AdvancedDataGrid({
     return `"${safe.replace(/"/g, '""')}"`;
   }
   function exportCsv() {
+    const exportColumns = visibleColumns.filter((index) => !["işlemler", "actions"].includes((columns[index]?.label || "").trim().toLocaleLowerCase("tr-TR")));
     const exportRows = selectedRows.length
       ? selectedRows
       : serverData
         ? rows
         : sortedRows;
     const output = [
-      visibleColumns
+      exportColumns
         .map((index) => csvCell(columns[index]?.label || ""))
         .join(","),
       ...exportRows.map((row) =>
-        visibleColumns.map((index) => csvCell(cellText(row, index))).join(","),
+        exportColumns.map((index) => csvCell(cellText(row, index))).join(","),
       ),
     ].join("\r\n");
     const blob = new Blob(["\uFEFF", output], {
@@ -923,15 +957,16 @@ export default function AdvancedDataGrid({
   }
   async function exportExcel() {
     const XLSX = await import("xlsx");
+    const exportColumns = visibleColumns.filter((index) => !["işlemler", "actions"].includes((columns[index]?.label || "").trim().toLocaleLowerCase("tr-TR")));
     const exportRows = selectedRows.length
       ? selectedRows
       : serverData
         ? rows
         : sortedRows;
     const data = [
-      visibleColumns.map((index) => columns[index]?.label || ""),
+      exportColumns.map((index) => columns[index]?.label || ""),
       ...exportRows.map((row) =>
-        visibleColumns.map((index) => cellText(row, index)),
+        exportColumns.map((index) => cellText(row, index)),
       ),
     ];
     const workbook = XLSX.utils.book_new();
@@ -1345,7 +1380,7 @@ export default function AdvancedDataGrid({
       role="region"
       aria-label={tableProps["aria-label"] || "Data grid"}
     >
-      <div className="advanced-grid-toolbar">
+      <div className="advanced-grid-toolbar" ref={toolbarRef}>
         {!hideSearch && (
           <label className="advanced-grid-search">
             <span aria-hidden="true">⌕</span>
@@ -1466,6 +1501,11 @@ export default function AdvancedDataGrid({
                 <option value="comfortable">{labels.comfortable}</option>
               </select>
             </label>
+            <div className="advanced-grid-column-setting-head" aria-hidden="true">
+              <span>Sütun</span>
+              <span>Genişlik (px)</span>
+              <span>Sabitle</span>
+            </div>
             {columns.map((column) => (
               <div className="advanced-grid-column-setting" key={column.index}>
                 <label>
@@ -1480,6 +1520,24 @@ export default function AdvancedDataGrid({
                   />
                   {column.label}
                 </label>
+                <input
+                  className="advanced-grid-column-width"
+                  type="number"
+                  min={Math.max(72, minimumColumnWidths?.[column.index] || 0)}
+                  max="640"
+                  step="8"
+                  aria-label={`${column.label} sütun genişliği piksel`}
+                  title="Sütun genişliği (piksel)"
+                  value={widths[column.index] || 160}
+                  onChange={(event) => {
+                    const minimum = Math.max(72, minimumColumnWidths?.[column.index] || 0);
+                    const nextWidth = Math.min(640, Math.max(minimum, Number(event.target.value) || minimum));
+                    setSettings((current) => ({
+                      ...current,
+                      widths: { ...current.widths, [column.index]: nextWidth },
+                    }));
+                  }}
+                />
                 <select
                   aria-label={`${column.label} pin`}
                   value={settings.pinned[column.index] || ""}
@@ -1602,7 +1660,7 @@ export default function AdvancedDataGrid({
         </button>
         <button
           type="button"
-          className="advanced-grid-action"
+          className="advanced-grid-action advanced-grid-icon-action"
           onClick={() => window.print()}
           title={labels.print}
         >
@@ -1610,7 +1668,7 @@ export default function AdvancedDataGrid({
         </button>
         <button
           type="button"
-          className="advanced-grid-action"
+          className="advanced-grid-action advanced-grid-icon-action"
           onClick={() => setFullscreen((value) => !value)}
           title={fullscreen ? labels.exitFullscreen : labels.fullscreen}
         >

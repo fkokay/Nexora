@@ -23,7 +23,7 @@ public static partial class IntegrationAdapterExecutor
 
     private static readonly HashSet<string> SafeProviderErrorCodes = new(StringComparer.Ordinal)
     {
-        "adapter_failed", "adapter_error", "provider_error", "provider_rejected", "authentication_failed", "rate_limited",
+        "adapter_failed", "adapter_error", "provider_error", "provider_rejected", "provider_status_not_found", "authentication_failed", "rate_limited",
         "validation_failed", "conflict", "not_found", "temporary_unavailable", "transport_error", "timeout"
     };
 

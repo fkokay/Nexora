@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type RefObject } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   ArrowRight,
   ChevronDown,
@@ -51,10 +51,13 @@ export function WorkspaceSearchDialog({
 }: Props) {
   const [showAll, setShowAll] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const dialogRef = useRef<HTMLElement>(null);
+  const groupsRef = useRef<HTMLDivElement>(null);
   const english = locale === "en";
   const grouped = useMemo(() => {
     const map = new Map<string, GlobalSearchResult[]>();
     for (const item of allItems) {
+      if (item.parentPage) continue;
       const group = item.description || (english ? "Other" : "Diğer");
       map.set(group, [...(map.get(group) || []), item]);
     }
@@ -70,6 +73,38 @@ export function WorkspaceSearchDialog({
       );
     }
   }, [open, initialShowAll]);
+  useEffect(() => {
+    if (!open || !showAll || query.trim() || activeIndex < 0) return;
+    const frame = window.requestAnimationFrame(() => {
+      groupsRef.current
+        ?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]')
+        ?.scrollIntoView({ block: "nearest" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, showAll, query, activeIndex, expandedGroups]);
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !dialogRef.current?.contains(event.target)
+      ) {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown, true);
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [open, onClose]);
   if (!open) return null;
   const visibleResults = query.trim()
     ? results
@@ -83,6 +118,7 @@ export function WorkspaceSearchDialog({
   const renderResult = (result: GlobalSearchResult, index: number) => (
     <button
       type="button"
+      className={result.parentPage ? "workspace-search-child-result" : undefined}
       role="option"
       aria-selected={index === activeIndex}
       key={`${result.kind || "page"}-${result.page || result.label}-${index}`}
@@ -113,9 +149,25 @@ export function WorkspaceSearchDialog({
       }}
     >
       <section
+        ref={dialogRef}
         className="global-search-dialog"
         role="dialog"
         aria-modal="true"
+        onKeyDown={(event) => {
+          if (
+            !showAll ||
+            query.trim() ||
+            event.target instanceof HTMLInputElement ||
+            (event.key !== "ArrowDown" && event.key !== "ArrowUp")
+          )
+            return;
+          event.preventDefault();
+          onMoveActiveIndex(
+            event.key === "ArrowDown" ? 1 : -1,
+            allItems.length,
+          );
+          inputRef.current?.focus();
+        }}
         aria-label={
           english ? "Module and screen search" : "Modül ve ekran arama"
         }
@@ -238,7 +290,7 @@ export function WorkspaceSearchDialog({
           </div>
         )}
         {!query.trim() && showAll ? (
-          <div className="workspace-search-groups" role="list">
+          <div className="workspace-search-groups" role="list" ref={groupsRef}>
             {grouped.map(([group, items]) => {
               const expanded = expandedGroups.has(group);
               return (
@@ -267,9 +319,14 @@ export function WorkspaceSearchDialog({
                   </button>
                   {expanded && (
                     <div className="workspace-search-group-items">
-                      {items.map((item) =>
-                        renderResult(item, allItems.indexOf(item)),
-                      )}
+                      {items.map((item) => (
+                        <Fragment key={`${item.page}-${item.label}`}>
+                          {renderResult(item, allItems.indexOf(item))}
+                          {allItems
+                            .filter((child) => child.parentPage === item.page)
+                            .map((child) => renderResult(child, allItems.indexOf(child)))}
+                        </Fragment>
+                      ))}
                     </div>
                   )}
                 </section>

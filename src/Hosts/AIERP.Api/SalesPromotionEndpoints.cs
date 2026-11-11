@@ -69,9 +69,9 @@ public static class SalesPromotionEndpoints
             if (campaign is null) return Results.NotFound();
             var quoteQuery = db.SalesQuotes.Where(x => x.TenantId == tenantId && x.Id == request.QuoteId);
             quoteQuery = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId.Value, role, "erp.sales-quotes.read", "erp.sales-quotes",
-                quoteQuery, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? quoteQuery;
+                quoteQuery, x => x.Status, x => x.CustomerId ?? Guid.Empty, cancellationToken: ct) ?? quoteQuery;
             quoteQuery = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId.Value, role, "erp.sales-quotes.update", "erp.sales-quotes",
-                quoteQuery, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? quoteQuery;
+                quoteQuery, x => x.Status, x => x.CustomerId ?? Guid.Empty, cancellationToken: ct) ?? quoteQuery;
             var quote = await quoteQuery.Include(x => x.Lines).SingleOrDefaultAsync(ct);
             if (quote is null) return Results.NotFound();
             if (quote.Status != SalesQuoteStatus.Draft) return Results.Conflict(new { error = "Kampanya yalnızca taslak teklife uygulanabilir." });

@@ -73,7 +73,37 @@ export default function CampaignPerformanceSection({
     }
   };
 
+  const appliedQuotes = performance?.items.reduce((sum, item) => sum + item.appliedQuotes, 0) ?? 0;
+  const linkedOrders = performance?.items.reduce((sum, item) => sum + item.linkedOrders, 0) ?? 0;
   return (
+    <>
+      {performance && (
+        <section className="sales-campaign-summary" aria-label="Kampanya performans özeti">
+          <article><span>Toplam kampanya</span><b>{performance.totalCount}</b></article>
+          <article><span>Uygulanan teklif</span><b>{appliedQuotes.toLocaleString("tr-TR")}</b></article>
+          <article><span>Bağlantılı sipariş</span><b>{linkedOrders.toLocaleString("tr-TR")}</b></article>
+        </section>
+      )}
+      <section className="panel sales-campaign-filter-card" aria-label="Kampanya performans filtreleri">
+        <div className="sales-campaign-filter-heading">
+          <h2>Filtreler</h2>
+          <p>Performans sonuçlarını kampanya ve uygulama tarihi aralığına göre daraltın.</p>
+        </div>
+        <div className="form-two sales-campaign-filters">
+          <label className="sales-campaign-filter-label">
+            Kampanya ara
+            <input value={query} maxLength={120} onChange={(event) => onQueryChange(event.target.value)} placeholder="Kod veya ad" />
+          </label>
+          <label className="sales-campaign-filter-label">
+            Uygulama tarihi başlangıç
+            <input type="date" value={from} onChange={(event) => onFromChange(event.target.value)} />
+          </label>
+          <label className="sales-campaign-filter-label">
+            Uygulama tarihi bitiş
+            <input type="date" value={through} onChange={(event) => onThroughChange(event.target.value)} />
+          </label>
+        </div>
+      </section>
     <section className="panel sales-campaign-performance">
       <div className="panel-heading sales-campaign-performance-heading">
         <div className="sales-campaign-performance-title">
@@ -83,33 +113,6 @@ export default function CampaignPerformanceSection({
         <button className="secondary" onClick={onRefresh}>
           Raporu yenile
         </button>
-      </div>
-      <div className="form-two sales-campaign-filters">
-        <label className="sales-campaign-filter-label">
-          Kampanya ara
-          <input
-            value={query}
-            maxLength={120}
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="Kod veya ad"
-          />
-        </label>
-        <label className="sales-campaign-filter-label">
-          Uygulama tarihi başlangıç
-          <input
-            type="date"
-            value={from}
-            onChange={(event) => onFromChange(event.target.value)}
-          />
-        </label>
-        <label className="sales-campaign-filter-label">
-          Uygulama tarihi bitiş
-          <input
-            type="date"
-            value={through}
-            onChange={(event) => onThroughChange(event.target.value)}
-          />
-        </label>
       </div>
       {performance && (
         <>
@@ -202,5 +205,6 @@ export default function CampaignPerformanceSection({
         </>
       )}
     </section>
+    </>
   );
 }

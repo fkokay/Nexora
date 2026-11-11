@@ -125,6 +125,18 @@ public static class CrmEndpoints
             await db.SaveChangesAsync(ct);
             return Results.Ok(await ToViewAsync(db, tenantId, opportunity.Id, ct));
         });
+
+        opportunities.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryTenant(user, out var tenantId, out var userId)) return Results.Forbid();
+            var opportunity = await db.CrmOpportunities.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (opportunity is null) return Results.NotFound();
+            db.CrmOpportunities.Remove(opportunity);
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId,
+                Action = "erp.crm-opportunity.deleted", Resource = opportunity.Code });
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
     }
 
     private static async Task<CrmOpportunityView?> ToViewAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) =>

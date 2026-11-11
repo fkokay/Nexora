@@ -827,6 +827,23 @@ export default function FixedAssetsPage({
           <small>{en ? "Operational value" : "Operasyonel değer"}</small>
         </article>
       </section>
+      <FixedAssetRegister
+        assets={filteredAssets}
+        totalAssetCount={assets.length}
+        fields={assetFields}
+        loading={loading}
+        search={assetSearch}
+        status={assetStatus}
+        selectedId={selected?.id ?? null}
+        locale={locale}
+        onSearchChange={setAssetSearch}
+        onStatusChange={setAssetStatus}
+        onSelect={setSelected}
+        fieldLabel={(key, label) =>
+          en ? assetFieldEnglish[key] || label : label
+        }
+        formatField={(asset, key) => formatAssetField(asset, key, en)}
+      />
       {showAcquisition && (
         <section className="panel" aria-labelledby="acquisition-heading">
           <div className="panel-heading">
@@ -1146,23 +1163,7 @@ export default function FixedAssetsPage({
           </form>
         </section>
       )}
-      <FixedAssetRegister
-        assets={filteredAssets}
-        totalAssetCount={assets.length}
-        fields={assetFields}
-        loading={loading}
-        search={assetSearch}
-        status={assetStatus}
-        selectedId={selected?.id ?? null}
-        locale={locale}
-        onSearchChange={setAssetSearch}
-        onStatusChange={setAssetStatus}
-        onSelect={setSelected}
-        fieldLabel={(key, label) =>
-          en ? assetFieldEnglish[key] || label : label
-        }
-        formatField={(asset, key) => formatAssetField(asset, key, en)}
-      />
+
       {selected && (
         <>
           <div

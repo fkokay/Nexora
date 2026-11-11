@@ -466,3 +466,31 @@ html[data-theme="dark"] .finance-budget-page .budget-ledger th { background: #20
 }
 html[data-theme="dark"] .finance-budget-page .budget-overview-card { background: var(--erp-surface, #1b2130); }
 html[data-theme="dark"] .finance-budget-page .budget-overview-card strong { color: var(--erp-text, #e6e9f1); }
+
+/* Keep the overview hero readable when the shared page-heading skin wins. */
+#root .main-area .finance-budget-page > .budget-hero {
+  background: linear-gradient(118deg, #12365f 0%, #174a78 62%, #1d5d8e 100%) !important;
+}
+#root .main-area .finance-budget-page > .budget-hero > .budget-hero-copy {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .main-area .finance-budget-page > .budget-hero h1,
+#root .main-area .finance-budget-page > .budget-hero .budget-hero-caption {
+  color: #fff !important;
+}
+#root .main-area .finance-budget-page > .budget-hero > .budget-hero-copy > p:not(.eyebrow) {
+  color: #d7e6f5 !important;
+}
+#root .main-area .finance-budget-page > .budget-hero .budget-hero-caption {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  color: #bed4e8 !important;
+}
+#root .main-area .finance-budget-page > .budget-hero .eyebrow {
+  color: #86c4ff !important;
+}

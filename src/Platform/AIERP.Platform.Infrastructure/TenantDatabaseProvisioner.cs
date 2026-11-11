@@ -81,15 +81,17 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
                     {
                         if (!string.Equals(entry.DatabaseName, databaseName, StringComparison.Ordinal))
                             throw new InvalidOperationException("Catalog database name does not match the tenant identity.");
+                        // The existence procedure intentionally permits an active tenant to
+                        // inspect only a Ready catalog entry. Run this preflight before the
+                        // migration state is changed to Copying below.
+                        if (!await TenantDatabaseExistsAsync(platformConnection, tenantId,
+                                TenantSqlDatabaseComponent.Erp, cancellationToken))
+                            throw new InvalidOperationException($"Tenant database '{entry.DatabaseName}' is missing; migration-only retry cannot recreate or copy it.");
                         var readyBuilder = new SqlConnectionStringBuilder(platformConnection) { InitialCatalog = entry.DatabaseName };
                         var readyOptions = new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(readyBuilder.ConnectionString).Options;
                         await using var readyDatabase = new TenantDbContext(readyOptions);
                         await RunProvisioningStepsAsync(
-                            ensureDatabaseExists: async existsToken =>
-                            {
-                                if (!await TenantDatabaseExistsAsync(platformConnection, tenantId, TenantSqlDatabaseComponent.Erp, existsToken))
-                                    throw new InvalidOperationException($"Tenant database '{entry.DatabaseName}' is missing; migration-only retry cannot recreate or copy it.");
-                            },
+                            ensureDatabaseExists: _ => Task.CompletedTask,
                             migrate: migrateToken => readyDatabase.Database.MigrateAsync(migrateToken),
                             grantRuntimeAccess: async grantToken =>
                             {

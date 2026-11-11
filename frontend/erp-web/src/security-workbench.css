@@ -26,6 +26,11 @@
 .access-control-page>section.panel:last-of-type .request-row:hover,.access-control-page>section.panel:last-of-type .request-row.security-selected-row{background:#edf4ff}
 .access-control-page>section.panel:last-of-type>.security-record-pane{grid-column:2;grid-row:2;position:sticky;top:90px}
 .audit-log-page .audit-toolbar{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid #d9e2f0;border-radius:8px;background:#fff}
+.audit-log-page .audit-filter-card{display:grid;gap:10px;padding:14px 16px}
+.audit-log-page .audit-filter-heading{padding-bottom:9px;border-bottom:1px solid var(--erp-border,#dce5ef)}
+.audit-log-page .audit-filter-heading h2{margin:0;color:var(--erp-text,#263b58);font-size:15px}
+.audit-log-page .audit-filter-heading p{margin:4px 0 0;color:var(--erp-muted,#7b899c);font-size:11px}
+.audit-log-page .audit-filter-card .audit-toolbar{margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
 .audit-log-page .audit-toolbar .customer-search{flex:1;min-width:200px}
 .audit-log-page .audit-date-filter{min-width:145px}
 .audit-log-page .audit-date-filter input{display:block;width:100%;height:30px;margin-top:3px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;padding:3px 7px;color:#334155;font:inherit;font-size:11px}

@@ -8,6 +8,7 @@ type Props = {
   saved: boolean;
   onReset: () => void;
   onSave: () => void;
+  showActions?: boolean;
 };
 
 export function SettingsPageHeader({
@@ -17,10 +18,11 @@ export function SettingsPageHeader({
   saved,
   onReset,
   onSave,
+  showActions = true,
 }: Props) {
   return (
-    <header className="settings-heading">
-      <div>
+    <header className={`settings-heading${showActions ? "" : " settings-heading--no-actions"}`}>
+      {showActions && <div>
         <span className="settings-heading-icon">
           <Settings size={24} />
         </span>
@@ -28,7 +30,7 @@ export function SettingsPageHeader({
           <h1>{title}</h1>
           <p>{description}</p>
         </span>
-      </div>
+      </div>}
       <div>
         <button type="button" className="secondary" onClick={onReset}>
           <RotateCcw size={16} />

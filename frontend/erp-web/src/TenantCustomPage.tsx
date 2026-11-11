@@ -1,6 +1,8 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type CSSProperties, type FormEvent, useEffect, useState } from "react";
 import { AlertCircle, LayoutTemplate } from "lucide-react";
 import { api } from "./erpApi";
+import TenantReportWidget from "./TenantReportWidget";
+import TenantWorkflowAction from "./TenantWorkflowAction";
 import "./tenant-custom-page.css";
 
 type DynamicField = {
@@ -23,6 +25,26 @@ type PublishedPage = {
 
 const textValue = (value: unknown, fallback = "") =>
   typeof value === "string" || typeof value === "number" ? String(value) : fallback;
+
+const isolatedCodeDocument = (css: string, javascript: string) => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none';"><style>html,body{margin:0;padding:12px;font:14px system-ui,sans-serif;color:#172554;min-height:24px;box-sizing:border-box}*{box-sizing:border-box}${css.replace(/<\/style/gi, "<\\/style")}</style></head><body><div id="nexora-root">Özel kod bileşeni</div><script>${javascript.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
+
+const visualStyle = (type: string, props: Record<string, unknown>): CSSProperties => {
+  const bounded = (value: unknown, fallback: number, min: number, max: number) => {
+    const parsed = value == null || value === "" ? Number.NaN : Number(value);
+    return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
+  };
+  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "divider" || type === "spacer" ? 12 : 6, 1, 12);
+  const number = (key: string, fallback: number, max: number) => bounded(props[key], fallback, 0, max);
+  const color = (key: string) => typeof props[key] === "string" && /^#[\da-f]{6}$/i.test(props[key] as string) ? props[key] as string : undefined;
+  return {
+    gridColumn: `span ${Math.max(1, Math.min(12, span))}`,
+    margin: `${number("margin", 0, 64)}px`,
+    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form"].includes(type) ? 16 : 0, 64)}px`,
+    backgroundColor: color("backgroundColor"),
+    color: color("textColor"),
+    borderRadius: `${number("borderRadius", 12, 32)}px`,
+  };
+};
 
 function EmbeddedCustomForm({ form, token }: { form: EmbeddedForm; token: string }) {
   const [values, setValues] = useState<Record<string, string | null>>(() =>
@@ -67,36 +89,58 @@ function EmbeddedCustomForm({ form, token }: { form: EmbeddedForm; token: string
   </form>;
 }
 
-function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string) {
+function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string) {
   const props = component.props ?? {};
+  const style = visualStyle(component.type, props);
   const title = textValue(props.title);
   const text = textValue(props.text ?? props.label);
   const description = textValue(props.description);
   const value = textValue(props.value);
-  const children = (component.children ?? []).map((child) => renderComponent(child, forms, token));
+  const children = (component.children ?? []).map((child) => renderComponent(child, forms, token, pageCode));
 
   switch (component.type) {
-    case "heading": return <h2 key={component.id}>{title || text}</h2>;
-    case "text": return <p key={component.id}>{text || description}</p>;
-    case "metric": return <article className="tenant-page-metric" key={component.id}>{title && <span>{title}</span>}<strong>{value || text || "—"}</strong>{description && <small>{description}</small>}</article>;
-    case "card": case "section": return <section className={`tenant-page-block tenant-page-${component.type}`} key={component.id}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{text && <p>{text}</p>}{children}</section>;
-    case "divider": return <hr key={component.id} />;
-    case "spacer": return <div className="tenant-page-spacer" aria-hidden="true" key={component.id} />;
-    case "button": return <button className="tenant-page-button" type="button" disabled key={component.id}>{text || title || "Eylem"}</button>;
+    case "heading": return <h2 key={component.id} className="tenant-page-heading" style={style}>{title || text}</h2>;
+    case "text": return <p key={component.id} className="tenant-page-text" style={style}>{text || description}</p>;
+    case "metric": return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} />;
+    case "card": case "section": return <section className={`tenant-page-block tenant-page-${component.type}`} style={style} key={component.id}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{text && <p>{text}</p>}{children}</section>;
+    case "divider": return <hr key={component.id} style={style} />;
+    case "spacer": return <div className="tenant-page-spacer" style={style} aria-hidden="true" key={component.id} />;
+    case "button": return <div className="tenant-page-action" style={style} key={component.id}>
+      {props.actionType === "workflow" && typeof props.workflowId === "string"
+        ? <TenantWorkflowAction token={token} workflowId={props.workflowId} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
+        : <button className="tenant-page-button" type="button" disabled>{text || title || "Eylem"}</button>}
+    </div>;
     case "dataTable": {
       const columns = Array.isArray(props.columns) ? props.columns.filter((column): column is string => typeof column === "string").slice(0, 20) : [];
-      return <section className="tenant-page-block tenant-page-table" key={component.id}>{title && <h3>{title}</h3>}{columns.length > 0 ? <div className="tenant-page-table-scroll"><table><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody><tr><td colSpan={columns.length}>Bu görünüm için veri kaynağı henüz bağlanmadı.</td></tr></tbody></table></div> : <p>Bu tabloya henüz sütun eklenmemiş.</p>}</section>;
+      return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} />;
     }
     case "form": {
       const formCode = textValue(props.formCode);
       const form = forms.find((item) => item.code === formCode);
-      return form ? <EmbeddedCustomForm key={component.id} form={form} token={token} /> : <section className="tenant-page-block tenant-page-form" key={component.id}><h3>{title || "Form"}</h3><p>Bu sayfa için seçilen form artık yayımlanmış değil.</p></section>;
+      return form ? <div key={component.id} className="tenant-page-form-wrap" style={style}><EmbeddedCustomForm form={form} token={token} /></div> : <section className="tenant-page-block tenant-page-form" style={style} key={component.id}><h3>{title || "Form"}</h3><p>Bu sayfa için seçilen form artık yayımlanmış değil.</p></section>;
+    }
+    case "code": return <iframe key={component.id} className="tenant-page-code-frame" style={style} title={title || "Yalıtılmış özel kod"} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={isolatedCodeDocument(textValue(props.css), textValue(props.javascript))} />;
+    case "alert": {
+      const variant = ["success", "warning", "danger", "info"].includes(textValue(props.variant)) ? textValue(props.variant) : "info";
+      return <aside key={component.id} className={`tenant-page-alert tone-${variant}`} style={style} role={variant === "danger" ? "alert" : "status"}><strong>{title || "Bilgilendirme"}</strong>{text && <p>{text}</p>}</aside>;
+    }
+    case "badge": {
+      const variant = ["success", "warning", "danger", "info"].includes(textValue(props.variant)) ? textValue(props.variant) : "info";
+      return <span key={component.id} className={`tenant-page-badge tone-${variant}`} style={style}>{text || title || "Durum"}</span>;
+    }
+    case "list": {
+      const items = Array.isArray(props.items) ? props.items.filter((item): item is string => typeof item === "string").slice(0, 40) : [];
+      return <section key={component.id} className="tenant-page-block tenant-page-list" style={style}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{items.length ? <ul>{items.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul> : <p>Henüz liste öğesi eklenmedi.</p>}</section>;
+    }
+    case "progress": {
+      const progress = Math.max(0, Math.min(100, Number(props.value) || 0));
+      return <section key={component.id} className="tenant-page-block tenant-page-progress" style={style}><div><strong>{title || "İlerleme"}</strong><span>{progress}%</span></div><progress max={100} value={progress} aria-label={title || "İlerleme"} /></section>;
     }
     default: return null;
   }
 }
 
-export default function TenantCustomPage({ code, token }: { code: string; token: string }) {
+export default function TenantCustomPage({ code, previewId, token }: { code?: string; previewId?: string; token: string }) {
   const [page, setPage] = useState<PublishedPage | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -104,7 +148,10 @@ export default function TenantCustomPage({ code, token }: { code: string; token:
   useEffect(() => {
     let active = true;
     setLoading(true); setError(""); setPage(null);
-    void api<PublishedPage>(`/api/custom-pages/${encodeURIComponent(code)}/published`, token)
+    const endpoint = previewId
+      ? `/api/custom-pages/${encodeURIComponent(previewId)}/preview`
+      : `/api/custom-pages/${encodeURIComponent(code || "")}/published`;
+    void api<PublishedPage>(endpoint, token)
       .then((result) => {
         if (!active) return;
         const definition = JSON.parse(result.definitionJson) as { schemaVersion?: unknown; components?: unknown };
@@ -114,7 +161,7 @@ export default function TenantCustomPage({ code, token }: { code: string; token:
       .catch((cause: unknown) => { if (active) setError((cause as Error).message || "Sayfa yüklenemedi."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [code, token]);
+  }, [code, previewId, token]);
 
   if (loading) return <div className="tenant-custom-page-state" role="status">Sayfa yükleniyor…</div>;
   if (error || !page) return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert"><AlertCircle size={18} /><span>{error || "Yayımlanmış sayfa bulunamadı."}</span></div>;
@@ -125,8 +172,9 @@ export default function TenantCustomPage({ code, token }: { code: string; token:
     components = Array.isArray(definition.components) ? definition.components : [];
   } catch { return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert">Sayfa tanımı okunamadı.</div>; }
 
-  return <main className="tenant-custom-page">
+  return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
+    {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
     <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div></header>
-    <div className="tenant-custom-page-content">{components.map((component) => renderComponent(component, page.forms ?? [], token))}</div>
+    <div className="tenant-custom-page-content">{components.map((component) => renderComponent(component, page.forms ?? [], token, page.code))}</div>
   </main>;
 }
