@@ -692,22 +692,12 @@ export default function OperationalProjectsPage({
       )}
       {error && <div className="alert inline-alert">{error}</div>}
       {notice && <div className="op-project-notice">{notice}</div>}
-      <section
-        className={`op-project-layout${selected ? " has-selection" : ""}`}
-      >
-        <aside className="panel op-project-list">
-          <div className="panel-heading">
-            <div>
-              <h2>{en ? "Project register" : "Proje listesi"}</h2>
-              <p>
-                {page?.total ?? 0} {en ? "matching projects" : "eşleşen proje"}{" "}
-                ·{" "}
-                {en
-                  ? "Select a row to view its plan"
-                  : "Detay için satır seçin"}
-              </p>
-            </div>
-          </div>
+      <section className="panel op-project-filter-card" aria-label={en ? "Project filters" : "Proje filtreleri"}>
+        <div className="op-project-filter-heading">
+          <h2>{en ? "Filters" : "Filtreler"}</h2>
+          <p>{en ? "Narrow projects by name, status, tasks or dates." : "Projeleri ad, durum, görev ve tarihe göre daraltın."}</p>
+        </div>
+        <div className="op-project-filter-fields">
           <ProjectListFilters
             en={en}
             search={search}
@@ -724,6 +714,24 @@ export default function OperationalProjectsPage({
             onUpcoming={setUpcomingWithinDays}
             onTimeEntryDays={setTimeEntryDays}
           />
+        </div>
+      </section>
+      <section
+        className={`op-project-layout${selected ? " has-selection" : ""}`}
+      >
+        <aside className="panel op-project-list">
+          <div className="panel-heading">
+            <div>
+              <h2>{en ? "Project register" : "Proje listesi"}</h2>
+              <p>
+                {page?.total ?? 0} {en ? "matching projects" : "eşleşen proje"}{" "}
+                ·{" "}
+                {en
+                  ? "Select a row to view its plan"
+                  : "Detay için satır seçin"}
+              </p>
+            </div>
+          </div>
           <ProjectRegister
             page={page}
             pageNumber={pageNumber}

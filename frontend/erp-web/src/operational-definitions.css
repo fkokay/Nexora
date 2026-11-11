@@ -33,6 +33,25 @@
   line-height: 1.55;
 }
 
+.op-definitions-filter-card { padding: 15px 18px; }
+.op-definitions-filter-card > .panel-heading,
+.op-definitions-panel > .op-definitions-grid-heading,
+.op-definitions-panel > .op-definitions-form-heading { margin: 0 0 12px; padding: 0 0 11px; border-bottom: 1px solid var(--line); }
+.op-definitions-filter-card > .panel-heading h2,
+.op-definitions-panel > .op-definitions-grid-heading h2,
+.op-definitions-panel > .op-definitions-form-heading h2 { margin: 0 0 4px; font-size: 15px; }
+.op-definitions-filter-card > .panel-heading p,
+.op-definitions-panel > .op-definitions-grid-heading p,
+.op-definitions-panel > .op-definitions-form-heading p { margin: 0; color: var(--muted); font-size: 11px; }
+.op-definitions-filter-card .customer-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 240px); gap: 10px; margin: 0; padding: 0; border: 0; background: transparent; }
+.op-definitions-filter-card .customer-toolbar input,
+.op-definitions-filter-card .customer-toolbar select { width: 100%; min-width: 0; min-height: 38px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: var(--surface); color: var(--text); }
+.op-definitions-filter-card .customer-toolbar label { display: grid; gap: 4px; color: var(--muted); font-size: 10px; }
+html[data-theme="dark"] .op-definitions-filter-card .panel-heading,
+html[data-theme="dark"] .op-definitions-panel > .op-definitions-grid-heading,
+html[data-theme="dark"] .op-definitions-panel > .op-definitions-form-heading { border-color: var(--line); }
+@media(max-width:680px) { .op-definitions-filter-card .customer-toolbar { grid-template-columns: 1fr; } }
+
 .op-definitions-panel .collection-form {
   display: grid;
   gap: 16px;
@@ -198,6 +217,21 @@
 .customer-location-definitions-page .ledger-list .customer-table { min-width: 680px; }
 .customer-location-definitions-page .ledger-list .customer-table th { position: sticky; top: 0; z-index: 1; }
 .customer-location-definitions-page .modal-foot > span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.customer-location-definitions-page > .panel { display: grid; gap: 12px; }
+.customer-location-definitions-page .location-definition-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; }
+.customer-location-definitions-page .location-definition-summary article { display: grid; gap: 4px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.customer-location-definitions-page .location-definition-summary article span { color: var(--muted); font-size: 10px; }
+.customer-location-definitions-page .location-definition-summary article b { overflow: hidden; color: var(--text); font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
+.customer-location-definitions-page .location-definition-summary article .location-summary-name { font-size: 12px; }
+.customer-location-definitions-page .location-definition-filter-card { display: grid; grid-template-columns: minmax(0,1fr) minmax(220px,.8fr); align-items: end; gap: 12px 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+.customer-location-definitions-page .location-definition-filter-card h3 { margin: 0 0 3px; color: var(--text); font-size: 13px; }
+.customer-location-definitions-page .location-definition-filter-card p { margin: 0; color: var(--muted); font-size: 10px; }
+.customer-location-definitions-page .location-definition-filter-card label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 700; }
+.customer-location-definitions-page .location-definition-filter-card input { width: 100%; min-width: 0; min-height: 38px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; }
+.customer-location-definitions-page .collection-form { margin: 0; }
+html[data-theme="dark"] .customer-location-definitions-page .location-definition-summary article,
+html[data-theme="dark"] .customer-location-definitions-page .location-definition-filter-card { border-color: var(--line); background: var(--surface); }
+html[data-theme="dark"] .customer-location-definitions-page .location-definition-filter-card input { border-color: var(--line); }
 
 @media (max-width: 760px) {
   .op-definitions-panel { padding: 16px; }
@@ -212,6 +246,8 @@
   .customer-location-definitions-page .form-two { grid-template-columns: minmax(0, 1fr); gap: 11px; }
   .customer-location-definitions-page > .panel > .panel-heading { align-items: flex-start; }
   .customer-location-definitions-page .ledger-list { max-height: 360px; }
+  .customer-location-definitions-page .location-definition-summary { grid-template-columns: 1fr; }
+  .customer-location-definitions-page .location-definition-filter-card { grid-template-columns: 1fr; }
 }
 
 /* Workplaces stay grouped with their form and register while warehouse setup is an adjacent path. */

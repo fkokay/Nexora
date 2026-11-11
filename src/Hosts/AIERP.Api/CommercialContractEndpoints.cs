@@ -59,7 +59,7 @@ public static class CommercialContractEndpoints
             {
                 CommercialContractSourceKind.SalesQuote => db.SalesQuotes.AsNoTracking()
                     .Where(x => x.TenantId == tenantId && x.CustomerId == counterpartyKey && x.CurrencyCode == currency)
-                    .Select(x => new CommercialContractSourceView(x.Id, x.Code, x.CustomerId, x.Customer.Name, x.CurrencyCode)),
+                    .Select(x => new CommercialContractSourceView(x.Id, x.Code, x.CustomerId!.Value, x.Customer!.Name, x.CurrencyCode)),
                 CommercialContractSourceKind.SalesOrder => db.SalesOrders.AsNoTracking()
                     .Where(x => x.TenantId == tenantId && x.CustomerId == counterpartyKey && x.CurrencyCode == currency)
                     .Select(x => new CommercialContractSourceView(x.Id, x.Code, x.CustomerId, x.Customer.Name, x.CurrencyCode)),

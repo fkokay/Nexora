@@ -8,6 +8,7 @@ import "./screen-title.css";
 import "./global-components.css";
 import "./module-workspace.css";
 import "./form-design-system.css";
+import "./page-design-polish.css";
 
 // A tab can outlive a deployment and retain an old lazy-chunk URL. Revalidate
 // the app shell once for that failed chunk so the browser loads the new hashes.

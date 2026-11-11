@@ -18,6 +18,8 @@
 .app-shell:not(.standalone-studio) .customer-create-form>.modal-foot .secondary,.app-shell:not(.standalone-studio) .customer-edit-footer .secondary{min-height:42px;border-radius:5px}
 .customer-create-form{gap:14px}
 .customer-create-tabs{display:flex;align-items:center;gap:4px;min-height:42px;overflow:auto;border-bottom:1px solid var(--nexora-border)}
+.app-shell:not(.standalone-studio) .customer-create-tabs { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.app-shell:not(.standalone-studio) .customer-create-tabs::-webkit-scrollbar { display: none; }
 .customer-create-tabs button{height:42px;flex:none;padding:0 14px;border:0;border-bottom:3px solid transparent;background:#fff;color:#42536B;font-size:12px;font-weight:600;white-space:nowrap}
 .customer-create-tabs button[aria-current=page]{border-bottom-color:var(--nexora-gold);color:var(--nexora-navy)}
 @media(max-width:760px){.app-shell:not(.standalone-studio) :is(.customer-create-modal,.customer-edit-modal){width:calc(100vw - 16px);height:calc(100dvh - 16px);max-height:calc(100dvh - 16px);padding:16px}.app-shell:not(.standalone-studio) :is(.customer-create-fields,.customer-edit-fields){grid-template-columns:minmax(0,1fr)}.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) .form-two{grid-template-columns:minmax(0,1fr)}}.app-shell:not(.standalone-studio) .modal-backdrop:has(.inventory-item-form-modal){position:fixed;inset:102px 0 0;z-index:35;display:flex;align-items:stretch;justify-content:center;padding:10px 18px;background:#F8F9FA!important;backdrop-filter:none!important}
@@ -397,7 +399,7 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-tabs
   padding: clamp(16px, 2vw, 28px);
 }
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields--contact {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
 }
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-fields--contact .customer-create-section { height: 100%; }
@@ -467,8 +469,394 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.customer-create-
   --form-group-icon: #8fc5f4;
   background: #182130;
 }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section { border-radius: 12px; box-shadow: 0 4px 14px #17324d0a; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-create-section > legend { border-radius: 11px 11px 0 0; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-einvoice-toggle { max-width: 360px; }
+.app-shell:not(.standalone-studio) .customer-create-page .customer-einvoice-section { align-content: start; }
+.customer-einvoice-summary { display: inline-flex; width: fit-content; margin-top: 7px; padding: 4px 8px; border: 1px solid #d7dfeb; border-radius: 999px; color: #53647b; background: #f5f7fa; font-size: 10px; line-height: 1.4; }
+.customer-einvoice-summary.is-registered { border-color: #b7e4cc; color: #137647; background: #eaf8f0; }
 @media (max-width: 520px) {
   .app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group {
     --form-group-inset: 14px;
   }
+}
+
+/* Shared record editor surface. Keep entity-specific layouts and behavior, but
+   use the same title, card, field, and action treatment across create/edit UI. */
+.app-shell:not(.standalone-studio) :is(
+  .customer-create-page-surface,
+  .sales-order-create-card,
+  .finance-form-dialog,
+  .ledger-account-create-modal,
+  .hr-employee-dialog,
+  .contracts-create,
+  .crm-create-modal,
+  .foreign-trade-create,
+  .warehouse-location-edit-modal,
+  .warehouse-location-form,
+  .payment-instrument-create,
+  .sales-campaign-create,
+  .direct-cash-budget-editor,
+  .budget-editor,
+  .credit-operation-page
+) {
+  --record-form-border: #d5dfeb;
+  --record-form-muted: #64748b;
+  --record-form-heading: #f5f8fc;
+  --record-form-radius: 8px;
+  border-color: var(--record-form-border);
+  border-radius: var(--record-form-radius);
+  box-shadow: 0 2px 10px #17324d08;
+}
+.app-shell:not(.standalone-studio) :is(
+  .customer-create-page-heading,
+  .sales-order-create-card > .panel-heading,
+  .finance-form-dialog-header,
+  .ledger-account-create-modal > header,
+  .hr-employee-form-heading,
+  .contracts-create > header,
+  .crm-create-modal .crm-create-heading,
+  .warehouse-location-edit-modal > .modal-head,
+  .warehouse-location-form > .panel-heading,
+  .payment-instrument-create > .panel-heading,
+  .sales-campaign-create > .panel-heading,
+  .direct-cash-budget-editor > .panel-heading,
+  .budget-editor > .panel-heading,
+  .credit-operation-page-heading
+) {
+  border-color: var(--record-form-border, #d5dfeb);
+  background: #fff;
+}
+.app-shell:not(.standalone-studio) :is(
+  .customer-create-page-title h1,
+  .sales-order-create-card > .panel-heading h2,
+  .finance-form-dialog-header h2,
+  .ledger-account-create-modal > header h2,
+  .hr-employee-form-heading h3,
+  .contracts-create > header h2,
+  .crm-create-modal .crm-create-heading h2,
+  .warehouse-location-edit-modal > .modal-head h2,
+  .direct-cash-budget-editor > .panel-heading h2,
+  .budget-editor > .panel-heading h2,
+  .credit-operation-page-heading h1
+) {
+  color: #0a192f;
+  font-family: Manrope, Inter, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -.025em;
+}
+.app-shell:not(.standalone-studio) :is(
+  .customer-create-page-title .eyebrow,
+  .sales-order-create-card > .panel-heading .eyebrow,
+  .finance-form-dialog-header .eyebrow,
+  .ledger-account-create-modal > header .eyebrow,
+  .hr-employee-form-heading > span,
+  .contracts-create .eyebrow,
+  .crm-create-modal .crm-create-heading .eyebrow,
+  .warehouse-location-edit-modal > .modal-head .eyebrow,
+  .credit-operation-page-heading .eyebrow
+) {
+  color: #1672b8;
+  font-weight: 750;
+  letter-spacing: .1em;
+}
+.app-shell:not(.standalone-studio) :is(
+  .customer-create-page-title p:last-child,
+  .finance-form-dialog-header p:last-child,
+  .ledger-account-create-modal > header p:last-child,
+  .hr-employee-form-heading p,
+  .crm-create-modal .crm-create-heading p:last-child,
+  .credit-operation-page-heading .muted
+) { color: var(--record-form-muted, #64748b); }
+.app-shell:not(.standalone-studio) :is(
+  .sales-order-create-card,
+  .credit-operation-page,
+  .finance-form-dialog .collection-form,
+  .ledger-account-create-modal .collection-form,
+  .hr-employee-dialog .hr-employee-create-form,
+  .contracts-create .collection-form,
+  .crm-create-modal .crm-form,
+  .foreign-trade-create form,
+  .warehouse-location-edit-modal,
+  .warehouse-location-form,
+  .payment-instrument-create form,
+  .sales-campaign-create form,
+  .direct-cash-budget-editor .collection-form,
+  .budget-editor .collection-form
+) :is(input, select, textarea) {
+  box-sizing: border-box;
+  border: 1px solid #c9d2df;
+  border-radius: 6px;
+  background-color: #fff;
+  color: #172b45;
+  box-shadow: none;
+}
+.app-shell:not(.standalone-studio) :is(
+  .sales-order-create-card,
+  .credit-operation-page,
+  .finance-form-dialog .collection-form,
+  .ledger-account-create-modal .collection-form,
+  .hr-employee-dialog .hr-employee-create-form,
+  .contracts-create .collection-form,
+  .crm-create-modal .crm-form,
+  .foreign-trade-create form,
+  .warehouse-location-edit-modal,
+  .warehouse-location-form,
+  .payment-instrument-create form,
+  .sales-campaign-create form,
+  .direct-cash-budget-editor .collection-form,
+  .budget-editor .collection-form
+) :is(input, select, textarea):focus-visible {
+  border-color: #287fc2;
+  outline: 0;
+  box-shadow: 0 0 0 3px #287fc21c;
+}
+.app-shell:not(.standalone-studio) :is(
+  .sales-order-create-card,
+  .credit-operation-page,
+  .finance-form-dialog .collection-form,
+  .ledger-account-create-modal .collection-form,
+  .hr-employee-dialog .hr-employee-create-form,
+  .contracts-create .collection-form,
+  .crm-create-modal .crm-form,
+  .foreign-trade-create form,
+  .warehouse-location-edit-modal,
+  .warehouse-location-form,
+  .payment-instrument-create form,
+  .sales-campaign-create form,
+  .direct-cash-budget-editor .collection-form,
+  .budget-editor .collection-form
+) label {
+  color: #24364d;
+  font-size: 11px;
+  font-weight: 600;
+}
+.app-shell:not(.standalone-studio) :is(
+  .sales-order-create-card,
+  .credit-operation-page,
+  .finance-form-dialog,
+  .ledger-account-create-modal,
+  .hr-employee-dialog,
+  .contracts-create,
+  .crm-create-modal,
+  .foreign-trade-create,
+  .warehouse-location-edit-modal,
+  .warehouse-location-form,
+  .payment-instrument-create,
+  .sales-campaign-create,
+  .direct-cash-budget-editor,
+  .budget-editor
+) :is(.panel, fieldset, .quote-line, .finance-form-helper) {
+  border-color: #d5dfeb;
+  border-radius: 8px;
+}
+.app-shell:not(.standalone-studio) :is(
+  .sales-order-create-card .modal-foot,
+  .finance-form-dialog .collection-form .modal-foot,
+  .ledger-account-create-modal .modal-foot,
+  .credit-operation-page .credit-operation-actions,
+  .foreign-trade-create .modal-foot
+) { border-color: #e2e8f0; }
+.app-shell:not(.standalone-studio) :is(
+  .sales-order-create-card,
+  .finance-form-dialog,
+  .ledger-account-create-modal,
+  .hr-employee-dialog,
+  .contracts-create,
+  .crm-create-modal,
+  .foreign-trade-create,
+  .warehouse-location-edit-modal,
+  .payment-instrument-create,
+  .sales-campaign-create
+) :is(.primary, button[type="submit"]) {
+  border-radius: 6px;
+  font-weight: 650;
+}
+.app-shell:not(.standalone-studio) :is(
+  .finance-form-dialog,
+  .ledger-account-create-modal,
+  .hr-employee-dialog,
+  .contracts-create,
+  .crm-create-modal,
+  .foreign-trade-create
+) :is(.primary, button[type="submit"]) {
+  border-color: #e5b52e;
+  background: #f6c23e;
+  color: #0a192f;
+}
+/* Modal based record editors share the same shell and field treatment, even in
+   feature modules that still keep their editor inside a dialog. */
+.app-shell:not(.standalone-studio) :is(.modal, dialog, [role="dialog"]):has(form) {
+  border-color: #d5dfeb;
+  border-radius: 8px;
+  box-shadow: 0 18px 56px #0b1d3426;
+}
+.app-shell:not(.standalone-studio) :is(.modal, dialog, [role="dialog"]):has(form) :is(.modal-head, .panel-heading) {
+  border-color: #e2e8f0;
+}
+.app-shell:not(.standalone-studio) :is(.modal, dialog, [role="dialog"]):has(form) form label {
+  color: #24364d;
+  font-size: 11px;
+  font-weight: 600;
+}
+.app-shell:not(.standalone-studio) :is(.modal, dialog, [role="dialog"]):has(form) form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]) {
+  box-sizing: border-box;
+  border: 1px solid #c9d2df;
+  border-radius: 6px;
+  background-color: #fff;
+  color: #172b45;
+}
+.app-shell:not(.standalone-studio) :is(.modal, dialog, [role="dialog"]):has(form) form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):focus-visible {
+  border-color: #287fc2;
+  outline: 0;
+  box-shadow: 0 0 0 3px #287fc21c;
+}
+.app-shell:not(.standalone-studio) :is(.modal, dialog, [role="dialog"]):has(form) form :is(.primary, button[type="submit"]) {
+  border-radius: 6px;
+  font-weight: 650;
+}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.modal, dialog, [role="dialog"]):has(form) {
+  border-color: #30394d;
+}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.modal, dialog, [role="dialog"]):has(form) :is(.modal-head, .panel-heading) {
+  border-color: #30394d;
+}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.modal, dialog, [role="dialog"]):has(form) form label {
+  color: #c7d1df;
+}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.modal, dialog, [role="dialog"]):has(form) form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]) {
+  border-color: #3a4559;
+  background-color: #111827;
+  color: #edf3fb;
+}
+/* Baseline for remaining feature-specific record forms so every editor keeps
+   consistent controls and a clear primary save action. */
+.app-shell:not(.standalone-studio) form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+  border-radius: 6px;
+}
+.app-shell:not(.standalone-studio) form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus-visible {
+  border-color: #287fc2;
+  outline: 0;
+  box-shadow: 0 0 0 3px #287fc21c;
+}
+.app-shell:not(.standalone-studio) form button[type="submit"] {
+  border-radius: 6px;
+  border-color: #e5b52e;
+  background: #f6c23e;
+  color: #0a192f;
+  font-weight: 650;
+}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(
+  .customer-create-page-surface,
+  .sales-order-create-card,
+  .finance-form-dialog,
+  .ledger-account-create-modal,
+  .hr-employee-dialog,
+  .contracts-create,
+  .crm-create-modal,
+  .foreign-trade-create,
+  .warehouse-location-edit-modal,
+  .warehouse-location-form,
+  .payment-instrument-create,
+  .sales-campaign-create,
+  .direct-cash-budget-editor,
+  .budget-editor,
+  .credit-operation-page
+) {
+  --record-form-border: #30394d;
+  --record-form-muted: #a9b7c9;
+  --record-form-heading: #20293a;
+  border-color: var(--record-form-border);
+  background-color: #171d2b;
+  color: #e6edf5;
+}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(
+  .customer-create-page-heading,
+  .sales-order-create-card > .panel-heading,
+  .finance-form-dialog-header,
+  .ledger-account-create-modal > header,
+  .hr-employee-form-heading,
+  .contracts-create > header,
+  .crm-create-modal .crm-create-heading,
+  .warehouse-location-edit-modal > .modal-head,
+  .warehouse-location-form > .panel-heading,
+  .payment-instrument-create > .panel-heading,
+  .sales-campaign-create > .panel-heading,
+  .direct-cash-budget-editor > .panel-heading,
+  .budget-editor > .panel-heading,
+  .credit-operation-page-heading
+) { border-color: var(--record-form-border); background: #171d2b; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(
+  .customer-create-page-title h1,
+  .sales-order-create-card > .panel-heading h2,
+  .finance-form-dialog-header h2,
+  .ledger-account-create-modal > header h2,
+  .hr-employee-form-heading h3,
+  .contracts-create > header h2,
+  .crm-create-modal .crm-create-heading h2,
+  .warehouse-location-edit-modal > .modal-head h2,
+  .direct-cash-budget-editor > .panel-heading h2,
+  .budget-editor > .panel-heading h2,
+  .credit-operation-page-heading h1
+) { color: #edf3fb; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(
+  .sales-order-create-card,
+  .credit-operation-page,
+  .finance-form-dialog .collection-form,
+  .ledger-account-create-modal .collection-form,
+  .hr-employee-dialog .hr-employee-create-form,
+  .contracts-create .collection-form,
+  .crm-create-modal .crm-form,
+  .foreign-trade-create form
+) :is(input, select, textarea) {
+  border-color: #3a4559;
+  background-color: #111827;
+  color: #edf3fb;
+}
+html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(
+  .sales-order-create-card,
+  .finance-form-dialog,
+  .ledger-account-create-modal,
+  .hr-employee-dialog,
+  .contracts-create,
+  .crm-create-modal,
+  .foreign-trade-create,
+  .warehouse-location-edit-modal,
+  .warehouse-location-form,
+  .payment-instrument-create,
+  .sales-campaign-create,
+  .direct-cash-budget-editor,
+  .budget-editor
+) :is(.modal-foot, .panel, fieldset, .quote-line) { border-color: #30394d; }
+
+/* Shared record forms use section headings and separators instead of nested cards. */
+#root .app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) :is(.customer-create-section, .inventory-create-section, .customer-edit-section),
+#root .app-shell:not(.standalone-studio) :is(.finance-account-record-fields, .ledger-account-record-fields) fieldset.erp-form-group {
+  gap: 14px;
+  padding: 0 0 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#root .app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) :is(.customer-create-section, .inventory-create-section, .customer-edit-section) > legend,
+#root .app-shell:not(.standalone-studio) :is(.finance-account-record-fields, .ledger-account-record-fields) fieldset.erp-form-group > legend {
+  width: 100%;
+  min-height: 42px;
+  margin: 0;
+  padding: 0 0 11px;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 0;
+  background: transparent;
+}
+html[data-theme="dark"] #root .app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) :is(.customer-create-section, .inventory-create-section, .customer-edit-section),
+html[data-theme="dark"] #root .app-shell:not(.standalone-studio) :is(.finance-account-record-fields, .ledger-account-record-fields) fieldset.erp-form-group {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-theme="dark"] #root .app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) :is(.customer-create-section, .inventory-create-section, .customer-edit-section) > legend,
+html[data-theme="dark"] #root .app-shell:not(.standalone-studio) :is(.finance-account-record-fields, .ledger-account-record-fields) fieldset.erp-form-group > legend {
+  border-color: #30394d;
+  background: transparent;
 }

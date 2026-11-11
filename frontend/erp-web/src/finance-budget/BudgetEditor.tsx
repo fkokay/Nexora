@@ -112,6 +112,8 @@ export default function BudgetEditor({
           <button
             type="button"
             className="secondary small-button"
+            data-line-add-shortcut
+            title="Ctrl+Shift+Enter ile satır ekle"
             onClick={onAddLine}
             disabled={controlsLocked}
           >

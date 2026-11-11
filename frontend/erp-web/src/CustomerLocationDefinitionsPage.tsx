@@ -5,6 +5,7 @@ import { CustomerLocationDefinitionsFeedback } from "./customer-location-definit
 import { CustomerLocationDefinitionsHeader } from "./customer-location-definitions/components/CustomerLocationDefinitionsHeader";
 import { DistrictSection } from "./customer-location-definitions/components/DistrictSection";
 import { ProvinceSection } from "./customer-location-definitions/components/ProvinceSection";
+import "./operational-definitions.css";
 type CustomerLocationDefinitions = AppTypes.CustomerLocationDefinitions;
 type CustomerLocationProvinceView = AppTypes.CustomerLocationProvinceView;
 type TurkeyDistrictOption = AppTypes.TurkeyDistrictOption;
@@ -16,6 +17,7 @@ export function CustomerLocationDefinitionsPage({ token }: { token: string }) {
     districts: [],
   });
   const [selectedProvinceId, setSelectedProvinceId] = useState(0);
+  const [provinceQuery, setProvinceQuery] = useState("");
   const [provinceEditingId, setProvinceEditingId] = useState<number | null>(
       null,
     ),
@@ -185,12 +187,18 @@ export function CustomerLocationDefinitionsPage({ token }: { token: string }) {
   const selectedProvince = definitions.provinces.find(
     (item) => item.id === selectedProvinceId,
   );
-  const visibleDistricts = definitions.districts.filter(
-    (item) =>
-      item.provinceId === selectedProvinceId &&
-      item.name
-        .toLocaleLowerCase("tr-TR")
-        .includes(districtQuery.toLocaleLowerCase("tr-TR")),
+  const selectedDistricts = definitions.districts.filter(
+    (item) => item.provinceId === selectedProvinceId,
+  );
+  const visibleDistricts = selectedDistricts.filter((item) =>
+    item.name
+      .toLocaleLowerCase("tr-TR")
+      .includes(districtQuery.toLocaleLowerCase("tr-TR")),
+  );
+  const visibleProvinces = definitions.provinces.filter((item) =>
+    item.name
+      .toLocaleLowerCase("tr-TR")
+      .includes(provinceQuery.toLocaleLowerCase("tr-TR")),
   );
   return (
     <div className="customer-location-definitions-page">
@@ -202,7 +210,8 @@ export function CustomerLocationDefinitionsPage({ token }: { token: string }) {
         onDismissNotice={() => setNotice("")}
       />
       <ProvinceSection
-        provinces={definitions.provinces}
+        provinces={visibleProvinces}
+        totalCount={definitions.provinces.length}
         districts={definitions.districts}
         selectedProvinceId={selectedProvinceId}
         loading={loading}
@@ -210,6 +219,8 @@ export function CustomerLocationDefinitionsPage({ token }: { token: string }) {
         editingId={provinceEditingId}
         name={provinceName}
         active={provinceActive}
+        query={provinceQuery}
+        onQueryChange={setProvinceQuery}
         onSelect={(id) => {
           setSelectedProvinceId(id);
           setDistrictProvinceId(String(id));
@@ -238,6 +249,7 @@ export function CustomerLocationDefinitionsPage({ token }: { token: string }) {
           selectedProvince ? `${selectedProvince.name} ilçeleri` : "İlçeler"
         }
         resultCount={visibleDistricts.length}
+        totalCount={selectedDistricts.length}
         query={districtQuery}
         onProvinceIdChange={setDistrictProvinceId}
         onNameChange={setDistrictName}

@@ -1,4 +1,5 @@
 import { ChevronRight } from "lucide-react";
+import type { CSSProperties } from "react";
 import type { ErpDashboardStockItem } from "../types";
 
 type Props = {
@@ -9,6 +10,7 @@ type Props = {
   canReadInventory: boolean;
   money: (value: number, code?: string) => string;
   onNavigate: (page: string) => void;
+  style?: CSSProperties;
 };
 const stockColors = ["#1E3A8A", "#F6C23E", "#16A36A", "#7895B8", "#A8B5C6"];
 
@@ -20,6 +22,7 @@ export default function DashboardStockDistribution({
   canReadInventory,
   money,
   onNavigate,
+  style,
 }: Props) {
   const stockTotal = items.reduce(
     (total, row) => total + Math.max(0, row.amountBase),
@@ -29,7 +32,7 @@ export default function DashboardStockDistribution({
     ? `conic-gradient(${items.map((_, index) => `${stockColors[index % stockColors.length]} ${(items.slice(0, index).reduce((sum, item) => sum + Math.max(0, item.amountBase), 0) / stockTotal) * 100}% ${(items.slice(0, index + 1).reduce((sum, item) => sum + Math.max(0, item.amountBase), 0) / stockTotal) * 100}%`).join(",")})`
     : undefined;
   return (
-    <section className="erp-home-panel dashboard-reference-stock">
+    <section className="erp-home-panel dashboard-reference-stock" style={style}>
       <header>
         <div>
           <h2>Stok değer dağılımı</h2>

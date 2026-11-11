@@ -32,7 +32,7 @@ export function useWorkspaceSearch({ pages, quickLinks, locale, token, tenant, p
       kind: 'customer' as const,
       label: customer.name,
       description: `${customer.code} · ${customer.type === 'Supplier' ? 'Tedarikçi' : customer.type === 'Both' ? 'Müşteri / Tedarikçi' : 'Müşteri'}`,
-      query: query.trim()
+      query: customer.code
     }))
     return [...matchingCustomers, ...matchingPages].slice(0, 10)
   }, [pages, quickLinks, customers, query, normalizedQuery, locale])
@@ -72,6 +72,8 @@ export function useWorkspaceSearch({ pages, quickLinks, locale, token, tenant, p
     if (result.kind === 'customer') {
       setCustomerSearch(result.query || result.label)
       setPage('customers')
+    } else if (result.kind === 'custom-menu' && result.page) {
+      setPage(result.page, result.label)
     } else if (result.selection && result.page) {
       onSelectModule(result.selection)
       setPage(result.page, result.label)

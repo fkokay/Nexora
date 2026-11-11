@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type * as AppTypes from "./erp-types";
 import { api, localDateString } from "./erpApi";
 import { X } from "lucide-react";
@@ -13,10 +14,18 @@ type SalesInvoiceCustomFieldDefinition =
 type SalesInvoiceCustomFieldRevision = AppTypes.SalesInvoiceCustomFieldRevision;
 type SalesInvoiceCustomFieldValue = AppTypes.SalesInvoiceCustomFieldValue;
 type SalesInvoiceDetail = AppTypes.SalesInvoiceDetail;
+type AccountingTaxBreakdownLine = AppTypes.AccountingTaxBreakdownLine;
 type SalesReturnSummary = AppTypes.SalesReturnSummary;
 type StockItemUnitConversion = AppTypes.StockItemUnitConversion;
 type Warehouse = AppTypes.Warehouse;
 type WarehouseLocationOption = AppTypes.WarehouseLocationOption;
+
+function readInvoiceTaxBreakdown(value?: string): AccountingTaxBreakdownLine[] {
+  try {
+    const parsed: unknown = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed as AccountingTaxBreakdownLine[] : [];
+  } catch { return []; }
+}
 
 export function SalesInvoiceModal({
   invoiceId,
@@ -33,6 +42,7 @@ export function SalesInvoiceModal({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const [detailTab, setDetailTab] = useState<"information" | "transactions">("information");
   const [invoice, setInvoice] = useState<SalesInvoiceDetail | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -573,9 +583,9 @@ export function SalesInvoiceModal({
           line.salesInvoiceLineId,
           (returnedByLine.get(line.salesInvoiceLineId) || 0) + line.quantity,
         );
-  return (
+  return createPortal((
     <div
-      className="modal-backdrop"
+      className="modal-backdrop sales-invoice-detail-backdrop"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -583,12 +593,10 @@ export function SalesInvoiceModal({
       <div className="modal ledger-modal invoice-detail-modal">
         <div className="modal-head">
           <div>
-            <p className="eyebrow">
-              SATIŞ FATURASI · {invoice?.code || "YÜKLENİYOR"}
-            </p>
-            <h2>{invoice?.customerName || "Fatura detayı"}</h2>
+            <p className="eyebrow">SATIŞ FATURASI DETAYI</p>
+            <h2>Fatura Detay</h2>
             <p className="invoice-detail-subtitle">
-              Fatura belgesi ve cari hareket özeti
+              Fatura No: <b>{invoice?.code || "Yükleniyor…"}</b> · {invoice?.customerName || ""}{invoice?.invoiceType ? ` · ${invoice.invoiceType === "Retail" ? "Perakende · KDV dâhil" : "Toptan · KDV hariç"}` : ""}
             </p>
           </div>
           <button
@@ -616,7 +624,13 @@ export function SalesInvoiceModal({
           </div>
         )}
         {invoice && (
+          <>
+          <nav className="sales-quote-detail-tabs invoice-detail-tabs" role="tablist" aria-label="Fatura detay bölümleri">
+            <button type="button" role="tab" aria-selected={detailTab === "information"} className={detailTab === "information" ? "active" : ""} onClick={() => setDetailTab("information")}>Fatura Bilgileri</button>
+            <button type="button" role="tab" aria-selected={detailTab === "transactions"} className={detailTab === "transactions" ? "active" : ""} onClick={() => setDetailTab("transactions")}>Tahsilat ve İadeler<span>{invoice.collections.length + invoice.returns.length}</span></button>
+          </nav>
           <div className="invoice-detail-layout">
+            {detailTab === "information" && <>
             <section
               className="invoice-payment-overview"
               aria-label="Fatura tutar özeti"
@@ -654,6 +668,13 @@ export function SalesInvoiceModal({
                 {invoice.status === "Posted" ? "Kesildi" : "İptal"}
               </span>
             </section>
+            {(invoice.accountingProfileCode || invoice.taxBreakdownJson) && (() => {
+              const taxes = readInvoiceTaxBreakdown(invoice.taxBreakdownJson);
+              return <section className="invoice-tax-breakdown" aria-label="Mevzuat profili ve vergi dökümü">
+                <div><b>Vergi mevzuatı</b><span>{invoice.accountingProfileCode || "Profil belirtilmemiş"}</span></div>
+                {taxes.length > 0 && <div className="invoice-tax-breakdown-list">{taxes.map((tax, index) => <span key={`${tax.code}-${index}`}><b>{tax.name}</b><small>{tax.code} · %{tax.rate} · {tax.treatment === "Withholding" ? "Tevkifat" : "Ek vergi"}</small><strong>{tax.amount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {invoice.currencyCode}</strong></span>)}</div>}
+              </section>;
+            })()}
             {invoice &&
               (invoice.customFields?.length > 0 || role === "TenantAdmin" || role === "TenantDeveloper") && (
                 <section className="panel invoice-custom-fields">
@@ -970,6 +991,7 @@ export function SalesInvoiceModal({
                   ))}
               </dl>
             </div>
+            <h3 className="sales-quote-section-title">Fatura Satırları</h3>
             <div className="ledger-list invoice-lines-wrap">
               <table className="customer-table quote-detail-table">
                 <thead>
@@ -1025,6 +1047,15 @@ export function SalesInvoiceModal({
                 </tbody>
               </table>
             </div>
+            <h3 className="sales-quote-section-title sales-quote-totals-title">Toplamlar</h3>
+            <section className="sales-quote-totals-panel">
+              <div><span>Ara toplam</span><b>{invoice.subtotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {invoice.currencyCode}</b></div>
+              <div><span>Toplam iskonto</span><b>{invoice.discountTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {invoice.currencyCode}</b></div>
+              <div><span>Toplam KDV</span><b>{invoice.taxTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {invoice.currencyCode}</b></div>
+              <div className="grand-total"><span>Genel toplam</span><b>{invoice.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {invoice.currencyCode}</b></div>
+            </section>
+            </>}
+            {detailTab === "transactions" && <>
             <div className="list-toolbar invoice-collections-heading">
               <div>
                 <h2>Tahsilatlar</h2>
@@ -1449,17 +1480,34 @@ export function SalesInvoiceModal({
                 </div>
               </form>
             )}
+            </>}
+            {detailTab === "information" && <>
             <div className="invoice-meta invoice-detail-meta">
               <span>
                 Fatura tarihi {invoice.invoiceDate} · Sipariş{" "}
                 {invoice.orderCode}
               </span>
+              {(invoice.eDocumentScenario || invoice.eDocumentRecipientAlias || invoice.eCommercePurchaseUrl || invoice.deliveryCarrierName || invoice.eCommercePaymentMeans || invoice.eCommercePaymentType) && (
+                <span>
+                  E-belge {invoice.eDocumentScenario || "senaryo yok"} · {invoice.eDocumentTypeCode || "tür yok"}
+                  {invoice.eDocumentRecipientAlias ? ` · Alıcı etiketi ${invoice.eDocumentRecipientAlias}` : ""}
+                  {invoice.eCommercePurchaseUrl ? ` · Satın alma ${invoice.eCommercePurchaseUrl}` : ""}
+                  {invoice.eCommercePaymentAgentName ? ` · Ödeme aracısı ${invoice.eCommercePaymentAgentName}` : ""}
+                  {invoice.eCommercePaymentType ? ` · Ödeme türü ${invoice.eCommercePaymentType}` : ""}
+                  {invoice.eCommercePaymentMeans ? ` · Yöntem ${invoice.eCommercePaymentMeans}` : ""}
+                  {invoice.eCommercePaymentDate ? ` · Ödeme ${invoice.eCommercePaymentDate}` : ""}
+                  {invoice.eCommercePaymentDueDate ? ` · Son ödeme ${invoice.eCommercePaymentDueDate}` : ""}
+                  {invoice.deliveryCarrierName ? ` · Taşıyıcı ${invoice.deliveryCarrierName}` : ""}
+                  {invoice.deliverySentAt ? ` · Sevk ${invoice.deliverySentAt}` : ""}
+                </span>
+              )}
               <span>
                 {invoice.ledgerEntryId
                   ? "Cari borç kaydı oluşturuldu"
                   : "Cari hareketi yok"}
               </span>
             </div>
+            </>}
             <div className="modal-foot">
               <span>
                 Fatura iptali için tahsilat ve iadeleri önce iptal edin.
@@ -1487,14 +1535,12 @@ export function SalesInvoiceModal({
                         : "Faturayı iptal et"}
                   </button>
                 )}
-                <button className="secondary" onClick={onClose}>
-                  Kapat
-                </button>
               </div>
             </div>
           </div>
+          </>
         )}
       </div>
     </div>
-  );
+  ), document.body);
 }

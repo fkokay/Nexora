@@ -9,7 +9,13 @@ type PermissionDefinition = AppTypes.PermissionDefinition;
 type PermissionMember = AppTypes.PermissionMember;
 type PermissionRule = AppTypes.PermissionRule;
 
-export function AccessControlPage({ token }: { token: string }) {
+export function AccessControlPage({
+  token,
+  section = "all",
+}: {
+  token: string;
+  section?: "all" | "members" | "policies";
+}) {
   const attributes = [
     "subject.userId",
     "subject.role",
@@ -333,7 +339,7 @@ export function AccessControlPage({ token }: { token: string }) {
           {notice}
         </div>
       )}
-      <AccessMembersPanel
+      {(section === "all" || section === "members") && <AccessMembersPanel
         members={members}
         selectedMember={selectedMember}
         candidate={candidate}
@@ -354,8 +360,8 @@ export function AccessControlPage({ token }: { token: string }) {
         changeMemberRole={changeMemberRole}
         removeMember={removeMember}
         selectMember={setSelectedMemberId}
-      />
-      <PermissionRuleForm
+      />}
+      {(section === "all" || section === "policies") && <PermissionRuleForm
         attributes={attributes}
         definitions={definitions}
         members={members}
@@ -379,8 +385,8 @@ export function AccessControlPage({ token }: { token: string }) {
         setAttributeValue={setAttributeValue}
         busy={busy}
         save={save}
-      />
-      <PermissionRulesPanel
+      />}
+      {(section === "all" || section === "policies") && <PermissionRulesPanel
         rules={rules}
         visibleRules={visibleRules}
         selectedRule={selectedRule}
@@ -390,7 +396,7 @@ export function AccessControlPage({ token }: { token: string }) {
         busy={busy}
         setSelectedRuleId={setSelectedRuleId}
         remove={remove}
-      />
+      />}
     </div>
   );
 }

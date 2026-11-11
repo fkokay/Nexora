@@ -844,7 +844,25 @@ internal static class TenantCustomizationPackageEndpoints
         mappedJson = json;
         error = null;
         List<TenantScreenViewEndpoints.ScreenViewFieldLayout>? fields;
-        try { fields = JsonSerializer.Deserialize<List<TenantScreenViewEndpoints.ScreenViewFieldLayout>>(json, JsonOptions); }
+        JsonElement? pageSettings = null;
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            var fieldsElement = root;
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                if (!root.TryGetProperty("fields", out fieldsElement))
+                {
+                    error = "Ekran alanları okunamadı.";
+                    return false;
+                }
+                if (root.TryGetProperty("pageSettings", out var settingsElement)) pageSettings = settingsElement.Clone();
+            }
+            fields = fieldsElement.ValueKind == JsonValueKind.Array
+                ? JsonSerializer.Deserialize<List<TenantScreenViewEndpoints.ScreenViewFieldLayout>>(fieldsElement.GetRawText(), JsonOptions)
+                : null;
+        }
         catch (JsonException)
         {
             error = "Ekran alanları okunamadı.";
@@ -868,7 +886,9 @@ internal static class TenantCustomizationPackageEndpoints
             }
             mapped.Add(field with { Key = $"custom:{destinationId:D}" });
         }
-        mappedJson = JsonSerializer.Serialize(mapped, JsonOptions);
+        mappedJson = pageSettings is { } settings
+            ? JsonSerializer.Serialize(new { fields = mapped, pageSettings = settings }, JsonOptions)
+            : JsonSerializer.Serialize(mapped, JsonOptions);
         return true;
     }
 

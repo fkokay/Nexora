@@ -1,0 +1,13 @@
+services:
+  integration-host:
+    environment:
+      Integrations__tr.e-document.submit__Enabled: ${TRENDYOL_EINVOICE_ENABLED:-false}
+      Integrations__tr.e-document.submit__Provider: trendyol.e-invoice
+      Integrations__tr.e-document.submit__Environment: stage
+      Integrations__tr.e-document.submit__AllowedTenantId: ${TRENDYOL_EINVOICE_ALLOWED_TENANT_ID:-}
+      Integrations__tr.e-document.submit__CompanyId: ${TRENDYOL_EINVOICE_COMPANY_ID:-0}
+      Integrations__tr.e-document.submit__UserId: ${TRENDYOL_EINVOICE_USER_ID:-0}
+      Integrations__tr.e-document.submit__Source: ${TRENDYOL_EINVOICE_SOURCE:-}
+      Integrations__tr.e-document.submit__AutoInvoiceId: "true"
+      Integrations__tr.e-document.submit__CredentialSecretName: trendyol-e-faturam
+      Integrations__tr.e-document.submit__UnitCodeMappings__EA: ${TRENDYOL_EINVOICE_UNIT_EA:-}

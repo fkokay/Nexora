@@ -5,6 +5,7 @@ import type { FxRevaluationVoucherGridProps } from "./types";
 export default function FxRevaluationVoucherGrid({
   token,
   vouchers,
+  emptyMessage,
   money,
   onOpen,
 }: FxRevaluationVoucherGridProps) {
@@ -49,7 +50,7 @@ export default function FxRevaluationVoucherGrid({
             {vouchers.length === 0 && (
               <tr>
                 <td colSpan={6} className="table-empty">
-                  Henüz değerleme fişi oluşturulmadı.
+                  {emptyMessage}
                 </td>
               </tr>
             )}

@@ -1,12 +1,13 @@
 import { useRef, type ReactNode } from "react";
-import { Search, X } from "lucide-react";
+import { Home, X } from "lucide-react";
 import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
 export type Locale = "tr" | "en";
 export type GlobalSearchResult = {
-  kind?: "page" | "customer";
+  kind?: "page" | "customer" | "custom-menu";
   label: string;
   description: string;
   page?: string;
+  parentPage?: string;
   query?: string;
   selection?: ModuleMenuSelection;
 };
@@ -64,15 +65,15 @@ export function WorkspaceTabs({
               aria-label={
                 tab.id === "dashboard"
                   ? locale === "en"
-                    ? "Module search"
-                    : "Modül arama"
+                    ? "Home"
+                    : "Ana sayfa"
                   : undefined
               }
               title={
                 tab.id === "dashboard"
                   ? locale === "en"
-                    ? "Module search"
-                    : "Modül arama"
+                    ? "Home"
+                    : "Ana sayfa"
                   : undefined
               }
               aria-selected={
@@ -84,7 +85,7 @@ export function WorkspaceTabs({
               }
             >
               {tab.id === "dashboard" ? (
-                <Search size={17} aria-hidden="true" />
+                <Home size={17} aria-hidden="true" />
               ) : (
                 <>
                   <span>{tab.label}</span>

@@ -1,0 +1,84 @@
+.inventory-movements-page { display: grid; gap: 20px; padding: 28px; }
+.inventory-movements-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.inventory-movements-heading h1 { margin: 4px 0 6px; font-size: clamp(25px, 3vw, 34px); }
+.inventory-movements-heading p:last-child { margin: 0; color: var(--muted, #65738a); }
+.inventory-movements-heading-icon { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 15px; color: #2563eb; background: #eff6ff; }
+.inventory-movements-filters { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(220px, .6fr) auto; align-items: end; gap: 14px; padding: 18px; border: 1px solid var(--border, #e2e8f0); border-radius: 14px; background: var(--surface, #fff); }
+.inventory-movements-filters label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 650; }
+.inventory-movements-filters select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--border, #dbe2ec); border-radius: 9px; background: var(--surface, #fff); color: inherit; }
+.inventory-movements-refresh { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; }
+.inventory-movements-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.inventory-movements-summary > div { display: grid; gap: 8px; min-width: 0; padding: 16px; border: 1px solid var(--border, #e2e8f0); border-radius: 12px; background: var(--surface, #fff); }
+.inventory-movements-summary span { color: var(--muted, #65738a); font-size: 12px; }
+.inventory-movements-summary strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; }
+.inventory-movements-table-card { overflow: hidden; border: 1px solid var(--border, #e2e8f0); border-radius: 14px; background: var(--surface, #fff); }
+.inventory-movements-table-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 18px 20px; }
+.inventory-movements-table-heading h2 { margin: 0 0 5px; font-size: 17px; }
+.inventory-movements-table-heading span { color: var(--muted, #65738a); font-size: 13px; }
+.inventory-movements-table th, .inventory-movements-table td { white-space: nowrap; }
+.inventory-movement-direction { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 20px; font-size: 12px; font-weight: 650; }
+.inventory-movements-summary .is-receipt, .inventory-movement-direction.is-receipt { color: #15803d; }
+.inventory-movements-summary .is-issue, .inventory-movement-direction.is-issue { color: #b45309; }
+.inventory-movement-direction.is-receipt { background: #f0fdf4; }
+.inventory-movement-direction.is-issue { background: #fff7ed; }
+.inventory-movement-quantity { font-weight: 650; }
+.inventory-movements-empty { padding: 38px 18px !important; text-align: center; color: var(--muted, #65738a); }
+@media (max-width: 760px) { .inventory-movements-page { padding: 18px 12px; } .inventory-movements-filters { grid-template-columns: 1fr; } .inventory-movements-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .inventory-movements-refresh { justify-content: center; } }
+
+/* Refined stock movement screen */
+.inventory-movements-page { gap: 14px; padding: 20px 24px 32px; }
+.inventory-movements-heading { min-height: 96px; justify-content: flex-start; gap: 14px; padding: 15px 18px; border: 1px solid #dfe5ef; border-left: 4px solid #3478ed; border-radius: 14px; background: #fff; box-shadow: 0 4px 14px #1b2d4b08; }
+.inventory-movements-heading-icon { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 12px; background: #eaf2ff; color: #246be0; }
+.inventory-movements-heading .eyebrow { margin: 0 0 4px; color: #3474e4; font-size: 10px; letter-spacing: .12em; }
+.inventory-movements-heading h1 { margin: 0 0 3px; color: #16213b; font-size: 25px; letter-spacing: -.04em; }
+.inventory-movements-heading p:last-child { color: #64738c; font-size: 12px; }
+.inventory-movements-filters { grid-template-columns: minmax(260px, 1.3fr) minmax(220px, .75fr) auto; gap: 12px; padding: 14px; border-color: #dfe5ef; border-radius: 14px; box-shadow: 0 4px 14px #1b2d4b08; }
+.inventory-movements-filter-heading { display: flex; grid-column: 1 / -1; align-items: center; gap: 10px; padding: 0 2px 11px; border-bottom: 1px solid #edf0f5; }
+.inventory-movements-filter-heading > span { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 9px; background: #eaf2ff; color: #246be0; }
+.inventory-movements-filter-heading > div { display: grid; gap: 3px; }
+.inventory-movements-filter-heading strong { color: #1e2b46; font-size: 13px; }
+.inventory-movements-filter-heading small { color: #75839a; font-size: 11px; }
+.inventory-movements-filters label { margin-bottom: 6px; color: #53627a; font-size: 11px; }
+.inventory-movements-filters select,
+.inventory-movements-filters .record-picker-trigger { min-height: 42px; border-color: #d8e0ec; border-radius: 9px; }
+.inventory-movements-filters select:focus,
+.inventory-movements-filters .record-picker-trigger:focus-visible { border-color: #6c9af0; outline: 3px solid #3478ed1a; }
+.inventory-movements-refresh { min-height: 42px; border-radius: 9px; }
+.inventory-movements-summary { gap: 10px; }
+.inventory-movements-summary > div { min-height: 82px; align-content: center; padding: 13px 15px; border-color: #dfe5ef; border-radius: 12px; box-shadow: 0 4px 14px #1b2d4b08; }
+.inventory-movements-summary span { font-size: 10px; }
+.inventory-movements-summary strong { color: #1d2b47; font-size: 17px; }
+.inventory-movements-summary .is-receipt { color: #16845a; }
+.inventory-movements-summary .is-issue { color: #c1761a; }
+.inventory-movements-table-card { border-color: #dfe5ef; border-radius: 14px; box-shadow: 0 4px 16px #1b2d4b08; }
+.inventory-movements-table-heading { min-height: 66px; padding: 14px 18px; }
+.inventory-movements-table-heading h2 { color: #1b2944; font-size: 15px; }
+.inventory-movements-table-heading span { font-size: 11px; }
+.inventory-movements-table-heading > span { padding: 4px 8px; border-radius: 999px; background: #eef4ff; color: #2d6bc7; font-weight: 700; }
+.inventory-movements-table th { height: 42px; background: #f4f7fb; color: #50617b; font-size: 10px; }
+.inventory-movements-table td { height: 46px; color: #34435d; font-size: 11px; }
+.inventory-movement-direction { padding: 5px 9px; border: 1px solid transparent; border-radius: 7px; font-size: 10px; }
+.inventory-movement-direction.is-receipt { border-color: #d7f0e1; background: #effaf3; }
+.inventory-movement-direction.is-issue { border-color: #f6e4cb; background: #fff7ed; }
+.inventory-movement-quantity { color: #1d2b47; font-variant-numeric: tabular-nums; }
+.inventory-movements-empty { height: 136px; padding: 18px !important; }
+html[data-theme="dark"] .inventory-movements-heading,
+html[data-theme="dark"] .inventory-movements-filters,
+html[data-theme="dark"] .inventory-movements-summary > div,
+html[data-theme="dark"] .inventory-movements-table-card { border-color: #35435b; background: #1a263a; }
+html[data-theme="dark"] .inventory-movements-heading h1,
+html[data-theme="dark"] .inventory-movements-summary strong,
+html[data-theme="dark"] .inventory-movements-table-heading h2 { color: #edf2fa; }
+html[data-theme="dark"] .inventory-movements-filter-heading { border-color: #35435b; }
+html[data-theme="dark"] .inventory-movements-filter-heading strong { color: #e5ebf5; }
+html[data-theme="dark"] .inventory-movements-filters select,
+html[data-theme="dark"] .inventory-movements-filters .record-picker-trigger { border-color: #46556e; background: #111c2e; color: #e4eaf3; }
+html[data-theme="dark"] .inventory-movements-table th { background: #222f45; color: #d6deeb; }
+html[data-theme="dark"] .inventory-movements-table td { color: #c3cde0; }
+@media (max-width: 760px) {
+  .inventory-movements-page { gap: 11px; padding: 14px 12px 24px; }
+  .inventory-movements-heading { min-height: 0; gap: 11px; padding: 13px; }
+  .inventory-movements-heading-icon { width: 44px; height: 44px; flex-basis: 44px; }
+  .inventory-movements-heading h1 { font-size: 21px; }
+  .inventory-movements-summary > div { min-height: 72px; padding: 10px; }
+}

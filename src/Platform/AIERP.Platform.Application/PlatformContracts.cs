@@ -13,12 +13,21 @@ public sealed record CustomerView(Guid Id, string Code, string Name, Counterpart
     bool IsActive, DateTimeOffset CreatedAt, byte[] RowVersion, Guid? GroupId = null, string? GroupName = null,
     string CurrencyCode = "TRY", decimal? RiskLimit = null, int PaymentTermDays = 0,
     string? IdentityNumber = null, string? TaxOffice = null, Guid? ParentCompanyId = null,
-    string? ParentCompanyName = null, int SubsidiaryCount = 0, IReadOnlyDictionary<string, string>? CustomFields = null);
+    string? ParentCompanyName = null, int SubsidiaryCount = 0, IReadOnlyDictionary<string, string>? CustomFields = null,
+    bool IsEInvoiceRegistered = false, string? EInvoiceRecipientAlias = null,
+    string? Phone = null, string? Email = null, string? Website = null, string? ContactName = null,
+    string? ContactPhone = null, string? ContactEmail = null, string? PriceListCode = null,
+    string? ReceivableAccountCode = null, string? PayableAccountCode = null, string? BankName = null,
+    string? BankBranchCode = null, string? Iban = null);
 public sealed record CustomerWriteRequest(string Code, string Name, CounterpartyType Type, string? TaxNumber,
     bool IsActive = true, byte[]? RowVersion = null, Guid? GroupId = null, string CurrencyCode = "TRY",
     decimal? RiskLimit = null, int PaymentTermDays = 0, IReadOnlyDictionary<string, string?>? CustomFields = null,
     string? IdentityNumber = null, string? TaxOffice = null, CustomerAddressWriteRequest? Address = null,
-    Guid? ParentCompanyId = null);
+    Guid? ParentCompanyId = null, bool IsEInvoiceRegistered = false, string? EInvoiceRecipientAlias = null,
+    string? Phone = null, string? Email = null, string? Website = null, string? ContactName = null,
+    string? ContactPhone = null, string? ContactEmail = null, string? PriceListCode = null,
+    string? ReceivableAccountCode = null, string? PayableAccountCode = null, string? BankName = null,
+    string? BankBranchCode = null, string? Iban = null);
 public sealed record CustomerCompanyOption(Guid Id, string Code, string Name);
 public sealed record CustomerPage(IReadOnlyList<CustomerView> Items, int Page, int PageSize, int TotalCount);
 public sealed record CustomerGroupView(Guid Id, string Code, string Name, bool IsActive);
@@ -56,7 +65,16 @@ public sealed record CustomerCustomFieldValuesWriteRequest(IReadOnlyDictionary<s
 public sealed record CustomerCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record StockItemView(Guid Id, string Code, string Name, string? Barcode, string UnitCode, string? Category,
     decimal MinimumStock, bool IsActive, DateTimeOffset CreatedAt, byte[] RowVersion, InventoryTrackingMode TrackingMode = InventoryTrackingMode.None,
-    int ProcurementLeadTimeDays = 0, int ManufacturingLeadTimeDays = 0);
+    int ProcurementLeadTimeDays = 0, int ManufacturingLeadTimeDays = 0, decimal? PurchaseListPrice = null,
+    decimal? SalesListPrice = null, string PriceCurrencyCode = "TRY", decimal PurchaseVatPercent = 20m,
+    decimal SalesVatPercent = 20m, decimal ExciseTaxPercent = 0m, decimal CommunicationTaxPercent = 0m,
+    decimal PurchaseDiscountPercent = 0m, decimal SalesDiscountPercent = 0m, decimal? MaximumStock = null,
+    decimal? ReorderPoint = null, decimal SafetyStock = 0m, decimal? NetWeight = null, decimal? GrossWeight = null,
+    decimal? Length = null, decimal? Width = null, decimal? Height = null, string? ProductImageUrl = null,
+    string? PurchaseAccountCode = null, string? SalesAccountCode = null, string? CostAccountCode = null, string? MarketplaceProductId = null,
+    Guid? ParentStockItemId = null, bool IsVariantParent = false, decimal WithholdingTaxPercent = 0m, decimal StampTaxPercent = 0m);
+public sealed record StockItemVariantWriteRequest(string Code, string Name, string? Barcode, IReadOnlyDictionary<string, string> Attributes);
+public sealed record StockItemVariantView(Guid Id, string Code, string Name, string? Barcode, IReadOnlyDictionary<string, string> Attributes, bool IsActive);
 public sealed record InventoryTrackingAllocationRequest(string TrackingCode, decimal Quantity, DateOnly? ExpiryDate = null);
 public sealed record InventoryTrackingAllocationView(string TrackingCode, decimal Quantity, DateOnly? ExpiryDate);
 public sealed record StockItemUnitConversionView(Guid Id, string UnitCode, decimal FactorToBase, bool IsActive);
@@ -75,9 +93,24 @@ public sealed record StockCustomFieldValuesWriteRequest(IReadOnlyDictionary<stri
 public sealed record StockCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record StockItemWriteRequest(string Code, string Name, string? Barcode, string UnitCode = "EA",
     string? Category = null, decimal MinimumStock = 0, bool IsActive = true, IReadOnlyDictionary<string, string?>? CustomFields = null,
-    InventoryTrackingMode TrackingMode = InventoryTrackingMode.None, int ProcurementLeadTimeDays = 0, int ManufacturingLeadTimeDays = 0);
+    InventoryTrackingMode TrackingMode = InventoryTrackingMode.None, int ProcurementLeadTimeDays = 0, int ManufacturingLeadTimeDays = 0,
+    decimal? PurchaseListPrice = null, decimal? SalesListPrice = null, string PriceCurrencyCode = "TRY",
+    decimal PurchaseVatPercent = 20m, decimal SalesVatPercent = 20m, decimal ExciseTaxPercent = 0m,
+    decimal CommunicationTaxPercent = 0m, decimal PurchaseDiscountPercent = 0m, decimal SalesDiscountPercent = 0m,
+    decimal? MaximumStock = null, decimal? ReorderPoint = null, decimal SafetyStock = 0m, decimal? NetWeight = null,
+    decimal? GrossWeight = null, decimal? Length = null, decimal? Width = null, decimal? Height = null,
+    string? ProductImageUrl = null, string? PurchaseAccountCode = null, string? SalesAccountCode = null,
+    string? CostAccountCode = null, string? MarketplaceProductId = null, IReadOnlyList<StockItemVariantWriteRequest>? Variants = null,
+    decimal WithholdingTaxPercent = 0m, decimal StampTaxPercent = 0m);
 public sealed record StockItemUpdateRequest(string Code, string Name, string? Barcode, string UnitCode, string? Category, decimal MinimumStock, byte[]? RowVersion,
-    InventoryTrackingMode? TrackingMode = null, int ProcurementLeadTimeDays = 0, int ManufacturingLeadTimeDays = 0);
+    InventoryTrackingMode? TrackingMode = null, int ProcurementLeadTimeDays = 0, int ManufacturingLeadTimeDays = 0,
+    decimal? PurchaseListPrice = null, decimal? SalesListPrice = null, string PriceCurrencyCode = "TRY",
+    decimal PurchaseVatPercent = 20m, decimal SalesVatPercent = 20m, decimal ExciseTaxPercent = 0m,
+    decimal CommunicationTaxPercent = 0m, decimal PurchaseDiscountPercent = 0m, decimal SalesDiscountPercent = 0m,
+    decimal? MaximumStock = null, decimal? ReorderPoint = null, decimal SafetyStock = 0m, decimal? NetWeight = null,
+    decimal? GrossWeight = null, decimal? Length = null, decimal? Width = null, decimal? Height = null,
+    string? ProductImageUrl = null, string? PurchaseAccountCode = null, string? SalesAccountCode = null,
+    string? CostAccountCode = null, string? MarketplaceProductId = null, decimal WithholdingTaxPercent = 0m, decimal StampTaxPercent = 0m);
 public sealed record StockItemStateChangeRequest(byte[]? RowVersion, bool Confirmation);
 public sealed record WarehouseView(Guid Id, string Code, string Name, bool IsActive, byte[] RowVersion);
 public sealed record WarehouseLocationView(Guid Id, Guid WarehouseId, string Code, string Name, Guid? ParentLocationId, bool IsActive, byte[] RowVersion);
@@ -106,7 +139,8 @@ public sealed record InventoryBalancePage(IReadOnlyList<InventoryBalancePageItem
 public sealed record InventoryTransactionView(Guid Id, DateOnly EntryDate, InventoryDirection Direction,
     decimal Quantity, string Description, Guid? ReversalOfId, bool IsReversal, bool HasReversal, decimal? UnitCostBase = null,
     decimal? EnteredQuantity = null, string? EnteredUnitCode = null, IReadOnlyList<InventoryTrackingAllocationView>? Tracking = null,
-    Guid? StorageLocationId = null, string? StorageLocationCode = null, string? StorageLocationName = null);
+    Guid? StorageLocationId = null, string? StorageLocationCode = null, string? StorageLocationName = null,
+    Guid? WarehouseId = null, string? WarehouseCode = null, string? WarehouseName = null);
 public sealed record InventoryTransactionWriteRequest(DateOnly EntryDate, InventoryDirection Direction,
     decimal Quantity, string Description, decimal? UnitCostBase = null, string? UnitCode = null,
     IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null, Guid? StorageLocationId = null);
@@ -136,10 +170,11 @@ public sealed record StockItemPage(IReadOnlyList<StockItemView> Items, int Page,
 public sealed record InventoryTransactionPage(IReadOnlyList<InventoryTransactionView> Items, int Page, int PageSize, int TotalCount);
 public sealed record WarehouseLocationReconciliationItemView(Guid StockItemId, string StockItemCode, string StockItemName,
     string UnitCode, decimal WarehouseQuantity, decimal LocatedQuantity, decimal UnlocatedQuantity);
-public sealed record SalesQuoteLineWriteRequest(Guid StockItemId, decimal Quantity, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20, string? UnitCode = null);
-public sealed record SalesQuoteWriteRequest(string Code, Guid CustomerId, DateOnly QuoteDate, DateOnly ValidUntil,
+public sealed record SalesQuoteLineWriteRequest(Guid StockItemId, decimal Quantity, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20, string? UnitCode = null, Guid? WarehouseId = null, string? CurrencyCode = null, decimal? ExchangeRateToQuoteCurrency = null, bool IsVatIncluded = false);
+public sealed record SalesQuoteWriteRequest(string Code, Guid? CustomerId, DateOnly QuoteDate, DateOnly ValidUntil,
     string CurrencyCode, string? Notes, IReadOnlyList<SalesQuoteLineWriteRequest> Lines,
-    IReadOnlyDictionary<string, string?>? CustomFields = null);
+    IReadOnlyDictionary<string, string?>? CustomFields = null, Guid? RevisesQuoteId = null, string? ProspectCustomerName = null,
+    string? DeliveryTerms = null, Guid? SalespersonEmployeeId = null);
 public sealed record SalesQuoteCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record SalesQuoteCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -154,18 +189,25 @@ public sealed record SalesQuoteLineAmounts(decimal LineSubtotal, decimal Discoun
 public sealed record SalesQuoteTotals(decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal);
 public sealed record SalesQuoteLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
-    decimal DiscountAmount, decimal TaxAmount, decimal LineTotal);
-public sealed record SalesQuoteView(Guid Id, string Code, Guid CustomerId, string CustomerName, DateOnly QuoteDate,
+    decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, string? EnteredCurrencyCode = null,
+    decimal? EnteredUnitPrice = null, string? EnteredUnitCode = null, decimal ExchangeRateToQuoteCurrency = 1m, bool IsVatIncluded = false);
+public sealed record SalesQuoteView(Guid Id, string Code, Guid? CustomerId, string CustomerName, DateOnly QuoteDate,
     DateOnly ValidUntil, string CurrencyCode, SalesQuoteStatus Status, string? Notes, decimal Subtotal,
     decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt, IReadOnlyList<SalesQuoteLineView> Lines,
-    bool HasSalesOrder = false, IReadOnlyList<SalesQuoteCustomFieldValueView>? CustomFields = null);
-public sealed record SalesQuoteSummary(Guid Id, string Code, Guid CustomerId, string CustomerName, DateOnly QuoteDate,
+    bool HasSalesOrder = false, IReadOnlyList<SalesQuoteCustomFieldValueView>? CustomFields = null,
+    Guid? RevisionGroupId = null, int RevisionNumber = 1, string? DeliveryTerms = null, Guid? SalespersonEmployeeId = null,
+    string? CustomerCode = null);
+public sealed record SalesQuoteSummary(Guid Id, string Code, Guid? CustomerId, string CustomerName, DateOnly QuoteDate,
     DateOnly ValidUntil, string CurrencyCode, SalesQuoteStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
-    bool HasSalesOrder = false);
+    bool HasSalesOrder = false, Guid? RevisionGroupId = null, int RevisionNumber = 1, string? CustomerCode = null,
+    string? SalespersonName = null, Guid? SalesOrderId = null, string? SalesOrderCode = null);
+public sealed record SalesQuoteRevisionSummary(Guid Id, string Code, int RevisionNumber, SalesQuoteStatus Status,
+    DateOnly QuoteDate, DateOnly ValidUntil, decimal GrandTotal, string CurrencyCode, DateTimeOffset CreatedAt,
+    bool HasSalesOrder);
 public sealed record SalesQuotePage(IReadOnlyList<SalesQuoteSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record SalesOrderSummary(Guid Id, string Code, Guid? QuoteId, string QuoteCode, Guid CustomerId,
     string CustomerName, DateOnly OrderDate, string CurrencyCode, SalesOrderStatus Status, decimal GrandTotal,
-    int LineCount, DateTimeOffset CreatedAt, DateOnly? RequestedDeliveryDate = null);
+    int LineCount, DateTimeOffset CreatedAt, DateOnly? RequestedDeliveryDate = null, Guid? SalespersonEmployeeId = null);
 public sealed record SalesOrderCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record SalesOrderCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -179,16 +221,19 @@ public sealed record SalesOrderCustomFieldValueRestoreRequest(bool Confirmation)
 public sealed record SalesOrderDeliveryDateWriteRequest(DateOnly? RequestedDeliveryDate);
 public sealed record SalesOrderWriteRequest(string Code, Guid CustomerId, DateOnly OrderDate, DateOnly? RequestedDeliveryDate,
     string CurrencyCode, IReadOnlyList<SalesQuoteLineWriteRequest> Lines,
-    IReadOnlyDictionary<string, string?>? CustomFields = null);
+    IReadOnlyDictionary<string, string?>? CustomFields = null, Guid? SalespersonEmployeeId = null);
 public sealed record SalesOrderView(Guid Id, string Code, Guid? QuoteId, string QuoteCode, Guid CustomerId,
     string CustomerName, DateOnly OrderDate, string CurrencyCode, SalesOrderStatus Status, decimal Subtotal,
     decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt,
     IReadOnlyList<SalesOrderLineView> Lines, IReadOnlyList<SalesOrderCustomFieldValueView>? CustomFields = null,
-    DateOnly? RequestedDeliveryDate = null);
+    DateOnly? RequestedDeliveryDate = null, Guid? SalespersonEmployeeId = null);
 public sealed record SalesOrderLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, decimal DeliveredQuantity, decimal RemainingQuantity,
-    Guid? ReservationId, Guid? ReservationWarehouseId, string? ReservationWarehouseName, decimal ReservedQuantity);
+    Guid? ReservationId, Guid? ReservationWarehouseId, string? ReservationWarehouseName, decimal ReservedQuantity,
+    string? EnteredCurrencyCode = null, decimal? EnteredUnitPrice = null, string? EnteredUnitCode = null,
+    bool IsVatIncluded = false,
+    decimal ExchangeRateToOrderCurrency = 1m);
 public sealed record SalesOrderPage(IReadOnlyList<SalesOrderSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record SalesOrderReservationWriteRequest(Guid RequestId, Guid WarehouseId);
 public sealed record SalesOrderReservationReleaseRequest(string Reason, bool Confirmation);
@@ -198,7 +243,9 @@ public sealed record SalesOrderReservationSummary(Guid Id, Guid OrderId, int Ord
 public sealed record SalesDeliveryLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null, Guid? StorageLocationId = null);
 public sealed record SalesDeliveryWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly DeliveryDate, IReadOnlyList<SalesDeliveryLineWriteRequest> Lines);
 public sealed record SalesDeliveryLineView(int OrderLineNumber, Guid StockItemId, string StockCode, string StockName,
-    string UnitCode, decimal Quantity, decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? StorageLocationId = null);
+    string UnitCode, decimal Quantity, decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? StorageLocationId = null,
+    Guid? WarehouseId = null, string? WarehouseName = null, decimal? UnitPrice = null, decimal? DiscountPercent = null,
+    decimal? VatPercent = null, string? CurrencyCode = null);
 public sealed record SalesDeliverySummary(Guid Id, string Code, Guid? OrderId, string? OrderCode, Guid WarehouseId,
     string WarehouseName, DateOnly DeliveryDate, SalesDeliveryStatus Status, int LineCount, DateTimeOffset CreatedAt,
     bool HasSalesInvoice = false, SalesInvoiceStatus? InvoiceStatus = null, Guid? InvoiceId = null);
@@ -206,12 +253,12 @@ public sealed record SalesDeliveryView(Guid Id, string Code, Guid? OrderId, stri
     string WarehouseName, DateOnly DeliveryDate, SalesDeliveryStatus Status, DateTimeOffset CreatedAt,
     IReadOnlyList<SalesDeliveryLineView> Lines, bool HasSalesInvoice = false, SalesInvoiceStatus? InvoiceStatus = null, Guid? InvoiceId = null);
 public sealed record SalesDeliveryPage(IReadOnlyList<SalesDeliverySummary> Items, int Page, int PageSize, int TotalCount);
-public sealed record SalesDeliveryInvoiceLineWriteRequest(int OrderLineNumber, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20);
-public sealed record SalesDeliveryInvoiceWriteRequest(Guid CustomerId, DateOnly InvoiceDate, IReadOnlyList<SalesDeliveryInvoiceLineWriteRequest>? Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
+public sealed record SalesDeliveryInvoiceLineWriteRequest(int OrderLineNumber, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20, bool IsVatIncluded = false);
+public sealed record SalesDeliveryInvoiceWriteRequest(Guid CustomerId, DateOnly InvoiceDate, IReadOnlyList<SalesDeliveryInvoiceLineWriteRequest>? Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null, string? AccountingProfileCode = null, SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale);
 public sealed record SalesInvoiceSummary(Guid Id, string Code, Guid? DeliveryId, string? DeliveryCode, Guid? OrderId,
     string? OrderCode, Guid CustomerId, string CustomerName, DateOnly InvoiceDate, string CurrencyCode,
     SalesInvoiceStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
-    string? CustomerTaxNumber = null, IReadOnlyDictionary<string, string>? ListCustomFields = null);
+    string? CustomerTaxNumber = null, IReadOnlyDictionary<string, string>? ListCustomFields = null, SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale);
 public sealed record SalesInvoiceCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record SalesInvoiceCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -224,16 +271,82 @@ public sealed record SalesInvoiceCustomFieldValuesWriteRequest(IReadOnlyDictiona
 public sealed record SalesInvoiceCustomFieldValueRestoreRequest(bool Confirmation);
 public sealed record SalesInvoiceLineView(Guid Id, int OrderLineNumber, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
-    decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, Guid StockItemId);
+    decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, Guid StockItemId, string TaxBreakdownJson = "[]");
 public sealed record SalesInvoiceView(Guid Id, string Code, Guid? DeliveryId, string? DeliveryCode, Guid? OrderId,
     string? OrderCode, Guid CustomerId, string CustomerName, DateOnly InvoiceDate, string CurrencyCode,
     SalesInvoiceStatus Status, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal,
     Guid? LedgerEntryId, DateTimeOffset CreatedAt, IReadOnlyList<SalesInvoiceLineView> Lines,
     decimal PaidAmount = 0, decimal ReturnedAmount = 0, decimal OutstandingAmount = 0,
     IReadOnlyList<CustomerCollectionSummary>? Collections = null, IReadOnlyList<SalesReturnSummary>? Returns = null,
-    IReadOnlyList<SalesInvoiceCustomFieldValueView>? CustomFields = null);
+    IReadOnlyList<SalesInvoiceCustomFieldValueView>? CustomFields = null,
+    string? EDocumentScenario = null, string? EDocumentTypeCode = null, string? EDocumentRecipientAlias = null,
+    string? ECommercePurchaseUrl = null, string? ECommercePaymentTaxId = null, string? ECommercePaymentTitle = null,
+    string? ECommercePaymentAlias = null, string? ECommercePaymentAgentName = null, string? ECommercePaymentType = null,
+    DateTimeOffset? ECommercePaymentDate = null, DateTimeOffset? ECommercePaymentDueDate = null,
+    string? ECommercePaymentMeans = null, string? ECommercePaymentInstructionNote = null,
+    string? ECommerceIntermediaryCountry = null, string? ECommerceIntermediaryCountryCode = null,
+    string? ECommerceIntermediaryCity = null, string? ECommerceIntermediaryDistrict = null,
+    string? DeliveryCarrierTaxId = null, string? DeliveryCarrierName = null,
+    string? DeliveryCarrierSurname = null, DateOnly? DeliverySentAt = null,
+    string? AccountingProfileCode = null, string TaxBreakdownJson = "[]", SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale);
+public sealed record SalesInvoiceEDocumentFields(string? Scenario = null, string? TypeCode = null, string? RecipientAlias = null,
+    string? PurchaseUrl = null, string? PaymentTaxId = null, string? PaymentTitle = null, string? PaymentAlias = null,
+    string? PaymentAgentName = null, string? PaymentType = null, DateTimeOffset? PaymentDate = null,
+    DateTimeOffset? PaymentDueDate = null, string? PaymentMeans = null, string? PaymentInstructionNote = null,
+    string? IntermediaryCountry = null, string? IntermediaryCountryCode = null, string? IntermediaryCity = null,
+    string? IntermediaryDistrict = null,
+    string? CarrierTaxId = null, string? CarrierName = null, string? CarrierSurname = null, DateOnly? SentAt = null);
+public static class SalesInvoiceEDocumentFieldsValidation
+{
+    public static SalesInvoiceEDocumentFields? Normalize(SalesInvoiceEDocumentFields? fields) => fields is null ? null : fields with
+    {
+        Scenario = NormalizeValue(fields.Scenario), TypeCode = NormalizeValue(fields.TypeCode),
+        RecipientAlias = NormalizeValue(fields.RecipientAlias), PurchaseUrl = NormalizeValue(fields.PurchaseUrl),
+        PaymentTaxId = NormalizeValue(fields.PaymentTaxId), PaymentTitle = NormalizeValue(fields.PaymentTitle),
+        PaymentAlias = NormalizeValue(fields.PaymentAlias), PaymentAgentName = NormalizeValue(fields.PaymentAgentName),
+        PaymentType = NormalizeValue(fields.PaymentType), PaymentMeans = NormalizeValue(fields.PaymentMeans),
+        PaymentInstructionNote = NormalizeValue(fields.PaymentInstructionNote),
+        IntermediaryCountry = NormalizeValue(fields.IntermediaryCountry),
+        IntermediaryCountryCode = NormalizeValue(fields.IntermediaryCountryCode),
+        IntermediaryCity = NormalizeValue(fields.IntermediaryCity), IntermediaryDistrict = NormalizeValue(fields.IntermediaryDistrict),
+        CarrierTaxId = NormalizeValue(fields.CarrierTaxId),
+        CarrierName = NormalizeValue(fields.CarrierName), CarrierSurname = NormalizeValue(fields.CarrierSurname)
+    };
+
+    public static Dictionary<string, string[]>? Validate(SalesInvoiceEDocumentFields? fields)
+    {
+        if (fields is null) return null;
+        var errors = new Dictionary<string, string[]>();
+        Check(fields.Scenario, 32, "scenario"); Check(fields.TypeCode, 32, "typeCode");
+        Check(fields.RecipientAlias, 255, "recipientAlias"); Check(fields.PurchaseUrl, 255, "purchaseUrl");
+        Check(fields.PaymentTaxId, 11, "paymentTaxId", taxId: true); Check(fields.PaymentTitle, 255, "paymentTitle");
+        Check(fields.PaymentAlias, 255, "paymentAlias"); Check(fields.PaymentAgentName, 127, "paymentAgentName");
+        Check(fields.PaymentType, 127, "paymentType"); Check(fields.PaymentMeans, 32, "paymentMeans");
+        Check(fields.PaymentInstructionNote, 255, "paymentInstructionNote");
+        Check(fields.IntermediaryCountry, 127, "intermediaryCountry"); Check(fields.IntermediaryCountryCode, 3, "intermediaryCountryCode");
+        Check(fields.IntermediaryCity, 127, "intermediaryCity"); Check(fields.IntermediaryDistrict, 127, "intermediaryDistrict");
+        if (!string.IsNullOrWhiteSpace(fields.PaymentMeans) &&
+            !new[] { "CREDIT_CARD", "EFT", "ON_DELIVERY", "MEDIATOR", "OTHER" }.Contains(fields.PaymentMeans.Trim(), StringComparer.Ordinal))
+            errors["paymentMeans"] = ["Ödeme yöntemi Trendyol'un desteklediği kodlardan biri olmalıdır."];
+        Check(fields.CarrierTaxId, 11, "carrierTaxId", taxId: true);
+        Check(fields.CarrierName, 255, "carrierName"); Check(fields.CarrierSurname, 255, "carrierSurname");
+        return errors.Count == 0 ? null : errors;
+
+        void Check(string? value, int maxLength, string name, bool taxId = false)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            var normalized = value.Trim();
+            if (normalized.Length > maxLength || normalized.Any(char.IsControl))
+                errors[name] = [$"{name} en fazla {maxLength} karakter olabilir."];
+            else if (taxId && (normalized.Length is not (10 or 11) || normalized.Any(character => character is < '0' or > '9')))
+                errors[name] = ["VKN/TCKN 10 veya 11 rakam olmalıdır."];
+        }
+    }
+
+    private static string? NormalizeValue(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}
 public sealed record SalesInvoicePage(IReadOnlyList<SalesInvoiceSummary> Items, int Page, int PageSize, int TotalCount);
-public sealed record StandaloneSalesInvoiceWriteRequest(Guid RequestId, Guid CustomerId, Guid WarehouseId, DateOnly InvoiceDate, IReadOnlyList<SalesQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
+public sealed record StandaloneSalesInvoiceWriteRequest(Guid RequestId, Guid CustomerId, Guid WarehouseId, DateOnly InvoiceDate, IReadOnlyList<SalesQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null, string? AccountingProfileCode = null, SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale);
 public sealed record CustomerCollectionWriteRequest(Guid RequestId, DateOnly CollectionDate, decimal Amount, string PaymentMethod, string? Reference = null, Guid? FinancialAccountId = null);
 public sealed record CustomerCollectionSummary(Guid Id, string Code, Guid CustomerId, string CustomerName,
     Guid SalesInvoiceId, string InvoiceCode, DateOnly CollectionDate, decimal Amount, string CurrencyCode,
@@ -309,8 +422,24 @@ public sealed record FxRevaluationVoucherLineView(Guid Id, FxRevaluationDirectio
 public sealed record FxRevaluationVoucherView(Guid Id, string Code, DateOnly AsOfDate, string BaseCurrencyCode,
     DateTimeOffset CreatedAt, Guid? CreatedByUserId, decimal TotalDebit, decimal TotalCredit,
     IReadOnlyList<FxRevaluationVoucherLineView> Lines);
-public sealed record LedgerAccountWriteRequest(string Code, string Name, bool IsActive = true, string? StatementSection = null);
-public sealed record LedgerAccountView(Guid Id, string Code, string Name, bool IsActive, string StatementSection, bool HasMovements = false);
+public sealed record LedgerAccountWriteRequest(string Code, string Name, bool IsActive = true, string? StatementSection = null,
+    string? AccountType = null, string? NormalBalance = null, string? CurrencyCode = null,
+    string? IfrsAccountCode = null, string? IfrsAccountName = null, string? IfrsStatementSection = null);
+public sealed record LedgerAccountView(Guid Id, string Code, string Name, bool IsActive, string StatementSection, bool HasMovements = false,
+    string AccountType = "Unclassified", string NormalBalance = "Both", string? CurrencyCode = null,
+    string? IfrsAccountCode = null, string? IfrsAccountName = null, string IfrsStatementSection = "Unclassified");
+public sealed record AccountingRuleProfileWriteRequest(string ProfileCode, string Name, string JurisdictionCode,
+    string ReportingStandard, string BaseCurrencyCode, int FiscalYearStartMonth, DateOnly EffectiveFrom,
+    DateOnly? EffectiveTo, string ParametersJson, string? OfficialSourceUrl = null, bool IsActive = true);
+public sealed record AccountingRuleProfileView(Guid Id, string ProfileCode, string Name, string JurisdictionCode,
+    string ReportingStandard, string BaseCurrencyCode, int FiscalYearStartMonth, DateOnly EffectiveFrom,
+    DateOnly? EffectiveTo, string ParametersJson, string OfficialSourceUrl, bool IsActive, DateTimeOffset UpdatedAt);
+public sealed record AccountingTaxPreviewRequest(decimal TaxableAmount, DateOnly DocumentDate, string OperationType = "Sales");
+public sealed record AccountingTaxPreviewLine(string Code, string Name, decimal Rate, string Treatment,
+    string CalculationBase, decimal TaxableAmount, decimal Amount);
+public sealed record AccountingTaxPreviewView(string ProfileCode, string JurisdictionCode, string CurrencyCode,
+    decimal TaxableAmount, decimal AdditiveTaxTotal, decimal WithholdingTotal, decimal PayableAmount,
+    IReadOnlyList<AccountingTaxPreviewLine> Taxes);
 public sealed record TenantBudgetLineWriteRequest(Guid AccountId, DateOnly PeriodStart, decimal PlannedAmount, string? Notes = null);
 public sealed record TenantBudgetPlanWriteRequest(string Name, int FiscalYear, IReadOnlyList<TenantBudgetLineWriteRequest> Lines,
     string CurrencyCode = "TRY", int Revision = 0);
@@ -325,9 +454,9 @@ public sealed record LedgerMappingView(string MappingKey, string Label, Guid? Ac
 public sealed record JournalEntryLineView(int LineNumber, Guid AccountId, string AccountCode, string AccountName,
     string Description, decimal Debit, decimal Credit);
 public sealed record JournalEntryView(Guid Id, string Code, DateOnly EntryDate, string Description, string SourceType,
-    Guid SourceId, DateTimeOffset CreatedAt, decimal TotalDebit, decimal TotalCredit, IReadOnlyList<JournalEntryLineView> Lines, bool IsReversed = false);
+    Guid SourceId, DateTimeOffset CreatedAt, decimal TotalDebit, decimal TotalCredit, IReadOnlyList<JournalEntryLineView> Lines, bool IsReversed = false, string AccountingBasis = "TDHP");
 public sealed record JournalTransferRequest(string SourceType, Guid SourceId);
-public sealed record ManualJournalEntryWriteRequest(DateOnly EntryDate, string Description, IReadOnlyList<ManualJournalLineWriteRequest> Lines);
+public sealed record ManualJournalEntryWriteRequest(DateOnly EntryDate, string Description, IReadOnlyList<ManualJournalLineWriteRequest> Lines, string AccountingBasis = "TDHP");
 public sealed record ManualJournalLineWriteRequest(Guid AccountId, string Description, decimal Debit, decimal Credit);
 public sealed record ManualJournalEntryReverseRequest(DateOnly EntryDate, string Reason);
 public sealed record PurchaseRequestOrderLineRequest(int LineNumber, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent = 20);
@@ -386,10 +515,12 @@ public sealed record PurchaseReceiptSummary(Guid Id, string Code, Guid PurchaseO
     DateTimeOffset CreatedAt, IReadOnlyList<PurchaseReceiptLineView>? Lines = null, PurchaseInvoiceSummary? Invoice = null,
     IReadOnlyList<PurchaseReceiptCustomFieldValueView>? CustomFields = null);
 public sealed record PurchaseReceiptPage(IReadOnlyList<PurchaseReceiptSummary> Items, int Page, int PageSize, int TotalCount);
-public sealed record PurchaseInvoiceCreateRequest(string Code, DateOnly InvoiceDate);
+public sealed record PurchaseInvoiceCreateRequest(string Code, DateOnly InvoiceDate, Guid? ProviderInvoiceUuid = null,
+    string? ProviderScenario = null, string? ProviderInvoiceTypeCode = null, string? ProviderSenderAlias = null,
+    string? AccountingProfileCode = null);
 public sealed record PurchaseInvoiceLineView(Guid Id, Guid PurchaseReceiptLineId, int OrderLineNumber, string StockCode,
     string StockName, string UnitCode, decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent,
-    decimal LineSubtotal, decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, Guid StockItemId);
+    decimal LineSubtotal, decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, Guid StockItemId, string TaxBreakdownJson = "[]");
 public sealed record SupplierPaymentSummary(Guid Id, string Code, Guid PurchaseInvoiceId, string InvoiceCode,
     DateOnly PaymentDate, decimal Amount, string CurrencyCode, string PaymentMethod, string? Reference,
     SupplierPaymentStatus Status, DateTimeOffset CreatedAt, Guid? FinancialAccountId = null, string? FinancialAccountName = null);
@@ -412,7 +543,9 @@ public sealed record PurchaseInvoiceView(Guid Id, string Code, Guid PurchaseRece
     DateOnly DueDate, string CurrencyCode, PurchaseInvoiceStatus Status, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal,
     decimal GrandTotal, decimal PaidAmount, decimal OutstandingAmount, DateTimeOffset CreatedAt,
     IReadOnlyList<PurchaseInvoiceLineView> Lines, IReadOnlyList<SupplierPaymentSummary> Payments,
-    IReadOnlyList<SupplierReturnSummary>? Returns = null);
+    IReadOnlyList<SupplierReturnSummary>? Returns = null, Guid? ProviderInvoiceUuid = null,
+    string? ProviderScenario = null, string? ProviderInvoiceTypeCode = null, string? ProviderSenderAlias = null,
+    string? AccountingProfileCode = null, string TaxBreakdownJson = "[]");
 public sealed record PurchaseInvoicePage(IReadOnlyList<PurchaseInvoiceSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record SupplierPaymentWriteRequest(Guid RequestId, DateOnly PaymentDate, decimal Amount,
     string PaymentMethod, string? Reference = null, Guid? FinancialAccountId = null);
@@ -544,7 +677,7 @@ public static class CustomerValidation
         if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 200)
             errors["name"] = ["Unvan zorunludur ve en fazla 200 karakter olabilir."];
         if (!Enum.IsDefined(request.Type))
-            errors["type"] = ["Cari türü Customer, Supplier veya Both olmalıdır."];
+            errors["type"] = ["Cari türü Customer, Supplier, Both, Dealer veya Employee olmalıdır."];
         if (request.TaxNumber?.Trim().Length > 32)
             errors["taxNumber"] = ["Vergi numarası en fazla 32 karakter olabilir."];
         if (request.IdentityNumber?.Trim().Length > 11 || (request.IdentityNumber is not null && request.IdentityNumber.Trim().Length > 0 &&
@@ -552,6 +685,13 @@ public static class CustomerValidation
             errors["identityNumber"] = ["T.C. kimlik numarası 11 rakam olmalıdır."];
         if (request.TaxOffice?.Trim().Length > 120)
             errors["taxOffice"] = ["Vergi dairesi en fazla 120 karakter olabilir."];
+        if (request.EInvoiceRecipientAlias?.Trim().Length > 255)
+            errors["eInvoiceRecipientAlias"] = ["E-Fatura alıcı etiketi en fazla 255 karakter olabilir."];
+        if (request.Phone?.Trim().Length > 40 || request.ContactPhone?.Trim().Length > 40) errors["phone"] = ["Telefon numaraları en fazla 40 karakter olabilir."];
+        if (request.Email?.Trim().Length > 254 || request.ContactEmail?.Trim().Length > 254) errors["email"] = ["E-posta adresleri en fazla 254 karakter olabilir."];
+        if (request.Website?.Trim().Length > 255 || request.ContactName?.Trim().Length > 160) errors["contact"] = ["Web adresi en fazla 255, yetkili kişi adı en fazla 160 karakter olabilir."];
+        if (request.PriceListCode?.Trim().Length > 40 || request.ReceivableAccountCode?.Trim().Length > 40 || request.PayableAccountCode?.Trim().Length > 40) errors["accounting"] = ["Fiyat listesi ve muhasebe kodları en fazla 40 karakter olabilir."];
+        if (request.BankName?.Trim().Length > 120 || request.BankBranchCode?.Trim().Length > 40 || request.Iban?.Trim().Length > 34) errors["bank"] = ["Banka adı 120, şube kodu 40, IBAN en fazla 34 karakter olabilir."];
         if (request.Address is not null)
         {
             var addressErrors = CustomerAddressValidation.Validate(request.Address);
@@ -647,6 +787,17 @@ public static class InventoryValidation
         if (request.MinimumStock < 0 || request.MinimumStock > 99999999999999.9999m || request.MinimumStock != decimal.Round(request.MinimumStock, 4)) errors["minimumStock"] = ["Minimum stok negatif olamaz; en fazla 4 ondalık basamak kullanılabilir."];
         if (request.ProcurementLeadTimeDays is < 0 or > 3650) errors["procurementLeadTimeDays"] = ["Tedarik süresi 0–3650 gün aralığında olmalıdır."];
         if (request.ManufacturingLeadTimeDays is < 0 or > 3650) errors["manufacturingLeadTimeDays"] = ["Üretim süresi 0–3650 gün aralığında olmalıdır."];
+        if (request.PurchaseListPrice is < 0 or > 9999999999999999.9999m || request.PurchaseListPrice is { } purchasePrice && purchasePrice != decimal.Round(purchasePrice, 4)) errors["purchaseListPrice"] = ["Alış listesi fiyatı negatif olamaz ve en fazla 4 ondalık basamak içerebilir."];
+        if (request.SalesListPrice is < 0 or > 9999999999999999.9999m || request.SalesListPrice is { } salesPrice && salesPrice != decimal.Round(salesPrice, 4)) errors["salesListPrice"] = ["Satış listesi fiyatı negatif olamaz ve en fazla 4 ondalık basamak içerebilir."];
+        if (string.IsNullOrWhiteSpace(request.PriceCurrencyCode) || request.PriceCurrencyCode.Trim().Length != 3 || request.PriceCurrencyCode.Any(c => !char.IsAsciiLetter(c))) errors["priceCurrencyCode"] = ["Fiyat dövizi üç harfli ISO kodu olmalıdır."];
+        foreach (var (key, value) in new[] { ("purchaseVatPercent", request.PurchaseVatPercent), ("salesVatPercent", request.SalesVatPercent), ("exciseTaxPercent", request.ExciseTaxPercent), ("communicationTaxPercent", request.CommunicationTaxPercent), ("withholdingTaxPercent", request.WithholdingTaxPercent), ("stampTaxPercent", request.StampTaxPercent), ("purchaseDiscountPercent", request.PurchaseDiscountPercent), ("salesDiscountPercent", request.SalesDiscountPercent) })
+            if (value is < 0 or > 100 || value != decimal.Round(value, 2)) errors[key] = ["Oran 0–100 arasında ve en fazla 2 ondalık basamaklı olmalıdır."];
+        foreach (var (key, value) in new[] { ("maximumStock", request.MaximumStock), ("reorderPoint", request.ReorderPoint), ("safetyStock", (decimal?)request.SafetyStock), ("netWeight", request.NetWeight), ("grossWeight", request.GrossWeight), ("length", request.Length), ("width", request.Width), ("height", request.Height) })
+            if (value is < 0 or > 99999999999999.9999m || value is { } amount && amount != decimal.Round(amount, 4)) errors[key] = ["Değer negatif olamaz ve en fazla 4 ondalık basamak içerebilir."];
+        if (request.MaximumStock is { } maxStock && maxStock < request.MinimumStock) errors["maximumStock"] = ["Azami stok minimum stoktan düşük olamaz."];
+        if (request.ProductImageUrl?.Trim().Length > 1000) errors["productImageUrl"] = ["Görsel bağlantısı en fazla 1000 karakter olabilir."];
+        if (request.PurchaseAccountCode?.Trim().Length > 40 || request.SalesAccountCode?.Trim().Length > 40 || request.CostAccountCode?.Trim().Length > 40) errors["accountCodes"] = ["Muhasebe hesap kodları en fazla 40 karakter olabilir."];
+        if (request.MarketplaceProductId?.Trim().Length > 120) errors["marketplaceProductId"] = ["Pazaryeri ürün kimliği en fazla 120 karakter olabilir."];
         return errors.Count == 0 ? null : errors;
     }
 
@@ -743,11 +894,14 @@ public static class SalesQuoteValidation
     public static Dictionary<string, string[]>? Validate(SalesQuoteWriteRequest request)
     {
         var errors = new Dictionary<string, string[]>();
-        if (string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 40) errors["code"] = ["Teklif numarası zorunludur ve en fazla 40 karakter olabilir."];
-        if (request.CustomerId == Guid.Empty) errors["customerId"] = ["Müşteri seçilmelidir."];
+        if (request.Code?.Trim().Length > 40) errors["code"] = ["Teklif numarası en fazla 40 karakter olabilir."];
+        if (request.CustomerId == Guid.Empty) errors["customerId"] = ["Geçerli bir müşteri seçilmelidir."];
+        if (request.CustomerId is null && string.IsNullOrWhiteSpace(request.ProspectCustomerName)) errors["prospectCustomerName"] = ["Kayıtlı cari seçin veya teklif alıcısının adını girin."];
+        if (request.ProspectCustomerName?.Trim().Length > 200) errors["prospectCustomerName"] = ["Teklif alıcısı adı en fazla 200 karakter olabilir."];
         if (request.ValidUntil < request.QuoteDate) errors["validUntil"] = ["Geçerlilik tarihi teklif tarihinden önce olamaz."];
         if (string.IsNullOrWhiteSpace(request.CurrencyCode) || request.CurrencyCode.Trim().Length != 3 || request.CurrencyCode.Any(c => !char.IsAsciiLetter(c))) errors["currencyCode"] = ["Döviz kodu 3 harfli ISO kodu olmalıdır."];
         if (request.Notes?.Trim().Length > 1000) errors["notes"] = ["Notlar en fazla 1000 karakter olabilir."];
+        if (request.DeliveryTerms?.Trim().Length > 1000) errors["deliveryTerms"] = ["Teslimat koşulları en fazla 1000 karakter olabilir."];
         if (request.Lines is null || request.Lines.Count is < 1 or > 100) errors["lines"] = ["Teklif 1 ile 100 arasında satır içermelidir."];
         if (request.Lines is not null)
         {
@@ -760,6 +914,7 @@ public static class SalesQuoteValidation
                 if (line.UnitPrice < 0 || line.UnitPrice > MaxQuantityOrPrice || line.UnitPrice != decimal.Round(line.UnitPrice, 4)) errors[$"{prefix}.unitPrice"] = ["Birim fiyat negatif olamaz ve en fazla 4 ondalık basamak içerebilir."];
                 if (line.DiscountPercent < 0 || line.DiscountPercent > 100 || line.DiscountPercent != decimal.Round(line.DiscountPercent, 2)) errors[$"{prefix}.discountPercent"] = ["İskonto oranı 0 ile 100 arasında ve en fazla 2 ondalık basamaklı olmalıdır."];
                 if (line.VatPercent < 0 || line.VatPercent > 100 || line.VatPercent != decimal.Round(line.VatPercent, 2)) errors[$"{prefix}.vatPercent"] = ["KDV oranı 0 ile 100 arasında ve en fazla 2 ondalık basamaklı olmalıdır."];
+                if (line.ExchangeRateToQuoteCurrency is { } rate && (rate <= 0m || rate > 9999999999.99999999m || rate != decimal.Round(rate, 8))) errors[$"{prefix}.exchangeRateToQuoteCurrency"] = ["Döviz kuru sıfırdan büyük olmalı ve en fazla 8 ondalık basamak içermelidir."];
                 if (line.Quantity > 0 && line.UnitPrice >= 0 && line.Quantity <= MaxQuantityOrPrice && line.UnitPrice <= MaxQuantityOrPrice)
                 {
                     try { if (Calculate(line).LineTotal > MaxAmount) errors[$"{prefix}.unitPrice"] = ["Satır toplamı decimal(18,2) sınırını aşıyor."]; }
@@ -772,7 +927,10 @@ public static class SalesQuoteValidation
 
     public static SalesQuoteLineAmounts Calculate(SalesQuoteLineWriteRequest line)
     {
-        var subtotal = decimal.Round(line.Quantity * line.UnitPrice, 2, MidpointRounding.AwayFromZero);
+        var enteredSubtotal = decimal.Round(line.Quantity * line.UnitPrice, 2, MidpointRounding.AwayFromZero);
+        var subtotal = line.IsVatIncluded && line.VatPercent > 0
+            ? decimal.Round(enteredSubtotal / (1m + line.VatPercent / 100m), 2, MidpointRounding.AwayFromZero)
+            : enteredSubtotal;
         var discount = decimal.Round(subtotal * line.DiscountPercent / 100m, 2, MidpointRounding.AwayFromZero);
         var taxable = subtotal - discount;
         var tax = decimal.Round(taxable * line.VatPercent / 100m, 2, MidpointRounding.AwayFromZero);
@@ -789,6 +947,24 @@ public static class SalesQuoteValidation
         if (subtotal > MaxAmount || discount > MaxAmount || tax > MaxAmount || total > MaxAmount) throw new OverflowException("Teklif toplamı decimal(18,2) sınırını aşıyor.");
         return new SalesQuoteTotals(subtotal, discount, tax, total);
     }
+
+    public static SalesQuoteLineAmounts CalculateIncrementalFromSource(decimal sourceQuantity,
+        SalesQuoteLineAmounts sourceAmounts, decimal alreadyReturnedQuantity,
+        SalesQuoteLineAmounts alreadyReturnedAmounts, decimal returnQuantity)
+    {
+        if (sourceQuantity <= 0 || alreadyReturnedQuantity < 0 || returnQuantity <= 0 || alreadyReturnedQuantity + returnQuantity > sourceQuantity)
+            throw new ArgumentOutOfRangeException(nameof(returnQuantity), "İade miktarı kaynak belge satırındaki kalan miktarı aşamaz.");
+        var cumulativeQuantity = alreadyReturnedQuantity + returnQuantity;
+        var cumulative = cumulativeQuantity == sourceQuantity ? sourceAmounts : new SalesQuoteLineAmounts(
+            decimal.Round(sourceAmounts.LineSubtotal * cumulativeQuantity / sourceQuantity, 2, MidpointRounding.AwayFromZero),
+            decimal.Round(sourceAmounts.DiscountAmount * cumulativeQuantity / sourceQuantity, 2, MidpointRounding.AwayFromZero),
+            decimal.Round(sourceAmounts.TaxAmount * cumulativeQuantity / sourceQuantity, 2, MidpointRounding.AwayFromZero),
+            decimal.Round(sourceAmounts.LineTotal * cumulativeQuantity / sourceQuantity, 2, MidpointRounding.AwayFromZero));
+        return new SalesQuoteLineAmounts(cumulative.LineSubtotal - alreadyReturnedAmounts.LineSubtotal,
+            cumulative.DiscountAmount - alreadyReturnedAmounts.DiscountAmount,
+            cumulative.TaxAmount - alreadyReturnedAmounts.TaxAmount,
+            cumulative.LineTotal - alreadyReturnedAmounts.LineTotal);
+    }
 }
 
 public static class SalesQuoteWorkflow
@@ -796,7 +972,8 @@ public static class SalesQuoteWorkflow
     public static bool CanTransition(SalesQuoteStatus current, SalesQuoteStatus target) =>
         (current, target) is (SalesQuoteStatus.Draft, SalesQuoteStatus.Sent)
             or (SalesQuoteStatus.Sent, SalesQuoteStatus.Accepted)
-            or (SalesQuoteStatus.Sent, SalesQuoteStatus.Rejected);
+            or (SalesQuoteStatus.Sent, SalesQuoteStatus.Rejected)
+            or (SalesQuoteStatus.Rejected, SalesQuoteStatus.Accepted);
 
     public static bool CanConvertToOrder(SalesQuoteStatus status, bool alreadyConverted) =>
         status == SalesQuoteStatus.Accepted && !alreadyConverted;
@@ -898,8 +1075,8 @@ public static class PurchaseRequestValidation
     public static Dictionary<string, string[]>? Validate(PurchaseRequestWriteRequest request)
     {
         var errors = new Dictionary<string, string[]>();
-        if (string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 40)
-            errors["code"] = ["Talep numarası zorunludur ve en fazla 40 karakter olabilir."];
+        if (request.Code?.Trim().Length > 40)
+            errors["code"] = ["Talep numarası en fazla 40 karakter olabilir."];
         if (request.RequestDate == default) errors["requestDate"] = ["Talep tarihi zorunludur."];
         if (request.NeededByDate is not null && request.NeededByDate < request.RequestDate)
             errors["neededByDate"] = ["İhtiyaç tarihi talep tarihinden önce olamaz."];
@@ -1025,13 +1202,33 @@ public static class PurchaseReceiptValidation
 
 public static class PurchaseInvoiceValidation
 {
+    public static PurchaseInvoiceCreateRequest Normalize(PurchaseInvoiceCreateRequest request) => request with
+    {
+        ProviderScenario = NormalizeValue(request.ProviderScenario),
+        ProviderInvoiceTypeCode = NormalizeValue(request.ProviderInvoiceTypeCode),
+        ProviderSenderAlias = NormalizeValue(request.ProviderSenderAlias),
+        AccountingProfileCode = NormalizeValue(request.AccountingProfileCode)?.ToUpperInvariant()
+    };
+
     public static Dictionary<string, string[]>? Validate(PurchaseInvoiceCreateRequest request)
     {
         var errors = new Dictionary<string, string[]>();
         if (string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 64)
             errors["code"] = ["Alış fatura numarası zorunludur ve en fazla 64 karakter olabilir."];
+        if (request.ProviderInvoiceUuid == Guid.Empty)
+            errors["providerInvoiceUuid"] = ["Sağlayıcı fatura UUID'si boş GUID olamaz."];
+        if (request.ProviderScenario?.Trim() is { Length: > 32 } || request.ProviderScenario?.Any(char.IsControl) == true)
+            errors["providerScenario"] = ["Belge senaryosu en fazla 32 karakter olabilir."];
+        if (request.ProviderInvoiceTypeCode?.Trim() is { Length: > 32 } || request.ProviderInvoiceTypeCode?.Any(char.IsControl) == true)
+            errors["providerInvoiceTypeCode"] = ["Belge tür kodu en fazla 32 karakter olabilir."];
+        if (request.ProviderSenderAlias?.Trim() is { Length: > 255 } || request.ProviderSenderAlias?.Any(char.IsControl) == true)
+            errors["providerSenderAlias"] = ["Gönderen etiketi en fazla 255 karakter olabilir."];
+        if (request.AccountingProfileCode?.Trim().Length > 32 || request.AccountingProfileCode?.Any(char.IsControl) == true)
+            errors["accountingProfileCode"] = ["Mevzuat profili kodu en fazla 32 karakter olabilir."];
         return errors.Count == 0 ? null : errors;
     }
+
+    private static string? NormalizeValue(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
 
 public static class SupplierReturnValidation

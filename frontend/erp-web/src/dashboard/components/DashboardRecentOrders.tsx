@@ -1,4 +1,5 @@
 import { ChevronRight, ShoppingCart } from "lucide-react";
+import type { CSSProperties } from "react";
 import type { ErpDashboardRecentOrder } from "../types";
 
 type Props = {
@@ -7,6 +8,7 @@ type Props = {
   canReadSalesOrders: boolean;
   money: (value: number, code?: string) => string;
   onNavigate: (page: string) => void;
+  style?: CSSProperties;
 };
 
 export default function DashboardRecentOrders({
@@ -15,9 +17,10 @@ export default function DashboardRecentOrders({
   canReadSalesOrders,
   money,
   onNavigate,
+  style,
 }: Props) {
   return (
-    <section className="erp-home-panel dashboard-reference-orders">
+    <section className="erp-home-panel dashboard-reference-orders" style={style}>
       <header>
         <div>
           <h2>

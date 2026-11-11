@@ -4,5 +4,11 @@ import { SalesPage } from "./SalesPage";
 type Props = Omit<ComponentProps<typeof SalesPage>, "section">;
 
 export default function SalesInvoicesPage(props: Props) {
-  return <SalesPage {...props} section="sales-invoices" />;
+  return (
+    <SalesPage
+      {...props}
+      section="sales-invoices"
+      createInvoicePage={props.openInvoiceCreate}
+    />
+  );
 }

@@ -98,6 +98,9 @@ export default function ManufacturingCostVariancePage({
         loading={loading}
         onRefresh={() => void load(page)}
       />
+      {report && (
+        <ManufacturingCostVarianceSummary report={report} currency={code} />
+      )}
       <ManufacturingCostVarianceFilters
         from={from}
         to={to}
@@ -113,7 +116,6 @@ export default function ManufacturingCostVariancePage({
       />
       {report && (
         <>
-          <ManufacturingCostVarianceSummary report={report} currency={code} />
           <ManufacturingCostVarianceResults
             report={report}
             currency={code}

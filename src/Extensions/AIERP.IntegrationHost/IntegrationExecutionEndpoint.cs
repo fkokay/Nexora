@@ -29,9 +29,8 @@ public sealed class IntegrationDispatcher(IConfiguration configuration, IHttpCli
 
     private static bool IsReadyConfiguration(IConfigurationSection section)
     {
-        // E-document delivery needs a tenant-owned provider profile and a secure
-        // secret handoff contract. Host-wide settings alone must never enable it.
-        if (string.Equals(section.Key, EDocumentIntegrationCode, StringComparison.Ordinal)) return false;
+        if (string.Equals(section.Key, EDocumentIntegrationCode, StringComparison.Ordinal))
+            return IsReadyTrendyolProfile(section);
 
         var provider = section["Provider"];
         if (string.IsNullOrWhiteSpace(provider))
@@ -71,10 +70,8 @@ public sealed class IntegrationDispatcher(IConfiguration configuration, IHttpCli
         if (!ModuleCodeRules.IsValid(integrationCode)) return (false, null);
         var section = configuration.GetSection($"Integrations:{integrationCode}");
         if (!section.GetValue<bool>("Enabled")) return (false, null);
-        // There is deliberately no e-document tenant-profile/secret-ingress contract
-        // yet. Fail closed even if an operator has configured a generic host adapter.
         if (string.Equals(integrationCode, EDocumentIntegrationCode, StringComparison.Ordinal))
-            return (true, new IntegrationExecutionResult<JsonElement>(false, default, null, "invalid_integration", 0, TimeSpan.Zero));
+            return await ExecuteTrendyolEInvoiceAsync(section, context, payload, cancellationToken);
         if (payload.ValueKind != JsonValueKind.Object || Encoding.UTF8.GetByteCount(payload.GetRawText()) > MaximumPayloadBytes)
             return (true, new IntegrationExecutionResult<JsonElement>(false, default, null, "validation_failed", 0, TimeSpan.Zero));
         var provider = section["Provider"];
@@ -156,6 +153,54 @@ public sealed class IntegrationDispatcher(IConfiguration configuration, IHttpCli
         IReadOnlyCollection<IntegrationJsonFieldMapping> responseMappings) =>
         !string.Equals(integrationCode, EDocumentIntegrationCode, StringComparison.Ordinal) ||
         (requestMappings.Count > 0 && responseMappings.Count > 0);
+
+    private async Task<(bool Configured, IntegrationExecutionResult<JsonElement>? Result)> ExecuteTrendyolEInvoiceAsync(
+        IConfigurationSection section, IntegrationContext context, JsonElement payload, CancellationToken cancellationToken)
+    {
+        if (!IsReadyTrendyolProfile(section) || !Guid.TryParse(section["AllowedTenantId"], out var allowedTenantId) ||
+            allowedTenantId != context.TenantId || payload.ValueKind != JsonValueKind.Object ||
+            Encoding.UTF8.GetByteCount(payload.GetRawText()) > MaximumPayloadBytes)
+            return (true, new IntegrationExecutionResult<JsonElement>(false, default, null, "invalid_integration", 0, TimeSpan.Zero));
+
+        var unitMappings = section.GetSection("UnitCodeMappings").GetChildren()
+            .Where(item => !string.IsNullOrWhiteSpace(item.Value))
+            .ToDictionary(item => item.Key, item => item.Value!, StringComparer.Ordinal);
+        var profile = new TrendyolEInvoiceMappingProfile(
+            section.GetValue<long>("CompanyId"), section.GetValue<long>("UserId"), section["Source"]!,
+            AutoInvoiceId: true, UnitCodeMappings: unitMappings);
+        ReadOnlyMemory<char> secret;
+        try
+        {
+            secret = await secrets.ResolveAsync(context.TenantId,
+                new IntegrationCredentialReference(section["CredentialSecretName"]!), cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return (true, new IntegrationExecutionResult<JsonElement>(false, default, null, "authentication_failed", 0, TimeSpan.Zero));
+        }
+        if (secret.IsEmpty)
+            return (true, new IntegrationExecutionResult<JsonElement>(false, default, null, "authentication_failed", 0, TimeSpan.Zero));
+
+        var adapter = new TrendyolEInvoiceAdapter(secret, profile, clients.CreateClient("integration-outbound"));
+        var result = await IntegrationAdapterExecutor.ExecuteAsync(adapter, context, payload,
+            new IntegrationRetryPolicy(1, TimeSpan.Zero, TimeSpan.Zero), cancellationToken);
+        return (true, result);
+    }
+
+    private static bool IsReadyTrendyolProfile(IConfigurationSection section)
+    {
+        if (!string.Equals(section["Provider"], "trendyol.e-invoice", StringComparison.Ordinal) ||
+            !string.Equals(section["Environment"], "stage", StringComparison.Ordinal) ||
+            !Guid.TryParse(section["AllowedTenantId"], out var tenantId) || tenantId == Guid.Empty ||
+            section.GetValue<long>("CompanyId") <= 0 || section.GetValue<long>("UserId") <= 0 ||
+            !section.GetValue<bool>("AutoInvoiceId") ||
+            section["Source"] is not ("PORTAL" or "WEB" or "MOBILE") ||
+            string.IsNullOrWhiteSpace(section["CredentialSecretName"])) return false;
+
+        var mappings = section.GetSection("UnitCodeMappings").GetChildren().ToArray();
+        return mappings.Length > 0 && mappings.All(item => !string.IsNullOrWhiteSpace(item.Key) &&
+            TrendyolEInvoiceReadinessRules.IsSupportedUnitCode(item.Value));
+    }
 
     private static bool TryResolveEndpoint(string? baseUrl, string? path, IReadOnlyCollection<string> allowedHosts, out Uri endpoint)
     {

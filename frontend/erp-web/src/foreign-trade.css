@@ -10,6 +10,15 @@
 @media(max-width:900px){.foreign-trade-hero{align-items:flex-start;flex-wrap:wrap}.foreign-trade-hero-actions{width:100%;justify-content:flex-start}.foreign-trade-list .panel-heading{align-items:flex-start;flex-direction:column}.foreign-trade-filters{width:100%}}
 @media(max-width:620px){.foreign-trade-metrics{grid-template-columns:1fr}.foreign-trade-create .form-two,.foreign-trade-create .form-three{grid-template-columns:1fr}.foreign-trade-create .modal-foot{align-items:flex-start;flex-direction:column}.foreign-trade-filters{min-width:0;flex-direction:column}.foreign-trade-filters select{width:100%}}
 
+.foreign-trade-filter-card{display:grid;grid-template-columns:minmax(170px,.35fr) minmax(0,1fr);align-items:center;gap:18px;padding:14px 18px;border-color:#e2e5f3;border-radius:12px}
+.foreign-trade-filter-heading h2{margin:0;font-size:15px}
+.foreign-trade-filter-heading p{margin:4px 0 0;color:#77819b;font-size:11px;line-height:1.45}
+.foreign-trade-filter-card .foreign-trade-filters{min-width:0}
+html[data-theme="dark"] .foreign-trade-filter-card{border-color:var(--erp-border);background:var(--erp-surface);box-shadow:none}
+html[data-theme="dark"] .foreign-trade-filter-heading h2{color:var(--erp-text)}
+html[data-theme="dark"] .foreign-trade-filter-heading p{color:var(--erp-muted)}
+@media(max-width:700px){.foreign-trade-filter-card{grid-template-columns:1fr;gap:10px;padding:12px}}
+
 /* Foreign trade documents: status-led list, concise KPI strip, compact document forms. */
 .foreign-trade-page { gap: 14px; }
 .foreign-trade-hero {

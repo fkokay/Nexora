@@ -15,12 +15,14 @@ export function StandaloneFulfillmentPanel({
   customers,
   stockItems,
   warehouses,
+  initialCustomerId = "",
 }: {
   token: string;
   sales?: boolean;
   customers: SalesCustomer[];
   stockItems: StockItem[];
   warehouses: Warehouse[];
+  initialCustomerId?: string;
 }) {
   type Row = {
     id: string;
@@ -55,7 +57,7 @@ export function StandaloneFulfillmentPanel({
     vatPercent: string;
   };
   const [items, setItems] = useState<Row[]>([]),
-    [customerId, setCustomerId] = useState(""),
+    [customerId, setCustomerId] = useState(initialCustomerId),
     [warehouseId, setWarehouseId] = useState(""),
     [code, setCode] = useState(""),
     [date, setDate] = useState(localDateString()),
@@ -78,6 +80,7 @@ export function StandaloneFulfillmentPanel({
       delivery: Row;
       date: string;
       lines: InvoiceLine[];
+      eDocument: { scenario: string; typeCode: string; recipientAlias: string; purchaseUrl: string; paymentTaxId: string; paymentTitle: string; paymentAlias: string; paymentAgentName: string; paymentType: string; paymentDate: string; paymentDueDate: string; paymentMeans: string; paymentInstructionNote: string; intermediaryCountry: string; intermediaryCountryCode: string; intermediaryCity: string; intermediaryDistrict: string; carrierTaxId: string; carrierName: string; carrierSurname: string; sentAt: string };
     } | null>(null);
   const endpoint = sales
     ? "/api/sales/standalone-deliveries"
@@ -86,6 +89,9 @@ export function StandaloneFulfillmentPanel({
     (x) =>
       x.isActive && (sales ? x.type !== "Supplier" : x.type !== "Customer"),
   );
+  useEffect(() => {
+    if (initialCustomerId) setCustomerId(initialCustomerId);
+  }, [initialCustomerId]);
   async function load() {
     try {
       const result = await api<{ items: Row[] }>(
@@ -276,6 +282,7 @@ export function StandaloneFulfillmentPanel({
       setInvoiceDraft({
         delivery: item,
         date: localDateString(),
+        eDocument: { scenario: "", typeCode: "SATIS", recipientAlias: "", purchaseUrl: "", paymentTaxId: "", paymentTitle: "", paymentAlias: "", paymentAgentName: "", paymentType: "", paymentDate: "", paymentDueDate: "", paymentMeans: "", paymentInstructionNote: "", intermediaryCountry: "", intermediaryCountryCode: "", intermediaryCity: "", intermediaryDistrict: "", carrierTaxId: "", carrierName: "", carrierSurname: "", sentAt: "" },
         lines: detail.lines.map((line) => ({
           ...line,
           unitPrice: "0",
@@ -308,6 +315,9 @@ export function StandaloneFulfillmentPanel({
               discountPercent: Number(line.discountPercent),
               vatPercent: Number(line.vatPercent),
             })),
+            eDocument: { ...invoiceDraft.eDocument, sentAt: invoiceDraft.eDocument.sentAt || null,
+              paymentDate: invoiceDraft.eDocument.paymentDate ? new Date(invoiceDraft.eDocument.paymentDate).toISOString() : null,
+              paymentDueDate: invoiceDraft.eDocument.paymentDueDate ? new Date(invoiceDraft.eDocument.paymentDueDate).toISOString() : null },
           }),
         },
       );
@@ -344,7 +354,9 @@ export function StandaloneFulfillmentPanel({
     }
   }
   return (
-    <section className="panel standalone-fulfillment-panel">
+    <section
+      className={`panel standalone-fulfillment-panel${sales ? " sales-order-create-card sales-delivery-create-card" : ""}`}
+    >
       <div className="panel-heading">
         <div>
           <b>
@@ -365,7 +377,7 @@ export function StandaloneFulfillmentPanel({
         </div>
       )}
       {notice && <div className="success-banner">{notice}</div>}
-      <form className="collection-form" onSubmit={createDraft}>
+      <form id={sales ? "sales-delivery-create-form" : undefined} className="collection-form" onSubmit={createDraft}>
         <div className="form-two">
           <label>
             {sales ? "Müşteri" : "Tedarikçi"}
@@ -428,156 +440,207 @@ export function StandaloneFulfillmentPanel({
             />
           </label>
         </div>
+        {sales && (
+          <div className="quote-lines-heading">
+            <b>İrsaliye satırları</b>
+            <button
+              type="button"
+              className="secondary small-button"
+              data-line-add-shortcut
+              title="Ctrl+Shift+Enter ile satır ekle"
+              onClick={() =>
+                setLines((rows) => [
+                  ...rows,
+                  {
+                    stockItemId: "",
+                    quantity: "1",
+                    unitCostBase: "0",
+                    trackingCode: "",
+                    expiryDate: "",
+                    storageLocationId: "",
+                  },
+                ])
+              }
+            >
+              Satır ekle
+            </button>
+          </div>
+        )}
         {lines.map((line, index) => (
-          <div className="form-two" key={index}>
-            <label>
-              Stok kartı
-              <SearchableRecordPicker
-                options={stockItems
-                  .filter((x) => x.isActive)
-                  .map((x) => ({
-                    id: x.id,
-                    label: `${x.code} · ${x.name} (${x.unitCode})`,
-                    searchText: x.code,
-                  }))}
-                selectedId={line.stockItemId}
-                onSelect={(value) =>
-                  setLines((rows) =>
-                    rows.map((r, i) =>
-                      i === index ? { ...r, stockItemId: value } : r,
-                    ),
-                  )
-                }
-                title="Stok kartı seçin"
-                placeholder="Stok seçin"
-                searchPlaceholder="Stok kodu veya adıyla ara"
-                emptyMessage="Aramanızla eşleşen stok kartı bulunamadı."
-                required
-              />
-            </label>
-            <label>
-              Miktar
-              <input
-                type="number"
-                min="0.0001"
-                step="0.0001"
-                value={line.quantity}
-                onChange={(e) =>
-                  setLines((rows) =>
-                    rows.map((r, i) =>
-                      i === index ? { ...r, quantity: e.target.value } : r,
-                    ),
-                  )
-                }
-                required
-              />
-            </label>
-            {locations.length > 0 && (
+          <div
+            className={sales ? "quote-line delivery-document-line" : "form-two"}
+            key={index}
+          >
+            {sales && (
+              <div className="quote-line-title">
+                <b>Satır {index + 1}</b>
+                {lines.length > 1 && (
+                  <button
+                    type="button"
+                    className="row-action"
+                    onClick={() =>
+                      setLines((rows) => rows.filter((_, i) => i !== index))
+                    }
+                  >
+                    Kaldır
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="form-two delivery-document-line-fields">
               <label>
-                Depo gözü (isteğe bağlı)
-                <select
-                  value={line.storageLocationId}
-                  onChange={(e) =>
+                Stok kartı
+                <SearchableRecordPicker
+                  options={stockItems
+                    .filter((x) => x.isActive)
+                    .map((x) => ({
+                      id: x.id,
+                      label: `${x.code} · ${x.name} (${x.unitCode})`,
+                      searchText: x.code,
+                    }))}
+                  selectedId={line.stockItemId}
+                  onSelect={(value) =>
                     setLines((rows) =>
                       rows.map((r, i) =>
-                        i === index
-                          ? { ...r, storageLocationId: e.target.value }
-                          : r,
+                        i === index ? { ...r, stockItemId: value } : r,
                       ),
                     )
                   }
-                >
-                  <option value="">Depo düzeyinde</option>
-                  {locations.map((location) => (
-                    <option key={location.id} value={location.id}>
-                      {location.code} · {location.name}
-                    </option>
-                  ))}
-                </select>
+                  title="Stok kartı seçin"
+                  placeholder="Stok seçin"
+                  searchPlaceholder="Stok kodu veya adıyla ara"
+                  emptyMessage="Aramanızla eşleşen stok kartı bulunamadı."
+                  required
+                />
               </label>
-            )}
-            {!sales && (
               <label>
-                Birim maliyet (temel birim)
+                Miktar
                 <input
                   type="number"
-                  min="0"
-                  step="0.00000001"
-                  value={line.unitCostBase}
+                  min="0.0001"
+                  step="0.0001"
+                  value={line.quantity}
                   onChange={(e) =>
                     setLines((rows) =>
                       rows.map((r, i) =>
-                        i === index
-                          ? { ...r, unitCostBase: e.target.value }
-                          : r,
+                        i === index ? { ...r, quantity: e.target.value } : r,
                       ),
                     )
                   }
                   required
                 />
               </label>
-            )}
-            {stockItems.find((x) => x.id === line.stockItemId)?.trackingMode !==
-              "None" &&
-              line.stockItemId && (
+              {locations.length > 0 && (
                 <label>
-                  Lot / seri kodu
-                  <input
-                    value={line.trackingCode}
+                  Depo gözü (isteğe bağlı)
+                  <select
+                    value={line.storageLocationId}
                     onChange={(e) =>
                       setLines((rows) =>
                         rows.map((r, i) =>
                           i === index
-                            ? { ...r, trackingCode: e.target.value }
+                            ? { ...r, storageLocationId: e.target.value }
+                            : r,
+                        ),
+                      )
+                    }
+                  >
+                    <option value="">Depo düzeyinde</option>
+                    {locations.map((location) => (
+                      <option key={location.id} value={location.id}>
+                        {location.code} · {location.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {!sales && (
+                <label>
+                  Birim maliyet (temel birim)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.00000001"
+                    value={line.unitCostBase}
+                    onChange={(e) =>
+                      setLines((rows) =>
+                        rows.map((r, i) =>
+                          i === index
+                            ? { ...r, unitCostBase: e.target.value }
                             : r,
                         ),
                       )
                     }
                     required
-                    maxLength={80}
                   />
                 </label>
               )}
-            {stockItems.find((x) => x.id === line.stockItemId)?.trackingMode ===
-              "Lot" && (
-              <label>
-                Son kullanma tarihi
-                <input
-                  type="date"
-                  value={line.expiryDate}
-                  onChange={(e) =>
-                    setLines((rows) =>
-                      rows.map((r, i) =>
-                        i === index ? { ...r, expiryDate: e.target.value } : r,
-                      ),
-                    )
-                  }
-                  required
-                />
-              </label>
-            )}
+              {stockItems.find((x) => x.id === line.stockItemId)?.trackingMode !==
+                "None" &&
+                line.stockItemId && (
+                  <label>
+                    Lot / seri kodu
+                    <input
+                      value={line.trackingCode}
+                      onChange={(e) =>
+                        setLines((rows) =>
+                          rows.map((r, i) =>
+                            i === index
+                              ? { ...r, trackingCode: e.target.value }
+                              : r,
+                          ),
+                        )
+                      }
+                      required
+                      maxLength={80}
+                    />
+                  </label>
+                )}
+              {stockItems.find((x) => x.id === line.stockItemId)?.trackingMode ===
+                "Lot" && (
+                <label>
+                  Son kullanma tarihi
+                  <input
+                    type="date"
+                    value={line.expiryDate}
+                    onChange={(e) =>
+                      setLines((rows) =>
+                        rows.map((r, i) =>
+                          i === index ? { ...r, expiryDate: e.target.value } : r,
+                        ),
+                      )
+                    }
+                    required
+                  />
+                </label>
+              )}
+            </div>
           </div>
         ))}
         <div className="modal-foot">
-          <button
-            type="button"
-            className="secondary"
-            onClick={() =>
-              setLines((rows) => [
-                ...rows,
-                {
-                  stockItemId: "",
-                  quantity: "1",
-                  unitCostBase: "0",
-                  trackingCode: "",
-                  expiryDate: "",
-                  storageLocationId: "",
-                },
-              ])
-            }
-          >
-            Satır ekle
-          </button>
+          {!sales && (
+            <button
+              type="button"
+              className="secondary"
+              data-line-add-shortcut
+              title="Ctrl+Shift+Enter ile satır ekle"
+              onClick={() =>
+                setLines((rows) => [
+                  ...rows,
+                  {
+                    stockItemId: "",
+                    quantity: "1",
+                    unitCostBase: "0",
+                    trackingCode: "",
+                    expiryDate: "",
+                    storageLocationId: "",
+                  },
+                ])
+              }
+            >
+              Satır ekle
+            </button>
+          )}
           {editingId && (
             <button
               type="button"
@@ -713,6 +776,21 @@ export function StandaloneFulfillmentPanel({
                 required
               />
             </label>
+            <details className="sales-delivery-lines-wrap">
+              <summary>E-belge bilgileri</summary>
+              <label>Senaryo<input value={invoiceDraft.eDocument.scenario} placeholder="TEMELFATURA / EARSIVFATURA" onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, scenario: event.target.value } } : current)} /></label>
+              <label>Fatura tür kodu<input value={invoiceDraft.eDocument.typeCode} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, typeCode: event.target.value } } : current)} /></label>
+              <label>Alıcı e-Fatura etiketi<input value={invoiceDraft.eDocument.recipientAlias} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, recipientAlias: event.target.value } } : current)} /></label>
+              <label>Satın alma URL'si<input value={invoiceDraft.eDocument.purchaseUrl} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, purchaseUrl: event.target.value } } : current)} /></label>
+              <label>Aracı firma VKN/TCKN<input value={invoiceDraft.eDocument.paymentTaxId} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, paymentTaxId: event.target.value } } : current)} /></label>
+              <label>Aracı firma ünvanı<input value={invoiceDraft.eDocument.paymentTitle} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, paymentTitle: event.target.value } } : current)} /></label>
+              <label>Aracı firma etiketi<input value={invoiceDraft.eDocument.paymentAlias} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, paymentAlias: event.target.value } } : current)} /></label>
+              {([['paymentAgentName','Ödeme aracısı adı','text'],['paymentType','Ödeme türü','text'],['paymentMeans','Ödeme yöntemi (CREDIT_CARD / EFT / ON_DELIVERY / MEDIATOR / OTHER)','text'],['paymentDate','Ödeme tarihi','datetime-local'],['paymentDueDate','Son ödeme tarihi','datetime-local'],['paymentInstructionNote','Ödeme notu','text'],['intermediaryCountry','Aracı firma ülkesi','text'],['intermediaryCountryCode','Aracı firma ülke kodu','text'],['intermediaryCity','Aracı firma şehri','text'],['intermediaryDistrict','Aracı firma ilçesi','text']] as const).map(([key,label,type]) => <label key={key}>{label}<input type={type} value={type === 'datetime-local' && invoiceDraft.eDocument[key] ? invoiceDraft.eDocument[key].slice(0,16) : invoiceDraft.eDocument[key]} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, [key]: event.target.value } } : current)} /></label>)}
+              <label>Taşıyıcı VKN/TCKN<input value={invoiceDraft.eDocument.carrierTaxId} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, carrierTaxId: event.target.value } } : current)} /></label>
+              <label>Taşıyıcı adı/ünvanı<input value={invoiceDraft.eDocument.carrierName} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, carrierName: event.target.value } } : current)} /></label>
+              <label>Taşıyıcı soyadı<input value={invoiceDraft.eDocument.carrierSurname} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, carrierSurname: event.target.value } } : current)} /></label>
+              <label>Sevk tarihi<input type="date" value={invoiceDraft.eDocument.sentAt} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, sentAt: event.target.value } } : current)} /></label>
+            </details>
             <div className="customer-table-wrap sales-delivery-lines-wrap">
               <table className="customer-table">
                 <thead>

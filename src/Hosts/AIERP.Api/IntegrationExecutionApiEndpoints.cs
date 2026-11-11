@@ -1,11 +1,14 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
 using System.Text.Json;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using AIERP.IntegrationSDK;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
 
 public sealed record IntegrationExecuteApiRequest(JsonElement Payload);
 public sealed record IntegrationOperationApiResponse(
@@ -84,7 +87,7 @@ public static class IntegrationExecutionApiEndpoints
             var request = await BuildSourceSubmissionAsync(tenantDb, tenantId,
                 new EDocumentSubmissionDraftRequest(documentType, documentId), cancellationToken);
             if (request is null) return Results.NotFound(new { errorCode = "source_document_not_found" });
-            var errors = EDocumentSubmissionRules.Validate(request);
+            var errors = ValidateSubmission(request);
             if (errors.Count > 0) return Results.ValidationProblem(errors.ToDictionary(error => error, error => new[] { error }));
             return Results.Ok(request);
         }).RequireAuthorization();
@@ -101,7 +104,7 @@ public static class IntegrationExecutionApiEndpoints
             if (!TryGetActor(user, out var tenantId, out var userId) || user.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
             var request = await BuildSourceSubmissionAsync(tenantDb, tenantId, draft, cancellationToken);
             if (request is null) return Results.NotFound(new { errorCode = "source_document_not_found" });
-            var errors = EDocumentSubmissionRules.Validate(request);
+            var errors = ValidateSubmission(request);
             if (errors.Count > 0) return Results.ValidationProblem(errors.ToDictionary(error => error, error => new[] { error }));
             if (!IntegrationOperationCipher.IsConfigured(configuration))
                 return Results.Problem("Integration queue encryption is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -184,7 +187,7 @@ public static class IntegrationExecutionApiEndpoints
             if (operation.RequestedByUserId == userId) return Results.Conflict(new { errorCode = "independent_approval_required" });
             var payload = JsonSerializer.Deserialize<EDocumentSubmissionRequest>(IntegrationOperationCipher.Decrypt(
                 operation.EncryptedPayload, configuration, tenantId, operation.Id, "request"));
-            if (EDocumentSubmissionRules.Validate(payload).Count > 0) return Results.Conflict(new { errorCode = "submission_invalid" });
+            if (ValidateSubmission(payload).Count > 0) return Results.Conflict(new { errorCode = "submission_invalid" });
             operation.Status = "Queued";
             operation.UpdatedAt = DateTimeOffset.UtcNow;
             operation.NextAttemptAt = operation.UpdatedAt;
@@ -221,7 +224,7 @@ public static class IntegrationExecutionApiEndpoints
 
             var payloadJson = IntegrationOperationCipher.Decrypt(operation.EncryptedPayload, configuration, tenantId, operation.Id, "request");
             var submission = JsonSerializer.Deserialize<EDocumentSubmissionRequest>(payloadJson);
-            if (submission is null || EDocumentSubmissionRules.Validate(submission).Count > 0)
+            if (submission is null || ValidateSourceSubmission(submission).Count > 0)
                 return Results.Conflict(new { errorCode = "submission_invalid" });
 
             var now = DateTimeOffset.UtcNow;
@@ -240,6 +243,7 @@ public static class IntegrationExecutionApiEndpoints
             operation.ErrorCode = confirmedSubmitted ? null : "delivery_confirmed_not_submitted";
             operation.EncryptedResult = IntegrationOperationCipher.Encrypt(JsonSerializer.Serialize(providerResult),
                 configuration, tenantId, operation.Id, "result");
+            operation.EncryptedPayload = "";
             operation.UpdatedAt = now;
             operation.CompletedAt = now;
             db.AuditEvents.Add(new AuditEvent
@@ -253,6 +257,160 @@ public static class IntegrationExecutionApiEndpoints
             catch (DbUpdateConcurrencyException) { return Results.Conflict(new { errorCode = "submission_state_changed" }); }
             return Results.Ok(ToResponse(operation, configuration));
         }).RequireAuthorization();
+
+        app.MapGet("/api/e-documents/submissions/{operationId:guid}/provider-status", async (
+            Guid operationId, ClaimsPrincipal user, PlatformDbContext db, IConfiguration configuration,
+            IHttpClientFactory clients, CancellationToken cancellationToken) =>
+        {
+            if (!TryGetActor(user, out var tenantId, out var userId) || user.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+            var operation = await db.IntegrationOperations.SingleOrDefaultAsync(x => x.Id == operationId &&
+                x.TenantId == tenantId && x.IntegrationCode == EDocumentIntegrationCode, cancellationToken);
+            if (operation is null) return Results.NotFound();
+            if (operation.Status is not ("Indeterminate" or "Succeeded"))
+                return Results.Conflict(new { errorCode = "submission_not_status_checkable", status = operation.Status });
+            if (operation.RequestedByUserId == userId)
+                return Results.Conflict(new { errorCode = "independent_reconciliation_required" });
+
+            string documentType;
+            string documentNumber;
+            if (operation.Status == "Indeterminate")
+            {
+                EDocumentSubmissionRequest? submission;
+                try
+                {
+                    var payloadJson = IntegrationOperationCipher.Decrypt(operation.EncryptedPayload, configuration, tenantId, operation.Id, "request");
+                    submission = JsonSerializer.Deserialize<EDocumentSubmissionRequest>(payloadJson);
+                }
+                catch (Exception exception) when (exception is CryptographicException or FormatException or JsonException)
+                {
+                    return Results.Problem("Submission data is unavailable for provider status lookup.", statusCode: StatusCodes.Status409Conflict);
+                }
+                if (submission is null || submission.DocumentType is not ("e-invoice" or "e-archive" or "e-dispatch") || ValidateSourceSubmission(submission).Count > 0)
+                    return Results.Conflict(new { errorCode = "submission_invalid" });
+                documentType = submission.DocumentType;
+                documentNumber = submission.DocumentNumber;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(operation.EncryptedResult))
+                    return Results.Conflict(new { errorCode = "provider_create_result_unavailable" });
+                try
+                {
+                    var resultJson = IntegrationOperationCipher.Decrypt(operation.EncryptedResult, configuration, tenantId, operation.Id, "result");
+                    var createResult = JsonSerializer.Deserialize<IntegrationHostExecuteResponse>(resultJson,
+                        new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                    if (createResult is null || !createResult.Succeeded || createResult.ExternalReference is null ||
+                        !Guid.TryParse(createResult.ExternalReference, out var createdUuid) || createdUuid != operation.Id ||
+                        createResult.Value is not JsonElement providerDocument || providerDocument.ValueKind != JsonValueKind.Object ||
+                        !providerDocument.TryGetProperty("scenario", out var scenarioValue) || scenarioValue.ValueKind != JsonValueKind.String)
+                        return Results.Conflict(new { errorCode = "provider_create_result_unavailable" });
+                    documentType = scenarioValue.GetString() switch
+                    {
+                        "EARSIVFATURA" => "e-archive",
+                        "TEMELFATURA" or "TICARIFATURA" => "e-invoice",
+                        _ => ""
+                    };
+                    if (documentType.Length == 0) return Results.Conflict(new { errorCode = "provider_create_result_unsupported" });
+                    documentNumber = operation.Id.ToString("D");
+                }
+                catch (Exception exception) when (exception is CryptographicException or FormatException or JsonException)
+                {
+                    return Results.Problem("Provider create result is unavailable for status lookup.", statusCode: StatusCodes.Status409Conflict);
+                }
+            }
+
+            var signingKey = configuration["IntegrationHost:SigningKey"] ?? configuration["PluginHost:SigningKey"];
+            if (string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32 ||
+                !Uri.TryCreate(configuration["IntegrationHost:BaseUrl"], UriKind.Absolute, out var hostUri) ||
+                hostUri.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(hostUri.UserInfo) ||
+                !string.IsNullOrEmpty(hostUri.Query) || !string.IsNullOrEmpty(hostUri.Fragment))
+                return Results.Problem("IntegrationHost is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+            var now = DateTimeOffset.UtcNow;
+            var hostRequest = new IntegrationHostExecuteRequest(EDocumentIntegrationCode, operation.ProviderIdempotencyKey,
+                operation.Id.ToString("N"), now.AddSeconds(30), JsonSerializer.SerializeToElement(new
+                {
+                    action = "get-status",
+                    documentType,
+                    documentUuid = operation.Id
+                }));
+            db.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                Action = "e-document.provider-status.lookup.requested",
+                Resource = $"{documentType}:{documentNumber}:{operation.Id:N}"
+            });
+            await db.SaveChangesAsync(cancellationToken);
+
+            using var client = clients.CreateClient("integration-host");
+            client.BaseAddress = hostUri;
+            using var message = new HttpRequestMessage(HttpMethod.Post, "/internal/integrations/execute")
+            {
+                Content = System.Net.Http.Json.JsonContent.Create(hostRequest)
+            };
+            message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
+                CreateIntegrationHostToken(tenantId, userId, signingKey,
+                    configuration["IntegrationHost:Issuer"] ?? "AIERP",
+                    configuration["IntegrationHost:Audience"] ?? "AIERP.IntegrationHost"));
+
+            IntegrationHostExecuteResponse? providerResult;
+            try
+            {
+                using var response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                var responseBytes = await IntegrationOperationWorker.ReadBoundedResponseAsync(response.Content, 128 * 1024, cancellationToken);
+                providerResult = JsonSerializer.Deserialize<IntegrationHostExecuteResponse>(responseBytes,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                if (providerResult is null || !response.IsSuccessStatusCode)
+                {
+                    if (providerResult?.ErrorCode == "provider_status_not_found")
+                        return Results.NotFound(new { errorCode = "provider_status_not_found", operationStatus = operation.Status });
+                    return Results.Problem("Provider status lookup failed; the queue operation state is unchanged.",
+                        statusCode: StatusCodes.Status502BadGateway);
+                }
+            }
+            catch (HttpRequestException)
+            {
+                return Results.Problem("Provider status lookup is temporarily unavailable; the queue operation state is unchanged.",
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+            catch (InvalidDataException)
+            {
+                return Results.Problem("Provider status response was invalid; the queue operation state is unchanged.",
+                    statusCode: StatusCodes.Status502BadGateway);
+            }
+            catch (JsonException)
+            {
+                return Results.Problem("Provider status response was invalid; the queue operation state is unchanged.",
+                    statusCode: StatusCodes.Status502BadGateway);
+            }
+
+            if (!providerResult.Succeeded || providerResult.ExternalReference is null ||
+                !Guid.TryParse(providerResult.ExternalReference, out var returnedUuid) || returnedUuid != operation.Id)
+                return Results.Problem("Provider status could not be confirmed; the queue operation state is unchanged.",
+                    statusCode: StatusCodes.Status502BadGateway);
+
+            db.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                Action = "e-document.provider-status.checked",
+                Resource = $"{documentType}:{documentNumber}:{operation.Id:N}"
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            var currentOperationStatus = await db.IntegrationOperations.AsNoTracking()
+                .Where(x => x.Id == operation.Id && x.TenantId == tenantId && x.IntegrationCode == EDocumentIntegrationCode)
+                .Select(x => x.Status)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (currentOperationStatus is null) return Results.NotFound();
+            return Results.Ok(new
+            {
+                operationId = operation.Id,
+                operationStatus = currentOperationStatus,
+                providerStatus = providerResult.Value,
+                externalReference = providerResult.ExternalReference
+            });
+        }).RequireAuthorization().RequireRateLimiting("integration-execute");
 
         app.MapGet("/api/integrations/operations", async (
             ClaimsPrincipal user,
@@ -444,6 +602,36 @@ public static class IntegrationExecutionApiEndpoints
         {
             source = new { kind = "sales-invoice", id = invoice.Id, code = invoice.Code },
             issueDate = invoice.InvoiceDate,
+            eDocumentScenario = invoice.EDocumentScenario,
+            eDocumentTypeCode = invoice.EDocumentTypeCode,
+            recipientAlias = invoice.EDocumentRecipientAlias,
+            eCommerce = new
+            {
+                purchaseUrl = invoice.ECommercePurchaseUrl,
+                paymentTaxId = invoice.ECommercePaymentTaxId,
+                paymentTitle = invoice.ECommercePaymentTitle,
+                paymentAlias = invoice.ECommercePaymentAlias,
+                paymentAgentName = invoice.ECommercePaymentAgentName,
+                paymentType = invoice.ECommercePaymentType,
+                paymentDate = invoice.ECommercePaymentDate,
+                paymentDueDate = invoice.ECommercePaymentDueDate,
+                paymentMeans = invoice.ECommercePaymentMeans,
+                instructionNote = invoice.ECommercePaymentInstructionNote,
+                carrierTaxId = invoice.DeliveryCarrierTaxId,
+                carrierName = invoice.DeliveryCarrierName,
+                carrierSurname = invoice.DeliveryCarrierSurname,
+                sentAt = invoice.DeliverySentAt
+            },
+            intermediaryInfo = invoice.EDocumentScenario == "YOLCUBERABERFATURA" ? new
+            {
+                taxId = invoice.ECommercePaymentTaxId,
+                title = invoice.ECommercePaymentTitle,
+                alias = invoice.ECommercePaymentAlias,
+                country = invoice.ECommerceIntermediaryCountry,
+                countryCode = invoice.ECommerceIntermediaryCountryCode,
+                city = invoice.ECommerceIntermediaryCity,
+                district = invoice.ECommerceIntermediaryDistrict
+            } : null,
             customer = CustomerEnvelope(invoice.Customer),
             invoice.Subtotal, invoice.DiscountTotal, invoice.TaxTotal, invoice.GrandTotal,
             lines = invoice.Lines.OrderBy(x => x.OrderLineNumber).Select(x => new
@@ -456,9 +644,15 @@ public static class IntegrationExecutionApiEndpoints
             invoice.InvoiceDate, invoice.CurrencyCode, invoiceDocument);
     }
 
+    private static IReadOnlyList<string> ValidateSubmission(EDocumentSubmissionRequest? request) =>
+        ValidateSourceSubmission(request).Concat(TrendyolEInvoiceReadinessRules.Validate(request)).Distinct(StringComparer.Ordinal).ToArray();
+
+    private static IReadOnlyList<string> ValidateSourceSubmission(EDocumentSubmissionRequest? request) =>
+        EDocumentSubmissionRules.Validate(request);
+
     private static object CustomerEnvelope(CustomerAccount customer) => new
     {
-        customer.Code, customer.Name, customer.TaxNumber,
+        customer.Code, customer.Name, customer.TaxNumber, customer.IdentityNumber,
         addresses = customer.Addresses.Where(x => x.IsActive).OrderByDescending(x => x.IsDefault).Select(x => new
         {
             x.Label, x.AddressLine, x.City, x.District, x.PostalCode, x.CountryCode, x.IsDefault
@@ -486,6 +680,23 @@ public static class IntegrationExecutionApiEndpoints
         }
         return new IntegrationOperationApiResponse(operation.Id, operation.IntegrationCode, operation.Status,
             operation.CreatedAt, operation.UpdatedAt, operation.AttemptCount, operation.ErrorCode, result);
+    }
+
+    private static string CreateIntegrationHostToken(Guid tenantId, Guid userId, string signingKey, string issuer, string audience)
+    {
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString("D")),
+            new Claim("service", "AIERP.Api"),
+            new Claim("operation", "integration.execute"),
+            new Claim("tenant_id", tenantId.ToString("D")),
+            new Claim("integration_code", EDocumentIntegrationCode)
+        };
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
+        var now = DateTime.UtcNow;
+        var token = new JwtSecurityToken(issuer, audience, claims,
+            now.AddSeconds(-5), now.AddSeconds(45), new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
     private static bool TryGetActor(ClaimsPrincipal principal, out Guid tenantId, out Guid userId)

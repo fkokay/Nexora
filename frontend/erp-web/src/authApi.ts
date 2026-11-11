@@ -106,6 +106,7 @@ function expireSession() {
 /** Sends an ERP API request and retries once after a coordinated access-token refresh. */
 export async function authenticatedFetch(url: string, token?: string, init?: RequestInit): Promise<Response> {
   const platformRequest = url.startsWith('/api/auth/platform/')
+  const platformSelectRequest = url === '/api/auth/platform/select'
   const send = (accessToken?: string) => {
     const headers = new Headers(init?.headers)
     if (!headers.has('Content-Type') && !(typeof FormData !== 'undefined' && init?.body instanceof FormData)) headers.set('Content-Type', 'application/json')
@@ -121,12 +122,14 @@ export async function authenticatedFetch(url: string, token?: string, init?: Req
   let accessToken = token
   const storedToken = localStorage.getItem(accessTokenKey)
   if (accessToken && storedToken && storedToken !== accessToken) accessToken = storedToken
-  if (accessToken && !url.startsWith('/api/auth/') && tokenExpiresSoon(accessToken)) {
+  // Platform selection consumes a tenant-scoped session and must start with
+  // its latest refresh-token rotation, even when the access JWT is not near expiry.
+  if (accessToken && (!url.startsWith('/api/auth/') || platformSelectRequest) && (platformSelectRequest || tokenExpiresSoon(accessToken))) {
     accessToken = await refreshAccessToken() || accessToken
   }
 
   let response = await send(accessToken)
-  if (response.status !== 401 || !accessToken || url.startsWith('/api/auth/')) return addTraceIdentifierToError(response)
+  if (response.status !== 401 || !accessToken || (url.startsWith('/api/auth/') && !platformSelectRequest)) return addTraceIdentifierToError(response)
 
   const currentToken = localStorage.getItem(accessTokenKey)
   const refreshedToken = currentToken && currentToken !== accessToken ? currentToken : await refreshAccessToken()

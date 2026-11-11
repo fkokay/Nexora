@@ -594,6 +594,10 @@ export default function HumanResourcesPage({
       useState<PayrollRunSnapshotDetail | null>(null),
     [selectedRunPreview, setSelectedRunPreview] =
       useState<PayrollComponentPreview | null>(null);
+  const [leaveSearch, setLeaveSearch] = useState(""),
+    [attendanceSearch, setAttendanceSearch] = useState(""),
+    [compensationSearch, setCompensationSearch] = useState(""),
+    [payrollRunSearch, setPayrollRunSearch] = useState("");
   const [selectedRunCalculations, setSelectedRunCalculations] = useState<
     PayrollRunCalculation[]
   >([]);
@@ -2237,6 +2241,13 @@ export default function HumanResourcesPage({
   const leaveVisibleFields = leaveScreenFields
     .filter((field) => field.key === "actions" || field.visible)
     .sort((a, b) => a.position - b.position);
+  const normalizeHrSearch = (value: string) =>
+    value.trim().toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR");
+  const leaveRows = leaves.filter((item) =>
+    `${item.employee} ${item.leaveType} ${item.startDate} ${item.endDate} ${item.status}`
+      .toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR")
+      .includes(normalizeHrSearch(leaveSearch)),
+  );
   const leaveFieldLabel = (field: EmployeeScreenField) => {
     const defaults: Record<string, [string, string]> = {
       employee: ["Personel", "Employee"],
@@ -2274,6 +2285,21 @@ export default function HumanResourcesPage({
     const value = defaults[field.key];
     return isEn && value?.[0] === field.label ? value[1] : field.label;
   };
+  const attendanceRows = attendance.filter((item) =>
+    `${item.employee} ${item.workDate} ${item.note ?? ""} ${item.approvalStatus}`
+      .toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR")
+      .includes(normalizeHrSearch(attendanceSearch)),
+  );
+  const compensationRows = compensations.filter((item) =>
+    `${item.employee} ${item.targetKind} ${item.currencyCode} ${item.payBasisCode} ${item.effectiveFrom} ${item.status}`
+      .toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR")
+      .includes(normalizeHrSearch(compensationSearch)),
+  );
+  const payrollRunRows = payrollRuns.filter((item) =>
+    `${item.periodStart} ${item.periodEnd} ${item.profileCode} ${item.status} ${item.snapshotSha256}`
+      .toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR")
+      .includes(normalizeHrSearch(payrollRunSearch)),
+  );
   const workplaceAssignmentVisibleFields = workplaceAssignmentScreenFields
     .filter((field) => field.key === "actions" || field.visible)
     .sort((a, b) => a.position - b.position);
@@ -2462,6 +2488,19 @@ export default function HumanResourcesPage({
                     </b>
                   </article>
                 </div>
+                <section className="hr-filter-card" aria-label={tr("Personel filtreleri", "Employee filters")}>
+                  <div className="hr-filter-heading">
+                    <h2>{tr("Filtreler", "Filters")}</h2>
+                    <p>{tr("Personel kayıtlarını kod, ad, departman veya göreve göre daraltın.", "Narrow employee records by code, name, department or job title.")}</p>
+                  </div>
+                  <EmployeeFilters
+                    search={employeeSearch}
+                    onSearchChange={setEmployeeSearch}
+                    visibleCount={employeeRows.length}
+                    totalCount={employees.length}
+                    translate={tr}
+                  />
+                </section>
                 <div className="hr-employee-workspace">
                   <div
                     className={`hr-panel hr-employee-directory${employees.length === 0 ? " is-empty" : ""}`}
@@ -2473,13 +2512,6 @@ export default function HumanResourcesPage({
                         setError("");
                         setCreatingEmployee(true);
                       }}
-                      translate={tr}
-                    />
-                    <EmployeeFilters
-                      search={employeeSearch}
-                      onSearchChange={setEmployeeSearch}
-                      visibleCount={employeeRows.length}
-                      totalCount={employees.length}
                       translate={tr}
                     />
                     <EmployeeGrid
@@ -2846,8 +2878,19 @@ export default function HumanResourcesPage({
             )}
             {section === "leave" && (
               <>
+                <div className="hr-kpi-strip" aria-label={tr("İzin özeti", "Leave summary")}>
+                  <article><span>{tr("Toplam izin talebi", "Total requests")}</span><b>{leaves.length}</b></article>
+                  <article><span>{tr("Bekleyen", "Pending")}</span><b>{leaves.filter((item) => item.status === "Requested").length}</b></article>
+                  <article><span>{tr("Onaylanan", "Approved")}</span><b>{leaves.filter((item) => item.status === "Approved").length}</b></article>
+                </div>
+                <section className="hr-filter-card" aria-label={tr("İzin filtreleri", "Leave filters")}>
+                  <div className="hr-filter-heading"><h2>{tr("Filtreler", "Filters")}</h2><p>{tr("İzin kayıtlarını personel, tür, tarih veya duruma göre daraltın.", "Narrow leave records by employee, type, date or status.")}</p></div>
+                  <label className="hr-list-search">{tr("İzin ara", "Search leave")}
+                    <input type="search" value={leaveSearch} onChange={(event) => setLeaveSearch(event.target.value)} placeholder={tr("Personel, izin türü veya tarih", "Employee, leave type or date")} />
+                  </label>
+                </section>
                 <div className="hr-panel">
-                  <h3>{tr("İzin talepleri", "Leave requests")}</h3>
+                  <div className="panel-heading"><div><h3>{tr("İzin talepleri", "Leave requests")}</h3><p>{tr(`${leaveRows.length} kayıt gösteriliyor`, `${leaveRows.length} records shown`)}</p></div></div>
                   <div className="hr-table-wrap">
                     <AdvancedDataGrid className="hr-table">
                       <thead>
@@ -2870,7 +2913,7 @@ export default function HumanResourcesPage({
                         </tr>
                       </thead>
                       <tbody>
-                        {leaves.map((x) => (
+                        {leaveRows.map((x) => (
                           <tr key={x.id}>
                             {leaveVisibleFields.map((field) => {
                               const label = leaveFieldLabel(field);
@@ -3017,7 +3060,7 @@ export default function HumanResourcesPage({
                             })}
                           </tr>
                         ))}
-                        {!leaves.length && (
+                        {!leaveRows.length && (
                           <tr>
                             <td colSpan={leaveVisibleFields.length}>
                               {tr("İzin talebi yok.", "No leave requests.")}
@@ -3150,6 +3193,17 @@ export default function HumanResourcesPage({
             )}
             {section === "attendance" && (
               <>
+                <div className="hr-kpi-strip" aria-label={tr("Puantaj özeti", "Attendance summary")}>
+                  <article><span>{tr("Toplam kayıt", "Total records")}</span><b>{attendance.length}</b></article>
+                  <article><span>{tr("Onay bekleyen", "Pending approval")}</span><b>{attendance.filter((item) => item.approvalStatus === "PendingApproval").length}</b></article>
+                  <article><span>{tr("Onaylanan", "Approved")}</span><b>{attendance.filter((item) => item.approvalStatus === "Approved").length}</b></article>
+                </div>
+                <section className="hr-filter-card" aria-label={tr("Puantaj filtreleri", "Attendance filters")}>
+                  <div className="hr-filter-heading"><h2>{tr("Filtreler", "Filters")}</h2><p>{tr("Puantaj kayıtlarını personel, tarih veya onay durumuna göre daraltın.", "Narrow attendance records by employee, date or approval status.")}</p></div>
+                  <label className="hr-list-search">{tr("Puantaj ara", "Search attendance")}
+                    <input type="search" value={attendanceSearch} onChange={(event) => setAttendanceSearch(event.target.value)} placeholder={tr("Personel, tarih veya not", "Employee, date or note")} />
+                  </label>
+                </section>
                 <div className="hr-panel">
                   <div className="panel-heading">
                     <div>
@@ -3185,7 +3239,7 @@ export default function HumanResourcesPage({
                         </tr>
                       </thead>
                       <tbody>
-                        {attendance.map((x) => (
+                          {attendanceRows.map((x) => (
                           <tr key={x.id}>
                             {attendanceVisibleFields.map((field) => {
                               const label = attendanceFieldLabel(field);
@@ -3283,7 +3337,7 @@ export default function HumanResourcesPage({
                             })}
                           </tr>
                         ))}
-                        {!attendance.length && (
+                        {!attendanceRows.length && (
                           <tr>
                             <td
                               colSpan={Math.max(
@@ -3687,13 +3741,20 @@ export default function HumanResourcesPage({
                   </div>
                 )}
                 {compensationAccess.view && (
+                  <>
+                  <div className="hr-kpi-strip" aria-label={tr("Ücret özeti", "Compensation summary")}>
+                    <article><span>{tr("Ücret kaydı", "Compensation records")}</span><b>{compensations.length}</b></article>
+                    <article><span>{tr("Bekleyen onay", "Pending approval")}</span><b>{compensations.filter((item) => item.status === "PendingApproval").length}</b></article>
+                    <article><span>{tr("Etkin", "Active")}</span><b>{compensations.filter((item) => item.status === "Approved").length}</b></article>
+                  </div>
+                  <section className="hr-filter-card" aria-label={tr("Ücret filtreleri", "Compensation filters")}>
+                    <div className="hr-filter-heading"><h2>{tr("Filtreler", "Filters")}</h2><p>{tr("Yetki kapsamındaki ücret kayıtlarını personel, tür, para birimi veya duruma göre daraltın.", "Narrow authorized compensation records by employee, type, currency or status.")}</p></div>
+                    <label className="hr-list-search">{tr("Ücret kaydı ara", "Search compensation")}
+                      <input type="search" value={compensationSearch} onChange={(event) => setCompensationSearch(event.target.value)} placeholder={tr("Personel, para birimi veya durum", "Employee, currency or status")} />
+                    </label>
+                  </section>
                   <div className="hr-panel">
-                    <h3>
-                      {tr(
-                        "Gizli ücret kayıtları",
-                        "Confidential compensation records",
-                      )}
-                    </h3>
+                    <div className="panel-heading"><div><h3>{tr("Gizli ücret kayıtları", "Confidential compensation records")}</h3><p>{tr(`${compensationRows.length} kayıt gösteriliyor`, `${compensationRows.length} records shown`)}</p></div></div>
                     <p className="hr-footnote">
                       {tr(
                         "Yalnız onaylı kayıtlar yürürlüğe girer. Yeni tutar değişiklikleri ikinci yetkili onayı bekler.",
@@ -3715,7 +3776,7 @@ export default function HumanResourcesPage({
                           </tr>
                         </thead>
                         <tbody>
-                          {compensations.map((x) => (
+                          {compensationRows.map((x) => (
                             <tr key={x.id}>
                               <td>{x.employee}</td>
                               <td>
@@ -3801,7 +3862,7 @@ export default function HumanResourcesPage({
                               </td>
                             </tr>
                           ))}
-                          {!compensations.length && (
+                          {!compensationRows.length && (
                             <tr>
                               <td colSpan={8}>
                                 {tr(
@@ -3815,6 +3876,7 @@ export default function HumanResourcesPage({
                       </AdvancedDataGrid>
                     </div>
                   </div>
+                  </>
                 )}
                 {compensationAccess.change && (
                   <div className="hr-panel">
@@ -4454,13 +4516,20 @@ export default function HumanResourcesPage({
                   </div>
                 )}
                 {compensationAccess.view && (
+                  <>
+                  <div className="hr-kpi-strip" aria-label={tr("Bordro özeti", "Payroll summary")}>
+                    <article><span>{tr("Taslak snapshot", "Draft snapshots")}</span><b>{payrollRuns.length}</b></article>
+                    <article><span>{tr("Kapsanan personel", "Employees covered")}</span><b>{payrollRuns.reduce((sum, run) => sum + run.employeeCount, 0)}</b></article>
+                    <article><span>{tr("Farklı dönem", "Distinct periods")}</span><b>{new Set(payrollRuns.map((run) => `${run.periodStart}:${run.periodEnd}`)).size}</b></article>
+                  </div>
+                  <section className="hr-filter-card" aria-label={tr("Bordro taslak filtreleri", "Payroll draft filters")}>
+                    <div className="hr-filter-heading"><h2>{tr("Filtreler", "Filters")}</h2><p>{tr("Taslakları dönem, profil veya snapshot özetine göre daraltın.", "Narrow drafts by period, profile or snapshot hash.")}</p></div>
+                    <label className="hr-list-search">{tr("Taslak ara", "Search drafts")}
+                      <input type="search" value={payrollRunSearch} onChange={(event) => setPayrollRunSearch(event.target.value)} placeholder={tr("Dönem veya profil", "Period or profile")} />
+                    </label>
+                  </section>
                   <div className="hr-panel">
-                    <h3>
-                      {tr(
-                        "Bordro taslak snapshotları",
-                        "Payroll draft snapshots",
-                      )}
-                    </h3>
+                    <div className="panel-heading"><div><h3>{tr("Bordro taslak snapshotları", "Payroll draft snapshots")}</h3><p>{tr(`${payrollRunRows.length} kayıt gösteriliyor`, `${payrollRunRows.length} records shown`)}</p></div></div>
                     <div className="hr-table-wrap">
                       <AdvancedDataGrid className="hr-table">
                         <thead>
@@ -4476,7 +4545,7 @@ export default function HumanResourcesPage({
                           </tr>
                         </thead>
                         <tbody>
-                          {payrollRuns.map((run) => {
+                          {payrollRunRows.map((run) => {
                             let blockers: string[] = [];
                             try {
                               blockers = JSON.parse(run.blockersJson);
@@ -4565,7 +4634,7 @@ export default function HumanResourcesPage({
                               </tr>
                             );
                           })}
-                          {!payrollRuns.length && (
+                          {!payrollRunRows.length && (
                             <tr>
                               <td colSpan={8}>
                                 {tr(
@@ -5269,6 +5338,7 @@ export default function HumanResourcesPage({
                       </div>
                     )}
                   </div>
+                  </>
                 )}
               </>
             )}

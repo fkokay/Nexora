@@ -4,6 +4,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type FormEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -12,9 +13,13 @@ import {
   ChevronDown,
   Code2,
   ExternalLink,
+  Grid2X2,
+  KeyRound,
+  Link2,
   LogOut,
-  Menu,
   Moon,
+  PanelRightOpen,
+  PanelRightClose,
   Search,
   Settings,
   ShieldAlert,
@@ -25,6 +30,7 @@ import type { Locale } from "./WorkspaceComponents";
 import type { Tenant, Theme } from "./erp-types";
 import { api } from "./erpApi";
 import "./notification-alerts.css";
+import "./password-change.css";
 
 type SecurityAlert = {
   id: string;
@@ -49,8 +55,9 @@ type Props = {
   tenants: Tenant[];
   theme: Theme;
   standaloneStudio: boolean;
+  rightWidgetsOpen: boolean;
+  onToggleRightWidgets: () => void;
   developerModeOpen: boolean;
-  onToggleMenu: () => void;
   onOpenSearch: () => void;
   onThemeChange: (theme: Theme) => void;
   onLocaleChange: (locale: Locale) => void;
@@ -68,8 +75,8 @@ export function WorkspaceTopbar({
   tenants,
   theme,
   standaloneStudio,
-  developerModeOpen,
-  onToggleMenu,
+  rightWidgetsOpen,
+  onToggleRightWidgets,
   onOpenSearch,
   onThemeChange,
   onLocaleChange,
@@ -81,6 +88,13 @@ export function WorkspaceTopbar({
 }: Props) {
   const english = locale === "en";
   const [profileOpen, setProfileOpen] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordNotice, setPasswordNotice] = useState("");
   const [tenantOpen, setTenantOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
@@ -169,6 +183,36 @@ export function WorkspaceTopbar({
     }
   };
 
+  const changePassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPasswordError("");
+    setPasswordNotice("");
+    if (newPassword.length < 6) {
+      setPasswordError(english ? "Use at least 6 characters for the new password." : "Yeni şifre en az 6 karakter olmalı.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError(english ? "The new passwords do not match." : "Yeni şifreler eşleşmiyor.");
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      await api<void>("/api/auth/change-password", token, {
+        method: "POST",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordNotice(english ? "Your password has been changed." : "Şifreniz değiştirildi.");
+      setPasswordDialogOpen(false);
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : (english ? "Password could not be changed." : "Şifre değiştirilemedi."));
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (!profileOpen && !tenantOpen && !notificationsOpen) return;
     const closeOnOutsideClick = (event: PointerEvent) => {
@@ -225,16 +269,9 @@ export function WorkspaceTopbar({
   return (
     <header className="topbar">
       <div className="crumb">
-        <button
-          className="icon-button menu-button"
-          aria-label={english ? "Open module search" : "Modül aramayı aç"}
-          onClick={onToggleMenu}
-        >
-          <Menu size={18} />
-        </button>
         <span className="topbar-brand">
           <span className="brand-mark small">
-            <Sparkles size={15} />
+            <Link2 size={16} />
           </span>
           <span>
             nexora<strong>ERP</strong>
@@ -305,63 +342,6 @@ export function WorkspaceTopbar({
         </div>
       </div>
       <div className="top-actions">
-        {!standaloneStudio && tenant.role === "TenantAdmin" && (
-          <button
-            className="developer-mode-trigger"
-            type="button"
-            aria-expanded={developerModeOpen}
-            onClick={onOpenDeveloperMode}
-          >
-            <Code2 size={15} />
-            <span>{english ? "Developer mode" : "Geliştirici modu"}</span>
-          </button>
-        )}
-        <button
-          className="icon-button theme-toggle"
-          type="button"
-          title={
-            theme === "dark"
-              ? english
-                ? "Switch to light theme"
-                : "Açık temaya geç"
-              : english
-                ? "Switch to dark theme"
-                : "Koyu temaya geç"
-          }
-          aria-label={
-            theme === "dark"
-              ? english
-                ? "Switch to light theme"
-                : "Açık temaya geç"
-              : english
-                ? "Switch to dark theme"
-                : "Koyu temaya geç"
-          }
-          aria-pressed={theme === "dark"}
-          onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}
-        >
-          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-        <div
-          className="locale-switch"
-          role="group"
-          aria-label={english ? "Language" : "Dil"}
-        >
-          <button
-            type="button"
-            aria-pressed={!english}
-            onClick={() => onLocaleChange("tr")}
-          >
-            TR
-          </button>
-          <button
-            type="button"
-            aria-pressed={english}
-            onClick={() => onLocaleChange("en")}
-          >
-            EN
-          </button>
-        </div>
         <button
           type="button"
           className="global-search"
@@ -373,6 +353,15 @@ export function WorkspaceTopbar({
           <Search size={16} />
           <span>{english ? "Search" : "Hızlı ara"}</span>
           <kbd>Ctrl + K</kbd>
+        </button>
+        <button
+          type="button"
+          className="assistant-trigger"
+          aria-label={english ? "Open AI assistant" : "AI asistanı aç"}
+          onClick={() => onNavigate("erp-assistant")}
+        >
+          <Sparkles size={17} />
+          <span>{english ? "AI Assistant" : "AI Asistan"}</span>
         </button>
         <div className="notification-menu-wrap notification-wrap">
           <button
@@ -518,6 +507,39 @@ export function WorkspaceTopbar({
             </section>
           )}
         </div>
+        <button
+          type="button"
+          className="icon-button topbar-settings"
+          aria-label={english ? "Settings" : "Ayarlar"}
+          title={english ? "Settings" : "Ayarlar"}
+          onClick={() => onNavigate("settings")}
+        >
+          <Settings size={19} />
+        </button>
+        <button
+          type="button"
+          className="icon-button topbar-modules"
+          aria-label={english ? "Module marketplace" : "Modül pazaryeri"}
+          title={english ? "Module marketplace" : "Modül pazaryeri"}
+          onClick={() => onNavigate("modules")}
+        >
+          <Grid2X2 size={19} />
+        </button>
+        {!standaloneStudio && (
+          <button
+            type="button"
+            className="topbar-widgets-toggle"
+            aria-label={english ? (rightWidgetsOpen ? "Hide side widgets" : "Show side widgets") : (rightWidgetsOpen ? "Yan paneli kapat" : "Yan paneli aç")}
+            aria-pressed={rightWidgetsOpen}
+            title={english ? (rightWidgetsOpen ? "Hide side widgets" : "Show side widgets") : (rightWidgetsOpen ? "Yan paneli kapat" : "Yan paneli aç")}
+            onClick={onToggleRightWidgets}
+          >
+            {rightWidgetsOpen
+              ? <PanelRightClose size={19} strokeWidth={2.25} aria-hidden="true" />
+              : <PanelRightOpen size={19} strokeWidth={2.25} aria-hidden="true" />}
+            <span>{english ? (rightWidgetsOpen ? "Hide widgets" : "Show widgets") : (rightWidgetsOpen ? "Widgetleri gizle" : "Widgetleri göster")}</span>
+          </button>
+        )}
         <div className="profile-menu-wrap" ref={profileRef}>
           <button
             className="top-avatar"
@@ -527,9 +549,12 @@ export function WorkspaceTopbar({
             aria-expanded={profileOpen}
             onClick={() => setProfileOpen((value) => !value)}
           >
+            <span className="top-avatar-initial">
             {(localStorage.getItem("aierp.user") || "A")
               .slice(0, 1)
               .toUpperCase()}
+            </span>
+            <ChevronDown size={14} aria-hidden="true" />
           </button>
           {profileOpen && (
             <div className="profile-dropdown" role="menu">
@@ -540,6 +565,49 @@ export function WorkspaceTopbar({
                 </b>
                 <small>{tenant.role}</small>
               </div>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setPasswordError("");
+                  setPasswordNotice("");
+                  setProfileOpen(false);
+                  setPasswordDialogOpen(true);
+                }}
+              >
+                <KeyRound size={15} />
+                {english ? "Change password" : "Şifre değiştir"}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setProfileOpen(false);
+                  onThemeChange(theme === "dark" ? "light" : "dark");
+                }}
+              >
+                {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+                {theme === "dark"
+                  ? english ? "Light appearance" : "Açık görünüm"
+                  : english ? "Dark appearance" : "Koyu görünüm"}
+              </button>
+              <div className="profile-dropdown-languages" role="group" aria-label={english ? "Language" : "Dil"}>
+                <button type="button" aria-pressed={!english} onClick={() => onLocaleChange("tr")}>TR</button>
+                <button type="button" aria-pressed={english} onClick={() => onLocaleChange("en")}>EN</button>
+              </div>
+              {!standaloneStudio && tenant.role === "TenantAdmin" && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    onOpenDeveloperMode();
+                  }}
+                >
+                  <Code2 size={15} />
+                  {english ? "Developer mode" : "Geliştirici modu"}
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"
@@ -567,6 +635,44 @@ export function WorkspaceTopbar({
           )}
         </div>
       </div>
+      {passwordDialogOpen && createPortal(
+        <div
+          className="modal-backdrop password-change-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !passwordBusy) setPasswordDialogOpen(false);
+          }}
+        >
+          <section className="modal password-change-modal" role="dialog" aria-modal="true" aria-labelledby="password-change-title">
+            <div className="modal-head">
+              <h2 id="password-change-title">{english ? "Change password" : "Şifre değiştir"}</h2>
+              <button className="icon-button" type="button" aria-label={english ? "Close" : "Kapat"} disabled={passwordBusy} onClick={() => setPasswordDialogOpen(false)}>×</button>
+            </div>
+            <p className="modal-sub muted">{english ? "Enter your current password and choose a new one." : "Mevcut şifrenizi doğrulayın ve yeni şifrenizi belirleyin."}</p>
+            <form onSubmit={(event) => void changePassword(event)}>
+              <label>{english ? "Current password" : "Mevcut şifre"}
+                <input type="password" autoComplete="current-password" required value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+              </label>
+              <label>{english ? "New password" : "Yeni şifre"}
+                <input type="password" autoComplete="new-password" minLength={6} maxLength={256} required value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+              </label>
+              <label>{english ? "Confirm new password" : "Yeni şifre (tekrar)"}
+                <input type="password" autoComplete="new-password" minLength={6} maxLength={256} required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+              </label>
+              <p className="password-change-hint">{english ? "Use at least 6 characters." : "En az 6 karakter kullanın."}</p>
+              {passwordError && <p className="password-change-error" role="alert">{passwordError}</p>}
+              <div className="modal-foot">
+                <span />
+                <div>
+                  <button type="button" className="secondary" disabled={passwordBusy} onClick={() => setPasswordDialogOpen(false)}>{english ? "Cancel" : "Vazgeç"}</button>
+                  <button type="submit" className="primary" disabled={passwordBusy}>{passwordBusy ? (english ? "Saving…" : "Kaydediliyor…") : (english ? "Save password" : "Şifreyi kaydet")}</button>
+                </div>
+              </div>
+            </form>
+          </section>
+        </div>,
+        document.body,
+      )}
+      {passwordNotice && <div className="password-change-toast" role="status">{passwordNotice}</div>}
     </header>
   );
 }

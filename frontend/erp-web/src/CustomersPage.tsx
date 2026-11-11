@@ -1,13 +1,16 @@
 import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  CircleDollarSign,
+  Building2,
+  CircleArrowUp,
   FileText,
   MoreHorizontal,
   Pencil,
-  ShieldCheck,
   Trash2,
   Users,
+  UserRound,
+  UserRoundPlus,
+  UserRoundCheck,
   X,
 } from "lucide-react";
 import { api, localDateString } from "./erpApi";
@@ -45,6 +48,11 @@ import {
   turkeyDistrictsForProvince,
 } from "./customers/components/CustomerFormControls";
 import CustomerCreatePage from "./customers/components/CustomerCreatePage";
+import CustomerEditPage from "./customers/components/CustomerEditPage";
+import type { CustomerCreatePageProps } from "./customers/components/CustomerCreatePage";
+
+type CustomerPageSettings = { title: string; description: string; searchLabel: string; searchPlaceholder: string; typeFilterLabel: string; statusFilterLabel: string; applyLabel: string; showTypeFilter: boolean; showStatusFilter: boolean };
+const defaultCustomerPageSettings: CustomerPageSettings = { title: "Cari Hesaplar", description: "Müşteri ve tedarikçi kartlarını firma bazında yönetin.", searchLabel: "Cari ara", searchPlaceholder: "Cari kodu, unvanı veya vergi no ile ara", typeFilterLabel: "Cari türü", statusFilterLabel: "Durum", applyLabel: "Filtrele", showTypeFilter: true, showStatusFilter: true };
 
 function CustomerActionsMenu({
   item,
@@ -84,7 +92,7 @@ function CustomerActionsMenu({
     const below = Math.max(0, window.innerHeight - rect.bottom - gap - padding),
       above = Math.max(0, rect.top - gap - padding);
     const maxHeight = Math.min(230, Math.max(80, Math.max(below, above))),
-      estimatedHeight = (item.type === "Both" ? 7 : 6) * 36 + 12;
+      estimatedHeight = (item.type === "Both" || item.type === "Dealer" || item.type === "Employee" ? 7 : 6) * 36 + 12;
     const top =
       below >= estimatedHeight || below >= above
         ? rect.bottom + gap
@@ -343,6 +351,7 @@ function CustomersPage({
   role,
   initialSearch,
   initialCreate = false,
+  initialEdit = false,
   onNavigate,
   onOpenSalesInvoice,
   onOpenPurchaseInvoices,
@@ -351,6 +360,7 @@ function CustomersPage({
   role: string;
   initialSearch: string;
   initialCreate?: boolean;
+  initialEdit?: boolean;
   onNavigate: (page: string) => void;
   onOpenSalesInvoice: (invoiceId: string) => void;
   onOpenPurchaseInvoices: (supplier: { id: string; name: string }) => void;
@@ -363,6 +373,14 @@ function CustomersPage({
     [companyOptions, setCompanyOptions] = useState<CustomerCompanyOption[]>([]),
     [total, setTotal] = useState(0),
     [loading, setLoading] = useState(true);
+  const [directoryMetrics, setDirectoryMetrics] = useState<{
+    total: number;
+    customers: number;
+    suppliers: number;
+    active: number;
+    inactive: number;
+  } | null>(null);
+  const [directoryMetricsLoading, setDirectoryMetricsLoading] = useState(true);
   const [locationDefinitions, setLocationDefinitions] =
     useState<CustomerLocationDefinitions>({ provinces: [], districts: [] });
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
@@ -422,6 +440,7 @@ function CustomersPage({
       fixed: true,
     },
   ]);
+  const [pageSettings, setPageSettings] = useState<CustomerPageSettings>(defaultCustomerPageSettings);
   const [detailFields, setDetailFields] = useState<BuiltInScreenLayoutField[]>([
     { key: "groupName", label: "Cari grubu", visible: true, position: 0 },
     { key: "taxNumber", label: "Vergi no", visible: true, position: 1 },
@@ -472,6 +491,12 @@ function CustomersPage({
     [taxNumber, setTaxNumber] = useState("");
   const [identityNumber, setIdentityNumber] = useState(""),
     [taxOffice, setTaxOffice] = useState("");
+  const [isEInvoiceRegistered, setIsEInvoiceRegistered] = useState(false),
+    [eInvoiceRecipientAlias, setEInvoiceRecipientAlias] = useState("");
+  const [phone, setPhone] = useState(""), [email, setEmail] = useState(""), [website, setWebsite] = useState("");
+  const [contactName, setContactName] = useState(""), [contactPhone, setContactPhone] = useState(""), [contactEmail, setContactEmail] = useState("");
+  const [priceListCode, setPriceListCode] = useState(""), [receivableAccountCode, setReceivableAccountCode] = useState(""), [payableAccountCode, setPayableAccountCode] = useState("");
+  const [bankName, setBankName] = useState(""), [bankBranchCode, setBankBranchCode] = useState(""), [iban, setIban] = useState("");
   const [groupId, setGroupId] = useState(""),
     [parentCompanyId, setParentCompanyId] = useState(""),
     [currencyCode, setCurrencyCode] = useState("TRY"),
@@ -658,7 +683,7 @@ function CustomersPage({
             ? "Müşteri"
             : item.type === "Supplier"
               ? "Tedarikçi"
-              : "Müşteri & Tedarikçi",
+              : item.type === "Both" ? "Müşteri & Tedarikçi" : item.type === "Dealer" ? "Bayi" : "Personel",
         Döviz: item.currencyCode,
         "Vade (gün)": item.paymentTermDays,
         "Vergi no": item.taxNumber || "",
@@ -705,7 +730,7 @@ function CustomersPage({
   }
   async function loadScreenLayout() {
     try {
-      const active = await api<{ fields: BuiltInScreenLayoutField[] }>(
+      const active = await api<{ fields: BuiltInScreenLayoutField[]; pageSettings?: CustomerPageSettings | null }>(
         "/api/screen-views/customers/active",
         token,
       );
@@ -716,6 +741,9 @@ function CustomersPage({
           position: field.position ?? index,
         })),
       );
+      setPageSettings(active.pageSettings || defaultCustomerPageSettings);
+      if (active.pageSettings?.showTypeFilter === false) setTypeFilter("");
+      if (active.pageSettings?.showStatusFilter === false) setStatusFilter("");
     } catch (e) {
       setError((e as Error).message);
     }
@@ -775,6 +803,25 @@ function CustomersPage({
   );
   const selectedCustomer =
     items.find((item) => item.id === selectedCustomerId) ?? null;
+  const openCustomerSalesAction = (page: string) => {
+    if (!selectedCustomer) return;
+    const customer = {
+      id: selectedCustomer.id,
+      code: selectedCustomer.code,
+      name: selectedCustomer.name,
+      type: selectedCustomer.type,
+      isActive: selectedCustomer.isActive,
+      currencyCode: selectedCustomer.currencyCode,
+    };
+    const action = { page, customerId: selectedCustomer.id, customer };
+    sessionStorage.setItem("nexora.customer-sales-action", JSON.stringify(action));
+    onNavigate(page);
+    window.setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("nexora:customer-sales-action", { detail: action }),
+      );
+    }, 0);
+  };
   useEffect(() => {
     const media = window.matchMedia("(max-width: 1280px)");
     const update = () => setIsSmallScreen(media.matches);
@@ -789,7 +836,7 @@ function CustomersPage({
       return;
     }
     if (!selectedCustomerId) {
-      if (isSmallScreen || hasAutoSelectedCustomer) return;
+      if ((isSmallScreen || hasAutoSelectedCustomer) && !initialSearch) return;
       setSelectedCustomerId(items[0].id);
       setHasAutoSelectedCustomer(true);
       return;
@@ -807,11 +854,52 @@ function CustomersPage({
     selectedCustomerId,
     isSmallScreen,
     hasAutoSelectedCustomer,
+    initialSearch,
   ]);
   useEffect(() => {
     void load();
     void loadGroups();
   }, [token, filter, page, typeFilter, statusFilter]);
+  useEffect(() => {
+    let active = true;
+    setDirectoryMetricsLoading(true);
+    const count = async (options: { type?: string; status?: string } = {}) => {
+      const params = new URLSearchParams({ page: "1", pageSize: "1" });
+      if (options.type) params.set("type", options.type);
+      if (options.status) params.set("status", options.status);
+      const result = await api<{ totalCount: number }>(
+        `/api/customers/?${params.toString()}`,
+        token,
+      );
+      return result.totalCount;
+    };
+    void Promise.all([
+      count(),
+      count({ type: "Customer" }),
+      count({ type: "Supplier" }),
+      count({ status: "Active" }),
+      count({ status: "Inactive" }),
+    ])
+      .then(([all, customers, suppliers, activeCount, inactive]) => {
+        if (active)
+          setDirectoryMetrics({
+            total: all,
+            customers,
+            suppliers,
+            active: activeCount,
+            inactive,
+          });
+      })
+      .catch(() => {
+        if (active) setDirectoryMetrics(null);
+      })
+      .finally(() => {
+        if (active) setDirectoryMetricsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token]);
   useEffect(() => {
     let cancelled = false;
     api<CustomerCompanyOption[]>("/api/customers/company-options", token)
@@ -898,6 +986,8 @@ function CustomersPage({
     setTaxNumber("");
     setIdentityNumber("");
     setTaxOffice("");
+    setIsEInvoiceRegistered(false);
+    setEInvoiceRecipientAlias("");
     setType("Customer");
     setGroupId("");
     setParentCompanyId("");
@@ -913,21 +1003,46 @@ function CustomersPage({
     setAddressLatitude(null);
     setAddressLongitude(null);
     setError("");
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 20_000);
     try {
       setCustomerCreateFields(
         await api<CustomerCustomFieldDefinition[]>(
           "/api/customers/custom-fields",
           token,
+          { signal: controller.signal },
         ),
       );
       setModal(true);
     } catch (e) {
-      setError((e as Error).message);
+      setError(
+        controller.signal.aborted
+          ? "Cari formu verileri zamanında yüklenemedi. Bağlantıyı kontrol edip yeniden deneyin."
+          : (e as Error).message,
+      );
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }
   useEffect(() => {
     if (initialCreate) void openCustomerModal();
   }, [initialCreate]);
+  useEffect(() => {
+    if (!initialEdit) return;
+    let active = true;
+    const customerId = sessionStorage.getItem("nexora.customer-edit-id");
+    if (!customerId) {
+      onNavigate("customers");
+      return;
+    }
+    void api<CustomerItem>(`/api/customers/${customerId}`, token)
+      .then((item) => { if (active) void openEditCustomer(item, false); })
+      .catch((error) => {
+        if (!active) return;
+        setError((error as Error).message);
+      });
+    return () => { active = false; };
+  }, [initialEdit, token]);
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -943,6 +1058,12 @@ function CustomersPage({
           taxNumber: taxNumber || null,
           identityNumber: identityNumber || null,
           taxOffice: taxOffice || null,
+          isEInvoiceRegistered,
+          eInvoiceRecipientAlias: eInvoiceRecipientAlias || null,
+          phone: phone || null, email: email || null, website: website || null,
+          contactName: contactName || null, contactPhone: contactPhone || null, contactEmail: contactEmail || null,
+          priceListCode: priceListCode || null, receivableAccountCode: receivableAccountCode || null, payableAccountCode: payableAccountCode || null,
+          bankName: bankName || null, bankBranchCode: bankBranchCode || null, iban: iban || null,
           address:
             addressLine.trim() ||
             addressCity.trim() ||
@@ -975,6 +1096,10 @@ function CustomersPage({
       setTaxNumber("");
       setIdentityNumber("");
       setTaxOffice("");
+      setIsEInvoiceRegistered(false);
+      setEInvoiceRecipientAlias("");
+      setPhone(""); setEmail(""); setWebsite(""); setContactName(""); setContactPhone(""); setContactEmail("");
+      setPriceListCode(""); setReceivableAccountCode(""); setPayableAccountCode(""); setBankName(""); setBankBranchCode(""); setIban("");
       setType("Customer");
       setGroupId("");
       setParentCompanyId("");
@@ -993,7 +1118,12 @@ function CustomersPage({
       setBusy(false);
     }
   }
-  async function openEditCustomer(item: CustomerItem) {
+  async function openEditCustomer(item: CustomerItem, openPage = true) {
+    if (openPage) {
+      sessionStorage.setItem("nexora.customer-edit-id", item.id);
+      onNavigate("customer-edit");
+      return;
+    }
     setError("");
     setNotice("");
     setCode(item.code);
@@ -1002,6 +1132,12 @@ function CustomersPage({
     setTaxNumber(item.taxNumber || "");
     setIdentityNumber(item.identityNumber || "");
     setTaxOffice(item.taxOffice || "");
+    setIsEInvoiceRegistered(item.isEInvoiceRegistered ?? false);
+    setEInvoiceRecipientAlias(item.eInvoiceRecipientAlias || "");
+    setPhone(item.phone || ""); setEmail(item.email || ""); setWebsite(item.website || "");
+    setContactName(item.contactName || ""); setContactPhone(item.contactPhone || ""); setContactEmail(item.contactEmail || "");
+    setPriceListCode(item.priceListCode || ""); setReceivableAccountCode(item.receivableAccountCode || ""); setPayableAccountCode(item.payableAccountCode || "");
+    setBankName(item.bankName || ""); setBankBranchCode(item.bankBranchCode || ""); setIban(item.iban || "");
     setGroupId(item.groupId || "");
     setParentCompanyId(item.parentCompanyId || "");
     setCurrencyCode(item.currencyCode);
@@ -1016,10 +1152,11 @@ function CustomersPage({
     setAddressLatitude(null);
     setAddressLongitude(null);
     try {
-      const existing = await api<CustomerAddressItem[]>(
-        `/api/customers/${item.id}/addresses`,
-        token,
-      );
+      const [existing, definitions, values] = await Promise.all([
+        api<CustomerAddressItem[]>(`/api/customers/${item.id}/addresses`, token),
+        api<CustomerCustomFieldDefinition[]>("/api/customers/custom-fields", token),
+        api<CustomerCustomFieldValue[]>(`/api/customers/${item.id}/custom-fields`, token),
+      ]);
       const primary = existing.find(
         (x) => x.kind === "General" && x.isDefault && x.isActive,
       );
@@ -1033,10 +1170,15 @@ function CustomersPage({
         setAddressLatitude(primary.latitude);
         setAddressLongitude(primary.longitude);
       }
+      setCustomerCreateFields(definitions);
+      setCustomerCreateValues(
+        Object.fromEntries(values.map((value) => [value.code, value.value])),
+      );
     } catch (e) {
       setError((e as Error).message);
     }
     setEditingCustomer(item);
+    setModal(true);
   }
   async function saveCustomerEdit(e: React.FormEvent) {
     e.preventDefault();
@@ -1054,6 +1196,12 @@ function CustomersPage({
           taxNumber: taxNumber || null,
           identityNumber: identityNumber || null,
           taxOffice: taxOffice || null,
+          isEInvoiceRegistered,
+          eInvoiceRecipientAlias: eInvoiceRecipientAlias || null,
+          phone: phone || null, email: email || null, website: website || null,
+          contactName: contactName || null, contactPhone: contactPhone || null, contactEmail: contactEmail || null,
+          priceListCode: priceListCode || null, receivableAccountCode: receivableAccountCode || null, payableAccountCode: payableAccountCode || null,
+          bankName: bankName || null, bankBranchCode: bankBranchCode || null, iban: iban || null,
           address:
             addressLine.trim() ||
             addressCity.trim() ||
@@ -1079,10 +1227,16 @@ function CustomersPage({
           currencyCode,
           riskLimit: riskLimit ? Number(riskLimit) : null,
           paymentTermDays: Number(paymentTermDays),
+          customFields: customerCreateValues,
         }),
       });
       setEditingCustomer(null);
+      setModal(false);
       setNotice("Cari kartı güncellendi.");
+      if (initialEdit) {
+        sessionStorage.removeItem("nexora.customer-edit-id");
+        onNavigate("customers");
+      }
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -1816,7 +1970,7 @@ function CustomersPage({
               ? "Müşteri"
               : item.type === "Supplier"
                 ? "Tedarikçi"
-                : "Müşteri & Tedarikçi"}
+                : item.type === "Both" ? "Müşteri & Tedarikçi" : item.type === "Dealer" ? "Bayi" : "Personel"}
           </span>
         );
       case "currencyCode":
@@ -1864,66 +2018,89 @@ function CustomersPage({
         return "—";
     }
   }
-  const customerCreatePage = (
-    <CustomerCreatePage
-      busy={busy}
-      error={error}
-      setError={setError}
-      setModal={(value) => {
+  const customerFormProps: CustomerCreatePageProps = {
+    busy,
+    error,
+    setError,
+    setModal: (value) => {
         setModal(value);
-        if (!value && initialCreate) onNavigate("customers");
-      }}
-      create={create}
-      customerCreateTab={customerCreateTab}
-      setCustomerCreateTab={setCustomerCreateTab}
-      code={code}
-      setCode={setCode}
-      name={name}
-      setName={setName}
-      type={type}
-      setType={setType}
-      groups={groups}
-      groupId={groupId}
-      setGroupId={setGroupId}
-      parentCompanyId={parentCompanyId}
-      setParentCompanyId={setParentCompanyId}
-      companyOptions={companyOptions}
-      editingCustomer={editingCustomer}
-      currencyCode={currencyCode}
-      setCurrencyCode={setCurrencyCode}
-      riskLimit={riskLimit}
-      setRiskLimit={setRiskLimit}
-      paymentTermDays={paymentTermDays}
-      setPaymentTermDays={setPaymentTermDays}
-      identityNumber={identityNumber}
-      setIdentityNumber={setIdentityNumber}
-      taxNumber={taxNumber}
-      setTaxNumber={setTaxNumber}
-      taxOffice={taxOffice}
-      setTaxOffice={setTaxOffice}
-      addressPostalCode={addressPostalCode}
-      setAddressPostalCode={setAddressPostalCode}
-      addressCountry={addressCountry}
-      setAddressCountry={setAddressCountry}
-      addressCity={addressCity}
-      setAddressCity={setAddressCity}
-      addressDistrict={addressDistrict}
-      setAddressDistrict={setAddressDistrict}
-      addressLine={addressLine}
-      setAddressLine={setAddressLine}
-      locationDefinitions={locationDefinitions}
-      addressLatitude={addressLatitude}
-      setAddressLatitude={setAddressLatitude}
-      addressLongitude={addressLongitude}
-      setAddressLongitude={setAddressLongitude}
-      customerCreateFields={customerCreateFields}
-      customerCreateValues={customerCreateValues}
-      setCustomerCreateValues={setCustomerCreateValues}
-    />
-  );
-  if (initialCreate)
+        if (!value && (initialCreate || initialEdit)) {
+          if (initialEdit) sessionStorage.removeItem("nexora.customer-edit-id");
+          onNavigate("customers");
+        }
+      },
+    create: initialEdit ? saveCustomerEdit : create,
+    customerCreateTab,
+    setCustomerCreateTab,
+    code,
+    setCode,
+    name,
+    setName,
+    type,
+    setType,
+    groups,
+    groupId,
+    setGroupId,
+    parentCompanyId,
+    setParentCompanyId,
+    companyOptions,
+    editingCustomer,
+    currencyCode,
+    setCurrencyCode,
+    riskLimit,
+    setRiskLimit,
+    paymentTermDays,
+    setPaymentTermDays,
+    identityNumber,
+    setIdentityNumber,
+    taxNumber,
+    setTaxNumber,
+    taxOffice,
+    setTaxOffice,
+    isEInvoiceRegistered,
+    setIsEInvoiceRegistered,
+    eInvoiceRecipientAlias,
+    setEInvoiceRecipientAlias,
+    phone, setPhone, email, setEmail, website, setWebsite,
+    contactName, setContactName, contactPhone, setContactPhone, contactEmail, setContactEmail,
+    priceListCode, setPriceListCode, receivableAccountCode, setReceivableAccountCode, payableAccountCode, setPayableAccountCode,
+    bankName, setBankName, bankBranchCode, setBankBranchCode, iban, setIban,
+    addressPostalCode,
+    setAddressPostalCode,
+    addressCountry,
+    setAddressCountry,
+    addressCity,
+    setAddressCity,
+    addressDistrict,
+    setAddressDistrict,
+    addressLine,
+    setAddressLine,
+    locationDefinitions,
+    addressLatitude,
+    setAddressLatitude,
+    addressLongitude,
+    setAddressLongitude,
+    customerCreateFields,
+    customerCreateValues,
+    setCustomerCreateValues,
+  };
+  const customerCreatePage = <CustomerCreatePage {...customerFormProps} />;
+  const customerEditPage = <CustomerEditPage {...customerFormProps} />;
+  if (initialCreate || initialEdit)
     return modal ? (
-      customerCreatePage
+      initialEdit ? customerEditPage : customerCreatePage
+    ) : error ? (
+      <div className="customer-page-main">
+        <div className="alert inline-alert" role="alert">
+          {error}
+            {initialCreate && (
+              <button type="button" onClick={() => void openCustomerModal()}>
+                Yeniden dene
+              </button>
+            )}
+            <button type="button" onClick={() => onNavigate("customers")}>Cari listesine dön</button>
+        </div>
+      </div>
     ) : (
       <div className="loading-state">Cari kartı formu yükleniyor…</div>
     );
@@ -1931,6 +2108,7 @@ function CustomersPage({
     customerCreatePage
   ) : (
     <>
+      <div className="customer-page-main">
       <CustomerDirectoryHeader
         canImport={role === "TenantAdmin"}
         exportBusy={exportBusy}
@@ -1944,6 +2122,8 @@ function CustomersPage({
           setGroupModal(true);
         }}
         onCreate={() => onNavigate("customer-create")}
+        title={pageSettings.title}
+        description={pageSettings.description}
       />
       {error && (
         <div className="alert inline-alert">
@@ -1961,27 +2141,32 @@ function CustomersPage({
           </button>
         </div>
       )}
-      <nav className="customer-directory-tabs" aria-label="Cari türü sekmeleri">
-        {[
-          { label: "Tüm Cariler", value: "" },
-          { label: "Müşteriler", value: "Customer" },
-          { label: "Tedarikçiler", value: "Supplier" },
-          { label: "Diğer", value: "Both" },
-        ].map((tab) => (
-          <button
-            type="button"
-            key={tab.label}
-            className={typeFilter === tab.value ? "active" : ""}
-            aria-current={typeFilter === tab.value ? "page" : undefined}
-            onClick={() => {
-              setTypeFilter(tab.value);
-              setPage(1);
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      <section className="reference-summary-grid customer-reference-summary" aria-label="Cari özeti">
+        <div className="reference-summary-card violet">
+          <span><Users size={21} /></span>
+          <div><small>Toplam cari</small><strong>{directoryMetricsLoading ? "…" : directoryMetrics?.total.toLocaleString("tr-TR") ?? "—"}</strong></div>
+        </div>
+        <div className="reference-summary-card green">
+          <span><UserRound size={21} /></span>
+          <div><small>Müşteri</small><strong>{directoryMetricsLoading ? "…" : directoryMetrics?.customers.toLocaleString("tr-TR") ?? "—"}</strong></div>
+        </div>
+        <div className="reference-summary-card blue">
+          <span><Building2 size={21} /></span>
+          <div><small>Tedarikçi</small><strong>{directoryMetricsLoading ? "…" : directoryMetrics?.suppliers.toLocaleString("tr-TR") ?? "—"}</strong></div>
+        </div>
+        <div className="reference-summary-card amber">
+          <span><CircleArrowUp size={21} /></span>
+          <div><small>Cari grubu</small><strong>{loading ? "…" : groups.length.toLocaleString("tr-TR")}</strong></div>
+        </div>
+        <div className="reference-summary-card red">
+          <span><UserRoundCheck size={21} /></span>
+          <div><small>Aktif</small><strong>{directoryMetricsLoading ? "…" : directoryMetrics?.active.toLocaleString("tr-TR") ?? "—"}</strong></div>
+        </div>
+        <div className="reference-summary-card teal">
+          <span><UserRoundPlus size={21} /></span>
+          <div><small>Pasif</small><strong>{directoryMetricsLoading ? "…" : directoryMetrics?.inactive.toLocaleString("tr-TR") ?? "—"}</strong></div>
+        </div>
+      </section>
       <CustomerFilters
         search={search}
         typeFilter={typeFilter}
@@ -1999,6 +2184,14 @@ function CustomersPage({
           setPage(1);
           setFilter(search.trim());
         }}
+        onRefresh={() => void load()}
+        searchLabel={pageSettings.searchLabel}
+        searchPlaceholder={pageSettings.searchPlaceholder}
+        typeFilterLabel={pageSettings.typeFilterLabel}
+        statusFilterLabel={pageSettings.statusFilterLabel}
+        applyLabel={pageSettings.applyLabel}
+        showTypeFilter={pageSettings.showTypeFilter}
+        showStatusFilter={pageSettings.showStatusFilter}
       />
       <div className="customer-directory-layout">
         <div className="erp-workbench customer-workbench">
@@ -2011,7 +2204,6 @@ function CustomersPage({
             loading={loading}
             filter={filter}
             selectedCustomerId={selectedCustomer?.id ?? null}
-            onRefresh={() => void load()}
             onPageChange={setPage}
             onSelect={(item) => setSelectedCustomerId(item.id)}
             renderCell={renderScreenCell}
@@ -2034,6 +2226,10 @@ function CustomersPage({
             selectedCustomer && setSalesInvoicesCustomer(selectedCustomer)
           }
           onLedger={() => selectedCustomer && void openLedger(selectedCustomer)}
+          onNewOrder={() => openCustomerSalesAction("sales-order-create")}
+          onNewQuote={() => openCustomerSalesAction("sales-quote-create")}
+          onNewDelivery={() => openCustomerSalesAction("sales-delivery-create")}
+          onNewInvoice={() => openCustomerSalesAction("sales-invoice-create")}
           onAddresses={() =>
             selectedCustomer && void openAddresses(selectedCustomer)
           }
@@ -2042,307 +2238,7 @@ function CustomersPage({
           }
         />
       </div>
-      {editingCustomer && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy) setEditingCustomer(null);
-          }}
-        >
-          <div className="modal customer-edit-modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">CARİ YÖNETİMİ · DÜZENLEME</p>
-                <h2>{editingCustomer.code} cari kartı</h2>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                disabled={busy}
-                aria-label="Düzenlemeyi kapat"
-                onClick={() => setEditingCustomer(null)}
-              >
-                <X size={19} />
-              </button>
-            </div>
-            <p className="muted modal-sub">
-              Değişiklikler yalnızca seçili firma kaydına uygulanır. Eşzamanlı
-              güncelleme varsa yenileyip tekrar deneyin.
-            </p>
-            {error && (
-              <div className="alert inline-alert" role="alert">
-                {error}
-                <button
-                  type="button"
-                  aria-label="Hatayı kapat"
-                  onClick={() => setError("")}
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            )}
-            <form onSubmit={saveCustomerEdit} className="customer-edit-form">
-              <div className="customer-edit-fields">
-                <fieldset className="customer-edit-section erp-form-group">
-                  <legend>Cari bilgileri</legend>
-                  <div className="form-two">
-                    <label>
-                      Cari kodu
-                      <input
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                        required
-                        maxLength={64}
-                      />
-                    </label>
-                    <label>
-                      Cari türü
-                      <select
-                        value={type}
-                        onChange={(e) =>
-                          setType(e.target.value as CustomerItem["type"])
-                        }
-                      >
-                        <option value="Customer">Müşteri</option>
-                        <option value="Supplier">Tedarikçi</option>
-                        <option value="Both">Müşteri &amp; Tedarikçi</option>
-                      </select>
-                    </label>
-                  </div>
-                  <label>
-                    Ünvan
-                    <input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      required
-                      maxLength={200}
-                    />
-                  </label>
-                  <div className="form-two">
-                    <label>
-                      Cari grubu
-                      <select
-                        value={groupId}
-                        onChange={(e) => setGroupId(e.target.value)}
-                      >
-                        <option value="">Grup atama</option>
-                        {groups
-                          .filter((x) => x.isActive)
-                          .map((x) => (
-                            <option key={x.id} value={x.id}>
-                              {x.name}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label>
-                      Grup şirketi / Ana firma
-                      <select
-                        value={parentCompanyId}
-                        onChange={(event) =>
-                          setParentCompanyId(event.target.value)
-                        }
-                      >
-                        <option value="">Bağımsız firma</option>
-                        {companyOptions
-                          .filter(
-                            (company) => company.id !== editingCustomer?.id,
-                          )
-                          .map((company) => (
-                            <option key={company.id} value={company.id}>
-                              {company.name} · {company.code}
-                            </option>
-                          ))}
-                      </select>
-                      <small>
-                        Bu cari seçilen ana firmanın alt firması olur.
-                      </small>
-                    </label>
-                    <label>
-                      Döviz kodu
-                      <input
-                        value={currencyCode}
-                        onChange={(e) =>
-                          setCurrencyCode(
-                            e.target.value.toUpperCase().slice(0, 3),
-                          )
-                        }
-                        required
-                        maxLength={3}
-                      />
-                    </label>
-                  </div>
-                </fieldset>
-                <fieldset className="customer-edit-section erp-form-group">
-                  <legend>
-                    <CircleDollarSign size={16} aria-hidden="true" />
-                    Finansal Bilgiler
-                  </legend>
-                  <div className="form-two">
-                    <label>
-                      Risk limiti
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={riskLimit}
-                        onChange={(e) => setRiskLimit(e.target.value)}
-                        placeholder="Belirtilmedi"
-                      />
-                    </label>
-                    <label>
-                      Vade günü
-                      <input
-                        type="number"
-                        min="0"
-                        max="3650"
-                        value={paymentTermDays}
-                        onChange={(e) => setPaymentTermDays(e.target.value)}
-                        required
-                      />
-                    </label>
-                  </div>
-                </fieldset>
-                <fieldset className="customer-edit-section erp-form-group">
-                  <legend>
-                    Vergi ve adres bilgileri <span>İsteğe bağlı</span>
-                  </legend>
-                  <div className="form-two">
-                    <label>
-                      T.C. kimlik no
-                      <input
-                        inputMode="numeric"
-                        value={identityNumber}
-                        onChange={(e) =>
-                          setIdentityNumber(
-                            e.target.value.replace(/\D/g, "").slice(0, 11),
-                          )
-                        }
-                        maxLength={11}
-                        placeholder="11 haneli TCKN"
-                      />
-                    </label>
-                    <label>
-                      Vergi numarası
-                      <input
-                        inputMode="numeric"
-                        value={taxNumber}
-                        onChange={(e) => setTaxNumber(e.target.value)}
-                        maxLength={32}
-                        placeholder="VKN"
-                      />
-                    </label>
-                  </div>
-                  <div className="form-two">
-                    <label>
-                      Vergi dairesi
-                      <input
-                        value={taxOffice}
-                        onChange={(e) => setTaxOffice(e.target.value)}
-                        maxLength={120}
-                      />
-                    </label>
-                    <label>
-                      Posta kodu
-                      <input
-                        value={addressPostalCode}
-                        onChange={(e) => setAddressPostalCode(e.target.value)}
-                        maxLength={20}
-                      />
-                    </label>
-                    <CustomerCountryInput
-                      value={addressCountry}
-                      onChange={(value) => {
-                        setAddressCountry(value);
-                        setAddressCity("");
-                        setAddressDistrict("");
-                      }}
-                    />
-                  </div>
-                  <label>
-                    Adres
-                    <textarea
-                      value={addressLine}
-                      onChange={(e) => setAddressLine(e.target.value)}
-                      maxLength={400}
-                      required={
-                        !!(
-                          addressCity.trim() ||
-                          addressDistrict.trim() ||
-                          addressPostalCode.trim()
-                        )
-                      }
-                      placeholder="Mahalle, cadde, sokak ve kapı no"
-                    />
-                  </label>
-                  <div className="form-two">
-                    <CustomerLocationInput
-                      id="customer-edit-province"
-                      label="İl"
-                      value={addressCity}
-                      options={
-                        addressCountry === "TR"
-                          ? locationDefinitions.provinces
-                          : []
-                      }
-                      required={
-                        !!(
-                          addressLine.trim() ||
-                          addressDistrict.trim() ||
-                          addressPostalCode.trim()
-                        )
-                      }
-                      onChange={(value) => {
-                        setAddressCity(value);
-                        setAddressDistrict("");
-                      }}
-                    />
-                    <CustomerLocationInput
-                      id="customer-edit-district"
-                      label="İlçe"
-                      value={addressDistrict}
-                      options={
-                        addressCountry === "TR"
-                          ? turkeyDistrictsForProvince(
-                              addressCity,
-                              locationDefinitions.provinces,
-                              locationDefinitions.districts,
-                            )
-                          : []
-                      }
-                      onChange={setAddressDistrict}
-                    />
-                  </div>
-                </fieldset>
-              </div>
-              <div className="modal-foot customer-edit-footer">
-                <span>
-                  <ShieldCheck size={14} />
-                  {editingCustomer.isActive
-                    ? "Aktif cari kartı"
-                    : "Pasif cari kartı"}{" "}
-                  · sürüm kontrollü kayıt
-                </span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busy}
-                    onClick={() => setEditingCustomer(null)}
-                  >
-                    Vazgeç
-                  </button>
-                  <button className="primary" disabled={busy}>
-                    {busy ? "Kaydediliyor…" : "Değişiklikleri kaydet"}{" "}
-                    <span>→</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
+      </div>
       {fieldCustomer && (
         <div
           className="modal-backdrop"
