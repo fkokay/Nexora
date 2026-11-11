@@ -2005,7 +2005,7 @@ public static class ReportEndpoints
             .Include(x => x.Customer).Include(x => x.Order);
         // Apply the same row-level permission rules as the erp.sales-quotes list endpoint.
         query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
-            "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? query;
+            "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId ?? Guid.Empty, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplySalesQuoteFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -2298,7 +2298,7 @@ public static class ReportEndpoints
             .Include(x => x.Customer).Include(x => x.Order);
         // Apply the same row-level permission rules as the erp.sales-quotes list endpoint.
         query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
-            "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? query;
+            "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId ?? Guid.Empty, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplySalesQuoteFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
