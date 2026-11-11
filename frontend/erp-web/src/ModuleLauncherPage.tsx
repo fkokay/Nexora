@@ -41,6 +41,7 @@ import { WorkspaceSearchDialog } from "./WorkspaceSearchDialog";
 import { LauncherAssistantWidget } from "./LauncherAssistantWidget";
 import {
   getSavedWeatherLocation,
+  loadSavedWeatherLocation,
   saveWeatherLocation,
   type WeatherLocation,
 } from "./weather-location";
@@ -87,6 +88,7 @@ type WeatherSnapshot = {
 };
 
 type WeatherLocationResult = WeatherLocation & {
+  id?: number;
   country?: string;
   admin1?: string;
 };
@@ -242,6 +244,15 @@ export function ModuleLauncher({
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [weatherLocation, setWeatherLocation] = useState<WeatherLocation>(getSavedWeatherLocation);
+
+  useEffect(() => {
+    // The remembered city is stored without coordinates; look them up once on open.
+    const controller = new AbortController();
+    void loadSavedWeatherLocation(controller.signal).then((location) => {
+      if (location) setWeatherLocation(location);
+    });
+    return () => controller.abort();
+  }, []);
   const [weatherLocationPickerOpen, setWeatherLocationPickerOpen] = useState(false);
   const [weatherLocationQuery, setWeatherLocationQuery] = useState("");
   const [weatherLocationResults, setWeatherLocationResults] = useState<WeatherLocationResult[]>([]);
@@ -964,6 +975,7 @@ export function ModuleLauncher({
                             latitude: location.latitude,
                             longitude: location.longitude,
                             timezone: location.timezone || "auto",
+                            geocodingId: location.id,
                           })}
                         >
                           <span>{location.name}</span>

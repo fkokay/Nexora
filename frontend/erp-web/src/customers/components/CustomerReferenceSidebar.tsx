@@ -22,6 +22,7 @@ import type { FinancialAccount, MaturityReport } from "../../erp-types";
 import type { ExchangeRate } from "../../exchange-rates/types";
 import {
   getSavedWeatherLocation,
+  loadSavedWeatherLocation,
   subscribeToWeatherLocation,
 } from "../../weather-location";
 import "../../inventory-stock-widgets.css";
@@ -151,6 +152,14 @@ export function CustomerReferenceSidebar({ token, page, embedded = false, select
     () => subscribeToWeatherLocation(setWeatherLocation),
     [],
   );
+  useEffect(() => {
+    // The remembered city is stored without coordinates; look them up once on open.
+    const controller = new AbortController();
+    void loadSavedWeatherLocation(controller.signal).then((location) => {
+      if (location) setWeatherLocation(location);
+    });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (selectedWidgetIds) return;
