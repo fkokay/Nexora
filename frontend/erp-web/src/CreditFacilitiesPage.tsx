@@ -21,6 +21,7 @@ import type {
   Security,
   SecuritySummary,
 } from "./credit-facilities/types";
+import { confirmLocalized } from "./locale";
 
 async function request<T>(
   url: string,
@@ -351,7 +352,7 @@ export default function CreditFacilitiesPage({
   }
   async function closeSecurity(item: Security, status: "Released" | "Called") {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} kaydı ${status === "Released" ? "serbest bırakılmış" : "nakde/zarara çağrılmış"} olarak işaretlensin mi? Bu işlem nakit veya muhasebe kaydı oluşturmaz.`,
       )
     )
@@ -527,7 +528,7 @@ export default function CreditFacilitiesPage({
       month = previous.getMonth() + 1;
     const period = `${year}-${String(month).padStart(2, "0")}`;
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${f.code} için ${period} Actual/365 faiz tahakkuku muhasebeleştirilsin mi? Kayıt aynı firma ve kredi için tekrar çalıştırıldığında yinelenmez.`,
       )
     )
@@ -615,7 +616,7 @@ export default function CreditFacilitiesPage({
   async function reverseMovement(f: Facility, m: Movement) {
     const date = today() < m.transactionDate ? m.transactionDate : today();
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${m.transactionDate} tarihli ${m.type === "Drawdown" ? "kullandırım" : "geri ödeme"} hareketi için ${date} tarihli ters kayıt oluşturulsun mu? Özgün kayıt korunur.`,
       )
     )

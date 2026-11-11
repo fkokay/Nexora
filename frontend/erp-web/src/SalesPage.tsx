@@ -34,6 +34,7 @@ import { SalesDeliveriesScreen } from "./SalesDeliveriesPage";
 import { PurchaseReceiptsScreen } from "./PurchaseReceiptsScreen";
 import { PurchaseInvoiceModal } from "./PurchaseInvoiceModal";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
+import { confirmLocalized, promptLocalized } from "./locale";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type PurchaseInvoiceSummary = AppTypes.PurchaseInvoiceSummary;
 type PurchaseOrderDetail = AppTypes.PurchaseOrderDetail;
@@ -944,7 +945,7 @@ export function SalesPage({
     if (!selectedItem) return;
     const previousLine = directOrderLines[index];
     const editingOrder = Boolean(sessionStorage.getItem("nexora.sales-order.edit-id"));
-    const shouldRefreshPrice = !editingOrder || !previousLine?.stockItemId || previousLine.stockItemId === stockItemId || window.confirm(
+    const shouldRefreshPrice = !editingOrder || !previousLine?.stockItemId || previousLine.stockItemId === stockItemId || confirmLocalized(
       `Stok kartı değişti. Tanımlı satış fiyatı ${selectedItem.salesListPrice ?? 0} ${selectedItem.priceCurrencyCode || currencyCode} olarak güncellensin mi?`,
     );
     void loadQuoteUnits(stockItemId);
@@ -1186,11 +1187,11 @@ export function SalesPage({
     }
   }
   async function editQuoteField(field: SalesQuoteCustomFieldDefinition) {
-    const label = window.prompt("Yeni alan etiketi:", field.label);
+    const label = promptLocalized("Yeni alan etiketi:", field.label);
     if (label === null) return;
     let maxLength = field.maxLength;
     if (field.dataType === "Text") {
-      const raw = window.prompt(
+      const raw = promptLocalized(
         "En fazla metin uzunluğu (1–500):",
         String(field.maxLength),
       );
@@ -1199,17 +1200,17 @@ export function SalesPage({
     }
     let isRequired: boolean | undefined;
     if (role === "TenantAdmin") {
-      const answer = window.prompt(
+      const answer = promptLocalized(
         "Taslaklarda zorunlu olsun mu? Evet/Hayır. Zorunlu yapmak için tüm taslak tekliflerde değer olmalıdır.",
         field.isRequired ? "Evet" : "Hayır",
       );
       if (answer === null) return;
       const normalized = answer.trim().toLocaleLowerCase("tr-TR");
-      if (!["evet", "hayır", "hayir"].includes(normalized)) {
+      if (!["evet", "hayır", "hayir", "yes", "no"].includes(normalized)) {
         setError("Zorunluluk için Evet veya Hayır yazın.");
         return;
       }
-      isRequired = normalized === "evet";
+      isRequired = normalized === "evet" || normalized === "yes";
     }
     setQuoteFieldBusy(true);
     setError("");
@@ -1241,7 +1242,7 @@ export function SalesPage({
   }
   async function deactivateQuoteField(field: SalesQuoteCustomFieldDefinition) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${field.label} yeni teklifler için devre dışı bırakılsın mı? Mevcut teklif değerleri korunur.`,
       )
     )
@@ -1510,7 +1511,7 @@ export function SalesPage({
     if (
       !detail ||
       !quoteValueHistoryField ||
-      !window.confirm(
+      !confirmLocalized(
         `${quoteValueHistoryField.label} alanının önceki değeri geri yüklensin mi? Bu işlem yeni bir geçmiş kaydı oluşturur.`,
       )
     )
@@ -1550,7 +1551,7 @@ export function SalesPage({
   }
   async function deleteQuote(item: SalesQuoteSummary) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} taslak teklifi ve özel alan geçmişi silinecek. Devam edilsin mi?`,
       )
     )
@@ -1627,7 +1628,7 @@ export function SalesPage({
   }
   async function deleteOrder(item: SalesOrderSummary) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} siparişi ve özel alan geçmişi silinecek. Devam edilsin mi?`,
       )
     )
@@ -4288,11 +4289,11 @@ function PurchasingPanel({
     }
   }
   async function editOrderCustomField(field: PurchaseOrderFieldDefinition) {
-    const label = window.prompt("Alan etiketi", field.label)?.trim();
+    const label = promptLocalized("Alan etiketi", field.label)?.trim();
     if (!label) return;
     const maxLength =
       field.dataType === "Text"
-        ? Number(window.prompt("En fazla karakter", String(field.maxLength)))
+        ? Number(promptLocalized("En fazla karakter", String(field.maxLength)))
         : 0;
     if (
       field.dataType === "Text" &&
@@ -4301,7 +4302,7 @@ function PurchasingPanel({
       return;
     const isRequired =
       role === "TenantAdmin"
-        ? window.confirm("Bu alan zorunlu olsun mu?")
+        ? confirmLocalized("Bu alan zorunlu olsun mu?")
         : undefined;
     setBusy(true);
     setError("");
@@ -4326,7 +4327,7 @@ function PurchasingPanel({
     field: PurchaseOrderFieldDefinition,
   ) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${field.label} alanı devre dışı bırakılsın mı? Eski sipariş değerleri saklanır.`,
       )
     )
@@ -4364,7 +4365,7 @@ function PurchasingPanel({
   ) {
     if (
       !orderFieldHistoryDefinition ||
-      !window.confirm(
+      !confirmLocalized(
         `v${revision.version} alan tanımı yeni sürüm olarak geri yüklensin mi?`,
       )
     )
@@ -4412,11 +4413,11 @@ function PurchasingPanel({
     }
   }
   async function editRequestCustomField(field: PurchaseRequestFieldDefinition) {
-    const label = window.prompt("Alan etiketi", field.label)?.trim();
+    const label = promptLocalized("Alan etiketi", field.label)?.trim();
     if (!label) return;
     const maxLength =
       field.dataType === "Text"
-        ? Number(window.prompt("En fazla karakter", String(field.maxLength)))
+        ? Number(promptLocalized("En fazla karakter", String(field.maxLength)))
         : 0;
     if (
       field.dataType === "Text" &&
@@ -4425,7 +4426,7 @@ function PurchasingPanel({
       return;
     const required =
       role === "TenantAdmin"
-        ? window.confirm("Bu alan zorunlu olsun mu?")
+        ? confirmLocalized("Bu alan zorunlu olsun mu?")
         : undefined;
     setBusy(true);
     setError("");
@@ -4450,7 +4451,7 @@ function PurchasingPanel({
     field: PurchaseRequestFieldDefinition,
   ) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${field.label} alanı devre dışı bırakılsın mı? Eski taleplerdeki değerler saklanır.`,
       )
     )
@@ -4489,7 +4490,7 @@ function PurchasingPanel({
     revision: PurchaseRequestFieldMetadataRevision,
   ) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `v${revision.version} alan tanımı yeni sürüm olarak geri yüklensin mi?`,
       )
     )
@@ -4539,7 +4540,7 @@ function PurchasingPanel({
     if (
       !requestDetail ||
       !requestValueHistoryField ||
-      !window.confirm(
+      !confirmLocalized(
         `'${requestValueHistoryField.label}' alanı için bu kayıt öncesindeki değer geri yüklensin mi?`,
       )
     )
@@ -4625,11 +4626,11 @@ function PurchasingPanel({
     approved: boolean,
   ) {
     const note = approved
-      ? window.prompt("Onay notu (isteğe bağlı):")?.trim() || null
-      : window.prompt("Ret gerekçesi:")?.trim();
+      ? promptLocalized("Onay notu (isteğe bağlı):")?.trim() || null
+      : promptLocalized("Ret gerekçesi:")?.trim();
     if (!approved && !note) return;
     if (
-      !window.confirm(
+      !confirmLocalized(
         approved ? "Bu talep onaylansın mı?" : "Bu talep reddedilsin mi?",
       )
     )
@@ -4838,11 +4839,11 @@ function PurchasingPanel({
   async function editSupplierQuoteCustomField(
     field: PurchaseSupplierQuoteFieldDefinition,
   ) {
-    const label = window.prompt("Alan etiketi", field.label)?.trim();
+    const label = promptLocalized("Alan etiketi", field.label)?.trim();
     if (!label) return;
     const maxLength =
       field.dataType === "Text"
-        ? Number(window.prompt("En fazla karakter", String(field.maxLength)))
+        ? Number(promptLocalized("En fazla karakter", String(field.maxLength)))
         : 0;
     if (
       field.dataType === "Text" &&
@@ -4851,7 +4852,7 @@ function PurchasingPanel({
       return;
     const isRequired =
       role === "TenantAdmin"
-        ? window.confirm("Bu alan zorunlu olsun mu?")
+        ? confirmLocalized("Bu alan zorunlu olsun mu?")
         : undefined;
     setBusy(true);
     setError("");
@@ -4880,7 +4881,7 @@ function PurchasingPanel({
     field: PurchaseSupplierQuoteFieldDefinition,
   ) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${field.label} alanı devre dışı bırakılsın mı? Eski teklifler korunur.`,
       )
     )
@@ -4930,11 +4931,11 @@ function PurchasingPanel({
     }
   }
   async function editReceiptCustomField(field: PurchaseReceiptFieldDefinition) {
-    const label = window.prompt("Alan etiketi", field.label)?.trim();
+    const label = promptLocalized("Alan etiketi", field.label)?.trim();
     if (!label) return;
     const maxLength =
       field.dataType === "Text"
-        ? Number(window.prompt("En fazla karakter", String(field.maxLength)))
+        ? Number(promptLocalized("En fazla karakter", String(field.maxLength)))
         : 0;
     if (
       field.dataType === "Text" &&
@@ -4943,7 +4944,7 @@ function PurchasingPanel({
       return;
     const isRequired =
       role === "TenantAdmin"
-        ? window.confirm("Yeni mal kabullerde bu alan zorunlu olsun mu?")
+        ? confirmLocalized("Yeni mal kabullerde bu alan zorunlu olsun mu?")
         : undefined;
     setBusy(true);
     setError("");
@@ -4968,7 +4969,7 @@ function PurchasingPanel({
     field: PurchaseReceiptFieldDefinition,
   ) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${field.label} alanı devre dışı bırakılsın mı? Geçmiş mal kabuller korunur.`,
       )
     )
@@ -5136,7 +5137,7 @@ function PurchasingPanel({
                   expiryDate?: string | null;
                 }[] = [];
                 if (tracked?.trackingMode === "Serial") {
-                  const input = window.prompt(
+                  const input = promptLocalized(
                     `${x.stockCode} için seri numaralarını virgül veya yeni satırla girin (${baseQuantity} temel birim).`,
                   );
                   if (input === null)
@@ -5149,12 +5150,12 @@ function PurchasingPanel({
                     }))
                     .filter((item) => item.trackingCode);
                 } else if (tracked?.trackingMode === "Lot") {
-                  const trackingCode = window.prompt(
+                  const trackingCode = promptLocalized(
                     `${x.stockCode} lot kodu:`,
                   );
                   if (trackingCode === null)
                     throw new Error("Mal kabul iptal edildi.");
-                  const expiryDate = window.prompt(
+                  const expiryDate = promptLocalized(
                     `${x.stockCode} son kullanma tarihi (YYYY-MM-DD):`,
                   );
                   if (expiryDate === null)
@@ -5196,7 +5197,7 @@ function PurchasingPanel({
   async function voidReceipt(receipt: PurchaseReceipt) {
     if (
       !detail ||
-      !window.confirm(
+      !confirmLocalized(
         `${receipt.code} mal kabulini iptal edilsin mi? İptal stok bakiyesini negatife düşürmemelidir.`,
       )
     )
@@ -8746,9 +8747,9 @@ function SalesOrderModal({
     }
   }
   async function releaseOrderReservation() {
-    const reason = window.prompt("Rezervasyonu bırakma gerekçesi:")?.trim();
+    const reason = promptLocalized("Rezervasyonu bırakma gerekçesi:")?.trim();
     if (!reason) return;
-    if (!window.confirm("Siparişin kalan stok rezervasyonu bırakılsın mı?"))
+    if (!confirmLocalized("Siparişin kalan stok rezervasyonu bırakılsın mı?"))
       return;
     setBusy(true);
     setError("");
@@ -8824,7 +8825,7 @@ function SalesOrderModal({
   }
   async function voidDelivery(item: SalesDeliverySummary) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} irsaliyesi iptal edilsin mi? Stok hareketi ters kaydedilecek.`,
       )
     )
@@ -9424,7 +9425,7 @@ function SalesInvoiceTable({
   }
   async function voidInvoice(item: SalesInvoiceSummary) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} faturası iptal edilecek ve cari hareketi ters kayıtla kapatılacak. Devam edilsin mi?`,
       )
     )
@@ -9446,7 +9447,7 @@ function SalesInvoiceTable({
   }
   async function deleteInvoice(item: SalesInvoiceSummary) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} faturası silinecek. Yalnızca iptal edilmiş faturalar silinebilir. Devam edilsin mi?`,
       )
     )

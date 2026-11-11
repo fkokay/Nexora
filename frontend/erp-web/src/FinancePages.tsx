@@ -25,6 +25,7 @@ import type {
   BankStatementLine,
   BuiltInScreenLayoutField,
 } from "./erp-types";
+import { confirmLocalized } from "./locale";
 
 const CashForecastPanel = lazy(() => import("./CashForecastPanel"));
 const ExchangeRatesPage = lazy(() => import("./ExchangeRatesPage"));
@@ -375,7 +376,7 @@ function FinancePage({
     setCurrencyCode(account.currencyCode); setOpeningBalance("0"); setAccountFormTab("general"); setAccountCreateOpen(true);
   }
   async function deleteAccount(account: FinancialAccount) {
-    if (!window.confirm(`“${account.name}” hesabını silmek istiyor musunuz?`)) return;
+    if (!confirmLocalized(`“${account.name}” hesabını silmek istiyor musunuz?`)) return;
     setBusy(true); setError("");
     try {
       await api(`/api/finance/accounts/${account.id}`, token, { method: "DELETE" });
@@ -532,7 +533,7 @@ function FinancePage({
   async function voidMovement(item: FinancialMovement) {
     if (
       !detail ||
-      !window.confirm("Bu manuel hareket ters kayıtla iptal edilsin mi?")
+      !confirmLocalized("Bu manuel hareket ters kayıtla iptal edilsin mi?")
     )
       return;
     setBusy(true);
@@ -555,7 +556,7 @@ function FinancePage({
   async function voidTransfer(item: FinancialMovement) {
     if (
       !item.transferId ||
-      !window.confirm(
+      !confirmLocalized(
         `Transfer ${item.sourceCode || ""} iki hesabın da ters kaydıyla iptal edilsin mi?`,
       )
     )

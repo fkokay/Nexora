@@ -1,5 +1,3 @@
-import { supplementalEnglish, supplementalEnglishPatterns } from './locales/en'
-
 /** Reads the ERP shell's persisted locale. The shell rerenders its page tree when the locale changes. */
 export function isEnglishLocale(): boolean {
   return typeof window !== 'undefined' && window.localStorage.getItem('aierp.locale') === 'en'
@@ -494,6 +492,22 @@ Object.assign(uiEnglish, {
  * Source text is matched trimmed with internal whitespace collapsed, as JSX renders it. */
 const englishLookupCache = new Map<string, string | null>()
 
+/** Module dictionaries are several hundred KB, so they are fetched only once English is selected. */
+let supplementalEnglish: Record<string, string> = {}
+let supplementalEnglishPatterns: Array<[RegExp, string]> = []
+let supplementalEnglishLoad: Promise<void> | undefined
+
+export function loadEnglishDictionaries(): Promise<void> {
+  supplementalEnglishLoad ??= import('./locales/en').then((module) => {
+    supplementalEnglish = module.supplementalEnglish
+    supplementalEnglishPatterns = module.supplementalEnglishPatterns
+    englishLookupCache.clear()
+  })
+  return supplementalEnglishLoad
+}
+
+if (isEnglishLocale()) void loadEnglishDictionaries()
+
 function englishFor(value: string): string | undefined {
   const source = value.replace(/\s+/g, ' ').trim()
   const cached = englishLookupCache.get(source)
@@ -522,6 +536,15 @@ function resolveEnglish(source: string): string | undefined {
 
 export function localizedUiText(value: string): string {
   return isEnglishLocale() ? englishFor(value) ?? value : value
+}
+
+/** Native dialogs are outside the DOM translator's reach, so their text is localized before display. */
+export function confirmLocalized(message: string): boolean {
+  return window.confirm(localizedUiText(message))
+}
+
+export function promptLocalized(message: string, defaultValue?: string): string | null {
+  return window.prompt(localizedUiText(message), defaultValue)
 }
 
 /** Keeps the leading/trailing whitespace of a text node so inline JSX such as `{count} kayıt` stays spaced. */

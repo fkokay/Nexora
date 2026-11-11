@@ -7,6 +7,7 @@ import IntegrationOperationsList, {
   type IntegrationOperationPage,
 } from "./integration-queue/components/IntegrationOperationsList";
 import { localizedText } from "./locale";
+import { confirmLocalized } from "./locale";
 import "./integration-queue.css";
 
 type EDocumentSubmission = {
@@ -264,7 +265,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
   async function cancel(item: IntegrationOperation) {
     if (
       !["Queued", "AwaitingApproval"].includes(item.status) ||
-      !window.confirm(
+      !confirmLocalized(
         tr(
           `${item.integrationCode} işlemini iptal etmek istiyor musunuz?`,
           `Do you want to cancel operation ${item.integrationCode}?`,
@@ -411,7 +412,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
     if (
       !item ||
       !detail ||
-      !window.confirm(
+      !confirmLocalized(
         tr(
           `${detail.documentType} ${detail.documentNumber} belgesini dış sağlayıcıya gönderilmek üzere onaylıyor musunuz? Bu işlem dış sistemde sonuç doğurabilir.`,
           `Approve ${detail.documentType} ${detail.documentNumber} for external submission? This action may have effects in the external system.`,
@@ -478,7 +479,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
           "Dış sağlayıcıda gönderilmediğini doğruladınız mı? İşlem gönderilmedi olarak kapatılacak ve otomatik tekrar yapılmayacak.",
           "Have you confirmed it was not submitted in the external provider? The operation will close as not submitted and will not be retried automatically.",
         );
-    if (!window.confirm(decision)) return;
+    if (!confirmLocalized(decision)) return;
     setBusyId(item.operationId);
     setError("");
     setNotice("");

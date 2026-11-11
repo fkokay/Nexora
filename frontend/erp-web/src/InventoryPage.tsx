@@ -11,6 +11,7 @@ import { InventoryStockFilters } from "./inventory/components/InventoryStockFilt
 import { InventoryStockGrid } from "./inventory/components/InventoryStockGrid";
 import { InventoryStockActionsMenu } from "./inventory/components/InventoryStockActionsMenu";
 import SearchableRecordPicker from "./SearchableRecordPicker";
+import { confirmLocalized, promptLocalized } from "./locale";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type InventoryBalance = AppTypes.InventoryBalance;
 type InventoryCostAdjustment = AppTypes.InventoryCostAdjustment;
@@ -644,7 +645,7 @@ export function InventoryPage({
   }
   async function deactivateCustomField(definition: StockCustomFieldDefinition) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${definition.label} alanı yeni değer girişinden kaldırılacak; eski değerleri korunacak. Devam edilsin mi?`,
       )
     )
@@ -704,7 +705,7 @@ export function InventoryPage({
     if (
       !customFieldItem ||
       !customFieldValueHistoryDefinition ||
-      !window.confirm(
+      !confirmLocalized(
         `${revision.label} alanının ${new Date(revision.createdAt).toLocaleString("tr-TR")} tarihli değişikliği geri alınsın mı? Önceki değer yeni bir geçmiş kaydı olarak yazılır.`,
       )
     )
@@ -729,14 +730,14 @@ export function InventoryPage({
     }
   }
   async function editCustomField(definition: StockCustomFieldDefinition) {
-    const label = window.prompt(
+    const label = promptLocalized(
       "Yeni alan etiketi (boş bırakılamaz):",
       definition.label,
     );
     if (label === null) return;
     let maxLength = definition.maxLength;
     if (definition.dataType === "Text") {
-      const raw = window.prompt(
+      const raw = promptLocalized(
         "Yeni en fazla metin uzunluğu (1–500). Mevcut değerler kontrol edilir:",
         String(definition.maxLength),
       );
@@ -752,17 +753,17 @@ export function InventoryPage({
     }
     let isRequired: boolean | undefined;
     if (role === "TenantAdmin") {
-      const requiredAnswer = window.prompt(
+      const requiredAnswer = promptLocalized(
         "Alan zorunlu olsun mu? Evet veya Hayır. Zorunlu yapmak için tüm mevcut stok kartlarında değer bulunmalıdır.",
         definition.isRequired ? "Evet" : "Hayır",
       );
       if (requiredAnswer === null) return;
       const answer = requiredAnswer.trim().toLocaleLowerCase("tr-TR");
-      if (!["evet", "hayır", "hayir"].includes(answer)) {
+      if (!["evet", "hayır", "hayir", "yes", "no"].includes(answer)) {
         setError("Zorunluluk için Evet veya Hayır yazın.");
         return;
       }
-      isRequired = answer === "evet";
+      isRequired = answer === "evet" || answer === "yes";
     }
     setCustomFieldBusy(true);
     setError("");
@@ -793,7 +794,7 @@ export function InventoryPage({
   ) {
     if (
       !customFieldHistoryDefinition ||
-      !window.confirm(
+      !confirmLocalized(
         `${revision.code} alanının v${revision.version} tanımı geri yüklensin mi? Bu işlem yeni bir sürüm oluşturur.`,
       )
     )
@@ -1074,7 +1075,7 @@ export function InventoryPage({
     const action = active ? "activate" : "deactivate",
       verb = active ? "etkinleştirilsin" : "devre dışı bırakılsın";
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} · ${item.name} ${verb} mi? ${active ? "" : "Depo bakiyesi sıfır olmalıdır."}`,
       )
     )
@@ -1110,7 +1111,7 @@ export function InventoryPage({
   }
   async function deleteItem(item: StockItem) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} · ${item.name} stok kartı kalıcı olarak silinsin mi? İlişkili kayıtları olan kartlar silinemez.`,
       )
     )
@@ -1413,11 +1414,11 @@ export function InventoryPage({
     }
   }
   async function editWarehouseField(field: WarehouseCustomFieldDefinition) {
-    const label = window.prompt("Yeni alan etiketi:", field.label);
+    const label = promptLocalized("Yeni alan etiketi:", field.label);
     if (label === null) return;
     let maxLength = field.maxLength;
     if (field.dataType === "Text") {
-      const raw = window.prompt(
+      const raw = promptLocalized(
         "En fazla metin uzunluğu (1–500):",
         String(field.maxLength),
       );
@@ -1426,17 +1427,17 @@ export function InventoryPage({
     }
     let isRequired: boolean | undefined;
     if (role === "TenantAdmin") {
-      const answer = window.prompt(
+      const answer = promptLocalized(
         "Zorunlu olsun mu? Evet/Hayır. Mevcut depolarda değer bulunmalıdır.",
         field.isRequired ? "Evet" : "Hayır",
       );
       if (answer === null) return;
       const requiredAnswer = answer.trim().toLocaleLowerCase("tr-TR");
-      if (!["evet", "hayır", "hayir"].includes(requiredAnswer)) {
+      if (!["evet", "hayır", "hayir", "yes", "no"].includes(requiredAnswer)) {
         setError("Zorunluluk için Evet veya Hayır yazın.");
         return;
       }
-      isRequired = requiredAnswer === "evet";
+      isRequired = requiredAnswer === "evet" || requiredAnswer === "yes";
     }
     setWarehouseFieldBusy(true);
     setError("");
@@ -1470,7 +1471,7 @@ export function InventoryPage({
     field: WarehouseCustomFieldDefinition,
   ) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${field.label} yeni değer girişinden kaldırılsın mı? Eski depo değerleri ve geçmiş korunur.`,
       )
     )
@@ -1497,7 +1498,7 @@ export function InventoryPage({
   async function toggleWarehouse(warehouse: Warehouse) {
     const isActive = !warehouse.isActive;
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${warehouse.code} · ${warehouse.name} ${isActive ? "yeniden etkinleştirilsin" : "devre dışı bırakılsın"} mı? ${isActive ? "" : "Depoda sıfırdan farklı stok varsa işlem reddedilir."}`,
       )
     )
@@ -1534,9 +1535,9 @@ export function InventoryPage({
     }
   }
   async function editWarehouse(warehouse: Warehouse) {
-    const code = window.prompt("Depo kodu:", warehouse.code)?.trim();
+    const code = promptLocalized("Depo kodu:", warehouse.code)?.trim();
     if (code === undefined || code === null) return;
-    const name = window.prompt("Depo adı:", warehouse.name)?.trim();
+    const name = promptLocalized("Depo adı:", warehouse.name)?.trim();
     if (name === undefined || name === null) return;
     if (!code || !name) {
       setError("Depo kodu ve adı boş bırakılamaz.");
@@ -1719,7 +1720,7 @@ export function InventoryPage({
       ?.trim();
     if (!reason) return;
     if (
-      !window.confirm(
+      !confirmLocalized(
         "Kaynak ve hedef depodaki tüm transfer hareketleri birlikte ters kayıtla iptal edilsin mi? Hedef stok kullanılmışsa işlem reddedilir.",
       )
     )
@@ -1867,7 +1868,7 @@ export function InventoryPage({
   async function deactivateUnitConversion(conversion: StockItemUnitConversion) {
     if (
       !costTarget ||
-      !window.confirm(
+      !confirmLocalized(
         `${conversion.unitCode} birim dönüşümü yeni hareket girişinden kaldırılacak. Devam edilsin mi?`,
       )
     )
@@ -2057,7 +2058,7 @@ export function InventoryPage({
   }
   async function reverseMovement(item: InventoryMovement) {
     if (!movementItem) return;
-    const reason = window.prompt("Ters kayıt nedeni:")?.trim();
+    const reason = promptLocalized("Ters kayıt nedeni:")?.trim();
     if (!reason) return;
     setBusy(true);
     setError("");

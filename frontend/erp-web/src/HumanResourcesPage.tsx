@@ -11,6 +11,7 @@ import { Check, Clock3, Download, Plus, RefreshCw } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { localDateString } from "./dateUtils";
+import { confirmLocalized, promptLocalized } from "./locale";
 import "./human-resources.css";
 type Leave = {
   id: string;
@@ -1364,7 +1365,7 @@ export default function HumanResourcesPage({
   }
   async function postPayrollVoucher(runId: string, calculationId: string) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         tr(
           "Kesinleşmiş iç bordro sonucunu şirket yevmiyesine kaydetmek istiyor musunuz? Bu işlem resmi bordro tahakkuku veya beyan değildir.",
           "Post this finalized internal payroll result to the company ledger? This is not a statutory payroll accrual or filing.",
@@ -1401,7 +1402,7 @@ export default function HumanResourcesPage({
   }
   async function reversePayrollVoucher(runId: string, calculationId: string) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         tr(
           "Kesinleşmiş iç bordro yevmiyesine ters kayıt ekleyip yeni bir düzeltme taslağı oluşturmak istiyor musunuz? Ters kayıt resmi tahakkuku iptal etmez.",
           "Post a reversing entry for this finalized internal payroll voucher and create a new correction draft? Reversal does not cancel a statutory accrual.",
@@ -1409,7 +1410,7 @@ export default function HumanResourcesPage({
       )
     )
       return;
-    const reason = window.prompt(
+    const reason = promptLocalized(
       tr("Ters kayıt gerekçesi", "Reason for reversal"),
     );
     if (!reason?.trim()) return;

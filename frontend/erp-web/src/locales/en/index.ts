@@ -1,3 +1,4 @@
+import * as dialogs from './dialogs'
 import * as finance from './finance'
 import * as hrAssets from './hr-assets'
 import * as inventoryManufacturing from './inventory-manufacturing'
@@ -6,7 +7,7 @@ import * as platformB from './platform-b'
 import * as purchasingCustomers from './purchasing-customers'
 import * as sales from './sales'
 
-const groups = [platformA, platformB, sales, purchasingCustomers, inventoryManufacturing, finance, hrAssets]
+const groups = [platformA, platformB, sales, purchasingCustomers, inventoryManufacturing, finance, hrAssets, dialogs]
 
 
 /** Module dictionaries; the first group that defines a key wins. */
@@ -19,7 +20,8 @@ for (const group of groups) {
 
 /** Literal characters a pattern requires; a pattern with more fixed text is more specific. */
 function literalLength(pattern: RegExp): number {
-  return pattern.source.replace(/\((?:\?:)?\.[+*]\??\)/g, '').replace(/\\(.)/g, '$1').replace(/[\^$]/g, '').length
+  // Drop every unescaped (non-nested) group, including alternations and character-class captures.
+  return pattern.source.replace(/(?<!\\)\((?:[^()\\]|\\.)*\)/g, '').replace(/\\(.)/g, '$1').replace(/[\^$]/g, '').length
 }
 
 /** Most specific patterns first, so a generic `^Sipariş (.+?)$` from one module cannot

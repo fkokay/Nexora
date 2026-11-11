@@ -5,6 +5,7 @@ import { PermissionRuleForm } from "./access-control/components/PermissionRuleFo
 import { PermissionRulesPanel } from "./access-control/components/PermissionRulesPanel";
 import { api } from "./erpApi";
 import type * as AppTypes from "./erp-types";
+import { confirmLocalized } from "./locale";
 type PermissionDefinition = AppTypes.PermissionDefinition;
 type PermissionMember = AppTypes.PermissionMember;
 type PermissionRule = AppTypes.PermissionRule;
@@ -139,7 +140,7 @@ export function AccessControlPage({
   }
   async function remove(rule: PermissionRule) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${rule.permissionCode} · ${rule.effect} kuralı silinsin mi?`,
       )
     )
@@ -255,7 +256,7 @@ export function AccessControlPage({
   }
   async function removeMember(member: PermissionMember) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${member.displayName} (${member.email}) bu firmadan çıkarılsın mı?`,
       )
     )

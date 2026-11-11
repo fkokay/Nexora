@@ -20,6 +20,7 @@ import {
   InvoiceDraftMessages,
 } from "./supplier-invoice-draft/components/InvoiceDraftHeader";
 import { InvoiceDraftList } from "./supplier-invoice-draft/components/InvoiceDraftList";
+import { confirmLocalized } from "./locale";
 
 const blankLine = (): DraftLineInput => ({
   description: "",
@@ -453,7 +454,7 @@ export default function StandaloneSupplierInvoiceDraftPage({
 
   async function postDraft(item: DraftSummary) {
     if (item.status !== "Draft" || busy) return;
-    const confirmed = window.confirm(
+    const confirmed = confirmLocalized(
       `${item.invoiceNumber} numaralı tedarikçi faturası muhasebeleştirilsin mi? Bu işlem gider veya mal kabule bağlı stok maliyeti, varsa indirilecek KDV, tedarikçi borcu ve yevmiye kaydı oluşturur. Stok miktar hareketi veya ödeme kaydı oluşturmaz.`,
     );
     if (!confirmed) return;

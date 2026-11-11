@@ -13,6 +13,7 @@ import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
+import { confirmLocalized } from "./locale";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type SalesCustomer = AppTypes.SalesCustomer;
 type SalesDeliverySummary = AppTypes.SalesDeliverySummary;
@@ -489,7 +490,7 @@ export function SalesDeliveriesScreen({
   }
   async function deleteDelivery(item: SalesDeliverySummary) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} irsaliyesi silinsin mi? Belge listeden kaldırılır; stok hareketleri ve denetim kayıtları korunur.`,
       )
     )
@@ -512,7 +513,7 @@ export function SalesDeliveriesScreen({
   }
   async function voidDelivery(item: SalesDeliverySummary) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} irsaliyesi iptal edilsin mi? Stok çıkışı ters hareketle geri alınır.`,
       )
     )

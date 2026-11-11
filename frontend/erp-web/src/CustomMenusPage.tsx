@@ -8,6 +8,7 @@ import { CustomMenuEditor } from "./custom-menus/components/CustomMenuEditor";
 import { CustomMenuList } from "./custom-menus/components/CustomMenuList";
 import { CustomMenuInspector } from "./custom-menus/components/CustomMenuInspector";
 import { StandardMenuEditor } from "./custom-menus/components/StandardMenuEditor";
+import { confirmLocalized } from "./locale";
 
 export default function CustomMenusPage({
   token,
@@ -119,7 +120,7 @@ export default function CustomMenusPage({
   }
 
   async function remove(entry: Entry) {
-    if (!window.confirm(`“${entry.label}” menü öğesi silinsin mi?`)) return;
+    if (!confirmLocalized(`“${entry.label}” menü öğesi silinsin mi?`)) return;
     setBusy(true);
     setError("");
     setNotice("");

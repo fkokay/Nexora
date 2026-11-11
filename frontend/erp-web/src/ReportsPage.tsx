@@ -31,6 +31,7 @@ import type {
   SqlCompany,
   SqlSchemaTable,
 } from "./reports/reportTypes";
+import { confirmLocalized } from "./locale";
 
 const defaultDefinition: Definition = {
   source: "customers",
@@ -403,7 +404,7 @@ export default function ReportsPage({
   }
   async function remove(report: SavedReport) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         tx(
           `“${report.name}” ${isList ? "listesini" : "raporunu"} silmek istiyor musunuz?`,
           `Delete ${isList ? "list" : "report"} “${report.name}”?`,

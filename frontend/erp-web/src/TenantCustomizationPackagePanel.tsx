@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, History, PackageOpen, RotateCcw, ShieldCheck, Upload } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import { useLowCodeCapabilities } from "./useLowCodeCapabilities";
+import { confirmLocalized } from "./locale";
 
 type Props = { token: string; locale: "tr" | "en" };
 type ImportPlan = { importableCount: number; immediateApplyCount: number; conflicts: string[]; warnings: string[]; compatibilityIssues: string[] };
@@ -47,7 +48,7 @@ export function TenantCustomizationPackagePanel({ token, locale }: Props) {
   }
 
   async function restoreSnapshot(snapshot: Snapshot) {
-    const confirmed = window.confirm(isTr
+    const confirmed = confirmLocalized(isTr
       ? `v${snapshot.version} “${snapshot.name}” geri yüklensin mi? Formlar, iş akışları, kurallar ve ekranlar taslağa alınır; raporlar, menüler, özel alanlar ve menü düzeni hemen uygulanır. Snapshot sonrasında eklenen tanımlar korunur.`
       : `Restore v${snapshot.version} “${snapshot.name}”? Forms, workflows, rules, and screens return to draft; reports, menus, custom fields, and menu layout apply immediately. Definitions added after the snapshot are kept.`);
     if (!confirmed) return;
