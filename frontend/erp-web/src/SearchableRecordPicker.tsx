@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Search, X } from "lucide-react";
+import { Check, ChevronDown, MoreHorizontal, Search, X } from "lucide-react";
 import "./searchable-record-picker.css";
 
 export type SearchableRecordOption = {
@@ -28,6 +28,8 @@ type Props = {
   describedBy?: string;
   overlayClassName?: string;
   maxVisibleOptions?: number;
+  totalCount?: number;
+  triggerVariant?: "dropdown" | "ellipsis";
 };
 
 export default function SearchableRecordPicker({
@@ -48,6 +50,8 @@ export default function SearchableRecordPicker({
   describedBy,
   overlayClassName,
   maxVisibleOptions = 50,
+  totalCount,
+  triggerVariant = "dropdown",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -84,7 +88,7 @@ export default function SearchableRecordPicker({
         ref={triggerRef}
         id={id}
         type="button"
-        className="customer-popup-trigger searchable-record-trigger"
+        className={`customer-popup-trigger searchable-record-trigger${triggerVariant === "ellipsis" ? " searchable-record-trigger--ellipsis" : ""}`}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? dialogId : undefined}
@@ -98,7 +102,7 @@ export default function SearchableRecordPicker({
         }}
       >
         <span>{selected?.label ?? selectedLabel ?? placeholder}</span>
-        <ChevronDown size={16} aria-hidden="true" />
+        {triggerVariant === "ellipsis" ? <MoreHorizontal size={18} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
       </button>
       {required && (
         <input
@@ -165,8 +169,8 @@ export default function SearchableRecordPicker({
               >
                 <span>Sonuçlar</span>
                 <small>
-                  {Math.min(filtered.length, visible.length)} kayıt
-                  {filtered.length > visible.length
+                  {totalCount ?? filtered.length} kayıt
+                  {(totalCount ?? filtered.length) > visible.length
                     ? ` · ilk ${visible.length} gösteriliyor`
                     : ""}
                 </small>

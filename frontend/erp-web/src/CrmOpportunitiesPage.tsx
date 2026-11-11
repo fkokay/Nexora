@@ -6,7 +6,14 @@ import {
   type FormEvent,
 } from "react";
 import { authenticatedFetch } from "./authApi";
-import { CalendarClock, CircleDollarSign, UserRound } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CalendarClock,
+  CircleCheck,
+  CircleDot,
+  CircleX,
+  Trash2,
+} from "lucide-react";
 import "./crm-opportunities.css";
 import { CrmOpportunityHeader } from "./crm-opportunities/components/CrmOpportunityHeader";
 import { CrmOpportunityFilters } from "./crm-opportunities/components/CrmOpportunityFilters";
@@ -16,6 +23,7 @@ import {
 } from "./crm-opportunities/components/CrmOpportunityGrid";
 import { CrmOpportunityDetail } from "./crm-opportunities/components/CrmOpportunityDetail";
 import { CrmOpportunityCreateForm } from "./crm-opportunities/components/CrmOpportunityCreateForm";
+import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import {
   defaultScreenFields,
   formatMoney,
@@ -46,6 +54,8 @@ export default function CrmOpportunitiesPage({
   const [selectedOpportunity, setSelectedOpportunity] =
       useState<Opportunity | null>(null),
     [createOpen, setCreateOpen] = useState(initialCreate);
+  const [editingOpportunity, setEditingOpportunity] = useState<Opportunity | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Opportunity | null>(null);
   const [screenFields, setScreenFields] =
     useState<ScreenField[]>(defaultScreenFields);
   const [query, setQuery] = useState(""),
@@ -218,8 +228,56 @@ export default function CrmOpportunitiesPage({
       setBusy(false);
     }
   }
+  function edit(item: Opportunity) {
+    setEditingOpportunity(item);
+    setCode(item.code);
+    setName(item.name);
+    setCustomerId(item.customerId || "");
+    setSelectedCustomer(null);
+    setValue(item.estimatedValue === null ? "" : String(item.estimatedValue));
+    setCurrency(item.currencyCode);
+    setProbability(String(item.probabilityPercent));
+    setCloseDate(item.expectedCloseDate || "");
+    setActivity(item.nextActivityAt ? new Date(item.nextActivityAt).toISOString().slice(0, 16) : "");
+    setNotes(item.notes || "");
+    setError("");
+    setNotice("");
+    setCreateOpen(true);
+  }
+  async function update(e: FormEvent): Promise<boolean> {
+    e.preventDefault();
+    if (!editingOpportunity) return false;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const updated = await request<Opportunity>(`/api/crm/opportunities/${editingOpportunity.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          code, name, customerId: customerId || null,
+          estimatedValue: value ? Number(value) : null,
+          currencyCode: currency, probabilityPercent: Number(probability),
+          expectedCloseDate: closeDate || null,
+          nextActivityAt: activity ? new Date(activity).toISOString() : null,
+          notes: notes || null,
+        }),
+      });
+      setSelectedOpportunity(updated);
+      setEditingOpportunity(null);
+      setCreateOpen(false);
+      setNotice("Fırsat güncellendi.");
+      await refresh();
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
   function closeCreate() {
-    if (initialCreate) onNavigate("crm-opportunities");
+    setEditingOpportunity(null);
+    if (initialCreate && !editingOpportunity) onNavigate("crm-opportunities");
     else setCreateOpen(false);
   }
   async function move(item: Opportunity, stage: string) {
@@ -242,21 +300,27 @@ export default function CrmOpportunitiesPage({
       setBusy(false);
     }
   }
-  const pipelineTotals = items
-    .filter(
-      (x) =>
-        x.stage !== "Won" && x.stage !== "Lost" && x.estimatedValue !== null,
-    )
-    .reduce<Record<string, number>>((totals, item) => {
-      totals[item.currencyCode] =
-        (totals[item.currencyCode] ?? 0) + (item.estimatedValue ?? 0);
-      return totals;
-    }, {});
-  const pipelineTotalText = Object.entries(pipelineTotals).length
-    ? Object.entries(pipelineTotals)
-        .map(([code, amount]) => formatMoney(amount, code, 0))
-        .join(" · ")
-    : "Değer girilmedi";
+  async function remove(item: Opportunity) {
+    setDeleteTarget(item);
+  }
+  async function confirmRemove() {
+    const item = deleteTarget;
+    if (!item) return;
+    setDeleteTarget(null);
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await request(`/api/crm/opportunities/${item.id}`, { method: "DELETE" });
+      if (selectedOpportunity?.id === item.id) setSelectedOpportunity(null);
+      setNotice("Fırsat silindi.");
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const visibleFields = screenFields
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
@@ -328,22 +392,30 @@ export default function CrmOpportunitiesPage({
           : "Takip planlanmadı";
       case "actions":
         return (
-          <div className="crm-actions">
+          <div className="crm-actions" onClick={(event) => event.stopPropagation()}>
+            <SalesRowActionsMenu label={item.name}>
             {nextStage[item.stage] && (
               <button
                 type="button"
-                className="secondary small-button"
+                role="menuitem"
+                className="sales-row-menu-item"
                 disabled={busy}
                 aria-label={`${item.name} fırsatını ${stageLabels[nextStage[item.stage]]} aşamasına ilerlet`}
                 onClick={() => void move(item, nextStage[item.stage])}
               >
-                İlerlet
+                Aşamayı ilerlet · {stageLabels[nextStage[item.stage]]}
+              </button>
+            )}
+            {!(["Won", "Lost"].includes(item.stage)) && (
+              <button type="button" role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => edit(item)}>
+                Düzenle
               </button>
             )}
             {!["Won", "Lost"].includes(item.stage) && (
               <button
                 type="button"
-                className="crm-lost"
+                role="menuitem"
+                className="sales-row-menu-item danger-action"
                 disabled={busy}
                 aria-label={`${item.name} fırsatını kaybedildi olarak işaretle`}
                 onClick={() => void move(item, "Lost")}
@@ -351,20 +423,8 @@ export default function CrmOpportunitiesPage({
                 Kaybet
               </button>
             )}
-            {item.stage === "Won" && (
-              <CircleDollarSign
-                size={17}
-                className="crm-won-icon"
-                aria-label="Kazanıldı"
-              />
-            )}
-            {item.stage === "Lost" && (
-              <UserRound
-                size={17}
-                className="crm-lost-icon"
-                aria-label="Kaybedildi"
-              />
-            )}
+              <button type="button" role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void remove(item)}><Trash2 size={14} /> Sil</button>
+            </SalesRowActionsMenu>
           </div>
         );
       default:
@@ -372,30 +432,13 @@ export default function CrmOpportunitiesPage({
     }
   };
 
+  const pageOpenCount = items.filter((item) => !["Won", "Lost"].includes(item.stage)).length;
+  const pageWonCount = items.filter((item) => item.stage === "Won").length;
+  const pageLostCount = items.filter((item) => item.stage === "Lost").length;
+
   return (
-    <div className="crm-page">
+    <div className={`crm-page${createOpen ? " crm-page--form" : ""}`}>
       <CrmOpportunityHeader onCreate={() => setCreateOpen(true)} />
-      <section
-        className="crm-page-summary"
-        aria-labelledby="crm-page-summary-title"
-      >
-        <div className="crm-page-summary-heading">
-          <span aria-hidden="true">
-            <CircleDollarSign size={18} />
-          </span>
-          <div>
-            <h2 id="crm-page-summary-title">Sayfa özeti</h2>
-            <p>
-              Aktif filtrelere göre görüntülenen açık fırsatların tahmini
-              değeri.
-            </p>
-          </div>
-        </div>
-        <div className="crm-page-summary-value">
-          <span>Görüntülenen açık fırsat değeri</span>
-          <b>{pipelineTotalText}</b>
-        </div>
-      </section>
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}
@@ -413,12 +456,32 @@ export default function CrmOpportunitiesPage({
           {notice}
         </div>
       )}
+      <section className="reference-summary-grid crm-reference-summary" aria-label="Fırsat özeti">
+        <div className="reference-summary-card violet">
+          <span><BriefcaseBusiness size={20} aria-hidden="true" /></span>
+          <div><small>Eşleşen fırsat</small><strong>{listLoading ? "…" : totalCount.toLocaleString("tr-TR")}</strong></div>
+        </div>
+        <div className="reference-summary-card blue">
+          <span><CircleDot size={20} aria-hidden="true" /></span>
+          <div><small>Açık · bu sayfa</small><strong>{listLoading ? "…" : pageOpenCount.toLocaleString("tr-TR")}</strong></div>
+        </div>
+        <div className="reference-summary-card green">
+          <span><CircleCheck size={20} aria-hidden="true" /></span>
+          <div><small>Kazanıldı · bu sayfa</small><strong>{listLoading ? "…" : pageWonCount.toLocaleString("tr-TR")}</strong></div>
+        </div>
+        <div className="reference-summary-card red">
+          <span><CircleX size={20} aria-hidden="true" /></span>
+          <div><small>Kaybedildi · bu sayfa</small><strong>{listLoading ? "…" : pageLostCount.toLocaleString("tr-TR")}</strong></div>
+        </div>
+      </section>
       {createOpen && (
         <CrmOpportunityCreateForm
+          mode={editingOpportunity ? "edit" : "create"}
           customerError={customerError}
           customers={customers}
           customerId={customerId}
           selectedCustomer={selectedCustomer}
+          selectedCustomerName={editingOpportunity?.customerName}
           customerLoading={customerLoading}
           code={code}
           name={name}
@@ -431,9 +494,9 @@ export default function CrmOpportunitiesPage({
           busy={busy}
           onClose={closeCreate}
           onSubmit={(event) => {
-            void create(event).then((saved) => {
+            void (editingOpportunity ? update(event) : create(event)).then((saved) => {
               if (saved) {
-                if (initialCreate) onNavigate("crm-opportunities");
+                if (initialCreate && !editingOpportunity) onNavigate("crm-opportunities");
                 else setCreateOpen(false);
               }
             });
@@ -453,26 +516,76 @@ export default function CrmOpportunitiesPage({
           onNotesChange={setNotes}
         />
       )}
+      {deleteTarget && (
+        <div
+          className="crm-modal-backdrop crm-delete-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !busy) setDeleteTarget(null);
+          }}
+        >
+          <section
+            className="crm-delete-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="crm-delete-title"
+            aria-describedby="crm-delete-description"
+            aria-busy={busy}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && !busy) setDeleteTarget(null);
+            }}
+          >
+            <div className="crm-delete-heading">
+              <span className="crm-delete-icon" aria-hidden="true"><Trash2 size={20} /></span>
+              <div>
+                <p className="eyebrow">KALICI SİLME</p>
+                <h2 id="crm-delete-title">Fırsat silinsin mi?</h2>
+              </div>
+            </div>
+            <p id="crm-delete-description" className="crm-delete-copy">
+              Bu fırsat satış hattından kaldırılacak. Silme işlemi geri alınamaz.
+            </p>
+            <div className="crm-delete-record">
+              <strong>{deleteTarget.name}</strong>
+              <span>{deleteTarget.code}</span>
+            </div>
+            <div className="crm-delete-actions">
+              <button type="button" className="secondary" autoFocus disabled={busy} onClick={() => setDeleteTarget(null)}>
+                Vazgeç
+              </button>
+              <button type="button" className="crm-delete-confirm" disabled={busy} onClick={() => void confirmRemove()}>
+                <Trash2 size={15} aria-hidden="true" />
+                {busy ? "Siliniyor…" : "Fırsatı sil"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      <CrmOpportunityFilters
+        query={query}
+        filter={filter}
+        onQueryChange={(value) => {
+          setQuery(value);
+          setPage(1);
+        }}
+        onFilterChange={(value) => {
+          setFilter(value);
+          setPage(1);
+        }}
+      />
       <section
         className="crm-panel crm-opportunity-workbench"
         aria-busy={listLoading}
       >
-        <CrmOpportunityFilters
-          loading={listLoading}
-          itemsCount={items.length}
-          totalCount={totalCount}
-          page={page}
-          query={query}
-          filter={filter}
-          onQueryChange={(value) => {
-            setQuery(value);
-            setPage(1);
-          }}
-          onFilterChange={(value) => {
-            setFilter(value);
-            setPage(1);
-          }}
-        />
+        <div className="crm-grid-heading">
+          <div>
+            <h2>Satış hattı</h2>
+            <p>
+              {listLoading
+                ? "Fırsatlar yükleniyor…"
+                : `${items.length} / ${totalCount} fırsat gösteriliyor · sayfa ${page} · Aşamalar tenant içinde izlenir.`}
+            </p>
+          </div>
+        </div>
         <div
           className={`crm-record-workspace${selectedOpportunity ? " is-inspecting" : ""}${items.length === 0 && !listLoading ? " is-empty" : ""}`}
         >
@@ -510,6 +623,7 @@ export default function CrmOpportunitiesPage({
             }}
             onCreate={() => setCreateOpen(true)}
             onClose={() => setSelectedOpportunity(null)}
+            onEdit={edit}
             onMove={(stage) => {
               if (selectedOpportunity) void move(selectedOpportunity, stage);
             }}

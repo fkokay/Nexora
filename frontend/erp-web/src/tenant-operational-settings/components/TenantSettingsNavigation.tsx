@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
-import { ShieldCheck } from "lucide-react";
+import { Building2, ShieldCheck } from "lucide-react";
 
-export type SettingId = "profile" | "stock" | "currency" | "audit";
+export type SettingId = "profile" | "stock" | "currency" | "audit" | "documents";
 export type SettingNavItem = {
   id: SettingId;
   title: string;
@@ -19,6 +19,10 @@ type Props = {
 export function TenantSettingsNavigation({ items, active, onSelect }: Props) {
   return (
     <nav className="tenant-settings-nav" aria-label="Firma ayar kategorileri">
+      <div className="tenant-settings-sidebar-title">
+        <span aria-hidden="true"><Building2 size={21} /></span>
+        <span><b>Firma ayarları</b><small>Firma yapılandırması</small></span>
+      </div>
       <p className="eyebrow">YAPILANDIRMA</p>
       {items.map((item) => {
         const Icon = item.icon;

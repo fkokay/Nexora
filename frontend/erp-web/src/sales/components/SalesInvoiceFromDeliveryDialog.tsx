@@ -22,6 +22,8 @@ type Props = {
   warehouses: Warehouse[];
   token: string;
   initialMode?: "delivery" | "order" | "standalone";
+  initialCustomerId?: string;
+  fullPage?: boolean;
   total: number;
   page: number;
   search: string;
@@ -31,8 +33,13 @@ type Props = {
   onClose: () => void;
   onSearchChange: (value: string) => void;
   onPageChange: (page: number) => void;
-  onCreateInvoice: (delivery: SalesDeliverySummary) => void;
+  onCreateInvoice: (delivery: SalesDeliverySummary, eDocument?: Record<string, string | null>, accountingProfileCode?: string, invoiceType?: "Wholesale" | "Retail") => void;
   onInvoiceCreated: (id: string) => Promise<void>;
+};
+
+type AccountingRuleProfile = {
+  profileCode: string; name: string; jurisdictionCode: string; reportingStandard: string;
+  effectiveFrom: string; effectiveTo: string | null; parametersJson: string; isActive: boolean;
 };
 
 export default function SalesInvoiceFromDeliveryDialog({
@@ -43,6 +50,8 @@ export default function SalesInvoiceFromDeliveryDialog({
   warehouses,
   token,
   initialMode = "delivery",
+  initialCustomerId = "",
+  fullPage = false,
   total,
   page,
   search,
@@ -56,8 +65,9 @@ export default function SalesInvoiceFromDeliveryDialog({
   onInvoiceCreated,
 }: Props) {
   const [mode, setMode] = useState<"delivery" | "order" | "standalone">(
-    initialMode,
+    fullPage ? "standalone" : initialMode,
   );
+  const [invoiceType, setInvoiceType] = useState<"Wholesale" | "Retail">("Wholesale");
   const [orderId, setOrderId] = useState(""),
     [order, setOrder] = useState<SalesOrderDetail | null>(null),
     [orderLoading, setOrderLoading] = useState(false);
@@ -65,13 +75,59 @@ export default function SalesInvoiceFromDeliveryDialog({
     [deliveryDate, setDeliveryDate] = useState(localDateString()),
     [orderBusy, setOrderBusy] = useState(false),
     [orderError, setOrderError] = useState("");
-  const [standaloneCustomerId, setStandaloneCustomerId] = useState(""),
+  const [standaloneCustomerId, setStandaloneCustomerId] = useState(initialCustomerId),
     [invoiceDate, setInvoiceDate] = useState(localDateString()),
     [standaloneBusy, setStandaloneBusy] = useState(false),
     [standaloneError, setStandaloneError] = useState("");
+  useEffect(() => {
+    if (initialCustomerId) setStandaloneCustomerId(initialCustomerId);
+  }, [initialCustomerId]);
+  const [eDocument, setEDocument] = useState({ scenario: "", typeCode: "SATIS", recipientAlias: "", purchaseUrl: "", paymentTaxId: "", paymentTitle: "", paymentAlias: "", paymentAgentName: "", paymentType: "", paymentDate: "", paymentDueDate: "", paymentMeans: "", paymentInstructionNote: "", intermediaryCountry: "", intermediaryCountryCode: "", intermediaryCity: "", intermediaryDistrict: "", carrierTaxId: "", carrierName: "", carrierSurname: "", sentAt: "" });
+  function renderEDocumentFields() {
+    const fields: [keyof typeof eDocument, string, string?][] = [
+      ["scenario", "Belge senaryosu"], ["typeCode", "Belge tür kodu"],
+    ];
+    const optionalFields: [keyof typeof eDocument, string, string?][] = [];
+    if (["TEMELFATURA", "TICARIFATURA", "KAMU"].includes(eDocument.scenario))
+      optionalFields.push(["recipientAlias", "Alıcı e-Fatura etiketi"]);
+    if (eDocument.scenario === "EARSIVFATURA") optionalFields.push(["purchaseUrl", "Satın alma URL’si"]);
+    if (eDocument.scenario === "EARSIVFATURA") optionalFields.push(
+      ["paymentTaxId", "Aracı firma VKN/TCKN"], ["paymentTitle", "Aracı firma ünvanı"],
+      ["paymentAlias", "Aracı firma etiketi"], ["paymentAgentName", "Ödeme aracısı adı"],
+      ["paymentType", "Ödeme türü"], ["paymentMeans", "Ödeme yöntemi"], ["paymentInstructionNote", "Ödeme notu"],
+      ["intermediaryCountry", "Aracı firma ülkesi"], ["intermediaryCountryCode", "Aracı firma ülke kodu"],
+      ["intermediaryCity", "Aracı firma şehri"], ["intermediaryDistrict", "Aracı firma ilçesi"],
+    );
+    if (eDocument.scenario) optionalFields.push(
+      ["carrierTaxId", "Taşıyıcı VKN/TCKN"], ["carrierName", "Taşıyıcı adı/ünvanı"], ["carrierSurname", "Taşıyıcı soyadı"],
+    );
+    const renderField = ([key, label, placeholder]: [keyof typeof eDocument, string, string?]) => (
+      <label key={key}>{label}{key === "scenario" ? <select value={eDocument[key]} onChange={(event) => setEDocument((value) => ({ ...value, [key]: event.target.value }))}><option value="">Senaryo seçin</option>{[["TEMELFATURA", "Temel e-Fatura"], ["TICARIFATURA", "Ticari e-Fatura"], ["EARSIVFATURA", "e-Arşiv Fatura"], ["IHRACAT", "İhracat"], ["YOLCUBERABERFATURA", "Yolcu beraber"], ["KAMU", "Kamu"], ["HKS", "Hal Kayıt Sistemi"], ["ENERJI", "Enerji"], ["ILAC_TIBBICIHAZ", "İlaç / tıbbi cihaz"]].map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select> : key === "typeCode" ? <select value={eDocument[key]} onChange={(event) => setEDocument((value) => ({ ...value, [key]: event.target.value }))}>{[["SATIS", "Satış"], ["IADE", "İade"], ["TEVKIFAT", "Tevkifat"], ["ISTISNA", "İstisna"], ["OZELMATRAH", "Özel matrah"], ["IHRACKAYITLI", "İhraç kayıtlı"], ["TEVKIFATIADE", "Tevkifat iade"], ["HKSSATIS", "Hal satış"], ["HKSKOMISYONCU", "Hal komisyoncu"]].map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select> : <input value={eDocument[key]} placeholder={placeholder} onChange={(event) => setEDocument((value) => ({ ...value, [key]: event.target.value }))} />}</label>
+    );
+    return (
+      <section className="panel sales-invoice-edocument">
+        <div className="panel-heading"><b>E-belge ve e-ticaret bilgileri</b><small>{eDocument.scenario ? "Seçilen senaryonun alanları" : "Devam etmek için belge senaryosunu seçin"}</small></div>
+        <div className="form-two">{fields.map(renderField)}</div>
+        {optionalFields.length > 0 && (
+          <details className="sales-invoice-edocument-extra">
+            <summary>Ek bilgiler <span>{optionalFields.length + (eDocument.scenario ? 1 : 0) + (eDocument.scenario === "EARSIVFATURA" ? 2 : 0)}</span></summary>
+            <div className="form-two">
+              {optionalFields.map(renderField)}
+              {eDocument.scenario === "EARSIVFATURA" && <>
+                <label>Ödeme tarihi<input type="datetime-local" value={eDocument.paymentDate ? eDocument.paymentDate.slice(0, 16) : ""} onChange={(event) => setEDocument((value) => ({ ...value, paymentDate: event.target.value ? new Date(event.target.value).toISOString() : "" }))} /></label>
+                <label>Son ödeme tarihi<input type="datetime-local" value={eDocument.paymentDueDate ? eDocument.paymentDueDate.slice(0, 16) : ""} onChange={(event) => setEDocument((value) => ({ ...value, paymentDueDate: event.target.value ? new Date(event.target.value).toISOString() : "" }))} /></label>
+              </>}
+              {eDocument.scenario && <label>Sevk tarihi<input type="date" value={eDocument.sentAt} onChange={(event) => setEDocument((value) => ({ ...value, sentAt: event.target.value }))} /></label>}
+            </div>
+          </details>
+        )}
+      </section>
+    );
+  }
   const [standaloneLines, setStandaloneLines] = useState([
     {
       stockItemId: "",
+      warehouseId: warehouses.find((warehouse) => warehouse.isActive)?.id || "",
       quantity: "1",
       unitPrice: "0",
       discountPercent: "0",
@@ -84,6 +140,8 @@ export default function SalesInvoiceFromDeliveryDialog({
     [invoiceCustomFieldValues, setInvoiceCustomFieldValues] = useState<
       Record<string, string>
     >({});
+  const [accountingProfiles, setAccountingProfiles] = useState<AccountingRuleProfile[]>([]);
+  const [accountingProfileCode, setAccountingProfileCode] = useState("");
   const pageCount = Math.max(1, Math.ceil(total / 25));
   const selectedOrder = orders.find((item) => item.id === orderId);
   useEffect(() => {
@@ -100,6 +158,30 @@ export default function SalesInvoiceFromDeliveryDialog({
       active = false;
     };
   }, [token]);
+  useEffect(() => {
+    let active = true;
+    void api<AccountingRuleProfile[]>("/api/finance/general-ledger/rule-profiles", token)
+      .then((items) => {
+        if (!active) return;
+        const configured = items.filter((item) => {
+          if (!item.isActive) return false;
+          try { const rules = JSON.parse(item.parametersJson)?.taxRules; return Array.isArray(rules) && rules.length > 0; }
+          catch { return false; }
+        });
+        setAccountingProfiles(configured);
+        const defaultProfile = configured.find((item) => {
+          try { return JSON.parse(item.parametersJson)?.defaultForDocuments === true; }
+          catch { return false; }
+        });
+        setAccountingProfileCode(defaultProfile?.profileCode || configured.find((item) => item.profileCode === "TR-LOCAL")?.profileCode || configured[0]?.profileCode || "");
+      })
+      .catch(() => { if (active) setAccountingProfiles([]); });
+    return () => { active = false; };
+  }, [token]);
+  function renderAccountingProfileSelect() {
+    if (!accountingProfiles.length) return null;
+    return <section className="panel"><div className="panel-heading"><b>Vergi mevzuatı profili</b><small>Fatura vergileri seçilen ülke profiline göre hesaplanır.</small></div><label>Hesap profili<select value={accountingProfileCode} onChange={(event) => setAccountingProfileCode(event.target.value)} required><option value="">Profil seçin</option>{accountingProfiles.map((item) => <option key={item.profileCode} value={item.profileCode}>{item.name} · {item.jurisdictionCode} · {item.reportingStandard}</option>)}</select></label></section>;
+  }
   function renderInvoiceCustomFields() {
     return (
       invoiceCustomFields.length > 0 && (
@@ -171,6 +253,9 @@ export default function SalesInvoiceFromDeliveryDialog({
       invoiceCustomFieldValues[field.code] || "",
     ]),
   );
+  const eDocumentPayload = { ...eDocument, sentAt: eDocument.sentAt || null,
+    paymentDate: eDocument.paymentDate ? new Date(eDocument.paymentDate).toISOString() : null,
+    paymentDueDate: eDocument.paymentDueDate ? new Date(eDocument.paymentDueDate).toISOString() : null };
   const reservedWarehouseIds = useMemo(
     () =>
       Array.from(
@@ -266,7 +351,7 @@ export default function SalesInvoiceFromDeliveryDialog({
           token,
           {
             method: "POST",
-            body: JSON.stringify({ customFields: customFieldsPayload }),
+            body: JSON.stringify({ customFields: customFieldsPayload, eDocument: eDocumentPayload, accountingProfileCode: accountingProfileCode || null, invoiceType }),
           },
         );
         onClose();
@@ -284,7 +369,10 @@ export default function SalesInvoiceFromDeliveryDialog({
   }
   async function createStandaloneInvoice(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!standaloneCustomerId || !warehouseId) return;
+    if (!standaloneCustomerId || standaloneLines.some((line) => !line.stockItemId || !line.warehouseId)) {
+      setStandaloneError("Aktif müşteri, stok kartı ve her satır için depo seçin.");
+      return;
+    }
     setStandaloneBusy(true);
     setStandaloneError("");
     try {
@@ -296,15 +384,20 @@ export default function SalesInvoiceFromDeliveryDialog({
           body: JSON.stringify({
             requestId: crypto.randomUUID(),
             customerId: standaloneCustomerId,
-            warehouseId,
+            warehouseId: standaloneLines[0].warehouseId,
             invoiceDate,
+            accountingProfileCode: accountingProfileCode || null,
             customFields: customFieldsPayload,
+            eDocument: eDocumentPayload,
+            invoiceType,
             lines: standaloneLines.map((line) => ({
               stockItemId: line.stockItemId,
               quantity: Number(line.quantity),
               unitPrice: Number(line.unitPrice),
               discountPercent: Number(line.discountPercent),
               vatPercent: Number(line.vatPercent),
+              isVatIncluded: invoiceType === "Retail",
+              warehouseId: line.warehouseId,
             })),
           }),
         },
@@ -317,36 +410,74 @@ export default function SalesInvoiceFromDeliveryDialog({
       setStandaloneBusy(false);
     }
   }
-  const standaloneTotal = standaloneLines.reduce((sum, line) => {
-    const base =
-      Number(line.quantity || 0) *
-      Number(line.unitPrice || 0) *
-      (1 - Number(line.discountPercent || 0) / 100);
-    return sum + base * (1 + Number(line.vatPercent || 0) / 100);
-  }, 0);
+  const standaloneLineAmounts = (line: (typeof standaloneLines)[number]) => {
+    const vatRate = Number(line.vatPercent || 0) / 100;
+    const entered = Number(line.quantity || 0) * Number(line.unitPrice || 0);
+    const subtotal = invoiceType === "Retail" && vatRate > 0 ? entered / (1 + vatRate) : entered;
+    const discount = subtotal * Number(line.discountPercent || 0) / 100;
+    const tax = (subtotal - discount) * vatRate;
+    return { subtotal, discount, tax, total: subtotal - discount + tax };
+  };
+  const standaloneTotal = standaloneLines.reduce((sum, line) => sum + standaloneLineAmounts(line).total, 0);
+  const standaloneSubtotal = standaloneLines.reduce((sum, line) => sum + standaloneLineAmounts(line).subtotal, 0);
+  const standaloneDiscount = standaloneLines.reduce((sum, line) => sum + standaloneLineAmounts(line).discount, 0);
+  const standaloneTax = standaloneTotal - (standaloneSubtotal - standaloneDiscount);
+  const standaloneVatRows = Array.from(new Set(standaloneLines.map((line) => Number(line.vatPercent || 0))))
+    .sort((left, right) => left - right)
+    .map((rate) => ({
+      rate,
+      amount: standaloneLines.reduce((sum, line) => Number(line.vatPercent || 0) === rate
+        ? sum + standaloneLineAmounts(line).tax
+        : sum, 0),
+    }));
+  const standaloneTotals = [
+    { label: "TOPLAM TUTAR", amount: standaloneSubtotal - standaloneDiscount, strong: false },
+    ...standaloneVatRows.map((row) => ({ label: `KDV %${row.rate}`, amount: row.amount, strong: false })),
+    { label: "KDV TOPLAMI", amount: standaloneTax, strong: false },
+    { label: "GENEL TOPLAM", amount: standaloneTotal, strong: true },
+    { label: "KDV TEVKİFAT TUTARI", amount: 0, strong: false },
+    { label: "ÖDENECEK TUTAR", amount: standaloneTotal, strong: true },
+  ];
+  const formatMoneyParts = (amount: number) => {
+    const centsTotal = Math.round((Number.isFinite(amount) ? amount : 0) * 100);
+    return {
+      whole: Math.floor(centsTotal / 100).toLocaleString("tr-TR"),
+      fraction: String(Math.abs(centsTotal % 100)).padStart(2, "0"),
+    };
+  };
+  const standaloneCurrencyCode = customers.find(
+    (customer) => customer.id === standaloneCustomerId,
+  )?.currencyCode || "TRY";
 
   return (
     <div
-      className="modal-backdrop"
+      className={fullPage ? "sales-invoice-entry-page" : "modal-backdrop"}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busyDeliveryId) onClose();
+        if (!fullPage && event.target === event.currentTarget && !busyDeliveryId) onClose();
       }}
     >
       <section
-        className="modal"
-        role="dialog"
-        aria-modal="true"
+        className={fullPage ? "sales-invoice-entry-card" : "modal sales-document-dialog sales-quote-detail-modal"}
+        role={fullPage ? "region" : "dialog"}
+        aria-modal={fullPage ? undefined : "true"}
         aria-labelledby="sales-invoice-create-title"
       >
         <div className="modal-head">
           <div>
             <p className="eyebrow">SATIŞ · FATURALAMA</p>
-            <h2 id="sales-invoice-create-title">
+            {fullPage ? (
+              <h1 id="sales-invoice-create-title">
+                {mode === "order"
+                  ? "Siparişten irsaliye ve fatura"
+                  : "Yeni satış faturası"}
+              </h1>
+            ) : <h2 id="sales-invoice-create-title">
               {mode === "order"
                 ? "Siparişten irsaliye ve fatura"
                 : "Yeni satış faturası"}
-            </h2>
+            </h2>}
           </div>
+          {fullPage && mode === "standalone" && <button type="submit" form="sales-invoice-standalone-form" className="primary" disabled={standaloneBusy || !standaloneCustomerId || standaloneLines.some((line) => !line.stockItemId || !line.warehouseId)}>İrsaliye ve faturayı oluştur</button>}
           <button
             type="button"
             className="icon-button"
@@ -364,8 +495,8 @@ export default function SalesInvoiceFromDeliveryDialog({
               ? "Sipariş seçmeden fatura oluşturun. Seçilen depodan stok çıkışı ve faturaya bağlı irsaliye otomatik kaydedilir."
               : "Kaydedilmiş ve faturalanmamış irsaliyeyi seçerek faturayı oluşturun."}
         </p>
-        <nav
-          className="customer-directory-tabs"
+        {!fullPage && <nav
+          className="sales-quote-detail-tabs invoice-create-tabs"
           aria-label="Fatura oluşturma yöntemi"
         >
           <button
@@ -389,9 +520,20 @@ export default function SalesInvoiceFromDeliveryDialog({
           >
             Siparişsiz fatura + irsaliye
           </button>
-        </nav>
+        </nav>}
+        <div className="form-two sales-invoice-type-field">
+          <label>
+            Fatura türü
+            <select value={invoiceType} onChange={(event) => setInvoiceType(event.target.value as "Wholesale" | "Retail")}>
+              <option value="Retail">Perakende satış · KDV dâhil</option>
+              <option value="Wholesale">Toptan satış · KDV hariç</option>
+            </select>
+          </label>
+        </div>
         {mode === "delivery" && (
           <>
+            {renderEDocumentFields()}
+            {renderAccountingProfileSelect()}
             <label className="customer-search">
               <Search size={16} />
               <input
@@ -433,7 +575,7 @@ export default function SalesInvoiceFromDeliveryDialog({
                       type="button"
                       className="row-action"
                       disabled={!!busyDeliveryId}
-                      onClick={() => onCreateInvoice(item)}
+                      onClick={() => onCreateInvoice(item, eDocumentPayload, accountingProfileCode || undefined, invoiceType)}
                     >
                       {busyDeliveryId === item.id
                         ? "Oluşturuluyor…"
@@ -569,6 +711,8 @@ export default function SalesInvoiceFromDeliveryDialog({
                   )}
                 </div>
                 {renderInvoiceCustomFields()}
+                {renderEDocumentFields()}
+                {renderAccountingProfileSelect()}
                 <p className="muted">
                   İşlem, siparişin kalan miktarları için stok çıkışlı bir
                   irsaliye oluşturur ve ardından faturayı keserek cari borcunu
@@ -619,11 +763,12 @@ export default function SalesInvoiceFromDeliveryDialog({
         )}
         {mode === "standalone" && (
           <form
+            id="sales-invoice-standalone-form"
             className="sales-invoice-standalone"
             onSubmit={(event) => void createStandaloneInvoice(event)}
           >
             <div className="form-two">
-              <label>
+              <label className="invoice-customer-field">
                 Müşteri
                 <SearchableRecordPicker
                   options={customers
@@ -645,26 +790,7 @@ export default function SalesInvoiceFromDeliveryDialog({
                   required
                 />
               </label>
-              <label>
-                Depo
-                <SearchableRecordPicker
-                  options={warehouses
-                    .filter((warehouse) => warehouse.isActive)
-                    .map((warehouse) => ({
-                      id: warehouse.id,
-                      label: `${warehouse.code} · ${warehouse.name}`,
-                      description: "Stok çıkışı bu depodan yapılır",
-                    }))}
-                  selectedId={warehouseId}
-                  onSelect={(id) => setWarehouseId(id)}
-                  title="Depo seçin"
-                  placeholder="Depo seçin"
-                  searchPlaceholder="Depo kodu veya adıyla ara"
-                  emptyMessage="Aktif depo bulunamadı."
-                  required
-                />
-              </label>
-              <label>
+              <label className="invoice-date-field">
                 Fatura tarihi
                 <input
                   type="date"
@@ -674,17 +800,26 @@ export default function SalesInvoiceFromDeliveryDialog({
                 />
               </label>
             </div>
+            {standaloneError && (
+              <div className="alert inline-alert" role="alert">
+                {standaloneError}
+              </div>
+            )}
+            {renderEDocumentFields()}
             <div className="sales-invoice-standalone-lines">
               <div className="sales-invoice-standalone-heading">
                 <b>Fatura satırları</b>
                 <button
                   type="button"
                   className="secondary"
+                  data-line-add-shortcut
+                  title="Ctrl+Shift+Enter ile satır ekle"
                   onClick={() =>
                     setStandaloneLines((lines) => [
                       ...lines,
                       {
                         stockItemId: "",
+                        warehouseId: warehouses.find((warehouse) => warehouse.isActive)?.id || "",
                         quantity: "1",
                         unitPrice: "0",
                         discountPercent: "0",
@@ -723,6 +858,31 @@ export default function SalesInvoiceFromDeliveryDialog({
                       required
                     />
                   </label>
+                  <label className="standalone-warehouse">
+                    Depo
+                    <SearchableRecordPicker
+                      options={warehouses
+                        .filter((warehouse) => warehouse.isActive)
+                        .map((warehouse) => ({
+                          id: warehouse.id,
+                          label: `${warehouse.code} · ${warehouse.name}`,
+                          description: "Bu satırın stok çıkışı bu depodan yapılır",
+                        }))}
+                      selectedId={line.warehouseId}
+                      onSelect={(id) =>
+                        setStandaloneLines((lines) =>
+                          lines.map((item, i) =>
+                            i === index ? { ...item, warehouseId: id } : item,
+                          ),
+                        )
+                      }
+                      title="Depo seçin"
+                      placeholder="Depo seçin"
+                      searchPlaceholder="Depo kodu veya adıyla ara"
+                      emptyMessage="Aktif depo bulunamadı."
+                      required
+                    />
+                  </label>
                   <label>
                     Miktar
                     <input
@@ -743,7 +903,7 @@ export default function SalesInvoiceFromDeliveryDialog({
                     />
                   </label>
                   <label>
-                    Birim fiyat
+                    Birim fiyat ({standaloneCurrencyCode})
                     <input
                       type="number"
                       min="0"
@@ -815,12 +975,19 @@ export default function SalesInvoiceFromDeliveryDialog({
                 </div>
               ))}
             </div>
+            <section className="sales-invoice-total-panel" aria-label="Fatura toplamları">
+              {standaloneTotals.map((row) => {
+                const parts = formatMoneyParts(row.amount);
+                return <div className={row.strong ? "total-row strong" : "total-row"} key={row.label}>
+                  <span>{row.label}</span>
+                  <output aria-label={`${row.label} ${parts.whole},${parts.fraction} ${standaloneCurrencyCode}`}>
+                    <b>{parts.whole}</b><i>,</i><b className="cents">{parts.fraction}</b><small>{standaloneCurrencyCode === "TRY" ? "TL" : standaloneCurrencyCode}</small>
+                  </output>
+                </div>;
+              })}
+            </section>
             {renderInvoiceCustomFields()}
-            {standaloneError && (
-              <div className="alert inline-alert" role="alert">
-                {standaloneError}
-              </div>
-            )}
+            {renderAccountingProfileSelect()}
             <div className="modal-foot">
               <span>
                 İrsaliye ve stok çıkışı oluşturulur · Fatura toplamı{" "}
@@ -845,7 +1012,7 @@ export default function SalesInvoiceFromDeliveryDialog({
                   type="submit"
                   className="primary"
                   disabled={
-                    standaloneBusy || !standaloneCustomerId || !warehouseId
+                    standaloneBusy || !standaloneCustomerId || standaloneLines.some((line) => !line.stockItemId || !line.warehouseId)
                   }
                 >
                   {standaloneBusy

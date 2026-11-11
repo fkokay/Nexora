@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 type MetricProps = {
   icon: ReactNode;
@@ -6,6 +6,7 @@ type MetricProps = {
   value: string;
   note: string;
   tone: string;
+  style?: CSSProperties;
 };
 export function DashboardMetricCard({
   icon,
@@ -13,25 +14,14 @@ export function DashboardMetricCard({
   value,
   note,
   tone,
+  style,
 }: MetricProps) {
   return (
-    <article className={`metric-card ${tone}`}>
+    <article className={`metric-card ${tone}`} style={style}>
       <div className={`metric-icon ${tone}`}>{icon}</div>
       <span className="metric-label">{label}</span>
       <strong>{value}</strong>
       <small>{note}</small>
     </article>
-  );
-}
-
-type Props = { children: ReactNode };
-export default function DashboardKpiGrid({ children }: Props) {
-  return (
-    <section
-      className="erp-home-kpis dashboard-reference-kpis"
-      aria-label="Firma özeti"
-    >
-      {children}
-    </section>
   );
 }

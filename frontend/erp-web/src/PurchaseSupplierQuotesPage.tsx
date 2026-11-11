@@ -103,6 +103,26 @@ export default function PurchaseSupplierQuotesPage({
           {error}
         </div>
       )}
+      <section className="panel supplier-quotes-filter-card" aria-label="Tedarikçi teklif filtreleri">
+        <div className="supplier-quotes-filter-heading">
+          <div>
+            <h2>Filtreler</h2>
+            <p>Teklifleri numara, talep, tedarikçi veya duruma göre daraltın.</p>
+          </div>
+        </div>
+        <SupplierQuotesFilters
+          search={search}
+          status={status}
+          onSearchChange={(value) => {
+            setPage(1);
+            setSearch(value);
+          }}
+          onStatusChange={(value) => {
+            setPage(1);
+            setStatus(value);
+          }}
+        />
+      </section>
       <div
         className={`supplier-quotes-workspace${selected ? " has-selection" : ""}`}
       >
@@ -110,18 +130,16 @@ export default function PurchaseSupplierQuotesPage({
           className="supplier-quotes-list"
           aria-label="Tedarikçi teklif listesi"
         >
-          <SupplierQuotesFilters
-            search={search}
-            status={status}
-            onSearchChange={(value) => {
-              setPage(1);
-              setSearch(value);
-            }}
-            onStatusChange={(value) => {
-              setPage(1);
-              setStatus(value);
-            }}
-          />
+          <div className="erp-pane-heading">
+            <div>
+              <b>Tedarikçi teklifleri</b>
+              <small>
+                {loading
+                  ? "Kayıtlar yükleniyor…"
+                  : `${data?.totalCount ?? 0} kayıt · sayfa ${page}/${pages}`}
+              </small>
+            </div>
+          </div>
           <SupplierQuotesTable
             items={data?.items ?? []}
             loading={loading}

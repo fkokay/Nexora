@@ -32,6 +32,10 @@ type CreatedInvoice = {
   grandTotal: number;
   currencyCode: string;
 };
+type AccountingRuleProfile = {
+  profileCode: string; name: string; jurisdictionCode: string; reportingStandard: string;
+  isActive: boolean; parametersJson: string;
+};
 type ReceiptScreenField = {
   key: string;
   label: string;
@@ -117,6 +121,12 @@ export default function PurchaseInvoiceEntryPage({
   );
   const [invoiceCode, setInvoiceCode] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(localDate());
+  const [providerInvoiceUuid, setProviderInvoiceUuid] = useState("");
+  const [providerScenario, setProviderScenario] = useState("");
+  const [providerTypeCode, setProviderTypeCode] = useState("");
+  const [providerSenderAlias, setProviderSenderAlias] = useState("");
+  const [accountingProfiles, setAccountingProfiles] = useState<AccountingRuleProfile[]>([]);
+  const [accountingProfileCode, setAccountingProfileCode] = useState("");
   const [screenFields, setScreenFields] =
     useState<ReceiptScreenField[]>(defaultReceiptFields);
   const pageSize = 25;
@@ -151,6 +161,27 @@ export default function PurchaseInvoiceEntryPage({
     };
   }, [token]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void request<AccountingRuleProfile[]>("/api/finance/general-ledger/rule-profiles", token)
+      .then((profiles) => {
+        if (cancelled) return;
+        const configured = profiles.filter((profile) => {
+          if (!profile.isActive) return false;
+          try { const rules = JSON.parse(profile.parametersJson)?.taxRules; return Array.isArray(rules) && rules.length > 0; }
+          catch { return false; }
+        });
+        setAccountingProfiles(configured);
+        const defaultProfile = configured.find((profile) => {
+          try { return JSON.parse(profile.parametersJson)?.defaultForDocuments === true; }
+          catch { return false; }
+        });
+        setAccountingProfileCode(defaultProfile?.profileCode || configured.find((profile) => profile.profileCode === "TR-LOCAL")?.profileCode || configured[0]?.profileCode || "");
+      })
+      .catch(() => { if (!cancelled) setAccountingProfiles([]); });
+    return () => { cancelled = true; };
+  }, [token]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -183,12 +214,16 @@ export default function PurchaseInvoiceEntryPage({
         token,
         {
           method: "POST",
-          body: JSON.stringify({ code: invoiceCode.trim(), invoiceDate }),
+          body: JSON.stringify({ code: invoiceCode.trim(), invoiceDate,
+            accountingProfileCode: accountingProfileCode || null,
+            providerInvoiceUuid: providerInvoiceUuid || null, providerScenario: providerScenario || null,
+            providerInvoiceTypeCode: providerTypeCode || null, providerSenderAlias: providerSenderAlias || null }),
         },
       );
       setSelected(null);
       setInvoiceCode("");
       setInvoiceDate(localDate());
+      setProviderInvoiceUuid(""); setProviderScenario(""); setProviderTypeCode(""); setProviderSenderAlias("");
       setNotice(
         `${invoice.code} alış faturası kaydedildi. Tedarikçi borcu ${invoice.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ${invoice.currencyCode}.`,
       );
@@ -284,8 +319,13 @@ export default function PurchaseInvoiceEntryPage({
           </small>
         </div>
       </section>
-      <div className="pie-toolbar">
-        <label>
+      <section className="panel pie-filter-card" aria-label="Mal kabul filtreleri">
+        <div className="pie-filter-heading">
+          <h2>Filtreler</h2>
+          <p>Faturalanabilir mal kabulleri belge, sipariş, tedarikçi veya depo bilgisine göre arayın.</p>
+        </div>
+        <div className="pie-toolbar">
+          <label>
           <Search size={16} />
           <input
             value={query}
@@ -303,10 +343,17 @@ export default function PurchaseInvoiceEntryPage({
         </span>
         <button disabled={loading} onClick={() => void load()}>
           Yenile
-        </button>
-      </div>
+          </button>
+        </div>
+      </section>
       <div className="pie-workbench">
         <div className="pie-table-wrap">
+          <div className="erp-pane-heading">
+            <div>
+              <b>Faturalanabilir mal kabulleri</b>
+              <small>{loading ? "Kayıtlar yükleniyor…" : `${total} kayıt`}</small>
+            </div>
+          </div>
           <AdvancedDataGrid
             gridId="purchase-invoice-receipt-selection"
             hideSearch
@@ -509,6 +556,14 @@ export default function PurchaseInvoiceEntryPage({
                   required
                 />
               </label>
+              {accountingProfiles.length > 0 && <label>Vergi mevzuatı profili<select value={accountingProfileCode} onChange={(e) => setAccountingProfileCode(e.target.value)} required><option value="">Profil seçin</option>{accountingProfiles.map((profile) => <option key={profile.profileCode} value={profile.profileCode}>{profile.name} · {profile.jurisdictionCode} · {profile.reportingStandard}</option>)}</select></label>}
+              <details className="pie-hint">
+                <summary>Gelen e-belge bilgileri</summary>
+                <label>Belge UUID<input value={providerInvoiceUuid} onChange={(e) => setProviderInvoiceUuid(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></label>
+                <label>Belge senaryosu<input value={providerScenario} onChange={(e) => setProviderScenario(e.target.value)} placeholder="TEMELFATURA / TICARIFATURA / EARSIVFATURA" /></label>
+                <label>Belge tür kodu<input value={providerTypeCode} onChange={(e) => setProviderTypeCode(e.target.value)} placeholder="SATIS / IADE / TEVKIFAT" /></label>
+                <label>Gönderen e-Fatura etiketi<input value={providerSenderAlias} onChange={(e) => setProviderSenderAlias(e.target.value)} /></label>
+              </details>
               <p className="pie-hint">
                 Vade, tedarikçinin kayıtlı ödeme koşulundan hesaplanır.
                 Kaydetme, mal kabul satırlarını ve cari borç kaydını birlikte

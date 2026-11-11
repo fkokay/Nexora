@@ -1,0 +1,44 @@
+.accounting-rule-profiles{margin-top:22px;padding:20px;border:1px solid #d8e1f0;border-radius:14px;background:#fff;box-shadow:0 4px 14px rgba(20,42,90,.04)}
+.accounting-rule-profiles>header{display:flex;align-items:center;gap:13px;padding-bottom:17px;border-bottom:1px solid #e4eaf4}
+.accounting-rule-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#f0edff;color:#6745ff}
+.accounting-rule-profiles .eyebrow{font-size:10px;letter-spacing:.1em;color:#6951df;font-weight:700}
+.accounting-rule-profiles h2{margin:3px 0;font-size:18px}.accounting-rule-profiles header p{margin:0;color:#65748e;font-size:12px}
+.accounting-rule-layout{display:grid;grid-template-columns:245px minmax(0,1fr);gap:18px;padding-top:16px}
+.accounting-rule-layout aside,.accounting-rule-layout form{border:1px solid #e0e7f2;border-radius:10px;padding:14px;min-width:0}
+.accounting-rule-layout aside h3{font-size:13px;margin:0 0 10px}
+.accounting-rule-layout aside button{display:flex;flex-direction:column;gap:3px;width:100%;padding:10px;text-align:left;background:#fff;border:1px solid transparent;border-radius:8px;color:#17253d;cursor:pointer}
+.accounting-rule-layout aside button.selected{border-color:#cfc5ff;background:#f7f5ff}.accounting-rule-layout aside button span{font-size:11px;color:#71809b}
+.accounting-rule-layout aside button.accounting-rule-new{margin-top:8px;border:1px dashed #ccd6e5;text-align:center;color:#5742d8}
+.accounting-rule-form-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;font-size:13px}
+.accounting-rule-form-title>div{display:flex;align-items:center;gap:8px}.accounting-rule-form-title>span{font-size:11px;color:#18834b;background:#e9f8ef;border-radius:20px;padding:4px 9px}
+.accounting-rule-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.accounting-rule-fields label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:#4c5b75;font-weight:600}
+.accounting-rule-fields input,.accounting-rule-fields textarea{min-width:0;border:1px solid #d5dfec;border-radius:7px;padding:9px 10px;color:#15213a;font:inherit;font-weight:400;outline:none}
+.accounting-rule-fields input:focus,.accounting-rule-fields textarea:focus{border-color:#8876ff;box-shadow:0 0 0 2px rgba(111,83,255,.12)}
+.accounting-rule-fields .source-field,.accounting-rule-fields .parameters-field{grid-column:span 3}
+.accounting-rule-layout form footer{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:13px;border-top:1px solid #e4eaf4}
+.accounting-rule-layout .profile-active{display:flex;align-items:center;gap:7px;font-size:12px;color:#56647d}
+.accounting-rule-layout form footer button{display:flex;align-items:center;gap:7px}
+.tax-rules-help,.tax-preview-tools{display:flex;flex-direction:column;gap:8px;margin-top:14px;padding:12px;border:1px solid #e0e7f2;border-radius:9px;background:#f8faff;font-size:11px;color:#56647d}
+.tax-rules-help code{overflow:auto;padding:9px;border-radius:6px;background:#101d36;color:#e7eaff;font-size:11px;white-space:pre}
+.tax-preview-tools{display:grid;grid-template-columns:minmax(100px,180px) minmax(120px,180px) auto;align-items:end}
+.tax-preview-tools>b{grid-column:1/-1;color:#263650;font-size:12px}
+.tax-preview-tools label{display:flex;flex-direction:column;gap:5px}
+.tax-preview-tools input,.tax-preview-tools select{min-width:0;padding:8px;border:1px solid #d5dfec;border-radius:7px;background:white;color:#15213a}
+.tax-preview-tools>button{height:35px;padding:0 12px;border:0;border-radius:7px;background:#6045ed;color:white;font-weight:600;cursor:pointer}
+.tax-preview-tools>button:disabled{opacity:.6;cursor:wait}
+.tax-preview-result{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;padding-top:9px;border-top:1px solid #e0e7f2}
+.tax-preview-result span{padding:7px 9px;border-radius:6px;background:white}.tax-preview-result small{align-self:center;color:#67758c}
+.accounting-tax-rule-editor{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.accounting-tax-rule-title{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.accounting-tax-rule-title>div{display:flex;flex-direction:column;gap:3px;color:#243450;font-size:12px}.accounting-tax-rule-title span,.accounting-tax-empty{font-size:11px;color:#687894}
+.accounting-tax-rule-title button,.accounting-tax-remove{display:flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:0 10px;border:1px solid #d5dfec;border-radius:7px;background:#fff;color:#33445f;font-size:11px;cursor:pointer}
+.accounting-tax-rule-row{display:grid;grid-template-columns:1.1fr 1.5fr .8fr 1fr 1fr 1.25fr 1.2fr 1.2fr auto;align-items:end;gap:8px;padding:11px;border:1px solid #e0e7f2;border-radius:9px;background:#fafbfe}
+.accounting-tax-rule-row>label{display:flex;flex-direction:column;gap:5px;min-width:0;color:#53617a;font-size:10px;font-weight:600}
+.accounting-tax-rule-row input:not([type=checkbox]),.accounting-tax-rule-row select{width:100%;min-width:0;height:34px;padding:0 7px;border:1px solid #d5dfec;border-radius:6px;background:#fff;color:#17253d;font:inherit;font-weight:400}
+.accounting-tax-rule-row .accounting-tax-active{flex-direction:row;align-items:center;padding-bottom:9px;white-space:nowrap}
+.accounting-tax-rule-row .accounting-tax-remove{color:#a53a42}
+.accounting-tax-empty{margin:0;padding:12px;border:1px dashed #d5dfec;border-radius:8px}
+@media(max-width:900px){.accounting-rule-layout{grid-template-columns:1fr}.accounting-rule-layout aside{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.accounting-rule-layout aside h3{grid-column:1/-1}.accounting-rule-layout aside button.accounting-rule-new{margin:0}}
+@media(max-width:1100px){.accounting-tax-rule-row{grid-template-columns:repeat(3,minmax(0,1fr))}.accounting-tax-rule-row .accounting-tax-remove{grid-column:3;justify-self:end}}
+@media(max-width:600px){.accounting-rule-fields{grid-template-columns:1fr}.accounting-rule-fields .source-field,.accounting-rule-fields .parameters-field{grid-column:span 1}.tax-preview-tools{grid-template-columns:1fr}.tax-preview-tools>b,.tax-preview-result{grid-column:1}.accounting-tax-rule-row{grid-template-columns:1fr}.accounting-tax-rule-row .accounting-tax-remove{grid-column:1}}

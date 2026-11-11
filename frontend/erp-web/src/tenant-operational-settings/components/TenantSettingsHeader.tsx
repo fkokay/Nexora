@@ -16,27 +16,17 @@ export function TenantSettingsHeader({
   onRefresh,
 }: Props) {
   return (
-    <div className="page-heading tenant-settings-commandbar screen-page-header">
-      <div className="tenant-settings-title-mark" aria-hidden="true">
-        <Building2 size={21} />
-      </div>
+    <header className="settings-heading tenant-settings-commandbar screen-page-header">
       <div>
-        <p className="eyebrow">
-          FİRMA YÖNETİMİ <span>·</span> YAPILANDIRMA
-        </p>
-        <h1>Firma ayarları</h1>
-        <p className="muted">Ticari kimlik ve operasyon kurallarını yönetin.</p>
-      </div>
-      <div className="tenant-settings-title-context">
-        <span className="tenant-settings-context-icon">
-          <Building2 size={15} />
+        <span className="settings-heading-icon" aria-hidden="true">
+          <Building2 size={22} />
         </span>
         <span>
-          <small>Aktif firma</small>
-          <b>{tenant.name}</b>
+          <h1>Firma Ayarları</h1>
+          <p>Ticari kimlik ve operasyon kurallarını yönetin · {tenant.name}</p>
         </span>
       </div>
-      <div className="company-settings-actions">
+      <div>
         <button
           className="secondary"
           onClick={() => onNavigate?.("license-settings")}
@@ -51,6 +41,6 @@ export function TenantSettingsHeader({
           <span aria-hidden>↻</span> Yenile
         </button>
       </div>
-    </div>
+    </header>
   );
 }

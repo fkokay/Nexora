@@ -20,8 +20,13 @@ export function ManufacturingCostVarianceFilters({
   onSubmit,
 }: Props) {
   return (
-    <form className="panel manufacturing-cost-filters" onSubmit={onSubmit}>
-      <label>
+    <section className="panel manufacturing-cost-filter-card" aria-label="Üretim maliyet filtreleri">
+      <div className="manufacturing-cost-filter-heading">
+        <h2>Filtreler</h2>
+        <p>Üretim emirlerini plan tarihi aralığına göre inceleyin.</p>
+      </div>
+      <form className="manufacturing-cost-filters" onSubmit={onSubmit}>
+        <label>
         Plan tarihi başlangıcı
         <input
           type="date"
@@ -30,8 +35,8 @@ export function ManufacturingCostVarianceFilters({
           onChange={(event) => onFromChange(event.target.value)}
           required
         />
-      </label>
-      <label>
+        </label>
+        <label>
         Plan tarihi bitişi
         <input
           type="date"
@@ -41,10 +46,11 @@ export function ManufacturingCostVarianceFilters({
           onChange={(event) => onToChange(event.target.value)}
           required
         />
-      </label>
-      <button className="primary" disabled={loading}>
+        </label>
+        <button className="primary" disabled={loading}>
         {loading ? "Rapor hazırlanıyor…" : "Raporu getir"}
-      </button>
-    </form>
+        </button>
+      </form>
+    </section>
   );
 }

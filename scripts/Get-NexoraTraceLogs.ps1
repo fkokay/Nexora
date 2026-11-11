@@ -12,12 +12,16 @@ $ErrorActionPreference = 'Stop'
 # Pin the daemon context, Compose project, file, and service allowlist. Never fall back to Docker's current context.
 $dockerContext = 'nexora-remote'
 $expectedDockerHost = 'ssh://Administrator@212.18.121.24'
-$composeProject = 'nexora-remote'
+$composeProject = 'nexora'
 $composeFile = Join-Path (Split-Path -Parent $PSScriptRoot) 'deploy/docker/docker-compose.yml'
+$environmentFile = Join-Path (Split-Path -Parent $PSScriptRoot) 'deploy/docker/.env'
 $services = @('platform-api', 'ai-service')
 
 if (-not (Test-Path -LiteralPath $composeFile -PathType Leaf)) {
   throw 'Nexora Compose file was not found; log lookup stopped.'
+}
+if (-not (Test-Path -LiteralPath $environmentFile -PathType Leaf)) {
+  throw 'Nexora Compose environment file was not found; log lookup stopped.'
 }
 
 $contextResult = @(& docker --context $dockerContext context inspect $dockerContext --format '{{.Name}}|{{.Endpoints.docker.Host}}' 2>$null)
@@ -30,7 +34,7 @@ if ($contextParts.Count -ne 2 -or $contextParts[0] -cne $dockerContext -or $cont
   throw 'Docker context nexora-remote did not resolve to the authorized SSH endpoint; log lookup stopped.'
 }
 
-$logLines = @(& docker --context $dockerContext compose --project-name $composeProject --file $composeFile logs --no-color --timestamps --since $Since --tail 5000 @services 2>$null)
+$logLines = @(& docker --context $dockerContext compose --project-name $composeProject --env-file $environmentFile --file $composeFile logs --no-color --timestamps --since $Since --tail 5000 @services 2>$null)
 if ($LASTEXITCODE -ne 0) {
   throw 'Docker log lookup failed; no output was displayed.'
 }

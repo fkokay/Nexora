@@ -1,8 +1,7 @@
-import { lazy, useCallback } from "react";
+import { lazy } from "react";
 import type { Locale } from "./WorkspaceComponents";
 import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
 import type * as AppTypes from "./erp-types";
-import type { ErpDashboardSummary } from "./dashboard/types";
 
 const PurchaseDeliveryNotesPage = lazy(
   () => import("./PurchaseDeliveryNotesPage"),
@@ -12,6 +11,7 @@ const CustomersPage = lazy(() =>
     default: module.CustomersPage,
   })),
 );
+const CustomerLedgerPage = lazy(() => import("./CustomerLedgerPage"));
 const AISettingsPage = lazy(() => import("./AISettingsPage"));
 const ModuleMarketplacePage = lazy(() => import("./ModuleMarketplacePage"));
 const TenantModuleScreen = lazy(() =>
@@ -40,6 +40,7 @@ const ManufacturingWorkCenterCreatePage = lazy(
   () => import("./ManufacturingWorkCenterCreatePage"),
 );
 const ManufacturingOrdersPage = lazy(() => import("./ManufacturingOrdersPage"));
+const ManufacturingOrderCreatePage = lazy(() => import("./ManufacturingOrderCreatePage"));
 const ManufacturingMrpPage = lazy(() => import("./ManufacturingMrpPage"));
 const ManufacturingCostVariancePage = lazy(
   () => import("./ManufacturingCostVariancePage"),
@@ -56,6 +57,7 @@ const PaymentInstrumentsPage = lazy(() => import("./PaymentInstrumentsPage"));
 const ForeignTradePage = lazy(() => import("./ForeignTradePage"));
 const WarehouseLocationsPage = lazy(() => import("./WarehouseLocationsPage"));
 const InventoryTrackingPage = lazy(() => import("./InventoryTrackingPage"));
+const InventoryMovementsPage = lazy(() => import("./InventoryMovementsPage"));
 const FinanceBudgetPage = lazy(() => import("./FinanceBudgetPage"));
 const DirectCashBudgetPage = lazy(() => import("./DirectCashBudgetPage"));
 const FinanceAccountsPage = lazy(() => import("./FinanceAccountsPage"));
@@ -96,11 +98,6 @@ const InventoryStockPage = lazy(() => import("./InventoryStockPage"));
 const InventoryCostPage = lazy(() => import("./InventoryCostPage"));
 const InventoryWarehousesPage = lazy(() => import("./InventoryWarehousesPage"));
 const InventoryTransfersPage = lazy(() => import("./InventoryTransfersPage"));
-const DashboardPage = lazy(() =>
-  import("./DashboardPage").then((module) => ({
-    default: module.DashboardPage,
-  })),
-);
 const WorkspaceSettingsPage = lazy(() =>
   import("./WorkspaceSettingsPage").then((module) => ({
     default: module.WorkspaceSettingsPage,
@@ -131,7 +128,6 @@ type Props = {
   token: string;
   tenant: AppTypes.Tenant;
   locale: Locale;
-  dashboard: AppTypes.Dashboard | null;
   platformStatus: string;
   selectedModuleMenu: ModuleMenuSelection | null;
   pendingCustomerInvoiceId: string | null;
@@ -158,7 +154,6 @@ export function WorkspacePageRouter({
   token,
   tenant,
   locale,
-  dashboard,
   platformStatus,
   selectedModuleMenu,
   pendingCustomerInvoiceId,
@@ -184,10 +179,6 @@ export function WorkspacePageRouter({
     initialSupplier: pendingPurchaseSupplier,
     onInitialSupplierOpened,
   };
-  const loadDashboardSummary = useCallback(
-    () => requestApi<ErpDashboardSummary>("/api/dashboard/erp-summary", token),
-    [requestApi, token],
-  );
   if (page === "projects")
     return <OperationalProjectsPage token={token} locale={locale} />;
   if (page === "foreign-trade")
@@ -219,20 +210,25 @@ export function WorkspacePageRouter({
     return <CustomFormsPage token={token} role={tenant.role} />;
   if (page.startsWith("custom-page:"))
     return <TenantCustomPage token={token} code={page.slice("custom-page:".length)} />;
+  if (page.startsWith("custom-page-preview:"))
+    return <TenantCustomPage token={token} previewId={page.slice("custom-page-preview:".length)} />;
   if (page.startsWith("module:") && selectedModuleMenu)
     return <TenantModuleScreen token={token} selection={selectedModuleMenu} />;
-  if (page === "customers" || page === "customer-create")
+  if (page === "customers" || page === "customer-create" || page === "customer-edit")
     return (
       <CustomersPage
         token={token}
         role={tenant.role}
         initialSearch={initialCustomerSearch}
         initialCreate={page === "customer-create"}
+        initialEdit={page === "customer-edit"}
         onNavigate={onNavigate}
         onOpenSalesInvoice={onOpenSalesInvoice}
         onOpenPurchaseInvoices={onOpenPurchaseInvoices}
       />
     );
+  if (page === "customer-ledger")
+    return <CustomerLedgerPage token={token} />;
   if (page === "crm-opportunities" || page === "crm-opportunity-create")
     return (
       <CrmOpportunitiesPage
@@ -260,6 +256,8 @@ export function WorkspacePageRouter({
     return <ManufacturingWorkCenterCreatePage {...manufacturingPageProps} />;
   if (page === "manufacturing-orders")
     return <ManufacturingOrdersPage {...manufacturingPageProps} />;
+  if (page === "manufacturing-order-create")
+    return <ManufacturingOrderCreatePage {...manufacturingPageProps} />;
   if (page === "manufacturing-mrp")
     return <ManufacturingMrpPage {...manufacturingPageProps} />;
   if (page === "modules")
@@ -272,6 +270,8 @@ export function WorkspacePageRouter({
     );
   if (page === "inventory-tracking")
     return <InventoryTrackingPage token={token} />;
+  if (page === "inventory-stock-movements")
+    return <InventoryMovementsPage token={token} locale={locale} />;
   if (page === "inventory-cost")
     return <InventoryCostPage token={token} role={tenant.role} />;
   if (page === "inventory-locations")
@@ -310,6 +310,8 @@ export function WorkspacePageRouter({
   if (page === "sales-purchase-delivery-notes")
     return <PurchaseDeliveryNotesPage token={token} />;
   if (page === "sales-quotes") return <SalesQuotesPage {...salesPageProps} />;
+  if (page === "sales-quote-create")
+    return <SalesQuotesPage {...salesPageProps} createQuotePage />;
   if (page === "sales-requests")
     return <SalesRequestsPage {...salesPageProps} />;
   if (page === "sales-purchase-quotes")
@@ -323,6 +325,8 @@ export function WorkspacePageRouter({
     return <SalesInvoicesPage {...salesPageProps} />;
   if (page === "sales-deliveries")
     return <SalesDeliveriesScreenPage {...salesPageProps} />;
+  if (page === "sales-delivery-create")
+    return <SalesDeliveriesScreenPage {...salesPageProps} createDeliveryPage />;
   if (page === "sales-purchasing")
     return <SupplierOrdersPage {...salesPageProps} />;
   if (page === "sales-purchase-invoices")
@@ -385,7 +389,8 @@ export function WorkspacePageRouter({
     page === "finance-journal-vouchers" ||
     page === "finance-trial-balance" ||
     page === "finance-balance-sheet" ||
-    page === "finance-journal-ledger"
+    page === "finance-journal-ledger" ||
+    page === "finance-transfer-sources"
   )
     return (
       <LedgerOverviewPage
@@ -484,7 +489,10 @@ export function WorkspacePageRouter({
   if (page === "settings")
     return (
       <WorkspaceSettingsPage
-        tenantName={tenant.name}
+        token={token}
+        tenant={tenant}
+        requestApi={requestApi}
+        platformStatus={platformStatus}
         locale={locale}
         onLocaleChange={onLocaleChange}
         onThemeChange={onThemeChange}
@@ -493,16 +501,6 @@ export function WorkspacePageRouter({
     );
   if (page === "ai-settings")
     return <AISettingsPage token={token} requestApi={requestApi} />;
-  if (page === "dashboard")
-    return (
-      <DashboardPage
-        tenantName={tenant.name}
-        dashboardName={dashboard?.tenantName}
-        platformStatus={platformStatus}
-        onNavigate={onNavigate}
-        loadSummary={loadDashboardSummary}
-      />
-    );
   return (
     <>
       <div className="page-heading studio-heading">

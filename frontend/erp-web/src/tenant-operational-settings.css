@@ -119,6 +119,12 @@ html[data-theme="dark"] .tenant-settings-nav>button .tenant-settings-nav-icon { 
 html[data-theme="dark"] .tenant-settings-nav>button.active .tenant-settings-nav-icon { border-color: #345373; background: #253b55; color: #8ec5fa; }
 html[data-theme="dark"] .tenant-operational-settings-page .company-identity-values>div { border-color: #34445a; background: #1c293a; }
 html[data-theme="dark"] .tenant-operational-settings-page .company-settings-actions .secondary { border-color: #34445a; background: #202d40; color: #dbe4ef; }
+.document-number-settings .panel-heading h3 { display: flex; align-items: center; gap: 8px; }
+.document-number-settings .company-setting-field { display: grid; gap: 7px; margin: 18px 0; font-weight: 650; }
+.document-number-settings .company-setting-field input,.document-number-settings .company-setting-field select { width: 100%; min-height: 42px; border: 1px solid var(--border,#d6dfeb); border-radius: 8px; padding: 8px 11px; background: var(--surface,#fff); color: inherit; }
+.document-number-settings .company-setting-field small { color: var(--muted,#66758b); font-weight: 400; line-height: 1.5; }
+.document-number-preview { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 12px; border: 1px solid var(--border,#d6dfeb); border-radius: 8px; background: var(--surface-muted,#f6f8fb); }
+.document-number-preview span { margin-left: auto; color: var(--muted,#66758b); font-size: 12px; }
 @media (max-width: 1100px) {
   .tenant-settings-title-context { display: none; }
   .tenant-settings-workbench { grid-template-columns: 230px minmax(0,1fr); }
@@ -146,4 +152,51 @@ html[data-theme="dark"] .tenant-operational-settings-page .company-settings-acti
   .tenant-operational-settings-page .company-identity-card .modal-foot > span { width: 100%; }
   .company-setting-card .setting-actions { width: 100%; justify-content: flex-start; }
   .company-setting-card .modal-foot .setting-actions .primary { align-self: auto; }
+}
+
+/* Match the shared settings shell: navigation at left, one clean settings canvas. */
+.tenant-operational-settings-page .tenant-settings-workbench { grid-template-columns: 300px minmax(0,1fr); gap: 8px; align-items: stretch; margin: 0; }
+.tenant-operational-settings-page .tenant-settings-nav { position: static; align-content: start; gap: 3px; padding: 18px 12px; border-color: #d8e1ee; border-radius: 6px; background: #fff; box-shadow: none; }
+.tenant-operational-settings-page .tenant-settings-sidebar-title { display: flex; align-items: center; gap: 14px; padding: 0 10px 22px; color: #0b1f3a; }
+.tenant-operational-settings-page .tenant-settings-sidebar-title>span:first-child { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; color: #0b1f3a; }
+.tenant-operational-settings-page .tenant-settings-sidebar-title>span:last-child { display: grid; gap: 4px; }
+.tenant-operational-settings-page .tenant-settings-sidebar-title b { font-size: 20px; font-weight: 750; }
+.tenant-operational-settings-page .tenant-settings-sidebar-title small { color: #64748b; font-size: 12px; }
+.tenant-operational-settings-page .tenant-settings-nav>.eyebrow { margin: 0 8px 7px; color: #64748b; }
+.tenant-operational-settings-page .tenant-settings-nav>button { grid-template-columns: 34px minmax(0,1fr) auto; min-height: 48px; padding: 7px 10px; border-radius: 5px; color: #172943; }
+.tenant-operational-settings-page .tenant-settings-nav>button.active { border-color: transparent; background: #fff2bd; box-shadow: inset 4px 0 #f5b900; }
+.tenant-operational-settings-page .tenant-settings-nav>button .tenant-settings-nav-icon { width: 28px; height: 28px; border: 0; background: transparent; }
+.tenant-operational-settings-page .tenant-settings-nav>button.active .tenant-settings-nav-icon { background: transparent; color: #0b1f3a; }
+.tenant-operational-settings-page .tenant-settings-nav>button b { color: #172943; font-size: 12px; }
+.tenant-operational-settings-page .tenant-settings-nav>button small { color: #64748b; font-size: 10px; }
+.tenant-operational-settings-page .tenant-settings-detail { display: grid; align-content: start; gap: 16px; min-height: calc(100vh - 144px); padding: 20px 22px 16px; border: 1px solid #d8e1ee; border-radius: 6px; background: #fff; }
+.tenant-operational-settings-page .tenant-settings-commandbar { display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 0; margin: 0; padding: 0 0 20px; border: 0; border-bottom: 1px solid #dce4ed; border-radius: 0; background: transparent; box-shadow: none; }
+.tenant-operational-settings-page .tenant-settings-commandbar>div:first-child { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.tenant-operational-settings-page .tenant-settings-commandbar .settings-heading-icon { display: grid; place-items: center; flex: 0 0 56px; width: 56px; height: 56px; border-radius: 6px; background: #ffc400; color: #0b1f3a; }
+.tenant-operational-settings-page .tenant-settings-commandbar h1 { margin: 0 0 4px; color: #0b1f3a; font-size: 25px; line-height: 1.15; font-weight: 750; }
+.tenant-operational-settings-page .tenant-settings-commandbar p { margin: 0; color: #536681; font-size: 14px; }
+.tenant-operational-settings-page .tenant-settings-commandbar>div:last-child { display: flex; flex: none; gap: 10px; }
+.tenant-operational-settings-page .tenant-settings-commandbar .secondary,.tenant-operational-settings-page .tenant-settings-commandbar .primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 1px solid #ccd7e6; border-radius: 5px; background: #fff; color: #10213b; font-weight: 650; }
+.tenant-operational-settings-page .tenant-settings-commandbar .primary { border-color: #f3b700; background: #ffc400; color: #081a30; }
+.tenant-operational-settings-page .tenant-settings-detail>.panel { padding: 18px; border-color: #d7e1ed; border-radius: 6px; box-shadow: none; }
+.tenant-operational-settings-page .company-identity-values>div { border-radius: 6px; background: #f7f9fc; }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-nav { border-color: var(--erp-border); background: var(--erp-surface); }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-sidebar-title { color: var(--erp-text); }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-sidebar-title small { color: var(--erp-muted); }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-nav>button.active { border-color: transparent; background: #3b321b; box-shadow: inset 4px 0 #f5b900; }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-nav>button b { color: var(--erp-text); }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-detail { border-color: var(--erp-border); background: var(--erp-surface); }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-commandbar { border-color: var(--erp-border); background: transparent; box-shadow: none; }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-commandbar h1 { color: var(--erp-text); }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-commandbar p { color: var(--erp-muted); }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-commandbar .secondary { border-color: var(--erp-border); background: var(--erp-surface-soft); color: var(--erp-text); }
+html[data-theme="dark"] .tenant-operational-settings-page .company-identity-values>div { border-color: var(--erp-border); background: var(--erp-surface-soft); }
+@media (max-width: 1100px) { .tenant-operational-settings-page .tenant-settings-workbench { grid-template-columns: 240px minmax(0,1fr); } }
+@media (max-width: 760px) {
+  .tenant-operational-settings-page .tenant-settings-workbench { grid-template-columns: 1fr; }
+  .tenant-operational-settings-page .tenant-settings-nav { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .tenant-operational-settings-page .tenant-settings-sidebar-title,.tenant-operational-settings-page .tenant-settings-nav>.eyebrow,.tenant-operational-settings-page .tenant-settings-nav-note { grid-column: 1/-1; }
+  .tenant-operational-settings-page .tenant-settings-detail { min-height: 0; padding: 16px; }
+  .tenant-operational-settings-page .tenant-settings-commandbar { align-items: flex-start; flex-wrap: wrap; }
+  .tenant-operational-settings-page .tenant-settings-commandbar>div:last-child { width: 100%; justify-content: flex-end; }
 }

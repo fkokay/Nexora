@@ -37,6 +37,25 @@ type EDocumentSourceDocument = {
   total: number;
   status: string;
 };
+type EDocumentProviderStatus = {
+  operationId: string;
+  operationStatus: string;
+  providerStatus: {
+    documentType: string;
+    documentUuid: string;
+    status: number;
+    gibStatusCode: number | null;
+    gibStatus: string | null;
+    replyLookupStatus: string | null;
+    sentReply: {
+      responseType: string;
+      issuedAt: string | null;
+      replyStatus: number | null;
+      gibStatus: number | null;
+    } | null;
+  };
+  externalReference: string;
+};
 type Props = {
   token: string;
   requestApi: <T>(
@@ -89,6 +108,27 @@ async function fetchQueue<T>(
   try {
     return await requestApi<T>(url, token, init);
   } catch (cause) {
+    if (cause instanceof Error && url.endsWith("/provider-status") && cause.message.includes("(404)"))
+      throw new Error(
+        tr(
+          "Sağlayıcı bu UUID için durum bulamadı. 404, belgenin gönderilmediğini kanıtlamaz; portalda kontrol edin.",
+          "The provider found no status for this UUID. A 404 does not prove the document was not submitted; check the provider portal.",
+        ),
+      );
+    if (cause instanceof Error && url.endsWith("/provider-status") && /\((502|503)\)/.test(cause.message))
+      throw new Error(
+        tr(
+          "Sağlayıcı durum sorgusu tamamlanamadı. Kuyruk işleminin durumu değiştirilmedi; daha sonra yeniden deneyin.",
+          "Provider status lookup could not be completed. The queue operation was not changed; try again later.",
+        ),
+      );
+    if (cause instanceof Error && cause.message.includes("(409)") && url.endsWith("/provider-status"))
+      throw new Error(
+        tr(
+          "Durum sorgusu için taslağı oluşturan kişiden farklı bir yönetici gerekir veya işlem bu sorguya uygun durumda değildir.",
+          "A different administrator from the draft creator is required, or the operation is not in a status-checkable state.",
+        ),
+      );
     if (cause instanceof Error && cause.message.includes("(409)"))
       throw new Error(
         tr(
@@ -114,6 +154,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
   >("confirmed_submitted");
   const [reconciliationReference, setReconciliationReference] = useState("");
   const [reconciliationEvidence, setReconciliationEvidence] = useState("");
+  const [providerStatus, setProviderStatus] = useState<EDocumentProviderStatus | null>(null);
   const [submissions, setSubmissions] = useState<EDocumentSubmission[]>([]);
   const [submissionsLoading, setSubmissionsLoading] = useState(true);
   const [submissionsError, setSubmissionsError] = useState("");
@@ -484,6 +525,41 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
     }
   }
 
+  async function checkProviderStatus(item: IntegrationOperation) {
+    setBusyId(item.operationId);
+    setError("");
+    setNotice("");
+    setProviderStatus(null);
+    try {
+      const result = await fetchQueue<EDocumentProviderStatus>(
+        `/api/e-documents/submissions/${item.operationId}/provider-status`,
+        token,
+        requestApi,
+      );
+      setProviderStatus(result);
+      if (item.status === "Indeterminate")
+        setReconciliationReference(result.externalReference);
+      setNotice(item.status === "Indeterminate"
+        ? tr(
+            "Sağlayıcı durumu alındı. Kuyruk işlemi hâlâ belirsiz; sonucu kontrol edip mutabakatı ayrıca kaydedin.",
+            "Provider status received. The queue operation is still indeterminate; review the result and record reconciliation separately.",
+          )
+        : tr(
+            "Sağlayıcı durumu alındı. Kuyruk işleminin durumu değiştirilmedi.",
+            "Provider status received. The queue operation was not changed.",
+          ));
+    } catch (cause) {
+      setError(
+        tr(
+          "Sağlayıcı durumu alınamadı. Bulunamama veya bağlantı hatası gönderilmediğini kanıtlamaz; portaldan doğrulayın.",
+          "Provider status could not be retrieved. A not-found response or connection error does not prove non-submission; verify it in the provider portal.",
+        ),
+      );
+    } finally {
+      setBusyId("");
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil((data?.totalCount || 0) / 25));
   const selectedOperation =
     data?.items.find((item) => item.operationId === selectedOperationId) ??
@@ -570,8 +646,8 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
             </h2>
             <p className="muted">
               {tr(
-                "Sağlayıcıdan bağımsız sözleşme: e-Fatura, e-İrsaliye veya e-Arşiv. Taslaklar farklı bir firma yöneticisi onaylamadan gönderilmez.",
-                "Provider-neutral workflow for e-invoice, e-dispatch, or e-archive. Drafts cannot be sent until another company administrator approves them.",
+                "Trendyol gönderimi e-Fatura ve e-Arşiv için hazırlanabilir. E-İrsaliye taşıma alanları eşlenene kadar kapalıdır; taslakları farklı bir firma yöneticisi onaylar.",
+                "Trendyol submissions can be prepared for e-invoice and e-archive. E-dispatch is unavailable until transport fields are mapped; another company administrator approves drafts.",
               )}
             </p>
           </div>
@@ -588,7 +664,9 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
               onChange={(event) => setDocumentType(event.target.value)}
             >
               <option value="e-invoice">e-Fatura</option>
-              <option value="e-dispatch">e-İrsaliye</option>
+              <option value="e-dispatch" disabled>
+                {tr("e-İrsaliye (eşleme bekliyor)", "e-Dispatch (mapping pending)")}
+              </option>
               <option value="e-archive">e-Arşiv</option>
             </select>
           </label>
@@ -889,6 +967,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
           reconciliationOutcome={reconciliationOutcome}
           reconciliationReference={reconciliationReference}
           reconciliationEvidence={reconciliationEvidence}
+          providerStatus={providerStatus}
           onStatusChange={(value) => {
             setPage(1);
             setStatus(value);
@@ -899,6 +978,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
           onReconciliationReferenceChange={setReconciliationReference}
           onReconciliationEvidenceChange={setReconciliationEvidence}
           onReconcile={(operation) => void reconcileIndeterminate(operation)}
+          onCheckProviderStatus={(operation) => void checkProviderStatus(operation)}
           onPageChange={(delta) => setPage((value) => value + delta)}
           tr={tr}
           locale={locale}

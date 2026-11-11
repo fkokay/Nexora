@@ -104,6 +104,8 @@ export default function DirectCashBudgetEditor({
           <button
             className="secondary small-button"
             type="button"
+            data-line-add-shortcut
+            title="Ctrl+Shift+Enter ile satır ekle"
             onClick={onAddLine}
             disabled={busy || lines.length >= 1200}
           >

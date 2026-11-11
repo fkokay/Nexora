@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
+import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type SalesCustomer = AppTypes.SalesCustomer;
@@ -26,19 +27,41 @@ export function SalesDeliveriesScreen({
   warehouses,
   customers,
   stockItems,
+  initialCreate = false,
+  initialCustomerId = "",
 }: {
   token: string;
   role: string;
   warehouses: Warehouse[];
   customers: SalesCustomer[];
   stockItems: StockItem[];
+  initialCreate?: boolean;
+  initialCustomerId?: string;
 }) {
   const [items, setItems] = useState<SalesDeliverySummary[]>([]),
     [total, setTotal] = useState(0),
     [page, setPage] = useState(1),
     [search, setSearch] = useState(""),
     [selectedId, setSelectedId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(initialCreate);
+  const [customerActionId, setCustomerActionId] = useState(initialCustomerId);
+  useEffect(() => {
+    if (initialCreate) setCreating(true);
+  }, [initialCreate]);
+  useEffect(() => {
+    if (initialCustomerId) setCustomerActionId(initialCustomerId);
+  }, [initialCustomerId]);
+  useEffect(() => {
+    const receiveCustomerAction = (event: Event) => {
+      const action = (event as CustomEvent<{ page: string; customerId: string }>).detail;
+      if (action?.page !== "sales-delivery-create") return;
+      setCreating(true);
+      setCustomerActionId(action.customerId);
+    };
+    window.addEventListener("nexora:customer-sales-action", receiveCustomerAction);
+    return () => window.removeEventListener("nexora:customer-sales-action", receiveCustomerAction);
+  }, []);
+  const [detailTab, setDetailTab] = useState<"information" | "invoice">("information");
   const [screenFields, setScreenFields] = useState<BuiltInScreenLayoutField[]>([
     { key: "code", label: "İrsaliye no", visible: true, position: 0 },
     { key: "orderCode", label: "Sipariş no", visible: true, position: 1 },
@@ -70,6 +93,10 @@ export function SalesDeliveriesScreen({
       stockName: string;
       unitCode: string;
       quantity: number;
+      unitPrice: number | null;
+      discountPercent: number | null;
+      vatPercent: number | null;
+      currencyCode: string | null;
     }[];
     hasSalesInvoice: boolean;
     invoiceStatus: "Posted" | "Voided" | null;
@@ -171,6 +198,28 @@ export function SalesDeliveriesScreen({
   const visibleFields = screenFields
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
+  const deliveryTotals = (detail?.lines ?? []).reduce((totals, line) => {
+    const gross = line.quantity * (line.unitPrice ?? 0);
+    const discount = gross * (line.discountPercent ?? 0) / 100;
+    const taxable = gross - discount;
+    const rate = line.vatPercent ?? 0;
+    const vat = taxable * rate / 100;
+    return {
+      subtotal: totals.subtotal + gross,
+      discount: totals.discount + discount,
+      vat: totals.vat + vat,
+      total: totals.total + taxable + vat,
+      taxableByRate: { ...totals.taxableByRate, [rate]: (totals.taxableByRate[rate] ?? 0) + taxable },
+      vatByRate: { ...totals.vatByRate, [rate]: (totals.vatByRate[rate] ?? 0) + vat },
+    };
+  }, { subtotal: 0, discount: 0, vat: 0, total: 0, taxableByRate: {} as Record<number, number>, vatByRate: {} as Record<number, number> });
+  const deliveryCurrency = detail?.lines.find((line) => line.currencyCode)?.currencyCode ?? "TRY";
+  const renderDeliveryCurrency = (value: number) => {
+    const formatted = new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number.isFinite(value) ? value : 0);
+    return <output className="sales-total-amount" aria-label={`${formatted} ${deliveryCurrency}`}>
+      <b>{formatted}</b><small>{deliveryCurrency === "TRY" ? "TL" : deliveryCurrency}</small>
+    </output>;
+  };
   function renderField(
     item: SalesDeliverySummary,
     field: BuiltInScreenLayoutField,
@@ -221,10 +270,11 @@ export function SalesDeliveriesScreen({
         );
       case "actions":
         return (
-          <div className="row-actions">
+          <SalesRowActionsMenu label={item.code}>
             {item.status === "Posted" && !item.hasSalesInvoice && (
               <button
-                className="row-action"
+                role="menuitem"
+                className="sales-row-menu-item"
                 disabled={busy}
                 onClick={() =>
                   void (item.orderId
@@ -237,18 +287,20 @@ export function SalesDeliveriesScreen({
             )}
             {item.invoiceId && (
               <button
-                className="row-action"
+                role="menuitem"
+                className="sales-row-menu-item"
                 onClick={() => setInvoiceId(item.invoiceId)}
               >
                 Faturayı aç
               </button>
             )}
-            <button className="row-action" onClick={() => void open(item.id)}>
+            <button role="menuitem" className="sales-row-menu-item" onClick={() => void open(item.id)}>
               Satırları gör
             </button>
             {item.status === "Posted" && (
               <button
-                className="row-action danger-action"
+                role="menuitem"
+                className="sales-row-menu-item danger-action"
                 disabled={
                   busy ||
                   role !== "TenantAdmin" ||
@@ -269,13 +321,14 @@ export function SalesDeliveriesScreen({
             {item.status === "Posted" &&
               role === "TenantAdmin" &&
               item.invoiceStatus === "Posted" && (
-                <small className="cell-subtitle">
+                <small className="sales-row-menu-note">
                   Önce bağlı faturayı iptal edin.
                 </small>
               )}
             {role === "TenantAdmin" && (
               <button
-                className="row-action danger-action"
+                role="menuitem"
+                className="sales-row-menu-item danger-action"
                 disabled={busy || item.status !== "Voided"}
                 title={
                   item.status !== "Voided"
@@ -290,11 +343,11 @@ export function SalesDeliveriesScreen({
             {item.status === "Posted" &&
               role === "TenantAdmin" &&
               item.invoiceStatus !== "Posted" && (
-                <small className="cell-subtitle">
+                <small className="sales-row-menu-note">
                   Silmek için önce irsaliyeyi iptal edin.
                 </small>
               )}
-          </div>
+          </SalesRowActionsMenu>
         );
       default:
         return null;
@@ -303,6 +356,7 @@ export function SalesDeliveriesScreen({
   async function open(id: string) {
     setError("");
     setInvoiceEditing(false);
+    setDetailTab("information");
     try {
       setDetail(
         await api<NonNullable<typeof detail>>(
@@ -323,6 +377,7 @@ export function SalesDeliveriesScreen({
         token,
       );
       setDetail(loaded);
+      setDetailTab("invoice");
       setInvoiceCustomerId("");
       setInvoiceDate(localDateString());
       setInvoiceCustomFieldValues({});
@@ -491,10 +546,13 @@ export function SalesDeliveriesScreen({
           </p>
         </div>
         {creating ? (
-          <button className="secondary" onClick={() => setCreating(false)}>
-            <ArrowLeftRight size={15} />
-            İrsaliye listesine dön
-          </button>
+          <div className="heading-actions">
+            <button className="secondary" onClick={() => setCreating(false)}>
+              <ArrowLeftRight size={15} />
+              İrsaliye listesine dön
+            </button>
+            <button className="primary" type="submit" form="sales-delivery-create-form">İrsaliye taslağı oluştur</button>
+          </div>
         ) : (
           <button className="primary" onClick={() => setCreating(true)}>
             <Plus size={16} />
@@ -517,6 +575,7 @@ export function SalesDeliveriesScreen({
           customers={customers}
           stockItems={stockItems}
           warehouses={warehouses}
+          initialCustomerId={customerActionId}
         />
       ) : (
         <>
@@ -529,7 +588,12 @@ export function SalesDeliveriesScreen({
               <small>Siparişe bağlı sevkiyatlar burada listelenir.</small>
             </div>
           </div>
-          <div className="customer-toolbar">
+          <section className="panel sales-delivery-filter-card" aria-label="Satış irsaliyesi filtreleri">
+          <div className="sales-delivery-filter-heading">
+            <h2>Filtreler</h2>
+            <p>İrsaliyeleri belge, sipariş veya depo bilgisine göre daraltın.</p>
+          </div>
+          <div className="customer-toolbar sales-delivery-filter-toolbar">
             <label className="customer-search">
               <Search size={16} />
               <input
@@ -551,7 +615,14 @@ export function SalesDeliveriesScreen({
               Yenile
             </button>
           </div>
+          </section>
           <div className="customer-table-wrap">
+            <div className="erp-pane-heading">
+              <div>
+                <b>Satış irsaliyeleri</b>
+                <small>{loading ? "Kayıtlar yükleniyor…" : `${total} kayıt`}</small>
+              </div>
+            </div>
             <table className="customer-table quote-table">
               <thead>
                 <ScreenViewGroupHeader fields={visibleFields} />
@@ -626,16 +697,16 @@ export function SalesDeliveriesScreen({
           }}
         >
           <div
-            className="modal sales-detail-modal sales-delivery-detail-modal"
+            className="modal ledger-modal sales-detail-modal sales-quote-detail-modal sales-delivery-detail-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="sales-delivery-detail-title"
           >
             <div className="modal-head">
               <div>
-                <p className="eyebrow">SATIŞ · SEVK BELGESİ</p>
-                <h2 id="sales-delivery-detail-title">İrsaliye ayrıntısı</h2>
-                <span className="delivery-document-code">{detail.code}</span>
+                <p className="eyebrow">SATIŞ İRSALİYESİ DETAYI</p>
+                <h2 id="sales-delivery-detail-title">İrsaliye Detay</h2>
+                <p className="sales-quote-detail-subtitle">İrsaliye No: <b>{detail.code}</b></p>
               </div>
               <button
                 type="button"
@@ -646,39 +717,26 @@ export function SalesDeliveriesScreen({
                 <X size={19} />
               </button>
             </div>
-            <div className="delivery-detail-statusbar">
-              <span
-                className={`quote-status ${detail.status === "Posted" ? "accepted" : "rejected"}`}
-              >
-                {detail.status === "Posted" ? "Sevk edildi" : "İptal edildi"}
-              </span>
-              <span>Satış irsaliyesi</span>
-            </div>
-            <section
-              className="delivery-detail-summary"
-              aria-label="İrsaliye bilgileri"
-            >
-              <article>
-                <small>İrsaliye numarası</small>
-                <b>{detail.code}</b>
-                <span>Belge numarası</span>
-              </article>
-              <article>
-                <small>Bağlı sipariş</small>
-                <b>{detail.orderCode}</b>
-                <span>Satış siparişi</span>
-              </article>
-              <article>
-                <small>Sevk deposu</small>
-                <b>{detail.warehouseName}</b>
-                <span>Stok çıkış noktası</span>
-              </article>
-              <article>
-                <small>Sevk tarihi</small>
-                <b>{detail.deliveryDate.split("-").reverse().join(".")}</b>
-                <span>{detail.lines.length} stok kalemi</span>
-              </article>
+            <nav className="sales-quote-detail-tabs" role="tablist" aria-label="İrsaliye detay bölümleri">
+              <button type="button" role="tab" aria-selected={detailTab === "information"} className={detailTab === "information" ? "active" : ""} onClick={() => setDetailTab("information")}>İrsaliye Bilgileri</button>
+              <button type="button" role="tab" aria-selected={detailTab === "invoice"} className={detailTab === "invoice" ? "active" : ""} onClick={() => setDetailTab("invoice")}>Fatura İşlemleri<span>{detail.hasSalesInvoice ? 1 : 0}</span></button>
+            </nav>
+            <div className="sales-detail-content">
+            {detailTab === "information" && <>
+            <section className="sales-quote-summary">
+              <div><small>İrsaliye durumu</small><b>{detail.status === "Posted" ? "Sevk edildi" : "İptal edildi"}</b><span>{detail.lines.length} stok kalemi · {detail.warehouseName}</span></div>
+              <span className={`quote-status ${detail.status === "Posted" ? "accepted" : "rejected"}`}>{detail.status === "Posted" ? "Sevk edildi" : "İptal edildi"}</span>
             </section>
+            <h3 className="sales-quote-section-title">İrsaliye Üst Bilgileri</h3>
+            <section className="sales-quote-overview-grid" aria-label="İrsaliye bilgileri">
+              <article><small>İrsaliye numarası</small><b>{detail.code}</b></article>
+              <article><small>Bağlı sipariş</small><b>{detail.orderCode || "Bağımsız sevkiyat"}</b></article>
+              <article><small>Sevk deposu</small><b>{detail.warehouseName}</b></article>
+              <article><small>Sevk tarihi</small><b>{detail.deliveryDate.split("-").reverse().join(".")}</b></article>
+              <article><small>Durum</small><b>{detail.status === "Posted" ? "Sevk edildi" : "İptal edildi"}</b></article>
+              <article><small>Fatura durumu</small><b>{detail.hasSalesInvoice ? (detail.invoiceStatus === "Posted" ? "Faturası kesildi" : "Fatura iptal edildi") : "Fatura bekliyor"}</b></article>
+            </section>
+            <h3 className="sales-quote-section-title">İrsaliye Satırları</h3>
             <section className="delivery-detail-lines-section">
               <div className="delivery-detail-section-head">
                 <div>
@@ -733,6 +791,18 @@ export function SalesDeliveriesScreen({
                 </table>
               </div>
             </section>
+            {detail.lines.some((line) => line.unitPrice !== null) && (
+              <section className="order-grand-total quote-total-breakdown delivery-detail-total-breakdown" aria-label="İrsaliye toplamları">
+                <div><span>Mal / hizmet toplamı</span>{renderDeliveryCurrency(deliveryTotals.subtotal)}</div>
+                <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderDeliveryCurrency(deliveryTotals.discount)}</span></div>
+                {Object.keys(deliveryTotals.taxableByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`delivery-tax-${rate}`}><span>KDV %{rate} matrahı</span>{renderDeliveryCurrency(deliveryTotals.taxableByRate[rate])}</div>)}
+                {Object.keys(deliveryTotals.vatByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`delivery-vat-${rate}`}><span>KDV %{rate}</span>{renderDeliveryCurrency(deliveryTotals.vatByRate[rate])}</div>)}
+                <div><span>KDV toplamı</span>{renderDeliveryCurrency(deliveryTotals.vat)}</div>
+                <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderDeliveryCurrency(deliveryTotals.total)}</div>
+              </section>
+            )}
+            </>}
+            {detailTab === "invoice" && <>
             <section className="delivery-detail-invoice">
               <div>
                 <p className="eyebrow">FATURA BAĞLANTISI</p>
@@ -979,22 +1049,12 @@ export function SalesDeliveriesScreen({
                 </div>
               </form>
             )}
-            {!invoiceEditing && (
-              <div className="modal-foot">
-                <span>
-                  {detail.orderId
-                    ? "İrsaliye ve stok çıkış kaydı bağlı satış siparişinden izlenir."
-                    : "Siparişsiz irsaliye; fatura kesilene kadar kaydı ayrı tutulur."}
-                </span>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setDetail(null)}
-                >
-                  Kapat
-                </button>
-              </div>
-            )}
+            </>}
+            </div>
+            <div className="modal-foot">
+              <span>{detail.orderId ? `Sipariş ${detail.orderCode} · ${detail.lines.length} kalem` : "Siparişsiz satış irsaliyesi"}</span>
+              <button type="button" className="secondary" onClick={() => setDetail(null)}>Kapat</button>
+            </div>
           </div>
         </div>
       )}

@@ -77,6 +77,25 @@ export function CreditFacilityRegister({
   const setScheduleStatus = onSetScheduleStatus;
   const reverseMovement = onReverseMovement;
   return (
+    <>
+    <section className="panel credit-filter-panel" aria-label="Kredi kayıt filtreleri">
+      <div className="credit-records-heading">
+        <div>
+          <h2>Filtreler</h2>
+          <p>Kredi kayıtlarını kod, kurum, durum veya para birimine göre daraltın.</p>
+        </div>
+      </div>
+      <CreditFacilitiesFilters
+        search={search}
+        statusFilter={statusFilter}
+        currencyFilter={currencyFilter}
+        currencies={currencies}
+        onSearchChange={onSearchChange}
+        onStatusChange={onStatusChange}
+        onCurrencyChange={onCurrencyChange}
+        onClear={onClearFilters}
+      />
+    </section>
     <section
       className="panel credit-records-panel"
       aria-labelledby="credit-records-title"
@@ -90,16 +109,6 @@ export function CreditFacilityRegister({
           </p>
         </div>
       </div>
-      <CreditFacilitiesFilters
-        search={search}
-        statusFilter={statusFilter}
-        currencyFilter={currencyFilter}
-        currencies={currencies}
-        onSearchChange={onSearchChange}
-        onStatusChange={onStatusChange}
-        onCurrencyChange={onCurrencyChange}
-        onClear={onClearFilters}
-      />
       {loading ? (
         <div
           className="credit-state"
@@ -552,5 +561,6 @@ export function CreditFacilityRegister({
         </div>
       )}
     </section>
+    </>
   );
 }

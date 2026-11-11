@@ -21,10 +21,12 @@ export default function DistributionFilters({
   onRefresh,
 }: Props) {
   return (
-    <section
-      className="sales-distribution-toolbar"
-      aria-label="Plan filtreleri"
-    >
+    <section className="panel sales-distribution-filter-card" aria-label="Plan filtreleri">
+      <div className="sales-distribution-filter-heading">
+        <h2>Filtreler</h2>
+        <p>Dağıtım ihtiyacını depo ve stok bilgisine göre daraltın.</p>
+      </div>
+      <div className="sales-distribution-toolbar">
       <label>
         Depo
         <SearchableRecordPicker
@@ -59,6 +61,7 @@ export default function DistributionFilters({
       >
         Yenile
       </button>
+      </div>
     </section>
   );
 }

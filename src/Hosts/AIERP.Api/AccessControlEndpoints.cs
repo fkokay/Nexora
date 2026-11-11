@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -9,6 +10,36 @@ internal static class AccessControlEndpoints
 {
     public static void MapAccessControlEndpoints(this WebApplication app)
     {
+        app.MapPost("/api/auth/change-password", async (ChangePasswordRequest request, ClaimsPrincipal user,
+            PlatformDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword)
+                || string.IsNullOrWhiteSpace(request.NewPassword)
+                || request.NewPassword.Length < 6 || request.NewPassword.Length > 256)
+                return Validation("password", "Mevcut şifre gerekli; yeni şifre 6-256 karakter olmalı.");
+            if (request.NewPassword == request.CurrentPassword)
+                return Validation("newPassword", "Yeni şifre mevcut şifreden farklı olmalı.");
+
+            var account = await db.Users.SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct);
+            if (account is null) return Results.Unauthorized();
+            if (!PasswordHashing.Verify(request.CurrentPassword, account.PasswordHash))
+                return Results.BadRequest(new { error = "Mevcut şifre hatalı.", code = "password.current_invalid" });
+
+            account.PasswordHash = PasswordHashing.Hash(request.NewPassword);
+            Guid? tenantId = Guid.TryParse(user.FindFirstValue("tenant_id"), out var parsedTenantId)
+                ? parsedTenantId : null;
+            db.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                Action = "auth.password.changed",
+                Resource = "self-service"
+            });
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        }).RequireAuthorization(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+
         var access = app.MapGroup("/api/access-control").RequireAuthorization();
         access.MapGet("/permissions", async (ClaimsPrincipal user, PlatformDbContext db, CancellationToken ct) =>
         {
@@ -312,4 +343,5 @@ internal static class AccessControlEndpoints
 
 public sealed record TenantMembershipCreateRequest(Guid UserId, string Role);
 public sealed record CreateTenantAccountRequest(string Email, string DisplayName, string TemporaryPassword, string Role);
+public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record TenantMembershipUpdateRequest(string Role);

@@ -3,6 +3,11 @@
 .sales-distribution-header h1 { margin: 3px 0 5px; font-size: 27px; letter-spacing: -.025em; }
 .sales-distribution-header p:last-child { margin: 0; font-size: 13px; }
 .sales-distribution-toolbar { display: grid; grid-template-columns: minmax(210px, .8fr) minmax(250px, 1.4fr) auto; align-items: end; gap: 10px; padding: 12px; border: 1px solid var(--line, #e5e8f1); border-radius: 9px; background: var(--surface, #fff); }
+.sales-distribution-filter-card { display: grid; gap: 11px; padding: 14px 16px; }
+.sales-distribution-filter-heading { padding-bottom: 9px; border-bottom: 1px solid var(--line, #e5e8f1); }
+.sales-distribution-filter-heading h2 { margin: 0; font-size: 15px; }
+.sales-distribution-filter-heading p { margin: 4px 0 0; color: var(--muted, #7d8599); font-size: 11px; }
+.sales-distribution-filter-card .sales-distribution-toolbar { padding: 0; border: 0; background: transparent; }
 .sales-distribution-toolbar label { display: grid; gap: 5px; color: var(--muted, #7d8599); font-size: 11px; font-weight: 650; }
 .sales-distribution-toolbar input, .sales-distribution-toolbar select { box-sizing: border-box; width: 100%; min-width: 0; height: 38px; padding: 7px 10px; border: 1px solid var(--line, #dfe3ed); border-radius: 7px; background: var(--surface, #fff); color: var(--text, #202a3b); font: inherit; }
 .sales-distribution-toolbar button { min-height: 38px; }

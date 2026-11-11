@@ -39,11 +39,44 @@ export default function ManufacturingRecipeList({
   onDelete,
 }: Props) {
   return (
-    <section
-      className="manufacturing-recipe-list"
-      aria-label="Tanımlı reçeteler"
-      aria-busy={loading}
-    >
+    <div className="manufacturing-recipe-stack">
+      <section className="panel manufacturing-recipe-filter-card" aria-label="Reçete filtreleri">
+        <div className="manufacturing-recipe-filter-heading">
+          <h2>Filtreler</h2>
+          <p>Reçeteleri kod, ad veya mamul bilgisine göre daraltın.</p>
+        </div>
+        <div className="manufacturing-recipe-filterbar">
+          <label className="manufacturing-recipe-search">
+            <Search size={16} aria-hidden="true" />
+            <input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Kod, reçete veya mamul ara"
+              aria-label="Reçetelerde ara"
+            />
+          </label>
+          {search && (
+            <button
+              type="button"
+              className="secondary small-button"
+              onClick={() => {
+                setSearch("");
+                setPage(1);
+              }}
+            >
+              Temizle
+            </button>
+          )}
+        </div>
+      </section>
+      <section
+        className="manufacturing-recipe-list"
+        aria-label="Tanımlı reçeteler"
+        aria-busy={loading}
+      >
       <div className="manufacturing-recipe-list-heading">
         <p>
           {loading ? (
@@ -56,24 +89,9 @@ export default function ManufacturingRecipeList({
                 {boms.filter((x) => x.isActive).length.toLocaleString("tr-TR")}
               </b>{" "}
               aktif{" "}
-              <span className="manufacturing-recipe-hint">
-                Kullanılmış reçeteler geçmiş emirler için korunur.
-              </span>
             </>
           )}
         </p>
-        <label className="manufacturing-recipe-search">
-          <Search size={16} aria-hidden="true" />
-          <input
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Kod, reçete veya mamul ara"
-            aria-label="Reçetelerde ara"
-          />
-        </label>
       </div>
       {loading ? (
         <div className="manufacturing-empty" role="status" aria-live="polite">
@@ -213,6 +231,7 @@ export default function ManufacturingRecipeList({
           </div>
         </>
       )}
-    </section>
+      </section>
+    </div>
   );
 }

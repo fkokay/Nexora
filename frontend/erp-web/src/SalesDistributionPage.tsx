@@ -144,6 +144,12 @@ export default function SalesDistributionPage({ token }: Props) {
           {error}
         </div>
       )}
+      <DistributionSummary
+        totalCount={page?.totalCount ?? 0}
+        totalOpenDemand={totalOpenDemand}
+        totalUncovered={totalUncovered}
+        warehouseCode={page?.warehouse?.code ?? "—"}
+      />
       <DistributionFilters
         warehouses={warehouses}
         warehouseId={warehouseId}
@@ -158,12 +164,6 @@ export default function SalesDistributionPage({ token }: Props) {
           setPageNumber(1);
         }}
         onRefresh={() => void load()}
-      />
-      <DistributionSummary
-        totalCount={page?.totalCount ?? 0}
-        totalOpenDemand={totalOpenDemand}
-        totalUncovered={totalUncovered}
-        warehouseCode={page?.warehouse?.code ?? "—"}
       />
       <DistributionPlanPanel
         page={page}

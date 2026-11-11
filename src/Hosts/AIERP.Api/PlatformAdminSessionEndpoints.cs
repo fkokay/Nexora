@@ -32,7 +32,9 @@ public static class PlatformAdminSessionEndpoints
             if (!IsAllowedCookieRequest(context.Request, config))
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
 
-            if (principal.FindFirstValue("session") != "tenant-selection" ||
+            var isTenantSelection = principal.FindFirstValue("session") == "tenant-selection";
+            var hasTenantContext = Guid.TryParse(principal.FindFirstValue("tenant_id"), out _);
+            if ((!isTenantSelection && !hasTenantContext) ||
                 !Guid.TryParse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub), out var userId))
                 return Results.Unauthorized();
 

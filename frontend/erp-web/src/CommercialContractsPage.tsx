@@ -90,6 +90,10 @@ const englishUi: Record<string, string> = {
   Yenile: "Refresh",
   "Yeni sözleşme": "New contract",
   "Sözleşme listesi": "Contract list",
+  Filtreler: "Filters",
+  "Sözleşme filtreleri": "Contract filters",
+  "Sözleşme listesini tür, durum veya cari hesaba göre daraltın.":
+    "Narrow the contract list by type, status or account.",
   "Satış ve satın alma sözleşmeleri aynı firma kapsamında listelenir.":
     "Sales and purchase contracts are listed for the same company.",
   "Sözleşme ara": "Search contracts",

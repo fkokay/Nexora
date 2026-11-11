@@ -13,7 +13,7 @@ public sealed class EDocumentSubmissionRulesTests
     {
         var id = Guid.NewGuid();
         var date = DateOnly.FromDateTime(DateTime.UtcNow);
-        using var document = JsonDocument.Parse($$"""{"source":{"kind":"{{sourceKind}}","id":"{{id:D}}","code":"INV-42"},"issueDate":"{{date:yyyy-MM-dd}}","lines":[{"quantity":2}]}""");
+        using var document = JsonDocument.Parse($$"""{"source":{"kind":"{{sourceKind}}","id":"{{id:D}}","code":"INV-42"},"issueDate":"{{date:yyyy-MM-dd}}","customer":{"name":"Synthetic Buyer","taxNumber":"1234567890","addresses":[{"addressLine":"Test Street 1","city":"Ankara","countryCode":"TR"}]},"lines":[{"stockName":"Synthetic Item","unitCode":"C62","quantity":2}]}""");
 
         var request = new EDocumentSubmissionRequest(type, id, "INV-42", date, "TRY", document.RootElement);
 
@@ -36,9 +36,9 @@ public sealed class EDocumentSubmissionRulesTests
     [InlineData("[]", "document_object_required")]
     [InlineData("{}", "source_identity_required")]
     [InlineData("{\"source\":{\"kind\":\"sales-invoice\",\"id\":\"00000000-0000-0000-0000-000000000001\",\"code\":\"INV-42\"},\"issueDate\":\"2026-01-01\",\"lines\":[]}", "document_lines_required")]
-    [InlineData("{\"source\":{\"kind\":\"sales-invoice\",\"id\":\"00000000-0000-0000-0000-000000000001\",\"code\":\"INV-42\"},\"issueDate\":\"2026-01-01\",\"lines\":[{\"quantity\":0}]}", "invalid_document_line_quantity")]
-    [InlineData("{\"source\":{\"kind\":\"sales-invoice\",\"id\":\"00000000-0000-0000-0000-000000000001\",\"code\":\"INV-42\"},\"issueDate\":\"2026-01-01\",\"lines\":[{\"quantity\":\"1\"}]}", "invalid_document_line_quantity")]
-    [InlineData("{\"source\":{\"kind\":\"sales-invoice\",\"id\":\"00000000-0000-0000-0000-000000000001\",\"code\":\"INV-42\"},\"issueDate\":\"2026-01-01\",\"lines\":[{\"quantity\":{}}]}", "invalid_document_line_quantity")]
+    [InlineData("{\"source\":{\"kind\":\"sales-invoice\",\"id\":\"00000000-0000-0000-0000-000000000001\",\"code\":\"INV-42\"},\"issueDate\":\"2026-01-01\",\"lines\":[{\"stockName\":\"Synthetic Item\",\"unitCode\":\"C62\",\"quantity\":0}]}", "invalid_document_line_quantity")]
+    [InlineData("{\"source\":{\"kind\":\"sales-invoice\",\"id\":\"00000000-0000-0000-0000-000000000001\",\"code\":\"INV-42\"},\"issueDate\":\"2026-01-01\",\"lines\":[{\"stockName\":\"Synthetic Item\",\"unitCode\":\"C62\",\"quantity\":\"1\"}]}", "invalid_document_line_quantity")]
+    [InlineData("{\"source\":{\"kind\":\"sales-invoice\",\"id\":\"00000000-0000-0000-0000-000000000001\",\"code\":\"INV-42\"},\"issueDate\":\"2026-01-01\",\"lines\":[{\"stockName\":\"Synthetic Item\",\"unitCode\":\"C62\",\"quantity\":{}}]}", "invalid_document_line_quantity")]
     public void Validate_RejectsIncompleteOrInvalidSourceDocument(string json, string expectedError)
     {
         using var document = JsonDocument.Parse(json);

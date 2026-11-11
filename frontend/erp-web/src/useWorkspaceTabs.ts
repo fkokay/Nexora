@@ -19,32 +19,53 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
   const [moduleTabs, setModuleTabs] = useState<Tab[]>(() => readWorkspaceTabs(tenantId))
   const [dirtyTabs, setDirtyTabs] = useState<Set<string>>(() => new Set())
   const [notice, setNotice] = useState('')
+  const [pendingCloseTab, setPendingCloseTab] = useState<string | null>(null)
 
   const setPage = useCallback((nextPage: string, labelOverride?: string) => {
-    if (nextPage === 'launcher') {
-      setActivePage(nextPage)
+    if (nextPage === 'launcher' || nextPage === 'dashboard') {
+      setActivePage('launcher')
       return
     }
     const result = pageResults.find(item => item.page === nextPage)
     if (result?.selection) onSelectModule(result.selection)
-    const pageLabel = nextPage === 'sales-order-create' ? (locale === 'en' ? 'New sales order' : 'Yeni Sipariş') : undefined
+    const pageLabel = nextPage === 'erp-assistant' ? (locale === 'en' ? 'AI ERP Assistant' : 'AI ERP Asistanı') : nextPage === 'sales-order-create' ? (locale === 'en' ? 'New sales order' : 'Yeni Sipariş') : nextPage === 'sales-quote-create' ? (locale === 'en' ? 'New quote' : 'Yeni Teklif') : nextPage === 'customer-edit' ? (locale === 'en' ? 'Edit Customer' : 'Cari Düzenle') : undefined
     const label = labelOverride || pageLabel || result?.label || (nextPage === 'modules' ? (locale === 'en' ? 'Module marketplace' : 'Modül pazaryeri') : nextPage.startsWith('module:') ? result?.label || nextPage.split(':').at(-1) || 'Modül' : nextPage.replace(/[-_]/g, ' '))
-    if (nextPage !== 'dashboard' && !moduleTabs.some(tab => tab.id === nextPage) && moduleTabs.length >= 12) {
+    let pendingCustomerAction = false
+    try {
+      const action = JSON.parse(sessionStorage.getItem('nexora.customer-sales-action') || 'null') as { page?: string; customerId?: string } | null
+      pendingCustomerAction = action?.page === nextPage && Boolean(action.customerId)
+    } catch { /* Session storage is optional; keep the normal tab limit if unavailable. */ }
+    if (!pendingCustomerAction && !moduleTabs.some(tab => tab.id === nextPage) && moduleTabs.length >= 12) {
       setNotice(locale === 'en' ? 'Close a workspace tab before opening another screen.' : 'Yeni ekran açmak için önce bir çalışma sekmesini kapatın.')
       return
     }
     setActivePage(nextPage)
-    setModuleTabs(current => current.some(tab => tab.id === nextPage) ? current : [...current, { id: nextPage, label }])
+    setModuleTabs(current => current.some(tab => tab.id === nextPage)
+      ? current.map(tab => tab.id === nextPage ? { ...tab, label } : tab)
+      : [...current, { id: nextPage, label }])
   }, [pageResults, moduleTabs, locale, onSelectModule])
 
-  const closeModuleTab = useCallback((tabId: string) => {
+  const removeModuleTab = useCallback((tabId: string) => {
     if (tabId === 'dashboard') return
-    if (dirtyTabs.has(tabId) && readWorkspacePreferences().confirmTabClose !== false && !window.confirm(locale === 'en' ? 'This screen may contain unsaved changes. Close it anyway?' : 'Bu ekranda kaydedilmemiş değişiklikler olabilir. Sekme kapatılsın mı?')) return
     const nextTabs = moduleTabs.filter(tab => tab.id !== tabId)
     setModuleTabs(nextTabs)
     setDirtyTabs(current => { const next = new Set(current); next.delete(tabId); return next })
-    if (page === tabId) setPage(nextTabs.at(-1)?.id || 'dashboard')
-  }, [dirtyTabs, locale, moduleTabs, page, setPage])
+    if (page === tabId) setPage(nextTabs.at(-1)?.id || 'launcher')
+  }, [moduleTabs, page, setPage])
+
+  const closeModuleTab = useCallback((tabId: string) => {
+    if (tabId === 'dashboard') return
+    if (dirtyTabs.has(tabId) && readWorkspacePreferences().confirmTabClose !== false) {
+      setPendingCloseTab(tabId)
+      return
+    }
+    removeModuleTab(tabId)
+  }, [dirtyTabs, removeModuleTab])
+
+  const confirmCloseModuleTab = useCallback(() => {
+    if (pendingCloseTab) removeModuleTab(pendingCloseTab)
+    setPendingCloseTab(null)
+  }, [pendingCloseTab, removeModuleTab])
 
   const moveModuleTab = useCallback((draggedId: string, targetId: string) => {
     if (draggedId === targetId) return
@@ -61,14 +82,14 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
 
   const resetWorkspace = useCallback(() => {
     setModuleTabs([])
-    setActivePage('dashboard')
+    setActivePage('launcher')
     setDirtyTabs(new Set())
   }, [])
 
   const markTabClean = useCallback(() => setDirtyTabs(current => { const next = new Set(current); next.delete(page); return next }), [page])
 
   useEffect(() => {
-    if (!tenantId || platformSession || standaloneStudio) return
+    if (!tenantId || platformSession || standaloneStudio || page.startsWith('custom-page-preview:')) return
     const safeTabs = moduleTabs.filter(tab => isPersistablePage(tab.id))
     try {
       if (readWorkspacePreferences().rememberTabs === false) sessionStorage.removeItem(workspaceStorageKey(tenantId))
@@ -77,6 +98,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
   }, [page, moduleTabs, tenantId, platformSession, standaloneStudio])
 
   useEffect(() => {
+    if (page.startsWith('custom-page-preview:')) return
     const persistAfterPreferenceChange = () => {
       if (!tenantId || platformSession || standaloneStudio) return
       const safeTabs = moduleTabs.filter(tab => isPersistablePage(tab.id))
@@ -95,5 +117,5 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     return () => window.removeEventListener('nexora:workspace-clean', markTabClean)
   }, [markTabClean])
 
-  return { page, setActivePage, setPage, moduleTabs, setModuleTabs, dirtyTabs, setDirtyTabs, notice, setNotice, closeModuleTab, moveModuleTab, resetWorkspace }
+  return { page, setActivePage, setPage, moduleTabs, setModuleTabs, dirtyTabs, setDirtyTabs, notice, setNotice, closeModuleTab, confirmCloseModuleTab, pendingCloseTab, cancelCloseModuleTab: () => setPendingCloseTab(null), moveModuleTab, resetWorkspace }
 }

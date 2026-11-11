@@ -36,7 +36,38 @@ export function FixedAssetRegister({
 }: Props) {
   const en = locale === "en";
   return (
-    <section className="panel" aria-labelledby="asset-register-heading">
+    <>
+    <section className="panel fixed-asset-filter-card" aria-label={en ? "Asset filters" : "Kıymet filtreleri"}>
+      <div className="panel-heading">
+        <div>
+          <h2>{en ? "Filters" : "Filtreler"}</h2>
+          <p>{en ? "Narrow the register by code, name, category, or status." : "Kıymetleri kod, ad, kategori veya duruma göre daraltın."}</p>
+        </div>
+      </div>
+      <div className="fixed-asset-register-toolbar">
+        <label>
+          <span>{en ? "Search" : "Ara"}</span>
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder={en ? "Code, name, or category" : "Kod, ad veya kategori"}
+          />
+        </label>
+        <label>
+          <span>{en ? "Status" : "Durum"}</span>
+          <select
+            value={status}
+            onChange={(event) => onStatusChange(event.target.value)}
+          >
+            <option value="all">{en ? "All assets" : "Tüm kıymetler"}</option>
+            <option value="active">{en ? "Active" : "Etkin"}</option>
+            <option value="inactive">{en ? "Disposed or inactive" : "Elden çıkarılan veya pasif"}</option>
+          </select>
+        </label>
+      </div>
+    </section>
+    <section className="panel fixed-asset-register-panel" aria-labelledby="asset-register-heading">
       <div className="panel-heading">
         <div>
           <h3 id="asset-register-heading">
@@ -50,32 +81,6 @@ export function FixedAssetRegister({
               : `${assets.length} / ${totalAssetCount} ${en ? "records" : "kayıt"}`}
           </p>
         </div>
-      </div>
-      <div className="fixed-asset-register-toolbar">
-        <label>
-          <span>{en ? "Search" : "Ara"}</span>
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder={
-              en ? "Code, name, or category" : "Kod, ad veya kategori"
-            }
-          />
-        </label>
-        <label>
-          <span>{en ? "Status" : "Durum"}</span>
-          <select
-            value={status}
-            onChange={(event) => onStatusChange(event.target.value)}
-          >
-            <option value="all">{en ? "All assets" : "Tüm kıymetler"}</option>
-            <option value="active">{en ? "Active" : "Etkin"}</option>
-            <option value="inactive">
-              {en ? "Disposed or inactive" : "Elden çıkarılan veya pasif"}
-            </option>
-          </select>
-        </label>
       </div>
       <div
         className="ledger-list"
@@ -173,5 +178,6 @@ export function FixedAssetRegister({
         </AdvancedDataGrid>
       </div>
     </section>
+    </>
   );
 }

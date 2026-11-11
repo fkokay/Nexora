@@ -15,6 +15,7 @@ public sealed class IntegrationOperationWorker(
     IConfiguration configuration,
     ILogger<IntegrationOperationWorker> logger) : BackgroundService
 {
+    private const string EDocumentIntegrationCode = "tr.e-document.submit";
     private const int MaximumDeliveryAttempts = 3;
     private const int MaximumIntegrationHostResponseBytes = 1024 * 1024;
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
@@ -60,12 +61,15 @@ public sealed class IntegrationOperationWorker(
             await transaction.CommitAsync(cancellationToken);
             return null;
         }
-        if (operation.AttemptCount >= MaximumDeliveryAttempts)
+        if ((operation.Status == "Running" && operation.IntegrationCode == EDocumentIntegrationCode) ||
+            operation.AttemptCount >= MaximumDeliveryAttempts)
         {
             operation.Status = "Indeterminate";
             operation.ErrorCode = "delivery_indeterminate";
             operation.CompletedAt = DateTimeOffset.UtcNow;
-            operation.EncryptedPayload = "";
+            operation.StartedAt = null;
+            if (operation.IntegrationCode != EDocumentIntegrationCode)
+                operation.EncryptedPayload = "";
             db.AuditEvents.Add(new AuditEvent
             {
                 TenantId = operation.TenantId,
@@ -190,7 +194,8 @@ public sealed class IntegrationOperationWorker(
         if (outcome.ResultJson is not null)
             operation.EncryptedResult = IntegrationOperationCipher.Encrypt(outcome.ResultJson, configuration, operation.TenantId, operation.Id, "result");
 
-        if (ShouldScheduleRetry(outcome.Retryable, outcome.Ambiguous, operation.AttemptCount, MaximumDeliveryAttempts))
+        if (ShouldScheduleRetryForIntegration(operation.IntegrationCode, outcome.Retryable, outcome.Ambiguous,
+                operation.AttemptCount, MaximumDeliveryAttempts))
         {
             operation.Status = "Queued";
             operation.NextAttemptAt = now.AddSeconds(Math.Min(30, 5 * operation.AttemptCount));
@@ -200,7 +205,8 @@ public sealed class IntegrationOperationWorker(
         {
             operation.Status = outcome.Ambiguous || outcome.Retryable ? "Indeterminate" : outcome.Status;
             operation.CompletedAt = now;
-            operation.EncryptedPayload = "";
+            if (operation.IntegrationCode != EDocumentIntegrationCode || operation.Status != "Indeterminate")
+                operation.EncryptedPayload = "";
             if (operation.Status == "Indeterminate") operation.ErrorCode = "delivery_indeterminate";
         }
 
@@ -262,6 +268,11 @@ public sealed class IntegrationOperationWorker(
 
     internal static bool ShouldScheduleRetry(bool retryable, bool ambiguous, int attemptCount, int maximumAttempts) =>
         retryable && !ambiguous && attemptCount < maximumAttempts;
+
+    internal static bool ShouldScheduleRetryForIntegration(string integrationCode, bool retryable, bool ambiguous,
+        int attemptCount, int maximumAttempts) =>
+        !string.Equals(integrationCode, EDocumentIntegrationCode, StringComparison.Ordinal) &&
+        ShouldScheduleRetry(retryable, ambiguous, attemptCount, maximumAttempts);
 
     private static string SanitizeErrorCode(string? value) => value is { Length: > 0 and <= 48 } && value.All(c => char.IsAsciiLetterOrDigit(c) || c == '_')
         ? value : "integration_failed";

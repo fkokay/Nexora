@@ -4,6 +4,9 @@ import { EmbeddedStudioWaitingPage } from "./EmbeddedStudioWaitingPage";
 import { type GlobalSearchResult, type Locale } from "./WorkspaceComponents";
 import { WorkspaceShellPage } from "./WorkspaceShellPage";
 import { ModuleLauncher } from "./ModuleLauncherPage";
+import type { ErpDashboardSummary } from "./dashboard/types";
+import type { ExchangeRate } from "./exchange-rates/types";
+import type { FinancialAccount } from "./erp-types";
 import { useWorkspaceTabs } from "./useWorkspaceTabs";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
 import { useWorkspaceSearch } from "./useWorkspaceSearch";
@@ -50,6 +53,7 @@ export type * from "./erp-types";
 
 const defaultGlobalQuickMenuPages = [
   "customers",
+  "customer-ledger",
   "sales-invoices",
   "sales-purchase-invoices",
   "sales-orders",
@@ -97,6 +101,19 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("aierp.theme", theme);
   }, [theme]);
+  useEffect(() => {
+    const addFormLine = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey && event.shiftKey && event.key === "Enter")) return;
+      const activeElement = document.activeElement;
+      const form = activeElement instanceof Element ? activeElement.closest("form") : null;
+      const addButton = form?.querySelector<HTMLButtonElement>("[data-line-add-shortcut]");
+      if (!addButton || addButton.disabled) return;
+      event.preventDefault();
+      addButton.click();
+    };
+    window.addEventListener("keydown", addFormLine);
+    return () => window.removeEventListener("keydown", addFormLine);
+  }, []);
   useEffect(() => {
     if (locale !== "en") return;
     let active = true;
@@ -199,7 +216,6 @@ export default function App() {
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [platformStatus, setPlatformStatus] = useState<
     "checking" | "ready" | "unavailable"
   >("checking");
@@ -229,6 +245,9 @@ export default function App() {
   const [tenantModuleSearchItems, setTenantModuleSearchItems] = useState<
     GlobalSearchResult[]
   >([]);
+  const [customMenuSearchItems, setCustomMenuSearchItems] = useState<
+    GlobalSearchResult[]
+  >([]);
   const [tenantModuleSearchReady, setTenantModuleSearchReady] = useState(false);
   const [developerModeOpen, setDeveloperModeOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -245,47 +264,72 @@ export default function App() {
     window.addEventListener("focus", load);
     return () => { active = false; window.removeEventListener("focus", load); };
   }, [token, tenant?.id]);
+  useEffect(() => {
+    let active = true;
+    setCustomMenuSearchItems([]);
+    if (!token || !tenant?.id) return;
+    void api<Array<{ id: string; label: string; targetPage: string }>>(
+      "/api/custom-menus/",
+      token,
+    )
+      .then((entries) => {
+        if (!active) return;
+        setCustomMenuSearchItems(
+          entries.map((entry) => ({
+            kind: "custom-menu",
+            page: entry.targetPage,
+            label: entry.label,
+            description: locale === "en" ? "Custom menus" : "Özel Menüler",
+          })),
+        );
+      })
+      .catch(() => {
+        if (active) setCustomMenuSearchItems([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token, tenant?.id, locale]);
   const globalSearchPages: GlobalSearchResult[] = useMemo(() => {
     const pageResults: GlobalSearchResult[] = [
-      { page: "dashboard", label: tx("overview"), description: "Platform" },
       {
         page: "customers",
         label: tx("customers"),
-        description: "Satış & cari",
+        description: "Cari",
       },
       {
         page: "customer-create",
         label: locale === "en" ? "New customer card" : "Yeni Cari Kart",
-        description: "Satış & cari",
+        description: "Cari",
+      },
+      {
+        page: "customer-ledger",
+        label: locale === "en" ? "Customer account movements" : "Cari Hesap Hareketleri",
+        description: "Cari",
       },
       {
         page: "sales-invoice-create",
+        parentPage: "sales-invoices",
         label:
           locale === "en"
             ? "New sales invoice"
-            : "İrsaliyesiz satış faturası girişi",
-        description:
-          locale === "en"
-            ? "Sales · select an open order; delivery and invoice are created together"
-            : "Satış · açık siparişten irsaliye ve fatura oluştur",
+            : "Yeni satış faturası",
+        description: tx("sales"),
       },
       {
         page: "finance-account-create",
         label: locale === "en" ? "New cash register" : "Yeni Kasa Tanımla",
-        description:
-          locale === "en"
-            ? "Finance · create a cash register"
-            : "Finans · yeni kasa kartı oluştur",
+        description: tx("finance"),
       },
       {
         page: "crm-opportunities",
         label: tx("crm"),
-        description: "Satış & cari",
+        description: "Cari",
       },
       {
         page: "crm-opportunity-create",
         label: locale === "en" ? "New opportunity" : "Yeni fırsat",
-        description: "Satış & cari",
+        description: "Cari",
       },
       ...Object.keys(inventoryPageTitles).map((key) => ({
         page: key,
@@ -322,6 +366,7 @@ export default function App() {
                   "finance-trial-balance": "Trial balance",
                   "finance-balance-sheet": "Balance sheet",
                   "finance-journal-ledger": "Journal ledger",
+                  "finance-transfer-sources": "Transferable subledger sources",
                   "finance-budget": "Budget planning",
                   "finance-cash-budget": "Direct cash budget",
                   "finance-exposure": "FX exposure",
@@ -338,6 +383,7 @@ export default function App() {
           "finance-journal-vouchers",
           "finance-balance-sheet",
           "finance-journal-ledger",
+          "finance-transfer-sources",
         ].includes(key)
           ? locale === "en"
             ? "General ledger"
@@ -378,7 +424,7 @@ export default function App() {
           locale === "en" ? "Platform Customization" : "Platform Uyarlama",
       },
     ];
-    const visible = [...pageResults, ...tenantModuleSearchItems].filter(
+    const visible = [...pageResults, ...tenantModuleSearchItems, ...customMenuSearchItems].filter(
       (result) =>
         !["audit", "access", "settings"].includes(result.page || "") ||
         tenant?.role === "TenantAdmin",
@@ -387,7 +433,9 @@ export default function App() {
     const settings = new Map(standardMenu.items.map((item, index) => [item.page, { ...item, index }]));
     const renamed = visible.map(item => {
       const setting = item.page ? settings.get(item.page) : undefined;
-      return setting?.label ? { ...item, label: setting.label } : item;
+      return item.kind !== "custom-menu" && setting?.label
+        ? { ...item, label: setting.label }
+        : item;
     });
     // Reorder within existing groups while preserving their positions and permission filtering.
     const groups = new Map<string, GlobalSearchResult[]>();
@@ -398,7 +446,7 @@ export default function App() {
     for (const items of groups.values()) items.sort((a, b) =>
       (settings.get(a.page ?? "")?.index ?? Number.MAX_SAFE_INTEGER) - (settings.get(b.page ?? "")?.index ?? Number.MAX_SAFE_INTEGER));
     return renamed.map(item => groups.get(item.description)!.shift()!);
-  }, [locale, tenant?.role, tenantModuleSearchItems, standardMenu]);
+  }, [locale, tenant?.role, tenantModuleSearchItems, customMenuSearchItems, standardMenu]);
   const {
     page,
     setActivePage,
@@ -410,6 +458,9 @@ export default function App() {
     notice,
     setNotice,
     closeModuleTab,
+    confirmCloseModuleTab,
+    pendingCloseTab,
+    cancelCloseModuleTab,
     moveModuleTab,
     resetWorkspace,
   } = useWorkspaceTabs({
@@ -421,13 +472,9 @@ export default function App() {
     pageResults: globalSearchPages,
     onSelectModule: setSelectedModuleMenu,
   });
-  const dashboardSearchResult = globalSearchPages.find(
-    (result) => result.page === "dashboard",
-  );
   const globalQuickLinks = useMemo(
     () =>
       [
-        dashboardSearchResult,
         ...globalQuickMenuPageIds.map((key) =>
           globalSearchPages.find((result) => result.page === key),
         ),
@@ -440,7 +487,7 @@ export default function App() {
         const ranks = new Map(standardMenu.items.map((item, index) => [item.page, index]));
         return (ranks.get(a.page ?? "") ?? Number.MAX_SAFE_INTEGER) - (ranks.get(b.page ?? "") ?? Number.MAX_SAFE_INTEGER);
       }),
-    [globalSearchPages, globalQuickMenuPageIds, dashboardSearchResult, standardMenu],
+    [globalSearchPages, globalQuickMenuPageIds, standardMenu],
   );
   const workspaceSearch = useWorkspaceSearch({
     pages: globalSearchPages,
@@ -547,8 +594,7 @@ export default function App() {
     destination.searchParams.set("contextPage", contextPage);
     destination.searchParams.set("platformOrigin", window.location.origin);
     const labels: Record<string, string> = {
-      dashboard: "Genel Bakış",
-      customers: "Cari Yönetimi",
+      customers: "Cari Hesaplar",
       "crm-opportunities": "CRM Fırsatları",
       "human-resources": "İnsan Kaynakları",
       "fixed-assets": "Sabit Kıymetler",
@@ -562,10 +608,13 @@ export default function App() {
       "inventory-stock-create": "Yeni stok kartı",
       "inventory-warehouses": "Depo Yönetimi",
       "sales-quotes": "Satış Teklifleri",
+      "sales-quote-create": "Yeni Teklif",
       "sales-orders": "Satış Siparişleri",
       "sales-order-create": "Yeni Sipariş",
       "sales-invoices": "Satış Faturaları",
+      "sales-invoice-create": "Yeni Fatura",
       "sales-deliveries": "İrsaliyeler",
+      "sales-delivery-create": "Yeni İrsaliye",
       "sales-purchase-invoices": "Alış Faturaları",
       "sales-purchase-receipts": "Mal Kabulleri",
       "finance-accounts": "Kasalar",
@@ -577,6 +626,8 @@ export default function App() {
       "finance-trial-balance": "Mizan",
       "finance-balance-sheet": "Bilanço",
       "finance-journal-ledger": "Yevmiye Defterleri",
+      "finance-transfer-sources": "Aktarılabilir Kaynaklar",
+      "manufacturing-order-create": "Yeni üretim emri",
       "custom-forms": "Özel Formlar",
       "custom-lists": "Dinamik Listeler",
       "custom-menus": "Özel Menüler",
@@ -625,10 +676,9 @@ export default function App() {
     setPlatformStatus("checking");
     setError("");
     try {
-      setDashboard(await api<Dashboard>("/api/dashboard", access));
+      await api<Dashboard>("/api/dashboard", access);
       setPlatformStatus("ready");
     } catch (e) {
-      setDashboard(null);
       setPlatformStatus("unavailable");
       setError((e as Error).message);
     }
@@ -726,7 +776,6 @@ export default function App() {
       setToken(result.accessToken);
       setTenant(null);
       setTenants([]);
-      setDashboard(null);
       setPlatformSession(true);
       setPage("platform-tenants");
     } catch (e) {
@@ -761,7 +810,6 @@ export default function App() {
       }).catch(() => {});
     setToken("");
     setTenant(null);
-    setDashboard(null);
     setPlatformStatus("checking");
     setTenants([]);
     setPlatformSession(false);
@@ -812,8 +860,10 @@ export default function App() {
     return (
       <ModuleLauncher
         tenant={tenant}
+        token={token}
         tenants={tenants}
         canDefineCompany={platformAdminAvailable}
+        actionError={error}
         onSelectTenant={(item) => {
           void selectTenant(item);
         }}
@@ -844,6 +894,10 @@ export default function App() {
         onToggleEditMode={() => setGlobalQuickMenuEditMode((value) => !value)}
         onToggleQuickLink={toggleGlobalQuickMenuPage}
         onSignOut={logout}
+        onOpenSettings={() => setPage("settings")}
+        loadSummary={() => api<ErpDashboardSummary>("/api/dashboard/erp-summary", token)}
+        loadExchangeRates={() => api<ExchangeRate[]>("/api/finance/exchange-rates", token)}
+        loadFinancialAccounts={() => api<FinancialAccount[]>("/api/finance/accounts/", token)}
       />
     );
   return (
@@ -860,7 +914,6 @@ export default function App() {
       dirtyTabs={dirtyTabs}
       error={error}
       notice={notice}
-      dashboard={dashboard}
       platformStatus={platformStatus}
       selectedModuleMenu={selectedModuleMenu}
       pendingCustomerInvoiceId={pendingCustomerInvoiceId}
@@ -875,7 +928,6 @@ export default function App() {
       globalSearchInputRef={globalSearchInputRef}
       globalQuickMenuEditMode={globalQuickMenuEditMode}
       globalQuickMenuPageIds={globalQuickMenuPageIds}
-      onToggleMenu={toggleGlobalSearch}
       onOpenSearch={openGlobalSearch}
       onThemeChange={setTheme}
       onLocaleChange={changeLocale}
@@ -897,6 +949,9 @@ export default function App() {
       }}
       onNavigate={setPage}
       onCloseTab={closeModuleTab}
+      pendingCloseTab={pendingCloseTab}
+      onConfirmCloseTab={confirmCloseModuleTab}
+      onCancelCloseTab={cancelCloseModuleTab}
       onMoveTab={moveModuleTab}
       onDismissError={() => setError("")}
       onDismissNotice={() => setNotice("")}

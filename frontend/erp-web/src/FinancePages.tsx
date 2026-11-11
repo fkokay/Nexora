@@ -1,5 +1,5 @@
 import { lazy, useEffect, useRef, useState } from "react";
-import { ShieldCheck, X } from "lucide-react";
+import { Activity, Landmark, ShieldCheck, Wallet, X } from "lucide-react";
 import { api, parseBankStatementCsv, localDateString } from "./erpApi";
 import { FinanceStudioGrid } from "./FinanceStudioGrid";
 import { CashFlowReportPanel } from "./finance/components/CashFlowReportPanel";
@@ -70,6 +70,8 @@ function FinancePage({
       "Belirlenen tarih itibarıyla varlık, yükümlülük ve özkaynak bakiyelerini görün.",
     "finance-journal-ledger":
       "Yevmiye fişlerini ve muhasebeye aktarılmayı bekleyen kaynakları inceleyin.",
+    "finance-transfer-sources":
+      "Satış, satın alma, tahsilat ve stok kaynaklarını muhasebeye aktarın.",
     "finance-budget":
       "Dönemsel bütçe senaryolarını oluşturun ve defter gerçekleşenleriyle karşılaştırın.",
     "finance-cash-budget":
@@ -97,9 +99,11 @@ function FinancePage({
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]),
     [detail, setDetail] = useState<FinancialAccountDetail | null>(null),
     [accountQuery, setAccountQuery] = useState(""),
+    [accountQueryDraft, setAccountQueryDraft] = useState(""),
     [accountStateFilter, setAccountStateFilter] = useState<
       "all" | "active" | "inactive"
-    >("all");
+    >("all"),
+    [accountStateDraft, setAccountStateDraft] = useState<"all" | "active" | "inactive">("all");
   const kindAccounts = accounts.filter(
     (account) => account.type === accountKind,
   );
@@ -139,6 +143,19 @@ function FinancePage({
     [cashFlowTo, setCashFlowTo] = useState(localDateString()),
     [cashFlowLoading, setCashFlowLoading] = useState(false);
   const [maturity, setMaturity] = useState<MaturityReport | null>(null);
+  const [maturityQuery, setMaturityQuery] = useState("");
+  const [maturityDirection, setMaturityDirection] = useState<"all" | "Receivable" | "Payable">("all");
+  const maturityItems = (maturity?.items ?? []).filter((item) => {
+    const query = maturityQuery.trim().toLocaleLowerCase("tr-TR");
+    const matchesQuery = !query || `${item.invoiceCode} ${item.counterpartyName}`.toLocaleLowerCase("tr-TR").includes(query);
+    return matchesQuery && (maturityDirection === "all" || item.direction === maturityDirection);
+  });
+  const maturitySummaries = (maturity?.summaries ?? []).filter(
+    (summary) => maturityDirection === "all" || summary.direction === maturityDirection,
+  );
+  const overdueMaturityCount = (maturity?.items ?? []).filter((item) => item.daysOverdue > 0).length;
+  const receivableMaturityCount = (maturity?.items ?? []).filter((item) => item.direction === "Receivable").length;
+  const payableMaturityCount = (maturity?.items ?? []).filter((item) => item.direction === "Payable").length;
   const [fxExposure, setFxExposure] = useState<FxExposureReport | null>(null);
   const [statements, setStatements] = useState<BankStatement[]>([]),
     [statementDetail, setStatementDetail] =
@@ -151,8 +168,9 @@ function FinancePage({
     [notice, setNotice] = useState("");
   const [accountCreateOpen, setAccountCreateOpen] = useState(false),
     [statementImportOpen, setStatementImportOpen] = useState(false);
-  const accountCreateDialog = useRef<HTMLDialogElement>(null),
-    statementImportDialog = useRef<HTMLDialogElement>(null);
+  const [editingAccount, setEditingAccount] = useState<FinancialAccount | null>(null);
+  const statementImportDialog = useRef<HTMLDialogElement>(null);
+  const [accountFormTab, setAccountFormTab] = useState<"general" | "finance">("general");
   const [code, setCode] = useState(""),
     [name, setName] = useState(""),
     [currencyCode, setCurrencyCode] = useState("TRY"),
@@ -185,20 +203,22 @@ function FinancePage({
     [transferReference, setTransferReference] = useState(""),
     [transferDate, setTransferDate] = useState(localDateString());
   useEffect(() => {
-    const dialog = accountCreateDialog.current;
-    if (!accountCreateOpen || !dialog) return;
-    const previousOverflow = document.body.style.overflow;
-    dialog.showModal();
-    document.body.style.overflow = "hidden";
-    return () => {
-      dialog.close();
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [accountCreateOpen]);
-  useEffect(() => {
     if (createOnOpen && section === "finance-accounts")
       setAccountCreateOpen(true);
   }, [createOnOpen, section]);
+  useEffect(() => {
+    if (section !== "finance-banks") return;
+    const title = accountCreateOpen
+      ? editingAccount
+        ? "Banka Hesabı Düzenle"
+        : "Banka Kartı Tanımlama"
+      : "";
+    window.dispatchEvent(
+      new CustomEvent("workspace-subroute-title", {
+        detail: { page: "finance-banks", title },
+      }),
+    );
+  }, [accountCreateOpen, editingAccount, section]);
   useEffect(() => {
     const dialog = statementImportDialog.current;
     if (!statementImportOpen || !dialog) return;
@@ -324,22 +344,24 @@ function FinancePage({
     setError("");
     setNotice("");
     try {
-      await api("/api/finance/accounts", token, {
-        method: "POST",
+      await api(editingAccount ? `/api/finance/accounts/${editingAccount.id}` : "/api/finance/accounts", token, {
+        method: editingAccount ? "PUT" : "POST",
         body: JSON.stringify({
           code,
           name,
           type: accountKind,
           currencyCode,
-          openingBalance: Number(openingBalance),
+          openingBalance: editingAccount ? 0 : Number(openingBalance),
         }),
       });
       setCode("");
       setName("");
       setOpeningBalance("0");
       setAccountCreateOpen(false);
+      setEditingAccount(null);
+      setAccountFormTab("general");
       setNotice(
-        `${accountKind === "Cash" ? "Kasa" : "Banka"} hesabı oluşturuldu.`,
+        `${accountKind === "Cash" ? "Kasa" : "Banka"} hesabı ${editingAccount ? "güncellendi" : "oluşturuldu"}.`,
       );
       await load();
     } catch (e) {
@@ -347,6 +369,19 @@ function FinancePage({
     } finally {
       setBusy(false);
     }
+  }
+  function editAccount(account: FinancialAccount) {
+    setEditingAccount(account); setCode(account.code); setName(account.name);
+    setCurrencyCode(account.currencyCode); setOpeningBalance("0"); setAccountFormTab("general"); setAccountCreateOpen(true);
+  }
+  async function deleteAccount(account: FinancialAccount) {
+    if (!window.confirm(`“${account.name}” hesabını silmek istiyor musunuz?`)) return;
+    setBusy(true); setError("");
+    try {
+      await api(`/api/finance/accounts/${account.id}`, token, { method: "DELETE" });
+      setNotice(`${account.name} hesabı silindi.`); await load();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   }
   async function showDetail(account: { id: string }, page = 1) {
     try {
@@ -699,6 +734,7 @@ function FinancePage({
       | "trial-balance"
       | "balance-sheet"
       | "journal-ledger"
+      | "transfer-sources"
     >
   > = {
     "finance-ledger": "overview",
@@ -708,19 +744,64 @@ function FinancePage({
     "finance-trial-balance": "trial-balance",
     "finance-balance-sheet": "balance-sheet",
     "finance-journal-ledger": "journal-ledger",
+    "finance-transfer-sources": "transfer-sources",
   };
   return (
     <div
-      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}`}
+      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}`}
     >
       {!ledgerViews[section] && (
         <div className="page-heading">
-          <div>
-            <p className="eyebrow">FİNANS YÖNETİMİ</p>
-            <h1>{financePageTitles[section]}</h1>
-            <p className="muted">{financePageDescriptions[section]}</p>
+          <div className={isAccountsPage ? "finance-account-heading-main" : undefined}>
+            {isAccountsPage && <span className="finance-account-heading-icon"><Landmark size={22} /></span>}
+            <div>
+              <p className="eyebrow">{accountCreateOpen && isAccountsPage ? "FİNANS YÖNETİMİ · KAYIT" : "FİNANS YÖNETİMİ"}</p>
+              <h1>{accountCreateOpen && isAccountsPage
+                ? editingAccount ? `${accountKind === "Cash" ? "Kasa" : "Banka" } Hesabı Düzenle` : `${accountKind === "Cash" ? "Kasa" : "Banka" } Kartı Tanımlama`
+                : financePageTitles[section]}</h1>
+              <p className="muted">{accountCreateOpen && isAccountsPage
+                ? editingAccount ? "Hesap bilgilerini güncelleyin. Açılış bakiyesi hareket kaydı olarak korunur." : "Yeni hesabın temel ve finansal bilgilerini tanımlayın."
+                : financePageDescriptions[section]}</p>
+            </div>
           </div>
+          {isAccountsPage && (
+            <div className="heading-actions">
+              {accountCreateOpen ? <>
+                <button type="button" className="secondary" onClick={() => { setAccountCreateOpen(false); setEditingAccount(null); setError(""); setAccountFormTab("general"); }}>Vazgeç</button>
+                <button type="submit" form="finance-account-record-form" className="primary" disabled={busy}>{busy ? "Kaydediliyor…" : editingAccount ? "Değişiklikleri Kaydet" : `${accountKind === "Cash" ? "Kasa" : "Banka" } Kartını Kaydet`}</button>
+              </> : <button
+                type="button"
+                className="primary"
+                onClick={() => { setEditingAccount(null); setCode(""); setName(""); setCurrencyCode("TRY"); setOpeningBalance("0"); setAccountFormTab("general"); setAccountCreateOpen(true); }}
+              >+ Yeni {accountKind === "Cash" ? "kasa" : "banka"}</button>}
+            </div>
+          )}
         </div>
+      )}
+      {accountCreateOpen && isAccountsPage && (
+        <section className="finance-account-record-form customer-create-page-surface">
+          <nav className="customer-create-tabs" aria-label="Hesap bilgileri sekmeleri">
+            <button type="button" aria-current={accountFormTab === "general" ? "page" : undefined} onClick={() => setAccountFormTab("general")}>Genel Bilgiler</button>
+            <button type="button" aria-current={accountFormTab === "finance" ? "page" : undefined} onClick={() => setAccountFormTab("finance")}>Finansal Bilgiler</button>
+          </nav>
+          <form id="finance-account-record-form" className="finance-account-record-fields" onSubmit={create}>
+            {accountFormTab === "general" ? <fieldset className="erp-form-group">
+              <legend><Landmark size={16} /> Temel Bilgiler</legend>
+              <div className="finance-account-record-grid">
+                <label>{accountKind === "Cash" ? "Kasa" : "Banka"} kodu<input value={code} onChange={(e) => setCode(e.target.value)} required maxLength={40} placeholder={accountKind === "Cash" ? "KASA-01" : "BANKA-01"} /></label>
+                <label>{accountKind === "Cash" ? "Kasa" : "Banka"} adı<input value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} placeholder={accountKind === "Cash" ? "Merkez kasa" : "Merkez banka hesabı"} /></label>
+                <label>Hesap türü<select value={accountKind} disabled><option value="Bank">Banka</option><option value="Cash">Kasa</option></select></label>
+                <label>Döviz kodu<input value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())} required minLength={3} maxLength={3} /></label>
+              </div>
+            </fieldset> : <fieldset className="erp-form-group">
+              <legend><Wallet size={16} /> Finansal Bilgiler</legend>
+              {editingAccount ? <p className="finance-account-record-note">Hesap bakiyesi hareketlerden hesaplanır. Açılış bakiyesi değişikliği ayrı bir hareket olarak kaydedilmelidir.</p> : <div className="finance-account-record-grid">
+                <label>Açılış bakiyesi<input type="number" min={accountKind === "Cash" ? 0 : undefined} step="0.01" value={openingBalance} onChange={(e) => setOpeningBalance(e.target.value)} /></label>
+                <p className="finance-account-record-note">Açılış bakiyesi ayrı bir ilk hareket olarak kaydedilir ve hesap bakiyesi hareketlerden hesaplanır.</p>
+              </div>}
+            </fieldset>}
+          </form>
+        </section>
       )}
       {section === "finance-credit-facilities" && (
         <CreditFacilitiesPage token={token} role={role} />
@@ -777,7 +858,7 @@ function FinancePage({
       )}
       {section === "finance-cash-flow" && <CashForecastPanel token={token} />}
       {section === "finance-exposure" && (
-        <div className="panel">
+        <div className="panel finance-exposure-panel">
           <div className="panel-heading">
             <div>
               <h3>Döviz pozisyonu · açık cari bakiyeler</h3>
@@ -945,7 +1026,33 @@ function FinancePage({
         </div>
       )}
       {section === "finance-maturities" && (
-        <div className="panel">
+        <div className="maturity-workbench">
+          <section className="maturity-overview" aria-label="Vade özeti">
+            <article className="maturity-stat"><span>Açık fatura</span><b>{maturity?.items.length ?? 0}</b><small>Alış ve satış faturaları</small></article>
+            <article className="maturity-stat"><span>Alacak faturası</span><b>{receivableMaturityCount}</b><small>Açık satış faturası</small></article>
+            <article className="maturity-stat"><span>Borç faturası</span><b>{payableMaturityCount}</b><small>Açık alış faturası</small></article>
+            <article className="maturity-stat maturity-stat-warning"><span>Vadesi geçmiş</span><b>{overdueMaturityCount}</b><small>Ödeme tarihi geçen</small></article>
+          </section>
+          <section className="maturity-filter-card" aria-label="Vade filtreleri">
+            <div>
+              <h3>Filtreler</h3>
+              <p>Açık faturaları fatura numarası, cari veya işlem yönüne göre daraltın.</p>
+            </div>
+            <label>
+              Fatura veya cari ara
+              <input type="search" value={maturityQuery} onChange={(event) => setMaturityQuery(event.target.value)} placeholder="Fatura no veya cari adı" />
+            </label>
+            <label>
+              Yön
+              <select value={maturityDirection} onChange={(event) => setMaturityDirection(event.target.value as "all" | "Receivable" | "Payable")}>
+                <option value="all">Alacak ve borç</option>
+                <option value="Receivable">Alacak</option>
+                <option value="Payable">Borç</option>
+              </select>
+            </label>
+            <span className="maturity-filter-count">{maturityItems.length} fatura</span>
+          </section>
+          <div className="panel">
           <div className="panel-heading">
             <div>
               <h3>Vade takibi</h3>
@@ -976,7 +1083,7 @@ function FinancePage({
                   </tr>
                 </thead>
                 <tbody>
-                  {maturity?.summaries.map((s) => (
+                  {maturitySummaries.map((s) => (
                     <tr key={`${s.direction}-${s.currencyCode}`}>
                       <td>
                         <b>
@@ -1017,7 +1124,7 @@ function FinancePage({
                       </td>
                     </tr>
                   ))}
-                  {maturity?.summaries.length === 0 && (
+                  {maturitySummaries.length === 0 && (
                     <tr>
                       <td colSpan={8} className="table-empty">
                         Açık vadeli fatura bulunmuyor.
@@ -1031,7 +1138,7 @@ function FinancePage({
           <div className="list-toolbar">
             <div>
               <h3>Açık faturalar</h3>
-              <p>{maturity?.items.length ?? 0} kayıt</p>
+              <p>{maturityItems.length} kayıt</p>
             </div>
           </div>
           <div className="ledger-list">
@@ -1053,7 +1160,7 @@ function FinancePage({
                   </tr>
                 </thead>
                 <tbody>
-                  {maturity?.items.map((i) => (
+                  {maturityItems.map((i) => (
                     <tr key={`${i.direction}-${i.invoiceId}`}>
                       <td>
                         <span className="customer-code">{i.invoiceCode}</span>
@@ -1079,10 +1186,10 @@ function FinancePage({
                       </td>
                     </tr>
                   ))}
-                  {maturity?.items.length === 0 && (
+                  {maturityItems.length === 0 && (
                     <tr>
                       <td colSpan={7} className="table-empty">
-                        Açık fatura bulunmuyor.
+                        {maturity?.items.length ? "Filtrelere uygun açık fatura bulunmuyor." : "Açık fatura bulunmuyor."}
                       </td>
                     </tr>
                   )}
@@ -1090,74 +1197,54 @@ function FinancePage({
               </table>
             </FinanceStudioGrid>
           </div>
-        </div>
-      )}
-      {isAccountsPage && (
-        <section className="panel finance-account-create-prompt">
-          <div>
-            <h2>
-              {accountKind === "Cash" ? "Kasa hesapları" : "Banka hesapları"}
-            </h2>
-            <p>
-              Hesap kartı oluşturun; açılış bakiyesi ilk hareket olarak
-              kaydedilir.
-            </p>
           </div>
-          <button
-            type="button"
-            className="primary"
-            onClick={() => setAccountCreateOpen(true)}
-          >
-            Yeni {accountKind === "Cash" ? "kasa" : "banka"}
-          </button>
-        </section>
+        </div>
       )}
       {isAccountsPage && (
         <div className="finance-summary-strip">
           <div>
-            <small>Toplam {accountKind === "Cash" ? "kasa" : "banka"}</small>
-            <b>{kindAccounts.length}</b>
+            <span className="finance-summary-icon blue"><Wallet size={19} /></span>
+            <div><small>Toplam {accountKind === "Cash" ? "kasa" : "banka"}</small><b>{kindAccounts.length}</b></div>
           </div>
           <div>
-            <small>Aktif {accountKind === "Cash" ? "kasa" : "banka"}</small>
-            <b>{kindAccounts.filter((a) => a.isActive).length}</b>
+            <span className="finance-summary-icon green"><Landmark size={19} /></span>
+            <div><small>Aktif {accountKind === "Cash" ? "kasa" : "banka"}</small><b>{kindAccounts.filter((a) => a.isActive).length}</b></div>
           </div>
           <div>
-            <small>Toplam hareket</small>
-            <b>
-              {kindAccounts
-                .reduce((sum, a) => sum + a.transactionCount, 0)
-                .toLocaleString("tr-TR")}
-            </b>
+            <span className="finance-summary-icon violet"><Activity size={19} /></span>
+            <div><small>Toplam hareket</small><b>{kindAccounts.reduce((sum, a) => sum + a.transactionCount, 0).toLocaleString("tr-TR")}</b></div>
           </div>
         </div>
       )}
       {isAccountsPage && (
         <FinanceAccountsToolbar
-          visibleCount={visibleAccounts.length}
-          totalCount={kindAccounts.length}
-          query={accountQuery}
-          kind={accountKind}
-          status={accountStateFilter}
-          onQueryChange={setAccountQuery}
-          onStatusChange={setAccountStateFilter}
-          onRefresh={() => void load()}
+          query={accountQueryDraft}
+          status={accountStateDraft}
+          onQueryChange={setAccountQueryDraft}
+          onStatusChange={setAccountStateDraft}
+          onApply={() => { setAccountQuery(accountQueryDraft); setAccountStateFilter(accountStateDraft); }}
         />
       )}
       {isAccountsPage && (
-        <FinanceAccountsGrid
-          loading={loading}
-          busy={busy}
-          accounts={visibleAccounts}
-          fields={visibleAccountFields}
-          onShowDetail={(account) => void showDetail(account)}
-          onToggle={(account) => void toggle(account)}
-        />
-      )}
-      {section === "finance-statements" && (
-        <BankStatementImportPrompt
-          onImport={() => setStatementImportOpen(true)}
-        />
+        <section className="ledger-list finance-accounts-grid-panel">
+          <div className="erp-pane-heading">
+            <div>
+              <h2>{accountKind === "Cash" ? "Kasalar" : "Bankalar"}</h2>
+              <p>{visibleAccounts.length} / {kindAccounts.length} kayıt</p>
+            </div>
+          </div>
+          <FinanceAccountsGrid
+            token={token}
+            loading={loading}
+            busy={busy}
+            accounts={visibleAccounts}
+            fields={visibleAccountFields}
+            onShowDetail={(account) => void showDetail(account)}
+            onToggle={(account) => void toggle(account)}
+            onEdit={editAccount}
+            onDelete={(account) => void deleteAccount(account)}
+          />
+        </section>
       )}
       {section === "finance-statements" && (
         <BankStatementsGrid
@@ -1165,6 +1252,11 @@ function FinancePage({
           statements={statements}
           loading={loading}
           onOpen={(statement) => void loadStatement(statement.id)}
+        />
+      )}
+      {section === "finance-statements" && (
+        <BankStatementImportPrompt
+          onImport={() => setStatementImportOpen(true)}
         />
       )}
       {section === "finance-statements" && statementDetail && (
@@ -1187,117 +1279,6 @@ function FinancePage({
           }
         />
       )}
-      <dialog
-        ref={accountCreateDialog}
-        className="finance-form-dialog"
-        onCancel={(event) => {
-          event.preventDefault();
-          setAccountCreateOpen(false);
-        }}
-        onClick={(event) => {
-          if (event.target === event.currentTarget) setAccountCreateOpen(false);
-        }}
-      >
-        <div className="finance-form-dialog-header">
-          <div>
-            <p className="eyebrow">
-              {accountKind === "Cash" ? "KASA" : "BANKA"}
-            </p>
-            <h2 id="finance-account-create-title">
-              Yeni {accountKind === "Cash" ? "kasa" : "banka"}
-            </h2>
-            <p>Açılış bakiyesi ilk hareket olarak kaydedilir.</p>
-          </div>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="Pencereyi kapat"
-            onClick={() => setAccountCreateOpen(false)}
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <form
-          className="collection-form finance-account-create-form"
-          onSubmit={create}
-        >
-          <div className="form-two">
-            <label>
-              {accountKind === "Cash" ? "Kasa" : "Banka"} kodu
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-                maxLength={40}
-                placeholder={accountKind === "Cash" ? "KASA-01" : "BANKA-01"}
-              />
-            </label>
-            <label>
-              {accountKind === "Cash" ? "Kasa" : "Banka"} adı
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                maxLength={120}
-                placeholder={
-                  accountKind === "Cash" ? "Merkez kasa" : "Merkez banka hesabı"
-                }
-              />
-            </label>
-          </div>
-          <div className="form-two">
-            <label>
-              Hesap türü
-              <select value={accountKind} disabled>
-                <option value="Bank">Banka</option>
-                <option value="Cash">Kasa</option>
-              </select>
-            </label>
-            <label>
-              Döviz kodu
-              <input
-                value={currencyCode}
-                onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())}
-                required
-                minLength={3}
-                maxLength={3}
-              />
-            </label>
-          </div>
-          <div className="form-two">
-            <label>
-              Açılış bakiyesi
-              <input
-                type="number"
-                min={accountKind === "Cash" ? 0 : undefined}
-                step="0.01"
-                value={openingBalance}
-                onChange={(e) => setOpeningBalance(e.target.value)}
-                required
-              />
-            </label>
-            <p className="finance-form-helper">
-              Hesap bakiyesi hareketlerden hesaplanır. Açılış bakiyesi ayrı ilk
-              hareket olarak saklanır.
-            </p>
-          </div>
-          <div className="modal-foot">
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy}
-              onClick={() => setAccountCreateOpen(false)}
-            >
-              Vazgeç
-            </button>
-            <button className="primary" disabled={busy}>
-              {busy
-                ? "Kaydediliyor…"
-                : `${accountKind === "Cash" ? "Kasa" : "Banka"} oluştur`}
-            </button>
-          </div>
-        </form>
-      </dialog>
       <dialog
         ref={statementImportDialog}
         className="finance-form-dialog finance-statement-dialog"

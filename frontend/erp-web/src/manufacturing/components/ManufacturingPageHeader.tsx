@@ -8,11 +8,17 @@ type Props = {
   showRecipeListBack: boolean;
   showCreateWorkCenter: boolean;
   showWorkCenterListBack: boolean;
+  showCreateOrder: boolean;
+  showOrderListBack: boolean;
+  showOrderSave: boolean;
+  canSaveOrder: boolean;
   busy: boolean;
   onCreateRecipe: () => void;
   onBackToRecipeList: () => void;
   onCreateWorkCenter: () => void;
   onBackToWorkCenterList: () => void;
+  onCreateOrder: () => void;
+  onBackToOrderList: () => void;
   onRefresh: () => void;
 };
 
@@ -24,11 +30,17 @@ export default function ManufacturingPageHeader({
   showRecipeListBack,
   showCreateWorkCenter,
   showWorkCenterListBack,
+  showCreateOrder,
+  showOrderListBack,
+  showOrderSave,
+  canSaveOrder,
   busy,
   onCreateRecipe,
   onBackToRecipeList,
   onCreateWorkCenter,
   onBackToWorkCenterList,
+  onCreateOrder,
+  onBackToOrderList,
   onRefresh,
 }: Props) {
   return (
@@ -77,6 +89,21 @@ export default function ManufacturingPageHeader({
             onClick={onBackToWorkCenterList}
           >
             İş merkezlerine dön
+          </button>
+        )}
+        {showCreateOrder && (
+          <button className="primary" type="button" onClick={onCreateOrder}>
+            <Plus size={15} /> Yeni üretim emri
+          </button>
+        )}
+        {showOrderListBack && (
+          <button className="secondary" type="button" onClick={onBackToOrderList}>
+            Listeye dön
+          </button>
+        )}
+        {showOrderSave && (
+          <button className="primary" type="submit" form="manufacturing-order-create-form" disabled={busy || !canSaveOrder}>
+            <Plus size={15} /> Emir planla
           </button>
         )}
         <button

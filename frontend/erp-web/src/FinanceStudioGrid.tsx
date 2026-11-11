@@ -28,11 +28,19 @@ export function FinanceStudioGrid({
   token,
   screenKey,
   defaults,
+  hideSearch = false,
+  externalPagination = false,
+  enableRowSelection = true,
+  onSelectionChange,
   children,
 }: {
   token: string;
   screenKey: string;
   defaults: FinanceGridColumn[];
+  hideSearch?: boolean;
+  externalPagination?: boolean;
+  enableRowSelection?: boolean;
+  onSelectionChange?: (keys: string[]) => void;
   children: ReactNode;
 }) {
   const [fields, setFields] = useState<BuiltInScreenLayoutField[]>(
@@ -79,6 +87,10 @@ export function FinanceStudioGrid({
       <AdvancedDataGrid
         className={table.props.className || "customer-table"}
         gridId={`studio-finance-${screenKey}`}
+        hideSearch={hideSearch}
+        externalPagination={externalPagination}
+        enableRowSelection={enableRowSelection}
+        onSelectionChange={onSelectionChange}
       >
         {children}
       </AdvancedDataGrid>
@@ -190,16 +202,20 @@ export function FinanceStudioGrid({
   );
   const nextTable = cloneElement(table, {
     children: (
-      <>
-        <thead>{nextHeadRows}</thead>
-        <tbody>{nextBodyRows}</tbody>
-      </>
+      [
+        <thead>{nextHeadRows}</thead>,
+        <tbody>{nextBodyRows}</tbody>,
+      ]
     ),
   });
   return (
     <AdvancedDataGrid
       className={table.props.className || "customer-table"}
       gridId={`studio-finance-${screenKey}`}
+      hideSearch={hideSearch}
+      externalPagination={externalPagination}
+      enableRowSelection={enableRowSelection}
+      onSelectionChange={onSelectionChange}
     >
       {nextTable}
     </AdvancedDataGrid>

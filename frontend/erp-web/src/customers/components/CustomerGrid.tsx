@@ -11,7 +11,6 @@ type Props = {
   loading: boolean;
   filter: string;
   selectedCustomerId: string | null;
-  onRefresh: () => void;
   onPageChange: (page: number) => void;
   onSelect: (item: CustomerItem) => void;
   renderCell: (
@@ -29,7 +28,6 @@ export function CustomerGrid({
   loading,
   filter,
   selectedCustomerId,
-  onRefresh,
   onPageChange,
   onSelect,
   renderCell,
@@ -43,13 +41,6 @@ export function CustomerGrid({
             {total} kayıt · sayfa {page}
           </small>
         </div>
-        <button
-          className="secondary small-button"
-          onClick={onRefresh}
-          disabled={loading}
-        >
-          Yenile
-        </button>
       </div>
       <div className="customer-table-wrap">
         <AdvancedDataGrid

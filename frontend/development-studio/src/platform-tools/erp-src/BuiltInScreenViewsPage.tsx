@@ -4,6 +4,7 @@ import ScreenViewPreview from "./built-in-screen-views/components/ScreenViewPrev
 import { groupLayoutFields } from "./built-in-screen-views/components/preview-samples";
 import type {
   Catalog,
+  CustomerPageSettings,
   EditorState,
   LayoutField,
   Revision,
@@ -11,7 +12,7 @@ import type {
 } from "./built-in-screen-views/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
-import { LayoutTemplate, ShieldCheck } from "lucide-react";
+import { Eye, Grid3X3, LayoutTemplate, ListFilter, Save, ShieldCheck, Type, X } from "lucide-react";
 import "./built-in-screen-views.css";
 
 async function api<T>(
@@ -41,18 +42,36 @@ async function api<T>(
     : (response.json() as Promise<T>);
 }
 
+const defaultCustomerPageSettings: CustomerPageSettings = {
+  title: "Cari Hesaplar",
+  description: "Müşteri ve tedarikçi kartlarını firma bazında yönetin.",
+  searchLabel: "Cari ara",
+  searchPlaceholder: "Cari kodu, unvanı veya vergi no ile ara",
+  typeFilterLabel: "Cari türü",
+  statusFilterLabel: "Durum",
+  applyLabel: "Filtrele",
+  showTypeFilter: true,
+  showStatusFilter: true,
+};
+
 export default function BuiltInScreenViewsPage({
   token,
   role,
   locale = "tr",
+  initialScreenKey = "customers",
+  showPageSelector = true,
+  onBack,
 }: {
   token: string;
   role: string;
   locale?: "tr" | "en";
+  initialScreenKey?: string;
+  showPageSelector?: boolean;
+  onBack?: () => void;
 }) {
   const en = locale === "en";
   const [catalogs, setCatalogs] = useState<Catalog[]>([]);
-  const [screenKey, setScreenKey] = useState("customers");
+  const [screenKey, setScreenKey] = useState(initialScreenKey);
   const [state, setState] = useState<EditorState | null>(null);
   const [fields, setFields] = useState<LayoutField[]>([]);
   const [name, setName] = useState("");
@@ -60,7 +79,14 @@ export default function BuiltInScreenViewsPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [gridDialogOpen, setGridDialogOpen] = useState(false);
+  const [pageSettings, setPageSettings] = useState<CustomerPageSettings>(defaultCustomerPageSettings);
+  const [selectedPageWidget, setSelectedPageWidget] = useState("title");
   const loadSequence = useRef(0);
+  useEffect(() => {
+    setScreenKey(initialScreenKey);
+    setHistory([]);
+  }, [initialScreenKey]);
   const admin = role === "TenantAdmin";
   const selectedCatalog = catalogs.find((catalog) => catalog.key === screenKey);
   const screenLabel =
@@ -291,6 +317,7 @@ export default function BuiltInScreenViewsPage({
                                                                                                                                         (en
                                                                                                                                           ? "ERP screen"
                                                                                                                                           : "ERP ekranı");
+  const displayScreenLabel = screenKey === "customers" ? pageSettings.title : screenLabel;
 
   const load = useCallback(
     async (key = screenKey) => {
@@ -309,6 +336,7 @@ export default function BuiltInScreenViewsPage({
         setCatalogs(catalog);
         setState(editor);
         const current = editor.draft || editor.active;
+        setPageSettings(current.pageSettings || defaultCustomerPageSettings);
         setFields(
           current.fields.map((field, position) => ({ ...field, position })),
         );
@@ -345,6 +373,12 @@ export default function BuiltInScreenViewsPage({
       active = false;
     };
   }, [admin, screenKey, state?.draft?.revision, state?.active.revision, token]);
+  useEffect(() => {
+    if (!gridDialogOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setGridDialogOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [gridDialogOpen]);
 
   const visibleFields = useMemo(
     () =>
@@ -387,7 +421,7 @@ export default function BuiltInScreenViewsPage({
     setFields(next.map((field, position) => ({ ...field, position })));
   }
 
-  async function createDraft() {
+  async function createDraft(useStandard = false): Promise<boolean> {
     setBusy(true);
     setError("");
     setNotice("");
@@ -399,15 +433,51 @@ export default function BuiltInScreenViewsPage({
           method: "POST",
           body: JSON.stringify({
             name: state?.active.screenLabel || screenLabel,
+            useStandard,
           }),
         },
       );
       await load();
       setNotice(
         en
-          ? "Draft created from the published layout."
-          : "Yayımlanan düzenden taslak oluşturuldu.",
+          ? useStandard ? "A new draft was created from the built-in standard layout. Review and publish it to apply." : "Draft created from the published layout."
+          : useStandard ? "Yerleşik standart düzenden yeni bir taslak oluşturuldu. Uygulamak için gözden geçirip yayımlayın." : "Yayımlanan düzenden taslak oluşturuldu.",
       );
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function restoreStandardDraft() {
+    if (!state) return;
+    if (!state.draft) {
+      await createDraft(true);
+      return;
+    }
+    if (!window.confirm("Mevcut taslak standart alan ve sayfa ayarlarıyla değiştirilsin mi? Bu işlem yayımlanan sayfayı değiştirmez.")) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const standardFields = state.catalog.fields.map((field, position) => ({
+        ...field,
+        visible: field.defaultVisible,
+        position,
+      }));
+      await api<View>(token, `/api/screen-views/${state.draft.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          expectedRevision: state.draft.revision,
+          name: state.catalog.label,
+          fields: standardFields,
+          ...(screenKey === "customers" ? { pageSettings: defaultCustomerPageSettings } : {}),
+        }),
+      });
+      await load();
+      setNotice("Standart düzen taslağa yüklendi. ERP’de etkinleştirmek için yayımlayın.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -429,13 +499,13 @@ export default function BuiltInScreenViewsPage({
             expectedRevision: state.draft.revision,
             name,
             fields: [...fields].sort((a, b) => a.position - b.position),
+            ...(screenKey === "customers" ? { pageSettings } : {}),
           }),
         },
       );
       await load();
-      setNotice(
-        `${en ? "Draft saved" : "Taslak kaydedildi"} · v${saved.revision}`,
-      );
+      setPageSettings(saved.pageSettings || pageSettings);
+      setNotice(`${en ? "Draft saved" : "Taslak kaydedildi"} · v${saved.revision}`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -528,8 +598,9 @@ export default function BuiltInScreenViewsPage({
         </div>
       )}
       <div className="screen-view-toolbar">
+        {showPageSelector ? (
         <label>
-          {en ? "ERP screen" : "ERP ekranı"}
+          {en ? "Page" : "Sayfa"}
           <select
             value={screenKey}
             disabled={busy}
@@ -776,6 +847,12 @@ export default function BuiltInScreenViewsPage({
             ))}
           </select>
         </label>
+        ) : (
+          <div className="screen-view-current-page">
+            {onBack && <button type="button" onClick={onBack}><LayoutTemplate size={14} /> Sayfa listesi</button>}
+            <strong>{screenLabel}</strong>
+          </div>
+        )}
         <div className="screen-view-version">
           <span className={state?.active.isPublished ? "published" : "default"}>
             <i />
@@ -789,6 +866,18 @@ export default function BuiltInScreenViewsPage({
           </span>
           {state?.active.isPublished && <small>v{state.active.revision}</small>}
         </div>
+        <button type="button" className="secondary small-button" disabled={busy || !state} onClick={() => void restoreStandardDraft()}>{en ? "Return to standard" : "Standarta dön"}</button>
+        {screenKey !== "customers" && <button
+          type="button"
+          className="primary screen-view-grid-open"
+          disabled={busy}
+          onClick={async () => {
+            if (!state?.draft && !(await createDraft())) return;
+            setGridDialogOpen(true);
+          }}
+        >
+          <Grid3X3 size={15} />{en ? "Adjust grid" : "Grid ayarla"}
+        </button>}
         <button
           className="secondary small-button"
           disabled={busy}
@@ -797,8 +886,56 @@ export default function BuiltInScreenViewsPage({
           {en ? "Refresh" : "Yenile"}
         </button>
       </div>
-      {state && (
-        <div className="screen-view-workspace">
+      {screenKey === "customers" && (
+        <div className="screen-view-page-builder">
+          <aside className="screen-view-widget-palette" aria-label="Sayfa widget’ları">
+            <div className="screen-view-widget-palette-heading"><span>WIDGETLER</span><h2>Sayfa bileşenleri</h2><p>Düzenlemek için bir widget seçin.</p></div>
+            {[
+              { id: "title", label: "Sayfa başlığı", detail: "Başlık ve açıklama", icon: Type },
+              { id: "filters", label: "Filtreleme", detail: "Arama ve filtre alanları", icon: ListFilter },
+              { id: "grid", label: "Grid", detail: `${visibleFields.length} görünür sütun`, icon: Grid3X3 },
+            ].map((widget) => {
+              const Icon = widget.icon;
+              return <button key={widget.id} type="button" className={selectedPageWidget === widget.id ? "active" : ""} onClick={() => { setSelectedPageWidget(widget.id); document.getElementById(`customer-widget-${widget.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }}><span className="screen-view-widget-icon"><Icon size={16}/></span><span><b>{widget.label}</b><small>{widget.detail}</small></span><i>Sayfada</i></button>;
+            })}
+            <span className={state?.draft ? "screen-view-draft" : "screen-view-readonly"}>{state?.draft ? "Taslak düzenleniyor" : "Düzenlemek için taslak oluşturun"}</span>
+          </aside>
+          <div className="screen-view-widget-canvas" aria-label="Sayfa widget düzeni">
+            <div className="screen-view-widget-canvas-heading"><div><span>CANVAS</span><b>{pageSettings.title}</b></div><button type="button" onClick={() => document.querySelector(".screen-view-live-preview")?.scrollIntoView({ behavior: "smooth", block: "nearest" })}><Eye size={13}/>Önizlemeye git</button></div>
+            <section id="customer-widget-title" className={`screen-view-page-widget ${selectedPageWidget === "title" ? "selected" : ""}`} onClick={() => setSelectedPageWidget("title")}>
+              <header><span className="screen-view-widget-icon"><Type size={16}/></span><div><b>Sayfa başlığı widget’ı</b><small>Sayfa adı ve açıklama</small></div><span>BAŞLIK</span></header>
+              <div className="screen-view-page-fields title-fields">
+                <label>Başlık<input value={pageSettings.title} disabled={!state?.draft || busy} maxLength={120} onChange={(event) => setPageSettings((current) => ({ ...current, title: event.target.value }))} /></label>
+                <label>Açıklama<input value={pageSettings.description} disabled={!state?.draft || busy} maxLength={300} onChange={(event) => setPageSettings((current) => ({ ...current, description: event.target.value }))} /></label>
+              </div>
+            </section>
+            <section id="customer-widget-filters" className={`screen-view-page-widget ${selectedPageWidget === "filters" ? "selected" : ""}`} onClick={() => setSelectedPageWidget("filters")}>
+              <header><span className="screen-view-widget-icon"><ListFilter size={16}/></span><div><b>Filtreleme widget’ı</b><small>Arama, filtre başlıkları ve görünürlük</small></div><span>FİLTRE</span></header>
+              <div className="screen-view-page-fields filter-fields">
+                <label>Arama etiketi<input value={pageSettings.searchLabel} disabled={!state?.draft || busy} maxLength={60} onChange={(event) => setPageSettings((current) => ({ ...current, searchLabel: event.target.value }))} /></label>
+                <label>Arama ipucu<input value={pageSettings.searchPlaceholder} disabled={!state?.draft || busy} maxLength={120} onChange={(event) => setPageSettings((current) => ({ ...current, searchPlaceholder: event.target.value }))} /></label>
+                <label>Tür filtresi etiketi<input value={pageSettings.typeFilterLabel} disabled={!state?.draft || busy} maxLength={60} onChange={(event) => setPageSettings((current) => ({ ...current, typeFilterLabel: event.target.value }))} /></label>
+                <label>Durum filtresi etiketi<input value={pageSettings.statusFilterLabel} disabled={!state?.draft || busy} maxLength={60} onChange={(event) => setPageSettings((current) => ({ ...current, statusFilterLabel: event.target.value }))} /></label>
+                <label>Filtre düğmesi<input value={pageSettings.applyLabel} disabled={!state?.draft || busy} maxLength={40} onChange={(event) => setPageSettings((current) => ({ ...current, applyLabel: event.target.value }))} /></label>
+                <label className="screen-view-setting-toggle"><input type="checkbox" checked={pageSettings.showTypeFilter} disabled={!state?.draft || busy} onChange={(event) => setPageSettings((current) => ({ ...current, showTypeFilter: event.target.checked }))} />Tür filtresini göster</label>
+                <label className="screen-view-setting-toggle"><input type="checkbox" checked={pageSettings.showStatusFilter} disabled={!state?.draft || busy} onChange={(event) => setPageSettings((current) => ({ ...current, showStatusFilter: event.target.checked }))} />Durum filtresini göster</label>
+              </div>
+            </section>
+            <section id="customer-widget-grid" className={`screen-view-page-widget screen-view-grid-widget ${selectedPageWidget === "grid" ? "selected" : ""}`} onClick={() => setSelectedPageWidget("grid")}>
+              <header><span className="screen-view-widget-icon"><Grid3X3 size={16}/></span><div><b>Grid widget’ı</b><small>Izgara alanları ve sütun düzeni</small></div><span>GRID</span></header>
+              <div className="screen-view-grid-widget-body"><div><b>{visibleFields.length} görünür sütun</b><small>Alan seçimi, sıra ve sütun genişliklerini düzenleyin.</small></div><button type="button" className="primary" disabled={busy} onClick={async (event) => { event.stopPropagation(); if (!state?.draft && !(await createDraft())) return; setGridDialogOpen(true); }}><Grid3X3 size={15}/>Grid ayarla</button></div>
+            </section>
+            <div className="screen-view-widget-save">{state?.draft ? <button type="button" className="secondary" disabled={busy} onClick={() => void saveDraft()}><Save size={14}/>{en ? "Save draft" : "Taslağı kaydet"}</button> : <button type="button" className="primary" disabled={busy} onClick={() => void createDraft()}>{en ? "Create draft" : "Taslak oluştur"}</button>}</div>
+          </div>
+          {state && <div className="screen-view-live-preview"><ScreenViewPreview en={en} screenKey={screenKey} screenLabel={displayScreenLabel} visibleFields={visibleFields} previewGroups={previewGroups} pageSettings={pageSettings} /></div>}
+        </div>
+      )}
+      {screenKey !== "customers" && state && <ScreenViewPreview en={en} screenKey={screenKey} screenLabel={displayScreenLabel} visibleFields={visibleFields} previewGroups={previewGroups} />}
+      {state && gridDialogOpen && (
+        <div className="screen-view-grid-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setGridDialogOpen(false); }}>
+          <section className="screen-view-grid-dialog" role="dialog" aria-modal="true" aria-labelledby="screen-view-grid-dialog-title">
+            <header><div><span>GRID TASARIMI</span><h2 id="screen-view-grid-dialog-title">{displayScreenLabel} · Grid ayarla</h2><p>Alanları gösterin, sıralayın ve sütun genişliklerini düzenleyin.</p></div><button type="button" aria-label="Kapat" onClick={() => setGridDialogOpen(false)}><X size={18}/></button></header>
+            <div className="screen-view-workspace">
           <ScreenViewEditor
             en={en}
             busy={busy}
@@ -810,19 +947,14 @@ export default function BuiltInScreenViewsPage({
             screenKey={screenKey}
             onNameChange={setName}
             onCreateDraft={() => void createDraft()}
+            onCreateStandardDraft={() => void createDraft(true)}
             onSaveDraft={() => void saveDraft()}
             onPublishDraft={() => void publishDraft()}
             onUpdateField={updateField}
             onMove={move}
             onReorder={reorder}
           />
-          <ScreenViewPreview
-            en={en}
-            screenKey={screenKey}
-            screenLabel={screenLabel}
-            visibleFields={visibleFields}
-            previewGroups={previewGroups}
-          />
+          <ScreenViewPreview en={en} screenKey={screenKey} screenLabel={displayScreenLabel} visibleFields={visibleFields} previewGroups={previewGroups} />
           {admin && (
             <ScreenViewHistory
               en={en}
@@ -833,6 +965,8 @@ export default function BuiltInScreenViewsPage({
               onRestore={(revision) => void restoreDraft(revision)}
             />
           )}
+            </div>
+          </section>
         </div>
       )}
     </section>

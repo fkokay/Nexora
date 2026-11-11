@@ -1,32 +1,45 @@
-import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
+import { FinanceStudioGrid } from "../../FinanceStudioGrid";
+import { financeGridDefaults } from "../../financeCatalog";
 import type {
   BuiltInScreenLayoutField,
   FinancialAccount,
 } from "../../erp-types";
 
 type Props = {
+  token: string;
   loading: boolean;
   busy: boolean;
   accounts: FinancialAccount[];
   fields: BuiltInScreenLayoutField[];
   onShowDetail: (account: FinancialAccount) => void;
   onToggle: (account: FinancialAccount) => void;
+  onEdit: (account: FinancialAccount) => void;
+  onDelete: (account: FinancialAccount) => void;
 };
 
 export function FinanceAccountsGrid({
+  token,
   loading,
   busy,
   accounts,
   fields,
   onShowDetail,
   onToggle,
+  onEdit,
+  onDelete,
 }: Props) {
   return (
-    <div className="ledger-list finance-account-list">
-      <table className="customer-table">
-        <thead>
-          <ScreenViewGroupHeader fields={fields} />
-          <tr>
+    <div className="finance-account-list-body">
+      <FinanceStudioGrid
+        token={token}
+        screenKey="finance-accounts"
+        defaults={financeGridDefaults["finance-accounts"]}
+        hideSearch
+        enableRowSelection={false}
+      >
+        <table className="customer-table">
+          <thead>
+            <tr>
             {fields.map((field) => (
               <th
                 key={field.key}
@@ -42,9 +55,9 @@ export function FinanceAccountsGrid({
                 {field.label}
               </th>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+            </tr>
+          </thead>
+          <tbody>
           {accounts.map((account) => (
             <tr key={account.id}>
               {fields.map((field) => (
@@ -88,12 +101,14 @@ export function FinanceAccountsGrid({
                     </span>
                   ) : field.key === "actions" ? (
                     <>
+                      <button className="row-action" disabled={busy} onClick={() => onEdit(account)}>Düzenle</button>
                       <button
                         className="row-action"
                         onClick={() => onShowDetail(account)}
                       >
                         Hareketler
                       </button>
+                      <button className="row-action danger" disabled={busy || account.transactionCount > 0} title={account.transactionCount > 0 ? "Hareketi olan hesap silinemez; pasifleştirin." : "Hesabı sil"} onClick={() => onDelete(account)}>Sil</button>
                       <button
                         className="row-action"
                         disabled={busy}
@@ -125,8 +140,9 @@ export function FinanceAccountsGrid({
               </td>
             </tr>
           )}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </FinanceStudioGrid>
     </div>
   );
 }

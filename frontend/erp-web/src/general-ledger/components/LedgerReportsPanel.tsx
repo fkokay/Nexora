@@ -18,6 +18,8 @@ type FormatAmount = (value: number) => string;
 export type LedgerReportsPanelProps = {
   token: string;
   reportView: "all" | "trial-balance" | "balance-sheet";
+  reportingBasis: "TDHP" | "IFRS";
+  setReportingBasis: Dispatch<SetStateAction<"TDHP" | "IFRS">>;
   trialFrom: string;
   setTrialFrom: Dispatch<SetStateAction<string>>;
   trialTo: string;
@@ -40,6 +42,8 @@ export type LedgerReportsPanelProps = {
 export function LedgerReportsPanel({
   token,
   reportView,
+  reportingBasis,
+  setReportingBasis,
   trialFrom,
   setTrialFrom,
   trialTo,
@@ -64,6 +68,12 @@ export function LedgerReportsPanel({
   return (
     <>
       {" "}
+      <div className="ledger-basis-toolbar">
+        <div><b>Raporlama standardı</b><span>{reportingBasis === "TDHP" ? "Türkiye · Tek Düzen Hesap Planı" : "IFRS / UFRS · eşlenmiş hesaplar"}</span></div>
+        <label>Defter<select value={reportingBasis} onChange={(event) => setReportingBasis(event.target.value as "TDHP" | "IFRS")}>
+          <option value="TDHP">Türkiye · TDHP</option><option value="IFRS">IFRS / UFRS</option>
+        </select></label>
+      </div>
       {(reportView === "all" || reportView === "trial-balance") && (
         <section
           className="ledger-subpanel ledger-reports-panel"
@@ -80,38 +90,44 @@ export function LedgerReportsPanel({
                 hesap bazında gösterilir.
               </p>
             </div>
-            <div className="heading-actions ledger-report-filters">
-              <label>
-                Başlangıç
-                <input
-                  type="date"
-                  value={trialFrom}
-                  max={trialTo || undefined}
-                  onChange={(e) => setTrialFrom(e.target.value)}
-                />
-              </label>
-              <label>
-                Bitiş
-                <input
-                  type="date"
-                  value={trialTo}
-                  min={trialFrom || undefined}
-                  onChange={(e) => setTrialTo(e.target.value)}
-                />
-              </label>
-              <button
-                className="secondary small-button"
-                onClick={() => void loadTrialBalance()}
-              >
-                Mizanı getir
-              </button>
-              <button
-                className="secondary small-button"
-                disabled={!trialBalance}
-                onClick={exportTrialBalance}
-              >
-                CSV indir
-              </button>
+            <div className="ledger-report-filter-card">
+              <div className="ledger-report-filter-heading">
+                <h4>Filtreler</h4>
+                <span>İncelenecek dönemi seçin.</span>
+              </div>
+              <div className="heading-actions ledger-report-filters">
+                <label>
+                  Başlangıç
+                  <input
+                    type="date"
+                    value={trialFrom}
+                    max={trialTo || undefined}
+                    onChange={(e) => setTrialFrom(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Bitiş
+                  <input
+                    type="date"
+                    value={trialTo}
+                    min={trialFrom || undefined}
+                    onChange={(e) => setTrialTo(e.target.value)}
+                  />
+                </label>
+                <button
+                  className="secondary small-button"
+                  onClick={() => void loadTrialBalance()}
+                >
+                  Mizanı getir
+                </button>
+                <button
+                  className="secondary small-button"
+                  disabled={!trialBalance}
+                  onClick={exportTrialBalance}
+                >
+                  CSV indir
+                </button>
+              </div>
             </div>
           </div>
           {trialBalance && (
@@ -227,8 +243,10 @@ export function LedgerReportsPanel({
                 className={trialBalance.isBalanced ? "notice" : "error-banner"}
               >
                 {trialBalance.isBalanced
-                  ? "Mizan hareketleri ve kapanış bakiyeleri dengeli."
-                  : "Mizan hareketleri veya kapanış bakiyeleri dengede değil."}
+                  ? `Mizan hareketleri ve kapanış bakiyeleri dengeli · ${trialBalance.basis || reportingBasis}.`
+                  : trialBalance.isComplete === false
+                    ? `${trialBalance.unmappedAccountCount || 0} hareketli hesapta ${reportingBasis} eşlemesi eksik. Profil tamamlanmadan rapor eksiksiz değildir.`
+                    : "Mizan hareketleri veya kapanış bakiyeleri dengede değil."}
               </p>
             </>
           )}
@@ -250,21 +268,27 @@ export function LedgerReportsPanel({
                 tenant baz para birimiyle gruplanır.
               </p>
             </div>
-            <div className="heading-actions ledger-report-filters">
-              <label>
-                Rapor tarihi
-                <input
-                  type="date"
-                  value={balanceSheetDate}
-                  onChange={(e) => setBalanceSheetDate(e.target.value)}
-                />
-              </label>
-              <button
-                className="secondary small-button"
-                onClick={() => void loadBalanceSheet()}
-              >
-                Bilançoyu getir
-              </button>
+            <div className="ledger-report-filter-card">
+              <div className="ledger-report-filter-heading">
+                <h4>Filtreler</h4>
+                <span>Raporun kesileceği tarihi seçin.</span>
+              </div>
+              <div className="heading-actions ledger-report-filters">
+                <label>
+                  Rapor tarihi
+                  <input
+                    type="date"
+                    value={balanceSheetDate}
+                    onChange={(e) => setBalanceSheetDate(e.target.value)}
+                  />
+                </label>
+                <button
+                  className="secondary small-button"
+                  onClick={() => void loadBalanceSheet()}
+                >
+                  Bilançoyu getir
+                </button>
+              </div>
             </div>
           </div>
           {balanceSheet && (

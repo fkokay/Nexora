@@ -14,6 +14,14 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
     protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PermissionRequirement requirement)
     {
         if (context.Resource is not HttpContext http || context.User.Identity?.IsAuthenticated != true) return;
+        if (http.Request.Path.Equals("/api/user-preferences/workspace-rail", StringComparison.OrdinalIgnoreCase)
+            && (HttpMethods.IsGet(http.Request.Method) || HttpMethods.IsPut(http.Request.Method)))
+        {
+            // Workspace rail preferences are self-service and scoped to the caller's tenant and user
+            // by the endpoint itself; they do not need a configurable tenant permission-catalog entry.
+            context.Succeed(requirement);
+            return;
+        }
         if (string.Equals(http.Request.Path.Value, "/api/auth/tenants", StringComparison.OrdinalIgnoreCase)
             || string.Equals(http.Request.Path.Value, "/api/auth/select-tenant", StringComparison.OrdinalIgnoreCase))
         {

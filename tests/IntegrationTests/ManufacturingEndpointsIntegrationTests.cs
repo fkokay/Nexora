@@ -71,6 +71,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
     private static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid TenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid UserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static readonly Guid OperationPerformerId = Guid.Parse("acacacac-acac-acac-acac-acacacacacac");
     private static readonly Guid ProductId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid ComponentId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
     private static readonly Guid OtherProductId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
@@ -1195,7 +1196,8 @@ public sealed class ManufacturingEndpointsIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, invalidEnergy.StatusCode);
         var operationComplete = await client.PostAsJsonAsync($"/api/manufacturing/orders/{firstId}/operations/{firstOperationId}/complete", new
         {
-            actualSetupMinutes = 36m, actualRunMinutes = 60m, actualEnergyQuantityKwh = 2.5m, actualEnergyCostPerKwhBase = 5m
+            actualSetupMinutes = 36m, actualRunMinutes = 60m, performedByEmployeeId = OperationPerformerId,
+            actualEnergyQuantityKwh = 2.5m, actualEnergyCostPerKwhBase = 5m
         });
         Assert.Equal(HttpStatusCode.OK, operationComplete.StatusCode);
         using var operationJson = JsonDocument.Parse(await operationComplete.Content.ReadAsStringAsync());
@@ -1803,6 +1805,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         var tenantA = new Tenant { Id = TenantA, Name = "Tenant A", Slug = "tenant-a" };
         var tenantB = new Tenant { Id = TenantB, Name = "Tenant B", Slug = "tenant-b" };
         db.Tenants.AddRange(tenantA, tenantB);
+        db.EmployeeRecords.Add(new EmployeeRecord { Id = OperationPerformerId, TenantId = TenantA, PersonnelCode = "MFG-OP-1", FullName = "Üretim Operatörü", HireDate = new DateOnly(2024, 1, 1), Status = EmployeeEmploymentStatus.Active });
         db.Warehouses.Add(new Warehouse { Id = WarehouseId, TenantId = TenantA, Tenant = tenantA, Code = "WH-A", Name = "Main", IsActive = true });
         db.StockItems.AddRange(
             new StockItem { Id = ProductId, TenantId = TenantA, Tenant = tenantA, Code = "FG-CHAIR", Name = "Chair", UnitCode = "EA" },

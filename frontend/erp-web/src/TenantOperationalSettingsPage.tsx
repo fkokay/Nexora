@@ -4,13 +4,14 @@ import {
   Building2,
   CalendarClock,
   CircleDollarSign,
+  Hash,
   Save,
   ShieldCheck,
   Warehouse,
 } from "lucide-react";
 import "./tenant-operational-settings.css";
 import { TenantSettingsHeader } from "./tenant-operational-settings/components/TenantSettingsHeader";
-import { TenantSettingsOverview } from "./tenant-operational-settings/components/TenantSettingsOverview";
+import { DocumentNumberTemplatesPanel } from "./DocumentNumberTemplatesPanel";
 import {
   TenantSettingsNavigation,
   type SettingId,
@@ -288,32 +289,16 @@ export default function TenantOperationalSettingsPage({
       value: retention ? `${retention.retentionDays} gün` : "—",
       icon: CalendarClock,
     },
+    {
+      id: "documents" as const,
+      title: "Belge numaraları",
+      description: "Teklif, sipariş ve e-belge serileri",
+      value: "Şablonlar",
+      icon: Hash,
+    },
   ];
   return (
     <div className="page-content company-settings-page tenant-operational-settings-page">
-      <TenantSettingsHeader
-        tenant={tenant}
-        loading={loading}
-        busy={Boolean(busy)}
-        onNavigate={onNavigate}
-        onRefresh={() => void load()}
-      />
-      <TenantSettingsOverview
-        tenant={tenant}
-        allowNegativeStock={allowNegativeStock}
-        baseCurrencyCode={currency?.baseCurrencyCode ?? null}
-        retentionDays={retention?.retentionDays ?? null}
-        loading={loading}
-      />
-      {!isAdmin && (
-        <div className="boundary-note">
-          <ShieldCheck size={17} />
-          <span>
-            <b>Salt okunur görünüm</b>Bu ayarları yalnızca firma yöneticisi
-            değiştirebilir.
-          </span>
-        </div>
-      )}
       <div className="tenant-settings-workbench">
         <TenantSettingsNavigation
           items={settingItems}
@@ -321,6 +306,22 @@ export default function TenantOperationalSettingsPage({
           onSelect={setActiveSetting}
         />
         <div className="tenant-settings-detail" aria-live="polite">
+          <TenantSettingsHeader
+            tenant={tenant}
+            loading={loading}
+            busy={Boolean(busy)}
+            onNavigate={onNavigate}
+            onRefresh={() => void load()}
+          />
+          {!isAdmin && (
+            <div className="boundary-note">
+              <ShieldCheck size={17} />
+              <span>
+                <b>Salt okunur görünüm</b>Bu ayarları yalnızca firma yöneticisi
+                değiştirebilir.
+              </span>
+            </div>
+          )}
           {activeSetting === "profile" && (
             <section className="panel company-setting-card company-identity-card">
               <div className="panel-heading">
@@ -798,6 +799,10 @@ export default function TenantOperationalSettingsPage({
                 </div>
               )}
             </section>
+          )}
+
+          {activeSetting === "documents" && (
+            <DocumentNumberTemplatesPanel token={token} isAdmin={isAdmin} />
           )}
         </div>
       </div>

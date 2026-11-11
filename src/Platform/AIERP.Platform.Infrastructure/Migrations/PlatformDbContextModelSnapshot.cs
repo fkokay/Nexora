@@ -894,10 +894,30 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("BankBranchCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -908,8 +928,21 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("nchar(3)")
                         .IsFixedLength();
 
+                    b.Property<string>("EInvoiceRecipientAlias")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
                     b.Property<Guid?>("GroupId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Iban")
+                        .HasMaxLength(34)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(34)");
 
                     b.Property<string>("IdentityNumber")
                         .HasMaxLength(11)
@@ -917,6 +950,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("varchar(11)");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsEInvoiceRegistered")
                         .HasColumnType("bit");
 
                     b.Property<string>("Name")
@@ -927,8 +963,24 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<Guid?>("ParentCompanyId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("PayableAccountCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<int>("PaymentTermDays")
                         .HasColumnType("int");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("PriceListCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ReceivableAccountCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
                     b.Property<decimal?>("RiskLimit")
                         .HasPrecision(18, 2)
@@ -953,6 +1005,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.Property<int>("Type")
                         .HasColumnType("int");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
 
                     b.HasKey("Id");
 
@@ -990,7 +1046,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("nchar(2)")
                         .IsFixedLength();
 
-                    b.Property<Guid>("CustomerId")
+                    b.Property<Guid?>("CustomerId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("District")
@@ -10327,6 +10383,14 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AccountingBasis")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(12)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(12)")
+                        .HasDefaultValue("TDHP");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(48)
@@ -10423,6 +10487,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("AccountType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -10431,6 +10500,24 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("CurrencyCode")
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<string>("IfrsAccountCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("IfrsAccountName")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<int>("IfrsStatementSection")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -10438,6 +10525,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(160)
                         .HasColumnType("nvarchar(160)");
+
+                    b.Property<int>("NormalBalance")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("StatementSection")
                         .ValueGeneratedOnAdd()
@@ -10545,6 +10637,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("ActualGoodQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<Guid>("BillOfMaterialId")
                         .HasColumnType("uniqueidentifier");
 
@@ -10573,6 +10669,20 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<decimal?>("ScrapQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("ScrapReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("SourceSalesOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("SourceSalesOrderLineNumber")
+                        .HasColumnType("int");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -10593,11 +10703,15 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "WarehouseId");
 
+                    b.HasIndex("TenantId", "SourceSalesOrderId", "SourceSalesOrderLineNumber");
+
                     b.HasIndex("TenantId", "Status", "PlannedDate");
 
                     b.ToTable("ManufacturingOrders", t =>
                         {
                             t.HasCheckConstraint("CK_ManufacturingOrders_PlannedQuantityPositive", "[PlannedQuantity] > 0");
+
+                            t.HasCheckConstraint("CK_ManufacturingOrders_ProductionActuals", "([ActualGoodQuantity] IS NULL AND [ScrapQuantity] IS NULL AND [ScrapReason] IS NULL) OR ([ActualGoodQuantity] IS NOT NULL AND [ScrapQuantity] IS NOT NULL AND [ActualGoodQuantity] > 0 AND [ScrapQuantity] >= 0 AND [ActualGoodQuantity] + [ScrapQuantity] = [PlannedQuantity] AND ([ScrapQuantity] = 0 OR NULLIF(LTRIM(RTRIM([ScrapReason])), '') IS NOT NULL))");
                         });
                 });
 
@@ -10704,6 +10818,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("PerformedByEmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("PlannedCostBase")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -10801,6 +10918,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("nvarchar(160)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "PerformedByEmployeeId");
 
                     b.HasIndex("TenantId", "ManufacturingOrderId", "Sequence")
                         .IsUnique();
@@ -11580,6 +11699,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         },
                         new
                         {
+                            Code = "erp.custom-data.read",
+                            Action = "read",
+                            Description = "read · Tenant-defined logical data models and records",
+                            ResourceType = "erp.custom-data"
+                        },
+                        new
+                        {
+                            Code = "erp.custom-data.create",
+                            Action = "create",
+                            Description = "create · Tenant-defined logical data models and records",
+                            ResourceType = "erp.custom-data"
+                        },
+                        new
+                        {
+                            Code = "erp.custom-data.update",
+                            Action = "update",
+                            Description = "update · Tenant-defined logical data models and records",
+                            ResourceType = "erp.custom-data"
+                        },
+                        new
+                        {
+                            Code = "erp.custom-data.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant-defined logical data models and records",
+                            ResourceType = "erp.custom-data"
+                        },
+                        new
+                        {
+                            Code = "erp.custom-data.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant-defined logical data models and records",
+                            ResourceType = "erp.custom-data"
+                        },
+                        new
+                        {
                             Code = "erp.workflows.read",
                             Action = "read",
                             Description = "read · Tenant workflow definitions, instances and approvals",
@@ -11717,6 +11871,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             Action = "execute",
                             Description = "execute · Tenant custom navigation entries",
                             ResourceType = "erp.custom-menus"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-customizations.read",
+                            Action = "read",
+                            Description = "read · Tenant low-code customization packages and snapshots",
+                            ResourceType = "erp.tenant-customizations"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-customizations.create",
+                            Action = "create",
+                            Description = "create · Tenant low-code customization packages and snapshots",
+                            ResourceType = "erp.tenant-customizations"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-customizations.update",
+                            Action = "update",
+                            Description = "update · Tenant low-code customization packages and snapshots",
+                            ResourceType = "erp.tenant-customizations"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-customizations.delete",
+                            Action = "delete",
+                            Description = "delete · Tenant low-code customization packages and snapshots",
+                            ResourceType = "erp.tenant-customizations"
+                        },
+                        new
+                        {
+                            Code = "erp.tenant-customizations.execute",
+                            Action = "execute",
+                            Description = "execute · Tenant low-code customization packages and snapshots",
+                            ResourceType = "erp.tenant-customizations"
                         },
                         new
                         {
@@ -12088,41 +12277,6 @@ namespace AIERP.Platform.Infrastructure.Migrations
                             Action = "execute",
                             Description = "execute · Tenant workplace, branch and factory definitions",
                             ResourceType = "erp.organizational-definitions"
-                        },
-                        new
-                        {
-                            Code = "erp.tenant-customizations.read",
-                            Action = "read",
-                            Description = "read · Tenant low-code customization packages and snapshots",
-                            ResourceType = "erp.tenant-customizations"
-                        },
-                        new
-                        {
-                            Code = "erp.tenant-customizations.create",
-                            Action = "create",
-                            Description = "create · Tenant low-code customization packages and snapshots",
-                            ResourceType = "erp.tenant-customizations"
-                        },
-                        new
-                        {
-                            Code = "erp.tenant-customizations.update",
-                            Action = "update",
-                            Description = "update · Tenant low-code customization packages and snapshots",
-                            ResourceType = "erp.tenant-customizations"
-                        },
-                        new
-                        {
-                            Code = "erp.tenant-customizations.delete",
-                            Action = "delete",
-                            Description = "delete · Tenant low-code customization packages and snapshots",
-                            ResourceType = "erp.tenant-customizations"
-                        },
-                        new
-                        {
-                            Code = "erp.tenant-customizations.execute",
-                            Action = "execute",
-                            Description = "execute · Tenant low-code customization packages and snapshots",
-                            ResourceType = "erp.tenant-customizations"
                         },
                         new
                         {
@@ -14344,6 +14498,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AccountingProfileCode")
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -14372,6 +14531,18 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<DateOnly>("InvoiceDate")
                         .HasColumnType("date");
 
+                    b.Property<string>("ProviderInvoiceTypeCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("ProviderInvoiceUuid")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProviderScenario")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProviderSenderAlias")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid>("PurchaseOrderId")
                         .HasColumnType("uniqueidentifier");
 
@@ -14387,6 +14558,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.Property<Guid>("SupplierId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TaxBreakdownJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("TaxTotal")
                         .HasPrecision(18, 2)
@@ -14470,6 +14645,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<decimal>("TaxAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TaxBreakdownJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -15981,6 +16160,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AccountingProfileCode")
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -15998,12 +16182,75 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("DeliveryCarrierName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DeliveryCarrierSurname")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DeliveryCarrierTaxId")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid?>("DeliveryId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly?>("DeliverySentAt")
+                        .HasColumnType("date");
 
                     b.Property<decimal>("DiscountTotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ECommerceIntermediaryCity")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ECommerceIntermediaryCountry")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ECommerceIntermediaryCountryCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ECommerceIntermediaryDistrict")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ECommercePaymentAgentName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ECommercePaymentAlias")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("ECommercePaymentDate")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("ECommercePaymentDueDate")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ECommercePaymentInstructionNote")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ECommercePaymentMeans")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ECommercePaymentTaxId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ECommercePaymentTitle")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ECommercePaymentType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ECommercePurchaseUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EDocumentRecipientAlias")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EDocumentScenario")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EDocumentTypeCode")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("GrandTotal")
                         .HasPrecision(18, 2)
@@ -16011,6 +16258,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.Property<DateOnly>("InvoiceDate")
                         .HasColumnType("date");
+
+                    b.Property<string>("InvoiceType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<Guid?>("OrderId")
                         .HasColumnType("uniqueidentifier");
@@ -16021,6 +16273,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<decimal>("Subtotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TaxBreakdownJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("TaxTotal")
                         .HasPrecision(18, 2)
@@ -16276,6 +16532,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("TaxBreakdownJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -16352,6 +16612,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<DateOnly?>("RequestedDeliveryDate")
                         .HasColumnType("date");
 
+                    b.Property<Guid?>("SalespersonEmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -16376,6 +16639,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("TenantId", "QuoteId")
                         .IsUnique()
                         .HasFilter("[QuoteId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "SalespersonEmployeeId");
 
                     b.HasIndex("TenantId", "OrderDate", "CreatedAt");
 
@@ -16577,6 +16842,34 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<decimal>("DiscountPercent")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("EnteredCurrencyCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(3)")
+                        .HasDefaultValue("TRY");
+
+                    b.Property<string>("EnteredUnitCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)")
+                        .HasDefaultValue("EA");
+
+                    b.Property<decimal>("EnteredUnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExchangeRateToOrderCurrency")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 8)
+                        .HasColumnType("decimal(18,8)")
+                        .HasDefaultValue(1m);
+
+                    b.Property<bool>("IsVatIncluded")
+                        .HasColumnType("bit");
 
                     b.Property<decimal>("LineSubtotal")
                         .HasPrecision(18, 2)
@@ -16812,8 +17105,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("nchar(3)")
                         .IsFixedLength();
 
-                    b.Property<Guid>("CustomerId")
+                    b.Property<Guid?>("CustomerId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DeliveryTerms")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<decimal>("DiscountTotal")
                         .HasPrecision(18, 2)
@@ -16827,8 +17124,21 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<string>("ProspectCustomerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<DateOnly>("QuoteDate")
                         .HasColumnType("date");
+
+                    b.Property<Guid>("RevisionGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("RevisionNumber")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("SalespersonEmployeeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -16855,6 +17165,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasIndex("TenantId", "CustomerId");
 
                     b.HasIndex("TenantId", "QuoteDate", "CreatedAt");
+
+                    b.HasIndex("TenantId", "RevisionGroupId", "RevisionNumber")
+                        .IsUnique();
 
                     b.ToTable("SalesQuotes", t =>
                         {
@@ -17057,6 +17370,28 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<decimal>("DiscountPercent")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("EnteredCurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<string>("EnteredUnitCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<decimal>("EnteredUnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExchangeRateToQuoteCurrency")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("decimal(18,8)");
+
+                    b.Property<bool>("IsVatIncluded")
+                        .HasColumnType("bit");
 
                     b.Property<decimal>("LineSubtotal")
                         .HasPrecision(18, 2)
@@ -17297,14 +17632,49 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<decimal>("CommunicationTaxPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("CostAccountCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("ExciseTaxPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("GrossWeight")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("Height")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsVariantParent")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("Length")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<int>("ManufacturingLeadTimeDays")
                         .HasColumnType("int");
+
+                    b.Property<string>("MarketplaceProductId")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<decimal?>("MaximumStock")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<decimal>("MinimumStock")
                         .HasPrecision(18, 4)
@@ -17315,14 +17685,75 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<decimal?>("NetWeight")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("ParentStockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PriceCurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nchar(3)")
+                        .IsFixedLength();
+
                     b.Property<int>("ProcurementLeadTimeDays")
                         .HasColumnType("int");
+
+                    b.Property<string>("ProductImageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("PurchaseAccountCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<decimal>("PurchaseDiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("PurchaseListPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("PurchaseVatPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("ReorderPoint")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
+
+                    b.Property<decimal>("SafetyStock")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("SalesAccountCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<decimal>("SalesDiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("SalesListPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("SalesVatPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("StampTaxPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -17339,6 +17770,18 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("nvarchar(8)");
 
+                    b.Property<string>("VariantAttributesJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<decimal?>("Width")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("WithholdingTaxPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "Barcode")
@@ -17349,6 +17792,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("TenantId", "Name");
+
+                    b.HasIndex("TenantId", "ParentStockItemId");
 
                     b.ToTable("StockItems", t =>
                         {
@@ -18903,6 +19348,133 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("TenantCustomMenuEntries");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DefinitionJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code", "UpdatedAt");
+
+                    b.HasIndex(new[] { "TenantId", "Code", "IsPublished", "IsArchived" }, "IX_TenantCustomPages_Draft")
+                        .IsUnique()
+                        .HasFilter("[IsPublished] = 0 AND [IsArchived] = 0");
+
+                    b.HasIndex(new[] { "TenantId", "Code", "IsPublished" }, "IX_TenantCustomPages_Published")
+                        .IsUnique()
+                        .HasFilter("[IsPublished] = 1");
+
+                    b.ToTable("TenantCustomPages", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TenantCustomPages_Revision", "[Revision] >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangeKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CustomPageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DefinitionJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "CustomPageId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("TenantCustomPageRevisions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TenantCustomPageRevisions_Revision", "[Revision] >= 1");
+                        });
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantDashboardWidget", b =>
                 {
                     b.Property<Guid>("Id")
@@ -20222,9 +20794,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.HasOne("AIERP.Platform.Domain.CustomerAccount", "Customer")
                         .WithMany("Addresses")
                         .HasForeignKey("TenantId", "CustomerId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasPrincipalKey("TenantId", "Id");
 
                     b.Navigation("Customer");
                 });
@@ -21016,6 +21586,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.SalesOrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SourceSalesOrderId", "SourceSalesOrderLineNumber")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.ManufacturingOrderLine", b =>
@@ -21043,6 +21618,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.EmployeeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PerformedByEmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AIERP.Platform.Domain.ManufacturingWorkCenter", null)
                         .WithMany()
@@ -22019,6 +22600,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrincipalKey("AIERP.Platform.Domain.SalesQuote", "TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("AIERP.Platform.Domain.EmployeeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SalespersonEmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Customer");
 
                     b.Navigation("Quote");
@@ -22193,8 +22780,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("TenantId", "CustomerId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Customer");
 
@@ -22360,6 +22946,14 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.StockItem", "ParentStockItem")
+                        .WithMany("Variants")
+                        .HasForeignKey("TenantId", "ParentStockItemId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ParentStockItem");
 
                     b.Navigation("Tenant");
                 });
@@ -22855,6 +23449,27 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPage", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.TenantCustomPage", "CustomPage")
+                        .WithMany("Revisions")
+                        .HasForeignKey("TenantId", "CustomPageId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CustomPage");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.TenantDashboardWidget", b =>
@@ -23401,6 +24016,8 @@ namespace AIERP.Platform.Infrastructure.Migrations
             modelBuilder.Entity("AIERP.Platform.Domain.StockItem", b =>
                 {
                     b.Navigation("UnitConversions");
+
+                    b.Navigation("Variants");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.SupplierPayment", b =>
@@ -23459,6 +24076,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Navigation("Warehouses");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPage", b =>
+                {
+                    b.Navigation("Revisions");
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantSavedReport", b =>
                 {
                     b.Navigation("Revisions");
@@ -23467,66 +24089,6 @@ namespace AIERP.Platform.Infrastructure.Migrations
             modelBuilder.Entity("AIERP.Platform.Domain.TenantScreenView", b =>
                 {
                     b.Navigation("Revisions");
-                });
-
-            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPage", b =>
-                {
-                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uniqueidentifier");
-                    b.Property<string>("Code").IsRequired().IsUnicode(false).HasMaxLength(40).HasColumnType("varchar(40)");
-                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("datetimeoffset");
-                    b.Property<Guid>("CreatedByUserId").HasColumnType("uniqueidentifier");
-                    b.Property<string>("DefinitionJson").IsRequired().HasColumnType("nvarchar(max)");
-                    b.Property<string>("Description").HasMaxLength(500).HasColumnType("nvarchar(500)");
-                    b.Property<bool>("IsArchived").HasColumnType("bit");
-                    b.Property<bool>("IsPublished").HasColumnType("bit");
-                    b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("nvarchar(120)");
-                    b.Property<int>("Revision").IsConcurrencyToken().HasColumnType("int");
-                    b.Property<Guid>("TenantId").HasColumnType("uniqueidentifier");
-                    b.Property<DateTimeOffset>("UpdatedAt").HasColumnType("datetimeoffset");
-                    b.Property<Guid>("UpdatedByUserId").HasColumnType("uniqueidentifier");
-                    b.HasKey("Id");
-                    b.HasAlternateKey("TenantId", "Id");
-                    b.HasIndex("TenantId", "Code", "IsPublished", "IsArchived").IsUnique().HasFilter("[IsPublished] = 0 AND [IsArchived] = 0").HasDatabaseName("IX_TenantCustomPages_Draft");
-                    b.HasIndex("TenantId", "Code", "IsPublished").IsUnique().HasFilter("[IsPublished] = 1").HasDatabaseName("IX_TenantCustomPages_Published");
-                    b.HasIndex("TenantId", "Code", "UpdatedAt");
-                    b.ToTable("TenantCustomPages", t =>
-                        {
-                            t.HasCheckConstraint("CK_TenantCustomPages_Revision", "[Revision] >= 1");
-                        });
-                });
-
-            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageRevision", b =>
-                {
-                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uniqueidentifier");
-                    b.Property<Guid>("ChangedByUserId").HasColumnType("uniqueidentifier");
-                    b.Property<string>("ChangeKind").IsRequired().IsUnicode(false).HasMaxLength(32).HasColumnType("varchar(32)");
-                    b.Property<string>("Code").IsRequired().IsUnicode(false).HasMaxLength(40).HasColumnType("varchar(40)");
-                    b.Property<Guid>("CustomPageId").HasColumnType("uniqueidentifier");
-                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("datetimeoffset");
-                    b.Property<string>("DefinitionJson").IsRequired().HasColumnType("nvarchar(max)");
-                    b.Property<string>("Description").HasMaxLength(500).HasColumnType("nvarchar(500)");
-                    b.Property<string>("Name").IsRequired().HasMaxLength(120).HasColumnType("nvarchar(120)");
-                    b.Property<int>("Revision").HasColumnType("int");
-                    b.Property<Guid>("TenantId").HasColumnType("uniqueidentifier");
-                    b.HasKey("Id");
-                    b.HasAlternateKey("TenantId", "Id");
-                    b.HasIndex("TenantId", "CustomPageId", "Revision").IsUnique();
-                    b.ToTable("TenantCustomPageRevisions", t =>
-                        {
-                            t.HasCheckConstraint("CK_TenantCustomPageRevisions_Revision", "[Revision] >= 1");
-                        });
-                });
-
-            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPage", b =>
-                {
-                    b.HasOne("AIERP.Platform.Domain.Tenant", null).WithMany().HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
-                    b.Navigation("Revisions");
-                });
-
-            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageRevision", b =>
-                {
-                    b.HasOne("AIERP.Platform.Domain.TenantCustomPage", "CustomPage").WithMany("Revisions").HasForeignKey("TenantId", "CustomPageId").HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Cascade).IsRequired();
-                    b.Navigation("CustomPage");
                 });
 #pragma warning restore 612, 618
         }

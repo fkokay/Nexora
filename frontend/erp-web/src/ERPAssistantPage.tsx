@@ -7,20 +7,18 @@ type ERPAssistantTurn = AppTypes.ERPAssistantTurn;
 export function ERPAssistantPage({ token }: { token: string }) {
   const [question, setQuestion] = useState("");
   const [turns, setTurns] = useState<ERPAssistantTurn[]>([]);
-  const [sharingConfirmed, setSharingConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function sendQuestion(event: React.FormEvent) {
     event.preventDefault();
     const content = question.trim();
-    if (!content || !sharingConfirmed || busy) return;
+    if (!content || busy) return;
     const history = turns
       .slice(-10)
       .map((turn) => ({ role: turn.role, content: turn.content }));
     setBusy(true);
     setError("");
     setQuestion("");
-    setSharingConfirmed(false);
     setTurns((previous) => [...previous, { role: "user", content }]);
     try {
       const result = await api<{ answer: string; readOnly: boolean }>(
@@ -41,7 +39,7 @@ export function ERPAssistantPage({ token }: { token: string }) {
       ]);
     } catch (e) {
       setError(
-        `${(e as Error).message} Soruyu yeniden göndermek için paylaşım onayını tekrar işaretleyin.`,
+        (e as Error).message,
       );
       setQuestion(content);
     } finally {
@@ -143,36 +141,20 @@ export function ERPAssistantPage({ token }: { token: string }) {
               {error}
             </div>
           )}
-          <label
-            className="erp-assistant-consent"
-            htmlFor="erp-assistant-sharing-consent"
-          >
-            <input
-              id="erp-assistant-sharing-consent"
-              type="checkbox"
-              checked={sharingConfirmed}
-              onChange={(event) => setSharingConfirmed(event.target.checked)}
-              disabled={busy}
-            />
-            <span>
-              Sorumu ve gerekli, erişim kapsamındaki ERP verilerini yanıt
-              üretmek için seçili AI sağlayıcısıyla paylaşmayı onaylıyorum.
-            </span>
-          </label>
           <div className="erp-assistant-input-row">
             <textarea
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               placeholder="ERP verileriniz hakkında sorun…"
               maxLength={2000}
-              rows={2}
+              rows={1}
               disabled={busy}
             />
             <button
               className="primary"
               type="submit"
               aria-label="Soruyu gönder"
-              disabled={busy || !sharingConfirmed || !question.trim()}
+              disabled={busy || !question.trim()}
             >
               {busy ? "…" : <Send size={17} />}
             </button>

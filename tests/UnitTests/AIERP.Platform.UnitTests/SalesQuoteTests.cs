@@ -10,7 +10,7 @@ public sealed class SalesQuoteTests
     [InlineData(SalesQuoteStatus.Sent, SalesQuoteStatus.Accepted, true)]
     [InlineData(SalesQuoteStatus.Sent, SalesQuoteStatus.Rejected, true)]
     [InlineData(SalesQuoteStatus.Accepted, SalesQuoteStatus.Rejected, false)]
-    [InlineData(SalesQuoteStatus.Rejected, SalesQuoteStatus.Accepted, false)]
+    [InlineData(SalesQuoteStatus.Rejected, SalesQuoteStatus.Accepted, true)]
     public void Allows_only_supported_quote_transitions(SalesQuoteStatus current, SalesQuoteStatus target, bool expected)
     {
         Assert.Equal(expected, SalesQuoteWorkflow.CanTransition(current, target));

@@ -101,7 +101,7 @@ public static class SalesPlanningInquiryEndpoints
             if (Guid.TryParse(user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
                 && !string.IsNullOrWhiteSpace(user.FindFirstValue("role")))
                 quotes = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, user.FindFirstValue("role")!,
-                    "erp.sales-quotes.read", "erp.sales-quotes", quotes, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? quotes;
+                    "erp.sales-quotes.read", "erp.sales-quotes", quotes, x => x.Status, x => x.CustomerId ?? Guid.Empty, cancellationToken: ct) ?? quotes;
             var quoteIds = quotes.Select(x => x.Id);
             var applications = db.SalesPromotionApplications.AsNoTracking().Where(x => x.TenantId == tenantId
                 && campaignIds.Contains(x.CampaignId) && quoteIds.Contains(x.QuoteId));

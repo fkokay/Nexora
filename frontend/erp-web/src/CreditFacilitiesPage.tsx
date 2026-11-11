@@ -703,6 +703,9 @@ export default function CreditFacilitiesPage({
           error={error}
           notice={notice}
           isAdmin={admin}
+          totalCount={facilities.length}
+          activeCount={active.length}
+          visibleCount={visibleFacilities.length}
           onCreateFacility={() =>
             onNavigate?.("finance-credit-facility-create", "Yeni kredi / limit")
           }
@@ -852,7 +855,7 @@ export default function CreditFacilitiesPage({
           }}
         />
       ) : null}
-      {(isList || view === "security-create") && (
+      {view === "security-create" && (
         <CreditSecuritiesPanel
           isAdmin={admin}
           facilities={facilities}
@@ -934,6 +937,39 @@ export default function CreditFacilitiesPage({
             onReverseMovement={(facility, movement) =>
               void reverseMovement(facility, movement)
             }
+          />
+          <CreditSecuritiesPanel
+            isAdmin={admin}
+            facilities={facilities}
+            securities={securities}
+            expiringCount={expiringSecurities}
+            expiredCount={expiredSecurities}
+            busy={busy}
+            showCreateForm={false}
+            onNavigate={onNavigate}
+            facilityId={securityFacilityId}
+            type={securityType}
+            code={securityCode}
+            issuer={securityIssuer}
+            beneficiary={securityBeneficiary}
+            amount={securityAmount}
+            commission={securityCommission}
+            issueDate={securityIssueDate}
+            expiryDate={securityExpiryDate}
+            notes={securityNotes}
+            formatMoney={money}
+            onSubmit={submitSecurity}
+            onClose={(item, status) => void closeSecurity(item, status)}
+            onFacilityChange={setSecurityFacilityId}
+            onTypeChange={setSecurityType}
+            onCodeChange={setSecurityCode}
+            onIssuerChange={setSecurityIssuer}
+            onBeneficiaryChange={setSecurityBeneficiary}
+            onAmountChange={setSecurityAmount}
+            onCommissionChange={setSecurityCommission}
+            onIssueDateChange={setSecurityIssueDate}
+            onExpiryDateChange={setSecurityExpiryDate}
+            onNotesChange={setSecurityNotes}
           />
           <div className="boundary-note">
             Faiz tahakkuku ve finansman hareketlerinin muhasebe/nakit etkileri

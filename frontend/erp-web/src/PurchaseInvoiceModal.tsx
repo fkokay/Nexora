@@ -5,11 +5,19 @@ import { Plus, X } from "lucide-react";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 type FinancialAccount = AppTypes.FinancialAccount;
 type PurchaseInvoiceDetail = AppTypes.PurchaseInvoiceDetail;
+type AccountingTaxBreakdownLine = AppTypes.AccountingTaxBreakdownLine;
 type StockItemUnitConversion = AppTypes.StockItemUnitConversion;
 type SupplierPayment = AppTypes.SupplierPayment;
 type SupplierReturn = AppTypes.SupplierReturn;
 type Warehouse = AppTypes.Warehouse;
 type WarehouseLocationOption = AppTypes.WarehouseLocationOption;
+
+function readInvoiceTaxBreakdown(value?: string): AccountingTaxBreakdownLine[] {
+  try {
+    const parsed: unknown = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed as AccountingTaxBreakdownLine[] : [];
+  } catch { return []; }
+}
 
 export function PurchaseInvoiceModal({
   invoiceId,
@@ -366,6 +374,20 @@ export function PurchaseInvoiceModal({
                   {invoice.status === "Posted" ? "İşlendi" : "İptal"}
                 </span>
               </div>
+              {(invoice.providerInvoiceUuid || invoice.providerScenario || invoice.providerInvoiceTypeCode || invoice.providerSenderAlias) && (
+                <div className="invoice-meta invoice-detail-meta">
+                  <span>Gelen e-belge: {invoice.providerScenario || "senaryo yok"} · {invoice.providerInvoiceTypeCode || "tür yok"}</span>
+                  {invoice.providerInvoiceUuid && <span>UUID {invoice.providerInvoiceUuid}</span>}
+                  {invoice.providerSenderAlias && <span>Gönderen etiketi {invoice.providerSenderAlias}</span>}
+                </div>
+              )}
+              {(invoice.accountingProfileCode || invoice.taxBreakdownJson) && (() => {
+                const taxes = readInvoiceTaxBreakdown(invoice.taxBreakdownJson);
+                return <section className="invoice-tax-breakdown" aria-label="Mevzuat profili ve vergi dökümü">
+                  <div><b>Vergi mevzuatı</b><span>{invoice.accountingProfileCode || "Profil belirtilmemiş"}</span></div>
+                  {taxes.length > 0 && <div className="invoice-tax-breakdown-list">{taxes.map((tax, index) => <span key={`${tax.code}-${index}`}><b>{tax.name}</b><small>{tax.code} · %{tax.rate} · {tax.treatment === "Withholding" ? "Tevkifat" : "Ek vergi"}</small><strong>{tax.amount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {invoice.currencyCode}</strong></span>)}</div>}
+                </section>;
+              })()}
               <div className="ledger-list invoice-lines-wrap">
                 <table className="customer-table quote-detail-table">
                   <thead>

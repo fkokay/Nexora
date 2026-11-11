@@ -1,0 +1,270 @@
+/* Final shared layout guardrails for the ERP's routed screens. Keep these
+   rules structural so feature pages retain their own colors and hierarchy. */
+#root .app-shell .workspace-page-main,
+#root .app-shell .workspace-content,
+#root .app-shell .workspace-content > * {
+  min-width: 0;
+}
+
+#root .app-shell .workspace-page-main > :is(
+  .page-heading, .screen-page-header, .customer-ledger-heading,
+  .customer-create-page-heading, .credit-operation-page-heading
+) {
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 12px;
+}
+
+#root .app-shell .workspace-page-main > :is(
+  .page-heading, .screen-page-header, .customer-ledger-heading,
+  .customer-create-page-heading, .credit-operation-page-heading
+) > :first-child {
+  min-width: min(100%, 240px);
+}
+
+#root .app-shell .workspace-page-main > :is(
+  .page-heading, .screen-page-header, .customer-ledger-heading,
+  .customer-create-page-heading, .credit-operation-page-heading
+) :is(.heading-actions, .contracts-hero-actions, .crm-hero-actions, .customer-create-page-actions) {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+#root .app-shell .workspace-page-main :is(
+  .panel, .erp-home-panel, .erp-list-pane, .erp-record-pane,
+  .customer-create-page-surface, .customer-create-section,
+  .finance-form-dialog, .sales-order-create-card
+) {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#root .app-shell .workspace-page-main :is(
+  .table-wrap, .table-responsive, .customer-table-wrap, .customer-ledger-table-panel,
+  .contracts-table-wrap, .crm-table-wrap, .credit-table-wrap, .hr-table-wrap,
+  .manufacturing-table-wrap, .payment-instrument-table-wrap, .report-table-wrap,
+  .pie-table-wrap, .sid-table-wrap, .module-ui-table-wrap,
+  .sales-distribution-table-wrap, .cash-forecast-table-wrap,
+  .integration-queue-table-wrap, .advanced-grid-container
+) {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root .app-shell .workspace-page-main form label {
+  min-width: 0;
+}
+
+#root .app-shell .workspace-page-main form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+#root .app-shell .workspace-page-main form :is(input, select) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#root .app-shell .workspace-page-main :is(
+  .filter-toolbar, .filters-row, .customer-toolbar, .customer-directory-toolbar,
+  .customer-ledger-filters, .inventory-movements-filters, .credit-filters,
+  .contracts-filters, .foreign-trade-filters, .payment-instrument-filters,
+  .op-project-filters, .manufacturing-cost-filters, .audit-log-filters,
+  .finance-filters, .integration-queue-toolbar
+) {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  #root .app-shell .workspace-page-main > :is(
+    .page-heading, .screen-page-header, .customer-ledger-heading,
+    .customer-create-page-heading, .credit-operation-page-heading
+  ) {
+    align-items: flex-start;
+  }
+
+  #root .app-shell .workspace-page-main > :is(
+    .page-heading, .screen-page-header, .customer-ledger-heading,
+    .customer-create-page-heading, .credit-operation-page-heading
+  ) :is(.heading-actions, .contracts-hero-actions, .crm-hero-actions, .customer-create-page-actions) {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  #root .app-shell .content.workspace-content {
+    padding: 12px 10px 24px;
+  }
+
+  #root .app-shell .workspace-page-main > :is(
+    .page-heading, .screen-page-header, .customer-ledger-heading,
+    .customer-create-page-heading, .credit-operation-page-heading
+  ) {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  #root .app-shell .workspace-page-main > :is(
+    .page-heading, .screen-page-header, .customer-ledger-heading,
+    .customer-create-page-heading, .credit-operation-page-heading
+  ) :is(.heading-actions, .contracts-hero-actions, .crm-hero-actions, .customer-create-page-actions) {
+    width: 100%;
+  }
+
+  #root .app-shell .workspace-page-main > :is(
+    .page-heading, .screen-page-header, .customer-ledger-heading,
+    .customer-create-page-heading, .credit-operation-page-heading
+  ) :is(.heading-actions, .contracts-hero-actions, .crm-hero-actions, .customer-create-page-actions) > button {
+    flex: 1 1 auto;
+  }
+
+  #root .app-shell .workspace-page-main :is(
+    .filter-toolbar, .filters-row, .customer-toolbar, .customer-directory-toolbar,
+    .customer-ledger-filters, .inventory-movements-filters, .credit-filters,
+    .contracts-filters, .foreign-trade-filters, .payment-instrument-filters,
+    .op-project-filters, .manufacturing-cost-filters, .audit-log-filters,
+    .finance-filters, .integration-queue-toolbar
+  ) {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  #root .app-shell .workspace-page-main :is(
+    .filter-toolbar, .filters-row, .customer-toolbar, .customer-directory-toolbar,
+    .customer-ledger-filters, .inventory-movements-filters, .credit-filters,
+    .contracts-filters, .foreign-trade-filters, .payment-instrument-filters,
+    .op-project-filters, .manufacturing-cost-filters, .audit-log-filters,
+    .finance-filters, .integration-queue-toolbar
+  ) :is(input, select, button) {
+    max-width: 100%;
+  }
+}
+
+/* Keep the primary workspace navigation reachable on phones. The desktop
+   rail is the only route menu, so turn it into a horizontally scrollable
+   bottom bar instead of removing it at narrow widths. */
+@media (max-width: 760px) {
+  #root .app-shell:not(.standalone-studio) > .workspace-rail {
+    position: fixed;
+    z-index: 45;
+    inset: auto 0 0;
+    box-sizing: border-box;
+    display: flex;
+    width: 100%;
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+    flex-direction: row;
+    align-items: stretch;
+    gap: 6px;
+    overflow: hidden;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid #29344b;
+    border-right: 0;
+    background: #101a31;
+  }
+
+  #root .app-shell:not(.standalone-studio) > .workspace-rail > nav {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: row;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #root .app-shell:not(.standalone-studio) > .workspace-rail > nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  #root .app-shell:not(.standalone-studio) .workspace-rail-item {
+    box-sizing: border-box;
+    width: 58px;
+    min-width: 58px;
+    min-height: 54px;
+    flex: 0 0 58px;
+    gap: 3px;
+    padding: 5px 2px;
+    font-size: 8px;
+  }
+
+  #root .app-shell:not(.standalone-studio) .workspace-rail-item span {
+    max-width: 54px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #root .app-shell:not(.standalone-studio) .workspace-rail-edit {
+    width: 48px;
+    min-width: 48px;
+    min-height: 54px;
+    margin: 0;
+    padding: 4px 2px;
+    font-size: 7px;
+  }
+
+  #root .app-shell:not(.standalone-studio) > .main-area > .workspace-content {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  }
+
+  #root .app-shell:not(.standalone-studio) .workspace-rail-editor-backdrop {
+    align-items: center;
+    justify-items: center;
+    padding: 16px;
+  }
+
+  #root .app-shell:not(.standalone-studio) .workspace-rail-editor {
+    width: min(390px, calc(100vw - 32px));
+  }
+}
+
+/* The platform shell has a separate layout from tenant workspaces. Preserve
+   its navigation and keep its content from forcing a narrow viewport wider. */
+#root .platform-admin-shell,
+#root .platform-admin-main,
+#root .platform-admin-content {
+  min-width: 0;
+}
+
+#root .platform-admin-content > * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+#root .platform-admin-content :is(input, select, textarea) {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  #root .platform-admin-topbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  #root .platform-admin-topbar > :is(div, nav) {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  #root .platform-admin-content {
+    padding: 12px;
+  }
+
+  #root .platform-admin-content :is(.platform-provisioning-heading, .platform-license-heading) {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}

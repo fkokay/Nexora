@@ -34,6 +34,26 @@ internal static class TenantCustomPageEndpoints
             return page is null ? Results.NotFound() : Results.Ok(page);
         });
 
+        // Studio preview uses the normal ERP runtime against an unpublished draft, without publishing it.
+        pages.MapGet("/{id:guid}/preview", async (Guid id, ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer auth, CancellationToken ct) =>
+        {
+            if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "read", ct)) return Results.Forbid();
+            var page = await db.TenantCustomPages.AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.Id == id && !x.IsPublished && !x.IsArchived)
+                .Select(x => new PageDefinition(x.Id, x.Code, x.Name, x.Description, x.Revision, x.DefinitionJson))
+                .SingleOrDefaultAsync(ct);
+            if (page is null) return Results.NotFound();
+            var formCodes = ReferencedFormCodes(page.DefinitionJson);
+            var forms = await db.TenantCustomFormDefinitions.AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.Status == "Published" && formCodes.Contains(x.Code))
+                .Select(x => new { x.Id, x.Code, x.Name, x.Description, x.Version, x.FieldsJson })
+                .ToListAsync(ct);
+            var embeddedForms = forms.Select(x => new EmbeddedForm(x.Id, x.Code, x.Name, x.Description, x.Version,
+                JsonSerializer.Deserialize<List<DynamicFormField>>(x.FieldsJson, JsonOptions) ?? [])).ToArray();
+            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, page.DefinitionJson, embeddedForms));
+        });
+
         // Runtime consumers receive only the currently published declarative definition.
         pages.MapGet("/{code}/published", async (string code, ClaimsPrincipal user, TenantDbContext db,
             IPlatformPermissionAuthorizer auth, CancellationToken ct) =>
@@ -56,7 +76,8 @@ internal static class TenantCustomPageEndpoints
             IPlatformPermissionAuthorizer auth, CancellationToken ct) =>
         {
             if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "create", ct)) return Results.Forbid();
-            if (!ValidMetadata(request?.Code, request?.Name, request?.Description, request?.Definition, out var json, out var error)) return Results.BadRequest(new { error });
+            if (request is null) return Results.BadRequest(new { error = "İstek gövdesi gerekli." });
+            if (!ValidMetadata(request.Code, request.Name, request.Description, request.Definition, out var json, out var error)) return Results.BadRequest(new { error });
             var code = request!.Code.Trim();
             if (await db.TenantCustomPages.AnyAsync(x => x.TenantId == tenant && x.Code == code && !x.IsPublished && !x.IsArchived, ct))
                 return Results.Conflict(new { error = "Bu sayfa kodu için açık taslak zaten var." });
@@ -76,14 +97,35 @@ internal static class TenantCustomPageEndpoints
             var page = await db.TenantCustomPages.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Id == id, ct);
             if (page is null) return Results.NotFound();
             if (page.IsPublished || page.IsArchived) return Results.Conflict(new { error = "Yayımlanmış/geçmiş sayfa doğrudan düzenlenemez; aynı code ile yeni taslak açın." });
-            if (request?.ExpectedRevision != page.Revision) return Results.Conflict(new { error = "Taslak güncel değil. Son sürümü yeniden yükleyin.", currentRevision = page.Revision });
-            if (!ValidMetadata(page.Code, request?.Name, request?.Description, request?.Definition, out var json, out var error)) return Results.BadRequest(new { error });
+            if (request is null) return Results.BadRequest(new { error = "İstek gövdesi gerekli." });
+            if (request.ExpectedRevision != page.Revision) return Results.Conflict(new { error = "Taslak güncel değil. Son sürümü yeniden yükleyin.", currentRevision = page.Revision });
+            if (!ValidMetadata(page.Code, request.Name, request.Description, request.Definition, out var json, out var error)) return Results.BadRequest(new { error });
             page.Name = request!.Name.Trim(); page.Description = CleanDescription(request.Description); page.DefinitionJson = json!;
             page.Revision++; page.UpdatedByUserId = userId; page.UpdatedAt = DateTimeOffset.UtcNow;
             db.TenantCustomPageRevisions.Add(RevisionOf(page, userId, "Updated"));
             AddAudit(db, tenant, userId, "custom-page.updated", page.Code);
             await db.SaveChangesAsync(ct);
             return Results.Ok(ToDetail(page));
+        });
+
+        pages.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db,
+            IPlatformPermissionAuthorizer auth, CancellationToken ct) =>
+        {
+            if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "delete", ct)) return Results.Forbid();
+            var page = await db.TenantCustomPages.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Id == id && !x.IsArchived, ct);
+            if (page is null) return Results.NotFound();
+
+            // Retain the page and its revisions for audit/history, while removing it from
+            // the catalog and published runtime.
+            page.IsPublished = false;
+            page.IsArchived = true;
+            page.Revision++;
+            page.UpdatedByUserId = userId;
+            page.UpdatedAt = DateTimeOffset.UtcNow;
+            db.TenantCustomPageRevisions.Add(RevisionOf(page, userId, "Deleted"));
+            AddAudit(db, tenant, userId, "custom-page.deleted", page.Code);
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
         });
 
         pages.MapPost("/{id:guid}/publish", async (Guid id, RevisionRequest? request, ClaimsPrincipal user,
