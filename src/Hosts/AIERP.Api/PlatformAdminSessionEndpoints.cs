@@ -155,7 +155,7 @@ public static class PlatformAdminSessionEndpoints
             context.Response.Cookies.Append(CookieName, nextRefreshToken, CookieOptions(nextSession.ExpiresAt, config, environment));
             context.Response.Headers.CacheControl = "no-store";
             return Results.Ok(new { accessToken = CreateAccessToken(user!, nextSession.Id, config) });
-        }).RequireRateLimiting("login");
+        }).AllowAnonymous().RequireRateLimiting("login");
 
         platform.MapPost("/logout", async (HttpContext context, PlatformDbContext db,
             IConfiguration config, IHostEnvironment environment, CancellationToken cancellationToken) =>
@@ -185,7 +185,7 @@ public static class PlatformAdminSessionEndpoints
             ClearCookie(context, config, environment);
             context.Response.Headers.CacheControl = "no-store";
             return Results.NoContent();
-        }).RequireRateLimiting("login");
+        }).AllowAnonymous().RequireRateLimiting("login");
 
         return auth;
     }
