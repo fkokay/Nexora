@@ -19,3 +19,8 @@ deploy/docker/sandbox-package-cache-r4/
 
 /artifacts/
 docs/trx-*/
+
+# Yerel deploy ve analiz araç çıktıları
+/.codex-ai-service-deploy-context/
+/.codex-deploy-work/
+/.codeql-model-check/

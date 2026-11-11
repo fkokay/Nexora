@@ -25,15 +25,3 @@ export function DashboardMetricCard({
     </article>
   );
 }
-
-type Props = { children: ReactNode };
-export default function DashboardKpiGrid({ children }: Props) {
-  return (
-    <section
-      className="erp-home-kpis dashboard-reference-kpis"
-      aria-label="Firma özeti"
-    >
-      {children}
-    </section>
-  );
-}

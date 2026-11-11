@@ -1,8 +1,7 @@
-import { lazy, useCallback } from "react";
+import { lazy } from "react";
 import type { Locale } from "./WorkspaceComponents";
 import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
 import type * as AppTypes from "./erp-types";
-import type { ErpDashboardSummary } from "./dashboard/types";
 
 const PurchaseDeliveryNotesPage = lazy(
   () => import("./PurchaseDeliveryNotesPage"),
@@ -99,11 +98,6 @@ const InventoryStockPage = lazy(() => import("./InventoryStockPage"));
 const InventoryCostPage = lazy(() => import("./InventoryCostPage"));
 const InventoryWarehousesPage = lazy(() => import("./InventoryWarehousesPage"));
 const InventoryTransfersPage = lazy(() => import("./InventoryTransfersPage"));
-const DashboardPage = lazy(() =>
-  import("./DashboardPage").then((module) => ({
-    default: module.DashboardPage,
-  })),
-);
 const WorkspaceSettingsPage = lazy(() =>
   import("./WorkspaceSettingsPage").then((module) => ({
     default: module.WorkspaceSettingsPage,
@@ -134,7 +128,6 @@ type Props = {
   token: string;
   tenant: AppTypes.Tenant;
   locale: Locale;
-  dashboard: AppTypes.Dashboard | null;
   platformStatus: string;
   selectedModuleMenu: ModuleMenuSelection | null;
   pendingCustomerInvoiceId: string | null;
@@ -161,7 +154,6 @@ export function WorkspacePageRouter({
   token,
   tenant,
   locale,
-  dashboard,
   platformStatus,
   selectedModuleMenu,
   pendingCustomerInvoiceId,
@@ -187,10 +179,6 @@ export function WorkspacePageRouter({
     initialSupplier: pendingPurchaseSupplier,
     onInitialSupplierOpened,
   };
-  const loadDashboardSummary = useCallback(
-    () => requestApi<ErpDashboardSummary>("/api/dashboard/erp-summary", token),
-    [requestApi, token],
-  );
   if (page === "projects")
     return <OperationalProjectsPage token={token} locale={locale} />;
   if (page === "foreign-trade")
@@ -513,17 +501,6 @@ export function WorkspacePageRouter({
     );
   if (page === "ai-settings")
     return <AISettingsPage token={token} requestApi={requestApi} />;
-  if (page === "dashboard")
-    return (
-      <DashboardPage
-        tenantName={tenant.name}
-        dashboardName={dashboard?.tenantName}
-        platformStatus={platformStatus}
-        onNavigate={onNavigate}
-        loadSummary={loadDashboardSummary}
-        token={token}
-      />
-    );
   return (
     <>
       <div className="page-heading studio-heading">

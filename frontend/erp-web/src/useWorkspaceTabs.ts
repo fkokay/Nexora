@@ -22,8 +22,8 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
   const [pendingCloseTab, setPendingCloseTab] = useState<string | null>(null)
 
   const setPage = useCallback((nextPage: string, labelOverride?: string) => {
-    if (nextPage === 'launcher') {
-      setActivePage(nextPage)
+    if (nextPage === 'launcher' || nextPage === 'dashboard') {
+      setActivePage('launcher')
       return
     }
     const result = pageResults.find(item => item.page === nextPage)
@@ -35,7 +35,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
       const action = JSON.parse(sessionStorage.getItem('nexora.customer-sales-action') || 'null') as { page?: string; customerId?: string } | null
       pendingCustomerAction = action?.page === nextPage && Boolean(action.customerId)
     } catch { /* Session storage is optional; keep the normal tab limit if unavailable. */ }
-    if (nextPage !== 'dashboard' && !pendingCustomerAction && !moduleTabs.some(tab => tab.id === nextPage) && moduleTabs.length >= 12) {
+    if (!pendingCustomerAction && !moduleTabs.some(tab => tab.id === nextPage) && moduleTabs.length >= 12) {
       setNotice(locale === 'en' ? 'Close a workspace tab before opening another screen.' : 'Yeni ekran açmak için önce bir çalışma sekmesini kapatın.')
       return
     }
@@ -50,7 +50,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     const nextTabs = moduleTabs.filter(tab => tab.id !== tabId)
     setModuleTabs(nextTabs)
     setDirtyTabs(current => { const next = new Set(current); next.delete(tabId); return next })
-    if (page === tabId) setPage(nextTabs.at(-1)?.id || 'dashboard')
+    if (page === tabId) setPage(nextTabs.at(-1)?.id || 'launcher')
   }, [moduleTabs, page, setPage])
 
   const closeModuleTab = useCallback((tabId: string) => {
@@ -82,7 +82,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
 
   const resetWorkspace = useCallback(() => {
     setModuleTabs([])
-    setActivePage('dashboard')
+    setActivePage('launcher')
     setDirtyTabs(new Set())
   }, [])
 

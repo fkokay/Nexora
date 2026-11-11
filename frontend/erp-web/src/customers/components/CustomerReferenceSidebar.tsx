@@ -127,7 +127,7 @@ function focusStockWidgetFilter(detail: { query?: string; belowMinimumOnly?: boo
   window.dispatchEvent(new CustomEvent("inventory-stock-widget-filter", { detail }));
 }
 
-export function CustomerReferenceSidebar({ token, page, embedded = false, selectedWidgetIds, widgetSizes }: { token: string; page: string; embedded?: boolean; selectedWidgetIds?: string[]; widgetSizes?: Record<string, "small" | "medium" | "large"> }) {
+export function CustomerReferenceSidebar({ token, page }: { token: string; page: string }) {
   const [weather, setWeather] = useState<Weather | null>(null);
   const [weatherLocation, setWeatherLocation] = useState(getSavedWeatherLocation);
   const [rates, setRates] = useState<ExchangeRate[]>([]);
@@ -162,13 +162,12 @@ export function CustomerReferenceSidebar({ token, page, embedded = false, select
   }, []);
 
   useEffect(() => {
-    if (selectedWidgetIds) return;
     if (loadedPreferenceKey !== preferenceKey) return;
     try {
       localStorage.setItem(preferenceKey, JSON.stringify(widgets));
       if (page !== "inventory-stock") window.dispatchEvent(new Event("nexora:shared-dashboard-widgets-changed"));
     } catch { /* optional preference */ }
-  }, [loadedPreferenceKey, page, preferenceKey, selectedWidgetIds, widgets]);
+  }, [loadedPreferenceKey, page, preferenceKey, widgets]);
 
   useEffect(() => {
     let active = true;
@@ -234,7 +233,7 @@ export function CustomerReferenceSidebar({ token, page, embedded = false, select
     return [...grouped.values()].sort((a, b) => b.days - a.days || b.amount - a.amount).slice(0, 4);
   }, [maturity]);
   const availableWidgetCatalog = page === "inventory-stock" ? stockWidgetCatalog : standardWidgetCatalog;
-  const visibleWidgets = selectedWidgetIds ?? widgets;
+  const visibleWidgets = widgets;
   const visibleCatalogIds = new Set(availableWidgetCatalog.map((item) => item.id));
   const displayedWidgets = visibleWidgets.filter((id): id is WidgetId => visibleCatalogIds.has(id as WidgetId));
   const stockSummaryUnavailable = !stockWidgetsLoading && !stockSummary;
@@ -321,14 +320,6 @@ export function CustomerReferenceSidebar({ token, page, embedded = false, select
       </section>;
     }
   };
-
-  if (embedded) return <div className="dashboard-overview-widgets">
-    {displayedWidgets.map((id) => {
-      const size = widgetSizes?.[id] ?? "small";
-      const span = size === "large" ? 3 : size === "medium" ? 2 : 1;
-      return <div className="customer-widget-item" key={id} style={{ order: visibleWidgets.indexOf(id), gridColumn: `span ${span}` }}>{renderWidget(id)}</div>;
-    })}
-  </div>;
 
   return <aside className="customer-reference-aside">
     <header className="customer-widgets-header">
