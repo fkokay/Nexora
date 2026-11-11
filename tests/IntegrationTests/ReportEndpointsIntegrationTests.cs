@@ -2713,6 +2713,75 @@ public sealed class ReportEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Customer_and_order_fulfillment_reports_apply_the_list_endpoint_row_rules()
+    {
+        await using var app = await StartApplicationAsync();
+        Guid visibleCustomerId;
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            visibleCustomerId = (await db.CustomerAccounts.SingleAsync(x => x.TenantId == TenantA && x.Code == "CUST-A")).Id;
+            Assert.True(await db.CustomerAccounts.CountAsync(x => x.TenantId == TenantA) > 1);
+            var platformDb = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            platformDb.TenantPermissionRules.AddRange(
+                new TenantPermissionRule
+                {
+                    TenantId = TenantA, SubjectType = TenantPermissionSubjectType.Role, SubjectRole = "TenantUser",
+                    PermissionCode = "erp.customers.read", Effect = TenantPermissionEffect.Allow, ResourceType = "erp.customers",
+                    AttributeName = "resource.customerId", AttributeOperator = TenantPermissionConditionOperator.Equals,
+                    AttributeValue = visibleCustomerId.ToString("D")
+                },
+                new TenantPermissionRule
+                {
+                    TenantId = TenantA, SubjectType = TenantPermissionSubjectType.Role, SubjectRole = "TenantUser",
+                    PermissionCode = "erp.sales-orders.read", Effect = TenantPermissionEffect.Allow, ResourceType = "erp.sales-orders",
+                    AttributeName = "resource.customerId", AttributeOperator = TenantPermissionConditionOperator.Equals,
+                    AttributeValue = Guid.NewGuid().ToString("D")
+                });
+            await platformDb.SaveChangesAsync();
+        }
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var customerReport = new
+        {
+            source = "customers", columns = new[] { "code" }, filters = Array.Empty<object>(),
+            sortBy = "code", descending = false, page = 1, pageSize = 50
+        };
+        var fulfillmentReport = new
+        {
+            source = "salesOrderFulfillment", columns = new[] { "orderCode" }, filters = Array.Empty<object>(),
+            sortBy = "orderCode", descending = false, page = 1, pageSize = 50
+        };
+
+        async Task<JsonDocument> RunAsync(object definition)
+        {
+            var response = await client.PostAsJsonAsync("/api/reports/run", definition);
+            response.EnsureSuccessStatusCode();
+            return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        }
+
+        using (var adminFulfillment = await RunAsync(fulfillmentReport))
+            Assert.True(adminFulfillment.RootElement.GetProperty("totalCount").GetInt32() > 0);
+
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        using (var customers = await RunAsync(customerReport))
+        {
+            Assert.Equal(1, customers.RootElement.GetProperty("totalCount").GetInt32());
+            Assert.Equal("CUST-A", customers.RootElement.GetProperty("rows")[0].GetProperty("code").GetString());
+        }
+        var customerCsv = await client.PostAsJsonAsync("/api/reports/export", customerReport);
+        customerCsv.EnsureSuccessStatusCode();
+        Assert.DoesNotContain("CUST-A-NULL", await customerCsv.Content.ReadAsStringAsync());
+
+        // The sales order rule only allows an unrelated customer, so no fulfillment line is visible.
+        using (var fulfillment = await RunAsync(fulfillmentReport))
+            Assert.Equal(0, fulfillment.RootElement.GetProperty("totalCount").GetInt32());
+        var fulfillmentCsv = await client.PostAsJsonAsync("/api/reports/export", fulfillmentReport);
+        fulfillmentCsv.EnsureSuccessStatusCode();
+        Assert.DoesNotContain("O-A", await fulfillmentCsv.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Row_scoped_sales_invoice_rule_limits_report_and_export_rows_like_the_list_endpoint()
     {
         await using var app = await StartApplicationAsync();
