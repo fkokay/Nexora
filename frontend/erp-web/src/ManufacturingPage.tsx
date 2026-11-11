@@ -21,6 +21,7 @@ import type {
 import "./manufacturing.css";
 
 export type { ManufacturingPageKey } from "./manufacturing/types";
+import { confirmLocalized } from "./locale";
 
 type Item = {
   id: string;
@@ -1063,7 +1064,7 @@ export default function ManufacturingPage({
   async function deleteBom(bom: Bom) {
     if (
       bom.orderCount > 0 ||
-      !window.confirm(
+      !confirmLocalized(
         `${bom.code} · ${bom.name} reçetesini kalıcı olarak silmek istiyor musunuz? Bu işlem geri alınamaz.`,
       )
     )

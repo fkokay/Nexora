@@ -10,6 +10,7 @@ import FxRevaluationCreateForm from "./fx-revaluation/components/FxRevaluationCr
 import FxRevaluationVoucherGrid from "./fx-revaluation/components/FxRevaluationVoucherGrid";
 import FxRevaluationVoucherDetail from "./fx-revaluation/components/FxRevaluationVoucherDetail";
 import FxRevaluationEmptySelection from "./fx-revaluation/components/FxRevaluationEmptySelection";
+import { confirmLocalized } from "./locale";
 
 export default function FxRevaluationPage({
   token,
@@ -43,7 +44,7 @@ export default function FxRevaluationPage({
   }, [token]);
   async function create() {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${date} tarihi için değerleme fişi oluşturulsun mu? Fiş kaydedildikten sonra değiştirilemez.`,
       )
     )

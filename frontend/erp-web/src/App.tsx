@@ -119,7 +119,8 @@ export default function App() {
     let active = true;
     let observer: MutationObserver | undefined;
     const root = document.getElementById("root") ?? document.body;
-    void import("./locale").then(({ localizeMountedUi }) => {
+    void import("./locale").then(async ({ localizeMountedUi, loadEnglishDictionaries }) => {
+      await loadEnglishDictionaries();
       if (!active) return;
       const apply = () => localizeMountedUi(root, locale);
       apply();

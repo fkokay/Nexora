@@ -25,6 +25,7 @@ import type {
 } from "./payment-instruments/paymentInstrumentTypes";
 import { statusText } from "./payment-instruments/paymentInstrumentTypes";
 import { PaymentInstrumentCreateForm } from "./payment-instruments/components/PaymentInstrumentCreateForm";
+import { confirmLocalized, promptLocalized } from "./locale";
 
 const initial = (): Draft => ({
   type: "Check",
@@ -244,7 +245,7 @@ export default function PaymentInstrumentsPage({
     kind: "endorse" | "collect" | "bounce" | "cancel",
   ) {
     if (busy) return;
-    const note = window.prompt(
+    const note = promptLocalized(
       kind === "bounce"
         ? "Karşılıksız işlem notu (zorunlu):"
         : "İşlem açıklaması (isteğe bağlı):",
@@ -257,7 +258,7 @@ export default function PaymentInstrumentsPage({
     }
     const endorsedTo =
       kind === "endorse"
-        ? window.prompt("Ciro edilecek kişi/kurum:")?.trim()
+        ? promptLocalized("Ciro edilecek kişi/kurum:")?.trim()
         : undefined;
     if (kind === "endorse" && !endorsedTo) return;
     if (kind === "bounce" && !note.trim()) {
@@ -266,7 +267,7 @@ export default function PaymentInstrumentsPage({
     }
     if (
       kind === "cancel" &&
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} kaydı iptal edilsin mi? Bu işlem geri alınamaz.`,
       )
     )

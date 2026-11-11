@@ -3,6 +3,7 @@ import type * as AppTypes from "./erp-types";
 import { api, localDateString } from "./erpApi";
 import { Plus, X } from "lucide-react";
 import SearchableRecordPicker from "./SearchableRecordPicker";
+import { confirmLocalized } from "./locale";
 type FinancialAccount = AppTypes.FinancialAccount;
 type PurchaseInvoiceDetail = AppTypes.PurchaseInvoiceDetail;
 type AccountingTaxBreakdownLine = AppTypes.AccountingTaxBreakdownLine;
@@ -165,7 +166,7 @@ export function PurchaseInvoiceModal({
   }
   async function voidPayment(payment: SupplierPayment) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${payment.code} ödemesi iptal edilsin mi? Tedarikçi cari hareketi ters kaydedilecek.`,
       )
     )
@@ -191,7 +192,7 @@ export function PurchaseInvoiceModal({
   async function voidInvoice() {
     if (
       !invoice ||
-      !window.confirm(
+      !confirmLocalized(
         `${invoice.code} alış faturası iptal edilsin mi? Cari borç ters kayıtla kapatılacak.`,
       )
     )
@@ -279,7 +280,7 @@ export function PurchaseInvoiceModal({
   }
   async function voidReturn(item: SupplierReturn) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} alış iadesi iptal edilsin mi? Stok ve cari hareketleri ters kaydedilecek.`,
       )
     )

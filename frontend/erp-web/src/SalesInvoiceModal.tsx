@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { FinanceStudioGrid } from "./FinanceStudioGrid";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { financeGridDefaults } from "./financeCatalog";
+import { confirmLocalized, promptLocalized } from "./locale";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type CustomerCollection = AppTypes.CustomerCollection;
 type FinancialAccount = AppTypes.FinancialAccount;
@@ -294,11 +295,11 @@ export function SalesInvoiceModal({
     }
   }
   async function editInvoiceCustomField(field: SalesInvoiceCustomFieldValue) {
-    const label = window.prompt("Alan etiketi", field.label)?.trim();
+    const label = promptLocalized("Alan etiketi", field.label)?.trim();
     if (!label) return;
     const maxLength =
       field.dataType === "Text"
-        ? Number(window.prompt("En fazla karakter", String(field.maxLength)))
+        ? Number(promptLocalized("En fazla karakter", String(field.maxLength)))
         : 0;
     if (
       field.dataType === "Text" &&
@@ -306,7 +307,7 @@ export function SalesInvoiceModal({
     )
       return;
     const isRequired = role === "TenantAdmin"
-      ? window.confirm("Bu alan zorunlu olsun mu?")
+      ? confirmLocalized("Bu alan zorunlu olsun mu?")
       : undefined;
     setCustomFieldBusy(true);
     setError("");
@@ -335,7 +336,7 @@ export function SalesInvoiceModal({
     field: SalesInvoiceCustomFieldValue,
   ) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${field.label} alanı devre dışı bırakılsın mı? Geçmiş değerler saklanır.`,
       )
     )
@@ -379,7 +380,7 @@ export function SalesInvoiceModal({
     if (
       !invoice ||
       !historyField ||
-      !window.confirm(
+      !confirmLocalized(
         `${historyField.label} alanını ${new Date(revision.createdAt).toLocaleString("tr-TR")} tarihindeki önceki değere döndür?`,
       )
     )
@@ -439,7 +440,7 @@ export function SalesInvoiceModal({
   }
   async function voidCollection(item: CustomerCollection) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} tahsilatı iptal edilsin mi? Cari alacak ters kayıtla geri alınacak.`,
       )
     )
@@ -529,7 +530,7 @@ export function SalesInvoiceModal({
   }
   async function voidReturn(item: SalesReturnSummary) {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${item.code} iadesi iptal edilsin mi? Stok ve cari hareketleri ters kaydedilecek.`,
       )
     )
@@ -554,7 +555,7 @@ export function SalesInvoiceModal({
   }
   async function voidInvoice() {
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${invoice?.code} faturası iptal edilsin mi? Cari borç ters hareketle kapatılacak.`,
       )
     )

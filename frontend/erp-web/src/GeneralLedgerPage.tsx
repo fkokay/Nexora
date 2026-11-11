@@ -27,6 +27,7 @@ import type {
   LedgerSource,
   JournalEntryView,
 } from "./erp-types";
+import { confirmLocalized } from "./locale";
 
 type LedgerView =
   | "overview"
@@ -471,7 +472,7 @@ export default function GeneralLedgerPage({
   async function applyStandardChart() {
     if (
       !chartPreview ||
-      !window.confirm(
+      !confirmLocalized(
         `Türkiye Tek Düzen Hesap Planı'ndaki ${chartPreview.accountsToAdd} eksik hesap bu firmaya eklensin mi? Var olan hesaplar ve muhasebe eşleştirmeleri değiştirilmez.`,
       )
     )
@@ -557,7 +558,7 @@ export default function GeneralLedgerPage({
   async function deleteAccount(account: LedgerAccount) {
     if (
       account.hasMovements ||
-      !window.confirm(
+      !confirmLocalized(
         `${account.code} · ${account.name} hesabı silinsin mi? Hesaba bağlı eşleştirme varsa kaldırılır.`,
       )
     )
@@ -585,7 +586,7 @@ export default function GeneralLedgerPage({
     if (
       previous &&
       previous !== accountId &&
-      !window.confirm(
+      !confirmLocalized(
         "Bu eşleştirme sonraki aktarımlarda kullanılacak. Daha önce oluşturulmuş yevmiye fişleri değişmez. Devam edilsin mi?",
       )
     )
@@ -612,7 +613,7 @@ export default function GeneralLedgerPage({
   ) {
     if (missingFor(source).length || source.amount <= 0) return;
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${source.code} kaynağı değiştirilemez yevmiye fişi olarak aktarılsın mı? Borç ve alacak hesaplarını kontrol ettiğinizi onaylayın.`,
       )
     )
@@ -643,7 +644,7 @@ export default function GeneralLedgerPage({
     rows: Array<{ sourceType: LedgerTransferSourceType; source: LedgerSource }>,
   ) {
     if (!rows.length || busy) return;
-    if (!window.confirm(`${rows.length} kaynak, değiştirilemez yevmiye fişleri olarak aktarılsın mı? Lütfen borç ve alacak hesap eşleştirmelerini kontrol edin.`)) return;
+    if (!confirmLocalized(`${rows.length} kaynak, değiştirilemez yevmiye fişleri olarak aktarılsın mı? Lütfen borç ve alacak hesap eşleştirmelerini kontrol edin.`)) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -737,7 +738,7 @@ export default function GeneralLedgerPage({
       ?.trim();
     if (!reason) return;
     if (
-      !window.confirm(
+      !confirmLocalized(
         `${entry.code} fişinin borç/alacak satırları ${reason} gerekçesiyle ters çevrilsin mi?`,
       )
     )

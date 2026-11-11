@@ -8,6 +8,7 @@ import type {
   WarehouseLocationOption,
 } from "./erp-types";
 import SearchableRecordPicker from "./SearchableRecordPicker";
+import { confirmLocalized } from "./locale";
 
 export function StandaloneFulfillmentPanel({
   token,
@@ -337,7 +338,7 @@ export function StandaloneFulfillmentPanel({
       item.status === "Draft"
         ? "silinsin"
         : "ters stok hareketiyle iptal edilsin";
-    if (!window.confirm(`${item.code} ${action} mi?`)) return;
+    if (!confirmLocalized(`${item.code} ${action} mi?`)) return;
     setBusy(true);
     setError("");
     try {

@@ -488,8 +488,70 @@ Object.assign(uiEnglish, {
   'Silinsin mi?': 'Delete this item?', 'İstek başarısız (${response.status})': 'Request failed (${response.status})'
 })
 
+/** Exact lookup across the shell, catalog and module dictionaries, then anchored dynamic patterns.
+ * Source text is matched trimmed with internal whitespace collapsed, as JSX renders it. */
+const englishLookupCache = new Map<string, string | null>()
+
+/** Module dictionaries are several hundred KB, so they are fetched only once English is selected. */
+let supplementalEnglish: Record<string, string> = {}
+let supplementalEnglishPatterns: Array<[RegExp, string]> = []
+let supplementalEnglishLoad: Promise<void> | undefined
+
+export function loadEnglishDictionaries(): Promise<void> {
+  supplementalEnglishLoad ??= import('./locales/en').then((module) => {
+    supplementalEnglish = module.supplementalEnglish
+    supplementalEnglishPatterns = module.supplementalEnglishPatterns
+    englishLookupCache.clear()
+  })
+  return supplementalEnglishLoad
+}
+
+if (isEnglishLocale()) void loadEnglishDictionaries()
+
+function englishFor(value: string): string | undefined {
+  const source = value.replace(/\s+/g, ' ').trim()
+  const cached = englishLookupCache.get(source)
+  if (cached !== undefined) return cached ?? undefined
+  const resolved = resolveEnglish(source)
+  // Rendered values (amounts, record names) are open-ended, so bound the memo.
+  if (englishLookupCache.size > 5000) englishLookupCache.clear()
+  englishLookupCache.set(source, resolved ?? null)
+  return resolved
+}
+
+function resolveEnglish(source: string): string | undefined {
+  if (!/\p{L}/u.test(source)) return undefined
+  const exact = uiEnglish[source] ?? catalogEnglish[source] ?? supplementalEnglish[source]
+  if (exact !== undefined) return exact
+  for (const [pattern, replacement] of supplementalEnglishPatterns) {
+    const match = source.match(pattern)
+    if (!match) continue
+    return replacement.replace(/\$(\d)/g, (_, index: string) => {
+      const capture = match[Number(index)] ?? ''
+      return uiEnglish[capture] ?? catalogEnglish[capture] ?? supplementalEnglish[capture] ?? capture
+    })
+  }
+  return undefined
+}
+
 export function localizedUiText(value: string): string {
-  return isEnglishLocale() ? uiEnglish[value.trim()] ?? localizedCatalogLabel(value.trim()) : value
+  return isEnglishLocale() ? englishFor(value) ?? value : value
+}
+
+/** Native dialogs are outside the DOM translator's reach, so their text is localized before display. */
+export function confirmLocalized(message: string): boolean {
+  return window.confirm(localizedUiText(message))
+}
+
+export function promptLocalized(message: string, defaultValue?: string): string | null {
+  return window.prompt(localizedUiText(message), defaultValue)
+}
+
+/** Keeps the leading/trailing whitespace of a text node so inline JSX such as `{count} kayıt` stays spaced. */
+function preserveSpacing(original: string, translated: string): string {
+  const leading = original.match(/^\s*/)?.[0] ?? ''
+  const trailing = original.match(/\s*$/)?.[0] ?? ''
+  return `${leading}${translated}${trailing}`
 }
 
 const mountedTextSources = new WeakMap<Text, { source: string; applied: string }>()
@@ -502,7 +564,7 @@ export function localizeMountedUi(root: ParentNode, locale: 'tr' | 'en'): void {
     if (locale !== 'en') return value
     const source = value.trim()
     const mapped = uiEnglish[source] ?? catalogEnglish[source]
-    if (mapped) return mapped
+    if (mapped) return preserveSpacing(value, mapped)
     const requestFailure = source.match(/^İstek başarısız \((\d{3})\)(\.)?$/)
     if (requestFailure) return `Request failed (${requestFailure[1]})${requestFailure[2] ?? ''}`
     const publishedVersion = source.match(/^Yayımlandı · v(\d+)$/)
@@ -521,7 +583,8 @@ export function localizeMountedUi(root: ParentNode, locale: 'tr' | 'en'): void {
     if (cancelledRecord) return `Cancel record ${cancelledRecord[1]}? This action cannot be undone.`
     const actionNotice = source.match(/^(.+): (Ciro edildi|Tahsil\/ödeme edildi|Karşılıksız|İptal)\.$/)
     if (actionNotice) return `${actionNotice[1]}: ${uiEnglish[actionNotice[2]]}.`
-    return value
+    const supplemental = englishFor(value)
+    return supplemental === undefined ? value : preserveSpacing(value, supplemental)
   }
   const updateText = (node: Text) => {
     const current = node.data
