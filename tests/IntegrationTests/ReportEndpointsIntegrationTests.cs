@@ -2675,7 +2675,107 @@ public sealed class ReportEndpointsIntegrationTests
         Assert.Equal(2, adminResult.RootElement.GetProperty("totalCount").GetInt32());
     }
 
-    private static async Task<WebApplication> StartApplicationAsync()
+    [Fact]
+    public async Task Report_sources_require_the_source_read_permission_not_only_report_builder_access()
+    {
+        await using var app = await StartApplicationAsync(new SourceDenyingPermissionAuthorizer("erp.sales-invoices", "erp.manufacturing"));
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var invoiceReport = new
+        {
+            source = "salesInvoices", columns = new[] { "code" }, filters = Array.Empty<object>(),
+            sortBy = "code", descending = false, page = 1, pageSize = 50
+        };
+        var saved = await client.PostAsJsonAsync("/api/reports/", new { name = "Invoices", definition = invoiceReport });
+        Assert.Equal(HttpStatusCode.Created, saved.StatusCode);
+        using var savedJson = JsonDocument.Parse(await saved.Content.ReadAsStringAsync());
+        var savedReportId = savedJson.RootElement.GetProperty("id").GetGuid();
+
+        var adminRun = await client.PostAsJsonAsync("/api/reports/run", invoiceReport);
+        adminRun.EnsureSuccessStatusCode();
+        using (var adminJson = JsonDocument.Parse(await adminRun.Content.ReadAsStringAsync()))
+            Assert.Equal(1, adminJson.RootElement.GetProperty("totalCount").GetInt32());
+
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/reports/run", invoiceReport)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/reports/export", invoiceReport)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"/api/reports/{savedReportId}/run", new { page = 1, pageSize = 50 })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await client.GetAsync("/api/reports/manufacturing-cost-variance?from=2026-01-01&to=2026-12-31")).StatusCode);
+
+        // A readable source stays available to the same user.
+        var customers = await client.PostAsJsonAsync("/api/reports/run", new
+        {
+            source = "customers", columns = new[] { "code" }, filters = Array.Empty<object>(),
+            sortBy = "code", descending = false, page = 1, pageSize = 50
+        });
+        Assert.Equal(HttpStatusCode.OK, customers.StatusCode);
+    }
+
+    [Fact]
+    public async Task Row_scoped_sales_invoice_rule_limits_report_and_export_rows_like_the_list_endpoint()
+    {
+        await using var app = await StartApplicationAsync();
+        Guid invoiceCustomerId;
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            invoiceCustomerId = (await db.SalesInvoices.SingleAsync(x => x.TenantId == TenantA && x.Code == "INV-A")).CustomerId;
+            var platformDb = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            platformDb.TenantPermissionRules.Add(new TenantPermissionRule
+            {
+                TenantId = TenantA, SubjectType = TenantPermissionSubjectType.Role, SubjectRole = "TenantUser",
+                PermissionCode = "erp.sales-invoices.read", Effect = TenantPermissionEffect.Allow, ResourceType = "erp.sales-invoices",
+                AttributeName = "resource.customerId", AttributeOperator = TenantPermissionConditionOperator.Equals,
+                AttributeValue = Guid.NewGuid().ToString("D")
+            });
+            await platformDb.SaveChangesAsync();
+        }
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var invoiceReport = new
+        {
+            source = "salesInvoices", columns = new[] { "code" }, filters = Array.Empty<object>(),
+            sortBy = "code", descending = false, page = 1, pageSize = 50
+        };
+
+        var restricted = await client.PostAsJsonAsync("/api/reports/run", invoiceReport);
+        restricted.EnsureSuccessStatusCode();
+        using (var restrictedJson = JsonDocument.Parse(await restricted.Content.ReadAsStringAsync()))
+            Assert.Equal(0, restrictedJson.RootElement.GetProperty("totalCount").GetInt32());
+        var restrictedCsv = await client.PostAsJsonAsync("/api/reports/export", invoiceReport);
+        restrictedCsv.EnsureSuccessStatusCode();
+        Assert.DoesNotContain("INV-A", await restrictedCsv.Content.ReadAsStringAsync());
+
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var platformDb = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            var rule = await platformDb.TenantPermissionRules.SingleAsync(x => x.TenantId == TenantA && x.PermissionCode == "erp.sales-invoices.read");
+            rule.AttributeValue = invoiceCustomerId.ToString("D");
+            await platformDb.SaveChangesAsync();
+        }
+        var allowed = await client.PostAsJsonAsync("/api/reports/run", invoiceReport);
+        allowed.EnsureSuccessStatusCode();
+        using (var allowedJson = JsonDocument.Parse(await allowed.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal(1, allowedJson.RootElement.GetProperty("totalCount").GetInt32());
+            Assert.Equal("INV-A", allowedJson.RootElement.GetProperty("rows")[0].GetProperty("code").GetString());
+        }
+    }
+
+    private sealed class SourceDenyingPermissionAuthorizer(params string[] deniedResourceTypes) : IPlatformPermissionAuthorizer
+    {
+        private readonly CustomizationTestPermissionAuthorizer inner = new();
+
+        public Task<bool> IsAllowedAsync(Guid tenantId, Guid userId, string role, ResolvedPlatformPermission permission,
+            CancellationToken cancellationToken = default) =>
+            role != "TenantAdmin" && deniedResourceTypes.Contains(permission.Permission.ResourceType)
+                ? Task.FromResult(false)
+                : inner.IsAllowedAsync(tenantId, userId, role, permission, cancellationToken);
+    }
+
+    private static async Task<WebApplication> StartApplicationAsync(IPlatformPermissionAuthorizer? authorizer = null)
     {
         var databaseName = $"reports-{Guid.NewGuid():N}";
         var builder = WebApplication.CreateBuilder();
@@ -2685,7 +2785,7 @@ public sealed class ReportEndpointsIntegrationTests
         builder.Services.AddDbContext<PlatformDbContext>(options => options.UseInMemoryDatabase($"{databaseName}-platform"));
         builder.Services.AddAuthentication("report-test")
             .AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
-        builder.Services.AddSingleton<AIERP.Platform.Application.IPlatformPermissionAuthorizer, CustomizationTestPermissionAuthorizer>();
+        builder.Services.AddSingleton<IPlatformPermissionAuthorizer>(authorizer ?? new CustomizationTestPermissionAuthorizer());
         builder.Services.AddAuthorization();
 
         var app = builder.Build();
