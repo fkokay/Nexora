@@ -188,7 +188,9 @@ public static class PrometheusHttpMetricsExtensions
 
     public static IEndpointRouteBuilder MapAierpMetrics(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/metrics", (PrometheusHttpMetrics metrics) => Results.Text(metrics.Render(), "text/plain; version=0.0.4; charset=utf-8"));
+        // Scraped by Prometheus on the internal monitoring network; must stay reachable when a host sets an authorization FallbackPolicy.
+        endpoints.MapGet("/metrics", (PrometheusHttpMetrics metrics) => Results.Text(metrics.Render(), "text/plain; version=0.0.4; charset=utf-8"))
+            .AllowAnonymous();
         return endpoints;
     }
 }
