@@ -360,13 +360,18 @@ export function ModuleLauncher({
       });
     return () => controller.abort();
   }, [weatherLocation]);
-  const selectWeatherLocation = (location: WeatherLocation, persist = true) => {
+  // Shows a location for this session only. Browser (device) coordinates go through here and never reach storage.
+  const showWeatherLocation = (location: WeatherLocation) => {
     setWeatherLocation(location);
     setWeatherLocationPickerOpen(false);
     setWeatherLocationQuery("");
     setWeatherLocationResults([]);
     setWeatherLocationError("");
-    if (persist) saveWeatherLocation(location);
+  };
+  // A city the user searched for is remembered across sessions.
+  const selectWeatherLocation = (location: WeatherLocation) => {
+    showWeatherLocation(location);
+    saveWeatherLocation(location);
   };
   const toggleDashboardWidget = (widget: string) => {
     setVisibleWidgets((current) => {
@@ -602,12 +607,12 @@ export function ModuleLauncher({
       ({ coords }) => {
         // Device coordinates are personal data: keep them for this session only, rounded to
         // roughly 1 km, which is all a weather forecast needs. Searched cities are still saved.
-        selectWeatherLocation({
+        showWeatherLocation({
           name: english ? "Current location" : "Tarayıcı konumu",
           latitude: Math.round(coords.latitude * 100) / 100,
           longitude: Math.round(coords.longitude * 100) / 100,
           timezone: "auto",
-        }, false);
+        });
         setWeatherLocationBusy(false);
       },
       async (error) => {
