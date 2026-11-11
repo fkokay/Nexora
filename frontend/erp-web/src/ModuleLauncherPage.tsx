@@ -360,13 +360,13 @@ export function ModuleLauncher({
       });
     return () => controller.abort();
   }, [weatherLocation]);
-  const selectWeatherLocation = (location: WeatherLocation) => {
+  const selectWeatherLocation = (location: WeatherLocation, persist = true) => {
     setWeatherLocation(location);
     setWeatherLocationPickerOpen(false);
     setWeatherLocationQuery("");
     setWeatherLocationResults([]);
     setWeatherLocationError("");
-    saveWeatherLocation(location);
+    if (persist) saveWeatherLocation(location);
   };
   const toggleDashboardWidget = (widget: string) => {
     setVisibleWidgets((current) => {
@@ -600,12 +600,14 @@ export function ModuleLauncher({
     }
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
+        // Device coordinates are personal data: keep them for this session only, rounded to
+        // roughly 1 km, which is all a weather forecast needs. Searched cities are still saved.
         selectWeatherLocation({
           name: english ? "Current location" : "Tarayıcı konumu",
-          latitude: coords.latitude,
-          longitude: coords.longitude,
+          latitude: Math.round(coords.latitude * 100) / 100,
+          longitude: Math.round(coords.longitude * 100) / 100,
           timezone: "auto",
-        });
+        }, false);
         setWeatherLocationBusy(false);
       },
       async (error) => {
