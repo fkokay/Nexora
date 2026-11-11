@@ -58,15 +58,11 @@ export default function ContractsListPanel(props: Props) {
     renderField,
   } = props;
   return (
-    <section className="contracts-panel" aria-labelledby="contracts-list-title">
-      <div className="contracts-toolbar">
-        <div>
-          <h2 id="contracts-list-title">{tx("Sözleşme listesi")}</h2>
-          <p>
-            {tx(
-              "Satış ve satın alma sözleşmeleri aynı firma kapsamında listelenir.",
-            )}
-          </p>
+    <>
+      <section className="contracts-filter-card" aria-label={tx("Sözleşme filtreleri")}>
+        <div className="contracts-filter-heading">
+          <h2>{tx("Filtreler")}</h2>
+          <p>{tx("Sözleşme listesini tür, durum veya cari hesaba göre daraltın.")}</p>
         </div>
         <div className="contracts-filters">
           <label className="contracts-search">
@@ -120,7 +116,18 @@ export default function ContractsListPanel(props: Props) {
             </select>
           </label>
         </div>
-      </div>
+      </section>
+      <section className="contracts-panel" aria-labelledby="contracts-list-title">
+        <div className="contracts-toolbar">
+          <div>
+            <h2 id="contracts-list-title">{tx("Sözleşme listesi")}</h2>
+            <p>
+              {tx(
+                "Satış ve satın alma sözleşmeleri aynı firma kapsamında listelenir.",
+              )}
+            </p>
+          </div>
+        </div>
       <div
         className="contracts-table-wrap"
         role="region"
@@ -230,6 +237,7 @@ export default function ContractsListPanel(props: Props) {
           </span>
         )}
       </footer>
-    </section>
+      </section>
+    </>
   );
 }

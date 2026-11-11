@@ -158,6 +158,10 @@ html[data-theme="dark"] .inventory-detail-note{background:var(--erp-surface-soft
 .inventory-workbench-summary article > small { font-size: 10px; }
 .inventory-workbench-summary > .tenant-scope { padding: 8px 10px; border: 1px solid #e7e4ff; border-radius: 8px; background: #f7f6ff; color: #6858d8; font-size: 10px; }
 .inventory-tracking-page .inventory-tracking-toolbar { gap: 12px; padding: 14px; border-radius: 10px; background: var(--erp-surface, #fff); box-shadow: 0 2px 8px #18334d08; }
+.inventory-tracking-filter-card { display: grid; gap: 10px; padding: 14px 16px; background: var(--erp-surface, #fff); border: 1px solid var(--erp-border, #dfe4ed); border-radius: 10px; box-shadow: 0 2px 8px #18334d08; }
+.inventory-tracking-filter-heading h2 { margin: 0; color: var(--erp-text, #25324a); font-size: 14px; }
+.inventory-tracking-filter-heading p { margin: 3px 0 0; color: var(--erp-text-muted, #647087); font-size: 11px; }
+.inventory-tracking-page .inventory-tracking-filter-card .inventory-tracking-toolbar { margin: 0; padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 .inventory-tracking-page .inventory-tracking-toolbar .customer-search,
 .inventory-tracking-page .inventory-tracking-toolbar select { min-height: 40px; border-radius: 8px; }
 .inventory-tracking-page .inventory-tracking-filter-actions > button { min-height: 40px; padding-inline: 14px; border-radius: 8px; }
@@ -180,6 +184,10 @@ html[data-theme="dark"] .inventory-detail-note{background:var(--erp-surface-soft
 .inventory-detail-note { padding: 10px; border: 1px solid var(--erp-border, #e7eaf1); border-radius: 8px; }
 html[data-theme="dark"] .inventory-tracking-page .page-heading,
 html[data-theme="dark"] .inventory-tracking-page .inventory-tracking-toolbar { background: var(--erp-surface, #171a22); border-color: var(--erp-border, #303542); }
+html[data-theme="dark"] .inventory-tracking-filter-card { background: var(--erp-surface, #171a22); border-color: var(--erp-border, #303542); }
+html[data-theme="dark"] .inventory-tracking-page .inventory-tracking-filter-card .inventory-tracking-toolbar { background: transparent; border-color: transparent; }
+html[data-theme="dark"] .inventory-tracking-filter-heading h2 { color: var(--erp-text, #e7eaf0); }
+html[data-theme="dark"] .inventory-tracking-filter-heading p { color: var(--erp-text-muted, #a7afbf); }
 html[data-theme="dark"] .inventory-workbench-summary > .tenant-scope { border-color: #413970; background: #25213d; color: #c4baff; }
 html[data-theme="dark"] .inventory-tracking-table tbody tr.selected { background: #202b3f; }
 @media (max-width: 760px) { .inventory-workbench-body { grid-template-columns: minmax(0, 1fr); } }

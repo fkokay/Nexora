@@ -1,0 +1,14 @@
+.tenant-workflow-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.tenant-workflow-action > small {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+}
+
+.tenant-workflow-action .is-error { color: #b42318; }
+.tenant-workflow-action .is-success { color: #087443; }

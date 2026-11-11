@@ -24,7 +24,7 @@ import {
 } from "./CustomerFormControls";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
 
-type CustomerCreatePageProps = {
+export type CustomerCreatePageProps = {
   busy: boolean;
   error: string;
   setError: (value: string) => void;
@@ -57,6 +57,14 @@ type CustomerCreatePageProps = {
   setTaxNumber: Dispatch<SetStateAction<string>>;
   taxOffice: string;
   setTaxOffice: Dispatch<SetStateAction<string>>;
+  isEInvoiceRegistered: boolean;
+  setIsEInvoiceRegistered: Dispatch<SetStateAction<boolean>>;
+  eInvoiceRecipientAlias: string;
+  setEInvoiceRecipientAlias: Dispatch<SetStateAction<string>>;
+  phone:string; setPhone:Dispatch<SetStateAction<string>>; email:string; setEmail:Dispatch<SetStateAction<string>>; website:string; setWebsite:Dispatch<SetStateAction<string>>;
+  contactName:string; setContactName:Dispatch<SetStateAction<string>>; contactPhone:string; setContactPhone:Dispatch<SetStateAction<string>>; contactEmail:string; setContactEmail:Dispatch<SetStateAction<string>>;
+  priceListCode:string; setPriceListCode:Dispatch<SetStateAction<string>>; receivableAccountCode:string; setReceivableAccountCode:Dispatch<SetStateAction<string>>; payableAccountCode:string; setPayableAccountCode:Dispatch<SetStateAction<string>>;
+  bankName:string; setBankName:Dispatch<SetStateAction<string>>; bankBranchCode:string; setBankBranchCode:Dispatch<SetStateAction<string>>; iban:string; setIban:Dispatch<SetStateAction<string>>;
   addressPostalCode: string;
   setAddressPostalCode: Dispatch<SetStateAction<string>>;
   addressCountry: string;
@@ -110,6 +118,14 @@ export default function CustomerCreatePage({
   setTaxNumber,
   taxOffice,
   setTaxOffice,
+  isEInvoiceRegistered,
+  setIsEInvoiceRegistered,
+  eInvoiceRecipientAlias,
+  setEInvoiceRecipientAlias,
+  phone, setPhone, email, setEmail, website, setWebsite,
+  contactName, setContactName, contactPhone, setContactPhone, contactEmail, setContactEmail,
+  priceListCode, setPriceListCode, receivableAccountCode, setReceivableAccountCode, payableAccountCode, setPayableAccountCode,
+  bankName, setBankName, bankBranchCode, setBankBranchCode, iban, setIban,
   addressPostalCode,
   setAddressPostalCode,
   addressCountry,
@@ -142,10 +158,11 @@ export default function CustomerCreatePage({
             </span>
             <div>
               <p className="eyebrow">CARİ YÖNETİMİ</p>
-              <h1>Cari Kart Tanımlama</h1>
+              <h1>{editingCustomer ? "Cari Kartı Düzenle" : "Cari Kart Tanımlama"}</h1>
               <p>
-                Yeni cari oluşturun, temel bilgileri ve ilişkili detayları
-                tanımlayın.
+                {editingCustomer
+                  ? "Cari bilgilerini aynı çalışma alanında görüntüleyip güncelleyin."
+                  : "Yeni cari oluşturun, temel bilgileri ve ilişkili detayları tanımlayın."}
               </p>
             </div>
           </div>
@@ -165,7 +182,7 @@ export default function CustomerCreatePage({
               disabled={busy}
             >
               <ShieldCheck size={16} />
-              {busy ? "Kaydediliyor…" : "Cari Kartı Kaydet"}
+              {busy ? "Kaydediliyor…" : editingCustomer ? "Değişiklikleri Kaydet" : "Cari Kartı Kaydet"}
             </button>
           </div>
         </header>
@@ -197,7 +214,7 @@ export default function CustomerCreatePage({
               ["basic", "Genel Bilgiler", "customer-create-basic"],
               ["contact", "İletişim Bilgileri", "customer-create-contact"],
               ["finance", "Finansal Bilgiler", "customer-create-finance"],
-              ["other", "Diğer Bilgiler", "customer-create-other"],
+              ["other", "Diğer / E-Fatura", "customer-create-other"],
             ].map(([key, label]) => (
               <button
                 key={key}
@@ -243,6 +260,8 @@ export default function CustomerCreatePage({
                       <option value="Customer">Müşteri</option>
                       <option value="Supplier">Tedarikçi</option>
                       <option value="Both">Müşteri & Tedarikçi</option>
+                      <option value="Dealer">Bayi</option>
+                      <option value="Employee">Personel</option>
                     </select>
                   </label>
                 </div>
@@ -349,6 +368,12 @@ export default function CustomerCreatePage({
                         onChange={(e) => setPaymentTermDays(e.target.value)}
                       />
                     </label>
+                    <label>Fiyat listesi kodu<input value={priceListCode} onChange={(event) => setPriceListCode(event.target.value)} maxLength={40} placeholder="Standart" /></label>
+                    <label>Alıcı muhasebe hesabı<input value={receivableAccountCode} onChange={(event) => setReceivableAccountCode(event.target.value)} maxLength={40} placeholder="120" /></label>
+                    <label>Satıcı muhasebe hesabı<input value={payableAccountCode} onChange={(event) => setPayableAccountCode(event.target.value)} maxLength={40} placeholder="320" /></label>
+                    <label>Banka adı<input value={bankName} onChange={(event) => setBankName(event.target.value)} maxLength={120} /></label>
+                    <label>Şube kodu<input value={bankBranchCode} onChange={(event) => setBankBranchCode(event.target.value)} maxLength={40} /></label>
+                    <label>IBAN<input value={iban} onChange={(event) => setIban(event.target.value.toUpperCase().replace(/\s/g, ""))} maxLength={34} placeholder="TR…" /></label>
                   </div>
                 </fieldset>
                 <fieldset
@@ -409,6 +434,14 @@ export default function CustomerCreatePage({
                     <MapPin size={16} aria-hidden="true" />
                     Adres Bilgileri
                   </legend>
+                  <div className="form-two">
+                    <label>Telefon<input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={40} /></label>
+                    <label>Kurumsal e-posta<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={254} /></label>
+                    <label>Web sitesi<input type="url" value={website} onChange={(event) => setWebsite(event.target.value)} maxLength={255} placeholder="https://…" /></label>
+                    <label>Yetkili kişi<input value={contactName} onChange={(event) => setContactName(event.target.value)} maxLength={160} /></label>
+                    <label>Yetkili telefon<input type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={40} /></label>
+                    <label>Yetkili e-posta<input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} maxLength={254} /></label>
+                  </div>
                   <div className="form-two">
                     <CustomerCountryInput
                       value={addressCountry}
@@ -491,8 +524,38 @@ export default function CustomerCreatePage({
                 </fieldset>
               </>
             )}
-            {customerCreateTab === "other" &&
-              customerCreateFields.length > 0 && (
+            {customerCreateTab === "other" && (
+              <>
+                <fieldset className="customer-create-section erp-form-group customer-einvoice-section">
+                  <legend>
+                    <FileText size={16} aria-hidden="true" />
+                    E-Fatura Bilgileri
+                  </legend>
+                  <label className="customer-einvoice-toggle">
+                    E-Fatura mükellefi
+                    <select
+                      value={isEInvoiceRegistered ? "yes" : "no"}
+                      onChange={(event) => setIsEInvoiceRegistered(event.target.value === "yes")}
+                    >
+                      <option value="no">Hayır</option>
+                      <option value="yes">Evet</option>
+                    </select>
+                    <small>Mükellef seçildiğinde alıcı posta kutusu etiketi girilebilir.</small>
+                  </label>
+                  {isEInvoiceRegistered && (
+                    <label>
+                      Alıcı etiketi (PK)
+                      <input
+                        value={eInvoiceRecipientAlias}
+                        onChange={(event) => setEInvoiceRecipientAlias(event.target.value)}
+                        maxLength={255}
+                        placeholder="urn:mail:..."
+                      />
+                      <small>GİB kayıtlı e-fatura alıcısının posta kutusu adresi.</small>
+                    </label>
+                  )}
+                </fieldset>
+                {customerCreateFields.length > 0 && (
                 <fieldset
                   id="customer-create-other"
                   className="customer-create-section erp-form-group"
@@ -556,7 +619,9 @@ export default function CustomerCreatePage({
                     ))}
                   </div>
                 </fieldset>
-              )}
+                )}
+              </>
+            )}
           </div>
         </form>
       </section>

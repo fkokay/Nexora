@@ -172,7 +172,7 @@ internal static class BusinessRuleEndpoints
         var facts = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["code"] = quote.Code,
-            ["customerId"] = quote.CustomerId.ToString("D"),
+            ["customerId"] = quote.CustomerId?.ToString("D"),
             ["currencyCode"] = quote.CurrencyCode,
             ["lineCount"] = lineCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["grandTotal"] = quote.GrandTotal.ToString(System.Globalization.CultureInfo.InvariantCulture),

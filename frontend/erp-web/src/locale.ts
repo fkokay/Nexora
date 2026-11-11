@@ -47,6 +47,7 @@ export function localizedCatalogLabel(value: string): string {
  * shared page components. Keep this dictionary independent of the shell so lazy
  * pages and authentication screens use the same locale. */
 const uiEnglish: Record<string, string> = {
+  'Cari Hesap Hareketleri': 'Customer Account Movements', 'Cari hesap': 'Customer account', 'Cari hesap ara': 'Search customer accounts', 'Cari kodu veya unvanıyla ara': 'Search by account code or name', 'Cari seçin': 'Select an account', 'Cariler yükleniyor…': 'Loading accounts…', 'Cari hesabı seçerek tarih aralığındaki borç ve alacak hareketlerini inceleyin.': 'Select an account to review debit and credit transactions for a date range.', 'SATIŞ & CARİ': 'SALES & ACCOUNTS', 'Ekstre filtreleri': 'Statement filters', 'Başlangıç tarihi': 'Start date', 'Bitiş tarihi': 'End date', 'Seçili cari': 'Selected account', 'Dönem borç': 'Period debit', 'Dönem alacak': 'Period credit', 'Dengede': 'Balanced', 'Hareket dökümü': 'Transaction details', 'Hareketler görüntülenemedi.': 'Could not load transactions.', 'Cari hesap hareketleri yükleniyor…': 'Loading account transactions…', 'Hareketleri görüntülemek için bir cari hesap seçin.': 'Select an account to view transactions.', 'Güncelleniyor…': 'Updating…', 'Hareket': 'Transaction', 'Açıklama': 'Description', 'Yön': 'Direction', 'Borç': 'Debit', 'Alacak': 'Credit', 'Bakiye': 'Balance', 'Ters kayıt': 'Reversal', 'Ters çevrildi': 'Reversed', 'Seçilen tarih aralığında hareket bulunmuyor.': 'No transactions in the selected date range.', 'Bitiş tarihi başlangıç tarihinden önce olamaz.': 'The end date cannot be before the start date.',
   'Firma seçin': 'Select a company', 'Hoş geldiniz': 'Welcome',
   'Devam etmek için erişim yetkiniz olan firmayı seçin.': 'Select a company you are authorized to access.',
   'AI ERP Platform hesabınızla oturum açın.': 'Sign in with your AI ERP Platform account.',
@@ -76,7 +77,7 @@ const uiEnglish: Record<string, string> = {
   'TENANT İŞ AKIŞLARI': 'TENANT WORKFLOWS', 'Özel Formlar': 'Custom Forms', 'İş süreçleri için form tasarlayın, yayımlayın ve yanıtları yönetin.': 'Design and publish forms for business processes, then manage responses.',
   'Yeni form': 'New form', 'Kapat': 'Close', 'Formlar': 'Forms', 'Tasarım': 'Builder', 'Vazgeç': 'Cancel',
   'Taslağı düzenle': 'Edit draft', 'Form tasarla': 'Design form', 'Taslağı kaydet': 'Save draft', 'Form adı': 'Form name',
-  'Form kodu': 'Form code', 'Açıklama': 'Description', 'Formun hangi süreçte kullanıldığını açıklayın': 'Describe which process uses this form',
+  'Form kodu': 'Form code', 'Formun hangi süreçte kullanıldığını açıklayın': 'Describe which process uses this form',
   'Form alanları': 'Form fields', 'Alan kodları benzersiz ve küçük harfle başlamalıdır.': 'Field codes must be unique and start with a lowercase letter.',
   'Alan ekle': 'Add field', 'Etiket': 'Label', 'Alan kodu': 'Field code', 'Tür': 'Type', 'Zorunlu': 'Required',
   'Azami karakter': 'Maximum characters', 'Seçenekler (virgülle ayırın)': 'Options (separate with commas)', 'Alanı sil': 'Delete field',
@@ -114,7 +115,7 @@ const uiEnglish: Record<string, string> = {
   'İlk temas': 'Prospecting', 'Nitelikli': 'Qualified', 'Müzakere': 'Negotiation', 'Kazanıldı': 'Won', 'Kaybedildi': 'Lost',
   'Reddedildi': 'Rejected', 'Onaylandı': 'Approved', 'Bekliyor': 'Pending', 'Gönderildi': 'Submitted', 'Tamamlandı': 'Completed',
   'Açık': 'Open', 'Kapalı': 'Closed', 'İptal edildi': 'Cancelled', 'Yürürlükte': 'Active',
-  'Alacak': 'Credit', 'Borç': 'Debit', 'Giriş': 'Inflow', 'Çıkış': 'Outflow', 'Tahsilat': 'Collection', 'Ödeme': 'Payment',
+  'Giriş': 'Inflow', 'Çıkış': 'Outflow', 'Tahsilat': 'Collection', 'Ödeme': 'Payment',
   'İade': 'Return', 'Sevk edildi': 'Shipped', 'Kısmi': 'Partial', 'Eşleşti': 'Matched',
   'Eşleşmedi': 'Unmatched', 'Eşleştirildi': 'Matched', 'İnceleniyor': 'Under review', 'İşleniyor': 'Processing',
   'Beklemede': 'Queued', 'Başarılı': 'Succeeded', 'Başarısız': 'Failed', 'Yeniden denenecek': 'Will retry',
@@ -309,7 +310,7 @@ const uiEnglish: Record<string, string> = {
   'Yeni sohbetlerde kullanılacak yapay zekâ': 'AI provider for new chats', 'Yeni stok kartı': 'New stock item', 'Yeni taleplerde zorunlu olsun': 'Required on new requests',
   'Yeni teklif': 'New quote', 'Yeni teklif alanı': 'New quote field', 'Yeniden değerle': 'Revalue', 'Yetkili ERP kayıtları inceleniyor…': 'Reviewing authorized ERP records…',
   'Yetkili projeler, Project Explorer, geliştirme talepleri ve AI Developer araçları.': 'Authorized projects, Project Explorer, development requests, and AI Developer tools.',
-  'Yevmiye defteri': 'Journal', 'Yevmiye kayıtlarından hesap bazında hareket ve kalan bakiyeler.': 'Account transactions and remaining balances from journal entries.', 'Yön': 'Direction', 'Yönet': 'Manage',
+  'Yevmiye defteri': 'Journal', 'Yevmiye kayıtlarından hesap bazında hareket ve kalan bakiyeler.': 'Account transactions and remaining balances from journal entries.', 'Yönet': 'Manage',
   'YÖNETİM · DENETİM İZİ': 'ADMINISTRATION · AUDIT LOG', 'Yöntem': 'Method', 'Zorunlu alan açmak için önce mevcut teklifler doldurulmalıdır.': 'Complete existing quotes before making a field required.',
   'Zorunlu alanı mevcut talepler varken açmak için önce taleplere değer girilmelidir.': 'Enter values on existing requests before making a field required.',
   'Zorunlu alanlar bu stok kartıyla birlikte kaydedilir.': 'Required fields are saved with this stock item.', 'Zorunlu alanlar yeni depo ile birlikte kaydedilir.': 'Required fields are saved with the new warehouse.',
@@ -368,7 +369,7 @@ const uiEnglish: Record<string, string> = {
   'Özel modül pazaryeri': 'Custom module marketplace', 'Modül pazaryeri': 'Module marketplace', 'Henüz kullanılabilir modül yok.': 'No modules are available yet.',
   'Runtime yok': 'Runtime unavailable', 'Sandbox doğrulandı': 'Sandbox verified', 'Girdi geçerli JSON olmalı.': 'Input must be valid JSON.',
   'Sayı alanlarına geçerli bir değer girin.': 'Enter a valid value in number fields.', 'Modülü çalıştır': 'Run module', 'Çalıştır': 'Run', 'Gönder': 'Submit',
-  'Çalıştırılıyor…': 'Running…', 'Doğrulanıyor…': 'Validating…', 'Güncelleniyor…': 'Updating…', 'Modül yükleniyor…': 'Loading module…',
+  'Çalıştırılıyor…': 'Running…', 'Doğrulanıyor…': 'Validating…', 'Modül yükleniyor…': 'Loading module…',
   'Yetenekler': 'Capabilities', 'Gerekli izinler': 'Required permissions', 'Devre dışı bırak': 'Deactivate',
   '1 birim karşılığı': '1 unit equivalent', '1 yabancı para biriminin tenant baz para birimi karşılığını kaydedin. Kurlar elle girilir; kayıtlar ve düzeltme revizyonları korunur.': 'Save the tenant base-currency equivalent for one unit of foreign currency. Rates are entered manually; records and correction revisions are retained.',
   '1–30 gün': '1–30 days', '31–60 gün': '31–60 days', '61–90 gün': '61–90 days', '90+ gün': '90+ days', 'ABAC attribute': 'ABAC attribute',
@@ -417,7 +418,7 @@ const uiEnglish: Record<string, string> = {
   'Mamul başına bileşen ve fire miktarlarını tanımlayın.': 'Define component quantities and scrap rates per finished good.',
   'Model listesi NVIDIA API’sinden sunucu üzerinden alınır.': 'The model list is retrieved from the NVIDIA API through the server.',
   'Model listesi OpenAI API anahtarınızla sunucu üzerinden alınır.': 'The model list is retrieved through the server using your OpenAI API key.',
-  'Model seçin': 'Select a model', 'Ters kayıt': 'Reversal entry', 'Ürün reçetesi': 'Product recipe'
+  'Model seçin': 'Select a model', 'Ürün reçetesi': 'Product recipe'
 }
 
 Object.assign(uiEnglish, {

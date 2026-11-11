@@ -23,6 +23,7 @@ public static class PlatformPermissionCatalog
         new("erp.crm-opportunities", "/api/crm/opportunities", "CRM sales opportunities"),
         new("erp.access-control", "/api/access-control", "Tenant permissions and policies"),
         new("erp.custom-forms", "/api/custom-forms", "Tenant dynamic forms and submissions"),
+        new("erp.custom-data", "/api/custom-data", "Tenant-defined logical data models and records"),
         new("erp.workflows", "/api/workflows", "Tenant workflow definitions, instances and approvals"),
         new("erp.business-rules", "/api/business-rules", "Tenant business rule definitions and evaluation history"),
         new("erp.reports", "/api/reports", "Tenant report definitions and execution"),
@@ -223,6 +224,13 @@ public static class PlatformPermissionCatalog
         }
         else if (path.StartsWith("/api/warehouses/transfers", StringComparison.OrdinalIgnoreCase))
             resource = Resources.First(x => x.ResourceType == "erp.inventory-transfers");
+        else if (path.Equals("/api/inventory-stock-widgets", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/inventory-stock-widgets/", StringComparison.OrdinalIgnoreCase))
+        {
+            // Stock page widgets only expose tenant-scoped stock summaries; keep
+            // them under the same read permission as the stock cards themselves.
+            resource = Resources.First(x => x.ResourceType == "erp.stock-items");
+        }
         else if (path.StartsWith("/api/warehouses/cost-adjustments", StringComparison.OrdinalIgnoreCase)
             || path.Contains("/stock/", StringComparison.OrdinalIgnoreCase)
                 && (path.Contains("/cost-adjustments", StringComparison.OrdinalIgnoreCase) || path.Contains("/revaluations", StringComparison.OrdinalIgnoreCase))
@@ -232,9 +240,26 @@ public static class PlatformPermissionCatalog
         else if (path.Equals("/api/sales/promotions", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/sales/promotions/", StringComparison.OrdinalIgnoreCase))
             resource = Resources.First(x => x.ResourceType == "erp.sales-promotions");
+        else if (path.Equals("/api/sales/quote-pdf-templates", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/sales/quote-pdf-templates/", StringComparison.OrdinalIgnoreCase))
+        {
+            // Quote PDF templates are read with quote access. Template mutations
+            // still have an additional TenantAdmin check in their endpoint handlers.
+            resource = Resources.First(x => x.ResourceType == "erp.sales-quotes");
+        }
         else if (path.Equals("/api/location-definitions", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/location-definitions/", StringComparison.OrdinalIgnoreCase))
             resource = Resources.First(x => x.ResourceType == "erp.customer-locations");
+        else if (path.Equals("/api/custom-pages", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/custom-pages/", StringComparison.OrdinalIgnoreCase))
+        {
+            // Published pages are runtime content reached through tenant navigation;
+            // use the same read permission as menu navigation. Draft management stays
+            // under the low-code customization permission family.
+            resource = normalizedRoute.EndsWith("/{code}/published", StringComparison.OrdinalIgnoreCase)
+                ? Resources.First(x => x.ResourceType == "erp.custom-menus")
+                : Resources.First(x => x.ResourceType == "erp.tenant-customizations");
+        }
         resource ??= Resources.Where(x => path.Equals(x.RoutePrefix, StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith(x.RoutePrefix.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(x => x.RoutePrefix.Length).FirstOrDefault();

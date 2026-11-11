@@ -1,4 +1,4 @@
-import { CalendarDays, RefreshCw } from "lucide-react";
+import { CalendarDays, RefreshCw, Settings2 } from "lucide-react";
 
 type Props = {
   tenantName: string;
@@ -6,6 +6,7 @@ type Props = {
   today: string;
   periodLabel: string;
   onRefresh: () => void;
+  onManageWidgets: () => void;
 };
 
 export default function DashboardHeader({
@@ -14,6 +15,7 @@ export default function DashboardHeader({
   today,
   periodLabel,
   onRefresh,
+  onManageWidgets,
 }: Props) {
   return (
     <>
@@ -29,6 +31,9 @@ export default function DashboardHeader({
           </p>
         </div>
         <div className="erp-home-heading-actions">
+          <button className="secondary" type="button" onClick={onManageWidgets}>
+            <Settings2 size={15} /> Widget’ları düzenle
+          </button>
           <span className="dashboard-period">
             <CalendarDays size={15} />
             {periodLabel}

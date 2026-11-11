@@ -7,6 +7,8 @@ export type ManualJournalFormProps = {
   accounts: LedgerAccount[];
   manualDate: string;
   setManualDate: Dispatch<SetStateAction<string>>;
+  manualAccountingBasis: "TDHP" | "IFRS";
+  setManualAccountingBasis: Dispatch<SetStateAction<"TDHP" | "IFRS">>;
   manualDescription: string;
   setManualDescription: Dispatch<SetStateAction<string>>;
   manualLines: {
@@ -33,6 +35,8 @@ export function ManualJournalForm({
   accounts,
   manualDate,
   setManualDate,
+  manualAccountingBasis,
+  setManualAccountingBasis,
   manualDescription,
   setManualDescription,
   manualLines,
@@ -69,6 +73,13 @@ export function ManualJournalForm({
                   onChange={(e) => setManualDate(e.target.value)}
                   required
                 />
+              </label>
+              <label>
+                Muhasebe standardı
+                <select value={manualAccountingBasis} onChange={(event) => setManualAccountingBasis(event.target.value as "TDHP" | "IFRS")}>
+                  <option value="TDHP">Türkiye · TDHP</option>
+                  <option value="IFRS">IFRS / UFRS düzeltme fişi</option>
+                </select>
               </label>
               <label>
                 Açıklama
@@ -198,6 +209,8 @@ export function ManualJournalForm({
               <button
                 type="button"
                 className="secondary"
+                data-line-add-shortcut
+                title="Ctrl+Shift+Enter ile satır ekle"
                 disabled={manualLines.length >= 100}
                 onClick={() =>
                   setManualLines((current) => [

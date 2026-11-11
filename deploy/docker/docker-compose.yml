@@ -6,7 +6,7 @@ services:
       MSSQL_PID: Developer
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
     ports:
-      - "127.0.0.1:1433:1433"
+      - "127.0.0.1:${SQLSERVER_HOST_PORT:-11433}:1433"
     volumes:
       - aierp-sql-data:/var/opt/mssql
       - aierp-production-backups:/var/opt/mssql/backups
@@ -32,6 +32,51 @@ services:
     cap_drop: [ALL]
     cap_add: [CHOWN, FOWNER]
     security_opt: [no-new-privileges:true]
+    restart: "no"
+
+  platform-migrator-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >-
+        until /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q 'SELECT 1' >/dev/null 2>&1; do sleep 2; done;
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -C -b -Q "IF DB_ID(N'AIERPPlatform') IS NULL CREATE DATABASE [AIERPPlatform]" &&
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -C -b -Q "IF SUSER_ID(N'aierp_platform_migrator') IS NULL CREATE LOGIN [aierp_platform_migrator] WITH PASSWORD=N'$$AIERP_PLATFORM_MIGRATOR_PASSWORD', CHECK_POLICY=OFF ELSE ALTER LOGIN [aierp_platform_migrator] WITH PASSWORD=N'$$AIERP_PLATFORM_MIGRATOR_PASSWORD', CHECK_POLICY=OFF" &&
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -C -b -d AIERPPlatform -Q "IF USER_ID(N'aierp_platform_migrator') IS NULL CREATE USER [aierp_platform_migrator] FOR LOGIN [aierp_platform_migrator]; IF NOT EXISTS (SELECT 1 FROM sys.database_role_members WHERE role_principal_id=DATABASE_PRINCIPAL_ID(N'db_owner') AND member_principal_id=DATABASE_PRINCIPAL_ID(N'aierp_platform_migrator')) ALTER ROLE [db_owner] ADD MEMBER [aierp_platform_migrator]"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+      AIERP_PLATFORM_MIGRATOR_PASSWORD: ${AIERP_PLATFORM_MIGRATOR_PASSWORD:?Set AIERP_PLATFORM_MIGRATOR_PASSWORD in .env}
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: "no"
+
+  platform-migrator:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Platform.Api.Dockerfile
+      args:
+        OCI_IMAGE_REVISION: ${OCI_IMAGE_REVISION:-unknown}
+        OCI_IMAGE_VERSION: ${OCI_IMAGE_VERSION:-unknown}
+    command: ["--migrate-platform-only"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Platform: Server=sqlserver,1433;Database=AIERPPlatform;User Id=aierp_platform_migrator;Password=${AIERP_PLATFORM_MIGRATOR_PASSWORD:?Set AIERP_PLATFORM_MIGRATOR_PASSWORD in .env};Encrypt=True;TrustServerCertificate=True
+      Database__SeparationEnabled: "true"
+      AIERP_PLATFORM_MIGRATION_TARGET: AIERPPlatform
+    depends_on:
+      platform-migrator-init:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+      - /home/app/.aspnet/DataProtection-Keys:rw,noexec,nosuid,nodev,size=16m,uid=1654,gid=1654,mode=0700
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 256
     restart: "no"
 
   platform-api:
@@ -63,8 +108,7 @@ services:
       Authentication__SigningKey: ${AUTH_SIGNING_KEY:?Set AUTH_SIGNING_KEY in .env}
       PluginHost__SigningKey: ${PLUGIN_HOST_SIGNING_KEY:?Set PLUGIN_HOST_SIGNING_KEY in .env}
       PluginHost__Issuer: AIERP
-      # This base Compose file does not define the release migrator. Migrations
-      # are run by the ReleaseDeployer-generated one-shot platform-migrator.
+      # Schema changes are applied by the guarded one-shot platform-migrator.
       Database__ApplyMigrationsOnStartup: "false"
       ModulePackages__RootPath: /module-packages
       PluginHost__BaseUrl: http://plugin-host:8080
@@ -128,6 +172,8 @@ services:
       - plugin-runtime
       - integration-runtime
     depends_on:
+      platform-migrator:
+        condition: service_completed_successfully
       vault:
         condition: service_started
       sqlserver:
@@ -185,7 +231,7 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     pids_limit: 128
-    mem_limit: 512m
+    mem_limit: 2g
     cpus: 1.0
 
   tenant-provisioning-secrets-init:
@@ -299,7 +345,8 @@ services:
       IntegrationHost__Audience: AIERP.IntegrationHost
       IntegrationSecrets__RootPath: /run/integration-secrets
     volumes:
-      - ./integration-secrets:/run/integration-secrets:ro
+      # Bind source is host-side for a remote Docker context (override in .env).
+      - ${INTEGRATION_SECRETS_PATH:-./integration-secrets}:/run/integration-secrets:ro
     read_only: true
     tmpfs:
       - /tmp:size=16m,noexec,nosuid,nodev
@@ -497,8 +544,8 @@ services:
         test -n "$${RCLONE_CONFIG_CRYPT_PASSWORD}";
         case "$${BACKUP_SYNC_INTERVAL_SECONDS}" in ''|*[!0-9]*|0) echo 'BACKUP_SYNC_INTERVAL_SECONDS must be a positive integer' >&2; exit 1;; esac;
         while :; do
-          rclone copy /production-backups crypt: --config /dev/null --exclude '*.partial' --log-level INFO;
-          rclone check /production-backups crypt: --config /dev/null --exclude '*.partial' --download --log-level INFO;
+          rclone copy /production-backups crypt: --config /dev/null --max-age 30d --exclude '*.partial' --log-level INFO;
+          rclone cryptcheck /production-backups crypt: --config /dev/null --max-age 30d --exclude '*.partial' --one-way --log-level INFO;
           sleep "$${BACKUP_SYNC_INTERVAL_SECONDS}";
         done
     environment:
@@ -516,6 +563,7 @@ services:
       BACKUP_SYNC_INTERVAL_SECONDS: ${OFFSITE_BACKUP_SYNC_INTERVAL_SECONDS:-900}
     volumes:
       - aierp-production-backups:/production-backups:ro
+    user: "10001:10001"
     networks:
       - offsite-egress
     restart: unless-stopped

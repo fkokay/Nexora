@@ -233,7 +233,9 @@ app.UseAuthorization();
 app.MapAccessControlEndpoints();
 app.MapLowCodeCapabilityEndpoints();
 app.MapCustomFormEndpoints();
+app.MapTenantCustomDataEndpoints();
 app.MapTenantScreenViewEndpoints();
+app.MapTenantCustomPageEndpoints();
 app.MapWorkflowEndpoints();
 app.MapBusinessRuleEndpoints();
 app.MapReportEndpoints();
@@ -242,6 +244,7 @@ app.MapErpDashboardSummaryEndpoints();
 app.MapCustomMenuEndpoints();
 app.MapTenantCustomizationPackageEndpoints();
 app.MapCrmEndpoints();
+app.MapTenantUserPreferenceEndpoints();
 app.MapManufacturingEndpoints();
 app.MapHumanResourcesEndpoints();
 app.MapPayrollVoucherDraftEndpoints();
@@ -255,10 +258,13 @@ app.MapFinanceCreditFacilityEndpoints();
 app.MapTenantLicenseEndpoints();
 app.MapPaymentInstrumentEndpoints();
 app.MapInventoryTrackingInquiryEndpoints();
+app.MapInventoryStockWidgetEndpoints();
 app.MapSalesOrderEndpoints();
 app.MapSalesDeliverySearchEndpoints();
 app.MapPurchaseReceiptSearchEndpoints();
 app.MapStandaloneInventoryDocumentEndpoints();
+app.MapTenantDocumentNumbering();
+app.MapSalesQuotePdfTemplateEndpoints();
 app.MapSalesPromotionEndpoints();
 app.MapSalesPlanningInquiryEndpoints();
 app.MapPurchaseInvoiceEntryEndpoints();
@@ -297,16 +303,6 @@ app.MapGet("/health", async (PlatformDbContext db, CancellationToken cancellatio
     }
 }).AllowAnonymous();
 var auth = app.MapGroup("/api/auth").WithTags("Authentication");
-auth.MapGet("/tenants", async (ClaimsPrincipal principal, PlatformDbContext db, CancellationToken cancellationToken) =>
-{
-    if (!Guid.TryParse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub), out var userId)) return Results.Unauthorized();
-    var memberships = await db.TenantMemberships.AsNoTracking()
-        .Where(m => m.UserId == userId && m.User.IsActive && m.Tenant.IsActive)
-        .OrderBy(m => m.Tenant.Name)
-        .Select(m => new TenantSummary(m.TenantId, m.Tenant.Name, m.Tenant.Slug, m.Role))
-        .ToListAsync(cancellationToken);
-    return Results.Ok(memberships);
-}).RequireAuthorization();
 auth.MapPost("/login", async (LoginRequest request, PlatformDbContext db, IConfiguration config) =>
 {
     if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password)) return Results.BadRequest(new { error = "Email and password are required." });
@@ -1382,7 +1378,7 @@ customers.MapGet("/company-options", async (string? q, Guid? excludeId, ClaimsPr
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var userId = GetUserId(principal);
     if (userId is null) return Results.Forbid();
-    var query = db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && x.Type != CounterpartyType.Supplier);
+    var query = db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && x.Type != CounterpartyType.Supplier && x.Type != CounterpartyType.Employee);
     if (excludeId is { } excluded) query = query.Where(x => x.Id != excluded);
     if (!string.IsNullOrWhiteSpace(q))
     {
@@ -1419,7 +1415,8 @@ customers.MapGet("/", async (string? q, string? type, string? status, ClaimsPrin
             x.GroupId, x.Group == null ? null : x.Group.Name, x.CurrencyCode, x.RiskLimit, x.PaymentTermDays, x.IdentityNumber, x.TaxOffice,
             visibleAccounts.Where(parent => parent.Id == x.ParentCompanyId).Select(parent => (Guid?)parent.Id).FirstOrDefault(),
             visibleAccounts.Where(parent => parent.Id == x.ParentCompanyId).Select(parent => parent.Name).FirstOrDefault(),
-            visibleAccounts.Count(subsidiary => subsidiary.ParentCompanyId == x.Id), null)).ToListAsync();
+            visibleAccounts.Count(subsidiary => subsidiary.ParentCompanyId == x.Id), null, x.IsEInvoiceRegistered, x.EInvoiceRecipientAlias,
+            x.Phone, x.Email, x.Website, x.ContactName, x.ContactPhone, x.ContactEmail, x.PriceListCode, x.ReceivableAccountCode, x.PayableAccountCode, x.BankName, x.BankBranchCode, x.Iban)).ToListAsync();
     var customerIds = items.Select(x => x.Id).ToArray();
     var customValues = await (from value in db.CustomerCustomFieldValues.AsNoTracking()
         join definition in db.CustomerCustomFieldDefinitions.AsNoTracking()
@@ -1446,7 +1443,8 @@ customers.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tenant
             x.GroupId, x.Group == null ? null : x.Group.Name, x.CurrencyCode, x.RiskLimit, x.PaymentTermDays, x.IdentityNumber, x.TaxOffice,
             visibleAccounts.Where(parent => parent.Id == x.ParentCompanyId).Select(parent => (Guid?)parent.Id).FirstOrDefault(),
             visibleAccounts.Where(parent => parent.Id == x.ParentCompanyId).Select(parent => parent.Name).FirstOrDefault(),
-            visibleAccounts.Count(subsidiary => subsidiary.ParentCompanyId == x.Id), null)).SingleOrDefaultAsync(ct);
+            visibleAccounts.Count(subsidiary => subsidiary.ParentCompanyId == x.Id), null, x.IsEInvoiceRegistered, x.EInvoiceRecipientAlias,
+            x.Phone, x.Email, x.Website, x.ContactName, x.ContactPhone, x.ContactEmail, x.PriceListCode, x.ReceivableAccountCode, x.PayableAccountCode, x.BankName, x.BankBranchCode, x.Iban)).SingleOrDefaultAsync(ct);
     return customer is null ? Results.NotFound() : Results.Ok(customer);
 });
 customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -1459,11 +1457,11 @@ customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal prin
         var addressErrors = CustomerAddressValidation.Validate(newAddressRequest);
         if (addressErrors is not null) return Results.ValidationProblem(addressErrors);
     }
-    var code = request.Code.Trim().ToUpperInvariant();
+    var code = request.Code?.Trim().ToUpperInvariant() ?? "";
     if (await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu cari kodu bu firmada zaten kullanılıyor." });
     if (request.GroupId is { } groupId && !await db.CustomerGroups.AnyAsync(x => x.TenantId == tenantId && x.Id == groupId && x.IsActive))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["groupId"] = ["Seçilen cari grubu bulunamadı veya pasif."] });
-    if (request.ParentCompanyId is { } parentCompanyId && !await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == parentCompanyId && x.IsActive && x.Type != CounterpartyType.Supplier))
+    if (request.ParentCompanyId is { } parentCompanyId && !await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == parentCompanyId && x.IsActive && x.Type != CounterpartyType.Supplier && x.Type != CounterpartyType.Employee))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["parentCompanyId"] = ["Seçilen ana firma bulunamadı, pasif veya müşteri türünde değil."] });
     if (request.CustomFields?.Count > 40) return Results.ValidationProblem(new Dictionary<string, string[]> { ["customFields"] = ["En fazla 40 özel alan değeri gönderilebilir."] });
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -1484,7 +1482,12 @@ customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal prin
     if (missingRequired is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"customFields.{missingRequired.Code}"] = [$"'{missingRequired.Label}' alanı zorunludur."] });
     var customer = new CustomerAccount { TenantId = tenantId, Code = code, Name = request.Name.Trim(), Type = request.Type,
         TaxNumber = NormalizeTaxNumber(request.TaxNumber), IdentityNumber = NormalizeTaxNumber(request.IdentityNumber), TaxOffice = NormalizeTaxNumber(request.TaxOffice), IsActive = request.IsActive, GroupId = request.GroupId,
-        ParentCompanyId = request.ParentCompanyId, CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant(), RiskLimit = request.RiskLimit, PaymentTermDays = request.PaymentTermDays };
+        ParentCompanyId = request.ParentCompanyId, CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant(), RiskLimit = request.RiskLimit, PaymentTermDays = request.PaymentTermDays,
+        IsEInvoiceRegistered = request.IsEInvoiceRegistered, EInvoiceRecipientAlias = string.IsNullOrWhiteSpace(request.EInvoiceRecipientAlias) ? null : request.EInvoiceRecipientAlias.Trim() };
+    customer.Phone = NormalizeTaxNumber(request.Phone); customer.Email = NormalizeTaxNumber(request.Email); customer.Website = NormalizeTaxNumber(request.Website);
+    customer.ContactName = NormalizeTaxNumber(request.ContactName); customer.ContactPhone = NormalizeTaxNumber(request.ContactPhone); customer.ContactEmail = NormalizeTaxNumber(request.ContactEmail);
+    customer.PriceListCode = NormalizeTaxNumber(request.PriceListCode); customer.ReceivableAccountCode = NormalizeTaxNumber(request.ReceivableAccountCode); customer.PayableAccountCode = NormalizeTaxNumber(request.PayableAccountCode);
+    customer.BankName = NormalizeTaxNumber(request.BankName); customer.BankBranchCode = NormalizeTaxNumber(request.BankBranchCode); customer.Iban = NormalizeTaxNumber(request.Iban)?.Replace(" ", "").ToUpperInvariant();
     db.CustomerAccounts.Add(customer);
     if (request.Address is { } addressRequest)
     {
@@ -1508,7 +1511,11 @@ customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal prin
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu cari kodu bu firmada zaten kullanılıyor." }); }
     await transaction.CommitAsync();
     var view = new CustomerView(customer.Id, customer.Code, customer.Name, customer.Type, customer.TaxNumber, customer.IsActive, customer.CreatedAt,
-        customer.RowVersion, customer.GroupId, null, customer.CurrencyCode, customer.RiskLimit, customer.PaymentTermDays, customer.IdentityNumber, customer.TaxOffice);
+        customer.RowVersion, customer.GroupId, null, customer.CurrencyCode, customer.RiskLimit, customer.PaymentTermDays, customer.IdentityNumber, customer.TaxOffice,
+        IsEInvoiceRegistered: customer.IsEInvoiceRegistered, EInvoiceRecipientAlias: customer.EInvoiceRecipientAlias,
+        Phone: customer.Phone, Email: customer.Email, Website: customer.Website, ContactName: customer.ContactName, ContactPhone: customer.ContactPhone,
+        ContactEmail: customer.ContactEmail, PriceListCode: customer.PriceListCode, ReceivableAccountCode: customer.ReceivableAccountCode,
+        PayableAccountCode: customer.PayableAccountCode, BankName: customer.BankName, BankBranchCode: customer.BankBranchCode, Iban: customer.Iban);
     return Results.Created($"/api/customers/{customer.Id}", view);
 });
 customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -1527,7 +1534,7 @@ customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, Cla
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["groupId"] = ["Seçilen cari grubu bulunamadı veya pasif."] });
     if (request.ParentCompanyId is { } parentCompanyId)
     {
-        if (!await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == parentCompanyId && x.IsActive && x.Type != CounterpartyType.Supplier))
+        if (!await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == parentCompanyId && x.IsActive && x.Type != CounterpartyType.Supplier && x.Type != CounterpartyType.Employee))
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["parentCompanyId"] = ["Seçilen ana firma bulunamadı, pasif veya müşteri türünde değil."] });
         var ancestorId = (Guid?)parentCompanyId;
         var visited = new HashSet<Guid>();
@@ -1543,9 +1550,65 @@ customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, Cla
     var code = request.Code.Trim().ToUpperInvariant();
     if (await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id != id && x.Code == code))
         return Results.Conflict(new { error = "Bu cari kodu bu firmada zaten kullanılıyor." });
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    if (request.CustomFields is { } requestedCustomFields)
+    {
+        if (requestedCustomFields.Count > 40)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["customFields"] = ["En fazla 40 özel alan değeri gönderilebilir."] });
+        var definitions = await db.CustomerCustomFieldDefinitions.FromSqlInterpolated(
+            $"SELECT * FROM [dbo].[CustomerCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+        var definitionsByCode = definitions.ToDictionary(x => x.Code, StringComparer.Ordinal);
+        if (requestedCustomFields.Keys.Any(x => string.IsNullOrWhiteSpace(x) || !definitionsByCode.ContainsKey(x)))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["customFields"] = ["Bilinmeyen veya etkin olmayan bir cari özel alan kodu gönderildi."] });
+        var normalizedValues = new Dictionary<Guid, (CustomerCustomFieldDefinition Definition, string Value)>();
+        foreach (var (fieldCode, rawValue) in requestedCustomFields)
+        {
+            var definition = definitionsByCode[fieldCode];
+            if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, rawValue, out var value))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"customFields.{fieldCode}"] = [$"'{definition.Label}' alanı değer türü veya uzunluk sınırına uymuyor."] });
+            if (value.Length > 0) normalizedValues[definition.Id] = (definition, value);
+        }
+        var missingRequired = definitions.FirstOrDefault(x => x.IsRequired && !normalizedValues.ContainsKey(x.Id));
+        if (missingRequired is not null)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { [$"customFields.{missingRequired.Code}"] = [$"'{missingRequired.Label}' alanı zorunludur."] });
+        var definitionIds = definitions.Select(x => x.Id).ToHashSet();
+        var existingValues = await db.CustomerCustomFieldValues
+            .Where(x => x.TenantId == tenantId && x.CustomerId == id && definitionIds.Contains(x.DefinitionId)).ToListAsync();
+        var previousByDefinition = existingValues.ToDictionary(x => x.DefinitionId, x => x.Value);
+        foreach (var definition in definitions)
+        {
+            var previous = previousByDefinition.GetValueOrDefault(definition.Id);
+            var next = normalizedValues.GetValueOrDefault(definition.Id).Value;
+            if (string.Equals(previous ?? "", next ?? "", StringComparison.Ordinal)) continue;
+            db.CustomerCustomFieldValueRevisions.Add(new CustomerCustomFieldValueRevision
+            {
+                TenantId = tenantId, CustomerId = id, DefinitionId = definition.Id,
+                PreviousValue = string.IsNullOrEmpty(previous) ? null : previous,
+                NewValue = string.IsNullOrEmpty(next) ? null : next,
+                DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal)
+            });
+        }
+        db.CustomerCustomFieldValues.RemoveRange(existingValues);
+        foreach (var (definitionId, entry) in normalizedValues)
+            db.CustomerCustomFieldValues.Add(new CustomerCustomFieldValue
+            {
+                TenantId = tenantId, CustomerId = id, DefinitionId = definitionId,
+                Value = entry.Value, DefinitionVersion = entry.Definition.Version
+            });
+        if (definitions.Any(definition => !string.Equals(
+            previousByDefinition.GetValueOrDefault(definition.Id) ?? "",
+            normalizedValues.GetValueOrDefault(definition.Id).Value ?? "", StringComparison.Ordinal)))
+            db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "customer-custom-field.values-updated", Resource = customer.Code });
+    }
     customer.Code = code; customer.Name = request.Name.Trim(); customer.Type = request.Type;
     customer.TaxNumber = NormalizeTaxNumber(request.TaxNumber); customer.IdentityNumber = NormalizeTaxNumber(request.IdentityNumber); customer.TaxOffice = NormalizeTaxNumber(request.TaxOffice); customer.IsActive = request.IsActive; customer.GroupId = request.GroupId; customer.ParentCompanyId = request.ParentCompanyId;
     customer.CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant(); customer.RiskLimit = request.RiskLimit; customer.PaymentTermDays = request.PaymentTermDays;
+    customer.IsEInvoiceRegistered = request.IsEInvoiceRegistered;
+    customer.EInvoiceRecipientAlias = string.IsNullOrWhiteSpace(request.EInvoiceRecipientAlias) ? null : request.EInvoiceRecipientAlias.Trim();
+    customer.Phone = NormalizeTaxNumber(request.Phone); customer.Email = NormalizeTaxNumber(request.Email); customer.Website = NormalizeTaxNumber(request.Website);
+    customer.ContactName = NormalizeTaxNumber(request.ContactName); customer.ContactPhone = NormalizeTaxNumber(request.ContactPhone); customer.ContactEmail = NormalizeTaxNumber(request.ContactEmail);
+    customer.PriceListCode = NormalizeTaxNumber(request.PriceListCode); customer.ReceivableAccountCode = NormalizeTaxNumber(request.ReceivableAccountCode); customer.PayableAccountCode = NormalizeTaxNumber(request.PayableAccountCode);
+    customer.BankName = NormalizeTaxNumber(request.BankName); customer.BankBranchCode = NormalizeTaxNumber(request.BankBranchCode); customer.Iban = NormalizeTaxNumber(request.Iban)?.Replace(" ", "").ToUpperInvariant();
     if (request.Address is { } addressRequest)
     {
         var address = await db.CustomerAddresses.FirstOrDefaultAsync(x => x.TenantId == tenantId && x.CustomerId == id && x.Kind == addressRequest.Kind && x.IsDefault);
@@ -1568,8 +1631,13 @@ customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, Cla
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Cari kart başka bir oturumda değiştirildi. Kaydı yenileyip tekrar deneyin." }); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu cari kodu bu firmada zaten kullanılıyor." }); }
+    await transaction.CommitAsync();
     return Results.Ok(new CustomerView(customer.Id, customer.Code, customer.Name, customer.Type, customer.TaxNumber, customer.IsActive, customer.CreatedAt,
-        customer.RowVersion, customer.GroupId, null, customer.CurrencyCode, customer.RiskLimit, customer.PaymentTermDays, customer.IdentityNumber, customer.TaxOffice));
+        customer.RowVersion, customer.GroupId, null, customer.CurrencyCode, customer.RiskLimit, customer.PaymentTermDays, customer.IdentityNumber, customer.TaxOffice,
+        IsEInvoiceRegistered: customer.IsEInvoiceRegistered, EInvoiceRecipientAlias: customer.EInvoiceRecipientAlias,
+        Phone: customer.Phone, Email: customer.Email, Website: customer.Website, ContactName: customer.ContactName, ContactPhone: customer.ContactPhone,
+        ContactEmail: customer.ContactEmail, PriceListCode: customer.PriceListCode, ReceivableAccountCode: customer.ReceivableAccountCode,
+        PayableAccountCode: customer.PayableAccountCode, BankName: customer.BankName, BankBranchCode: customer.BankBranchCode, Iban: customer.Iban));
 });
 customers.MapGet("/{id:guid}/addresses", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -1678,7 +1746,7 @@ customers.MapPost("/{id:guid}/ledger", async (Guid id, CustomerLedgerWriteReques
     if (!customer.IsActive) return Results.Conflict(new { error = "Pasif cari hesaba yeni hareket eklenemez." });
     var currencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
     if (currencyCode != customer.CurrencyCode) return Results.ValidationProblem(new Dictionary<string, string[]> { ["currencyCode"] = [$"Hareket dövizi cari döviziyle ({customer.CurrencyCode}) aynı olmalıdır."] });
-    if (request.Direction == CustomerLedgerDirection.Debit && customer.RiskLimit is { } limit && customer.Type is CounterpartyType.Customer or CounterpartyType.Both)
+    if (request.Direction == CustomerLedgerDirection.Debit && customer.RiskLimit is { } limit && customer.Type is CounterpartyType.Customer or CounterpartyType.Both or CounterpartyType.Dealer)
     {
         var currentDebit = await db.CustomerLedgerEntries.Where(x => x.TenantId == tenantId && x.CustomerId == id && x.Direction == CustomerLedgerDirection.Debit).SumAsync(x => (decimal?)x.Amount) ?? 0m;
         var currentCredit = await db.CustomerLedgerEntries.Where(x => x.TenantId == tenantId && x.CustomerId == id && x.Direction == CustomerLedgerDirection.Credit).SumAsync(x => (decimal?)x.Amount) ?? 0m;
@@ -1729,6 +1797,38 @@ customers.MapPost("/{id:guid}/ledger/{entryId:guid}/reverse", async (Guid id, Gu
 
 var stockItems = app.MapGroup("/api/stock/items").RequireAuthorization();
 stockItems.MapStockBulkImportEndpoint();
+stockItems.MapGet("/{stockItemId:guid}/transactions", async (Guid stockItemId, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (!await db.StockItems.AnyAsync(x => x.TenantId == tenantId && x.Id == stockItemId)) return Results.NotFound();
+    page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
+    var query = db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == stockItemId);
+    var total = await query.CountAsync();
+    var movements = await query.OrderByDescending(x => x.EntryDate).ThenByDescending(x => x.CreatedAt)
+        .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+    var ids = movements.Select(x => x.Id).ToArray();
+    var allocations = await db.InventoryTransactionTraces.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && ids.Contains(x.InventoryTransactionId))
+        .GroupBy(x => x.InventoryTransactionId)
+        .ToDictionaryAsync(g => g.Key, g => (IReadOnlyList<InventoryTrackingAllocationView>)g
+            .Select(x => new InventoryTrackingAllocationView(x.TrackingCode, x.Quantity, x.ExpiryDate)).ToList());
+    var locationIds = movements.Where(x => x.StorageLocationId.HasValue).Select(x => x.StorageLocationId!.Value).Distinct().ToArray();
+    var locations = await db.WarehouseLocations.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && locationIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => (x.Code, x.Name));
+    var warehouseIds = movements.Select(x => x.WarehouseId).Distinct().ToArray();
+    var warehouses = await db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId && warehouseIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => (x.Code, x.Name));
+    var rows = movements.Select(x => new InventoryTransactionView(x.Id, x.EntryDate, x.Direction, x.Quantity, x.Description,
+        x.ReversalOfId, x.ReversalOfId != null,
+        db.InventoryTransactions.Any(y => y.TenantId == x.TenantId && y.ReversalOfId == x.Id), x.UnitCostBase,
+        x.EnteredQuantity, x.EnteredUnitCode, allocations.GetValueOrDefault(x.Id), x.StorageLocationId,
+        x.StorageLocationId is { } locationId && locations.TryGetValue(locationId, out var location) ? location.Code : null,
+        x.StorageLocationId is { } selectedLocationId && locations.TryGetValue(selectedLocationId, out var selectedLocation) ? selectedLocation.Name : null,
+        x.WarehouseId, warehouses.TryGetValue(x.WarehouseId, out var warehouse) ? warehouse.Code : null,
+        warehouses.TryGetValue(x.WarehouseId, out var selectedWarehouse) ? selectedWarehouse.Name : null)).ToList();
+    return Results.Ok(new InventoryTransactionPage(rows, page, pageSize, total));
+});
 stockItems.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
 {
     if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -1796,7 +1896,7 @@ stockItems.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbCont
     if (!string.IsNullOrWhiteSpace(q)) { var term = q.Trim(); query = query.Where(x => x.Code.Contains(term) || x.Name.Contains(term) || (x.Barcode != null && x.Barcode.Contains(term))); }
     var total = await query.CountAsync();
     var items = await query.OrderBy(x => x.Name).ThenBy(x => x.Code).Skip((page - 1) * pageSize).Take(pageSize)
-        .Select(x => new StockItemView(x.Id, x.Code, x.Name, x.Barcode, x.UnitCode, x.Category, x.MinimumStock, x.IsActive, x.CreatedAt, x.RowVersion, x.TrackingMode, x.ProcurementLeadTimeDays, x.ManufacturingLeadTimeDays)).ToListAsync();
+        .Select(x => new StockItemView(x.Id, x.Code, x.Name, x.Barcode, x.UnitCode, x.Category, x.MinimumStock, x.IsActive, x.CreatedAt, x.RowVersion, x.TrackingMode, x.ProcurementLeadTimeDays, x.ManufacturingLeadTimeDays, x.PurchaseListPrice, x.SalesListPrice, x.PriceCurrencyCode, x.PurchaseVatPercent, x.SalesVatPercent, x.ExciseTaxPercent, x.CommunicationTaxPercent, x.PurchaseDiscountPercent, x.SalesDiscountPercent, x.MaximumStock, x.ReorderPoint, x.SafetyStock, x.NetWeight, x.GrossWeight, x.Length, x.Width, x.Height, x.ProductImageUrl, x.PurchaseAccountCode, x.SalesAccountCode, x.CostAccountCode, x.MarketplaceProductId, x.ParentStockItemId, x.IsVariantParent, x.WithholdingTaxPercent, x.StampTaxPercent)).ToListAsync();
     return Results.Ok(new StockItemPage(items, page, pageSize, total));
 });
 stockItems.MapPost("/", async (StockItemWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -1825,11 +1925,56 @@ stockItems.MapPost("/", async (StockItemWriteRequest request, ClaimsPrincipal pr
     }
     var missingRequired = definitions.FirstOrDefault(x => x.IsRequired && !normalizedValues.ContainsKey(x.Id));
     if (missingRequired is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"customFields.{missingRequired.Code}"] = [$"'{missingRequired.Label}' alanı zorunludur."] });
-    var item = new StockItem { TenantId = tenantId, Code = code, Name = request.Name.Trim(), Barcode = barcode,
+    var variants = request.Variants ?? [];
+    if (variants.Count > 200) return Results.ValidationProblem(new Dictionary<string, string[]> { ["variants"] = ["Bir stok kartında en fazla 200 varyant oluşturulabilir."] });
+    var variantCodes = variants.Select(x => x.Code.Trim().ToUpperInvariant()).ToList();
+    var variantBarcodes = variants.Where(x => !string.IsNullOrWhiteSpace(x.Barcode)).Select(x => x.Barcode!.Trim()).ToList();
+    if (variantCodes.Any(string.IsNullOrWhiteSpace) || variantCodes.Distinct(StringComparer.Ordinal).Count() != variantCodes.Count || variantCodes.Contains(code, StringComparer.Ordinal))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["variants"] = ["Varyant stok kodları benzersiz olmalı ve ana stok kodundan farklı olmalıdır."] });
+    if (variantBarcodes.Distinct(StringComparer.OrdinalIgnoreCase).Count() != variantBarcodes.Count || barcode is not null && variantBarcodes.Contains(barcode, StringComparer.OrdinalIgnoreCase))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["variants"] = ["Varyant barkodları benzersiz olmalıdır."] });
+    if (variants.Any(x => string.IsNullOrWhiteSpace(x.Name) || x.Name.Trim().Length > 200 || x.Attributes.Count is < 1 or > 10 || x.Attributes.Any(a => string.IsNullOrWhiteSpace(a.Key) || a.Key.Length > 40 || string.IsNullOrWhiteSpace(a.Value) || a.Value.Length > 80)))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["variants"] = ["Varyant adı ve özellikleri geçerli olmalıdır; 1–10 özellik, en fazla 40 karakterlik ad ve 80 karakterlik değer kullanılabilir."] });
+    if (variantCodes.Count > 0 && await db.StockItems.AnyAsync(x => x.TenantId == tenantId && variantCodes.Contains(x.Code))) return Results.Conflict(new { error = "Varyant kodlarından biri bu firmada zaten kullanılıyor." });
+    if (variantBarcodes.Count > 0 && await db.StockItems.AnyAsync(x => x.TenantId == tenantId && x.Barcode != null && variantBarcodes.Contains(x.Barcode))) return Results.Conflict(new { error = "Varyant barkodlarından biri bu firmada zaten kullanılıyor." });
+    var item = new StockItem { TenantId = tenantId, Code = code, Name = request.Name.Trim(), Barcode = barcode, IsVariantParent = variants.Count > 0,
         UnitCode = request.UnitCode.Trim().ToUpperInvariant(), Category = string.IsNullOrWhiteSpace(request.Category) ? null : request.Category.Trim(),
         MinimumStock = request.MinimumStock, IsActive = request.IsActive, TrackingMode = request.TrackingMode,
-        ProcurementLeadTimeDays = request.ProcurementLeadTimeDays, ManufacturingLeadTimeDays = request.ManufacturingLeadTimeDays };
+        ProcurementLeadTimeDays = request.ProcurementLeadTimeDays, ManufacturingLeadTimeDays = request.ManufacturingLeadTimeDays,
+        PurchaseListPrice = request.PurchaseListPrice, SalesListPrice = request.SalesListPrice,
+        PriceCurrencyCode = request.PriceCurrencyCode.Trim().ToUpperInvariant(), PurchaseVatPercent = request.PurchaseVatPercent,
+        SalesVatPercent = request.SalesVatPercent, ExciseTaxPercent = request.ExciseTaxPercent, CommunicationTaxPercent = request.CommunicationTaxPercent,
+        WithholdingTaxPercent = request.WithholdingTaxPercent, StampTaxPercent = request.StampTaxPercent,
+        PurchaseDiscountPercent = request.PurchaseDiscountPercent, SalesDiscountPercent = request.SalesDiscountPercent,
+        MaximumStock = request.MaximumStock, ReorderPoint = request.ReorderPoint, SafetyStock = request.SafetyStock,
+        NetWeight = request.NetWeight, GrossWeight = request.GrossWeight, Length = request.Length, Width = request.Width, Height = request.Height,
+        ProductImageUrl = string.IsNullOrWhiteSpace(request.ProductImageUrl) ? null : request.ProductImageUrl.Trim(),
+        PurchaseAccountCode = string.IsNullOrWhiteSpace(request.PurchaseAccountCode) ? null : request.PurchaseAccountCode.Trim(),
+        SalesAccountCode = string.IsNullOrWhiteSpace(request.SalesAccountCode) ? null : request.SalesAccountCode.Trim(),
+        CostAccountCode = string.IsNullOrWhiteSpace(request.CostAccountCode) ? null : request.CostAccountCode.Trim(),
+        MarketplaceProductId = string.IsNullOrWhiteSpace(request.MarketplaceProductId) ? null : request.MarketplaceProductId.Trim() };
     db.StockItems.Add(item);
+    foreach (var variant in variants)
+    {
+        db.StockItems.Add(new StockItem
+        {
+            TenantId = tenantId, ParentStockItemId = item.Id, Code = variant.Code.Trim().ToUpperInvariant(),
+            Name = variant.Name.Trim(), Barcode = string.IsNullOrWhiteSpace(variant.Barcode) ? null : variant.Barcode.Trim(),
+            UnitCode = item.UnitCode, Category = item.Category, MinimumStock = item.MinimumStock, IsActive = item.IsActive,
+            TrackingMode = item.TrackingMode, ProcurementLeadTimeDays = item.ProcurementLeadTimeDays,
+            ManufacturingLeadTimeDays = item.ManufacturingLeadTimeDays, PurchaseListPrice = item.PurchaseListPrice,
+            SalesListPrice = item.SalesListPrice, PriceCurrencyCode = item.PriceCurrencyCode,
+            PurchaseVatPercent = item.PurchaseVatPercent, SalesVatPercent = item.SalesVatPercent,
+            ExciseTaxPercent = item.ExciseTaxPercent, CommunicationTaxPercent = item.CommunicationTaxPercent,
+            WithholdingTaxPercent = item.WithholdingTaxPercent, StampTaxPercent = item.StampTaxPercent,
+            PurchaseDiscountPercent = item.PurchaseDiscountPercent, SalesDiscountPercent = item.SalesDiscountPercent,
+            MaximumStock = item.MaximumStock, ReorderPoint = item.ReorderPoint, SafetyStock = item.SafetyStock,
+            NetWeight = item.NetWeight, GrossWeight = item.GrossWeight, Length = item.Length, Width = item.Width, Height = item.Height,
+            ProductImageUrl = item.ProductImageUrl, PurchaseAccountCode = item.PurchaseAccountCode, SalesAccountCode = item.SalesAccountCode,
+            CostAccountCode = item.CostAccountCode, MarketplaceProductId = item.MarketplaceProductId,
+            VariantAttributesJson = System.Text.Json.JsonSerializer.Serialize(variant.Attributes)
+        });
+    }
     foreach (var (definitionId, entry) in normalizedValues)
     {
         db.StockItemCustomFieldValues.Add(new StockItemCustomFieldValue { TenantId = tenantId, StockItemId = item.Id, DefinitionId = definitionId, Value = entry.Value, DefinitionVersion = entry.Definition.Version });
@@ -1839,13 +1984,28 @@ stockItems.MapPost("/", async (StockItemWriteRequest request, ClaimsPrincipal pr
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Stok kodu veya barkod başka bir kayıtta kullanılıyor." }); }
     await transaction.CommitAsync();
-    return Results.Created($"/api/stock/items/{item.Id}", new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays));
+    return Results.Created($"/api/stock/items/{item.Id}", new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays, item.PurchaseListPrice, item.SalesListPrice, item.PriceCurrencyCode, item.PurchaseVatPercent, item.SalesVatPercent, item.ExciseTaxPercent, item.CommunicationTaxPercent, item.PurchaseDiscountPercent, item.SalesDiscountPercent, item.MaximumStock, item.ReorderPoint, item.SafetyStock, item.NetWeight, item.GrossWeight, item.Length, item.Width, item.Height, item.ProductImageUrl, item.PurchaseAccountCode, item.SalesAccountCode, item.CostAccountCode, item.MarketplaceProductId, item.ParentStockItemId, item.IsVariantParent, item.WithholdingTaxPercent, item.StampTaxPercent));
+});
+stockItems.MapGet("/{id:guid}/variants", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var rows = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.ParentStockItemId == id)
+        .OrderBy(x => x.Code).Select(x => new { x.Id, x.Code, x.Name, x.Barcode, x.VariantAttributesJson, x.IsActive }).ToListAsync();
+    return Results.Ok(rows.Select(x => new StockItemVariantView(x.Id, x.Code, x.Name, x.Barcode,
+        string.IsNullOrWhiteSpace(x.VariantAttributesJson) ? new Dictionary<string, string>() : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(x.VariantAttributesJson) ?? new Dictionary<string, string>(), x.IsActive)));
 });
 stockItems.MapPut("/{id:guid}", async (Guid id, StockItemUpdateRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = InventoryValidation.Validate(new StockItemWriteRequest(request.Code, request.Name, request.Barcode, request.UnitCode, request.Category, request.MinimumStock, TrackingMode: request.TrackingMode ?? InventoryTrackingMode.None,
-        ProcurementLeadTimeDays: request.ProcurementLeadTimeDays, ManufacturingLeadTimeDays: request.ManufacturingLeadTimeDays));
+        ProcurementLeadTimeDays: request.ProcurementLeadTimeDays, ManufacturingLeadTimeDays: request.ManufacturingLeadTimeDays,
+        PurchaseListPrice: request.PurchaseListPrice, SalesListPrice: request.SalesListPrice, PriceCurrencyCode: request.PriceCurrencyCode,
+        PurchaseVatPercent: request.PurchaseVatPercent, SalesVatPercent: request.SalesVatPercent, ExciseTaxPercent: request.ExciseTaxPercent,
+        CommunicationTaxPercent: request.CommunicationTaxPercent, PurchaseDiscountPercent: request.PurchaseDiscountPercent, SalesDiscountPercent: request.SalesDiscountPercent,
+        MaximumStock: request.MaximumStock, ReorderPoint: request.ReorderPoint, SafetyStock: request.SafetyStock, NetWeight: request.NetWeight,
+        GrossWeight: request.GrossWeight, Length: request.Length, Width: request.Width, Height: request.Height, ProductImageUrl: request.ProductImageUrl,
+        PurchaseAccountCode: request.PurchaseAccountCode, SalesAccountCode: request.SalesAccountCode, CostAccountCode: request.CostAccountCode, MarketplaceProductId: request.MarketplaceProductId,
+        WithholdingTaxPercent: request.WithholdingTaxPercent, StampTaxPercent: request.StampTaxPercent));
     if (errors is not null) return Results.ValidationProblem(errors);
     if (request.RowVersion is null || request.RowVersion.Length == 0) return Results.BadRequest(new { error = "RowVersion alanı zorunludur; güncel olmayan düzenlemeler reddedilir." });
     var code = request.Code.Trim().ToUpperInvariant();
@@ -1862,12 +2022,25 @@ stockItems.MapPut("/{id:guid}", async (Guid id, StockItemUpdateRequest request, 
     item.Code = code; item.Name = request.Name.Trim(); item.Barcode = barcode; item.UnitCode = request.UnitCode.Trim().ToUpperInvariant();
     item.Category = string.IsNullOrWhiteSpace(request.Category) ? null : request.Category.Trim(); item.MinimumStock = request.MinimumStock;
     item.ProcurementLeadTimeDays = request.ProcurementLeadTimeDays; item.ManufacturingLeadTimeDays = request.ManufacturingLeadTimeDays;
+    item.PurchaseListPrice = request.PurchaseListPrice; item.SalesListPrice = request.SalesListPrice;
+    item.PriceCurrencyCode = request.PriceCurrencyCode.Trim().ToUpperInvariant();
+    item.PurchaseVatPercent = request.PurchaseVatPercent; item.SalesVatPercent = request.SalesVatPercent;
+    item.ExciseTaxPercent = request.ExciseTaxPercent; item.CommunicationTaxPercent = request.CommunicationTaxPercent;
+    item.WithholdingTaxPercent = request.WithholdingTaxPercent; item.StampTaxPercent = request.StampTaxPercent;
+    item.PurchaseDiscountPercent = request.PurchaseDiscountPercent; item.SalesDiscountPercent = request.SalesDiscountPercent;
+    item.MaximumStock = request.MaximumStock; item.ReorderPoint = request.ReorderPoint; item.SafetyStock = request.SafetyStock;
+    item.NetWeight = request.NetWeight; item.GrossWeight = request.GrossWeight; item.Length = request.Length; item.Width = request.Width; item.Height = request.Height;
+    item.ProductImageUrl = string.IsNullOrWhiteSpace(request.ProductImageUrl) ? null : request.ProductImageUrl.Trim();
+    item.PurchaseAccountCode = string.IsNullOrWhiteSpace(request.PurchaseAccountCode) ? null : request.PurchaseAccountCode.Trim();
+    item.SalesAccountCode = string.IsNullOrWhiteSpace(request.SalesAccountCode) ? null : request.SalesAccountCode.Trim();
+    item.CostAccountCode = string.IsNullOrWhiteSpace(request.CostAccountCode) ? null : request.CostAccountCode.Trim();
+    item.MarketplaceProductId = string.IsNullOrWhiteSpace(request.MarketplaceProductId) ? null : request.MarketplaceProductId.Trim();
     if (request.TrackingMode is { } trackingMode) item.TrackingMode = trackingMode;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-item.updated", Resource = code });
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Stok kodu veya barkod başka bir kayıtta kullanılıyor." }); }
     await transaction.CommitAsync();
-    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays));
+    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays, item.PurchaseListPrice, item.SalesListPrice, item.PriceCurrencyCode, item.PurchaseVatPercent, item.SalesVatPercent, item.ExciseTaxPercent, item.CommunicationTaxPercent, item.PurchaseDiscountPercent, item.SalesDiscountPercent, item.MaximumStock, item.ReorderPoint, item.SafetyStock, item.NetWeight, item.GrossWeight, item.Length, item.Width, item.Height, item.ProductImageUrl, item.PurchaseAccountCode, item.SalesAccountCode, item.CostAccountCode, item.MarketplaceProductId, item.ParentStockItemId, item.IsVariantParent, item.WithholdingTaxPercent, item.StampTaxPercent));
 });
 stockItems.MapPost("/{id:guid}/deactivate", async (Guid id, StockItemStateChangeRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -1890,7 +2063,7 @@ stockItems.MapPost("/{id:guid}/deactivate", async (Guid id, StockItemStateChange
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-item.deactivated", Resource = item.Code });
     await db.SaveChangesAsync();
     await transaction.CommitAsync();
-    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays));
+    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays, item.PurchaseListPrice, item.SalesListPrice, item.PriceCurrencyCode, item.PurchaseVatPercent, item.SalesVatPercent, item.ExciseTaxPercent, item.CommunicationTaxPercent, item.PurchaseDiscountPercent, item.SalesDiscountPercent, item.MaximumStock, item.ReorderPoint, item.SafetyStock, item.NetWeight, item.GrossWeight, item.Length, item.Width, item.Height, item.ProductImageUrl, item.PurchaseAccountCode, item.SalesAccountCode, item.CostAccountCode, item.MarketplaceProductId, item.ParentStockItemId, item.IsVariantParent, item.WithholdingTaxPercent, item.StampTaxPercent));
 });
 stockItems.MapPost("/{id:guid}/activate", async (Guid id, StockItemStateChangeRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -1906,7 +2079,7 @@ stockItems.MapPost("/{id:guid}/activate", async (Guid id, StockItemStateChangeRe
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "stock-item.activated", Resource = item.Code });
     await db.SaveChangesAsync();
     await transaction.CommitAsync();
-    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays));
+    return Results.Ok(new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive, item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays, item.PurchaseListPrice, item.SalesListPrice, item.PriceCurrencyCode, item.PurchaseVatPercent, item.SalesVatPercent, item.ExciseTaxPercent, item.CommunicationTaxPercent, item.PurchaseDiscountPercent, item.SalesDiscountPercent, item.MaximumStock, item.ReorderPoint, item.SafetyStock, item.NetWeight, item.GrossWeight, item.Length, item.Width, item.Height, item.ProductImageUrl, item.PurchaseAccountCode, item.SalesAccountCode, item.CostAccountCode, item.MarketplaceProductId, item.ParentStockItemId, item.IsVariantParent, item.WithholdingTaxPercent, item.StampTaxPercent));
 });
 stockItems.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -2754,7 +2927,7 @@ warehouses.MapGet("/balances/page", async (string? q, bool belowMinimumOnly, int
         var balance = new InventoryBalanceView(item.Id, item.Code, item.Name, item.UnitCode, item.MinimumStock, quantity, quantity < item.MinimumStock,
             reservedQuantity, Math.Max(0m, quantity - reservedQuantity), (total?.Valuation ?? 0m) + valueAdjustments.GetValueOrDefault(item.Id), Math.Max(0m, total?.Unvalued ?? 0m), baseCurrency);
         var stockItem = new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive,
-            item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays);
+            item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays, item.PurchaseListPrice, item.SalesListPrice, item.PriceCurrencyCode, item.PurchaseVatPercent, item.SalesVatPercent, item.ExciseTaxPercent, item.CommunicationTaxPercent, item.PurchaseDiscountPercent, item.SalesDiscountPercent, item.MaximumStock, item.ReorderPoint, item.SafetyStock, item.NetWeight, item.GrossWeight, item.Length, item.Width, item.Height, item.ProductImageUrl, item.PurchaseAccountCode, item.SalesAccountCode, item.CostAccountCode, item.MarketplaceProductId);
         return new InventoryBalancePageItem(balance, stockItem);
     }).ToList();
     return Results.Ok(new InventoryBalancePage(result, page, pageSize, totalCount, belowMinimumCount));
@@ -2821,7 +2994,7 @@ warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, 
         var balance = new InventoryBalanceView(item.Id, item.Code, item.Name, item.UnitCode, item.MinimumStock, quantity, quantity < item.MinimumStock,
             reservedQuantity, Math.Max(0m, quantity - reservedQuantity), (total?.Valuation ?? 0m) + valueAdjustments.GetValueOrDefault(item.Id), Math.Max(0m, total?.Unvalued ?? 0m), baseCurrency);
         var stockItem = new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive,
-            item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays);
+            item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays, item.PurchaseListPrice, item.SalesListPrice, item.PriceCurrencyCode, item.PurchaseVatPercent, item.SalesVatPercent, item.ExciseTaxPercent, item.CommunicationTaxPercent, item.PurchaseDiscountPercent, item.SalesDiscountPercent, item.MaximumStock, item.ReorderPoint, item.SafetyStock, item.NetWeight, item.GrossWeight, item.Length, item.Width, item.Height, item.ProductImageUrl, item.PurchaseAccountCode, item.SalesAccountCode, item.CostAccountCode, item.MarketplaceProductId);
         return new InventoryBalancePageItem(balance, stockItem);
     }).ToList();
     return Results.Ok(new InventoryBalancePage(result, page, pageSize, totalCount, belowMinimumCount));
@@ -3114,6 +3287,20 @@ warehouses.MapPost("/cost-adjustments/{id:guid}/reverse", async (Guid id, Invent
 });
 
 var salesQuotes = app.MapGroup("/api/sales/quotes").RequireAuthorization();
+salesQuotes.MapGet("/exchange-rates", async (DateOnly? rateDate, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var date = rateDate ?? TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
+    if (date > TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["rateDate"] = ["Kur tarihi bugün veya geçmiş bir tarih olmalıdır."] });
+    var snapshot = await SalesQuoteCurrencyConversion.LoadAsync(db, tenantId, date, []);
+    return Results.Ok(new
+    {
+        baseCurrencyCode = snapshot.BaseCurrencyCode,
+        rates = snapshot.Rates.Select(x => new { currencyCode = x.Key, rate = x.Value.Rate, rateDate = x.Value.RateDate })
+            .OrderBy(x => x.currencyCode).ToArray()
+    });
+});
 salesQuotes.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
 {
     if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -3275,21 +3462,42 @@ salesQuotes.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revis
     await db.SaveChangesAsync(); await tx.CommitAsync();
     return Results.Ok(new SalesQuoteCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, target));
 });
-salesQuotes.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 25) =>
+salesQuotes.MapGet("/", async (string? q, SalesQuoteStatus? status, DateOnly? dateFrom, DateOnly? dateTo, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var userId = GetUserId(principal);
     if (userId is null) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
     var query = db.SalesQuotes.AsNoTracking().Where(x => x.TenantId == tenantId);
-    query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId.Value, principal.FindFirstValue("role")!, "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId) ?? query;
-    if (!string.IsNullOrWhiteSpace(q)) { var term = q.Trim(); query = query.Where(x => x.Code.Contains(term) || x.Customer.Name.Contains(term) || x.Customer.Code.Contains(term)); }
+    query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId.Value, principal.FindFirstValue("role")!, "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId ?? Guid.Empty) ?? query;
+    if (status is not null) query = query.Where(x => x.Status == status.Value);
+    if (dateFrom is not null) query = query.Where(x => x.QuoteDate >= dateFrom.Value);
+    if (dateTo is not null) query = query.Where(x => x.QuoteDate <= dateTo.Value);
+    if (!string.IsNullOrWhiteSpace(q)) { var term = q.Trim(); query = query.Where(x => x.Code.Contains(term) || (x.Customer != null && (x.Customer.Name.Contains(term) || x.Customer.Code.Contains(term))) || (x.ProspectCustomerName != null && x.ProspectCustomerName.Contains(term))); }
     var total = await query.CountAsync();
     var rows = await query.OrderByDescending(x => x.QuoteDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
-        .Select(x => new SalesQuoteSummary(x.Id, x.Code, x.CustomerId, x.Customer.Name, x.QuoteDate, x.ValidUntil,
+        .Select(x => new SalesQuoteSummary(x.Id, x.Code, x.CustomerId, x.Customer != null ? x.Customer.Name : x.ProspectCustomerName ?? "Teklif alıcısı", x.QuoteDate, x.ValidUntil,
             x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt,
-            db.SalesOrders.Any(y => y.TenantId == x.TenantId && y.QuoteId == x.Id))).ToListAsync();
+            db.SalesOrders.Any(y => y.TenantId == x.TenantId && y.QuoteId == x.Id), x.RevisionGroupId, x.RevisionNumber, x.Customer != null ? x.Customer.Code : null,
+            x.SalespersonEmployeeId == null ? null : db.EmployeeRecords.Where(employee => employee.TenantId == x.TenantId && employee.Id == x.SalespersonEmployeeId)
+                .Select(employee => employee.PersonnelCode + " · " + employee.FullName).FirstOrDefault(),
+            db.SalesOrders.Where(y => y.TenantId == x.TenantId && y.QuoteId == x.Id).Select(y => (Guid?)y.Id).FirstOrDefault(),
+            db.SalesOrders.Where(y => y.TenantId == x.TenantId && y.QuoteId == x.Id).Select(y => y.Code).FirstOrDefault())).ToListAsync();
     return Results.Ok(new SalesQuotePage(rows, page, pageSize, total));
+});
+salesQuotes.MapGet("/{id:guid}/revisions", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var quote = await db.SalesQuotes.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
+    if (quote is null) return Results.NotFound();
+    var revisions = await db.SalesQuotes.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.RevisionGroupId == quote.RevisionGroupId)
+        .OrderBy(x => x.RevisionNumber)
+        .Select(x => new SalesQuoteRevisionSummary(x.Id, x.Code, x.RevisionNumber, x.Status, x.QuoteDate,
+            x.ValidUntil, x.GrandTotal, x.CurrencyCode, x.CreatedAt,
+            db.SalesOrders.Any(order => order.TenantId == x.TenantId && order.QuoteId == x.Id)))
+        .ToListAsync();
+    return Results.Ok(revisions);
 });
 salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -3299,28 +3507,65 @@ salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tena
     if (quote is null) return Results.NotFound();
     var lines = quote.Lines.OrderBy(x => x.LineNumber).Select(x => new SalesQuoteLineView(x.LineNumber, x.StockItemId,
         x.StockCode, x.StockName, x.UnitCode, x.Quantity, x.UnitPrice, x.DiscountPercent, x.VatPercent,
-        x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal)).ToList();
+        x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal, x.EnteredCurrencyCode, x.EnteredUnitPrice,
+        x.EnteredUnitCode, x.ExchangeRateToQuoteCurrency, x.IsVatIncluded)).ToList();
     var customFields = await (from definition in db.SalesQuoteCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
         join value in db.SalesQuoteCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
         from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesQuoteCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
-    return Results.Ok(new SalesQuoteView(quote.Id, quote.Code, quote.CustomerId, quote.Customer.Name, quote.QuoteDate,
+    return Results.Ok(new SalesQuoteView(quote.Id, quote.Code, quote.CustomerId, quote.Customer?.Name ?? quote.ProspectCustomerName ?? "Teklif alıcısı", quote.QuoteDate,
         quote.ValidUntil, quote.CurrencyCode, quote.Status, quote.Notes, quote.Subtotal, quote.DiscountTotal,
-        quote.TaxTotal, quote.GrandTotal, quote.CreatedAt, lines, quote.Order is not null, customFields));
+        quote.TaxTotal, quote.GrandTotal, quote.CreatedAt, lines, quote.Order is not null, customFields,
+        quote.RevisionGroupId, quote.RevisionNumber, quote.DeliveryTerms, quote.SalespersonEmployeeId, quote.Customer?.Code));
 });
 salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = SalesQuoteValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
-    var code = request.Code.Trim().ToUpperInvariant();
-    if (await db.SalesQuotes.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu teklif numarası bu firmada zaten kullanılıyor." });
-    var customer = await db.CustomerAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.CustomerId && x.IsActive);
-    if (customer is null || customer.Type is not (CounterpartyType.Customer or CounterpartyType.Both))
+    var suppliedCode = request.Code?.Trim().ToUpperInvariant();
+    if (!string.IsNullOrWhiteSpace(suppliedCode) && await db.SalesQuotes.AnyAsync(x => x.TenantId == tenantId && x.Code == suppliedCode)) return Results.Conflict(new { error = "Bu teklif numarası bu firmada zaten kullanılıyor." });
+    var customer = request.CustomerId is { } customerId
+        ? await db.CustomerAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == customerId && x.IsActive)
+        : null;
+    if (request.CustomerId is not null && (customer is null || customer.Type is not (CounterpartyType.Customer or CounterpartyType.Both or CounterpartyType.Dealer)))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["customerId"] = ["Aktif müşteri türünde bir cari seçilmelidir."] });
+    if (request.SalespersonEmployeeId is { } salespersonId && !await db.EmployeeRecords.AnyAsync(x => x.TenantId == tenantId && x.Id == salespersonId && x.TerminationDate == null))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["salespersonEmployeeId"] = ["Aktif bir plasiyer seçilmelidir."] });
     var currencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
-    if (currencyCode != customer.CurrencyCode)
+    if (customer is not null && currencyCode != customer.CurrencyCode)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["currencyCode"] = [$"Teklif dövizi seçilen carinin döviziyle ({customer.CurrencyCode}) aynı olmalıdır."] });
     await using var transaction = await db.Database.BeginTransactionAsync();
+    var code = string.IsNullOrWhiteSpace(suppliedCode)
+        ? await TenantDocumentNumbering.NextAsync(db, tenantId, "SalesQuote", null, request.QuoteDate, CancellationToken.None)
+        : suppliedCode;
+    if (await db.SalesQuotes.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu teklif numarası bu firmada zaten kullanılıyor." });
+    Guid revisionGroupId;
+    int revisionNumber;
+    if (request.RevisesQuoteId is { } revisesQuoteId)
+    {
+        var source = await db.SalesQuotes.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == revisesQuoteId);
+        if (source is null) return Results.NotFound(new { error = "Revize edilecek teklif bulunamadı." });
+        if (await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.QuoteId == source.Id))
+            return Results.Conflict(new { error = "Siparişe dönüştürülmüş teklif revize edilemez." });
+        if (source.CustomerId != customer?.Id || source.CurrencyCode != currencyCode ||
+            (customer is null && !string.Equals(source.ProspectCustomerName?.Trim(), request.ProspectCustomerName?.Trim(), StringComparison.OrdinalIgnoreCase)))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["revisesQuoteId"] = ["Revizyon aynı müşteri ve döviz için oluşturulmalıdır."] });
+        var latest = await db.SalesQuotes.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.RevisionGroupId == source.RevisionGroupId)
+            .OrderByDescending(x => x.RevisionNumber)
+            .Select(x => new { x.Id, x.RevisionNumber })
+            .FirstAsync();
+        if (latest.Id != source.Id)
+            return Results.Conflict(new { error = "Yalnızca en güncel teklif revize edilebilir." });
+        revisionGroupId = source.RevisionGroupId;
+        revisionNumber = source.RevisionNumber + 1;
+    }
+    else
+    {
+        revisionGroupId = Guid.NewGuid();
+        revisionNumber = 1;
+    }
     var customDefinitions = await db.SalesQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
     var customFieldErrors = new Dictionary<string, string[]>(); var normalizedCustomFields = new Dictionary<Guid, (SalesQuoteCustomFieldDefinition Definition, string Value)>();
     if (request.CustomFields is { Count: > 40 }) customFieldErrors["customFields"] = ["En fazla 40 özel alan gönderilebilir."];
@@ -3338,33 +3583,53 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
     var stockItemsById = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && requestedItemIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
     if (stockItemsById.Count != requestedItemIds.Length)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Satırlardaki stok kartlarından biri bulunamadı veya pasif."] });
-    var normalizedLines = new List<(SalesQuoteLineWriteRequest Input, SalesQuoteLineWriteRequest Base)>();
+    var sourceCurrencies = request.Lines.Select(x => SalesQuoteCurrencyConversion.NormalizeCurrency(x.CurrencyCode, currencyCode)).Append(currencyCode).Distinct().ToArray();
+    var fxSnapshot = await SalesQuoteCurrencyConversion.LoadAsync(db, tenantId, request.QuoteDate, sourceCurrencies);
+    var normalizedLines = new List<(SalesQuoteLineWriteRequest Input, SalesQuoteLineWriteRequest Base, string CurrencyCode, decimal Rate)>();
     for (var i = 0; i < request.Lines.Count; i++)
     {
         var input = request.Lines[i]; var item = stockItemsById[input.StockItemId];
+        var lineCurrency = SalesQuoteCurrencyConversion.NormalizeCurrency(input.CurrencyCode, currencyCode);
+        if (!SalesQuoteCurrencyConversion.IsCurrencyCode(lineCurrency) || !SalesQuoteCurrencyConversion.IsCurrencyCode(currencyCode))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].currencyCode"] = ["Para birimi üç harfli ISO kodu olmalıdır."] });
+        decimal exchangeRate;
+        if (input.ExchangeRateToQuoteCurrency is { } enteredRate)
+        {
+            if (lineCurrency == currencyCode && enteredRate != 1m)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].exchangeRateToQuoteCurrency"] = ["Teklif döviziyle aynı dövizde kur 1 olmalıdır."] });
+            exchangeRate = enteredRate;
+        }
+        else if (!SalesQuoteCurrencyConversion.TryGetConversion(fxSnapshot, lineCurrency, currencyCode, out exchangeRate))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].currencyCode"] = [$"{lineCurrency} ile {currencyCode} arasında {request.QuoteDate:yyyy-MM-dd} tarihli kur bulunamadı."] });
         var factor = await ResolveStockUnitFactorAsync(db, tenantId, item, input.UnitCode);
         if (factor is null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].unitCode"] = ["Stok kartı için bu birim etkin değil."] });
         try
         {
-            var baseQuantity = checked(input.Quantity * factor.Value); var basePrice = input.UnitPrice / factor.Value;
+            var baseQuantity = checked(input.Quantity * factor.Value); var basePrice = checked(input.UnitPrice * exchangeRate) / factor.Value;
             if (baseQuantity <= 0m || baseQuantity > 99999999999999.9999m || baseQuantity != decimal.Round(baseQuantity, 4) || basePrice > 99999999999999.9999m)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Birim dönüşümü temel miktar ve fiyat için desteklenen hassasiyet sınırını aşıyor."] });
-            normalizedLines.Add((input, input with { Quantity = baseQuantity, UnitPrice = basePrice, UnitCode = item.UnitCode }));
+            normalizedLines.Add((input, input with { Quantity = baseQuantity, UnitPrice = basePrice, UnitCode = item.UnitCode }, lineCurrency, exchangeRate));
         }
         catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Birim dönüşümü desteklenen miktar veya fiyat sınırını aşıyor."] }); }
     }
     SalesQuoteTotals totals;
     try { totals = SalesQuoteValidation.Sum(normalizedLines.Select(x => SalesQuoteValidation.Calculate(x.Base))); }
     catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Teklif toplamı desteklenen decimal(18,2) sınırını aşıyor."] }); }
-    var quote = new SalesQuote { TenantId = tenantId, CustomerId = customer.Id, Code = code, QuoteDate = request.QuoteDate,
+    var quote = new SalesQuote { TenantId = tenantId, RevisionGroupId = revisionGroupId, RevisionNumber = revisionNumber,
+        CustomerId = customer?.Id, Customer = null, SalespersonEmployeeId = request.SalespersonEmployeeId,
+        ProspectCustomerName = customer is null ? request.ProspectCustomerName!.Trim() : null,
+        Code = code, QuoteDate = request.QuoteDate,
         ValidUntil = request.ValidUntil, CurrencyCode = currencyCode, Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
+        DeliveryTerms = string.IsNullOrWhiteSpace(request.DeliveryTerms) ? null : request.DeliveryTerms.Trim(),
         Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal };
     for (var i = 0; i < request.Lines.Count; i++)
     {
-        var input = normalizedLines[i].Base; var item = stockItemsById[input.StockItemId]; var amounts = SalesQuoteValidation.Calculate(input);
+        var normalized = normalizedLines[i]; var input = normalized.Base; var item = stockItemsById[input.StockItemId]; var amounts = SalesQuoteValidation.Calculate(input);
         quote.Lines.Add(new SalesQuoteLine { TenantId = tenantId, Quote = quote, LineNumber = i + 1, StockItemId = item.Id,
             StockCode = item.Code, StockName = item.Name, UnitCode = item.UnitCode, Quantity = input.Quantity, UnitPrice = input.UnitPrice,
-            DiscountPercent = input.DiscountPercent, VatPercent = input.VatPercent, LineSubtotal = amounts.LineSubtotal,
+            EnteredCurrencyCode = normalized.CurrencyCode, EnteredUnitPrice = normalized.Input.UnitPrice,
+            EnteredUnitCode = normalized.Input.UnitCode ?? item.UnitCode, ExchangeRateToQuoteCurrency = normalized.Rate,
+            DiscountPercent = input.DiscountPercent, VatPercent = input.VatPercent, IsVatIncluded = input.IsVatIncluded, LineSubtotal = amounts.LineSubtotal,
             DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal });
     }
     db.SalesQuotes.Add(quote);
@@ -3377,9 +3642,132 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu teklif numarası bu firmada zaten kullanılıyor." }); }
     await transaction.CommitAsync();
-    var summary = new SalesQuoteSummary(quote.Id, quote.Code, customer.Id, customer.Name, quote.QuoteDate, quote.ValidUntil,
-        quote.CurrencyCode, quote.Status, quote.GrandTotal, quote.Lines.Count, quote.CreatedAt);
+    var summary = new SalesQuoteSummary(quote.Id, quote.Code, customer?.Id, customer?.Name ?? quote.ProspectCustomerName!, quote.QuoteDate, quote.ValidUntil,
+        quote.CurrencyCode, quote.Status, quote.GrandTotal, quote.Lines.Count, quote.CreatedAt,
+        false, quote.RevisionGroupId, quote.RevisionNumber, customer?.Code);
     return Results.Created($"/api/sales/quotes/{quote.Id}", summary);
+});
+salesQuotes.MapPut("/{id:guid}", async (Guid id, SalesQuoteWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var errors = SalesQuoteValidation.Validate(request);
+    if (errors is not null) return Results.ValidationProblem(errors);
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    var quote = await db.SalesQuotes
+        .FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuotes] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}")
+        .SingleOrDefaultAsync();
+    if (quote is null) return Results.NotFound();
+    if (quote.Status != SalesQuoteStatus.Draft) return Results.Conflict(new { error = "Yalnızca taslak teklifler düzenlenebilir." });
+    if (await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.QuoteId == quote.Id))
+        return Results.Conflict(new { error = "Siparişe dönüştürülmüş teklif düzenlenemez." });
+    var latestRevisionId = await db.SalesQuotes.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.RevisionGroupId == quote.RevisionGroupId)
+        .OrderByDescending(x => x.RevisionNumber).Select(x => x.Id).FirstAsync();
+    if (latestRevisionId != quote.Id) return Results.Conflict(new { error = "Yalnızca en güncel teklif revizyonu düzenlenebilir." });
+
+    var code = request.Code.Trim().ToUpperInvariant();
+    if (await db.SalesQuotes.AnyAsync(x => x.TenantId == tenantId && x.Id != quote.Id && x.Code == code))
+        return Results.Conflict(new { error = "Bu teklif numarası bu firmada zaten kullanılıyor." });
+    var customer = request.CustomerId is { } customerId
+        ? await db.CustomerAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == customerId && x.IsActive)
+        : null;
+    if (request.CustomerId is not null && (customer is null || customer.Type is not (CounterpartyType.Customer or CounterpartyType.Both or CounterpartyType.Dealer)))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["customerId"] = ["Aktif müşteri türünde bir cari seçilmelidir."] });
+    if (request.SalespersonEmployeeId is { } salespersonId && !await db.EmployeeRecords.AnyAsync(x => x.TenantId == tenantId && x.Id == salespersonId && x.TerminationDate == null))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["salespersonEmployeeId"] = ["Aktif bir plasiyer seçilmelidir."] });
+    var currencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
+    if (customer is not null && currencyCode != customer.CurrencyCode)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["currencyCode"] = [$"Teklif dövizi seçilen carinin döviziyle ({customer.CurrencyCode}) aynı olmalıdır."] });
+
+    var definitions = await db.SalesQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
+    var fieldErrors = new Dictionary<string, string[]>();
+    var normalizedFields = new Dictionary<Guid, (SalesQuoteCustomFieldDefinition Definition, string Value)>();
+    if (request.CustomFields is { Count: > 40 }) fieldErrors["customFields"] = ["En fazla 40 özel alan gönderilebilir."];
+    if (request.CustomFields is not null) foreach (var pair in request.CustomFields)
+    {
+        var definition = definitions.FirstOrDefault(x => string.Equals(x.Code, pair.Key, StringComparison.OrdinalIgnoreCase));
+        if (definition is null) { fieldErrors[$"customFields.{pair.Key}"] = ["Alan kodu bu tenant içinde etkin değil."]; continue; }
+        if (!StockCustomFieldValidation.TryNormalize(definition.DataType, definition.MaxLength, pair.Value, out var value)) { fieldErrors[$"customFields.{pair.Key}"] = [$"'{definition.Label}' alanı veri türü veya uzunluk sınırına uymuyor."]; continue; }
+        if (value.Length > 0) normalizedFields[definition.Id] = (definition, value);
+    }
+    var missingField = definitions.FirstOrDefault(x => x.IsRequired && !normalizedFields.ContainsKey(x.Id));
+    if (missingField is not null) fieldErrors[$"customFields.{missingField.Code}"] = [$"'{missingField.Label}' alanı zorunludur."];
+    if (fieldErrors.Count > 0) return Results.ValidationProblem(fieldErrors);
+
+    var itemIds = request.Lines.Select(x => x.StockItemId).Distinct().ToArray();
+    var items = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && itemIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
+    if (items.Count != itemIds.Length) return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Satırlardaki stok kartlarından biri bulunamadı veya pasif."] });
+    var sourceCurrencies = request.Lines.Select(x => SalesQuoteCurrencyConversion.NormalizeCurrency(x.CurrencyCode, currencyCode)).Append(currencyCode).Distinct().ToArray();
+    var fxSnapshot = await SalesQuoteCurrencyConversion.LoadAsync(db, tenantId, request.QuoteDate, sourceCurrencies);
+    var normalizedLines = new List<(SalesQuoteLineWriteRequest Input, SalesQuoteLineWriteRequest Base, string CurrencyCode, decimal Rate)>();
+    for (var i = 0; i < request.Lines.Count; i++)
+    {
+        var input = request.Lines[i]; var item = items[input.StockItemId];
+        var lineCurrency = SalesQuoteCurrencyConversion.NormalizeCurrency(input.CurrencyCode, currencyCode);
+        if (!SalesQuoteCurrencyConversion.IsCurrencyCode(lineCurrency) || !SalesQuoteCurrencyConversion.IsCurrencyCode(currencyCode))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].currencyCode"] = ["Para birimi üç harfli ISO kodu olmalıdır."] });
+        decimal exchangeRate;
+        if (input.ExchangeRateToQuoteCurrency is { } enteredRate)
+        {
+            if (lineCurrency == currencyCode && enteredRate != 1m)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].exchangeRateToQuoteCurrency"] = ["Teklif döviziyle aynı dövizde kur 1 olmalıdır."] });
+            exchangeRate = enteredRate;
+        }
+        else if (!SalesQuoteCurrencyConversion.TryGetConversion(fxSnapshot, lineCurrency, currencyCode, out exchangeRate))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].currencyCode"] = [$"{lineCurrency} ile {currencyCode} arasında {request.QuoteDate:yyyy-MM-dd} tarihli kur bulunamadı."] });
+        var factor = await ResolveStockUnitFactorAsync(db, tenantId, item, input.UnitCode);
+        if (factor is null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].unitCode"] = ["Stok kartı için bu birim etkin değil."] });
+        try
+        {
+            var quantity = checked(input.Quantity * factor.Value); var price = checked(input.UnitPrice * exchangeRate) / factor.Value;
+            if (quantity <= 0m || quantity > 99999999999999.9999m || quantity != decimal.Round(quantity, 4) || price > 99999999999999.9999m)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Birim dönüşümü temel miktar ve fiyat için desteklenen hassasiyet sınırını aşıyor."] });
+            normalizedLines.Add((input, input with { Quantity = quantity, UnitPrice = price, UnitCode = item.UnitCode }, lineCurrency, exchangeRate));
+        }
+        catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Birim dönüşümü desteklenen miktar veya fiyat sınırını aşıyor."] }); }
+    }
+    SalesQuoteTotals totals;
+    try { totals = SalesQuoteValidation.Sum(normalizedLines.Select(x => SalesQuoteValidation.Calculate(x.Base))); }
+    catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Teklif toplamı desteklenen decimal(18,2) sınırını aşıyor."] }); }
+
+    var previousLines = await db.SalesQuoteLines.Where(x => x.TenantId == tenantId && x.QuoteId == quote.Id).ToListAsync();
+    db.SalesQuoteLines.RemoveRange(previousLines);
+    await db.SaveChangesAsync();
+    quote.Code = code; quote.CustomerId = customer?.Id; quote.Customer = null;
+    quote.ProspectCustomerName = customer is null ? request.ProspectCustomerName!.Trim() : null;
+    quote.QuoteDate = request.QuoteDate; quote.ValidUntil = request.ValidUntil; quote.CurrencyCode = currencyCode;
+    quote.SalespersonEmployeeId = request.SalespersonEmployeeId;
+    quote.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+    quote.DeliveryTerms = string.IsNullOrWhiteSpace(request.DeliveryTerms) ? null : request.DeliveryTerms.Trim();
+    quote.Subtotal = totals.Subtotal; quote.DiscountTotal = totals.DiscountTotal; quote.TaxTotal = totals.TaxTotal; quote.GrandTotal = totals.GrandTotal;
+    quote.Lines = new List<SalesQuoteLine>();
+    for (var i = 0; i < normalizedLines.Count; i++)
+    {
+        var normalized = normalizedLines[i]; var line = normalized.Base; var item = items[line.StockItemId]; var amounts = SalesQuoteValidation.Calculate(line);
+        quote.Lines.Add(new SalesQuoteLine { TenantId = tenantId, Quote = quote, QuoteId = quote.Id, LineNumber = i + 1,
+            StockItemId = item.Id, StockCode = item.Code, StockName = item.Name, UnitCode = item.UnitCode,
+            EnteredCurrencyCode = normalized.CurrencyCode, EnteredUnitPrice = normalized.Input.UnitPrice,
+            EnteredUnitCode = normalized.Input.UnitCode ?? item.UnitCode, ExchangeRateToQuoteCurrency = normalized.Rate,
+            Quantity = line.Quantity, UnitPrice = line.UnitPrice, DiscountPercent = line.DiscountPercent, VatPercent = line.VatPercent,
+            IsVatIncluded = line.IsVatIncluded, LineSubtotal = amounts.LineSubtotal, DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal });
+    }
+    var existingValues = await db.SalesQuoteCustomFieldValues.Where(x => x.TenantId == tenantId && x.QuoteId == quote.Id).ToDictionaryAsync(x => x.DefinitionId);
+    foreach (var definition in definitions)
+    {
+        var oldValue = existingValues.GetValueOrDefault(definition.Id);
+        var newValue = normalizedFields.GetValueOrDefault(definition.Id).Value;
+        if (string.Equals(oldValue?.Value ?? "", newValue, StringComparison.Ordinal)) continue;
+        if (oldValue is not null) db.SalesQuoteCustomFieldValues.Remove(oldValue);
+        if (newValue.Length > 0) db.SalesQuoteCustomFieldValues.Add(new SalesQuoteCustomFieldValue { TenantId = tenantId, QuoteId = quote.Id, DefinitionId = definition.Id, Value = newValue, DefinitionVersion = definition.Version });
+        db.SalesQuoteCustomFieldValueRevisions.Add(new SalesQuoteCustomFieldValueRevision { TenantId = tenantId, QuoteId = quote.Id, DefinitionId = definition.Id,
+            PreviousValue = oldValue?.Value, NewValue = newValue.Length == 0 ? null : newValue, DefinitionVersion = definition.Version, ChangedByUserId = GetUserId(principal) });
+    }
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-quote.updated", Resource = quote.Code });
+    try { await db.SaveChangesAsync(); }
+    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu teklif numarası bu firmada zaten kullanılıyor." }); }
+    await transaction.CommitAsync();
+    return Results.Ok(new SalesQuoteSummary(quote.Id, quote.Code, customer?.Id, customer?.Name ?? quote.ProspectCustomerName!, quote.QuoteDate,
+        quote.ValidUntil, quote.CurrencyCode, quote.Status, quote.GrandTotal, quote.Lines.Count, quote.CreatedAt, false, quote.RevisionGroupId, quote.RevisionNumber, customer?.Code));
 });
 salesQuotes.MapPost("/{id:guid}/send", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -3392,7 +3780,9 @@ salesQuotes.MapPost("/{id:guid}/send", async (Guid id, ClaimsPrincipal principal
     quote.Status = SalesQuoteStatus.Sent;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-quote.sent", Resource = quote.Code });
     await db.SaveChangesAsync(); await transaction.CommitAsync();
-    var customerName = await db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == quote.CustomerId).Select(x => x.Name).SingleAsync();
+    var customerName = quote.CustomerId is { } sentCustomerId
+        ? await db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == sentCustomerId).Select(x => x.Name).SingleAsync()
+        : quote.ProspectCustomerName ?? "Teklif alıcısı";
     var lineCount = await db.SalesQuoteLines.CountAsync(x => x.TenantId == tenantId && x.QuoteId == quote.Id);
     return Results.Ok(new SalesQuoteSummary(quote.Id, quote.Code, quote.CustomerId, customerName, quote.QuoteDate, quote.ValidUntil,
         quote.CurrencyCode, quote.Status, quote.GrandTotal, lineCount, quote.CreatedAt));
@@ -3410,6 +3800,8 @@ salesQuotes.MapPost("/{id:guid}/convert-to-order", async (Guid id, ClaimsPrincip
     var alreadyConverted = await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.QuoteId == id);
     if (!SalesQuoteWorkflow.CanConvertToOrder(quote.Status, alreadyConverted))
         return alreadyConverted ? Results.Conflict(new { error = "Bu teklif daha önce satış siparişine dönüştürüldü." }) : Results.Conflict(new { error = "Yalnızca kabul edilmiş teklif siparişe dönüştürülebilir." });
+    if (quote.CustomerId is not { } orderCustomerId)
+        return Results.Conflict(new { error = "Teklif kabul edilirken cari kartı oluşturulamadı; siparişe dönüştürülemez." });
     if (await BusinessRuleEndpoints.IsSalesQuoteAwaitingApprovalAsync(db, tenantId, quote.Id, ct))
         return Results.Conflict(new { error = "Teklif onay iş akışı tamamlanmadan siparişe dönüştürülemez." });
     var orderFieldDefinitions = await db.SalesOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
@@ -3431,14 +3823,17 @@ salesQuotes.MapPost("/{id:guid}/convert-to-order", async (Guid id, ClaimsPrincip
     }
     var sourceLines = await db.SalesQuoteLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == id).OrderBy(x => x.LineNumber).ToListAsync();
     if (sourceLines.Count == 0) return Results.Conflict(new { error = "Satır içermeyen teklif siparişe dönüştürülemez." });
-    var orderCode = $"SO-{quote.Id:N}".ToUpperInvariant();
-    var order = new SalesOrder { TenantId = tenantId, QuoteId = quote.Id, CustomerId = quote.CustomerId, Code = orderCode,
+    var orderCode = await TenantDocumentNumbering.NextAsync(db, tenantId, "SalesOrder", null, DateOnly.FromDateTime(DateTime.UtcNow), CancellationToken.None);
+    var order = new SalesOrder { TenantId = tenantId, QuoteId = quote.Id, CustomerId = orderCustomerId, SalespersonEmployeeId = quote.SalespersonEmployeeId, Code = orderCode,
         OrderDate = DateOnly.FromDateTime(DateTime.UtcNow), CurrencyCode = quote.CurrencyCode, Status = SalesOrderStatus.Open,
         Subtotal = quote.Subtotal, DiscountTotal = quote.DiscountTotal, TaxTotal = quote.TaxTotal, GrandTotal = quote.GrandTotal };
     foreach (var source in sourceLines)
         order.Lines.Add(new SalesOrderLine { TenantId = tenantId, Order = order, LineNumber = source.LineNumber,
             StockItemId = source.StockItemId, StockCode = source.StockCode, StockName = source.StockName, UnitCode = source.UnitCode,
             Quantity = source.Quantity, UnitPrice = source.UnitPrice, DiscountPercent = source.DiscountPercent, VatPercent = source.VatPercent,
+            EnteredCurrencyCode = source.EnteredCurrencyCode, EnteredUnitPrice = source.EnteredUnitPrice,
+            EnteredUnitCode = source.EnteredUnitCode, ExchangeRateToOrderCurrency = source.ExchangeRateToQuoteCurrency,
+            IsVatIncluded = source.IsVatIncluded,
             LineSubtotal = source.LineSubtotal, DiscountAmount = source.DiscountAmount, TaxAmount = source.TaxAmount, LineTotal = source.LineTotal });
     foreach (var field in copiedOrderFields.Values)
     {
@@ -3452,7 +3847,7 @@ salesQuotes.MapPost("/{id:guid}/convert-to-order", async (Guid id, ClaimsPrincip
     await transaction.CommitAsync();
     var customerName = await db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == order.CustomerId).Select(x => x.Name).SingleAsync();
     return Results.Created($"/api/sales/orders/{order.Id}", new SalesOrderSummary(order.Id, order.Code, quote.Id, quote.Code,
-        order.CustomerId, customerName, order.OrderDate, order.CurrencyCode, order.Status, order.GrandTotal, order.Lines.Count, order.CreatedAt, order.RequestedDeliveryDate));
+        order.CustomerId, customerName, order.OrderDate, order.CurrencyCode, order.Status, order.GrandTotal, order.Lines.Count, order.CreatedAt, order.RequestedDeliveryDate, order.SalespersonEmployeeId));
 });
 var salesOrders = app.MapGroup("/api/sales/orders").RequireAuthorization();
 salesOrders.MapSalesOrderAssistantSummaryEndpoint();
@@ -3670,7 +4065,7 @@ salesOrders.MapPost("/{id:guid}/reservations/release", async (Guid id, SalesOrde
     await transaction.CommitAsync();
     return Results.Ok(new { order.Id, order.Code, releasedCount = reservations.Count });
 });
-salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteRequest request, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = SalesDeliveryValidation.Validate(request);
@@ -3780,7 +4175,7 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
             return Results.Conflict(new { error = $"{stockItems[required.Key].Code} için depoda rezervasyonlar düşüldükten sonra yeterli stok yok.", stockItemId = required.Key,
                 currentBalance = current, reservedQuantity = reservedElsewhereByStock.GetValueOrDefault(required.Key), availableQuantity = available, requestedQuantity = required.Value });
     }
-    var code = $"DN-{Guid.NewGuid():N}".ToUpperInvariant();
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, "SalesDelivery", null, request.DeliveryDate, ct);
     var delivery = new SalesDelivery { TenantId = tenantId, RequestId = request.RequestId, OrderId = order.Id, WarehouseId = warehouse.Id, Code = code, DeliveryDate = request.DeliveryDate };
     foreach (var input in request.Lines.OrderBy(x => x.OrderLineNumber))
     {
@@ -3829,7 +4224,7 @@ salesOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbCon
     var total = await query.CountAsync();
     var rows = await query.OrderByDescending(x => x.OrderDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
         .Select(x => new SalesOrderSummary(x.Id, x.Code, x.QuoteId, x.Quote == null ? "Bağımsız" : x.Quote.Code, x.CustomerId, x.Customer.Name,
-            x.OrderDate, x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt, x.RequestedDeliveryDate)).ToListAsync();
+            x.OrderDate, x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt, x.RequestedDeliveryDate, x.SalespersonEmployeeId)).ToListAsync();
     return Results.Ok(new SalesOrderPage(rows, page, pageSize, total));
 });
 salesOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -3850,13 +4245,14 @@ salesOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tena
         return new SalesOrderLineView(x.LineNumber, x.StockItemId, x.StockCode, x.StockName, x.UnitCode, x.Quantity,
             x.UnitPrice, x.DiscountPercent, x.VatPercent, x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal,
             deliveredQuantity, Math.Max(0m, x.Quantity - deliveredQuantity), reservation?.Id, reservation?.WarehouseId,
-            reservation?.Warehouse.Name, reservation is null ? 0m : reservation.Quantity - reservation.FulfilledQuantity);
+            reservation?.Warehouse.Name, reservation is null ? 0m : reservation.Quantity - reservation.FulfilledQuantity,
+            x.EnteredCurrencyCode, x.EnteredUnitPrice, x.EnteredUnitCode, x.IsVatIncluded, x.ExchangeRateToOrderCurrency);
     }).ToList();
     var customFields = await (from definition in db.SalesOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
         join value in db.SalesOrderCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
         from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
     return Results.Ok(new SalesOrderView(order.Id, order.Code, order.QuoteId, order.Quote?.Code ?? "Bağımsız", order.CustomerId, order.Customer.Name,
-        order.OrderDate, order.CurrencyCode, order.Status, order.Subtotal, order.DiscountTotal, order.TaxTotal, order.GrandTotal, order.CreatedAt, lines, customFields, order.RequestedDeliveryDate));
+        order.OrderDate, order.CurrencyCode, order.Status, order.Subtotal, order.DiscountTotal, order.TaxTotal, order.GrandTotal, order.CreatedAt, lines, customFields, order.RequestedDeliveryDate, order.SalespersonEmployeeId));
 });
 var salesDeliveries = app.MapGroup("/api/sales/deliveries").RequireAuthorization();
 salesDeliveries.MapGet("/", async (Guid? orderId, string? q, bool? unbilledOnly, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
@@ -3884,7 +4280,7 @@ salesDeliveries.MapGet("/", async (Guid? orderId, string? q, bool? unbilledOnly,
 salesDeliveries.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var delivery = await db.SalesDeliveries.AsNoTracking().Include(x => x.Order).Include(x => x.Warehouse).Include(x => x.Lines).Include(x => x.Invoice)
+    var delivery = await db.SalesDeliveries.AsNoTracking().Include(x => x.Order).Include(x => x.Warehouse).Include(x => x.Lines).ThenInclude(x => x.OrderLine).Include(x => x.Invoice)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.Status != SalesDeliveryStatus.Deleted);
     if (delivery is null) return Results.NotFound();
     var lineIds = delivery.Lines.Select(x => x.Id).ToArray();
@@ -3892,7 +4288,12 @@ salesDeliveries.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, 
             && x.SalesDeliveryLineId.HasValue && lineIds.Contains(x.SalesDeliveryLineId.Value) && x.ReversalOfId == null)
         .ToDictionaryAsync(x => x.SalesDeliveryLineId!.Value, x => x.StorageLocationId);
     var lines = delivery.Lines.OrderBy(x => x.OrderLineNumber).Select(x => new SalesDeliveryLineView(x.OrderLineNumber,
-        x.StockItemId, x.StockCode, x.StockName, x.UnitCode, x.Quantity, StorageLocationId: locationByDeliveryLine.GetValueOrDefault(x.Id))).ToList();
+        x.StockItemId, x.StockCode, x.StockName, x.UnitCode, x.Quantity,
+        StorageLocationId: locationByDeliveryLine.GetValueOrDefault(x.Id),
+        UnitPrice: x.OrderLine?.UnitPrice,
+        DiscountPercent: x.OrderLine?.DiscountPercent,
+        VatPercent: x.OrderLine?.VatPercent,
+        CurrencyCode: delivery.Order?.CurrencyCode)).ToList();
     return Results.Ok(new SalesDeliveryView(delivery.Id, delivery.Code, delivery.OrderId, delivery.Order?.Code, delivery.WarehouseId,
         delivery.Warehouse.Name, delivery.DeliveryDate, delivery.Status, delivery.CreatedAt, lines, delivery.Invoice is not null, delivery.Invoice?.Status, delivery.Invoice?.Id));
 });
@@ -3973,6 +4374,8 @@ salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princ
 salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct, SalesDeliveryInvoiceWriteRequest? request = null) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (SalesInvoiceEDocumentFieldsValidation.Validate(request?.EDocument) is { } metadataErrors) return Results.ValidationProblem(metadataErrors);
+    var eDocument = SalesInvoiceEDocumentFieldsValidation.Normalize(request?.EDocument);
     await using var transaction = await db.Database.BeginTransactionAsync();
     if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var delivery = await db.SalesDeliveries.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesDeliveries] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
@@ -3980,9 +4383,37 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
     var existing = await db.SalesInvoices.AsNoTracking().Include(x => x.Delivery).Include(x => x.Order).Include(x => x.Customer)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.DeliveryId == id);
     if (existing is not null)
+    {
+        if ((request?.InvoiceType ?? SalesInvoiceType.Wholesale) != existing.InvoiceType)
+            return Results.Conflict(new { error = "Bu irsaliye için farklı fatura türüyle ikinci bir fatura oluşturulamaz." });
+        if (!string.IsNullOrWhiteSpace(request?.AccountingProfileCode) &&
+            !string.Equals(existing.AccountingProfileCode, request.AccountingProfileCode.Trim(), StringComparison.OrdinalIgnoreCase))
+            return Results.Conflict(new { error = "Bu irsaliye için fatura farklı mevzuat profiliyle daha önce oluşturulmuş." });
+        if (!string.Equals(existing.EDocumentScenario, eDocument?.Scenario, StringComparison.Ordinal) ||
+            !string.Equals(existing.EDocumentTypeCode, eDocument?.TypeCode, StringComparison.Ordinal) ||
+            !string.Equals(existing.EDocumentRecipientAlias, eDocument?.RecipientAlias, StringComparison.Ordinal) ||
+            !string.Equals(existing.ECommercePurchaseUrl, eDocument?.PurchaseUrl, StringComparison.Ordinal) ||
+            !string.Equals(existing.ECommercePaymentTaxId, eDocument?.PaymentTaxId, StringComparison.Ordinal) ||
+            !string.Equals(existing.ECommercePaymentTitle, eDocument?.PaymentTitle, StringComparison.Ordinal) ||
+            !string.Equals(existing.ECommercePaymentAlias, eDocument?.PaymentAlias, StringComparison.Ordinal) ||
+            !string.Equals(existing.ECommercePaymentAgentName, eDocument?.PaymentAgentName, StringComparison.Ordinal) ||
+            !string.Equals(existing.ECommercePaymentType, eDocument?.PaymentType, StringComparison.Ordinal) ||
+            existing.ECommercePaymentDate != eDocument?.PaymentDate || existing.ECommercePaymentDueDate != eDocument?.PaymentDueDate ||
+            !string.Equals(existing.ECommercePaymentMeans, eDocument?.PaymentMeans, StringComparison.Ordinal) ||
+            !string.Equals(existing.ECommercePaymentInstructionNote, eDocument?.PaymentInstructionNote, StringComparison.Ordinal) ||
+            !string.Equals(existing.ECommerceIntermediaryCountry, eDocument?.IntermediaryCountry, StringComparison.Ordinal) ||
+            !string.Equals(existing.ECommerceIntermediaryCountryCode, eDocument?.IntermediaryCountryCode, StringComparison.Ordinal) ||
+            !string.Equals(existing.ECommerceIntermediaryCity, eDocument?.IntermediaryCity, StringComparison.Ordinal) ||
+            !string.Equals(existing.ECommerceIntermediaryDistrict, eDocument?.IntermediaryDistrict, StringComparison.Ordinal) ||
+            !string.Equals(existing.DeliveryCarrierTaxId, eDocument?.CarrierTaxId, StringComparison.Ordinal) ||
+            !string.Equals(existing.DeliveryCarrierName, eDocument?.CarrierName, StringComparison.Ordinal) ||
+            !string.Equals(existing.DeliveryCarrierSurname, eDocument?.CarrierSurname, StringComparison.Ordinal) ||
+            existing.DeliverySentAt != eDocument?.SentAt)
+            return Results.Conflict(new { error = "Bu irsaliye için fatura daha önce farklı e-belge bilgileriyle oluşturulmuş." });
         return Results.Ok(new SalesInvoiceSummary(existing.Id, existing.Code, existing.DeliveryId, existing.Delivery?.Code, existing.OrderId,
             existing.Order?.Code, existing.CustomerId, existing.Customer.Name, existing.InvoiceDate, existing.CurrencyCode,
-            existing.Status, existing.GrandTotal, await db.SalesInvoiceLines.CountAsync(x => x.TenantId == tenantId && x.InvoiceId == existing.Id), existing.CreatedAt));
+            existing.Status, existing.GrandTotal, await db.SalesInvoiceLines.CountAsync(x => x.TenantId == tenantId && x.InvoiceId == existing.Id), existing.CreatedAt, InvoiceType: existing.InvoiceType));
+    }
     if (delivery.Status != SalesDeliveryStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş irsaliyeden fatura oluşturulamaz." });
     var order = await db.SalesOrders.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == delivery.OrderId);
     if (delivery.OrderId is not null && order is null) return Results.NotFound();
@@ -3998,9 +4429,11 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
     var customerId = order?.CustomerId ?? request!.CustomerId;
     var customer = await db.CustomerAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {customerId}").SingleOrDefaultAsync();
     if (customer is null) return Results.NotFound();
-    if (!customer.IsActive || customer.Type is not (CounterpartyType.Customer or CounterpartyType.Both))
+    if (!customer.IsActive || customer.Type is not (CounterpartyType.Customer or CounterpartyType.Both or CounterpartyType.Dealer))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["customerId"] = ["Aktif bir müşteri seçilmelidir."] });
     if (order is not null && customer.CurrencyCode != order.CurrencyCode) return Results.Conflict(new { error = "Müşteri dövizi sipariş dövizinden farklı; fatura oluşturulamadı." });
+    var (taxProfile, taxProfileError) = await AccountingRuleProfileEndpoints.ResolveDocumentProfileAsync(db, tenantId, invoiceDate, request?.AccountingProfileCode, ct);
+    if (taxProfileError is not null) return Results.Conflict(new { error = taxProfileError });
     var requestedInvoiceLines = request?.Lines ?? Array.Empty<SalesDeliveryInvoiceLineWriteRequest>();
     var deliveryLines = await db.SalesDeliveryLines.AsNoTracking().Include(x => x.OrderLine)
         .Where(x => x.TenantId == tenantId && x.DeliveryId == id).OrderBy(x => x.OrderLineNumber).ToListAsync();
@@ -4021,9 +4454,13 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
         var unitPrice = pricing?.UnitPrice ?? entered!.UnitPrice;
         var discountPercent = pricing?.DiscountPercent ?? entered!.DiscountPercent;
         var vatPercent = pricing?.VatPercent ?? entered!.VatPercent;
+        var invoiceType = request?.InvoiceType ?? SalesInvoiceType.Wholesale;
+        var isVatIncluded = invoiceType == SalesInvoiceType.Retail;
         var amounts = SalesQuoteValidation.Calculate(new SalesQuoteLineWriteRequest(x.StockItemId, x.Quantity,
-            unitPrice, discountPercent, vatPercent));
-        return (DeliveryLine: x, Pricing: pricing, UnitPrice: unitPrice, DiscountPercent: discountPercent, VatPercent: vatPercent, Amounts: amounts);
+            unitPrice, discountPercent, vatPercent, IsVatIncluded: isVatIncluded));
+        var assessment = AccountingRuleTaxCalculator.Calculate(taxProfile, amounts.LineSubtotal - amounts.DiscountAmount, vatPercent, invoiceDate, "Sales");
+        amounts = amounts with { TaxAmount = assessment.TaxTotal, LineTotal = assessment.GrandTotal };
+        return (DeliveryLine: x, Pricing: pricing, UnitPrice: unitPrice, DiscountPercent: discountPercent, VatPercent: vatPercent, Amounts: amounts, TaxBreakdownJson: assessment.TaxBreakdownJson);
     }).ToArray();
     SalesQuoteTotals totals;
     try { totals = SalesQuoteValidation.Sum(invoiceLines.Select(x => x.Amounts)); }
@@ -4031,23 +4468,38 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
     if (totals.GrandTotal <= 0) return Results.Conflict(new { error = "Cari borç kaydı oluşturulabilmesi için fatura toplamı sıfırdan büyük olmalıdır." });
     var customFields = await SalesInvoiceCustomFieldSupport.PrepareAsync(db, tenantId, request?.CustomFields, ct);
     if (customFields.Errors.Count > 0) return Results.ValidationProblem(customFields.Errors);
-    if (customer.RiskLimit is { } limit && customer.Type is CounterpartyType.Customer or CounterpartyType.Both)
+    if (customer.RiskLimit is { } limit && customer.Type is CounterpartyType.Customer or CounterpartyType.Both or CounterpartyType.Dealer)
     {
         var currentDebit = await db.CustomerLedgerEntries.Where(x => x.TenantId == tenantId && x.CustomerId == customer.Id && x.Direction == CustomerLedgerDirection.Debit).SumAsync(x => (decimal?)x.Amount) ?? 0m;
         var currentCredit = await db.CustomerLedgerEntries.Where(x => x.TenantId == tenantId && x.CustomerId == customer.Id && x.Direction == CustomerLedgerDirection.Credit).SumAsync(x => (decimal?)x.Amount) ?? 0m;
         var projectedBalance = currentDebit - currentCredit + totals.GrandTotal;
         if (projectedBalance > limit) return Results.Conflict(new { error = "Fatura tutarı müşteri risk limitini aşacağı için kaydedilmedi.", currentBalance = currentDebit - currentCredit, projectedBalance, riskLimit = limit });
     }
-    var code = $"INV-{Guid.NewGuid():N}".ToUpperInvariant();
+    var invoiceSeries = TenantDocumentNumbering.InvoiceSeries(eDocument?.Scenario);
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, invoiceSeries.Type, invoiceSeries.Scenario, invoiceDate, ct);
     var invoice = new SalesInvoice { TenantId = tenantId, DeliveryId = id, OrderId = order?.Id, CustomerId = customer.Id,
+        InvoiceType = request?.InvoiceType ?? SalesInvoiceType.Wholesale,
         Code = code, InvoiceDate = invoiceDate, CurrencyCode = customer.CurrencyCode,
-        Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal };
+        AccountingProfileCode = taxProfile?.ProfileCode, TaxBreakdownJson = AccountingRuleTaxCalculator.Aggregate(invoiceLines.Select(x => x.TaxBreakdownJson)),
+        Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal,
+        EDocumentScenario = eDocument?.Scenario, EDocumentTypeCode = eDocument?.TypeCode,
+        EDocumentRecipientAlias = eDocument?.RecipientAlias, ECommercePurchaseUrl = eDocument?.PurchaseUrl,
+        ECommercePaymentTaxId = eDocument?.PaymentTaxId, ECommercePaymentTitle = eDocument?.PaymentTitle,
+        ECommercePaymentAlias = eDocument?.PaymentAlias, ECommercePaymentAgentName = eDocument?.PaymentAgentName,
+        ECommercePaymentType = eDocument?.PaymentType, ECommercePaymentDate = eDocument?.PaymentDate,
+        ECommercePaymentDueDate = eDocument?.PaymentDueDate, ECommercePaymentMeans = eDocument?.PaymentMeans,
+        ECommercePaymentInstructionNote = eDocument?.PaymentInstructionNote,
+        ECommerceIntermediaryCountry = eDocument?.IntermediaryCountry, ECommerceIntermediaryCountryCode = eDocument?.IntermediaryCountryCode,
+        ECommerceIntermediaryCity = eDocument?.IntermediaryCity, ECommerceIntermediaryDistrict = eDocument?.IntermediaryDistrict,
+        DeliveryCarrierTaxId = eDocument?.CarrierTaxId,
+        DeliveryCarrierName = eDocument?.CarrierName, DeliveryCarrierSurname = eDocument?.CarrierSurname,
+        DeliverySentAt = eDocument?.SentAt };
     foreach (var row in invoiceLines)
         invoice.Lines.Add(new SalesInvoiceLine { TenantId = tenantId, Invoice = invoice, DeliveryLineId = row.DeliveryLine.Id,
             OrderLineNumber = row.DeliveryLine.OrderLineNumber, StockItemId = row.DeliveryLine.StockItemId, StockCode = row.DeliveryLine.StockCode,
             StockName = row.DeliveryLine.StockName, UnitCode = row.DeliveryLine.UnitCode, Quantity = row.DeliveryLine.Quantity,
             UnitPrice = row.UnitPrice, DiscountPercent = row.DiscountPercent, VatPercent = row.VatPercent,
-            LineSubtotal = row.Amounts.LineSubtotal, DiscountAmount = row.Amounts.DiscountAmount, TaxAmount = row.Amounts.TaxAmount, LineTotal = row.Amounts.LineTotal });
+            LineSubtotal = row.Amounts.LineSubtotal, DiscountAmount = row.Amounts.DiscountAmount, TaxAmount = row.Amounts.TaxAmount, TaxBreakdownJson = row.TaxBreakdownJson, LineTotal = row.Amounts.LineTotal });
     db.SalesInvoices.Add(invoice);
     db.CustomerLedgerEntries.Add(new CustomerLedgerEntry { TenantId = tenantId, CustomerId = customer.Id, SalesInvoice = invoice,
         EntryDate = invoice.InvoiceDate, Direction = CustomerLedgerDirection.Debit, Amount = totals.GrandTotal,
@@ -4059,7 +4511,7 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
     await transaction.CommitAsync();
     return Results.Created($"/api/sales/invoices/{invoice.Id}", new SalesInvoiceSummary(invoice.Id, invoice.Code, invoice.DeliveryId,
         delivery.Code, invoice.OrderId, order?.Code, invoice.CustomerId, customer.Name, invoice.InvoiceDate, invoice.CurrencyCode,
-        invoice.Status, invoice.GrandTotal, invoice.Lines.Count, invoice.CreatedAt));
+        invoice.Status, invoice.GrandTotal, invoice.Lines.Count, invoice.CreatedAt, InvoiceType: invoice.InvoiceType));
 });
 var salesInvoiceCustomFields = app.MapGroup("/api/sales/invoices").RequireAuthorization();
 salesInvoiceCustomFields.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
@@ -4221,10 +4673,15 @@ salesInvoices.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal,
 salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (SalesInvoiceEDocumentFieldsValidation.Validate(request.EDocument) is { } metadataErrors) return Results.ValidationProblem(metadataErrors);
+    var eDocument = SalesInvoiceEDocumentFieldsValidation.Normalize(request.EDocument);
     if (request.CustomerId == Guid.Empty || request.Lines is null || request.Lines.Count == 0 || request.Lines.Count > 200)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["invoice"] = ["Müşteri seçin ve 1–200 fatura satırı ekleyin."] });
     if (request.RequestId == Guid.Empty || request.WarehouseId == Guid.Empty)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["delivery"] = ["İrsaliye isteği için geçerli bir istek anahtarı ve depo seçilmelidir."] });
+    var warehouseIdsByLine = request.Lines.Select(line => line.WarehouseId ?? request.WarehouseId).ToArray();
+    if (warehouseIdsByLine.Any(id => id == Guid.Empty))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Her fatura satırı için bir depo seçilmelidir."] });
     if (request.Lines.Any(x => x.StockItemId == Guid.Empty || x.Quantity <= 0 || x.Quantity > 99999999999999.9999m || x.Quantity != decimal.Round(x.Quantity, 4)
         || x.UnitPrice < 0 || x.UnitPrice > 99999999999999.9999m || x.DiscountPercent is < 0 or > 100 || x.VatPercent is < 0 or > 100))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Satır miktarı, fiyat, iskonto veya KDV oranı geçersiz."] });
@@ -4233,18 +4690,42 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
     var priorDelivery = await db.SalesDeliveries.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesDeliveries] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [RequestId] = {request.RequestId}").SingleOrDefaultAsync(ct);
     if (priorDelivery is not null)
     {
-        var priorInvoice = await db.SalesInvoices.AsNoTracking().Include(x => x.Delivery).Include(x => x.Order).Include(x => x.Customer).Include(x => x.Lines)
+        var priorInvoice = await db.SalesInvoices.AsNoTracking().Include(x => x.Delivery).Include(x => x.Order).Include(x => x.Customer)
+            .Include(x => x.Lines).ThenInclude(x => x.DeliveryLine).ThenInclude(x => x.InventoryTransactions)
             .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.DeliveryId == priorDelivery.Id, ct);
         if (priorInvoice is null || priorDelivery.Status != SalesDeliveryStatus.Posted)
             return Results.Conflict(new { error = "Bu istek anahtarı daha önce farklı veya iptal edilmiş bir sevkiyatta kullanılmış." });
         var priorLines = priorInvoice.Lines.OrderBy(x => x.OrderLineNumber).ToArray();
         var samePayload = priorDelivery.WarehouseId == request.WarehouseId && priorDelivery.DeliveryDate == request.InvoiceDate &&
             priorInvoice.CustomerId == request.CustomerId && priorInvoice.InvoiceDate == request.InvoiceDate &&
+            priorInvoice.InvoiceType == request.InvoiceType &&
+            (string.IsNullOrWhiteSpace(request.AccountingProfileCode) || string.Equals(priorInvoice.AccountingProfileCode, request.AccountingProfileCode.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            string.Equals(priorInvoice.EDocumentScenario, eDocument?.Scenario, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.EDocumentTypeCode, eDocument?.TypeCode, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.EDocumentRecipientAlias, eDocument?.RecipientAlias, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.ECommercePurchaseUrl, eDocument?.PurchaseUrl, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.ECommercePaymentTaxId, eDocument?.PaymentTaxId, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.ECommercePaymentTitle, eDocument?.PaymentTitle, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.ECommercePaymentAlias, eDocument?.PaymentAlias, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.ECommercePaymentAgentName, eDocument?.PaymentAgentName, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.ECommercePaymentType, eDocument?.PaymentType, StringComparison.Ordinal) &&
+            priorInvoice.ECommercePaymentDate == eDocument?.PaymentDate && priorInvoice.ECommercePaymentDueDate == eDocument?.PaymentDueDate &&
+            string.Equals(priorInvoice.ECommercePaymentMeans, eDocument?.PaymentMeans, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.ECommercePaymentInstructionNote, eDocument?.PaymentInstructionNote, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.ECommerceIntermediaryCountry, eDocument?.IntermediaryCountry, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.ECommerceIntermediaryCountryCode, eDocument?.IntermediaryCountryCode, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.ECommerceIntermediaryCity, eDocument?.IntermediaryCity, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.ECommerceIntermediaryDistrict, eDocument?.IntermediaryDistrict, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.DeliveryCarrierTaxId, eDocument?.CarrierTaxId, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.DeliveryCarrierName, eDocument?.CarrierName, StringComparison.Ordinal) &&
+            string.Equals(priorInvoice.DeliveryCarrierSurname, eDocument?.CarrierSurname, StringComparison.Ordinal) &&
+            priorInvoice.DeliverySentAt == eDocument?.SentAt &&
             priorLines.Length == request.Lines.Count && priorLines.Select((line, index) =>
             {
                 var input = request.Lines[index];
                 return line.StockItemId == input.StockItemId && line.Quantity == input.Quantity && line.UnitPrice == input.UnitPrice &&
                     line.DiscountPercent == input.DiscountPercent && line.VatPercent == input.VatPercent &&
+                    line.DeliveryLine?.InventoryTransactions.FirstOrDefault(movement => movement.ReversalOfId == null)?.WarehouseId == (input.WarehouseId ?? request.WarehouseId) &&
                     (string.IsNullOrWhiteSpace(input.UnitCode) || string.Equals(line.UnitCode, input.UnitCode.Trim(), StringComparison.OrdinalIgnoreCase));
             }).All(matches => matches);
         if (!samePayload)
@@ -4252,15 +4733,21 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
         return Results.Ok(new SalesInvoiceSummary(priorInvoice.Id, priorInvoice.Code, priorInvoice.DeliveryId, priorInvoice.Delivery?.Code,
             priorInvoice.OrderId, priorInvoice.Order?.Code, priorInvoice.CustomerId, priorInvoice.Customer.Name, priorInvoice.InvoiceDate,
             priorInvoice.CurrencyCode, priorInvoice.Status, priorInvoice.GrandTotal,
-            await db.SalesInvoiceLines.CountAsync(x => x.TenantId == tenantId && x.InvoiceId == priorInvoice.Id, ct), priorInvoice.CreatedAt));
+            await db.SalesInvoiceLines.CountAsync(x => x.TenantId == tenantId && x.InvoiceId == priorInvoice.Id, ct), priorInvoice.CreatedAt, InvoiceType: priorInvoice.InvoiceType));
     }
     var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.InvoiceDate);
     if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedPeriod, "satış faturası") is { } closedConflict) return closedConflict;
     var customer = await db.CustomerAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {request.CustomerId}").SingleOrDefaultAsync(ct);
-    if (customer is null || !customer.IsActive || customer.Type is not (CounterpartyType.Customer or CounterpartyType.Both)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["customerId"] = ["Aktif bir müşteri seçilmelidir."] });
-    var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {request.WarehouseId}").SingleOrDefaultAsync(ct);
-    if (warehouse is null) return Results.NotFound();
-    if (!warehouse.IsActive) return Results.Conflict(new { error = "Pasif depodan satış sevkiyatı yapılamaz." });
+    if (customer is null || !customer.IsActive || customer.Type is not (CounterpartyType.Customer or CounterpartyType.Both or CounterpartyType.Dealer)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["customerId"] = ["Aktif bir müşteri seçilmelidir."] });
+    var (taxProfile, taxProfileError) = await AccountingRuleProfileEndpoints.ResolveDocumentProfileAsync(db, tenantId, request.InvoiceDate, request.AccountingProfileCode, ct);
+    if (taxProfileError is not null) return Results.Conflict(new { error = taxProfileError });
+    var warehouseIds = warehouseIdsByLine.Distinct().ToArray();
+    var warehousesById = await db.Warehouses.Where(x => x.TenantId == tenantId && warehouseIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, ct);
+    if (warehousesById.Count != warehouseIds.Length) return Results.NotFound();
+    if (warehousesById.Values.Any(x => !x.IsActive)) return Results.Conflict(new { error = "Pasif depodan satış sevkiyatı yapılamaz." });
+    var warehouse = warehousesById.GetValueOrDefault(request.WarehouseId);
+    if (warehouse is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["warehouseId"] = ["Belge başlığındaki depo satır depolarından biri olmalıdır."] });
     var stockIds = request.Lines.Select(x => x.StockItemId).Distinct().ToArray();
     var stockItems = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && stockIds.Contains(x.Id) && x.IsActive).ToDictionaryAsync(x => x.Id, ct);
     if (stockItems.Count != stockIds.Length) return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Fatura satırlarından biri bulunamadı veya aktif değil."] });
@@ -4268,7 +4755,7 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Lot/seri takibi olan bir stok faturada birden fazla satırda seçilemez; miktarları tek satırda birleştirin."] });
     var customFields = await SalesInvoiceCustomFieldSupport.PrepareAsync(db, tenantId, request.CustomFields, ct);
     if (customFields.Errors.Count > 0) return Results.ValidationProblem(customFields.Errors);
-    var invoiceLines = new List<(SalesQuoteLineWriteRequest Input, StockItem Item, SalesQuoteLineAmounts Amounts)>();
+    var invoiceLines = new List<(SalesQuoteLineWriteRequest Input, StockItem Item, SalesQuoteLineAmounts Amounts, string TaxBreakdownJson)>();
     try
     {
         foreach (var input in request.Lines)
@@ -4276,8 +4763,12 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
             var item = stockItems[input.StockItemId];
             if (!string.IsNullOrWhiteSpace(input.UnitCode) && !string.Equals(input.UnitCode.Trim(), item.UnitCode, StringComparison.OrdinalIgnoreCase))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{input.StockItemId}].unitCode"] = ["Bağımsız faturada stok kartının temel birimi kullanılmalıdır."] });
-            var normalized = input with { UnitCode = item.UnitCode };
-            invoiceLines.Add((normalized, item, SalesQuoteValidation.Calculate(normalized)));
+            var normalized = input with { UnitCode = item.UnitCode, WarehouseId = input.WarehouseId ?? request.WarehouseId,
+                IsVatIncluded = request.InvoiceType == SalesInvoiceType.Retail };
+            var amounts = SalesQuoteValidation.Calculate(normalized);
+            var assessment = AccountingRuleTaxCalculator.Calculate(taxProfile, amounts.LineSubtotal - amounts.DiscountAmount, normalized.VatPercent, request.InvoiceDate, "Sales");
+            amounts = amounts with { TaxAmount = assessment.TaxTotal, LineTotal = assessment.GrandTotal };
+            invoiceLines.Add((normalized, item, amounts, assessment.TaxBreakdownJson));
         }
     }
     catch (OverflowException) { return Results.Conflict(new { error = "Fatura satır toplamı desteklenen decimal(18,2) sınırını aşıyor." }); }
@@ -4311,12 +4802,28 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
         var projectedBalance = currentDebit - currentCredit + totals.GrandTotal;
         if (projectedBalance > limit) return Results.Conflict(new { error = "Fatura tutarı müşteri risk limitini aşacağı için kaydedilmedi.", currentBalance = currentDebit - currentCredit, projectedBalance, riskLimit = limit });
     }
-    var code = $"INV-{Guid.NewGuid():N}".ToUpperInvariant();
-    var deliveryCode = $"DN-{Guid.NewGuid():N}".ToUpperInvariant();
+    var invoiceSeries = TenantDocumentNumbering.InvoiceSeries(eDocument?.Scenario);
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, invoiceSeries.Type, invoiceSeries.Scenario, request.InvoiceDate, ct);
+    var deliveryCode = await TenantDocumentNumbering.NextAsync(db, tenantId, "SalesDelivery", null, request.InvoiceDate, ct);
     var delivery = new SalesDelivery { TenantId = tenantId, RequestId = request.RequestId, WarehouseId = warehouse.Id,
         Code = deliveryCode, DeliveryDate = request.InvoiceDate };
     var invoice = new SalesInvoice { TenantId = tenantId, Delivery = delivery, CustomerId = customer.Id, Code = code, InvoiceDate = request.InvoiceDate,
-        CurrencyCode = customer.CurrencyCode, Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal };
+        InvoiceType = request.InvoiceType,
+        CurrencyCode = customer.CurrencyCode, AccountingProfileCode = taxProfile?.ProfileCode,
+        TaxBreakdownJson = AccountingRuleTaxCalculator.Aggregate(invoiceLines.Select(x => x.TaxBreakdownJson)),
+        Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal,
+        EDocumentScenario = eDocument?.Scenario, EDocumentTypeCode = eDocument?.TypeCode,
+        EDocumentRecipientAlias = eDocument?.RecipientAlias, ECommercePurchaseUrl = eDocument?.PurchaseUrl,
+        ECommercePaymentTaxId = eDocument?.PaymentTaxId, ECommercePaymentTitle = eDocument?.PaymentTitle,
+        ECommercePaymentAlias = eDocument?.PaymentAlias, ECommercePaymentAgentName = eDocument?.PaymentAgentName,
+        ECommercePaymentType = eDocument?.PaymentType, ECommercePaymentDate = eDocument?.PaymentDate,
+        ECommercePaymentDueDate = eDocument?.PaymentDueDate, ECommercePaymentMeans = eDocument?.PaymentMeans,
+        ECommercePaymentInstructionNote = eDocument?.PaymentInstructionNote,
+        ECommerceIntermediaryCountry = eDocument?.IntermediaryCountry, ECommerceIntermediaryCountryCode = eDocument?.IntermediaryCountryCode,
+        ECommerceIntermediaryCity = eDocument?.IntermediaryCity, ECommerceIntermediaryDistrict = eDocument?.IntermediaryDistrict,
+        DeliveryCarrierTaxId = eDocument?.CarrierTaxId,
+        DeliveryCarrierName = eDocument?.CarrierName, DeliveryCarrierSurname = eDocument?.CarrierSurname,
+        DeliverySentAt = eDocument?.SentAt };
     for (var i = 0; i < invoiceLines.Count; i++)
     {
         var row = invoiceLines[i];
@@ -4327,7 +4834,8 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
         invoice.Lines.Add(new SalesInvoiceLine { TenantId = tenantId, Invoice = invoice, DeliveryLine = deliveryLine, OrderLineNumber = i + 1,
             StockItemId = row.Item.Id, StockCode = row.Item.Code, StockName = row.Item.Name, UnitCode = row.Item.UnitCode,
             Quantity = row.Input.Quantity, UnitPrice = row.Input.UnitPrice, DiscountPercent = row.Input.DiscountPercent, VatPercent = row.Input.VatPercent,
-            LineSubtotal = row.Amounts.LineSubtotal, DiscountAmount = row.Amounts.DiscountAmount, TaxAmount = row.Amounts.TaxAmount, LineTotal = row.Amounts.LineTotal });
+            LineSubtotal = row.Amounts.LineSubtotal, DiscountAmount = row.Amounts.DiscountAmount, TaxAmount = row.Amounts.TaxAmount,
+            TaxBreakdownJson = row.TaxBreakdownJson, LineTotal = row.Amounts.LineTotal });
         var tracking = await AllocateAvailableTrackingAsync(db, tenantId, warehouse.Id, row.Item, row.Input.Quantity);
         if (tracking is null) return Results.Conflict(new { error = $"{row.Item.Code} için lot/seri bazında sevk edilebilir miktar yok." });
         var unitCostBase = await GetWeightedAverageUnitCostBaseAsync(db, tenantId, row.Item.Id, request.InvoiceDate);
@@ -4346,7 +4854,7 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
     if (customFields.Values.Count > 0) await db.SaveChangesAsync(ct);
     await transaction.CommitAsync(ct);
     return Results.Created($"/api/sales/invoices/{invoice.Id}", new SalesInvoiceSummary(invoice.Id, invoice.Code, delivery.Id, delivery.Code, null, null,
-        customer.Id, customer.Name, invoice.InvoiceDate, invoice.CurrencyCode, invoice.Status, invoice.GrandTotal, invoice.Lines.Count, invoice.CreatedAt));
+        customer.Id, customer.Name, invoice.InvoiceDate, invoice.CurrencyCode, invoice.Status, invoice.GrandTotal, invoice.Lines.Count, invoice.CreatedAt, InvoiceType: invoice.InvoiceType));
 });
 salesInvoices.MapGet("/", async (string? q, Guid? customerId, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 25) =>
 {
@@ -4363,7 +4871,7 @@ salesInvoices.MapGet("/", async (string? q, Guid? customerId, ClaimsPrincipal pr
     var total = await query.CountAsync();
     var rows = await query.OrderByDescending(x => x.InvoiceDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
         .Select(x => new SalesInvoiceSummary(x.Id, x.Code, x.DeliveryId, x.Delivery != null ? x.Delivery.Code : db.StandaloneSalesDeliveries.Where(d => d.TenantId == tenantId && d.Id == x.StandaloneDeliveryId).Select(d => d.Code).FirstOrDefault(), x.OrderId, x.Order == null ? null : x.Order.Code, x.CustomerId,
-            x.Customer.Name, x.InvoiceDate, x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt, x.Customer.TaxNumber)).ToListAsync();
+            x.Customer.Name, x.InvoiceDate, x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt, x.Customer.TaxNumber, null, x.InvoiceType)).ToListAsync();
     var invoiceIds = rows.Select(x => x.Id).ToArray();
     if (invoiceIds.Length > 0)
     {
@@ -4461,9 +4969,9 @@ salesInvoices.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Te
     var customFields = await (from definition in db.SalesInvoiceCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
         join value in db.SalesInvoiceCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.InvoiceId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
         from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesInvoiceCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
-    var lines = invoice.Lines.OrderBy(x => x.OrderLineNumber).Select(x => new SalesInvoiceLineView(x.Id, x.OrderLineNumber,
+        var lines = invoice.Lines.OrderBy(x => x.OrderLineNumber).Select(x => new SalesInvoiceLineView(x.Id, x.OrderLineNumber,
         x.StockCode, x.StockName, x.UnitCode, x.Quantity, x.UnitPrice, x.DiscountPercent, x.VatPercent,
-        x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal, x.StockItemId)).ToList();
+        x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal, x.StockItemId, x.TaxBreakdownJson)).ToList();
     var ledgerEntryId = invoice.LedgerEntries.Where(x => x.ReversalOfId == null).Select(x => (Guid?)x.Id).FirstOrDefault();
     var collections = await db.CustomerCollectionAllocations.AsNoTracking()
         .Where(x => x.TenantId == tenantId && x.SalesInvoiceId == invoice.Id)
@@ -4491,7 +4999,14 @@ salesInvoices.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Te
     return Results.Ok(new SalesInvoiceView(invoice.Id, invoice.Code, invoice.DeliveryId, invoice.Delivery?.Code ?? standaloneDeliveryCode, invoice.OrderId,
         invoice.Order?.Code, invoice.CustomerId, invoice.Customer.Name, invoice.InvoiceDate, invoice.CurrencyCode, invoice.Status,
         invoice.Subtotal, invoice.DiscountTotal, invoice.TaxTotal, invoice.GrandTotal, ledgerEntryId, invoice.CreatedAt, lines,
-        paidAmount, returnedAmount, Math.Max(0, invoice.GrandTotal - paidAmount - returnedAmount), collections, returns, customFields));
+        paidAmount, returnedAmount, Math.Max(0, invoice.GrandTotal - paidAmount - returnedAmount), collections, returns, customFields,
+        invoice.EDocumentScenario, invoice.EDocumentTypeCode, invoice.EDocumentRecipientAlias, invoice.ECommercePurchaseUrl,
+        invoice.ECommercePaymentTaxId, invoice.ECommercePaymentTitle, invoice.ECommercePaymentAlias,
+        invoice.ECommercePaymentAgentName, invoice.ECommercePaymentType, invoice.ECommercePaymentDate, invoice.ECommercePaymentDueDate,
+        invoice.ECommercePaymentMeans, invoice.ECommercePaymentInstructionNote, invoice.ECommerceIntermediaryCountry,
+        invoice.ECommerceIntermediaryCountryCode, invoice.ECommerceIntermediaryCity, invoice.ECommerceIntermediaryDistrict,
+        invoice.DeliveryCarrierTaxId, invoice.DeliveryCarrierName, invoice.DeliveryCarrierSurname, invoice.DeliverySentAt,
+        invoice.AccountingProfileCode, invoice.TaxBreakdownJson, invoice.InvoiceType));
 });
 salesInvoices.MapPost("/{id:guid}/collections", async (Guid id, CustomerCollectionWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -4664,9 +5179,9 @@ salesInvoices.MapPost("/{id:guid}/returns", async (Guid id, SalesReturnWriteRequ
         var prior = previouslyReturned.GetValueOrDefault(invoiceLine.Id);
         if (line.Quantity > invoiceLine.Quantity - prior.Quantity)
             return Results.Conflict(new { error = $"{invoiceLine.StockCode} için iade miktarı faturada kalan miktarı aşamaz.", remainingQuantity = invoiceLine.Quantity - prior.Quantity });
-        var amounts = SalesReturnValidation.CalculateIncrementalAmounts(invoiceLine.StockItemId, invoiceLine.UnitPrice,
-            invoiceLine.DiscountPercent, invoiceLine.VatPercent, prior.Quantity,
-            new SalesQuoteLineAmounts(prior.Subtotal, prior.Discount, prior.Tax, prior.Total), line.Quantity);
+        var amounts = SalesQuoteValidation.CalculateIncrementalFromSource(invoiceLine.Quantity,
+            new SalesQuoteLineAmounts(invoiceLine.LineSubtotal, invoiceLine.DiscountAmount, invoiceLine.TaxAmount, invoiceLine.LineTotal),
+            prior.Quantity, new SalesQuoteLineAmounts(prior.Subtotal, prior.Discount, prior.Tax, prior.Total), line.Quantity);
         returnAmounts.Add((invoiceLine, line.Quantity, amounts));
     }
     SalesQuoteTotals totals;
@@ -5162,8 +5677,9 @@ purchaseRequests.MapPost("/", async (PurchaseRequestWriteRequest request, Claims
         catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].quantity"] = ["Birim dönüşümü desteklenen miktar sınırını aşıyor."] }); }
     }
     var requesterName = await platformDb.Users.Where(x => x.Id == userId).Select(x => x.DisplayName).SingleAsync();
+    var requestCode = string.IsNullOrWhiteSpace(request.Code) ? await TenantDocumentNumbering.NextAsync(db, tenantId, "PurchaseRequest", null, request.RequestDate, ct) : request.Code.Trim().ToUpperInvariant();
     var purchaseRequest = new PurchaseRequest { TenantId = tenantId, RequestedByUserId = userId.Value,
-        Code = request.Code.Trim(), RequestDate = request.RequestDate, NeededByDate = request.NeededByDate,
+        Code = requestCode, RequestDate = request.RequestDate, NeededByDate = request.NeededByDate,
         Description = request.Description.Trim(), Status = PurchaseRequestStatus.Submitted };
     for (var i = 0; i < request.Lines.Count; i++)
     {
@@ -6248,6 +6764,7 @@ purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCr
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = PurchaseInvoiceValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
+    request = PurchaseInvoiceValidation.Normalize(request);
     var receiptIdentity = await db.PurchaseReceipts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
         .Select(x => new { x.PurchaseOrderId, SupplierId = x.PurchaseOrder.SupplierId }).SingleOrDefaultAsync();
     if (receiptIdentity is null) return Results.NotFound();
@@ -6263,7 +6780,12 @@ purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCr
     if (activeInvoice is not null)
     {
         if (!string.Equals(activeInvoice.Code, request.Code.Trim(), StringComparison.OrdinalIgnoreCase)
-            || activeInvoice.InvoiceDate != request.InvoiceDate)
+            || activeInvoice.InvoiceDate != request.InvoiceDate
+            || !string.IsNullOrWhiteSpace(request.AccountingProfileCode) && !string.Equals(activeInvoice.AccountingProfileCode, request.AccountingProfileCode.Trim(), StringComparison.OrdinalIgnoreCase)
+            || activeInvoice.ProviderInvoiceUuid != request.ProviderInvoiceUuid
+            || !string.Equals(activeInvoice.ProviderScenario, request.ProviderScenario?.Trim(), StringComparison.Ordinal)
+            || !string.Equals(activeInvoice.ProviderInvoiceTypeCode, request.ProviderInvoiceTypeCode?.Trim(), StringComparison.Ordinal)
+            || !string.Equals(activeInvoice.ProviderSenderAlias, request.ProviderSenderAlias?.Trim(), StringComparison.Ordinal))
             return Results.Conflict(new { error = "Bu mal kabul için farklı bilgilerle aktif alış faturası zaten var.", invoiceId = activeInvoice.Id });
         var replayPaid = await db.SupplierPayments.Where(x => x.TenantId == tenantId && x.PurchaseInvoiceId == activeInvoice.Id && x.Status == SupplierPaymentStatus.Posted)
             .SumAsync(x => (decimal?)x.Amount) ?? 0m;
@@ -6274,11 +6796,16 @@ purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCr
             activeInvoice.DueDate, activeInvoice.CurrencyCode, activeInvoice.Status, activeInvoice.GrandTotal, replayPaid,
             Math.Max(0m, activeInvoice.GrandTotal - replayPaid - replayReturned), await db.PurchaseInvoiceLines.CountAsync(x => x.TenantId == tenantId && x.PurchaseInvoiceId == activeInvoice.Id), activeInvoice.CreatedAt));
     }
+    if (request.ProviderInvoiceUuid is { } providerInvoiceUuid &&
+        await db.PurchaseInvoices.AnyAsync(x => x.TenantId == tenantId && x.ProviderInvoiceUuid == providerInvoiceUuid))
+        return Results.Conflict(new { error = "Bu sağlayıcı fatura UUID'si aynı firmada daha önce kaydedilmiş." });
     var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.InvoiceDate);
     if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedPeriod, "alış faturası") is { } closedInvoiceConflict)
         return closedInvoiceConflict;
     var supplier = await db.CustomerAccounts.FromSqlInterpolated($"SELECT * FROM [dbo].[CustomerAccounts] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {order.SupplierId}").SingleOrDefaultAsync();
     if (supplier is null || supplier.Type is not (CounterpartyType.Supplier or CounterpartyType.Both)) return Results.Conflict(new { error = "Sipariş tedarikçi hesabı kullanılamıyor." });
+    var (taxProfile, taxProfileError) = await AccountingRuleProfileEndpoints.ResolveDocumentProfileAsync(db, tenantId, request.InvoiceDate, request.AccountingProfileCode);
+    if (taxProfileError is not null) return Results.Conflict(new { error = taxProfileError });
     if (supplier.CurrencyCode != order.CurrencyCode) return Results.Conflict(new { error = "Tedarikçinin döviz kodu sipariş para birimiyle eşleşmiyor." });
     if (request.InvoiceDate.DayNumber > DateOnly.MaxValue.DayNumber - supplier.PaymentTermDays)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["invoiceDate"] = ["Tedarikçi vadesiyle hesaplanan son ödeme tarihi desteklenen tarih aralığını aşıyor."] });
@@ -6292,7 +6819,10 @@ purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCr
         .ToDictionaryAsync(x => x.Number, x => (Quantity: x.Quantity, Amounts: new SalesQuoteLineAmounts(x.Subtotal, x.Discount, x.Tax, x.Total)));
     var invoice = new PurchaseInvoice { TenantId = tenantId, PurchaseReceiptId = receipt.Id, PurchaseOrderId = order.Id,
         SupplierId = supplier.Id, Code = request.Code.Trim(), InvoiceDate = request.InvoiceDate,
-        DueDate = request.InvoiceDate.AddDays(supplier.PaymentTermDays), CurrencyCode = order.CurrencyCode };
+        DueDate = request.InvoiceDate.AddDays(supplier.PaymentTermDays), CurrencyCode = order.CurrencyCode,
+        AccountingProfileCode = taxProfile?.ProfileCode,
+        ProviderInvoiceUuid = request.ProviderInvoiceUuid, ProviderScenario = request.ProviderScenario?.Trim(),
+        ProviderInvoiceTypeCode = request.ProviderInvoiceTypeCode?.Trim(), ProviderSenderAlias = request.ProviderSenderAlias?.Trim() };
     var invoiceAmounts = new List<SalesQuoteLineAmounts>();
     foreach (var source in receiptLines)
     {
@@ -6300,13 +6830,16 @@ purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCr
         var orderLine = source.OrderLine;
         var amounts = PurchaseInvoiceWorkflow.CalculateIncrementalAmounts(orderLine.StockItemId, orderLine.UnitPrice,
             orderLine.DiscountPercent, orderLine.VatPercent, previous.Quantity, previous.Amounts ?? new SalesQuoteLineAmounts(0, 0, 0, 0), source.Quantity);
+        var assessment = AccountingRuleTaxCalculator.Calculate(taxProfile, amounts.LineSubtotal - amounts.DiscountAmount, orderLine.VatPercent, request.InvoiceDate, "Purchase");
+        amounts = amounts with { TaxAmount = assessment.TaxTotal, LineTotal = assessment.GrandTotal };
         invoiceAmounts.Add(amounts);
         invoice.Lines.Add(new PurchaseInvoiceLine { TenantId = tenantId, PurchaseInvoice = invoice, PurchaseReceiptLineId = source.Id,
-            PurchaseReceiptId = receipt.Id,
-            OrderLineNumber = source.OrderLineNumber, StockItemId = source.StockItemId, StockCode = source.StockCode,
-            StockName = source.StockName, UnitCode = source.UnitCode, Quantity = source.Quantity, UnitPrice = orderLine.UnitPrice,
-            DiscountPercent = orderLine.DiscountPercent, VatPercent = orderLine.VatPercent, LineSubtotal = amounts.LineSubtotal,
-            DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal });
+            PurchaseReceiptId = receipt.Id, OrderLineNumber = source.OrderLineNumber, StockItemId = source.StockItemId,
+            StockCode = source.StockCode, StockName = source.StockName, UnitCode = source.UnitCode, Quantity = source.Quantity,
+            UnitPrice = orderLine.UnitPrice, DiscountPercent = orderLine.DiscountPercent, VatPercent = orderLine.VatPercent,
+            LineSubtotal = amounts.LineSubtotal, DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount,
+            TaxBreakdownJson = assessment.TaxBreakdownJson, LineTotal = amounts.LineTotal });
+        invoice.TaxBreakdownJson = AccountingRuleTaxCalculator.Aggregate(invoice.Lines.Select(x => x.TaxBreakdownJson));
     }
     SalesQuoteTotals totals;
     try { totals = SalesQuoteValidation.Sum(invoiceAmounts); }
@@ -6426,11 +6959,13 @@ purchaseInvoices.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal,
     var returned = returns.Where(x => x.Status == SupplierReturnStatus.Posted).Sum(x => x.GrandTotal);
     var lines = invoice.Lines.OrderBy(x => x.OrderLineNumber).Select(x => new PurchaseInvoiceLineView(x.Id, x.PurchaseReceiptLineId,
         x.OrderLineNumber, x.StockCode, x.StockName, x.UnitCode, x.Quantity, x.UnitPrice, x.DiscountPercent, x.VatPercent,
-        x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal, x.StockItemId)).ToList();
+        x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal, x.StockItemId, x.TaxBreakdownJson)).ToList();
     return Results.Ok(new PurchaseInvoiceView(invoice.Id, invoice.Code, invoice.PurchaseReceiptId, invoice.PurchaseReceipt.Code,
         invoice.PurchaseOrderId, invoice.PurchaseReceipt.PurchaseOrder.Code, invoice.SupplierId, invoice.Supplier.Name,
         invoice.InvoiceDate, invoice.DueDate, invoice.CurrencyCode, invoice.Status, invoice.Subtotal, invoice.DiscountTotal, invoice.TaxTotal,
-        invoice.GrandTotal, paid, PurchaseInvoiceWorkflow.Outstanding(invoice.GrandTotal, paid, returned), invoice.CreatedAt, lines, payments, returnSummaries));
+        invoice.GrandTotal, paid, PurchaseInvoiceWorkflow.Outstanding(invoice.GrandTotal, paid, returned), invoice.CreatedAt, lines, payments, returnSummaries,
+        invoice.ProviderInvoiceUuid, invoice.ProviderScenario, invoice.ProviderInvoiceTypeCode, invoice.ProviderSenderAlias,
+        invoice.AccountingProfileCode, invoice.TaxBreakdownJson));
 });
 purchaseInvoices.MapPost("/{id:guid}/payments", async (Guid id, SupplierPaymentWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -6629,8 +7164,10 @@ purchaseInvoices.MapPost("/{id:guid}/returns", async (Guid id, SupplierReturnWri
     {
         var source = invoiceLines[row.PurchaseInvoiceLineId];
         var previous = priorRows.GetValueOrDefault(source.Id);
-        var amounts = SalesReturnValidation.CalculateIncrementalAmounts(source.StockItemId, source.UnitPrice, source.DiscountPercent,
-            source.VatPercent, previous.Quantity, previous.Amounts ?? new SalesQuoteLineAmounts(0, 0, 0, 0), row.Quantity);
+        var previousAmounts = previous.Amounts ?? new SalesQuoteLineAmounts(0, 0, 0, 0);
+        var amounts = SalesQuoteValidation.CalculateIncrementalFromSource(source.Quantity,
+            new SalesQuoteLineAmounts(source.LineSubtotal, source.DiscountAmount, source.TaxAmount, source.LineTotal),
+            previous.Quantity, previousAmounts, row.Quantity);
         amountsList.Add(amounts);
         var line = new SupplierReturnLine { TenantId = tenantId, SupplierReturn = supplierReturn, PurchaseInvoiceId = invoice.Id,
             PurchaseInvoiceLineId = source.Id, OrderLineNumber = source.OrderLineNumber, StockItemId = source.StockItemId,
@@ -7020,6 +7557,7 @@ fxRevaluations.MapPost("/", async (FxRevaluationCreateRequest request, ClaimsPri
 
 var financeAccounts = app.MapGroup("/api/finance/accounts").RequireAuthorization();
 var generalLedger = app.MapGroup("/api/finance/general-ledger").RequireAuthorization();
+generalLedger.MapAccountingProfileEndpoints();
 var ledgerMappingLabels = new Dictionary<string, string>(StringComparer.Ordinal)
 {
     [LedgerMappingKeys.CreditFacilityPrincipal] = "Kredi kullandırım/geri ödeme · anapara borç hesabı",
@@ -7030,11 +7568,13 @@ var ledgerMappingLabels = new Dictionary<string, string>(StringComparer.Ordinal)
     [LedgerMappingKeys.SalesRevenue] = "Satış faturası · gelir hesabı",
     [LedgerMappingKeys.SalesCost] = "Satış irsaliyesi · satılan mal maliyeti hesabı",
     [LedgerMappingKeys.SalesTaxPayable] = "Satış faturası · hesaplanan KDV hesabı",
+    [LedgerMappingKeys.SalesWithholdingReceivable] = "Satış faturası · tevkif edilen vergi alacağı",
     [LedgerMappingKeys.CustomerCardClearing] = "Kart tahsilatı · kart alacak/clearing hesabı",
     [LedgerMappingKeys.CustomerCheckClearing] = "Çek tahsilatı · portföy hesabı",
     [LedgerMappingKeys.PurchasePayable] = "Alış faturası · borç hesabı",
     [LedgerMappingKeys.PurchaseCost] = "Alış faturası · maliyet hesabı",
     [LedgerMappingKeys.PurchaseTaxRecoverable] = "Alış faturası · indirilecek KDV hesabı",
+    [LedgerMappingKeys.PurchaseWithholdingPayable] = "Alış faturası · tevkifat vergi borcu",
     [LedgerMappingKeys.PurchaseReceiptAccrual] = "Mal kabul · faturası gelmemiş mal hesabı",
     [LedgerMappingKeys.PayrollNetPayPayable] = "Bordro taslağı · net ücret ödeme borcu",
     [LedgerMappingKeys.SupplierCardClearing] = "Kart ödemesi · kart clearing hesabı",
@@ -7067,7 +7607,8 @@ generalLedger.MapGet("/accounts", async (ClaimsPrincipal principal, TenantDbCont
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     return Results.Ok(await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId)
         .OrderBy(x => x.Code).Select(x => new LedgerAccountView(x.Id, x.Code, x.Name, x.IsActive, x.StatementSection.ToString(),
-            db.JournalEntryLines.Any(line => line.TenantId == tenantId && line.AccountId == x.Id))).ToListAsync());
+            db.JournalEntryLines.Any(line => line.TenantId == tenantId && line.AccountId == x.Id), x.AccountType.ToString(), x.NormalBalance.ToString(),
+            x.CurrencyCode, x.IfrsAccountCode, x.IfrsAccountName, x.IfrsStatementSection.ToString())).ToListAsync());
 });
 generalLedger.MapGet("/accounts/assistant-search", async (string? term, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -7178,12 +7719,16 @@ generalLedger.MapPost("/accounts", async (LedgerAccountWriteRequest request, Cla
     var statementSection = LedgerAccountStatementSection.Unclassified;
     if (!string.IsNullOrWhiteSpace(request.StatementSection) && (!Enum.TryParse(request.StatementSection, true, out statementSection) || !Enum.IsDefined(statementSection)))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["statementSection"] = ["Geçerli bir finansal tablo sınıfı seçin."] });
+    if (!LedgerAccountApiSupport.TryLedgerClassification(request, out var accountType, out var normalBalance, out var ifrsSection, out var classificationError))
+        return Results.ValidationProblem(classificationError!);
     if (await db.LedgerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu hesap kodu zaten tanımlı." });
-    var account = new LedgerAccount { TenantId = tenantId, Code = code, Name = name, IsActive = request.IsActive, StatementSection = statementSection };
+    var account = new LedgerAccount { TenantId = tenantId, Code = code, Name = name, IsActive = request.IsActive, StatementSection = statementSection,
+        AccountType = accountType, NormalBalance = normalBalance, CurrencyCode = LedgerAccountApiSupport.NormalizeLedgerCurrency(request.CurrencyCode),
+        IfrsAccountCode = LedgerAccountApiSupport.NormalizeIfrsCode(request.IfrsAccountCode), IfrsAccountName = LedgerAccountApiSupport.NormalizeIfrsName(request.IfrsAccountName), IfrsStatementSection = ifrsSection };
     db.LedgerAccounts.Add(account);
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.general-ledger.account-created", Resource = code });
     await db.SaveChangesAsync();
-    return Results.Created($"/api/finance/general-ledger/accounts/{account.Id}", new LedgerAccountView(account.Id, account.Code, account.Name, account.IsActive, account.StatementSection.ToString()));
+    return Results.Created($"/api/finance/general-ledger/accounts/{account.Id}", LedgerAccountApiSupport.ToLedgerAccountView(account));
 });
 generalLedger.MapPut("/accounts/{id:guid}", async (Guid id, LedgerAccountWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -7195,13 +7740,17 @@ generalLedger.MapPut("/accounts/{id:guid}", async (Guid id, LedgerAccountWriteRe
     var statementSection = account.StatementSection;
     if (!string.IsNullOrWhiteSpace(request.StatementSection) && (!Enum.TryParse(request.StatementSection, true, out statementSection) || !Enum.IsDefined(statementSection)))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["statementSection"] = ["Geçerli bir finansal tablo sınıfı seçin."] });
+    if (!LedgerAccountApiSupport.TryLedgerClassification(request, out var accountType, out var normalBalance, out var ifrsSection, out var classificationError))
+        return Results.ValidationProblem(classificationError!);
     if ((account.Code != code || account.Name != name) && await db.JournalEntryLines.AnyAsync(x => x.TenantId == tenantId && x.AccountId == id))
         return Results.Conflict(new { error = "Yevmiye kaydı bulunan hesabın kodu ve adı değiştirilemez; hesabı pasife alın ve yeni hesap açın." });
     if (await db.LedgerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id != id && x.Code == code)) return Results.Conflict(new { error = "Bu hesap kodu zaten tanımlı." });
     account.Code = code; account.Name = name; account.IsActive = request.IsActive; account.StatementSection = statementSection;
+    account.AccountType = accountType; account.NormalBalance = normalBalance; account.CurrencyCode = LedgerAccountApiSupport.NormalizeLedgerCurrency(request.CurrencyCode);
+    account.IfrsAccountCode = LedgerAccountApiSupport.NormalizeIfrsCode(request.IfrsAccountCode); account.IfrsAccountName = LedgerAccountApiSupport.NormalizeIfrsName(request.IfrsAccountName); account.IfrsStatementSection = ifrsSection;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.general-ledger.account-updated", Resource = code });
     await db.SaveChangesAsync();
-    return Results.Ok(new LedgerAccountView(account.Id, account.Code, account.Name, account.IsActive, account.StatementSection.ToString()));
+    return Results.Ok(LedgerAccountApiSupport.ToLedgerAccountView(account));
 });
 generalLedger.MapDelete("/accounts/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -7226,6 +7775,12 @@ generalLedger.MapGet("/mappings", async (ClaimsPrincipal principal, TenantDbCont
     var mappings = await db.LedgerAccountMappings.AsNoTracking().Where(x => x.TenantId == tenantId)
         .Join(db.LedgerAccounts.AsNoTracking(), m => new { m.TenantId, Id = m.AccountId }, a => new { a.TenantId, a.Id }, (m, a) => new { m.MappingKey, a.Id, a.Code, a.Name }).ToListAsync();
     var result = ledgerMappingLabels.Select(x => { var account = mappings.FirstOrDefault(m => m.MappingKey == x.Key); return new LedgerMappingView(x.Key, x.Value, account?.Id, account?.Code, account?.Name); }).ToList();
+    var ruleProfiles = await db.AccountingRuleProfiles.AsNoTracking().Where(x => x.TenantId == tenantId).ToListAsync();
+    foreach (var option in ruleProfiles.SelectMany(AccountingRuleProfileEndpoints.GetTaxRuleMappings))
+    {
+        var account = mappings.FirstOrDefault(mapping => mapping.MappingKey == option.MappingKey);
+        result.Add(new LedgerMappingView(option.MappingKey, option.Label, account?.Id, account?.Code, account?.Name));
+    }
     var financialAccounts = await db.FinancialAccounts.AsNoTracking().Where(x => x.TenantId == tenantId).OrderBy(x => x.Name)
         .Select(x => new { x.Id, x.Name, x.CurrencyCode, x.IsActive }).ToListAsync();
     foreach (var source in financialAccounts)
@@ -7261,16 +7816,21 @@ generalLedger.MapGet("/sources", async (ClaimsPrincipal principal, TenantDbConte
         .Select(x => x.SourceId).ToListAsync();
     var supplierReturnDone = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.SourceType == "SupplierReturn")
         .Select(x => x.SourceId).ToListAsync();
-    var salesInvoices = await db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SalesInvoiceStatus.Posted && !salesDone.Contains(x.Id))
+    var salesInvoiceRows = await db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SalesInvoiceStatus.Posted && !salesDone.Contains(x.Id))
         .OrderByDescending(x => x.InvoiceDate).Take(200).Select(x => new
         {
             id = x.Id, code = x.Code, entryDate = x.InvoiceDate, amount = x.GrandTotal,
             currencyCode = x.CurrencyCode,
             description = x.Customer.Name,
-            requiredMappings = x.TaxTotal > 0
-                ? new[] { LedgerMappingKeys.SalesReceivable, LedgerMappingKeys.SalesRevenue, LedgerMappingKeys.SalesTaxPayable }
-                : new[] { LedgerMappingKeys.SalesReceivable, LedgerMappingKeys.SalesRevenue }
+            x.AccountingProfileCode, x.TaxBreakdownJson, x.TaxTotal
         }).ToListAsync();
+    var salesInvoices = salesInvoiceRows.Select(x => new
+    {
+        x.id, x.code, x.entryDate, x.amount, x.currencyCode, x.description,
+        requiredMappings = new[] { LedgerMappingKeys.SalesReceivable, LedgerMappingKeys.SalesRevenue }
+            .Concat(RequiredInvoiceTaxMappingKeys(x.AccountingProfileCode, "Sales", x.TaxBreakdownJson, x.TaxTotal,
+                LedgerMappingKeys.SalesTaxPayable, LedgerMappingKeys.SalesWithholdingReceivable)).Distinct().ToArray()
+    }).ToList();
     var salesDeliveries = await db.SalesDeliveries.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SalesDeliveryStatus.Posted && !salesDeliveryDone.Contains(x.Id))
         .OrderByDescending(x => x.DeliveryDate).Take(200).Select(x => new
         {
@@ -7280,16 +7840,21 @@ generalLedger.MapGet("/sources", async (ClaimsPrincipal principal, TenantDbConte
             currencyCode = tenantBaseCurrency, description = x.Invoice != null ? x.Invoice.Customer.Name : x.Order != null ? x.Order.Customer.Name : "Siparişsiz satış",
             requiredMappings = new[] { LedgerMappingKeys.InventoryAsset, LedgerMappingKeys.SalesCost }
         }).ToListAsync();
-    var purchaseInvoices = await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == PurchaseInvoiceStatus.Posted && !purchaseDone.Contains(x.Id))
+    var purchaseInvoiceRows = await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == PurchaseInvoiceStatus.Posted && !purchaseDone.Contains(x.Id))
         .OrderByDescending(x => x.InvoiceDate).Take(200).Select(x => new
         {
             id = x.Id, code = x.Code, entryDate = x.InvoiceDate, amount = x.GrandTotal, currencyCode = x.CurrencyCode,
             description = x.Supplier.Name,
-            requiredMappings = (x.TaxTotal > 0
-                ? new[] { LedgerMappingKeys.PurchasePayable, LedgerMappingKeys.PurchaseCost, LedgerMappingKeys.PurchaseTaxRecoverable }
-                : new[] { LedgerMappingKeys.PurchasePayable, LedgerMappingKeys.PurchaseCost })
-            .Concat(purchaseReceiptDone.Contains(x.PurchaseReceiptId) ? new[] { LedgerMappingKeys.PurchaseReceiptAccrual } : Array.Empty<string>()).ToArray()
+            x.PurchaseReceiptId, x.AccountingProfileCode, x.TaxBreakdownJson, x.TaxTotal
         }).ToListAsync();
+    var purchaseInvoices = purchaseInvoiceRows.Select(x => new
+    {
+        x.id, x.code, x.entryDate, x.amount, x.currencyCode, x.description,
+        requiredMappings = new[] { LedgerMappingKeys.PurchasePayable, LedgerMappingKeys.PurchaseCost }
+            .Concat(RequiredInvoiceTaxMappingKeys(x.AccountingProfileCode, "Purchase", x.TaxBreakdownJson, x.TaxTotal,
+                LedgerMappingKeys.PurchaseTaxRecoverable, LedgerMappingKeys.PurchaseWithholdingPayable))
+            .Concat(purchaseReceiptDone.Contains(x.PurchaseReceiptId) ? new[] { LedgerMappingKeys.PurchaseReceiptAccrual } : Array.Empty<string>()).Distinct().ToArray()
+    }).ToList();
     var purchaseReceipts = await db.PurchaseReceipts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == PurchaseReceiptStatus.Posted
             && !purchaseReceiptDone.Contains(x.Id) && !x.Invoices.Any(i => i.Status == PurchaseInvoiceStatus.Posted && purchaseDone.Contains(i.Id)))
         .OrderByDescending(x => x.ReceiptDate).Take(200).Select(x => new
@@ -7329,24 +7894,56 @@ generalLedger.MapGet("/sources", async (ClaimsPrincipal principal, TenantDbConte
             ? LedgerMappingKeys.FinancialAccountPrefix + accountId
             : x.PaymentMethod == "Card" ? LedgerMappingKeys.SupplierCardClearing : LedgerMappingKeys.SupplierCheckClearing }
     }).ToList();
-    var salesReturns = await db.SalesReturns.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SalesReturnStatus.Posted && !salesReturnDone.Contains(x.Id))
-        .OrderByDescending(x => x.ReturnDate).Take(200).Select(x => new
+    var salesReturnRows = await db.SalesReturns.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SalesReturnStatus.Posted && !salesReturnDone.Contains(x.Id))
+        .OrderByDescending(x => x.ReturnDate).Take(200).Include(x => x.SalesInvoice).Include(x => x.Customer)
+        .Include(x => x.Lines).ThenInclude(x => x.SalesInvoiceLine).ToListAsync();
+    var salesReturns = new List<object>();
+    foreach (var row in salesReturnRows)
+    {
+        var lineIds = row.Lines.Select(x => x.SalesInvoiceLineId).Distinct().ToArray();
+        var prior = await db.SalesReturnLines.AsNoTracking().Where(x => x.TenantId == tenantId && lineIds.Contains(x.SalesInvoiceLineId)
+                && x.SalesReturn.Status == SalesReturnStatus.Posted && x.SalesReturn.CreatedAt < row.CreatedAt)
+            .GroupBy(x => x.SalesInvoiceLineId).Select(g => new { Id = g.Key, Quantity = g.Sum(x => x.Quantity) })
+            .ToDictionaryAsync(x => x.Id, x => x.Quantity);
+        IReadOnlyList<AccountingTaxBreakdownLine> returnTaxes;
+        try { returnTaxes = row.Lines.SelectMany(line => AccountingRuleTaxCalculator.CalculateIncrementalReturnBreakdown(
+            line.SalesInvoiceLine.TaxBreakdownJson, line.SalesInvoiceLine.Quantity, prior.GetValueOrDefault(line.SalesInvoiceLineId),
+            line.Quantity, line.TaxAmount, line.LineSubtotal - line.DiscountAmount + line.TaxAmount - line.LineTotal)).ToArray(); }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or ArgumentOutOfRangeException or OverflowException) { returnTaxes = []; }
+        salesReturns.Add(new
         {
-            id = x.Id, code = x.Code, entryDate = x.ReturnDate, amount = x.GrandTotal,
-            currencyCode = x.SalesInvoice.CurrencyCode, description = x.Customer.Name,
-            requiredMappings = x.TaxTotal > 0
-                ? new[] { LedgerMappingKeys.SalesReceivable, LedgerMappingKeys.SalesRevenue, LedgerMappingKeys.SalesTaxPayable, LedgerMappingKeys.InventoryAsset, LedgerMappingKeys.SalesCost }
-                : new[] { LedgerMappingKeys.SalesReceivable, LedgerMappingKeys.SalesRevenue, LedgerMappingKeys.InventoryAsset, LedgerMappingKeys.SalesCost }
-        }).ToListAsync();
-    var supplierReturns = await db.SupplierReturns.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SupplierReturnStatus.Posted && !supplierReturnDone.Contains(x.Id))
-        .OrderByDescending(x => x.ReturnDate).Take(200).Select(x => new
+            id = row.Id, code = row.Code, entryDate = row.ReturnDate, amount = row.GrandTotal,
+            currencyCode = row.SalesInvoice.CurrencyCode, description = row.Customer.Name,
+            requiredMappings = new[] { LedgerMappingKeys.SalesReceivable, LedgerMappingKeys.SalesRevenue, LedgerMappingKeys.InventoryAsset, LedgerMappingKeys.SalesCost }
+                .Concat(RequiredTaxRowsMappingKeys(row.SalesInvoice.AccountingProfileCode, "Sales", returnTaxes,
+                    LedgerMappingKeys.SalesTaxPayable, LedgerMappingKeys.SalesWithholdingReceivable)).Distinct().ToArray()
+        });
+    }
+    var supplierReturnRows = await db.SupplierReturns.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == SupplierReturnStatus.Posted && !supplierReturnDone.Contains(x.Id))
+        .OrderByDescending(x => x.ReturnDate).Take(200).Include(x => x.PurchaseInvoice).Include(x => x.Supplier)
+        .Include(x => x.Lines).ThenInclude(x => x.PurchaseInvoiceLine).ToListAsync();
+    var supplierReturns = new List<object>();
+    foreach (var row in supplierReturnRows)
+    {
+        var lineIds = row.Lines.Select(x => x.PurchaseInvoiceLineId).Distinct().ToArray();
+        var prior = await db.SupplierReturnLines.AsNoTracking().Where(x => x.TenantId == tenantId && lineIds.Contains(x.PurchaseInvoiceLineId)
+                && x.SupplierReturn.Status == SupplierReturnStatus.Posted && x.SupplierReturn.CreatedAt < row.CreatedAt)
+            .GroupBy(x => x.PurchaseInvoiceLineId).Select(g => new { Id = g.Key, Quantity = g.Sum(x => x.Quantity) })
+            .ToDictionaryAsync(x => x.Id, x => x.Quantity);
+        IReadOnlyList<AccountingTaxBreakdownLine> returnTaxes;
+        try { returnTaxes = row.Lines.SelectMany(line => AccountingRuleTaxCalculator.CalculateIncrementalReturnBreakdown(
+            line.PurchaseInvoiceLine.TaxBreakdownJson, line.PurchaseInvoiceLine.Quantity, prior.GetValueOrDefault(line.PurchaseInvoiceLineId),
+            line.Quantity, line.TaxAmount, line.LineSubtotal - line.DiscountAmount + line.TaxAmount - line.LineTotal)).ToArray(); }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or ArgumentOutOfRangeException or OverflowException) { returnTaxes = []; }
+        supplierReturns.Add(new
         {
-            id = x.Id, code = x.Code, entryDate = x.ReturnDate, amount = x.GrandTotal,
-            currencyCode = x.PurchaseInvoice.CurrencyCode, description = x.Supplier.Name,
-            requiredMappings = x.TaxTotal > 0
-                ? new[] { LedgerMappingKeys.PurchasePayable, LedgerMappingKeys.PurchaseCost, LedgerMappingKeys.PurchaseTaxRecoverable, LedgerMappingKeys.InventoryAsset }
-                : new[] { LedgerMappingKeys.PurchasePayable, LedgerMappingKeys.PurchaseCost, LedgerMappingKeys.InventoryAsset }
-        }).ToListAsync();
+            id = row.Id, code = row.Code, entryDate = row.ReturnDate, amount = row.GrandTotal,
+            currencyCode = row.PurchaseInvoice.CurrencyCode, description = row.Supplier.Name,
+            requiredMappings = new[] { LedgerMappingKeys.PurchasePayable, LedgerMappingKeys.PurchaseCost, LedgerMappingKeys.InventoryAsset }
+                .Concat(RequiredTaxRowsMappingKeys(row.PurchaseInvoice.AccountingProfileCode, "Purchase", returnTaxes,
+                    LedgerMappingKeys.PurchaseTaxRecoverable, LedgerMappingKeys.PurchaseWithholdingPayable)).Distinct().ToArray()
+        });
+    }
     var fx = await db.FxRevaluationVouchers.AsNoTracking().Where(x => x.TenantId == tenantId && !fxDone.Contains(x.Id))
         .OrderByDescending(x => x.AsOfDate).Take(200).Include(x => x.Lines).ToListAsync();
     var inventory = await db.InventoryCostAdjustments.AsNoTracking().Where(x => x.TenantId == tenantId
@@ -7380,6 +7977,13 @@ generalLedger.MapPut("/mappings/{mappingKey}", async (string mappingKey, LedgerM
     if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
     string label;
     if (ledgerMappingLabels.TryGetValue(mappingKey, out var staticLabel)) label = staticLabel;
+    else if (mappingKey.StartsWith(LedgerMappingKeys.TaxRulePrefix, StringComparison.Ordinal))
+    {
+        var profiles = await db.AccountingRuleProfiles.AsNoTracking().Where(x => x.TenantId == tenantId).ToListAsync();
+        var option = profiles.SelectMany(AccountingRuleProfileEndpoints.GetTaxRuleMappings).SingleOrDefault(x => x.MappingKey == mappingKey);
+        if (option is null) return Results.NotFound();
+        label = option.Label;
+    }
     else if (mappingKey.StartsWith(LedgerMappingKeys.FinancialAccountPrefix, StringComparison.Ordinal)
         && Guid.TryParse(mappingKey[LedgerMappingKeys.FinancialAccountPrefix.Length..], out var financialAccountId))
     {
@@ -7398,24 +8002,32 @@ generalLedger.MapPut("/mappings/{mappingKey}", async (string mappingKey, LedgerM
     await db.SaveChangesAsync();
     return Results.Ok(new LedgerMappingView(mappingKey, label, account.Id, account.Code, account.Name));
 });
-generalLedger.MapGet("/entries", async (DateOnly? from, DateOnly? to, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
+generalLedger.MapGet("/entries", async (DateOnly? from, DateOnly? to, string? accountingBasis, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (from.HasValue && to.HasValue && from.Value > to.Value)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["dateRange"] = ["Başlangıç tarihi bitiş tarihinden sonra olamaz."] });
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
     var query = db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId);
+    if (!string.IsNullOrWhiteSpace(accountingBasis))
+    {
+        var normalizedBasis = TrialBalanceEndpoints.NormalizeBasis(accountingBasis);
+        if (normalizedBasis is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["accountingBasis"] = ["Muhasebe standardı TDHP, IFRS veya UFRS olmalıdır."] });
+        query = query.Where(x => x.AccountingBasis == normalizedBasis);
+    }
     if (from.HasValue) query = query.Where(x => x.EntryDate >= from.Value);
     if (to.HasValue) query = query.Where(x => x.EntryDate <= to.Value);
     var total = await query.CountAsync();
     var entries = await query.OrderByDescending(x => x.EntryDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
-        .Select(x => new { x.Id, x.Code, x.EntryDate, x.Description, x.SourceType, x.SourceId, x.CreatedAt,
+        .Select(x => new { x.Id, x.Code, x.EntryDate, x.Description, x.SourceType, x.SourceId, x.CreatedAt, x.AccountingBasis,
             TotalDebit = x.Lines.Sum(l => l.Debit), TotalCredit = x.Lines.Sum(l => l.Credit) }).ToListAsync();
     return Results.Ok(new { items = entries, page, pageSize, total });
 });
 generalLedger.MapPost("/entries/manual", async (ManualJournalEntryWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+    var entryBasis = TrialBalanceEndpoints.NormalizeBasis(request.AccountingBasis);
+    if (entryBasis is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["accountingBasis"] = ["Muhasebe standardı TDHP, IFRS veya UFRS olmalıdır."] });
     var description = request.Description?.Trim() ?? "";
     if (description.Length is 0 or > 240 || request.Lines is null || request.Lines.Count is < 2 or > 100)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["entry"] = ["Açıklama (1–240 karakter) ve 2–100 yevmiye satırı gereklidir."] });
@@ -7438,7 +8050,7 @@ generalLedger.MapPost("/entries/manual", async (ManualJournalEntryWriteRequest r
     if (closedPeriod is { } closed)
         return Results.Conflict(new { error = $"{closed.FromDate:yyyy-MM-dd}–{closed.ToDate:yyyy-MM-dd} dönemi kapalı; bu tarihe yevmiye eklenemez." });
     var entry = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = request.EntryDate,
-        Description = description, SourceType = "Manual", SourceId = Guid.NewGuid(), CreatedByUserId = GetUserId(principal) };
+        Description = description, AccountingBasis = entryBasis, SourceType = "Manual", SourceId = Guid.NewGuid(), CreatedByUserId = GetUserId(principal) };
     for (var i = 0; i < request.Lines.Count; i++)
     {
         var line = request.Lines[i];
@@ -7450,7 +8062,7 @@ generalLedger.MapPost("/entries/manual", async (ManualJournalEntryWriteRequest r
     await db.SaveChangesAsync();
     await transaction.CommitAsync();
     return Results.Created($"/api/finance/general-ledger/entries/{entry.Id}", new { entry.Id, entry.Code, entry.EntryDate, entry.Description,
-        entry.SourceType, entry.SourceId, TotalDebit = debitTotal, TotalCredit = creditTotal });
+        entry.SourceType, entry.SourceId, entry.AccountingBasis, TotalDebit = debitTotal, TotalCredit = creditTotal });
 });
 generalLedger.MapPost("/entries/{id:guid}/reverse", async (Guid id, ManualJournalEntryReverseRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -7474,7 +8086,7 @@ generalLedger.MapPost("/entries/{id:guid}/reverse", async (Guid id, ManualJourna
     if (reversalDescription.Length > 240) reversalDescription = reversalDescription[..240];
     var reversal = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = request.EntryDate,
         Description = reversalDescription,
-        SourceType = "ManualReversal", SourceId = original.Id, CreatedByUserId = GetUserId(principal) };
+        AccountingBasis = original.AccountingBasis, SourceType = "ManualReversal", SourceId = original.Id, CreatedByUserId = GetUserId(principal) };
     foreach (var line in original.Lines.OrderBy(x => x.LineNumber))
         reversal.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = reversal.Id, AccountId = line.AccountId,
             LineNumber = line.LineNumber, Description = reversalDescription,
@@ -7499,7 +8111,7 @@ generalLedger.MapGet("/entries/{id:guid}", async (Guid id, ClaimsPrincipal princ
         accounts[x.AccountId].Code, accounts[x.AccountId].Name, x.Description, x.Debit, x.Credit)).ToList();
     var isReversed = await db.JournalEntries.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.SourceType == "ManualReversal" && x.SourceId == entry.Id);
     return Results.Ok(new JournalEntryView(entry.Id, entry.Code, entry.EntryDate, entry.Description, entry.SourceType,
-        entry.SourceId, entry.CreatedAt, lines.Sum(x => x.Debit), lines.Sum(x => x.Credit), lines, isReversed));
+        entry.SourceId, entry.CreatedAt, lines.Sum(x => x.Debit), lines.Sum(x => x.Credit), lines, isReversed, entry.AccountingBasis));
 });
 generalLedger.MapPost("/transfer", async (JournalTransferRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -7516,12 +8128,30 @@ generalLedger.MapPost("/transfer", async (JournalTransferRequest request, Claims
     DateOnly entryDate; string sourceCode; string description;
     if (sourceType == "SalesReturn")
     {
-        var source = await db.SalesReturns.Include(x => x.SalesInvoice).Include(x => x.Customer).Include(x => x.Lines)
+        var source = await db.SalesReturns.Include(x => x.SalesInvoice).Include(x => x.Customer).Include(x => x.Lines).ThenInclude(x => x.SalesInvoiceLine)
             .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
         if (source is null) return Results.NotFound();
         if (source.Status != SalesReturnStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş satış iadesi deftere aktarılamaz." });
         var netRevenue = source.Subtotal - source.DiscountTotal;
-        if (source.GrandTotal <= 0 || netRevenue < 0 || source.TaxTotal < 0 || netRevenue + source.TaxTotal != source.GrandTotal)
+        IReadOnlyList<AccountingTaxBreakdownLine> taxRows;
+        try
+        {
+            var invoiceLineIds = source.Lines.Select(x => x.SalesInvoiceLineId).Distinct().ToArray();
+            var priorQuantities = await db.SalesReturnLines.AsNoTracking().Where(x => x.TenantId == tenantId && invoiceLineIds.Contains(x.SalesInvoiceLineId)
+                    && x.SalesReturn.Status == SalesReturnStatus.Posted && x.SalesReturn.CreatedAt < source.CreatedAt)
+                .GroupBy(x => x.SalesInvoiceLineId).Select(g => new { Id = g.Key, Quantity = g.Sum(x => x.Quantity) })
+                .ToDictionaryAsync(x => x.Id, x => x.Quantity);
+            taxRows = source.Lines.SelectMany(line => AccountingRuleTaxCalculator.CalculateIncrementalReturnBreakdown(
+                line.SalesInvoiceLine.TaxBreakdownJson, line.SalesInvoiceLine.Quantity,
+                priorQuantities.GetValueOrDefault(line.SalesInvoiceLineId), line.Quantity, line.TaxAmount,
+                line.LineSubtotal - line.DiscountAmount + line.TaxAmount - line.LineTotal)).ToArray();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or ArgumentOutOfRangeException or OverflowException)
+        { return Results.Conflict(new { error = "Satış iadesinin kaynak fatura vergi kırılımı geçersiz." }); }
+        var withholdingAmount = taxRows.Where(x => x.Treatment == "Withholding").Sum(x => x.Amount);
+        if (taxRows.Where(x => x.Treatment != "Withholding").Sum(x => x.Amount) != source.TaxTotal
+            || source.GrandTotal <= 0 || netRevenue < 0 || source.TaxTotal < 0 || withholdingAmount < 0
+            || netRevenue + source.TaxTotal - withholdingAmount != source.GrandTotal)
             return Results.Conflict(new { error = "Satış iadesi toplamları deftere aktarım için tutarlı değil." });
         var currencyCode = source.SalesInvoice.CurrencyCode;
         var baseCurrency = tenant.BaseCurrencyCode;
@@ -7529,30 +8159,53 @@ generalLedger.MapPost("/transfer", async (JournalTransferRequest request, Claims
             : await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.CurrencyCode == currencyCode && x.RateDate <= source.ReturnDate)
                 .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision).Select(x => (decimal?)x.Rate).FirstOrDefaultAsync() ?? 0m;
         if (exchangeRate <= 0) return Results.Conflict(new { error = $"{source.ReturnDate:yyyy-MM-dd} tarihli {currencyCode} kuru bulunamadı; satış iadesi aktarılmadı." });
-        decimal invoiceBase, taxBase;
+        decimal invoiceBase, taxBase, withholdingBase;
         try
         {
             invoiceBase = decimal.Round(source.GrandTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
-            taxBase = decimal.Round(source.TaxTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
+            var translatedTaxRows = taxRows.Select(row => (Row: row, AmountBase: decimal.Round(row.Amount * exchangeRate, 2, MidpointRounding.AwayFromZero))).ToArray();
+            taxBase = translatedTaxRows.Where(x => x.Row.Treatment != "Withholding").Sum(x => x.AmountBase);
+            withholdingBase = translatedTaxRows.Where(x => x.Row.Treatment == "Withholding").Sum(x => x.AmountBase);
+            taxRows = translatedTaxRows.Select(x => x.Row with { Amount = x.AmountBase }).ToArray();
         }
         catch (OverflowException) { return Results.Conflict(new { error = "Satış iadesi baz para birimine çevrildiğinde yevmiye tutar sınırını aşıyor." }); }
-        var revenueBase = invoiceBase - taxBase;
-        if (invoiceBase <= 0 || revenueBase < 0 || invoiceBase > 9999999999999999.99m || taxBase > 9999999999999999.99m)
+        var revenueBase = invoiceBase - taxBase + withholdingBase;
+        if (invoiceBase <= 0 || revenueBase < 0 || invoiceBase > 9999999999999999.99m || taxBase > 9999999999999999.99m || withholdingBase > 9999999999999999.99m)
             return Results.Conflict(new { error = "Satış iadesi baz para birimi tutarları yevmiye sınırları dışında." });
         if (!map.TryGetValue(LedgerMappingKeys.SalesReceivable, out var receivableId)
             || !map.TryGetValue(LedgerMappingKeys.SalesRevenue, out var revenueId)
             || !activeAccounts.ContainsKey(receivableId) || !activeAccounts.ContainsKey(revenueId))
             return Results.Conflict(new { error = "Satış iadesinin alacak ve gelir hesap eşleştirmeleri tamamlanmamış." });
         if (receivableId == revenueId) return Results.Conflict(new { error = "Satış iadesi alacak ve gelir hesapları farklı olmalıdır." });
-        if (source.TaxTotal > 0 && (!map.TryGetValue(LedgerMappingKeys.SalesTaxPayable, out var taxId) || !activeAccounts.ContainsKey(taxId)))
-            return Results.Conflict(new { error = "Satış iadesinin hesaplanan KDV hesabı eşleştirilmemiş." });
         entryDate = source.ReturnDate; sourceCode = source.Code;
         description = currencyCode == baseCurrency ? $"Satış iadesi · {source.Code}" : $"Satış iadesi · {source.Code} · {currencyCode}/{baseCurrency} {exchangeRate}";
-        if (source.TaxTotal > 0)
+        var additiveTaxAccounts = new HashSet<Guid>();
+        var withholdingTaxAccounts = new HashSet<Guid>();
+        foreach (var tax in taxRows.Where(x => x.Amount > 0))
         {
-            var taxAccountId = map[LedgerMappingKeys.SalesTaxPayable];
-            if (taxAccountId == receivableId || taxAccountId == revenueId) return Results.Conflict(new { error = "İade alacak, gelir ve KDV hesapları birbirinden farklı olmalıdır." });
-            if (taxBase > 0) lines.Add((taxAccountId, $"{source.Code} · KDV iade düzeltmesi", taxBase, 0));
+            var isWithholding = tax.Treatment == "Withholding";
+            var mappingKey = !string.IsNullOrWhiteSpace(source.SalesInvoice.AccountingProfileCode)
+                ? AccountingRuleProfileEndpoints.TaxRuleMappingKey(source.SalesInvoice.AccountingProfileCode, "Sales", tax.Code) : "";
+            var fallbackKey = isWithholding ? LedgerMappingKeys.SalesWithholdingReceivable : LedgerMappingKeys.SalesTaxPayable;
+            Guid mappedId = default;
+            var hasAccount = mappingKey.Length > 0 && map.TryGetValue(mappingKey, out mappedId);
+            if (!hasAccount && (mappingKey.Length == 0 || tax.Code is "VAT" or "KDV")) hasAccount = map.TryGetValue(fallbackKey, out mappedId);
+            if (!hasAccount || !activeAccounts.ContainsKey(mappedId))
+                return Results.Conflict(new { error = $"Satış iadesi {tax.Code} vergisi için mevzuat profiline ait muhasebe hesabı eşleştirilmemiş." });
+            if (mappedId == receivableId || mappedId == revenueId)
+                return Results.Conflict(new { error = $"Satış iadesi {tax.Code} vergi hesabı alacak ve gelir hesaplarından farklı olmalıdır." });
+            if (isWithholding)
+            {
+                if (additiveTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Tevkifat hesabı hesaplanan vergi hesaplarından ayrı olmalıdır." });
+                withholdingTaxAccounts.Add(mappedId);
+                lines.Add((mappedId, $"{source.Code} · {tax.Name} tevkifat iade düzeltmesi", 0, tax.Amount));
+            }
+            else
+            {
+                if (withholdingTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Hesaplanan vergi hesabı tevkifat hesabından ayrı olmalıdır." });
+                additiveTaxAccounts.Add(mappedId);
+                lines.Add((mappedId, $"{source.Code} · {tax.Name} iade düzeltmesi", tax.Amount, 0));
+            }
         }
         if (revenueBase > 0) lines.Add((revenueId, $"{source.Code} · Satış iade düzeltmesi", revenueBase, 0));
         lines.Add((receivableId, $"{source.Code} · {source.Customer.Name}", 0, invoiceBase));
@@ -7577,12 +8230,30 @@ generalLedger.MapPost("/transfer", async (JournalTransferRequest request, Claims
     }
     else if (sourceType == "SupplierReturn")
     {
-        var source = await db.SupplierReturns.Include(x => x.PurchaseInvoice).Include(x => x.Supplier).Include(x => x.Lines)
+        var source = await db.SupplierReturns.Include(x => x.PurchaseInvoice).Include(x => x.Supplier).Include(x => x.Lines).ThenInclude(x => x.PurchaseInvoiceLine)
             .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
         if (source is null) return Results.NotFound();
         if (source.Status != SupplierReturnStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş tedarikçi iadesi deftere aktarılamaz." });
         var netCost = source.Subtotal - source.DiscountTotal;
-        if (source.GrandTotal <= 0 || netCost < 0 || source.TaxTotal < 0 || netCost + source.TaxTotal != source.GrandTotal)
+        IReadOnlyList<AccountingTaxBreakdownLine> taxRows;
+        try
+        {
+            var invoiceLineIds = source.Lines.Select(x => x.PurchaseInvoiceLineId).Distinct().ToArray();
+            var priorQuantities = await db.SupplierReturnLines.AsNoTracking().Where(x => x.TenantId == tenantId && invoiceLineIds.Contains(x.PurchaseInvoiceLineId)
+                    && x.SupplierReturn.Status == SupplierReturnStatus.Posted && x.SupplierReturn.CreatedAt < source.CreatedAt)
+                .GroupBy(x => x.PurchaseInvoiceLineId).Select(g => new { Id = g.Key, Quantity = g.Sum(x => x.Quantity) })
+                .ToDictionaryAsync(x => x.Id, x => x.Quantity);
+            taxRows = source.Lines.SelectMany(line => AccountingRuleTaxCalculator.CalculateIncrementalReturnBreakdown(
+                line.PurchaseInvoiceLine.TaxBreakdownJson, line.PurchaseInvoiceLine.Quantity,
+                priorQuantities.GetValueOrDefault(line.PurchaseInvoiceLineId), line.Quantity, line.TaxAmount,
+                line.LineSubtotal - line.DiscountAmount + line.TaxAmount - line.LineTotal)).ToArray();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or ArgumentOutOfRangeException or OverflowException)
+        { return Results.Conflict(new { error = "Tedarikçi iadesinin kaynak fatura vergi kırılımı geçersiz." }); }
+        var withholdingAmount = taxRows.Where(x => x.Treatment == "Withholding").Sum(x => x.Amount);
+        if (taxRows.Where(x => x.Treatment != "Withholding").Sum(x => x.Amount) != source.TaxTotal
+            || source.GrandTotal <= 0 || netCost < 0 || source.TaxTotal < 0 || withholdingAmount < 0
+            || netCost + source.TaxTotal - withholdingAmount != source.GrandTotal)
             return Results.Conflict(new { error = "Tedarikçi iadesi toplamları deftere aktarım için tutarlı değil." });
         var currencyCode = source.PurchaseInvoice.CurrencyCode;
         var baseCurrency = tenant.BaseCurrencyCode;
@@ -7590,32 +8261,55 @@ generalLedger.MapPost("/transfer", async (JournalTransferRequest request, Claims
             : await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.CurrencyCode == currencyCode && x.RateDate <= source.ReturnDate)
                 .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision).Select(x => (decimal?)x.Rate).FirstOrDefaultAsync() ?? 0m;
         if (exchangeRate <= 0) return Results.Conflict(new { error = $"{source.ReturnDate:yyyy-MM-dd} tarihli {currencyCode} kuru bulunamadı; tedarikçi iadesi aktarılmadı." });
-        decimal invoiceBase, taxBase;
+        decimal invoiceBase, taxBase, withholdingBase;
         try
         {
             invoiceBase = decimal.Round(source.GrandTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
-            taxBase = decimal.Round(source.TaxTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
+            var translatedTaxRows = taxRows.Select(row => (Row: row, AmountBase: decimal.Round(row.Amount * exchangeRate, 2, MidpointRounding.AwayFromZero))).ToArray();
+            taxBase = translatedTaxRows.Where(x => x.Row.Treatment != "Withholding").Sum(x => x.AmountBase);
+            withholdingBase = translatedTaxRows.Where(x => x.Row.Treatment == "Withholding").Sum(x => x.AmountBase);
+            taxRows = translatedTaxRows.Select(x => x.Row with { Amount = x.AmountBase }).ToArray();
         }
         catch (OverflowException) { return Results.Conflict(new { error = "Tedarikçi iadesi baz para birimine çevrildiğinde yevmiye tutar sınırını aşıyor." }); }
-        var costBase = invoiceBase - taxBase;
-        if (invoiceBase <= 0 || costBase < 0 || invoiceBase > 9999999999999999.99m || taxBase > 9999999999999999.99m)
+        var costBase = invoiceBase - taxBase + withholdingBase;
+        if (invoiceBase <= 0 || costBase < 0 || invoiceBase > 9999999999999999.99m || taxBase > 9999999999999999.99m || withholdingBase > 9999999999999999.99m)
             return Results.Conflict(new { error = "Tedarikçi iadesi baz para birimi tutarları yevmiye sınırları dışında." });
         if (!map.TryGetValue(LedgerMappingKeys.PurchasePayable, out var payableId)
             || !map.TryGetValue(LedgerMappingKeys.PurchaseCost, out var costId)
             || !activeAccounts.ContainsKey(payableId) || !activeAccounts.ContainsKey(costId))
             return Results.Conflict(new { error = "Tedarikçi iadesinin borç ve maliyet hesap eşleştirmeleri tamamlanmamış." });
         if (payableId == costId) return Results.Conflict(new { error = "Tedarikçi iadesi borç ve maliyet hesapları farklı olmalıdır." });
-        if (source.TaxTotal > 0 && (!map.TryGetValue(LedgerMappingKeys.PurchaseTaxRecoverable, out var taxId) || !activeAccounts.ContainsKey(taxId)))
-            return Results.Conflict(new { error = "Tedarikçi iadesinin indirilecek KDV hesabı eşleştirilmemiş." });
         entryDate = source.ReturnDate; sourceCode = source.Code;
         description = currencyCode == baseCurrency ? $"Tedarikçi iadesi · {source.Code}" : $"Tedarikçi iadesi · {source.Code} · {currencyCode}/{baseCurrency} {exchangeRate}";
         lines.Add((payableId, $"{source.Code} · {source.Supplier.Name}", invoiceBase, 0));
         if (costBase > 0) lines.Add((costId, $"{source.Code} · Alış iade düzeltmesi", 0, costBase));
-        if (source.TaxTotal > 0)
+        var additiveTaxAccounts = new HashSet<Guid>();
+        var withholdingTaxAccounts = new HashSet<Guid>();
+        foreach (var tax in taxRows.Where(x => x.Amount > 0))
         {
-            var taxAccountId = map[LedgerMappingKeys.PurchaseTaxRecoverable];
-            if (taxAccountId == payableId || taxAccountId == costId) return Results.Conflict(new { error = "İade borç, maliyet ve KDV hesapları birbirinden farklı olmalıdır." });
-            if (taxBase > 0) lines.Add((taxAccountId, $"{source.Code} · KDV iade düzeltmesi", 0, taxBase));
+            var isWithholding = tax.Treatment == "Withholding";
+            var mappingKey = !string.IsNullOrWhiteSpace(source.PurchaseInvoice.AccountingProfileCode)
+                ? AccountingRuleProfileEndpoints.TaxRuleMappingKey(source.PurchaseInvoice.AccountingProfileCode, "Purchase", tax.Code) : "";
+            var fallbackKey = isWithholding ? LedgerMappingKeys.PurchaseWithholdingPayable : LedgerMappingKeys.PurchaseTaxRecoverable;
+            Guid mappedId = default;
+            var hasAccount = mappingKey.Length > 0 && map.TryGetValue(mappingKey, out mappedId);
+            if (!hasAccount && (mappingKey.Length == 0 || tax.Code is "VAT" or "KDV")) hasAccount = map.TryGetValue(fallbackKey, out mappedId);
+            if (!hasAccount || !activeAccounts.ContainsKey(mappedId))
+                return Results.Conflict(new { error = $"Tedarikçi iadesi {tax.Code} vergisi için mevzuat profiline ait muhasebe hesabı eşleştirilmemiş." });
+            if (mappedId == payableId || mappedId == costId)
+                return Results.Conflict(new { error = $"Tedarikçi iadesi {tax.Code} vergi hesabı borç ve maliyet hesaplarından farklı olmalıdır." });
+            if (isWithholding)
+            {
+                if (additiveTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Tevkifat hesabı vergi indirimi hesaplarından ayrı olmalıdır." });
+                withholdingTaxAccounts.Add(mappedId);
+                lines.Add((mappedId, $"{source.Code} · {tax.Name} tevkifat iade düzeltmesi", tax.Amount, 0));
+            }
+            else
+            {
+                if (withholdingTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Vergi indirimi hesabı tevkifat hesabından ayrı olmalıdır." });
+                additiveTaxAccounts.Add(mappedId);
+                lines.Add((mappedId, $"{source.Code} · {tax.Name} iade düzeltmesi", 0, tax.Amount));
+            }
         }
         var returnLineIds = source.Lines.Select(x => x.Id).ToArray();
         var movements = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.SupplierReturnLineId.HasValue
@@ -7723,23 +8417,36 @@ generalLedger.MapPost("/transfer", async (JournalTransferRequest request, Claims
         if (source is null) return Results.NotFound();
         if (source.Status != PurchaseInvoiceStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş alış faturası deftere aktarılamaz." });
         var netCost = source.Subtotal - source.DiscountTotal;
-        if (source.GrandTotal <= 0 || netCost < 0 || source.TaxTotal < 0 || netCost + source.TaxTotal != source.GrandTotal)
+        IReadOnlyList<AccountingTaxBreakdownLine> taxRows;
+        try { taxRows = AccountingRuleTaxCalculator.ReadBreakdown(source.TaxBreakdownJson); }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or OverflowException)
+        { return Results.Conflict(new { error = "Alış faturası vergi anlık görüntüsü geçersiz." }); }
+        var withholdingAmount = taxRows.Where(x => x.Treatment == "Withholding").Sum(x => x.Amount);
+        if (taxRows.Count > 0 && taxRows.Where(x => x.Treatment != "Withholding").Sum(x => x.Amount) != source.TaxTotal)
+            return Results.Conflict(new { error = "Alış faturası vergi dökümü ile vergi toplamı uyuşmuyor." });
+        if (source.GrandTotal <= 0 || netCost < 0 || source.TaxTotal < 0 || withholdingAmount < 0 || netCost + source.TaxTotal - withholdingAmount != source.GrandTotal)
             return Results.Conflict(new { error = "Alış faturası toplamları deftere aktarım için tutarlı değil." });
         var baseCurrency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.BaseCurrencyCode).SingleAsync();
         var exchangeRate = source.CurrencyCode == baseCurrency ? 1m
             : await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.CurrencyCode == source.CurrencyCode && x.RateDate <= source.InvoiceDate)
                 .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision).Select(x => (decimal?)x.Rate).FirstOrDefaultAsync() ?? 0m;
         if (exchangeRate <= 0) return Results.Conflict(new { error = $"{source.InvoiceDate:yyyy-MM-dd} tarihli {source.CurrencyCode} kuru bulunamadı; alış faturası deftere aktarılmadı." });
-        decimal invoiceBase, taxBase;
+        decimal invoiceBase, taxBase, withholdingBase;
         try
         {
             invoiceBase = decimal.Round(source.GrandTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
-            taxBase = decimal.Round(source.TaxTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
+            var postingTaxRows = taxRows.Count > 0 ? taxRows : source.TaxTotal > 0
+                ? [new AccountingTaxBreakdownLine("VAT", "KDV / VAT", 0, "Additive", "Net", source.TaxTotal, source.TaxTotal)]
+                : Array.Empty<AccountingTaxBreakdownLine>();
+            var translatedTaxRows = postingTaxRows.Select(row => (Row: row, AmountBase: decimal.Round(row.Amount * exchangeRate, 2, MidpointRounding.AwayFromZero))).ToArray();
+            taxBase = translatedTaxRows.Where(x => x.Row.Treatment != "Withholding").Sum(x => x.AmountBase);
+            withholdingBase = translatedTaxRows.Where(x => x.Row.Treatment == "Withholding").Sum(x => x.AmountBase);
+            taxRows = translatedTaxRows.Select(x => x.Row with { Amount = x.AmountBase }).ToArray();
         }
-        catch (OverflowException) { return Results.Conflict(new { error = "Alış faturası baz para birimine çevrildiğinde yevmiye tutar sınırını aşıyor." }); }
-        var costBase = invoiceBase - taxBase;
+        catch (Exception ex) when (ex is OverflowException or JsonException or InvalidOperationException) { return Results.Conflict(new { error = "Alış faturası vergi dökümü geçersiz veya baz para birimine çevrildiğinde yevmiye sınırını aşıyor." }); }
+        var costBase = invoiceBase - taxBase + withholdingBase;
         if (invoiceBase <= 0 || taxBase < 0 || costBase < 0 || invoiceBase > 9999999999999999.99m
-            || taxBase > 9999999999999999.99m || costBase > 9999999999999999.99m)
+            || taxBase > 9999999999999999.99m || costBase > 9999999999999999.99m || withholdingBase > 9999999999999999.99m)
             return Results.Conflict(new { error = "Alış faturası baz para birimi tutarları yevmiye sınırları dışında." });
         var receiptEntry = await db.JournalEntries.AsNoTracking().Include(x => x.Lines)
             .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == "PurchaseReceipt" && x.SourceId == source.PurchaseReceiptId);
@@ -7767,13 +8474,33 @@ generalLedger.MapPost("/transfer", async (JournalTransferRequest request, Claims
             else if (variance < 0) lines.Add((costId, $"{source.Code} · Alış maliyet farkı", 0, -variance));
         }
         else if (costBase > 0) lines.Add((costId, $"{source.Code} · Alış maliyeti", costBase, 0));
-        if (source.TaxTotal > 0)
+        var additiveTaxAccounts = new HashSet<Guid>();
+        var withholdingTaxAccounts = new HashSet<Guid>();
+        foreach (var tax in taxRows.Where(x => x.Amount > 0))
         {
-            if (!map.TryGetValue(LedgerMappingKeys.PurchaseTaxRecoverable, out var taxId) || !activeAccounts.ContainsKey(taxId))
-                return Results.Conflict(new { error = "Alış faturası indirilecek KDV hesabı eşleştirilmemiş." });
-            if (taxId == payableId || taxId == costId || clearReceiptAccrual && taxId == map[LedgerMappingKeys.PurchaseReceiptAccrual])
-                return Results.Conflict(new { error = "Borç, maliyet, GRNI ve indirilecek KDV hesapları birbirinden farklı olmalıdır." });
-            if (taxBase > 0) lines.Add((taxId, $"{source.Code} · İndirilecek KDV", taxBase, 0));
+            var isWithholding = tax.Treatment == "Withholding";
+            var mappingKey = !string.IsNullOrWhiteSpace(source.AccountingProfileCode)
+                ? AccountingRuleProfileEndpoints.TaxRuleMappingKey(source.AccountingProfileCode, "Purchase", tax.Code) : "";
+            var fallbackKey = isWithholding ? LedgerMappingKeys.PurchaseWithholdingPayable : LedgerMappingKeys.PurchaseTaxRecoverable;
+            Guid mappedId = default;
+            var hasAccount = mappingKey.Length > 0 && map.TryGetValue(mappingKey, out mappedId);
+            if (!hasAccount && (mappingKey.Length == 0 || tax.Code is "VAT" or "KDV")) hasAccount = map.TryGetValue(fallbackKey, out mappedId);
+            if (!hasAccount || !activeAccounts.ContainsKey(mappedId))
+                return Results.Conflict(new { error = $"Alış faturası {tax.Code} vergisi için mevzuat profiline ait muhasebe hesabı eşleştirilmemiş." });
+            if (mappedId == payableId || mappedId == costId || clearReceiptAccrual && mappedId == map.GetValueOrDefault(LedgerMappingKeys.PurchaseReceiptAccrual))
+                return Results.Conflict(new { error = $"Alış faturası {tax.Code} vergi hesabı borç, maliyet ve mal kabul tahakkuk hesaplarından farklı olmalıdır." });
+            if (isWithholding)
+            {
+                if (additiveTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Tevkifat hesabı vergi indirimi hesaplarından ayrı olmalıdır." });
+                withholdingTaxAccounts.Add(mappedId);
+                lines.Add((mappedId, $"{source.Code} · {tax.Name} tevkifatı", 0, tax.Amount));
+            }
+            else
+            {
+                if (withholdingTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Vergi indirimi hesabı tevkifat hesabından ayrı olmalıdır." });
+                additiveTaxAccounts.Add(mappedId);
+                lines.Add((mappedId, $"{source.Code} · İndirilecek {tax.Name}", tax.Amount, 0));
+            }
         }
     }
     else if (sourceType == "SalesDelivery")
@@ -7805,23 +8532,36 @@ generalLedger.MapPost("/transfer", async (JournalTransferRequest request, Claims
         if (source is null) return Results.NotFound();
         if (source.Status != SalesInvoiceStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş satış faturası deftere aktarılamaz." });
         var netRevenue = source.Subtotal - source.DiscountTotal;
-        if (source.GrandTotal <= 0 || netRevenue < 0 || source.TaxTotal < 0 || netRevenue + source.TaxTotal != source.GrandTotal)
+        IReadOnlyList<AccountingTaxBreakdownLine> taxRows;
+        try { taxRows = AccountingRuleTaxCalculator.ReadBreakdown(source.TaxBreakdownJson); }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or OverflowException)
+        { return Results.Conflict(new { error = "Satış faturası vergi anlık görüntüsü geçersiz." }); }
+        var withholdingAmount = taxRows.Where(x => x.Treatment == "Withholding").Sum(x => x.Amount);
+        if (taxRows.Count > 0 && taxRows.Where(x => x.Treatment != "Withholding").Sum(x => x.Amount) != source.TaxTotal)
+            return Results.Conflict(new { error = "Satış faturası vergi dökümü ile vergi toplamı uyuşmuyor." });
+        if (source.GrandTotal <= 0 || netRevenue < 0 || source.TaxTotal < 0 || withholdingAmount < 0 || netRevenue + source.TaxTotal - withholdingAmount != source.GrandTotal)
             return Results.Conflict(new { error = "Satış faturası toplamları deftere aktarım için tutarlı değil." });
         var baseCurrency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.BaseCurrencyCode).SingleAsync();
         var exchangeRate = source.CurrencyCode == baseCurrency ? 1m
             : await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.CurrencyCode == source.CurrencyCode && x.RateDate <= source.InvoiceDate)
                 .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision).Select(x => (decimal?)x.Rate).FirstOrDefaultAsync() ?? 0m;
         if (exchangeRate <= 0) return Results.Conflict(new { error = $"{source.InvoiceDate:yyyy-MM-dd} tarihli {source.CurrencyCode} kuru bulunamadı; satış faturası deftere aktarılmadı." });
-        decimal invoiceBase, taxBase;
+        decimal invoiceBase, taxBase, withholdingBase;
         try
         {
             invoiceBase = decimal.Round(source.GrandTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
-            taxBase = decimal.Round(source.TaxTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
+            var postingTaxRows = taxRows.Count > 0 ? taxRows : source.TaxTotal > 0
+                ? [new AccountingTaxBreakdownLine("VAT", "KDV / VAT", 0, "Additive", "Net", source.TaxTotal, source.TaxTotal)]
+                : Array.Empty<AccountingTaxBreakdownLine>();
+            var translatedTaxRows = postingTaxRows.Select(row => (Row: row, AmountBase: decimal.Round(row.Amount * exchangeRate, 2, MidpointRounding.AwayFromZero))).ToArray();
+            taxBase = translatedTaxRows.Where(x => x.Row.Treatment != "Withholding").Sum(x => x.AmountBase);
+            withholdingBase = translatedTaxRows.Where(x => x.Row.Treatment == "Withholding").Sum(x => x.AmountBase);
+            taxRows = translatedTaxRows.Select(x => x.Row with { Amount = x.AmountBase }).ToArray();
         }
-        catch (OverflowException) { return Results.Conflict(new { error = "Satış faturası baz para birimine çevrildiğinde yevmiye tutar sınırını aşıyor." }); }
-        var revenueBase = invoiceBase - taxBase;
+        catch (Exception ex) when (ex is OverflowException or JsonException or InvalidOperationException) { return Results.Conflict(new { error = "Satış faturası vergi dökümü geçersiz veya baz para birimine çevrildiğinde yevmiye sınırını aşıyor." }); }
+        var revenueBase = invoiceBase - taxBase + withholdingBase;
         if (invoiceBase <= 0 || taxBase < 0 || revenueBase < 0 || invoiceBase > 9999999999999999.99m
-            || taxBase > 9999999999999999.99m || revenueBase > 9999999999999999.99m)
+            || taxBase > 9999999999999999.99m || revenueBase > 9999999999999999.99m || withholdingBase > 9999999999999999.99m)
             return Results.Conflict(new { error = "Satış faturası baz para birimi tutarları yevmiye sınırları dışında." });
         entryDate = source.InvoiceDate; sourceCode = source.Code;
         description = source.CurrencyCode == baseCurrency ? $"Satış faturası · {source.Code}" : $"Satış faturası · {source.Code} · {source.CurrencyCode}/{baseCurrency} {exchangeRate}";
@@ -7832,12 +8572,33 @@ generalLedger.MapPost("/transfer", async (JournalTransferRequest request, Claims
         if (receivableId == revenueId) return Results.Conflict(new { error = "Satış alacak ve gelir hesapları farklı hesaplara eşlenmelidir." });
         lines.Add((receivableId, $"{source.Code} · {source.Customer.Name}", invoiceBase, 0));
         if (revenueBase > 0) lines.Add((revenueId, $"{source.Code} · Satış geliri", 0, revenueBase));
-        if (source.TaxTotal > 0)
+        var additiveTaxAccounts = new HashSet<Guid>();
+        var withholdingTaxAccounts = new HashSet<Guid>();
+        foreach (var tax in taxRows.Where(x => x.Amount > 0))
         {
-            if (!map.TryGetValue(LedgerMappingKeys.SalesTaxPayable, out var taxId) || !activeAccounts.ContainsKey(taxId))
-                return Results.Conflict(new { error = "Satış faturası hesaplanan KDV hesabı eşleştirilmemiş." });
-            if (taxId == receivableId || taxId == revenueId) return Results.Conflict(new { error = "Alacak, gelir ve hesaplanan KDV hesapları birbirinden farklı olmalıdır." });
-            if (taxBase > 0) lines.Add((taxId, $"{source.Code} · Hesaplanan KDV", 0, taxBase));
+            var isWithholding = tax.Treatment == "Withholding";
+            var mappingKey = !string.IsNullOrWhiteSpace(source.AccountingProfileCode)
+                ? AccountingRuleProfileEndpoints.TaxRuleMappingKey(source.AccountingProfileCode, "Sales", tax.Code) : "";
+            var fallbackKey = isWithholding ? LedgerMappingKeys.SalesWithholdingReceivable : LedgerMappingKeys.SalesTaxPayable;
+            Guid mappedId = default;
+            var hasAccount = mappingKey.Length > 0 && map.TryGetValue(mappingKey, out mappedId);
+            if (!hasAccount && (mappingKey.Length == 0 || tax.Code is "VAT" or "KDV")) hasAccount = map.TryGetValue(fallbackKey, out mappedId);
+            if (!hasAccount || !activeAccounts.ContainsKey(mappedId))
+                return Results.Conflict(new { error = $"Satış faturası {tax.Code} vergisi için mevzuat profiline ait muhasebe hesabı eşleştirilmemiş." });
+            if (mappedId == receivableId || mappedId == revenueId)
+                return Results.Conflict(new { error = $"Satış faturası {tax.Code} vergi hesabı alacak ve gelir hesaplarından farklı olmalıdır." });
+            if (isWithholding)
+            {
+                if (additiveTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Tevkifat hesabı hesaplanan vergi hesaplarından ayrı olmalıdır." });
+                withholdingTaxAccounts.Add(mappedId);
+                lines.Add((mappedId, $"{source.Code} · {tax.Name} tevkif edilen alacağı", tax.Amount, 0));
+            }
+            else
+            {
+                if (withholdingTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Hesaplanan vergi hesabı tevkifat hesabından ayrı olmalıdır." });
+                additiveTaxAccounts.Add(mappedId);
+                lines.Add((mappedId, $"{source.Code} · Hesaplanan {tax.Name}", 0, tax.Amount));
+            }
         }
     }
     else if (sourceType == "FxRevaluation")
@@ -7973,6 +8734,42 @@ financeAccounts.MapPost("/", async (FinancialAccountWriteRequest request, Claims
     return Results.Created($"/api/finance/accounts/{account.Id}", new FinancialAccountSummary(account.Id, account.Code,
         account.Name, account.Type, account.CurrencyCode, account.IsActive, request.OpeningBalance,
         request.OpeningBalance == 0 ? 0 : 1, account.CreatedAt));
+});
+financeAccounts.MapPut("/{id:guid}", async (Guid id, FinancialAccountWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (request.OpeningBalance != 0) return Results.ValidationProblem(new Dictionary<string, string[]> { ["openingBalance"] = ["Düzenlemede açılış bakiyesi değiştirilemez; bakiye hareketlerden hesaplanır."] });
+    var errors = FinancialAccountValidation.Validate(request);
+    if (errors is not null) return Results.ValidationProblem(errors);
+    var account = await db.FinancialAccounts.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
+    if (account is null) return Results.NotFound();
+    var code = request.Code.Trim().ToUpperInvariant();
+    if (await db.FinancialAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id != id && x.Code == code))
+        return Results.Conflict(new { error = "Bu hesap kodu bu firma için zaten kullanılıyor." });
+    var hasTransactions = await db.FinancialAccountTransactions.AnyAsync(x => x.TenantId == tenantId && x.FinancialAccountId == id);
+    if (hasTransactions && (account.Type != request.Type || account.CurrencyCode != request.CurrencyCode.Trim().ToUpperInvariant()))
+        return Results.Conflict(new { error = "Hareketi bulunan hesabın türü ve dövizi değiştirilemez." });
+    account.Code = code; account.Name = request.Name.Trim(); account.Type = request.Type; account.CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "financial-account.updated", Resource = code });
+    try { await db.SaveChangesAsync(); }
+    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu hesap kodu bu firma için zaten kullanılıyor." }); }
+    var balance = await db.FinancialAccountTransactions.Where(x => x.TenantId == tenantId && x.FinancialAccountId == id)
+        .SumAsync(x => (decimal?)(x.Direction == FinancialDirection.Inflow ? x.Amount : -x.Amount)) ?? 0m;
+    var count = await db.FinancialAccountTransactions.CountAsync(x => x.TenantId == tenantId && x.FinancialAccountId == id);
+    return Results.Ok(new FinancialAccountSummary(account.Id, account.Code, account.Name, account.Type, account.CurrencyCode, account.IsActive, balance, count, account.CreatedAt));
+});
+financeAccounts.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var account = await db.FinancialAccounts.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
+    if (account is null) return Results.NotFound();
+    if (await db.FinancialAccountTransactions.AnyAsync(x => x.TenantId == tenantId && x.FinancialAccountId == id))
+        return Results.Conflict(new { error = "Hareketi olan hesap silinemez. Hesabı pasifleştirin." });
+    db.FinancialAccounts.Remove(account);
+    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "financial-account.deleted", Resource = account.Code });
+    try { await db.SaveChangesAsync(); }
+    catch (DbUpdateException) { return Results.Conflict(new { error = "Başka kayıtlarla ilişkili hesap silinemez. Hesabı pasifleştirin." }); }
+    return Results.NoContent();
 });
 financeAccounts.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
 {
@@ -8552,6 +9349,23 @@ static async Task<IResult> UpdateSalesQuoteStatusAsync(Guid id, SalesQuoteStatus
     if (!SalesQuoteWorkflow.CanTransition(quote.Status, target)) return Results.Conflict(new { error = "Teklif durumu bu işlem için uygun değil." });
     if (target == SalesQuoteStatus.Accepted && quote.ValidUntil < DateOnly.FromDateTime(DateTime.UtcNow))
         return Results.Conflict(new { error = "Geçerlilik tarihi geçmiş teklif kabul edilemez." });
+    if (target == SalesQuoteStatus.Accepted && quote.CustomerId is null)
+    {
+        var name = quote.ProspectCustomerName?.Trim();
+        if (string.IsNullOrWhiteSpace(name)) return Results.Conflict(new { error = "Teklif alıcısının adı bulunamadı; cari kartı oluşturulamıyor." });
+        var customer = new CustomerAccount
+        {
+            TenantId = tenantId,
+            Code = $"CUS-{Guid.NewGuid():N}"[..16].ToUpperInvariant(),
+            Name = name,
+            Type = CounterpartyType.Customer,
+            CurrencyCode = quote.CurrencyCode,
+            IsActive = true
+        };
+        db.CustomerAccounts.Add(customer);
+        quote.CustomerId = customer.Id;
+        quote.Customer = customer;
+    }
     quote.Status = target;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = actorUserId, Action = target == SalesQuoteStatus.Accepted ? "sales-quote.accepted" : "sales-quote.rejected", Resource = quote.Code });
     if (target == SalesQuoteStatus.Accepted)
@@ -8659,6 +9473,24 @@ static async Task<bool> HasUnreversedJournalEntryAsync(TenantDbContext db, Guid 
         .Select(x => (Guid?)x.Id).SingleOrDefaultAsync();
     return entryId is { } id && !await db.JournalEntries.AsNoTracking()
         .AnyAsync(x => x.TenantId == tenantId && x.SourceType == "ManualReversal" && x.SourceId == id);
+}
+
+static string[] RequiredInvoiceTaxMappingKeys(string? accountingProfileCode, string operationType, string? taxBreakdownJson,
+    decimal taxTotal, string additiveFallbackKey, string withholdingFallbackKey)
+{
+    IReadOnlyList<AccountingTaxBreakdownLine> rows;
+    try { rows = AccountingRuleTaxCalculator.ReadBreakdown(taxBreakdownJson); }
+    catch (Exception ex) when (ex is JsonException or InvalidOperationException) { return [additiveFallbackKey, withholdingFallbackKey]; }
+    if (rows.Count == 0) return taxTotal > 0 ? [additiveFallbackKey] : [];
+    return RequiredTaxRowsMappingKeys(accountingProfileCode, operationType, rows, additiveFallbackKey, withholdingFallbackKey);
+}
+
+static string[] RequiredTaxRowsMappingKeys(string? accountingProfileCode, string operationType,
+    IEnumerable<AccountingTaxBreakdownLine> taxRows, string additiveFallbackKey, string withholdingFallbackKey)
+{
+    return taxRows.Where(x => x.Amount > 0).Select(row => string.IsNullOrWhiteSpace(accountingProfileCode)
+        ? row.Treatment == "Withholding" ? withholdingFallbackKey : additiveFallbackKey
+        : AccountingRuleProfileEndpoints.TaxRuleMappingKey(accountingProfileCode, operationType, row.Code)).Distinct().ToArray();
 }
 
 static async Task<InventoryCostAdjustmentView> BuildInventoryCostAdjustmentViewAsync(TenantDbContext db, Guid tenantId, InventoryCostAdjustment header)
@@ -8825,6 +9657,43 @@ internal static class TokenIssuer
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
+internal static class LedgerAccountApiSupport
+{
+public static bool TryLedgerClassification(LedgerAccountWriteRequest request, out LedgerAccountType accountType,
+    out LedgerNormalBalance normalBalance, out LedgerAccountStatementSection ifrsSection,
+    out Dictionary<string, string[]>? errors)
+{
+    accountType = LedgerAccountType.Unclassified;
+    normalBalance = LedgerNormalBalance.Both;
+    ifrsSection = LedgerAccountStatementSection.Unclassified;
+    errors = null;
+    var validation = new Dictionary<string, string[]>();
+    if (!string.IsNullOrWhiteSpace(request.AccountType) && (!Enum.TryParse(request.AccountType, true, out accountType) || !Enum.IsDefined(accountType)))
+        validation["accountType"] = ["Geçerli bir hesap tipi seçin."];
+    if (!string.IsNullOrWhiteSpace(request.NormalBalance) && (!Enum.TryParse(request.NormalBalance, true, out normalBalance) || !Enum.IsDefined(normalBalance)))
+        validation["normalBalance"] = ["Çalışma şekli Borç, Alacak veya Çift Çalışır olmalıdır."];
+    if (!string.IsNullOrWhiteSpace(request.IfrsStatementSection) && (!Enum.TryParse(request.IfrsStatementSection, true, out ifrsSection) || !Enum.IsDefined(ifrsSection)))
+        validation["ifrsStatementSection"] = ["Geçerli bir IFRS/UFRS tablo sınıfı seçin."];
+    var ifrsCode = request.IfrsAccountCode?.Trim();
+    var ifrsName = request.IfrsAccountName?.Trim();
+    if (ifrsCode is { Length: > 32 } || ifrsName is { Length: > 160 })
+        validation["ifrsMapping"] = ["IFRS hesap kodu en fazla 32, hesap adı en fazla 160 karakter olabilir."];
+    if ((string.IsNullOrWhiteSpace(ifrsCode)) != (string.IsNullOrWhiteSpace(ifrsName)))
+        validation["ifrsMapping"] = ["IFRS eşlemesi için kod ve ad birlikte girilmelidir."];
+    var currency = request.CurrencyCode?.Trim();
+    if (!string.IsNullOrWhiteSpace(currency) && (currency.Length != 3 || currency.Any(c => !char.IsAsciiLetter(c))))
+        validation["currencyCode"] = ["Döviz kodu üç harfli ISO kodu olmalıdır; ör. TRY, USD, EUR."];
+    if (validation.Count == 0) return true;
+    errors = validation;
+    return false;
+}
+public static string? NormalizeLedgerCurrency(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
+public static string? NormalizeIfrsCode(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+public static string? NormalizeIfrsName(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+public static LedgerAccountView ToLedgerAccountView(LedgerAccount account) => new(account.Id, account.Code, account.Name, account.IsActive,
+    account.StatementSection.ToString(), false, account.AccountType.ToString(), account.NormalBalance.ToString(), account.CurrencyCode,
+    account.IfrsAccountCode, account.IfrsAccountName, account.IfrsStatementSection.ToString());
+}
 internal sealed record RefreshRequest(string? RefreshToken = null);
 internal static class RefreshTokenIssuer
 {
@@ -8866,6 +9735,54 @@ internal sealed class DatabaseModulePublisherKeyResolver(PlatformDbContext db) :
     public async ValueTask<string?> GetPublicKeyPemAsync(string publisher, string keyId, CancellationToken cancellationToken) =>
         await db.PlatformModulePublisherKeys.AsNoTracking().Where(x => x.Publisher == publisher && x.KeyId == keyId && x.IsActive)
             .Select(x => x.PublicKeyPem).SingleOrDefaultAsync(cancellationToken);
+}
+
+internal sealed record SalesQuoteFxSnapshot(string BaseCurrencyCode,
+    IReadOnlyDictionary<string, (decimal Rate, DateOnly RateDate)> Rates);
+
+internal static class SalesQuoteCurrencyConversion
+{
+    public static string NormalizeCurrency(string? currencyCode, string fallback) =>
+        string.IsNullOrWhiteSpace(currencyCode) ? fallback : currencyCode.Trim().ToUpperInvariant();
+
+    public static bool IsCurrencyCode(string currencyCode) => currencyCode.Length == 3 &&
+        currencyCode.All(character => character is >= 'A' and <= 'Z');
+
+    public static async Task<SalesQuoteFxSnapshot> LoadAsync(TenantDbContext db, Guid tenantId, DateOnly date,
+        IEnumerable<string> currencyCodes)
+    {
+        var baseCurrency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId)
+            .Select(x => x.BaseCurrencyCode).SingleAsync();
+        var currencies = currencyCodes.Select(x => x.Trim().ToUpperInvariant()).Where(x => x != baseCurrency)
+            .Distinct().ToArray();
+        var query = db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.RateDate <= date);
+        if (currencies.Length > 0) query = query.Where(x => currencies.Contains(x.CurrencyCode));
+        var rows = await query.OrderBy(x => x.CurrencyCode).ThenBy(x => x.RateDate).ThenBy(x => x.Revision).ToListAsync();
+        var rates = rows.GroupBy(x => x.CurrencyCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key,
+                group =>
+                {
+                    var latestDate = group.Max(x => x.RateDate);
+                    var latest = group.Where(x => x.RateDate == latestDate).OrderByDescending(x => x.Revision).First();
+                    return (latest.Rate, latest.RateDate);
+                }, StringComparer.OrdinalIgnoreCase);
+        return new SalesQuoteFxSnapshot(baseCurrency, rates);
+    }
+
+    public static bool TryGetConversion(SalesQuoteFxSnapshot snapshot, string sourceCurrency, string targetCurrency,
+        out decimal conversion)
+    {
+        sourceCurrency = sourceCurrency.Trim().ToUpperInvariant();
+        targetCurrency = targetCurrency.Trim().ToUpperInvariant();
+        if (sourceCurrency == targetCurrency) { conversion = 1m; return true; }
+        var sourceRate = sourceCurrency == snapshot.BaseCurrencyCode ? 1m
+            : snapshot.Rates.TryGetValue(sourceCurrency, out var source) ? source.Rate : 0m;
+        var targetRate = targetCurrency == snapshot.BaseCurrencyCode ? 1m
+            : snapshot.Rates.TryGetValue(targetCurrency, out var target) ? target.Rate : 0m;
+        if (sourceRate <= 0m || targetRate <= 0m) { conversion = 0m; return false; }
+        try { conversion = sourceRate / targetRate; return conversion > 0m; }
+        catch (DivideByZeroException) { conversion = 0m; return false; }
+    }
 }
 
 public partial class Program { }

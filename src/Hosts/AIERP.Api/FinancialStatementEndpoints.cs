@@ -212,9 +212,11 @@ public static class FinancialStatementEndpoints
             return Results.Ok(new { from = start, to = end, currencies, unclassifiedMovementCount = unclassifiedCount,
                 isComplete = unclassifiedCount == 0, basis = "CashAndBankMovements", statutory = false });
         });
-        group.MapGet("/financial-statements/income-statement", async (DateOnly? from, DateOnly? to, ClaimsPrincipal principal, TenantDbContext db) =>
+        group.MapGet("/financial-statements/income-statement", async (DateOnly? from, DateOnly? to, string? basis, ClaimsPrincipal principal, TenantDbContext db) =>
         {
             if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
+            var reportBasis = TrialBalanceEndpoints.NormalizeBasis(basis);
+            if (reportBasis is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["basis"] = ["Rapor standardı TDHP, IFRS veya UFRS olmalıdır."] });
             var start = from ?? new DateOnly(DateTime.UtcNow.Year, 1, 1);
             var end = to ?? DateOnly.FromDateTime(DateTime.UtcNow);
             if (start > end) return Results.BadRequest(new { error = "Başlangıç tarihi bitiş tarihinden sonra olamaz." });
@@ -224,38 +226,46 @@ public static class FinancialStatementEndpoints
             var amounts = await (from entry in db.JournalEntries.AsNoTracking()
                                  join line in db.JournalEntryLines.AsNoTracking()
                                    on new { entry.TenantId, JournalEntryId = entry.Id } equals new { line.TenantId, line.JournalEntryId }
-                                 where entry.TenantId == tenantId && entry.EntryDate >= start && entry.EntryDate <= end
+                                 where entry.TenantId == tenantId && (reportBasis == "TDHP" ? entry.AccountingBasis == "TDHP" : entry.AccountingBasis == "TDHP" || entry.AccountingBasis == "IFRS") && entry.EntryDate >= start && entry.EntryDate <= end
                                  group line by line.AccountId into grouped
                                  select new { AccountId = grouped.Key, Debit = grouped.Sum(x => x.Debit), Credit = grouped.Sum(x => x.Credit) })
                 .ToDictionaryAsync(x => x.AccountId);
-            var accounts = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId
-                    && (x.StatementSection == LedgerAccountStatementSection.Revenue || x.StatementSection == LedgerAccountStatementSection.Expense))
+            var accounts = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId)
                 .OrderBy(x => x.StatementSection).ThenBy(x => x.Code)
-                .Select(x => new { x.Id, x.Code, x.Name, x.IsActive, x.StatementSection }).ToListAsync();
-            var rows = accounts.Select(account =>
+                .Select(x => new { x.Id, x.Code, x.Name, x.IsActive, x.StatementSection, x.IfrsAccountCode, x.IfrsAccountName, x.IfrsStatementSection }).ToListAsync();
+            var localRows = accounts.Select(account =>
             {
                 amounts.TryGetValue(account.Id, out var amount);
                 var debit = amount?.Debit ?? 0m;
                 var credit = amount?.Credit ?? 0m;
-                var balance = account.StatementSection == LedgerAccountStatementSection.Revenue ? credit - debit : debit - credit;
-                return new { accountId = account.Id, account.Code, account.Name, account.IsActive,
-                    statementSection = account.StatementSection.ToString(), debit, credit, balance };
+                var section = reportBasis == "IFRS" ? account.IfrsStatementSection : account.StatementSection;
+                var balance = section == LedgerAccountStatementSection.Revenue ? credit - debit : debit - credit;
+                return new { account.Id, account.Code, account.Name, account.IsActive, account.IfrsAccountCode, account.IfrsAccountName,
+                    Section = section, debit, credit, balance };
             }).ToList();
+            var unmappedAccounts = reportBasis == "TDHP" ? Array.Empty<string>() : localRows
+                .Where(x => x.IfrsAccountCode is null
+                    && (x.Section is LedgerAccountStatementSection.Revenue or LedgerAccountStatementSection.Expense or LedgerAccountStatementSection.Unclassified)
+                    && (x.debit + x.credit != 0m)).Select(x => $"{x.Code} · {x.Name}").ToArray();
+            var rows = reportBasis == "TDHP"
+                ? localRows.Where(x => x.Section is LedgerAccountStatementSection.Revenue or LedgerAccountStatementSection.Expense)
+                    .Select(x => new { accountId = x.Id.ToString(), x.Code, x.Name, x.IsActive, statementSection = x.Section.ToString(), x.debit, x.credit, x.balance }).ToList()
+                : localRows.Where(x => x.IfrsAccountCode is not null && (x.Section is LedgerAccountStatementSection.Revenue or LedgerAccountStatementSection.Expense))
+                    .GroupBy(x => new { x.IfrsAccountCode, x.IfrsAccountName, x.Section })
+                    .Select(g => new { accountId = $"IFRS:{g.Key.IfrsAccountCode}", Code = g.Key.IfrsAccountCode!, Name = g.Key.IfrsAccountName!, IsActive = g.All(x => x.IsActive), statementSection = g.Key.Section.ToString(), debit = g.Sum(x => x.debit), credit = g.Sum(x => x.credit), balance = g.Sum(x => x.balance) }).ToList();
             var revenue = rows.Where(row => row.statementSection == LedgerAccountStatementSection.Revenue.ToString()).Sum(row => row.balance);
             var expenses = rows.Where(row => row.statementSection == LedgerAccountStatementSection.Expense.ToString()).Sum(row => row.balance);
-            var unclassifiedMovementCount = await (from entry in db.JournalEntries.AsNoTracking()
-                join line in db.JournalEntryLines.AsNoTracking() on new { entry.TenantId, JournalEntryId = entry.Id } equals new { line.TenantId, line.JournalEntryId }
-                join account in db.LedgerAccounts.AsNoTracking() on new { line.TenantId, line.AccountId } equals new { account.TenantId, AccountId = account.Id }
-                where entry.TenantId == tenantId && entry.EntryDate >= start && entry.EntryDate <= end
-                    && account.StatementSection == LedgerAccountStatementSection.Unclassified && (line.Debit != 0m || line.Credit != 0m)
-                select account.Id).Distinct().CountAsync();
+            var unclassifiedMovementCount = localRows.Count(row => row.Section == LedgerAccountStatementSection.Unclassified && row.debit + row.credit != 0m);
             return Results.Ok(new { from = start, to = end, baseCurrencyCode, accounts = rows,
                 totals = new { revenue, expenses, netIncome = revenue - expenses },
-                unclassifiedAccountCount = unclassifiedMovementCount, isComplete = unclassifiedMovementCount == 0 });
+                basis = reportBasis, unmappedAccountCount = unmappedAccounts.Length, unmappedAccounts,
+                unclassifiedAccountCount = unclassifiedMovementCount, isComplete = unclassifiedMovementCount == 0 && unmappedAccounts.Length == 0 });
         });
-        group.MapGet("/financial-statements/balance-sheet", async (DateOnly? asOfDate, ClaimsPrincipal principal, TenantDbContext db) =>
+        group.MapGet("/financial-statements/balance-sheet", async (DateOnly? asOfDate, string? basis, ClaimsPrincipal principal, TenantDbContext db) =>
         {
             if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
+            var reportBasis = TrialBalanceEndpoints.NormalizeBasis(basis);
+            if (reportBasis is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["basis"] = ["Rapor standardı TDHP, IFRS veya UFRS olmalıdır."] });
             var date = asOfDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
             var baseCurrencyCode = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId)
                 .Select(x => x.BaseCurrencyCode).SingleOrDefaultAsync();
@@ -263,20 +273,27 @@ public static class FinancialStatementEndpoints
             var amounts = await (from entry in db.JournalEntries.AsNoTracking()
                                  join line in db.JournalEntryLines.AsNoTracking()
                                    on new { entry.TenantId, JournalEntryId = entry.Id } equals new { line.TenantId, line.JournalEntryId }
-                                 where entry.TenantId == tenantId && entry.EntryDate <= date
+                                 where entry.TenantId == tenantId && (reportBasis == "TDHP" ? entry.AccountingBasis == "TDHP" : entry.AccountingBasis == "TDHP" || entry.AccountingBasis == "IFRS") && entry.EntryDate <= date
                                  group line by line.AccountId into grouped
                                  select new { AccountId = grouped.Key, Debit = grouped.Sum(x => x.Debit), Credit = grouped.Sum(x => x.Credit) })
                 .ToDictionaryAsync(x => x.AccountId);
             var accounts = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId)
-                .OrderBy(x => x.Code).Select(x => new { x.Id, x.Code, x.Name, x.IsActive, x.StatementSection }).ToListAsync();
-            var rows = accounts.Select(account =>
+                .OrderBy(x => x.Code).Select(x => new { x.Id, x.Code, x.Name, x.IsActive, x.StatementSection, x.IfrsAccountCode, x.IfrsAccountName, x.IfrsStatementSection }).ToListAsync();
+            var localRows = accounts.Select(account =>
             {
                 amounts.TryGetValue(account.Id, out var amount);
                 var debit = amount?.Debit ?? 0m;
                 var credit = amount?.Credit ?? 0m;
-                return new { accountId = account.Id, account.Code, account.Name, account.IsActive,
-                    statementSection = account.StatementSection.ToString(), debit, credit, balance = debit - credit };
+                var section = reportBasis == "IFRS" ? account.IfrsStatementSection : account.StatementSection;
+                return new { account.Id, account.Code, account.Name, account.IsActive, account.IfrsAccountCode, account.IfrsAccountName,
+                    Section = section, debit, credit, balance = debit - credit };
             }).ToList();
+            var unmappedAccounts = reportBasis == "TDHP" ? Array.Empty<string>() : localRows
+                .Where(x => x.IfrsAccountCode is null && (x.debit + x.credit != 0m)).Select(x => $"{x.Code} · {x.Name}").ToArray();
+            var rows = reportBasis == "TDHP"
+                ? localRows.Select(x => new { accountId = x.Id.ToString(), x.Code, x.Name, x.IsActive, statementSection = x.Section.ToString(), x.debit, x.credit, x.balance }).ToList()
+                : localRows.Where(x => x.IfrsAccountCode is not null).GroupBy(x => new { x.IfrsAccountCode, x.IfrsAccountName, x.Section })
+                    .Select(g => new { accountId = $"IFRS:{g.Key.IfrsAccountCode}", Code = g.Key.IfrsAccountCode!, Name = g.Key.IfrsAccountName!, IsActive = g.All(x => x.IsActive), statementSection = g.Key.Section.ToString(), debit = g.Sum(x => x.debit), credit = g.Sum(x => x.credit), balance = g.Sum(x => x.balance) }).ToList();
             decimal Total(LedgerAccountStatementSection section, bool creditNormal) => rows
                 .Where(row => row.statementSection == section.ToString())
                 .Sum(row => creditNormal ? -row.balance : row.balance);
@@ -290,10 +307,11 @@ public static class FinancialStatementEndpoints
             var unclassified = rows.Where(row => row.statementSection == LedgerAccountStatementSection.Unclassified.ToString()
                 && row.debit + row.credit != 0m).ToList();
             var difference = assets - liabilitiesAndEquity;
-            return Results.Ok(new { asOfDate = date, baseCurrencyCode, accounts = rows,
+            return Results.Ok(new { asOfDate = date, baseCurrencyCode, accounts = rows, basis = reportBasis,
                 totals = new { assets, liabilities, equity, revenue, expenses, cumulativeResult, liabilitiesAndEquity, difference },
                 unclassifiedAccountCount = unclassified.Count, unclassifiedAccounts = unclassified,
-                isComplete = unclassified.Count == 0, isBalanced = unclassified.Count == 0 && difference == 0m });
+                unmappedAccountCount = unmappedAccounts.Length, unmappedAccounts,
+                isComplete = unclassified.Count == 0 && unmappedAccounts.Length == 0, isBalanced = unclassified.Count == 0 && unmappedAccounts.Length == 0 && difference == 0m });
         });
         return group;
     }

@@ -1,11 +1,7 @@
-import { Search } from "lucide-react";
+import { Filter, Search } from "lucide-react";
 import { stages, stageLabels } from "../types";
 
 type Props = {
-  loading: boolean;
-  itemsCount: number;
-  totalCount: number;
-  page: number;
   query: string;
   filter: string;
   onQueryChange: (value: string) => void;
@@ -13,24 +9,16 @@ type Props = {
 };
 
 export function CrmOpportunityFilters({
-  loading,
-  itemsCount,
-  totalCount,
-  page,
   query,
   filter,
   onQueryChange,
   onFilterChange,
 }: Props) {
   return (
-    <div className="crm-panel-heading crm-list-heading">
-      <div>
-        <h2>Satış hattı</h2>
-        <p>
-          {loading
-            ? "Fırsatlar yükleniyor…"
-            : `${itemsCount} / ${totalCount} fırsat gösteriliyor · sayfa ${page} · Aşamalar tenant içinde izlenir.`}
-        </p>
+    <section className="crm-filter-panel" aria-label="Fırsat filtreleri">
+      <div className="crm-filter-panel-heading">
+        <Filter size={15} aria-hidden="true" />
+        <h2>Filtreler</h2>
       </div>
       <div className="crm-toolbar">
         <label className="crm-search">
@@ -61,6 +49,6 @@ export function CrmOpportunityFilters({
           </select>
         </label>
       </div>
-    </div>
+    </section>
   );
 }

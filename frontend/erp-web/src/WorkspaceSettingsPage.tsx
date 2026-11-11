@@ -21,6 +21,16 @@ import {
 import { SettingsPageHeader } from "./workspace-settings/components/SettingsPageHeader";
 import { SettingsTabs } from "./workspace-settings/components/SettingsTabs";
 import { SettingsContent } from "./workspace-settings/components/SettingsContent";
+import { CompanyInformationSettings } from "./workspace-settings/components/CompanyInformationSettings";
+import { AccessControlPage } from "./AccessControlPage";
+import CustomListsPage from "./CustomListsPage";
+import IntegrationQueuePage from "./IntegrationQueuePage";
+import { DocumentNumberTemplatesPanel } from "./DocumentNumberTemplatesPanel";
+import { SettingsCard } from "./workspace-settings/components/SettingsCard";
+import { SettingsRow } from "./workspace-settings/components/SettingsRow";
+import { SettingsSwitch } from "./workspace-settings/components/SettingsSwitch";
+import "./tenant-operational-settings.css";
+type ApiRequest = typeof import("./erpApi").api;
 import {
   defaultPreferences,
   type Preferences,
@@ -40,14 +50,20 @@ function readPreferences(): Preferences {
   }
 }
 type Props = {
-  tenantName: string;
+  token: string;
+  tenant: { id: string; name: string; slug: string; role: string };
+  requestApi: ApiRequest;
+  platformStatus: string;
   locale: Locale;
   onLocaleChange: (locale: Locale) => void;
   onThemeChange: (theme: "light" | "dark") => void;
   onNavigate: (page: string) => void;
 };
 export function WorkspaceSettingsPage({
-  tenantName,
+  token,
+  tenant,
+  requestApi,
+  platformStatus,
   locale,
   onLocaleChange,
   onThemeChange,
@@ -84,6 +100,16 @@ export function WorkspaceSettingsPage({
     setSaved(true);
   }
   function reset() {
+    if (category === "notifications") {
+      setValues((current) => ({
+        ...current,
+        systemNotifications: defaultPreferences.systemNotifications,
+        operationNotifications: defaultPreferences.operationNotifications,
+        releaseNotes: defaultPreferences.releaseNotes,
+      }));
+      setSaved(false);
+      return;
+    }
     setValues(defaultPreferences);
     localStorage.removeItem(prefsKey());
     onLocaleChange(defaultPreferences.locale);
@@ -102,43 +128,37 @@ export function WorkspaceSettingsPage({
       label: "Şirket Bilgileri",
       en: "Company information",
       icon: Building2,
-      route: "company-settings",
     },
     {
-      id: "access",
+      id: "access-members",
       label: "Kullanıcılar ve Yetkiler",
       en: "Users & permissions",
       icon: Users,
-      route: "access",
     },
     {
-      id: "access",
+      id: "access-roles",
       label: "Rol ve Yetki Grupları",
       en: "Roles & permission groups",
       icon: ShieldCheck,
-      route: "access",
     },
     {
       id: "custom-lists",
       label: "Parametreler",
       en: "Parameters",
       icon: SlidersHorizontal,
-      route: "custom-lists",
     },
     { id: "series", label: "Numara Serileri", en: "Number series", icon: Hash },
     {
-      id: "integrations",
+      id: "e-transactions",
       label: "E-İşlemler",
       en: "E-transactions",
       icon: FileText,
-      route: "integrations",
     },
     {
       id: "integrations",
       label: "Entegrasyonlar",
       en: "Integrations",
       icon: Link2,
-      route: "integrations",
     },
     {
       id: "notifications",
@@ -165,10 +185,6 @@ export function WorkspaceSettingsPage({
         category={category}
         english={english}
         onSelect={(item) => {
-          if (item.route) {
-            onNavigate(item.route);
-            return;
-          }
           setCategory(item.id);
           if (item.id === "notifications") setTab("notifications");
           if (item.id === "storage") setTab("storage");
@@ -179,39 +195,87 @@ export function WorkspaceSettingsPage({
           title={title}
           description={
             <>
-              {english
-                ? "Configure application preferences for"
-                : "Uygulama tercihlerini yapılandırın ·"}{" "}
-              {tenantName}
+              {category === "general"
+                ? english
+                  ? "Configure application preferences for"
+                  : "Uygulama tercihlerini yapılandırın ·"
+                : english
+                  ? "Manage settings for"
+                  : "Ayarları yönetin ·"}{" "}
+              {tenant.name}
             </>
           }
           english={english}
           saved={saved}
           onReset={reset}
           onSave={save}
+          showActions={category === "general" || category === "notifications"}
         />
-        <SettingsTabs
-          tabs={tabs}
-          activeTab={tab}
-          english={english}
-          onSelect={(value) => setTab(value as SettingsTab)}
-        />
-        <SettingsContent
-          tab={tab}
-          values={values}
-          english={english}
-          onUpdate={update}
-          onNavigate={onNavigate}
-        />
+        {category === "general" ? (
+          <>
+            <SettingsTabs
+              tabs={tabs}
+              activeTab={tab}
+              english={english}
+              onSelect={(value) => setTab(value as SettingsTab)}
+            />
+            <SettingsContent
+              tab={tab}
+              values={values}
+              english={english}
+              onUpdate={update}
+              onNavigate={onNavigate}
+            />
+          </>
+        ) : category === "company-settings" ? (
+          <CompanyInformationSettings token={token} tenant={tenant} english={english} />
+        ) : category === "access-members" || category === "access-roles" ? (
+          <div className="settings-embedded-screen settings-access-screen"><AccessControlPage token={token} section={category === "access-members" ? "members" : "policies"} /></div>
+        ) : category === "custom-lists" ? (
+          <div className="settings-embedded-screen"><CustomListsPage token={token} role={tenant.role} /></div>
+        ) : category === "series" ? (
+          <DocumentNumberTemplatesPanel token={token} isAdmin={tenant.role === "TenantAdmin"} />
+        ) : category === "e-transactions" || category === "integrations" ? (
+          <div className="settings-embedded-screen"><IntegrationQueuePage token={token} requestApi={requestApi} /></div>
+        ) : category === "notifications" ? (
+          <div className="settings-card-grid">
+            <SettingsCard icon={<Bell size={20} />} title={english ? "Notification preferences" : "Bildirim Tercihleri"}>
+              <SettingsRow label={english ? "Show system notifications" : "Sistem bildirimlerini göster"}>
+                <SettingsSwitch checked={values.systemNotifications} label={english ? "Show system notifications" : "Sistem bildirimlerini göster"} onChange={() => update("systemNotifications", !values.systemNotifications)} />
+              </SettingsRow>
+              <SettingsRow label={english ? "Notify about operation results" : "İşlem sonuçlarını bildir"}>
+                <SettingsSwitch checked={values.operationNotifications} label={english ? "Notify about operation results" : "İşlem sonuçlarını bildir"} onChange={() => update("operationNotifications", !values.operationNotifications)} />
+              </SettingsRow>
+              <SettingsRow label={english ? "Show release announcements" : "Güncelleme duyurularını göster"}>
+                <SettingsSwitch checked={values.releaseNotes} label={english ? "Show release announcements" : "Güncelleme duyurularını göster"} onChange={() => update("releaseNotes", !values.releaseNotes)} />
+              </SettingsRow>
+              <p className="settings-hint">{english ? "Save to apply these preferences." : "Bu tercihleri uygulamak için kaydedin."}</p>
+            </SettingsCard>
+          </div>
+        ) : category === "storage" ? (
+          <SettingsContent tab="storage" values={values} english={english} onUpdate={update} onNavigate={onNavigate} />
+        ) : (
+          <div className="settings-card-grid">
+            <SettingsCard icon={<Info size={20} />} title={english ? "System information" : "Sistem Bilgileri"}>
+              <SettingsRow label={english ? "Application" : "Uygulama"}>Nexora ERP</SettingsRow>
+              <SettingsRow label={english ? "Company" : "Firma"}>{tenant.name}</SettingsRow>
+              <SettingsRow label={english ? "Company code" : "Firma kodu"}>{tenant.slug}</SettingsRow>
+              <SettingsRow label={english ? "Account role" : "Hesap rolü"}>{tenant.role}</SettingsRow>
+              <SettingsRow label={english ? "Platform status" : "Platform durumu"}>{platformStatus}</SettingsRow>
+            </SettingsCard>
+          </div>
+        )}
         <footer className="settings-page-footer">
           <span>
             <Building2 size={15} />
-            {tenantName}
+            {tenant.name}
           </span>
           <span>
             {english
               ? "Changes are applied after saving"
-              : "Değişiklikler kaydedildiğinde uygulanır"}
+              : category === "general"
+                ? "Değişiklikler kaydedildiğinde uygulanır"
+                : "Ayarlar bu firmaya özel uygulanır"}
           </span>
         </footer>
       </main>

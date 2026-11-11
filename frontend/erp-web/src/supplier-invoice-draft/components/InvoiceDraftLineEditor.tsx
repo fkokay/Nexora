@@ -40,7 +40,7 @@ export function InvoiceDraftLineEditor({
             belgeden girilir, yeniden hesaplanmaz.
           </p>
         </div>
-        <button type="button" className="sid-secondary" onClick={onAddLine}>
+        <button type="button" className="sid-secondary" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={onAddLine}>
           <Plus size={15} /> Satır ekle
         </button>
       </div>

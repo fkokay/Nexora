@@ -325,6 +325,12 @@
   gap: 10px;
   margin-bottom: 12px;
 }
+.fixed-assets-page .fixed-asset-filter-card { display: grid; gap: 10px; padding: 14px 16px; }
+.fixed-assets-page .fixed-asset-filter-card .panel-heading { margin: 0; padding-bottom: 9px; border-bottom: 1px solid var(--erp-border, #e2e6ef); }
+.fixed-assets-page .fixed-asset-filter-card .panel-heading h2 { margin: 0; font-size: 15px; }
+.fixed-assets-page .fixed-asset-filter-card .panel-heading p { margin: 4px 0 0; color: var(--erp-muted, #697386); font-size: 11px; }
+.fixed-assets-page .fixed-asset-filter-card .fixed-asset-register-toolbar { margin: 0; }
+.fixed-assets-page .fixed-asset-register-panel { display: grid; gap: 10px; }
 .fixed-assets-page .fixed-asset-register-toolbar label {
   display: grid;
   gap: 5px;

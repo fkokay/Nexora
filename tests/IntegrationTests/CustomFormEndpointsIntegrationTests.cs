@@ -2086,7 +2086,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var screen = Assert.Single(catalog!, item => item.GetProperty("key").GetString() == "sales-quotes");
         var catalogFields = screen.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "customerName", "quoteDate", "validUntil", "lineCount", "grandTotal", "status", "actions" },
+        Assert.Equal(new[] { "code", "customerName", "salesperson", "salesOrderCode", "quoteDate", "validUntil", "lineCount", "grandTotal", "status", "actions" },
             catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 

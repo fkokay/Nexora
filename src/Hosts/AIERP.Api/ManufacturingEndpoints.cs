@@ -384,6 +384,13 @@ public static class ManufacturingEndpoints
             try
             {
                 if (db.Database.IsRelational()) transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+                snapshot = await LockMrpPlanSnapshotAsync(db, tenantId, id, ct);
+                if (snapshot is null) return Results.NotFound();
+                await db.Entry(snapshot).ReloadAsync(ct);
+                previous = ReadMrpConversionState(snapshot.ConversionStateJson);
+                previousIndexes = previous.Select(x => x.LineIndex).ToHashSet();
+                if (selected.Any(x => previousIndexes.Contains(x.Index)))
+                    return Results.Conflict(new { error = "Bu plan satırlarından en az biri eşzamanlı başka bir işlemde emre dönüştürüldü; planı yenileyin." });
                 if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == snapshot.WarehouseId && x.IsActive, ct))
                     return Results.Conflict(new { error = "Planın deposu artık etkin değil; yeni plan hesaplayın." });
                 var requestDate = AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
@@ -444,8 +451,15 @@ public static class ManufacturingEndpoints
                         var product = await db.StockItems.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == bom.ProductStockItemId && x.IsActive, ct);
                         if (product is null || product.TrackingMode == InventoryTrackingMode.Serial && suggestion.Line.NetRequirement != decimal.Truncate(suggestion.Line.NetRequirement))
                             return Results.Conflict(new { error = "Üretim önerisi mamulün izleme gereksinimleriyle uyumlu değil." });
+                        var sourceSalesOrder = suggestion.Line.SourceSalesOrder;
+                        if (sourceSalesOrder is not null && !await db.SalesOrderLines.AnyAsync(x =>
+                                x.TenantId == tenantId && x.OrderId == sourceSalesOrder.SalesOrderId &&
+                                x.LineNumber == sourceSalesOrder.SalesOrderLineNumber && x.StockItemId == bom.ProductStockItemId &&
+                                x.Order.Status == SalesOrderStatus.Open, ct))
+                            return Results.Conflict(new { error = "MRP önerisinin kaynak satış siparişi satırı artık açık veya geçerli değil; planı yeniden hesaplayın." });
                         var order = new ManufacturingOrder { TenantId = tenantId, Code = code, BillOfMaterialId = bom.Id, WarehouseId = snapshot.WarehouseId,
-                            PlannedQuantity = suggestion.Line.NetRequirement, PlannedDate = suggestion.Line.RecommendedOrderDate, Status = ManufacturingOrderStatus.Planned };
+                            PlannedQuantity = suggestion.Line.NetRequirement, PlannedDate = suggestion.Line.RecommendedOrderDate, Status = ManufacturingOrderStatus.Planned,
+                            SourceSalesOrderId = sourceSalesOrder?.SalesOrderId, SourceSalesOrderLineNumber = sourceSalesOrder?.SalesOrderLineNumber };
                         try
                         {
                             order.Lines = components.Select(x =>
@@ -681,7 +695,7 @@ public static class ManufacturingEndpoints
             return Results.NoContent();
         });
 
-        orders.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, string? status, int? page, int? pageSize, CancellationToken ct) =>
+        orders.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, string? status, string? q, int? page, int? pageSize, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
             var query = db.ManufacturingOrders.AsNoTracking().Where(x => x.TenantId == tenantId);
@@ -690,6 +704,14 @@ public static class ManufacturingEndpoints
                 if (!Enum.TryParse<ManufacturingOrderStatus>(status, true, out var parsed) || !Enum.IsDefined(parsed))
                     return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Üretim emri durumu geçersiz."] });
                 query = query.Where(x => x.Status == parsed);
+            }
+            var search = q?.Trim();
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(x => x.Code.Contains(search) ||
+                    db.BillOfMaterials.Any(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId && (b.Code.Contains(search) || b.Name.Contains(search))) ||
+                    db.Warehouses.Any(w => w.TenantId == tenantId && w.Id == x.WarehouseId && (w.Code.Contains(search) || w.Name.Contains(search))) ||
+                    (x.SourceSalesOrderId != null && db.SalesOrders.Any(s => s.TenantId == tenantId && s.Id == x.SourceSalesOrderId && s.Code.Contains(search))));
             }
             var totalCount = page.HasValue ? await query.CountAsync(ct) : 0;
             var openOrderCount = page.HasValue
@@ -710,7 +732,9 @@ public static class ManufacturingEndpoints
             var rows = await rowsQuery.Select(x => new OrderView(x.Id, x.Code,
                 x.BillOfMaterialId, db.BillOfMaterials.Where(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId).Select(b => b.Code + " · " + b.Name).FirstOrDefault() ?? "",
                 x.WarehouseId, db.Warehouses.Where(w => w.TenantId == tenantId && w.Id == x.WarehouseId).Select(w => w.Code + " · " + w.Name).FirstOrDefault() ?? "",
-                x.PlannedQuantity, x.Status.ToString(), x.PlannedDate, x.CompletedAt,
+                x.SourceSalesOrderId, x.SourceSalesOrderLineNumber,
+                x.SourceSalesOrderId == null ? null : db.SalesOrders.Where(s => s.TenantId == tenantId && s.Id == x.SourceSalesOrderId).Select(s => s.Code).FirstOrDefault(),
+                x.PlannedQuantity, x.ActualGoodQuantity, x.ScrapQuantity, x.ScrapReason, x.Status.ToString(), x.PlannedDate, x.CompletedAt,
                 x.Lines.OrderBy(l => l.ComponentCodeSnapshot).Select(l => new OrderLineView(l.ComponentStockItemId, l.ComponentCodeSnapshot, l.ComponentNameSnapshot,
                     l.RequiredQuantity, l.StandardUnitCostBaseSnapshot, l.PlannedCostBase)).ToList(),
                 x.Operations.OrderBy(o => o.Sequence).Select(o => new ManufacturingOrderOperationView(o.Id, o.Sequence, o.WorkCenterId,
@@ -719,7 +743,8 @@ public static class ManufacturingEndpoints
                     o.ScheduledStartDate, o.ScheduledEndDate, o.ScheduledStartMinuteOfDay, o.ScheduledEndMinuteOfDay,
                     o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.PlannedEnergyQuantityKwh,
                     o.PlannedEnergyCostPerKwhBase, o.PlannedEnergyCostBase, o.Status.ToString(),
-                    o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase, o.StartedAt, o.CompletedAt,
+                    o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase,
+                    o.PerformedByEmployeeId, o.PerformedByEmployeeId == null ? null : db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == o.PerformedByEmployeeId).Select(e => e.FullName).FirstOrDefault(), o.StartedAt, o.CompletedAt,
                     db.ManufacturingCapacityAllocations.Where(a => a.TenantId == tenantId && a.ManufacturingOrderOperationId == o.Id)
                         .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay, a.StartSecondOfDay ?? a.StartMinuteOfDay * 60, a.EndSecondOfDay ?? a.EndMinuteOfDay * 60)).ToList(), o.ScheduledStartSecondOfDay ?? o.ScheduledStartMinuteOfDay * 60, o.ScheduledEndSecondOfDay ?? o.ScheduledEndMinuteOfDay * 60)).ToList(),
                 Convert.ToBase64String(x.RowVersion))).ToListAsync(ct);
@@ -772,11 +797,25 @@ public static class ManufacturingEndpoints
             if (items.Select(x => x.Id).Distinct().Count() != bom.Lines.Select(x => x.ComponentStockItemId).Append(bom.ProductStockItemId).Distinct().Count())
                 return Results.Conflict(new { error = "Reçetedeki mamul veya bileşen stok kartlarından biri pasif." });
             var product = items.Single(x => x.Id == bom.ProductStockItemId);
-            (BillOfMaterialLine line, decimal required)[] lines;
+            if (request.SourceSalesOrderId.HasValue != request.SourceSalesOrderLineNumber.HasValue)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["sourceSalesOrderId"] = ["Siparişe bağlı üretimde satış siparişi ve sipariş satırı birlikte seçilmelidir."] });
+            if (request.SourceSalesOrderId is { } sourceOrderId && request.SourceSalesOrderLineNumber is { } sourceLineNumber &&
+                !await db.SalesOrderLines.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.OrderId == sourceOrderId &&
+                    x.LineNumber == sourceLineNumber && x.StockItemId == product.Id && x.Order.Status == SalesOrderStatus.Open, ct))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["sourceSalesOrderLineNumber"] = ["Açık satış siparişinde seçilen mamulle eşleşen satır bulunamadı."] });
+            (Guid componentStockItemId, decimal required, decimal standardUnitCostBase, decimal plannedCostBase)[] lines;
             try
             {
-                lines = bom.Lines.Select(line => (line, decimal.Round(line.Quantity * (1m + line.ScrapPercent / 100m) /
-                    bom.OutputQuantity * request.PlannedQuantity, 4, MidpointRounding.AwayFromZero))).ToArray();
+                lines = bom.Lines.Select(line => (Line: line, Required: decimal.Round(line.Quantity * (1m + line.ScrapPercent / 100m) /
+                        bom.OutputQuantity * request.PlannedQuantity, 4, MidpointRounding.AwayFromZero)))
+                    .GroupBy(x => x.Line.ComponentStockItemId)
+                    .Select(group =>
+                    {
+                        var required = group.Sum(x => x.Required);
+                        var plannedCost = decimal.Round(group.Sum(x => decimal.Round(x.Required * x.Line.StandardUnitCostBase, 4, MidpointRounding.AwayFromZero)), 4, MidpointRounding.AwayFromZero);
+                        var unitCost = required > 0m ? decimal.Round(plannedCost / required, 4, MidpointRounding.AwayFromZero) : 0m;
+                        return (componentStockItemId: group.Key, required, standardUnitCostBase: unitCost, plannedCostBase: plannedCost);
+                    }).ToArray();
             }
             catch (OverflowException)
             {
@@ -786,20 +825,20 @@ public static class ManufacturingEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["plannedQuantity"] = ["Plan miktarı reçete bileşen sınırlarını aşıyor."] });
             if (product.TrackingMode == InventoryTrackingMode.Serial && request.PlannedQuantity != decimal.Truncate(request.PlannedQuantity))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["plannedQuantity"] = ["Seri izlemeli mamulün plan miktarı tam sayı olmalıdır."] });
-            if (lines.Any(x => items.Single(i => i.Id == x.line.ComponentStockItemId).TrackingMode == InventoryTrackingMode.Serial && x.required != decimal.Truncate(x.required)))
+            if (lines.Any(x => items.Single(i => i.Id == x.componentStockItemId).TrackingMode == InventoryTrackingMode.Serial && x.required != decimal.Truncate(x.required)))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["plannedQuantity"] = ["Seri izlemeli bileşenlerin planlanan tüketim miktarı tam sayı olmalıdır."] });
             var order = new ManufacturingOrder { TenantId = tenantId, Code = code, BillOfMaterialId = bom.Id, WarehouseId = request.WarehouseId,
+                SourceSalesOrderId = request.SourceSalesOrderId, SourceSalesOrderLineNumber = request.SourceSalesOrderLineNumber,
                 PlannedQuantity = request.PlannedQuantity, PlannedDate = request.PlannedDate, Status = ManufacturingOrderStatus.Planned };
             try
             {
                 order.Lines = lines.Select(x =>
                 {
-                    var item = items.Single(i => i.Id == x.line.ComponentStockItemId);
-                    var plannedCost = decimal.Round(x.required * x.line.StandardUnitCostBase, 4, MidpointRounding.AwayFromZero);
-                    if (plannedCost > 99999999999999.9999m) throw new OverflowException();
+                    var item = items.Single(i => i.Id == x.componentStockItemId);
+                    if (x.required > 99999999999999.9999m || x.plannedCostBase > 99999999999999.9999m) throw new OverflowException();
                     return new ManufacturingOrderLine { TenantId = tenantId, ComponentStockItemId = item.Id,
                         ComponentCodeSnapshot = item.Code, ComponentNameSnapshot = item.Name, RequiredQuantity = x.required,
-                        StandardUnitCostBaseSnapshot = x.line.StandardUnitCostBase, PlannedCostBase = plannedCost };
+                        StandardUnitCostBaseSnapshot = x.standardUnitCostBase, PlannedCostBase = x.plannedCostBase };
                 }).ToList();
             }
             catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["plannedQuantity"] = ["Planlanan malzeme maliyeti desteklenen aralığı aşıyor."] }); }
@@ -1059,6 +1098,19 @@ public static class ManufacturingEndpoints
             if (await db.ManufacturingOrderOperations.AnyAsync(x => x.TenantId == tenantId && x.ManufacturingOrderId == id && x.Sequence < operation.Sequence &&
                     x.Status != ManufacturingOperationStatus.Completed, ct))
                 return Results.Conflict(new { error = "Önceki rota operasyonları tamamlanmadan bu operasyon başlatılamaz." });
+            if (operation.MinimumWaitDaysAfterPrevious > 0)
+            {
+                var previousOperation = await db.ManufacturingOrderOperations.AsNoTracking()
+                    .Where(x => x.TenantId == tenantId && x.ManufacturingOrderId == id && x.Sequence < operation.Sequence)
+                    .OrderByDescending(x => x.Sequence).Select(x => new { x.CompletedAt }).FirstOrDefaultAsync(ct);
+                if (previousOperation?.CompletedAt is { } previousCompletedAt)
+                {
+                    var earliestStartDate = AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(previousCompletedAt)
+                        .AddDays(operation.MinimumWaitDaysAfterPrevious + 1);
+                    if (AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow) < earliestStartDate)
+                        return Results.Conflict(new { error = $"Önceki operasyon sonrası en az {operation.MinimumWaitDaysAfterPrevious} takvim günü beklenmeli; bu operasyon {earliestStartDate:yyyy-MM-dd} tarihinde başlatılabilir." });
+                }
+            }
             operation.Status = ManufacturingOperationStatus.InProgress; operation.StartedAt = DateTimeOffset.UtcNow;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.operation.started", Resource = $"{order.Code}/{operation.Sequence}" });
             await db.SaveChangesAsync(ct); if (transaction is not null) await transaction.CommitAsync(ct);
@@ -1069,6 +1121,12 @@ public static class ManufacturingEndpoints
             ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var today = AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
+            var employeeActive = request.PerformedByEmployeeId != Guid.Empty && await db.EmployeeRecords.AsNoTracking()
+                .AnyAsync(x => x.TenantId == tenantId && x.Id == request.PerformedByEmployeeId && x.Status == EmployeeEmploymentStatus.Active &&
+                    (x.TerminationDate == null || x.TerminationDate >= today), ct);
+            if (!employeeActive)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["performedByEmployeeId"] = ["Aktif bir tenant personeli seçilmelidir."] });
             if (request.ActualSetupMinutes is < 0m or > 9999999999.99m || request.ActualRunMinutes is < 0m or > 9999999999.99m ||
                 request.ActualEnergyQuantityKwh is < 0m or > 99999999999.999m || request.ActualEnergyCostPerKwhBase is < 0m or > 999999999999.999999m ||
                 request.ActualEnergyQuantityKwh == 0m && request.ActualEnergyCostPerKwhBase != 0m ||
@@ -1098,7 +1156,8 @@ public static class ManufacturingEndpoints
             operation.ActualEnergyQuantityKwh = request.ActualEnergyQuantityKwh;
             operation.ActualEnergyCostPerKwhBase = request.ActualEnergyCostPerKwhBase;
             operation.ActualEnergyCostBase = actualEnergyCost;
-            operation.ActualCostBase = actualCost; operation.Status = ManufacturingOperationStatus.Completed; operation.CompletedAt = DateTimeOffset.UtcNow;
+            operation.ActualCostBase = actualCost; operation.PerformedByEmployeeId = request.PerformedByEmployeeId;
+            operation.Status = ManufacturingOperationStatus.Completed; operation.CompletedAt = DateTimeOffset.UtcNow;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.operation.completed", Resource = $"{order.Code}/{operation.Sequence}" });
             await db.SaveChangesAsync(ct); if (transaction is not null) await transaction.CommitAsync(ct);
             return Results.Ok(await ReadOrderAsync(db, tenantId, id, ct));
@@ -1111,6 +1170,16 @@ public static class ManufacturingEndpoints
             var order = await LockOrderAsync(db, tenantId, id, ct);
             if (order is null) return Results.NotFound();
             if (order.Status != ManufacturingOrderStatus.Released) return Results.Conflict(new { error = "Yalnız serbest bırakılmış üretim emirleri tamamlanabilir." });
+            var actualGoodQuantity = request.ActualGoodQuantity ?? order.PlannedQuantity;
+            var scrapQuantity = request.ScrapQuantity;
+            var scrapReason = request.ScrapReason?.Trim();
+            if (actualGoodQuantity <= 0m || scrapQuantity < 0m || actualGoodQuantity > order.PlannedQuantity || scrapQuantity > order.PlannedQuantity ||
+                actualGoodQuantity != order.PlannedQuantity - scrapQuantity || decimal.Round(actualGoodQuantity, 4) != actualGoodQuantity || decimal.Round(scrapQuantity, 4) != scrapQuantity)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["actualGoodQuantity"] = ["İyi ürün ve fire miktarlarının toplamı planlanan miktara eşit olmalı, miktarlar dört ondalık basamakla sınırlı olmalı ve iyi ürün miktarı sıfırdan büyük olmalıdır."] });
+            if (scrapQuantity > 0 && string.IsNullOrWhiteSpace(scrapReason))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["scrapReason"] = ["Fire miktarı varsa fire nedeni zorunludur."] });
+            if (scrapReason?.Length > 500)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["scrapReason"] = ["Fire nedeni en fazla 500 karakter olabilir."] });
             var orderOperations = await db.ManufacturingOrderOperations.Where(x => x.TenantId == tenantId && x.ManufacturingOrderId == id).ToListAsync(ct);
             if (orderOperations.Any(x => x.Status != ManufacturingOperationStatus.Completed || x.ActualCostBase is null))
                 return Results.Conflict(new { error = "Üretim emri tamamlanmadan önce tüm rota operasyonlarında gerçek süre ve maliyet kaydı tamamlanmalıdır." });
@@ -1149,7 +1218,7 @@ public static class ManufacturingEndpoints
             var product = stockItems.Single(x => x.Id == bom.ProductStockItemId);
             var movementDate = AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
             var finishedTracking = request.FinishedGoodsTracking ?? [];
-            var outputTrackingError = ValidateTrackingAllocations(product.TrackingMode, finishedTracking, order.PlannedQuantity);
+            var outputTrackingError = ValidateTrackingAllocations(product.TrackingMode, finishedTracking, actualGoodQuantity);
             if (outputTrackingError is not null)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["finishedGoodsTracking"] = [outputTrackingError] });
             if (product.TrackingMode == InventoryTrackingMode.Lot)
@@ -1171,7 +1240,10 @@ public static class ManufacturingEndpoints
                     if (await db.InventoryTransactionTraces.AnyAsync(x => x.TenantId == tenantId && x.StockItemId == product.Id && x.TrackingCode == allocation.TrackingCode.Trim(), ct))
                         return Results.Conflict(new { error = $"Seri numarası {allocation.TrackingCode} daha önce kullanılmış." });
             }
-            var componentIds = lines.Select(x => x.ComponentStockItemId).ToArray();
+            var componentRequirements = lines.GroupBy(x => x.ComponentStockItemId)
+                .Select(group => new { StockItemId = group.Key, Line = group.First(), Quantity = group.Sum(x => x.RequiredQuantity) })
+                .OrderBy(x => x.StockItemId).ToArray();
+            var componentIds = componentRequirements.Select(x => x.StockItemId).ToArray();
             var balances = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == order.WarehouseId
                     && (componentLocation == null || x.StorageLocationId == componentLocation.Id) && componentIds.Contains(x.StockItemId))
                 .GroupBy(x => x.StockItemId).Select(g => new { Id = g.Key, Quantity = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) })
@@ -1182,39 +1254,39 @@ public static class ManufacturingEndpoints
                 .ToDictionaryAsync(x => x.Id, x => x.Quantity, ct);
             var allowNegativeStock = await TenantOperationalSettingsEndpoints.AllowsNegativeStockAsync(db, tenantId, ct);
             var trackingItems = stockItems.ToDictionary(x => x.Id);
-            var shortLines = lines.Where(x => balances.GetValueOrDefault(x.ComponentStockItemId) - reserved.GetValueOrDefault(x.ComponentStockItemId) < x.RequiredQuantity &&
-                !TenantOperationalSettingsEndpoints.CanPostNegativeBalance(allowNegativeStock, reserved.GetValueOrDefault(x.ComponentStockItemId),
-                    trackingItems[x.ComponentStockItemId].TrackingMode, componentLocation is not null)).ToList();
-            if (shortLines.Count > 0) return Results.Conflict(new { error = "Bileşen stokları açık satış rezervasyonları düşüldükten sonra yetersiz.", shortages = shortLines.Select(x => new {
-                x.ComponentStockItemId, x.ComponentCodeSnapshot, requiredQuantity = x.RequiredQuantity,
-                availableQuantity = balances.GetValueOrDefault(x.ComponentStockItemId) - reserved.GetValueOrDefault(x.ComponentStockItemId) }) });
+            var shortLines = componentRequirements.Where(x => balances.GetValueOrDefault(x.StockItemId) - reserved.GetValueOrDefault(x.StockItemId) < x.Quantity &&
+                !TenantOperationalSettingsEndpoints.CanPostNegativeBalance(allowNegativeStock, reserved.GetValueOrDefault(x.StockItemId),
+                    trackingItems[x.StockItemId].TrackingMode, componentLocation is not null)).ToArray();
+            if (shortLines.Length > 0) return Results.Conflict(new { error = "Bileşen stokları açık satış rezervasyonları düşüldükten sonra yetersiz.", shortages = shortLines.Select(x => new {
+                x.StockItemId, componentCode = x.Line.ComponentCodeSnapshot, requiredQuantity = x.Quantity,
+                availableQuantity = balances.GetValueOrDefault(x.StockItemId) - reserved.GetValueOrDefault(x.StockItemId) }) });
 
-            var allocationsByLine = new Dictionary<Guid, List<InventoryTrackingAllocationRequest>>();
-            foreach (var line in lines)
+            var allocationsByStockItem = new Dictionary<Guid, List<InventoryTrackingAllocationRequest>>();
+            foreach (var requirement in componentRequirements)
             {
-                var component = trackingItems[line.ComponentStockItemId];
+                var component = trackingItems[requirement.StockItemId];
                 if (component.TrackingMode == InventoryTrackingMode.None) continue;
-                var allocations = await AllocateAvailableTrackingAsync(db, tenantId, order.WarehouseId, component, line.RequiredQuantity,
+                var allocations = await AllocateAvailableTrackingAsync(db, tenantId, order.WarehouseId, component, requirement.Quantity,
                     movementDate: movementDate, ct: ct, storageLocationId: componentLocation?.Id);
                 if (allocations is null)
-                    return Results.Conflict(new { error = $"{line.ComponentCodeSnapshot} için son kullanma tarihi geçmemiş, izlenen miktar yetersiz.", requiredQuantity = line.RequiredQuantity });
-                allocationsByLine[line.Id] = allocations;
+                    return Results.Conflict(new { error = $"{requirement.Line.ComponentCodeSnapshot} için son kullanma tarihi geçmemiş, izlenen miktar yetersiz.", requiredQuantity = requirement.Quantity });
+                allocationsByStockItem[requirement.StockItemId] = allocations;
             }
 
             decimal? totalCost = 0m;
             try
             {
-                foreach (var line in lines)
+                foreach (var requirement in componentRequirements)
                 {
-                    var unitCost = await WeightedCostAsync(db, tenantId, line.ComponentStockItemId, movementDate, ct);
+                    var unitCost = await WeightedCostAsync(db, tenantId, requirement.StockItemId, movementDate, ct);
                     if (unitCost is null) totalCost = null;
-                    else if (totalCost.HasValue) totalCost += decimal.Round(line.RequiredQuantity * unitCost.Value, 8, MidpointRounding.AwayFromZero);
-                    db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StorageLocationId = componentLocation?.Id, StockItemId = line.ComponentStockItemId,
+                    else if (totalCost.HasValue) totalCost += decimal.Round(requirement.Quantity * unitCost.Value, 8, MidpointRounding.AwayFromZero);
+                    db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StorageLocationId = componentLocation?.Id, StockItemId = requirement.StockItemId,
                         ManufacturingOrderId = order.Id,
-                        EntryDate = movementDate, Direction = InventoryDirection.Issue, Quantity = line.RequiredQuantity, UnitCostBase = unitCost,
+                        EntryDate = movementDate, Direction = InventoryDirection.Issue, Quantity = requirement.Quantity, UnitCostBase = unitCost,
                         Description = $"Üretim {order.Code} bileşen tüketimi",
-                        Tracking = allocationsByLine.GetValueOrDefault(line.Id, []).Select(x => new InventoryTransactionTrace { TenantId = tenantId,
-                            StockItemId = line.ComponentStockItemId, TrackingMode = trackingItems[line.ComponentStockItemId].TrackingMode,
+                        Tracking = allocationsByStockItem.GetValueOrDefault(requirement.StockItemId, []).Select(x => new InventoryTransactionTrace { TenantId = tenantId,
+                            StockItemId = requirement.StockItemId, TrackingMode = trackingItems[requirement.StockItemId].TrackingMode,
                             TrackingCode = x.TrackingCode, Quantity = x.Quantity, ExpiryDate = x.ExpiryDate }).ToList() });
                 }
                 var operationCost = orderOperations.Sum(x => x.ActualCostBase ?? 0m);
@@ -1225,14 +1297,16 @@ public static class ManufacturingEndpoints
                 return Results.Conflict(new { error = "Bileşen toplam maliyeti desteklenen decimal aralığını aşıyor; stok hareketi kaydedilmedi." });
             }
             decimal? outputUnitCost;
-            try { outputUnitCost = totalCost is null ? null : decimal.Round(totalCost.Value / order.PlannedQuantity, 8, MidpointRounding.AwayFromZero); }
+            try { outputUnitCost = totalCost is null ? null : decimal.Round(totalCost.Value / actualGoodQuantity, 8, MidpointRounding.AwayFromZero); }
             catch (OverflowException) { return Results.Conflict(new { error = "Mamul birim maliyeti desteklenen decimal aralığını aşıyor; stok hareketi kaydedilmedi." }); }
             db.InventoryTransactions.Add(new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StorageLocationId = finishedGoodsLocation?.Id, StockItemId = product.Id,
                 ManufacturingOrderId = order.Id,
-                EntryDate = movementDate, Direction = InventoryDirection.Receipt, Quantity = order.PlannedQuantity, UnitCostBase = outputUnitCost,
+                EntryDate = movementDate, Direction = InventoryDirection.Receipt, Quantity = actualGoodQuantity, UnitCostBase = outputUnitCost,
                 Description = $"Üretim {order.Code} mamul girişi",
                 Tracking = finishedTracking.Select(x => new InventoryTransactionTrace { TenantId = tenantId, StockItemId = product.Id,
                     TrackingMode = product.TrackingMode, TrackingCode = x.TrackingCode.Trim(), Quantity = x.Quantity, ExpiryDate = x.ExpiryDate }).ToList() });
+            order.ActualGoodQuantity = actualGoodQuantity; order.ScrapQuantity = scrapQuantity;
+            order.ScrapReason = scrapQuantity > 0 ? scrapReason : null;
             order.Status = ManufacturingOrderStatus.Completed; order.CompletedAt = DateTimeOffset.UtcNow;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.order.completed", Resource = order.Code });
             await db.SaveChangesAsync(ct); if (transaction is not null) await transaction.CommitAsync(ct);
@@ -1285,6 +1359,8 @@ public static class ManufacturingEndpoints
         if (request.OutputQuantity is <= 0 or > 99999999999999.9999m) errors["outputQuantity"] = ["Çıktı miktarı pozitif ve desteklenen aralıkta olmalıdır."];
         if (request.Lines is null || request.Lines.Count is < 1 or > 100) errors["lines"] = ["Reçete 1–100 bileşen içermelidir."];
             else if (request.Lines.Any(x => x.Quantity is <= 0 or > 99999999999999.9999m || x.ScrapPercent is < 0 or > 100 || x.StandardUnitCostBase is < 0m or > 99999999999999.9999m)) errors["lines"] = ["Bileşen miktarı pozitif, fire oranı 0–100, baz para birimindeki standart maliyet ise desteklenen aralıkta olmalıdır."];
+        if (request.ProductStockItemId != Guid.Empty && request.Lines?.Any(x => x.ComponentStockItemId == request.ProductStockItemId) == true)
+            errors["lines"] = ["Üretilecek mamul, kendi reçetesinde bileşen olarak kullanılamaz."];
         if (errors.Count == 0) { errors = null; return true; } return false;
     }
     private static async Task<(MrpPlanView? Plan, string? Error)> CalculateMrpAsync(TenantDbContext db, Guid tenantId, MrpPlanRequest request, CancellationToken ct)
@@ -1305,6 +1381,12 @@ public static class ManufacturingEndpoints
         var reservedByOrderLine = await db.SalesOrderReservations.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == request.WarehouseId && x.Status == SalesOrderReservationStatus.Active)
             .GroupBy(x => new { x.OrderId, x.OrderLineNumber }).Select(g => new { g.Key.OrderId, g.Key.OrderLineNumber, Quantity = g.Sum(x => x.Quantity - x.FulfilledQuantity) })
             .ToDictionaryAsync(x => (x.OrderId, x.OrderLineNumber), x => x.Quantity, ct);
+        var inventoryDeficits = stockItems.Select(item => new
+            {
+                item.Id,
+                Quantity = Math.Max(0m, reserved.GetValueOrDefault(item.Id) - balances.GetValueOrDefault(item.Id))
+            })
+            .Where(x => x.Quantity > 0m).ToArray();
 
         var openPurchaseLines = await db.PurchaseOrderLines.AsNoTracking().Where(x => x.TenantId == tenantId &&
                 (x.PurchaseOrder.Status == PurchaseOrderStatus.Open || x.PurchaseOrder.Status == PurchaseOrderStatus.PartiallyReceived))
@@ -1338,6 +1420,8 @@ public static class ManufacturingEndpoints
             .Where(x => x.TenantId == tenantId && openOrderBomIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => x.ProductStockItemId, ct);
         var nodes = new List<MrpDemandNode>();
+        foreach (var deficit in inventoryDeficits)
+            nodes.Add(new MrpDemandNode(deficit.Id, deficit.Quantity, planDate, 0, [deficit.Id], "Negatif stok / karşılanmamış rezervasyon açığı"));
         foreach (var demand in request.Demand ?? [])
             nodes.Add(new MrpDemandNode(demand.StockItemId, demand.Quantity, demand.RequiredByDate ?? planDate, 0, [demand.StockItemId], "Ek talep"));
         if (request.IncludeOpenSalesOrders)
@@ -1350,7 +1434,8 @@ public static class ManufacturingEndpoints
             foreach (var line in salesLines)
             {
                 var remaining = Math.Max(0m, line.Quantity - delivered.GetValueOrDefault((line.OrderId, line.LineNumber)) - reservedByOrderLine.GetValueOrDefault((line.OrderId, line.LineNumber)));
-                if (remaining > 0m) nodes.Add(new MrpDemandNode(line.StockItemId, remaining, line.RequestedDeliveryDate ?? planDate, 0, [line.StockItemId], $"Satış {line.Code} · {line.StockCode}"));
+                if (remaining > 0m) nodes.Add(new MrpDemandNode(line.StockItemId, remaining, line.RequestedDeliveryDate ?? planDate, 0, [line.StockItemId],
+                    $"Satış {line.Code} · {line.StockCode}", line.OrderId, line.LineNumber, line.Code));
             }
         }
         foreach (var order in openOrders)
@@ -1378,9 +1463,10 @@ public static class ManufacturingEndpoints
                 var item = stockById[group.Key.StockItemId];
                 var requiredBy = group.Key.RequiredByDate;
                 var gross = group.Sum(x => x.Quantity);
-                var onHand = Math.Max(0m, balances.GetValueOrDefault(item.Id));
+                var onHand = balances.GetValueOrDefault(item.Id);
                 var reservedQty = Math.Max(0m, reserved.GetValueOrDefault(item.Id));
-                var eligibleSupply = supply.GetValueOrDefault(item.Id, []).Where(x => x.Remaining > 0m && x.AvailableDate <= requiredBy).OrderBy(x => x.AvailableDate).ToList();
+                var supplyThroughDate = requiredBy < planDate ? planDate : requiredBy;
+                var eligibleSupply = supply.GetValueOrDefault(item.Id, []).Where(x => x.Remaining > 0m && x.AvailableDate <= supplyThroughDate).OrderBy(x => x.AvailableDate).ToList();
                 var remainingNeed = gross;
                 decimal fromStock = 0m, fromPo = 0m, fromProduction = 0m;
                 foreach (var bucket in eligibleSupply)
@@ -1418,16 +1504,23 @@ public static class ManufacturingEndpoints
                     }
                     else { recommendedAction = "Satın al"; recommendedOrderDate = requiredBy.AddDays(-item.ProcurementLeadTimeDays); }
                 }
+                var sourceSalesOrder = group.Count() == 1 && group.First().SourceSalesOrderId is { } sourceOrderId &&
+                    group.First().SourceSalesOrderLineNumber is { } sourceLineNumber
+                    ? new MrpSalesOrderSource(sourceOrderId, sourceLineNumber, group.First().SourceSalesOrderCode ?? string.Empty)
+                    : null;
                 output.Add(new MrpLineView(item.Id, item.Code, item.Name, item.UnitCode, depth, gross, onHand, reservedQty, fromStock, fromPo, fromProduction,
-                    net, recommendedAction, issue, group.Select(x => x.Source).Distinct().Take(8).ToArray(), requiredBy, recommendedOrderDate));
+                    net, recommendedAction, issue, group.Select(x => x.Source).Distinct().Take(8).ToArray(), requiredBy, recommendedOrderDate, sourceSalesOrder));
             }
         }
-        var view = new MrpPlanView(request.WarehouseId, DateTimeOffset.UtcNow, true,
-            "Açık satın alma miktarları yalnız hedef deposu seçili depo olan ve beklenen teslim tarihi ihtiyaç tarihinden geç olmayan siparişlerden alınır. Teslim tarihi/hedef deposu olmayan eski siparişler zamanlanmış arz sayılmaz. İstenen teslim tarihi girilmemiş açık satış siparişleri planlama tarihinde gerekli kabul edilir.", output);
+        var supplyCaveat = request.IncludeOpenSalesOrders
+            ? "Açık satın alma miktarları yalnız hedef deposu seçili depo olan ve beklenen teslim tarihi ihtiyaç tarihinden geç olmayan siparişlerden alınır. Teslim tarihi/hedef deposu olmayan eski siparişler zamanlanmış arz sayılmaz. İstenen teslim tarihi girilmemiş açık satış siparişleri planlama tarihinde gerekli kabul edilir."
+            : "Açık satış siparişleri talep olarak dahil edilmedi. Açık satın alma miktarları yalnız hedef deposu seçili depo olan ve beklenen teslim tarihi ihtiyaç tarihinden geç olmayan siparişlerden alınır. Teslim tarihi/hedef deposu olmayan eski siparişler zamanlanmış arz sayılmaz.";
+        var view = new MrpPlanView(request.WarehouseId, DateTimeOffset.UtcNow, request.IncludeOpenSalesOrders, supplyCaveat, output);
         return (view, null);
     }
 
-    private sealed record MrpDemandNode(Guid StockItemId, decimal Quantity, DateOnly RequiredByDate, int Depth, IReadOnlyList<Guid> Path, string Source);
+    private sealed record MrpDemandNode(Guid StockItemId, decimal Quantity, DateOnly RequiredByDate, int Depth, IReadOnlyList<Guid> Path, string Source,
+        Guid? SourceSalesOrderId = null, int? SourceSalesOrderLineNumber = null, string? SourceSalesOrderCode = null);
     private enum MrpSupplyKind { Stock, Purchase, Production }
     private sealed class MrpSupplyBucket(DateOnly availableDate, decimal remaining, MrpSupplyKind kind)
     {
@@ -1500,7 +1593,9 @@ public static class ManufacturingEndpoints
         await db.ManufacturingOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id).Select(x => new OrderView(x.Id, x.Code,
             x.BillOfMaterialId, db.BillOfMaterials.Where(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId).Select(b => b.Code + " · " + b.Name).FirstOrDefault() ?? "",
             x.WarehouseId, db.Warehouses.Where(w => w.TenantId == tenantId && w.Id == x.WarehouseId).Select(w => w.Code + " · " + w.Name).FirstOrDefault() ?? "",
-            x.PlannedQuantity, x.Status.ToString(), x.PlannedDate, x.CompletedAt, x.Lines.OrderBy(l => l.ComponentCodeSnapshot)
+            x.SourceSalesOrderId, x.SourceSalesOrderLineNumber,
+            x.SourceSalesOrderId == null ? null : db.SalesOrders.Where(s => s.TenantId == tenantId && s.Id == x.SourceSalesOrderId).Select(s => s.Code).FirstOrDefault(),
+            x.PlannedQuantity, x.ActualGoodQuantity, x.ScrapQuantity, x.ScrapReason, x.Status.ToString(), x.PlannedDate, x.CompletedAt, x.Lines.OrderBy(l => l.ComponentCodeSnapshot)
                 .Select(l => new OrderLineView(l.ComponentStockItemId, l.ComponentCodeSnapshot, l.ComponentNameSnapshot,
                     l.RequiredQuantity, l.StandardUnitCostBaseSnapshot, l.PlannedCostBase)).ToList(),
             x.Operations.OrderBy(o => o.Sequence).Select(o => new ManufacturingOrderOperationView(o.Id, o.Sequence, o.WorkCenterId,
@@ -1509,7 +1604,8 @@ public static class ManufacturingEndpoints
                 o.ScheduledStartDate, o.ScheduledEndDate, o.ScheduledStartMinuteOfDay, o.ScheduledEndMinuteOfDay,
                 o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.PlannedEnergyQuantityKwh,
                 o.PlannedEnergyCostPerKwhBase, o.PlannedEnergyCostBase, o.Status.ToString(),
-                o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase, o.StartedAt, o.CompletedAt,
+                o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase,
+                o.PerformedByEmployeeId, o.PerformedByEmployeeId == null ? null : db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == o.PerformedByEmployeeId).Select(e => e.FullName).FirstOrDefault(), o.StartedAt, o.CompletedAt,
                 db.ManufacturingCapacityAllocations.Where(a => a.TenantId == tenantId && a.ManufacturingOrderOperationId == o.Id)
                     .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay, a.StartSecondOfDay ?? a.StartMinuteOfDay * 60, a.EndSecondOfDay ?? a.EndMinuteOfDay * 60)).ToList(), o.ScheduledStartSecondOfDay ?? o.ScheduledStartMinuteOfDay * 60, o.ScheduledEndSecondOfDay ?? o.ScheduledEndMinuteOfDay * 60)).ToList(),
             Convert.ToBase64String(x.RowVersion))).SingleOrDefaultAsync(ct);
@@ -1518,6 +1614,9 @@ public static class ManufacturingEndpoints
     private static Task<ManufacturingOrder?> LockOrderAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) => db.Database.IsSqlServer()
         ? db.ManufacturingOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[ManufacturingOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync(ct)
         : db.ManufacturingOrders.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+    private static Task<MrpPlanSnapshot?> LockMrpPlanSnapshotAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) => db.Database.IsSqlServer()
+        ? db.MrpPlanSnapshots.FromSqlInterpolated($"SELECT * FROM [dbo].[MrpPlanSnapshots] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync(ct)
+        : db.MrpPlanSnapshots.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
     private static async Task<decimal?> WeightedCostAsync(TenantDbContext db, Guid tenantId, Guid stockItemId, DateOnly asOfDate, CancellationToken ct)
     {
         var totals = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == stockItemId && x.EntryDate <= asOfDate)
@@ -1599,9 +1698,12 @@ public sealed record BomLineView(Guid ComponentStockItemId, string ComponentName
 public sealed record BomOperationView(int Sequence, Guid WorkCenterId, string WorkCenterName, decimal SetupMinutes, decimal RunMinutesPerOutputUnit,
     int MinimumWaitDaysAfterPrevious, string SetupFamilyCode, decimal PlannedEnergyKwhPerOutput,
     decimal PlannedEnergyCostPerKwhBase, IReadOnlyList<Guid> EligibleWorkCenterIds);
-public sealed record ManufacturingOrderWriteRequest(string? Code, Guid BillOfMaterialId, Guid WarehouseId, decimal PlannedQuantity, DateOnly PlannedDate);
+public sealed record ManufacturingOrderWriteRequest(string? Code, Guid BillOfMaterialId, Guid WarehouseId, decimal PlannedQuantity, DateOnly PlannedDate,
+    Guid? SourceSalesOrderId = null, int? SourceSalesOrderLineNumber = null);
 public sealed record OrderView(Guid Id, string Code, Guid BillOfMaterialId, string BillOfMaterialName, Guid WarehouseId, string WarehouseName,
-    decimal PlannedQuantity, string Status, DateOnly PlannedDate, DateTimeOffset? CompletedAt, IReadOnlyList<OrderLineView> Lines,
+    Guid? SourceSalesOrderId, int? SourceSalesOrderLineNumber, string? SourceSalesOrderCode,
+    decimal PlannedQuantity, decimal? ActualGoodQuantity, decimal? ScrapQuantity, string? ScrapReason,
+    string Status, DateOnly PlannedDate, DateTimeOffset? CompletedAt, IReadOnlyList<OrderLineView> Lines,
     IReadOnlyList<ManufacturingOrderOperationView> Operations, string RowVersion);
 public sealed record OrderLineView(Guid ComponentStockItemId, string ComponentCode, string ComponentName, decimal RequiredQuantity, decimal StandardUnitCostBaseSnapshot, decimal PlannedCostBase);
 public sealed record CapacityDayView(DateOnly Date, decimal Minutes, int StartMinuteOfDay, int EndMinuteOfDay, int StartSecondOfDay, int EndSecondOfDay);
@@ -1611,10 +1713,12 @@ public sealed record ManufacturingOrderOperationView(Guid Id, int Sequence, Guid
     decimal LaborCostPerHourBase, decimal OverheadCostPerHourBase, decimal PlannedEnergyQuantityKwh,
     decimal PlannedEnergyCostPerKwhBase, decimal PlannedEnergyCostBase, string Status, decimal? ActualSetupMinutes, decimal? ActualRunMinutes,
     decimal? ActualEnergyQuantityKwh, decimal? ActualEnergyCostPerKwhBase, decimal? ActualEnergyCostBase,
-    decimal? ActualCostBase, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt, IReadOnlyList<CapacityDayView> CapacityDays, int? ScheduledStartSecondOfDay, int? ScheduledEndSecondOfDay);
+    decimal? ActualCostBase, Guid? PerformedByEmployeeId, string? PerformedByEmployeeName,
+    DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt, IReadOnlyList<CapacityDayView> CapacityDays, int? ScheduledStartSecondOfDay, int? ScheduledEndSecondOfDay);
 public sealed record ManufacturingCompleteRequest(IReadOnlyList<InventoryTrackingAllocationRequest>? FinishedGoodsTracking = null,
-    Guid? ComponentStorageLocationId = null, Guid? FinishedGoodsStorageLocationId = null);
-public sealed record ManufacturingOperationCompleteRequest(decimal ActualSetupMinutes, decimal ActualRunMinutes,
+    Guid? ComponentStorageLocationId = null, Guid? FinishedGoodsStorageLocationId = null,
+    decimal? ActualGoodQuantity = null, decimal ScrapQuantity = 0m, string? ScrapReason = null);
+public sealed record ManufacturingOperationCompleteRequest(decimal ActualSetupMinutes, decimal ActualRunMinutes, Guid PerformedByEmployeeId,
     decimal ActualEnergyQuantityKwh = 0m, decimal ActualEnergyCostPerKwhBase = 0m);
 public sealed record MrpDemandRequest(Guid StockItemId, decimal Quantity, DateOnly? RequiredByDate = null);
 public sealed record MrpPlanRequest(Guid WarehouseId, IReadOnlyList<MrpDemandRequest>? Demand = null, bool IncludeOpenSalesOrders = true, DateOnly? PlanDate = null);
@@ -1625,6 +1729,8 @@ public sealed record MrpConversionResult(int LineIndex, string ResourceType, Gui
 public sealed record MrpPlanView(Guid WarehouseId, DateTimeOffset PlannedAt, bool IncludesOpenSalesOrders, string SupplyCaveat,
     IReadOnlyList<MrpLineView> Lines, Guid? PlanId = null, IReadOnlyList<int>? ConvertedLineIndexes = null);
 public sealed record MrpPlanHistoryView(Guid Id, Guid WarehouseId, DateOnly PlanDate, bool IncludesOpenSalesOrders, DateTimeOffset CreatedAt, Guid CreatedByUserId);
+public sealed record MrpSalesOrderSource(Guid SalesOrderId, int SalesOrderLineNumber, string SalesOrderCode);
 public sealed record MrpLineView(Guid StockItemId, string StockCode, string StockName, string UnitCode, int Level, decimal GrossRequirement,
     decimal OnHand, decimal Reserved, decimal FromOnHand, decimal FromOpenPurchaseOrders, decimal FromOpenManufacturingOrders,
-    decimal NetRequirement, string Recommendation, string? Issue, IReadOnlyList<string> Sources, DateOnly RequiredByDate, DateOnly RecommendedOrderDate);
+    decimal NetRequirement, string Recommendation, string? Issue, IReadOnlyList<string> Sources, DateOnly RequiredByDate, DateOnly RecommendedOrderDate,
+    MrpSalesOrderSource? SourceSalesOrder = null);

@@ -1,6 +1,6 @@
 import AdvancedDataGrid from "../../AdvancedDataGrid";
-import { Eye } from "lucide-react";
-import type { LayoutField } from "../types";
+import { Eye, ListFilter, Search } from "lucide-react";
+import type { CustomerPageSettings, LayoutField } from "../types";
 import { previewValue } from "./preview-samples";
 
 const previewScreensWithExternalSearch = new Set([
@@ -31,6 +31,7 @@ type Props = {
   en: boolean;
   visibleFields: LayoutField[];
   previewGroups: { label: string; count: number }[];
+  pageSettings?: CustomerPageSettings;
 };
 
 export default function ScreenViewPreview({
@@ -39,20 +40,27 @@ export default function ScreenViewPreview({
   en,
   visibleFields,
   previewGroups,
+  pageSettings,
 }: Props) {
   return (
     <section className="panel screen-view-preview">
       <div className="screen-view-panel-head">
         <div>
           <p className="eyebrow">{en ? "SAFE PREVIEW" : "GÜVENLİ ÖNİZLEME"}</p>
-          <h2>{screenLabel}</h2>
-          <p>{en ? "Synthetic example rows" : "Örnek sentetik satırlar"}</p>
+          <h2>{pageSettings?.title || screenLabel}</h2>
+          <p>{pageSettings?.description || (en ? "Synthetic example rows" : "Örnek sentetik satırlar")}</p>
         </div>
         <span className="screen-view-preview-badge">
           <Eye size={14} />
           {en ? "Preview" : "Önizleme"}
         </span>
       </div>
+      {screenKey === "customers" && pageSettings && <div className="screen-view-preview-filters" aria-label="Filtre önizlemesi">
+        <label><span>{pageSettings.searchLabel}</span><div><Search size={13}/><small>{pageSettings.searchPlaceholder}</small></div></label>
+        {pageSettings.showTypeFilter && <label><span>{pageSettings.typeFilterLabel}</span><div><small>Tümü</small><ListFilter size={13}/></div></label>}
+        {pageSettings.showStatusFilter && <label><span>{pageSettings.statusFilterLabel}</span><div><small>Tümü</small><ListFilter size={13}/></div></label>}
+        <button type="button" disabled>{pageSettings.applyLabel}</button>
+      </div>}
       <div className="screen-view-table-wrap">
         <AdvancedDataGrid
           hideSearch={previewScreensWithExternalSearch.has(screenKey)}

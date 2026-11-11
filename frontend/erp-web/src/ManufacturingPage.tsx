@@ -8,7 +8,7 @@ import {
   type FormEvent,
 } from "react";
 import { authenticatedFetch } from "./authApi";
-import { Boxes, ClipboardList, Factory, Pencil, Plus } from "lucide-react";
+import { Boxes, ClipboardList, Factory, Filter, Pencil, Plus, Search } from "lucide-react";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import ManufacturingPageHeader from "./manufacturing/components/ManufacturingPageHeader";
@@ -31,6 +31,10 @@ type Item = {
   trackingMode: string;
 };
 type Warehouse = { id: string; code: string; name: string; isActive: boolean };
+type Employee = { id: string; personnelCode: string; fullName: string; status: string };
+type SourceSalesOrderOption = { id: string; code: string; customerName: string; status: string; requestedDeliveryDate: string | null };
+type SourceSalesOrderLine = { lineNumber: number; stockItemId: string; stockCode: string; stockName: string; remainingQuantity: number };
+type SourceSalesOrderDetail = { id: string; code: string; lines: SourceSalesOrderLine[] };
 type WorkCenter = {
   id: string;
   code: string;
@@ -116,6 +120,8 @@ type OrderOperation = {
   actualEnergyCostPerKwhBase: number | null;
   actualEnergyCostBase: number | null;
   actualCostBase: number | null;
+  performedByEmployeeId: string | null;
+  performedByEmployeeName: string | null;
   startedAt: string | null;
   completedAt: string | null;
   capacityDays: {
@@ -135,6 +141,12 @@ type Order = {
   warehouseId: string;
   warehouseName: string;
   plannedQuantity: number;
+  sourceSalesOrderId: string | null;
+  sourceSalesOrderLineNumber: number | null;
+  sourceSalesOrderCode: string | null;
+  actualGoodQuantity: number | null;
+  scrapQuantity: number | null;
+  scrapReason: string | null;
   status: string;
   plannedDate: string;
   completedAt: string | null;
@@ -159,6 +171,11 @@ type MrpLine = {
   sources: string[];
   requiredByDate: string;
   recommendedOrderDate: string;
+  sourceSalesOrder?: {
+    salesOrderId: string;
+    salesOrderLineNumber: number;
+    salesOrderCode: string;
+  } | null;
 };
 type MrpPlan = {
   planId?: string;
@@ -222,6 +239,10 @@ const manufacturingSections: Record<
     description:
       "Emirleri planlayın, kapasiteye çizelgeleyin ve üretim adımlarını izleyin.",
   },
+  "manufacturing-order-create": {
+    title: "Yeni üretim emri",
+    description: "Reçeteyi, depoyu ve planlanan üretim miktarını tanımlayın.",
+  },
   "manufacturing-mrp": {
     title: "Malzeme planlama",
     description:
@@ -264,10 +285,12 @@ export default function ManufacturingPage({
   token,
   section,
   onNavigate,
+  createOrderPage = false,
 }: {
   token: string;
   section: ManufacturingPageKey;
   onNavigate: (page: ManufacturingPageKey) => void;
+  createOrderPage?: boolean;
 }) {
   const sectionLoadGeneration = useRef(0);
   const refreshRequestGeneration = useRef(0);
@@ -313,10 +336,20 @@ export default function ManufacturingPage({
     [workCenters, setWorkCenters] = useState<WorkCenter[]>([]),
     [boms, setBoms] = useState<Bom[]>([]),
     [orders, setOrders] = useState<Order[]>([]),
+    [employees, setEmployees] = useState<Employee[]>([]),
+    [sourceSalesOrders, setSourceSalesOrders] = useState<SourceSalesOrderOption[]>([]),
+    [sourceSalesOrderLines, setSourceSalesOrderLines] = useState<SourceSalesOrderLine[]>([]),
+    [productionMode, setProductionMode] = useState<"Stock" | "SalesOrder">("Stock"),
+    [sourceSalesOrderId, setSourceSalesOrderId] = useState(""),
+    [sourceSalesOrderLineNumber, setSourceSalesOrderLineNumber] = useState(""),
     [ordersTotalCount, setOrdersTotalCount] = useState(0),
     [openOrdersCount, setOpenOrdersCount] = useState(0);
   const [selectedOrderId, setSelectedOrderId] = useState(""),
-    [orderPage, setOrderPage] = useState(1);
+    [orderPage, setOrderPage] = useState(1),
+    [orderSearchDraft, setOrderSearchDraft] = useState(""),
+    [orderSearch, setOrderSearch] = useState(""),
+    [orderStatusDraft, setOrderStatusDraft] = useState(""),
+    [orderStatus, setOrderStatus] = useState("");
   const orderPageSize = 25,
     orderPageCount = Math.max(1, Math.ceil(ordersTotalCount / orderPageSize)),
     pageOrders = orders;
@@ -390,11 +423,14 @@ export default function ManufacturingPage({
   const [trackingOrder, setTrackingOrder] = useState<Order | null>(null),
     [finishedCode, setFinishedCode] = useState(""),
     [finishedExpiry, setFinishedExpiry] = useState(""),
-    [finishedSerials, setFinishedSerials] = useState("");
+    [finishedSerials, setFinishedSerials] = useState(""),
+    [actualGoodQuantity, setActualGoodQuantity] = useState(""),
+    [scrapQuantity, setScrapQuantity] = useState("0"),
+    [scrapReason, setScrapReason] = useState("");
   const [actualTimes, setActualTimes] = useState<
     Record<
       string,
-      { setup: string; run: string; energyKwh: string; energyRate: string }
+      { setup: string; run: string; energyKwh: string; energyRate: string; employeeId: string }
     >
   >({});
   const [orderScreenFields, setOrderScreenFields] = useState<ScreenViewField[]>(
@@ -414,13 +450,14 @@ export default function ManufacturingPage({
         visible: true,
         position: 4,
       },
-      { key: "components", label: "Bileşenler", visible: true, position: 5 },
-      { key: "status", label: "Durum", visible: true, position: 6 },
+      { key: "productionSource", label: "Üretim türü / sipariş", visible: true, position: 5 },
+      { key: "components", label: "Bileşenler", visible: true, position: 6 },
+      { key: "status", label: "Durum", visible: true, position: 7 },
       {
         key: "actions",
         label: "İşlem",
         visible: true,
-        position: 7,
+        position: 8,
         fixed: true,
       },
     ],
@@ -670,7 +707,7 @@ export default function ManufacturingPage({
       );
       return first.items;
     };
-    const [stock, wh, centers, bomRows, orderRows] = await Promise.all([
+    const [stock, wh, centers, bomRows, orderRows, employeeRows, sourceOrders] = await Promise.all([
       needItems
         ? loadStockItemPage()
             .then((data) => ({ data, error: null as string | null }))
@@ -688,9 +725,12 @@ export default function ManufacturingPage({
       load<Bom[]>(needBoms, "/api/manufacturing/boms/", "Reçeteler"),
       load<OrderPageData>(
         needOrders,
-        `/api/manufacturing/orders/?page=${orderPage}&pageSize=${orderPageSize}`,
+        `/api/manufacturing/orders/?page=${orderPage}&pageSize=${orderPageSize}&q=${encodeURIComponent(orderSearch)}&status=${encodeURIComponent(orderStatus)}`,
         "Üretim emirleri",
       ),
+      load<Employee[]>(needOrders, "/api/hr/employees/", "Personel listesi"),
+      load<{ items: SourceSalesOrderOption[] }>(needOrders && createOrderPage,
+        "/api/sales/orders/?page=1&pageSize=100", "Satış siparişleri"),
     ]);
     const failures = [
       stock.error,
@@ -698,6 +738,8 @@ export default function ManufacturingPage({
       centers.error,
       bomRows.error,
       orderRows.error,
+      employeeRows.error,
+      sourceOrders.error,
     ].filter((x): x is string => Boolean(x));
     if (!isCurrent()) return;
     setError(failures.join(" · "));
@@ -730,8 +772,12 @@ export default function ManufacturingPage({
       setOrdersTotalCount(0);
       setOpenOrdersCount(0);
     }
+    if (employeeRows.data) setEmployees(employeeRows.data.filter((x) => x.status === "Active"));
+    else if (needOrders) setEmployees([]);
+    if (sourceOrders.data) setSourceSalesOrders(sourceOrders.data.items.filter((x) => x.status === "Open"));
+    else if (needOrders && createOrderPage) setSourceSalesOrders([]);
     setLoading(false);
-  }, [request, section, orderPage]);
+  }, [request, section, orderPage, orderSearch, orderStatus]);
   useEffect(() => {
     const generation = ++sectionLoadGeneration.current;
     setBusy(false);
@@ -1275,17 +1321,47 @@ export default function ManufacturingPage({
           warehouseId,
           plannedQuantity: Number(plannedQuantity),
           plannedDate,
+          sourceSalesOrderId: productionMode === "SalesOrder" ? sourceSalesOrderId : null,
+          sourceSalesOrderLineNumber: productionMode === "SalesOrder" ? Number(sourceSalesOrderLineNumber) : null,
         }),
       });
       if (!mutationIsCurrent(captured)) return;
       setOrderCode("");
+      setProductionMode("Stock");
+      setSourceSalesOrderId("");
+      setSourceSalesOrderLineNumber("");
+      setSourceSalesOrderLines([]);
       setNotice("Üretim emri planlandı.");
       await refresh();
+      if (createOrderPage) onNavigate("manufacturing-orders");
     } catch (e) {
       if (mutationIsCurrent(captured)) setError((e as Error).message);
     } finally {
       if (mutationIsCurrent(captured)) setBusy(false);
     }
+  }
+  async function selectSourceSalesOrder(id: string) {
+    setSourceSalesOrderId(id);
+    setSourceSalesOrderLineNumber("");
+    setSourceSalesOrderLines([]);
+    if (!id) return;
+    setError("");
+    try {
+      const detail = await request<SourceSalesOrderDetail>(`/api/sales/orders/${id}`);
+      setSourceSalesOrderLines(detail.lines.filter((line) => line.remainingQuantity > 0));
+    } catch (e) {
+      setError(`Satış siparişi satırları yüklenemedi: ${(e as Error).message}`);
+    }
+  }
+  function selectSourceSalesOrderLine(lineNumber: string) {
+    setSourceSalesOrderLineNumber(lineNumber);
+    const line = sourceSalesOrderLines.find((x) => String(x.lineNumber) === lineNumber);
+    if (!line) return;
+    const matchingBom = boms.find((x) => x.isActive && x.productStockItemId === line.stockItemId);
+    if (matchingBom) setBomId(matchingBom.id);
+    setPlannedQuantity(String(line.remainingQuantity));
+    const deliveryDate = sourceSalesOrders.find((x) => x.id === sourceSalesOrderId)?.requestedDeliveryDate;
+    if (deliveryDate) setPlannedDate(deliveryDate);
   }
   async function transition(
     order: Order,
@@ -1295,6 +1371,11 @@ export default function ManufacturingPage({
       quantity: number;
       expiryDate: string | null;
     }[],
+    productionActuals?: {
+      actualGoodQuantity: number;
+      scrapQuantity: number;
+      scrapReason: string | null;
+    },
   ) {
     const captured = captureMutationEpoch();
     setBusy(true);
@@ -1309,7 +1390,7 @@ export default function ManufacturingPage({
         method: "POST",
         body: JSON.stringify(
           action === "complete"
-            ? { finishedGoodsTracking: finishedGoodsTracking ?? [] }
+            ? { finishedGoodsTracking: finishedGoodsTracking ?? [], ...productionActuals }
             : {},
         ),
       });
@@ -1330,17 +1411,13 @@ export default function ManufacturingPage({
     }
   }
   function completeOrder(order: Order) {
-    const mode =
-      boms.find((x) => x.id === order.billOfMaterialId)?.productTrackingMode ??
-      "None";
-    if (mode === "None") {
-      void transition(order, "complete", []);
-      return;
-    }
     setTrackingOrder(order);
     setFinishedCode("");
     setFinishedExpiry("");
     setFinishedSerials("");
+    setActualGoodQuantity(String(order.plannedQuantity));
+    setScrapQuantity("0");
+    setScrapReason("");
   }
   async function scheduleOrder(order: Order) {
     const captured = captureMutationEpoch();
@@ -1386,7 +1463,12 @@ export default function ManufacturingPage({
       run: String(operation.runMinutes),
       energyKwh: "0",
       energyRate: "0",
+      employeeId: employees.length === 1 ? employees[0].id : "",
     };
+    if (!actual.employeeId) {
+      setError("Fiili operasyon kaydı için operatör/personel seçin.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -1399,6 +1481,7 @@ export default function ManufacturingPage({
             actualRunMinutes: Number(actual.run),
             actualEnergyQuantityKwh: Number(actual.energyKwh),
             actualEnergyCostPerKwhBase: Number(actual.energyRate),
+            performedByEmployeeId: actual.employeeId,
           }),
         },
       );
@@ -1415,7 +1498,7 @@ export default function ManufacturingPage({
   }
   function updateActual(
     operation: OrderOperation,
-    field: "setup" | "run" | "energyKwh" | "energyRate",
+    field: "setup" | "run" | "energyKwh" | "energyRate" | "employeeId",
     value: string,
   ) {
     setActualTimes((previous) => {
@@ -1424,6 +1507,7 @@ export default function ManufacturingPage({
         run: String(operation.runMinutes),
         energyKwh: "0",
         energyRate: "0",
+        employeeId: employees.length === 1 ? employees[0].id : "",
       };
       return { ...previous, [operation.id]: { ...current, [field]: value } };
     });
@@ -1434,14 +1518,40 @@ export default function ManufacturingPage({
     const mode =
       boms.find((x) => x.id === trackingOrder.billOfMaterialId)
         ?.productTrackingMode ?? "None";
+    const goodQuantity = Number(actualGoodQuantity);
+    const scrapQty = Number(scrapQuantity);
+    if (
+      !Number.isFinite(goodQuantity) ||
+      !Number.isFinite(scrapQty) ||
+      goodQuantity <= 0 ||
+      scrapQty < 0 ||
+      Math.round((goodQuantity + scrapQty) * 10000) !==
+        Math.round(trackingOrder.plannedQuantity * 10000)
+    ) {
+      setError("İyi ürün ve fire miktarlarının toplamı planlanan miktara eşit olmalıdır.");
+      return;
+    }
+    if (scrapQty > 0 && !scrapReason.trim()) {
+      setError("Fire miktarı varsa fire nedeni girilmelidir.");
+      return;
+    }
+    const actuals = {
+      actualGoodQuantity: goodQuantity,
+      scrapQuantity: scrapQty,
+      scrapReason: scrapQty > 0 ? scrapReason.trim() : null,
+    };
     if (mode === "Lot") {
       void transition(trackingOrder, "complete", [
         {
           trackingCode: finishedCode.trim(),
-          quantity: trackingOrder.plannedQuantity,
+          quantity: goodQuantity,
           expiryDate: finishedExpiry || null,
         },
-      ]);
+      ], actuals);
+      return;
+    }
+    if (mode === "None") {
+      void transition(trackingOrder, "complete", [], actuals);
       return;
     }
     const serials = finishedSerials
@@ -1456,6 +1566,7 @@ export default function ManufacturingPage({
         quantity: 1,
         expiryDate: null,
       })),
+      actuals,
     );
   }
   async function runMrp(e: FormEvent) {
@@ -1647,16 +1758,17 @@ export default function ManufacturingPage({
   return (
     <div className="manufacturing-page manufacturing-workbench">
       <ManufacturingPageHeader
-        title={manufacturingSections[section].title}
-        description={manufacturingSections[section].description}
-        showRecipeScope={
-          section === "manufacturing-recipes" ||
-          section === "manufacturing-recipe-create"
-        }
+        title={createOrderPage ? manufacturingSections["manufacturing-order-create"].title : manufacturingSections[section].title}
+        description={createOrderPage ? manufacturingSections["manufacturing-order-create"].description : manufacturingSections[section].description}
+        showRecipeScope={section === "manufacturing-recipe-create"}
         showCreateRecipe={section === "manufacturing-recipes"}
         showRecipeListBack={section === "manufacturing-recipe-create"}
         showCreateWorkCenter={section === "manufacturing-work-centers"}
         showWorkCenterListBack={section === "manufacturing-work-center-create"}
+        showCreateOrder={section === "manufacturing-orders" && !createOrderPage}
+        showOrderListBack={createOrderPage}
+        showOrderSave={createOrderPage}
+        canSaveOrder={boms.length > 0 && warehouses.length > 0}
         busy={busy}
         onCreateRecipe={() => {
           resetBomForm();
@@ -1674,9 +1786,11 @@ export default function ManufacturingPage({
           onNavigate("manufacturing-work-center-create");
         }}
         onBackToWorkCenterList={() => onNavigate("manufacturing-work-centers")}
+        onCreateOrder={() => onNavigate("manufacturing-order-create")}
+        onBackToOrderList={() => onNavigate("manufacturing-orders")}
         onRefresh={() => void refresh()}
       />
-      <ManufacturingSummary
+      {!createOrderPage && <ManufacturingSummary
         workCenterMode={
           section === "manufacturing-work-centers" ||
           section === "manufacturing-work-center-create"
@@ -1723,7 +1837,7 @@ export default function ManufacturingPage({
             detail: "Firma kapsamındaki depolar",
           },
         ]}
-      />
+      />}
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}
@@ -2273,7 +2387,7 @@ export default function ManufacturingPage({
             </form>
           </section>
         )}
-        {section === "manufacturing-orders" && (
+        {section === "manufacturing-orders" && createOrderPage && (
           <section className="manufacturing-panel">
             <div className="manufacturing-heading">
               <div className="manufacturing-icon soft blue">
@@ -2284,7 +2398,7 @@ export default function ManufacturingPage({
                 <p>Reçete ve depo seçerek miktarı planlayın.</p>
               </div>
             </div>
-            <form className="manufacturing-form" onSubmit={createOrder}>
+            <form id="manufacturing-order-create-form" className="manufacturing-form" onSubmit={createOrder}>
               <label>
                 Emir kodu
                 <input
@@ -2295,6 +2409,62 @@ export default function ManufacturingPage({
                   placeholder="URE-2026-001"
                 />
               </label>
+              <label>
+                Üretim türü
+                <select
+                  value={productionMode}
+                  onChange={(e) => {
+                    const mode = e.target.value as "Stock" | "SalesOrder";
+                    setProductionMode(mode);
+                    if (mode === "Stock") {
+                      setSourceSalesOrderId("");
+                      setSourceSalesOrderLineNumber("");
+                      setSourceSalesOrderLines([]);
+                    }
+                  }}
+                >
+                  <option value="Stock">Stoka üretim</option>
+                  <option value="SalesOrder">Satış siparişine üretim</option>
+                </select>
+              </label>
+              {productionMode === "SalesOrder" && (
+                <>
+                  <label>
+                    Satış siparişi
+                    <select
+                      value={sourceSalesOrderId}
+                      onChange={(e) => void selectSourceSalesOrder(e.target.value)}
+                      required
+                    >
+                      <option value="">Açık sipariş seçin</option>
+                      {sourceSalesOrders.map((order) => (
+                        <option key={order.id} value={order.id}>
+                          {order.code} · {order.customerName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Sipariş satırı
+                    <select
+                      value={sourceSalesOrderLineNumber}
+                      onChange={(e) => selectSourceSalesOrderLine(e.target.value)}
+                      required
+                      disabled={!sourceSalesOrderId || sourceSalesOrderLines.length === 0}
+                    >
+                      <option value="">Üretilecek mamul satırını seçin</option>
+                      {sourceSalesOrderLines.map((line) => (
+                        <option key={line.lineNumber} value={line.lineNumber}>
+                          {line.stockCode} · {line.stockName} · kalan {line.remainingQuantity.toLocaleString("tr-TR")}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {sourceSalesOrderId && sourceSalesOrderLines.length === 0 && (
+                    <small>Açık siparişte üretime bağlanabilecek kalan satır yok.</small>
+                  )}
+                </>
+              )}
               <label>
                 Reçete
                 <select
@@ -2348,12 +2518,6 @@ export default function ManufacturingPage({
                   required
                 />
               </label>
-              <button
-                className="primary"
-                disabled={busy || boms.length === 0 || warehouses.length === 0}
-              >
-                <Plus size={16} /> Emir planla
-              </button>
             </form>
           </section>
         )}
@@ -2533,7 +2697,11 @@ export default function ManufacturingPage({
                 </select>
               </label>
             </div>
-            {calendarLoading ? (
+            {!workCenters.length ? (
+              <div className="manufacturing-empty" role="status">
+                Çalışma takvimi ayarları için önce bir iş merkezi tanımlayın.
+              </div>
+            ) : calendarLoading ? (
               <div className="manufacturing-empty">Takvim yükleniyor…</div>
             ) : (
               <>
@@ -3073,7 +3241,11 @@ export default function ManufacturingPage({
                 </p>
               </div>
             </div>
-            {!setupRulesReady ? (
+            {!workCenters.length ? (
+              <div className="manufacturing-empty" role="status">
+                Kurulum kuralı eklemek için önce bir iş merkezi tanımlayın.
+              </div>
+            ) : !setupRulesReady ? (
               <div className="manufacturing-empty">
                 Kurulum kuralları yükleniyor…
               </div>
@@ -3237,8 +3409,67 @@ export default function ManufacturingPage({
           </section>
         </section>
       )}
-      {section === "manufacturing-orders" && (
-        <section className="manufacturing-panel manufacturing-order-list">
+      {section === "manufacturing-orders" && !createOrderPage && (
+        <div className="manufacturing-order-stack">
+          <section className="panel manufacturing-order-filter-card" aria-label="Üretim emri filtreleri">
+            <div className="manufacturing-order-filter-heading">
+              <h2>Filtreler</h2>
+              <p>Üretim emirlerini kod, bağlı kayıt veya duruma göre daraltın.</p>
+            </div>
+            <form
+              className="manufacturing-order-filterbar"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setOrderSearch(orderSearchDraft.trim());
+                setOrderStatus(orderStatusDraft);
+                setOrderPage(1);
+              }}
+            >
+              <label className="manufacturing-order-search">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={orderSearchDraft}
+                  onChange={(event) => setOrderSearchDraft(event.target.value)}
+                  placeholder="Emir, reçete, depo veya sipariş ara"
+                  aria-label="Üretim emirlerinde ara"
+                />
+              </label>
+              <label className="manufacturing-order-status-filter">
+                <span>Durum</span>
+                <select
+                  value={orderStatusDraft}
+                  onChange={(event) => setOrderStatusDraft(event.target.value)}
+                  aria-label="Üretim emri durumu"
+                >
+                  <option value="">Tüm durumlar</option>
+                  <option value="Planned">Planlandı</option>
+                  <option value="Released">Serbest bırakıldı</option>
+                  <option value="Completed">Tamamlandı</option>
+                  <option value="Cancelled">İptal edildi</option>
+                </select>
+              </label>
+              <button type="submit" className="secondary small-button">
+                <Filter size={15} /> Filtrele
+              </button>
+              {(orderSearchDraft || orderStatusDraft) && (
+                <button
+                  type="button"
+                  className="secondary small-button manufacturing-order-clear"
+                  onClick={() => {
+                    setOrderSearchDraft("");
+                    setOrderStatusDraft("");
+                    setOrderSearch("");
+                    setOrderStatus("");
+                    setOrderPage(1);
+                  }}
+                >
+                  Temizle
+                </button>
+              )}
+            </form>
+          </section>
+          <section className="manufacturing-panel manufacturing-order-list">
           <div className="manufacturing-heading">
             <div>
               <h2>Üretim emirleri</h2>
@@ -3251,9 +3482,11 @@ export default function ManufacturingPage({
           {orders.length === 0 ? (
             <div className="manufacturing-empty">
               <Factory size={22} />
-              <b>Henüz üretim emri yok</b>
+              <b>{orderSearch || orderStatus ? "Filtreyle eşleşen üretim emri yok" : "Henüz üretim emri yok"}</b>
               <span>
-                Bir reçete oluşturduktan sonra ilk emri planlayabilirsiniz.
+                {orderSearch || orderStatus
+                  ? "Arama veya durum ölçütlerini değiştirip yeniden filtreleyin."
+                  : "Bir reçete oluşturduktan sonra ilk emri planlayabilirsiniz."}
               </span>
             </div>
           ) : (
@@ -3284,9 +3517,14 @@ export default function ManufacturingPage({
                           </>
                         ),
                         plannedDate: <>{x.plannedDate}</>,
+                        productionSource: <>{x.sourceSalesOrderCode
+                          ? `${x.sourceSalesOrderCode} · satır ${x.sourceSalesOrderLineNumber}`
+                          : "Stoka üretim"}</>,
                         billOfMaterialName: (
                           <>
-                            {x.billOfMaterialName}
+                            <span className="manufacturing-order-recipe-name">
+                              {x.billOfMaterialName}
+                            </span>
                             {x.operations.map((op) => (
                               <div
                                 className="manufacturing-operation-detail"
@@ -3415,9 +3653,29 @@ export default function ManufacturingPage({
                                           }
                                         />
                                       </label>
+                                      <label>
+                                        Operatör
+                                        <select
+                                          value={
+                                            actualTimes[op.id]?.employeeId ??
+                                            (employees.length === 1 ? employees[0].id : "")
+                                          }
+                                          onChange={(e) =>
+                                            updateActual(op, "employeeId", e.target.value)
+                                          }
+                                          required
+                                        >
+                                          <option value="">Personel seçin</option>
+                                          {employees.map((employee) => (
+                                            <option key={employee.id} value={employee.id}>
+                                              {employee.personnelCode} · {employee.fullName}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
                                       <button
                                         className="primary small-button"
-                                        disabled={busy}
+                                        disabled={busy || employees.length === 0}
                                         onClick={() =>
                                           void completeOperation(x, op)
                                         }
@@ -3447,7 +3705,7 @@ export default function ManufacturingPage({
                                     {new Intl.NumberFormat("tr-TR", {
                                       maximumFractionDigits: 2,
                                     }).format(op.actualCostBase ?? 0)}{" "}
-                                    baz para
+                                    baz para{op.performedByEmployeeName ? ` · Operatör: ${op.performedByEmployeeName}` : ""}
                                   </small>
                                 )}
                               </div>
@@ -3611,9 +3869,30 @@ export default function ManufacturingPage({
                         </dd>
                       </div>
                       <div>
+                        <dt>Üretim türü</dt>
+                        <dd>{selectedOrder.sourceSalesOrderCode
+                          ? `Siparişe özel · ${selectedOrder.sourceSalesOrderCode} / satır ${selectedOrder.sourceSalesOrderLineNumber}`
+                          : "Stoka üretim"}</dd>
+                      </div>
+                      <div>
                         <dt>Plan tarihi</dt>
                         <dd>{selectedOrder.plannedDate}</dd>
                       </div>
+                      {selectedOrder.actualGoodQuantity !== null && (
+                        <>
+                          <div>
+                            <dt>İyi ürün</dt>
+                            <dd>{selectedOrder.actualGoodQuantity.toLocaleString("tr-TR")}</dd>
+                          </div>
+                          <div>
+                            <dt>Fire</dt>
+                            <dd>
+                              {selectedOrder.scrapQuantity?.toLocaleString("tr-TR") ?? "0"}
+                              {selectedOrder.scrapReason ? ` · ${selectedOrder.scrapReason}` : ""}
+                            </dd>
+                          </div>
+                        </>
+                      )}
                     </dl>
                     <div className="manufacturing-inspector-section">
                       <b>Bileşen ihtiyacı</b>
@@ -3740,6 +4019,7 @@ export default function ManufacturingPage({
             </div>
           )}
         </section>
+        </div>
       )}
       {section === "manufacturing-mrp" && (
         <section className="manufacturing-panel mrp-panel">
@@ -4049,6 +4329,13 @@ export default function ManufacturingPage({
                               {line.netRequirement.toLocaleString("tr-TR")}{" "}
                               {line.unitCode} · ihtiyaç {line.requiredByDate}
                             </small>
+                            {line.sourceSalesOrder ? (
+                              <small>
+                                Kaynak sipariş: {line.sourceSalesOrder.salesOrderCode} · satır {line.sourceSalesOrder.salesOrderLineNumber}
+                              </small>
+                            ) : line.sources.some((source) => source.startsWith("Satış ")) ? (
+                              <small>Birden fazla talep birleşti; sipariş satırı bağlantısı kurulmayacak.</small>
+                            ) : null}
                           </span>
                         </label>
                         {line.recommendation === "Üret" && (
@@ -4146,19 +4433,53 @@ export default function ManufacturingPage({
             >
               ×
             </button>
-            <p className="eyebrow">MAMUL İZLENEBİLİRLİĞİ</p>
+            <p className="eyebrow">ÜRETİM SONU BİLDİRİMİ</p>
             <h2 id="finished-goods-title">
-              Üretimi tamamla · {trackingOrder.code}
+              Üretimi bildir · {trackingOrder.code}
             </h2>
-            <p>
-              Üretim girişi için mamulün{" "}
-              {boms.find((x) => x.id === trackingOrder.billOfMaterialId)
-                ?.productTrackingMode === "Lot"
-                ? "lot numarası ve son kullanma tarihini"
-                : "seri numaralarını"}{" "}
-              kaydedin.
-            </p>
+            <p>İyi ürün ve fire miktarını bildirin. Toplam, planlanan miktara eşit olmalıdır.</p>
             <form onSubmit={submitFinishedTracking}>
+              <div className="manufacturing-form-grid">
+                <label>
+                  İyi ürün miktarı
+                  <input
+                    type="number"
+                    min="0.0001"
+                    max={trackingOrder.plannedQuantity}
+                    step="0.0001"
+                    required
+                    value={actualGoodQuantity}
+                    onChange={(e) => setActualGoodQuantity(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Fire miktarı
+                  <input
+                    type="number"
+                    min="0"
+                    max={trackingOrder.plannedQuantity}
+                    step="0.0001"
+                    required
+                    value={scrapQuantity}
+                    onChange={(e) => setScrapQuantity(e.target.value)}
+                  />
+                </label>
+              </div>
+              {Number(scrapQuantity) > 0 && (
+                <label>
+                  Fire nedeni
+                  <textarea
+                    value={scrapReason}
+                    onChange={(e) => setScrapReason(e.target.value)}
+                    required
+                    maxLength={500}
+                    placeholder="Örn. hammadde hatası, makine arızası"
+                  />
+                </label>
+              )}
+              <small>
+                Planlanan: {trackingOrder.plannedQuantity.toLocaleString("tr-TR")} · Bildirilen: {(Number(actualGoodQuantity || 0) + Number(scrapQuantity || 0)).toLocaleString("tr-TR")}
+              </small>
               {boms.find((x) => x.id === trackingOrder.billOfMaterialId)
                 ?.productTrackingMode === "Lot" ? (
                 <>
@@ -4183,10 +4504,11 @@ export default function ManufacturingPage({
                     />
                   </label>
                   <small>
-                    Lot miktarı planlanan mamul miktarıyla aynı kaydedilir.
+                    Lot miktarı iyi ürün miktarı kadar kaydedilir.
                   </small>
                 </>
-              ) : (
+              ) : boms.find((x) => x.id === trackingOrder.billOfMaterialId)
+                    ?.productTrackingMode === "Serial" ? (
                 <>
                   <label>
                     Seri numaraları
@@ -4201,12 +4523,10 @@ export default function ManufacturingPage({
                     />
                   </label>
                   <small>
-                    {trackingOrder.plannedQuantity.toLocaleString("tr-TR")} adet
-                    için aynı sayıda benzersiz seri numarası girin. Virgül veya
-                    noktalı virgül de ayraç olarak kullanılabilir.
+                    {Number(actualGoodQuantity || 0).toLocaleString("tr-TR")} iyi ürün için aynı sayıda benzersiz seri numarası girin. Virgül veya noktalı virgül ayraç olarak kullanılabilir.
                   </small>
                 </>
-              )}
+              ) : null}
               <div className="manufacturing-modal-actions">
                 <button
                   type="button"
@@ -4217,7 +4537,7 @@ export default function ManufacturingPage({
                   Vazgeç
                 </button>
                 <button className="primary" disabled={busy}>
-                  {busy ? "Kaydediliyor…" : "Üretimi tamamla"}
+                  {busy ? "Kaydediliyor…" : "Bildir ve tamamla"}
                 </button>
               </div>
             </form>

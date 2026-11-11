@@ -390,15 +390,17 @@ public static class ReportEndpoints
         reports.MapGet("/companies", async (ClaimsPrincipal user, PlatformDbContext platformDb, CancellationToken ct) =>
         {
             if (!TryTenantContext(user, out _, out var userId, out _)) return Results.Forbid();
-            var companies = await platformDb.TenantMemberships.AsNoTracking()
+            var memberships = await platformDb.TenantMemberships.AsNoTracking()
                 .Where(membership => membership.UserId == userId && membership.Tenant.IsActive)
                 .Join(platformDb.TenantDatabaseCatalog.AsNoTracking().Where(database => database.State == TenantDatabaseProvisioningState.Ready),
                     membership => membership.TenantId, database => database.TenantId,
                     (membership, database) => new { membership.TenantId, CompanyName = membership.Tenant.Name, database.DatabaseName })
-                .Where(company => company.DatabaseName == "AIERPTenant_" + company.TenantId.ToString("N"))
+                .ToListAsync(ct);
+            var companies = memberships
+                .Where(company => string.Equals(company.DatabaseName, $"AIERPTenant_{company.TenantId:N}", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(company => company.CompanyName)
                 .Select(company => new { id = company.TenantId, name = company.CompanyName })
-                .ToListAsync(ct);
+                .ToArray();
             return Results.Ok(companies);
         });
 
@@ -2009,7 +2011,7 @@ public static class ReportEndpoints
             .Include(x => x.Customer).Include(x => x.Order);
         // Apply the same row-level permission rules as the erp.sales-quotes list endpoint.
         query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
-            "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? query;
+            "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId ?? Guid.Empty, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplySalesQuoteFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -2324,7 +2326,7 @@ public static class ReportEndpoints
             .Include(x => x.Customer).Include(x => x.Order);
         // Apply the same row-level permission rules as the erp.sales-quotes list endpoint.
         query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
-            "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? query;
+            "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId ?? Guid.Empty, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplySalesQuoteFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });

@@ -1,6 +1,36 @@
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { Ban } from "lucide-react";
 
+function providerDocumentStatusLabel(status: number, tr: Props["tr"]) {
+  const labels: Record<number, [string, string]> = {
+    10: ["İşleniyor", "Processing"],
+    20: ["Belge hazırlanıyor", "Preparing document"],
+    29: ["Belge hatası", "Document error"],
+    30: ["Oluşturuldu", "Created"],
+    40: ["GİB'e gönderildi", "Sent to GIB"],
+    50: ["Yanıt bekleniyor", "Awaiting response"],
+    100: ["Reddediliyor", "Rejecting"],
+    105: ["Reddedildi", "Rejected"],
+    200: ["Onaylanıyor", "Approving"],
+    205: ["Onaylandı (ilgili senaryolarda nihai)", "Approved (final in applicable scenarios)"],
+    305: ["İptal edildi", "Cancelled"],
+    405: ["Hatalı", "Error"],
+  };
+  const label = labels[status];
+  return label ? tr(...label) : String(status);
+}
+
+function providerReplyTypeLabel(responseType: string, tr: Props["tr"]) {
+  const labels: Record<string, [string, string]> = {
+    APPROVED: ["Onaylandı", "Approved"],
+    AUTO_APPROVED: ["Otomatik onaylandı", "Auto-approved"],
+    DENIED: ["Reddedildi", "Denied"],
+    RETURNED: ["İade edildi", "Returned"],
+  };
+  const label = labels[responseType];
+  return label ? tr(...label) : responseType;
+}
+
 export type IntegrationOperation = {
   operationId: string;
   integrationCode: string;
@@ -26,6 +56,25 @@ export type IntegrationOperationPage = {
   pageSize: number;
   totalCount: number;
 };
+type EDocumentProviderStatus = {
+  operationId: string;
+  operationStatus: string;
+  providerStatus: {
+    documentType: string;
+    documentUuid: string;
+    status: number;
+    gibStatusCode: number | null;
+    gibStatus: string | null;
+    replyLookupStatus: string | null;
+    sentReply: {
+      responseType: string;
+      issuedAt: string | null;
+      replyStatus: number | null;
+      gibStatus: number | null;
+    } | null;
+  };
+  externalReference: string;
+};
 
 type Props = {
   status: string;
@@ -39,6 +88,7 @@ type Props = {
   reconciliationOutcome: "confirmed_submitted" | "confirmed_not_submitted";
   reconciliationReference: string;
   reconciliationEvidence: string;
+  providerStatus: EDocumentProviderStatus | null;
   onStatusChange: (value: string) => void;
   onSelectOperation: (operationId: string) => void;
   onCancel: (operation: IntegrationOperation) => void;
@@ -48,6 +98,7 @@ type Props = {
   onReconciliationReferenceChange: (value: string) => void;
   onReconciliationEvidenceChange: (value: string) => void;
   onReconcile: (operation: IntegrationOperation) => void;
+  onCheckProviderStatus: (operation: IntegrationOperation) => void;
   onPageChange: (delta: number) => void;
   tr: (turkish: string, english: string) => string;
   locale: () => string;
@@ -66,6 +117,7 @@ export default function IntegrationOperationsList({
   reconciliationOutcome,
   reconciliationReference,
   reconciliationEvidence,
+  providerStatus,
   onStatusChange,
   onSelectOperation,
   onCancel,
@@ -73,6 +125,7 @@ export default function IntegrationOperationsList({
   onReconciliationReferenceChange,
   onReconciliationEvidenceChange,
   onReconcile,
+  onCheckProviderStatus,
   onPageChange,
   tr,
   locale,
@@ -80,7 +133,7 @@ export default function IntegrationOperationsList({
 }: Props) {
   return (
     <>
-      <div className="integration-queue-toolbar">
+      <div className="integration-operation-list-heading">
         <div>
           <h2>{tr("İşlem geçmişi", "Operation history")}</h2>
           <p className="muted">
@@ -89,6 +142,15 @@ export default function IntegrationOperationsList({
               "Queue contents and sensitive request data are not shown in this list.",
             )}
           </p>
+        </div>
+      </div>
+      <section
+        className="integration-operation-filter-card"
+        aria-label={tr("İşlem geçmişi filtreleri", "Operation history filters")}
+      >
+        <div>
+          <h3>{tr("Filtreler", "Filters")}</h3>
+          <p>{tr("İşlemleri durumlarına göre daraltın.", "Narrow operations by status.")}</p>
         </div>
         <label>
           {tr("Durum", "Status")}
@@ -105,7 +167,7 @@ export default function IntegrationOperationsList({
             ))}
           </select>
         </label>
-      </div>
+      </section>
       <div className="integration-operations-workbench">
         <div
           className="integration-queue-table-wrap"
@@ -315,26 +377,94 @@ export default function IntegrationOperationsList({
         )}
       </div>
       {selectedOperation?.integrationCode === "tr.e-document.submit" &&
-        selectedOperation.status === "Indeterminate" && (
+        ["Indeterminate", "Succeeded"].includes(selectedOperation.status) && (
           <section
             className="integration-reconciliation"
             aria-label={tr(
-              "Dış sağlayıcıyla mutabakat",
-              "Reconcile with external provider",
+              selectedOperation.status === "Indeterminate"
+                ? "Dış sağlayıcıyla mutabakat"
+                : "Sağlayıcı belge durumu",
+              selectedOperation.status === "Indeterminate"
+                ? "Reconcile with external provider"
+                : "Provider document status",
             )}
           >
             <h3>
               {tr(
-                "Dış sağlayıcıyla mutabakat",
-                "Reconcile with external provider",
+                selectedOperation.status === "Indeterminate"
+                  ? "Dış sağlayıcıyla mutabakat"
+                  : "Sağlayıcı belge durumu",
+                selectedOperation.status === "Indeterminate"
+                  ? "Reconcile with external provider"
+                  : "Provider document status",
               )}
             </h3>
             <p>
               {tr(
-                "Önce sağlayıcı portalında bu aynı belgeyi bulun. Taslağı oluşturan kişiden farklı bir firma yöneticisi doğruladığı sonucu kaydetmelidir.",
-                "First locate this document in the provider portal. A company administrator different from the draft creator must record the verified outcome.",
+                selectedOperation.status === "Indeterminate"
+                  ? "Önce sağlayıcı portalında bu aynı belgeyi bulun. Taslağı oluşturan kişiden farklı bir firma yöneticisi doğruladığı sonucu kaydetmelidir."
+                  : "Sağlayıcı durumunu ve varsa ticari yanıtı salt okunur kontrol edin. Taslağı oluşturan kişiden farklı bir firma yöneticisi sorgulamalıdır. Sorgu operasyon durumunu değiştirmez.",
+                selectedOperation.status === "Indeterminate"
+                  ? "First locate this document in the provider portal. A company administrator different from the draft creator must record the verified outcome."
+                  : "Check provider status and any commercial reply in read-only mode. An administrator different from the draft creator must run the lookup. The lookup does not change the operation.",
               )}
             </p>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busyId === selectedOperation.operationId}
+              onClick={() => onCheckProviderStatus(selectedOperation)}
+            >
+              {busyId === selectedOperation.operationId
+                ? tr("Durum sorgulanıyor…", "Checking provider status…")
+                : tr("Sağlayıcı durumunu sorgula", "Check provider status")}
+            </button>
+            {providerStatus?.operationId === selectedOperation.operationId && (
+              <>
+                <p role="status" className="provider-status-result">
+                  {tr("Sağlayıcı durumu", "Provider status")}: {providerStatus.providerStatus.status} · {providerDocumentStatusLabel(providerStatus.providerStatus.status, tr)}
+                  {providerStatus.providerStatus.gibStatusCode !== null
+                    ? ` · GİB ${providerStatus.providerStatus.gibStatusCode}`
+                    : ""}
+                  {providerStatus.providerStatus.gibStatus
+                    ? ` · ${providerStatus.providerStatus.gibStatus}`
+                    : ""}
+                  {` · UUID ${providerStatus.externalReference}`}
+                </p>
+                {providerStatus.providerStatus.replyLookupStatus && (
+                  <p role="status" className="provider-status-result">
+                    {tr("Ticari yanıt", "Commercial reply")}: {providerStatus.providerStatus.sentReply
+                      ? providerReplyTypeLabel(providerStatus.providerStatus.sentReply.responseType, tr)
+                      : providerStatus.providerStatus.replyLookupStatus === "not_found"
+                        ? tr("Yanıt henüz bulunamadı", "No reply found yet")
+                        : tr("Yanıt sorgusu kullanılamıyor", "Reply lookup unavailable")}
+                    {providerStatus.providerStatus.sentReply?.issuedAt
+                      ? ` · ${new Date(providerStatus.providerStatus.sentReply.issuedAt).toLocaleString()}`
+                      : ""}
+                    {providerStatus.providerStatus.sentReply?.replyStatus !== null && providerStatus.providerStatus.sentReply?.replyStatus !== undefined
+                      ? ` · ${tr("Yanıt kodu", "Reply code")} ${providerStatus.providerStatus.sentReply.replyStatus}`
+                      : ""}
+                    {providerStatus.providerStatus.sentReply?.gibStatus !== null && providerStatus.providerStatus.sentReply?.gibStatus !== undefined
+                      ? ` · ${tr("GİB yanıt kodu", "GIB reply code")} ${providerStatus.providerStatus.sentReply.gibStatus}`
+                      : ""}
+                  </p>
+                )}
+                <small>
+                  {tr(
+                    "Sağlayıcı durumu GİB raporlama kodundan ve hukuki kabulden ayrıdır.",
+                    "The provider status is separate from the GIB reporting code and legal acceptance.",
+                  )}
+                </small>
+              </>
+            )}
+            <small>
+              {tr(
+                "Durum sorgusu işlemi kapatmaz. 404 yanıtı gönderilmediğini kanıtlamaz.",
+                "A status lookup does not close the operation. A 404 does not prove it was not submitted.",
+              )}
+            </small>
+            {selectedOperation.status === "Indeterminate" && (
+              <>
             <label>
               {tr("Doğrulanan sonuç", "Verified outcome")}
               <select
@@ -396,6 +526,8 @@ export default function IntegrationOperationsList({
                 ? tr("Kaydediliyor…", "Saving…")
                 : tr("Doğrulanmış sonucu kaydet", "Record verified outcome")}
             </button>
+              </>
+            )}
           </section>
         )}
       <footer className="integration-queue-pagination">

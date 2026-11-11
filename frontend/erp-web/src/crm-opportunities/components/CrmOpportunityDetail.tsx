@@ -13,6 +13,7 @@ type Props = {
   onClear: () => void;
   onCreate: () => void;
   onClose: () => void;
+  onEdit: (item: Opportunity) => void;
   onMove: (stage: string) => void;
 };
 
@@ -28,6 +29,7 @@ export function CrmOpportunityDetail({
   onClear,
   onCreate,
   onClose,
+  onEdit,
   onMove,
 }: Props) {
   return (
@@ -100,6 +102,11 @@ export function CrmOpportunityDetail({
             </div>
           )}
           <div className="crm-detail-actions">
+            {!(["Won", "Lost"].includes(selected.stage)) && (
+              <button type="button" className="secondary" disabled={busy} onClick={() => onEdit(selected)}>
+                Düzenle
+              </button>
+            )}
             {nextStage[selected.stage] && (
               <button
                 type="button"

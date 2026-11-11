@@ -35,7 +35,7 @@ public static class StandaloneInventoryDocumentEndpoints
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             var replay = await db.StandaloneSalesDeliveries.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.RequestId == request.RequestId, ct);
             if (replay is not null) return replay.Code == request.Code.Trim() ? Results.Ok(new { replay.Id, replay.Code, status = replay.Status.ToString() }) : Results.Conflict(new { error = "İstek anahtarı farklı bir belge için kullanılmış." });
-            if (!await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == request.CustomerId && x.IsActive && x.Type != CounterpartyType.Supplier, ct))
+            if (!await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == request.CustomerId && x.IsActive && x.Type != CounterpartyType.Supplier && x.Type != CounterpartyType.Employee, ct))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["customerId"] = ["Etkin müşteri kartı bulunamadı."] });
             var warehouse = await db.Warehouses.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.WarehouseId, ct);
             if (warehouse is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["warehouseId"] = ["Depo bulunamadı."] });
@@ -167,6 +167,8 @@ public static class StandaloneInventoryDocumentEndpoints
         ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
     {
         if (!Tenant(user, out var tenantId)) return Results.Forbid();
+        if (SalesInvoiceEDocumentFieldsValidation.Validate(request.EDocument) is { } metadataErrors) return Results.ValidationProblem(metadataErrors);
+        var eDocument = SalesInvoiceEDocumentFieldsValidation.Normalize(request.EDocument);
         if (request.Lines is null || request.Lines.Count is < 1 or > 200
             || request.Lines.Any(x => x.LineNumber < 1 || x.UnitPrice < 0 || x.UnitPrice > 99999999999999.9999m
                 || x.UnitPrice != decimal.Round(x.UnitPrice, 4) || x.DiscountPercent is < 0 or > 100
@@ -186,14 +188,37 @@ public static class StandaloneInventoryDocumentEndpoints
         var existing = await db.SalesInvoices.AsNoTracking().Include(x => x.Customer)
             .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.StandaloneDeliveryId == delivery.Id, ct);
         if (existing is not null)
+        {
+            if (!string.Equals(existing.EDocumentScenario, eDocument?.Scenario, StringComparison.Ordinal) ||
+                !string.Equals(existing.EDocumentTypeCode, eDocument?.TypeCode, StringComparison.Ordinal) ||
+                !string.Equals(existing.EDocumentRecipientAlias, eDocument?.RecipientAlias, StringComparison.Ordinal) ||
+                !string.Equals(existing.ECommercePurchaseUrl, eDocument?.PurchaseUrl, StringComparison.Ordinal) ||
+                !string.Equals(existing.ECommercePaymentTaxId, eDocument?.PaymentTaxId, StringComparison.Ordinal) ||
+                !string.Equals(existing.ECommercePaymentTitle, eDocument?.PaymentTitle, StringComparison.Ordinal) ||
+                !string.Equals(existing.ECommercePaymentAlias, eDocument?.PaymentAlias, StringComparison.Ordinal) ||
+                !string.Equals(existing.ECommercePaymentAgentName, eDocument?.PaymentAgentName, StringComparison.Ordinal) ||
+                !string.Equals(existing.ECommercePaymentType, eDocument?.PaymentType, StringComparison.Ordinal) ||
+                existing.ECommercePaymentDate != eDocument?.PaymentDate || existing.ECommercePaymentDueDate != eDocument?.PaymentDueDate ||
+                !string.Equals(existing.ECommercePaymentMeans, eDocument?.PaymentMeans, StringComparison.Ordinal) ||
+                !string.Equals(existing.ECommercePaymentInstructionNote, eDocument?.PaymentInstructionNote, StringComparison.Ordinal) ||
+                !string.Equals(existing.ECommerceIntermediaryCountry, eDocument?.IntermediaryCountry, StringComparison.Ordinal) ||
+                !string.Equals(existing.ECommerceIntermediaryCountryCode, eDocument?.IntermediaryCountryCode, StringComparison.Ordinal) ||
+                !string.Equals(existing.ECommerceIntermediaryCity, eDocument?.IntermediaryCity, StringComparison.Ordinal) ||
+                !string.Equals(existing.ECommerceIntermediaryDistrict, eDocument?.IntermediaryDistrict, StringComparison.Ordinal) ||
+                !string.Equals(existing.DeliveryCarrierTaxId, eDocument?.CarrierTaxId, StringComparison.Ordinal) ||
+                !string.Equals(existing.DeliveryCarrierName, eDocument?.CarrierName, StringComparison.Ordinal) ||
+                !string.Equals(existing.DeliveryCarrierSurname, eDocument?.CarrierSurname, StringComparison.Ordinal) ||
+                existing.DeliverySentAt != eDocument?.SentAt)
+                return Results.Conflict(new { error = "Bu irsaliye için fatura daha önce farklı e-belge bilgileriyle oluşturulmuş." });
             return Results.Ok(new { id = existing.Id, code = existing.Code, status = existing.Status.ToString(), existing.InvoiceDate,
                 existing.CurrencyCode, existing.GrandTotal, standaloneDeliveryId = delivery.Id, deliveryCode = delivery.Code });
+        }
         if (delivery.Status != StandaloneInventoryDocumentStatus.Posted)
             return Results.Conflict(new { error = "Yalnızca kaydedilmiş siparişsiz irsaliyeden fatura oluşturulabilir." });
         if (delivery.Lines.Count == 0 || request.Lines.Count != delivery.Lines.Count
             || delivery.Lines.Any(line => request.Lines.All(input => input.LineNumber != line.LineNumber)))
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Fatura satırları irsaliye satırlarıyla birebir eşleşmelidir."] });
-        if (!delivery.Customer.IsActive || delivery.Customer.Type is not (CounterpartyType.Customer or CounterpartyType.Both))
+        if (!delivery.Customer.IsActive || delivery.Customer.Type is not (CounterpartyType.Customer or CounterpartyType.Both or CounterpartyType.Dealer))
             return Results.Conflict(new { error = "İrsaliyedeki müşteri kartı etkin bir müşteri değil." });
         if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(
                 await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.InvoiceDate, ct), "satış faturası") is { } closedConflict)
@@ -219,10 +244,23 @@ public static class StandaloneInventoryDocumentEndpoints
             var projected = debit - credit + totals.GrandTotal;
             if (projected > limit) return Results.Conflict(new { error = "Fatura tutarı müşteri risk limitini aşacağı için kaydedilmedi.", currentBalance = debit - credit, projectedBalance = projected, riskLimit = limit });
         }
-        var code = $"INV-{Guid.NewGuid():N}".ToUpperInvariant();
+        var invoiceSeries = TenantDocumentNumbering.InvoiceSeries(eDocument?.Scenario);
+        var code = await TenantDocumentNumbering.NextAsync(db, tenantId, invoiceSeries.Type, invoiceSeries.Scenario, request.InvoiceDate, ct);
         var invoice = new SalesInvoice { TenantId = tenantId, StandaloneDeliveryId = delivery.Id, CustomerId = customer.Id,
             Code = code, InvoiceDate = request.InvoiceDate, CurrencyCode = customer.CurrencyCode,
-            Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal };
+            Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal,
+            EDocumentScenario = eDocument?.Scenario, EDocumentTypeCode = eDocument?.TypeCode,
+            EDocumentRecipientAlias = eDocument?.RecipientAlias, ECommercePurchaseUrl = eDocument?.PurchaseUrl,
+            ECommercePaymentTaxId = eDocument?.PaymentTaxId, ECommercePaymentTitle = eDocument?.PaymentTitle,
+            ECommercePaymentAlias = eDocument?.PaymentAlias, ECommercePaymentAgentName = eDocument?.PaymentAgentName,
+            ECommercePaymentType = eDocument?.PaymentType, ECommercePaymentDate = eDocument?.PaymentDate,
+            ECommercePaymentDueDate = eDocument?.PaymentDueDate, ECommercePaymentMeans = eDocument?.PaymentMeans,
+            ECommercePaymentInstructionNote = eDocument?.PaymentInstructionNote,
+            ECommerceIntermediaryCountry = eDocument?.IntermediaryCountry, ECommerceIntermediaryCountryCode = eDocument?.IntermediaryCountryCode,
+            ECommerceIntermediaryCity = eDocument?.IntermediaryCity, ECommerceIntermediaryDistrict = eDocument?.IntermediaryDistrict,
+            DeliveryCarrierTaxId = eDocument?.CarrierTaxId,
+            DeliveryCarrierName = eDocument?.CarrierName, DeliveryCarrierSurname = eDocument?.CarrierSurname,
+            DeliverySentAt = eDocument?.SentAt };
         foreach (var row in rows)
             invoice.Lines.Add(new SalesInvoiceLine { TenantId = tenantId, Invoice = invoice, StandaloneDeliveryLineId = row.Line.Id,
                 OrderLineNumber = row.Line.LineNumber, StockItemId = row.Line.StockItemId, StockCode = row.Line.StockCode,
@@ -254,7 +292,7 @@ public static class StandaloneInventoryDocumentEndpoints
             : query).Include(x => x.Lines).SingleOrDefaultAsync(ct);
         if (doc is null) return Results.NotFound();
         if (doc.Status != StandaloneInventoryDocumentStatus.Draft) return Results.Conflict(new { error = "Yalnızca taslak irsaliye düzenlenebilir." });
-        if (!await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == request.CustomerId && x.IsActive && x.Type != CounterpartyType.Supplier, ct))
+        if (!await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == request.CustomerId && x.IsActive && x.Type != CounterpartyType.Supplier && x.Type != CounterpartyType.Employee, ct))
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["customerId"] = ["Etkin müşteri kartı bulunamadı."] });
         var warehouse = await db.Warehouses.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.WarehouseId, ct);
         if (warehouse is null || !warehouse.IsActive) return Results.ValidationProblem(new Dictionary<string, string[]> { ["warehouseId"] = ["Etkin depo bulunamadı."] });
@@ -508,7 +546,7 @@ public static class StandaloneInventoryDocumentEndpoints
 
 public sealed record StandaloneSalesDeliveryWrite(Guid RequestId, string Code, Guid CustomerId, Guid WarehouseId, DateOnly DeliveryDate, List<StandaloneSalesDeliveryLineWrite>? Lines);
 public sealed record StandaloneSalesDeliveryLineWrite(Guid StockItemId, decimal Quantity, string? UnitCode, string? TrackingCode, DateOnly? ExpiryDate, Guid? StorageLocationId = null);
-public sealed record StandaloneSalesDeliveryInvoiceWrite(DateOnly InvoiceDate, IReadOnlyList<StandaloneSalesDeliveryInvoiceLineWrite>? Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
+public sealed record StandaloneSalesDeliveryInvoiceWrite(DateOnly InvoiceDate, IReadOnlyList<StandaloneSalesDeliveryInvoiceLineWrite>? Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null);
 public sealed record StandaloneSalesDeliveryInvoiceLineWrite(int LineNumber, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20);
 public sealed record StandalonePurchaseReceiptWrite(Guid RequestId, string Code, Guid SupplierId, Guid WarehouseId, DateOnly ReceiptDate, List<StandalonePurchaseReceiptLineWrite>? Lines);
 public sealed record StandalonePurchaseReceiptLineWrite(Guid StockItemId, decimal Quantity, string? UnitCode, decimal UnitCostBase, string? TrackingCode, DateOnly? ExpiryDate, Guid? StorageLocationId = null);

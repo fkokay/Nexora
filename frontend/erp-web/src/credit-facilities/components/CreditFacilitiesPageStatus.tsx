@@ -3,6 +3,9 @@ type Props = {
   error: string;
   notice: string;
   isAdmin: boolean;
+  totalCount: number;
+  activeCount: number;
+  visibleCount: number;
   onCreateFacility: () => void;
   onCreateSchedule?: () => void;
   onCreateMovement?: () => void;
@@ -15,6 +18,9 @@ export function CreditFacilitiesPageStatus({
   error,
   notice,
   isAdmin,
+  totalCount,
+  activeCount,
+  visibleCount,
   onCreateFacility,
   onCreateSchedule,
   onCreateMovement,
@@ -23,10 +29,12 @@ export function CreditFacilitiesPageStatus({
 }: Props) {
   return (
     <>
-      <div className="credit-page-actions">
-        <span>
-          {loading ? "Kayıtlar yükleniyor" : "Kredi ve ödeme planı kayıtları"}
-        </span>
+      <header className="credit-page-actions">
+        <div className="credit-page-heading-copy">
+          <p className="eyebrow">FİNANS YÖNETİMİ · KREDİLER &amp; FİNANSMAN</p>
+          <h1>Krediler &amp; Finansman</h1>
+          <p className="muted">Kredi limitlerini, kullandırımları ve ödeme planlarını yönetin.</p>
+        </div>
         <div className="credit-page-action-buttons">
           {isAdmin && (
             <>
@@ -62,7 +70,12 @@ export function CreditFacilitiesPageStatus({
             {loading ? "Yükleniyor…" : "Yenile"}
           </button>
         </div>
-      </div>
+      </header>
+      <section className="credit-list-summary" aria-label="Kredi özeti">
+        <article><span>Toplam kredi</span><strong>{totalCount}</strong></article>
+        <article><span>Aktif kredi</span><strong>{activeCount}</strong></article>
+        <article><span>Filtreye uyan</span><strong>{visibleCount}</strong></article>
+      </section>
       {error && (
         <div className="alert inline-alert" role="alert">
           <span>{error}</span>

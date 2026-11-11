@@ -212,12 +212,6 @@ export function PurchaseReceiptsScreen({
           </button>
         </div>
       )}
-      <StandaloneFulfillmentPanel
-        token={token}
-        customers={customers}
-        stockItems={stockItems}
-        warehouses={warehouseOptions}
-      />
       <div className="customer-summary">
         <div className="customer-summary-icon">
           <Package size={19} />
@@ -227,7 +221,12 @@ export function PurchaseReceiptsScreen({
           <small>Siparişe bağlı mal kabulleri burada listelenir.</small>
         </div>
       </div>
-      <div className="customer-toolbar">
+      <section className="panel receipt-filter-card" aria-label="Mal kabul filtreleri">
+      <div className="receipt-filter-heading">
+        <h2>Filtreler</h2>
+        <p>Mal kabullerini belge, sipariş veya depo bilgisine göre daraltın.</p>
+      </div>
+      <div className="customer-toolbar receipt-filter-toolbar">
         <label className="customer-search">
           <Search size={16} />
           <input
@@ -249,7 +248,14 @@ export function PurchaseReceiptsScreen({
           Yenile
         </button>
       </div>
+      </section>
       <div className="customer-table-wrap">
+        <div className="erp-pane-heading">
+          <div>
+            <b>Mal kabul kayıtları</b>
+            <small>{loading ? "Kayıtlar yükleniyor…" : `${total} kayıt`}</small>
+          </div>
+        </div>
         <table className="customer-table quote-table">
           <thead>
             <ScreenViewGroupHeader fields={visibleFields} />
@@ -345,6 +351,12 @@ export function PurchaseReceiptsScreen({
           </button>
         </div>
       </div>
+      <StandaloneFulfillmentPanel
+        token={token}
+        customers={customers}
+        stockItems={stockItems}
+        warehouses={warehouseOptions}
+      />
       {order && (
         <div
           className="modal-backdrop"

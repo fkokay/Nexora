@@ -1,13 +1,15 @@
 import type { FormEvent } from "react";
-import { BriefcaseBusiness, Plus, X } from "lucide-react";
+import { BriefcaseBusiness, ShieldCheck, X } from "lucide-react";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
 import type { Customer } from "../types";
 
 type Props = {
+  mode?: "create" | "edit";
   customerError: string;
   customers: Customer[];
   customerId: string;
   selectedCustomer: Customer | null;
+  selectedCustomerName?: string | null;
   customerLoading: boolean;
   code: string;
   name: string;
@@ -33,10 +35,12 @@ type Props = {
 };
 
 export function CrmOpportunityCreateForm({
+  mode = "create",
   customerError,
   customers,
   customerId,
   selectedCustomer,
+  selectedCustomerName,
   customerLoading,
   code,
   name,
@@ -61,46 +65,45 @@ export function CrmOpportunityCreateForm({
   onNotesChange,
 }: Props) {
   return (
-    <div
-      className="crm-modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <section
-        className="crm-panel crm-create-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="crm-create-title"
-      >
-        <div className="crm-panel-heading crm-create-heading">
-          <span className="crm-create-heading-icon" aria-hidden="true">
+      <section className="customer-create-page-surface crm-create-page-surface" aria-labelledby="crm-create-title">
+        <header className="customer-create-page-heading crm-create-page-heading">
+          <div className="customer-create-page-title crm-create-page-title">
+          <span className="customer-create-page-icon crm-create-heading-icon" aria-hidden="true">
             <BriefcaseBusiness size={20} />
           </span>
           <div>
             <p className="eyebrow">CRM · SATIŞ HATTI</p>
-            <h2 id="crm-create-title">Yeni fırsat</h2>
+            <h1 id="crm-create-title">{mode === "edit" ? "Fırsatı düzenle" : "Yeni fırsat"}</h1>
             <p>
               Fırsatı müşteri carisine bağlayın; kapanış ve sonraki takip
               tarihini planlayın.
             </p>
           </div>
+          </div>
+          <div className="crm-create-page-actions">
           <button
             type="button"
             className="secondary"
-            aria-label="Kapat"
             onClick={onClose}
           >
             <X size={17} />
+            Vazgeç
           </button>
-        </div>
+          <button className="primary" type="submit" form="crm-opportunity-form" disabled={busy}>
+            <ShieldCheck size={16} aria-hidden="true" />
+            {busy ? "Kaydediliyor…" : mode === "edit" ? "Değişiklikleri kaydet" : "Fırsat oluştur"}
+          </button>
+          </div>
+        </header>
         {customerError && (
-          <p className="crm-inline-error" role="status">
+          <p className="crm-inline-error crm-create-page-error" role="status">
             Müşteri listesi yüklenemedi: {customerError}
           </p>
         )}
-        <form className="crm-form" onSubmit={onSubmit}>
+        <form id="crm-opportunity-form" className="crm-form crm-record-form" onSubmit={onSubmit}>
+          <fieldset className="crm-form-section">
+            <legend>Fırsat bilgileri</legend>
+            <div className="crm-form-fields">
           <label>
             Fırsat kodu
             <input
@@ -132,7 +135,7 @@ export function CrmOpportunityCreateForm({
               selectedLabel={
                 selectedCustomer
                   ? `${selectedCustomer.code} · ${selectedCustomer.name}`
-                  : undefined
+                  : selectedCustomerName || undefined
               }
               onSelect={onCustomerSelect}
               onSearchChange={onCustomerSearchChange}
@@ -147,6 +150,11 @@ export function CrmOpportunityCreateForm({
               overlayClassName="crm-customer-picker-backdrop"
             />
           </label>
+            </div>
+          </fieldset>
+          <fieldset className="crm-form-section">
+            <legend>Tutar ve takip</legend>
+            <div className="crm-form-fields">
           <label>
             Tahmini tutar
             <div className="crm-inline-input">
@@ -204,12 +212,9 @@ export function CrmOpportunityCreateForm({
               placeholder="Görüşme özeti veya sonraki adım"
             />
           </label>
-          <button className="primary crm-submit" disabled={busy}>
-            <Plus size={16} aria-hidden="true" />
-            {busy ? "Kaydediliyor…" : "Fırsat oluştur"}
-          </button>
+            </div>
+          </fieldset>
         </form>
       </section>
-    </div>
   );
 }

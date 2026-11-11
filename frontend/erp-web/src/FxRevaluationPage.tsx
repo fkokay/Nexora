@@ -22,6 +22,7 @@ export default function FxRevaluationPage({
   const [date, setDate] = useState(today),
     [vouchers, setVouchers] = useState<FxRevaluationVoucherSummary[]>([]),
     [selected, setSelected] = useState<FxRevaluationVoucher | null>(null);
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
@@ -82,6 +83,12 @@ export default function FxRevaluationPage({
   }
   const money = (value: number, currency: string) =>
     `${value.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ${currency}`;
+  const normalizedQuery = query.trim().toLocaleLowerCase("tr-TR");
+  const filteredVouchers = vouchers.filter((voucher) =>
+    !normalizedQuery ||
+    voucher.code.toLocaleLowerCase("tr-TR").includes(normalizedQuery) ||
+    voucher.asOfDate.includes(normalizedQuery),
+  );
   return (
     <section className="panel finance-workbench fx-revaluation-workbench">
       <FxRevaluationHeader onRefresh={() => void load()} />
@@ -91,14 +98,44 @@ export default function FxRevaluationPage({
         onDismissError={() => setError("")}
         onDismissNotice={() => setNotice("")}
       />
+      <section className="fx-revaluation-summary" aria-label="Değerleme özeti">
+        <article><span>Toplam fiş</span><b>{vouchers.length}</b></article>
+        <article><span>Toplam döviz kalemi</span><b>{vouchers.reduce((sum, voucher) => sum + voucher.lineCount, 0)}</b></article>
+        <article><span>Listelenen fiş</span><b>{filteredVouchers.length}</b></article>
+      </section>
       <div className="finance-workbench-grid fx-revaluation-grid">
         <section className="finance-workbench-card">
-          <div className="list-toolbar">
+          <div className="fx-revaluation-list-heading">
             <div>
-              <h4>Değerleme fişleri</h4>
-              <p>{vouchers.length} kayıt</p>
+              <h2>Değerleme fişleri</h2>
+              <p>{filteredVouchers.length} / {vouchers.length} kayıt</p>
             </div>
           </div>
+          <section className="fx-revaluation-filter-card" aria-label="Değerleme fişi filtreleri">
+            <div>
+              <h3>Filtreler</h3>
+              <p>Fiş kodu veya dönem sonu tarihine göre daraltın.</p>
+            </div>
+            <label htmlFor="fx-revaluation-search">
+              Ara
+              <input
+                id="fx-revaluation-search"
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Fiş kodu veya YYYY-AA-GG"
+              />
+            </label>
+          </section>
+          <FxRevaluationVoucherGrid
+            token={token}
+            vouchers={filteredVouchers}
+            emptyMessage={vouchers.length
+              ? "Filtreye uygun değerleme fişi bulunamadı."
+              : "Henüz değerleme fişi oluşturulmadı."}
+            money={money}
+            onOpen={(id) => void open(id)}
+          />
           {role === "TenantAdmin" && (
             <FxRevaluationCreateForm
               date={date}
@@ -108,12 +145,6 @@ export default function FxRevaluationPage({
               onCreate={() => void create()}
             />
           )}
-          <FxRevaluationVoucherGrid
-            token={token}
-            vouchers={vouchers}
-            money={money}
-            onOpen={(id) => void open(id)}
-          />
         </section>
         {selected ? (
           <FxRevaluationVoucherDetail

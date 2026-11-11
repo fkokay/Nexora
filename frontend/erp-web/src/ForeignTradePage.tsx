@@ -494,6 +494,18 @@ export default function ForeignTradePage({
           <small>{tr("Yolda", "In transit")}</small>
         </article>
       </div>
+      <section className="panel foreign-trade-filter-card" aria-label={tr("Dış ticaret filtreleri", "Foreign trade filters")}>
+        <div className="foreign-trade-filter-heading">
+          <h2>{tr("Filtreler", "Filters")}</h2>
+          <p>{tr("Dosyaları referans veya işlem yönüne göre daraltın.", "Narrow cases by reference or direction.")}</p>
+        </div>
+        <ForeignTradeFilters
+          query={query}
+          direction={filter}
+          onQueryChange={setQuery}
+          onDirectionChange={setFilter}
+        />
+      </section>
       {creating && (
         <div
           className="foreign-trade-modal-backdrop"
@@ -837,12 +849,6 @@ export default function ForeignTradePage({
               )}
             </p>
           </div>
-          <ForeignTradeFilters
-            query={query}
-            direction={filter}
-            onQueryChange={setQuery}
-            onDirectionChange={setFilter}
-          />
         </div>
         <div
           className={`foreign-trade-workspace${selectedCase ? " has-selection" : ""}`}

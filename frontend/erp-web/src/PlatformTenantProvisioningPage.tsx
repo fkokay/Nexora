@@ -24,6 +24,12 @@ export type PlatformTenantProvisioningPageProps = {
 };
 
 const errorText: Record<string, string> = {
+  active_admin_user_required:
+    "Bu e-posta etkin bir platform kullanıcısına ait değil. Önce kullanıcıyı hesap açılışından oluşturun veya davet edin; hesap etkinleştikten sonra firma yöneticisi olarak seçin.",
+  company_slug_already_exists:
+    "Bu firma kısa adı başka bir firma tarafından kullanılıyor. Farklı bir kısa ad deneyin.",
+  idempotency_key_reused:
+    "Bu istek anahtarı daha önce farklı firma bilgileriyle kullanılmış. Formu yenileyip yeniden deneyin.",
   tenant_database_provisioning_failed:
     "Veritabanı hazırlığı tamamlanamadı. Yeniden deneyebilirsiniz.",
   tenant_database_not_ready:
@@ -138,11 +144,10 @@ export default function PlatformTenantProvisioningPage({
       );
       setJob(created);
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Firma oluşturma isteği başarısız oldu.",
-      );
+      const message = requestError instanceof Error
+        ? requestError.message
+        : "Firma oluşturma isteği başarısız oldu.";
+      setError(errorText[message] ?? message);
     } finally {
       setBusy(false);
     }

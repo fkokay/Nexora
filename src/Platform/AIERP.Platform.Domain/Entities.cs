@@ -461,9 +461,52 @@ public sealed class LedgerAccount
     public Guid TenantId { get; set; }
     public string Code { get; set; } = "";
     public string Name { get; set; } = "";
+    public LedgerAccountType AccountType { get; set; } = LedgerAccountType.Unclassified;
+    public LedgerNormalBalance NormalBalance { get; set; } = LedgerNormalBalance.Both;
+    public string? CurrencyCode { get; set; }
     public LedgerAccountStatementSection StatementSection { get; set; } = LedgerAccountStatementSection.Unclassified;
+    public string? IfrsAccountCode { get; set; }
+    public string? IfrsAccountName { get; set; }
+    public LedgerAccountStatementSection IfrsStatementSection { get; set; } = LedgerAccountStatementSection.Unclassified;
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public enum LedgerAccountType
+{
+    Unclassified = 0,
+    Asset = 1,
+    Liability = 2,
+    Equity = 3,
+    Revenue = 4,
+    Expense = 5,
+    OffBalanceSheet = 6
+}
+
+public enum LedgerNormalBalance
+{
+    Both = 0,
+    Debit = 1,
+    Credit = 2
+}
+
+/// <summary>Tenant-configurable, effective-dated legal/accounting profile for one jurisdiction.</summary>
+public sealed class AccountingRuleProfile
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string ProfileCode { get; set; } = "TR-LOCAL";
+    public string Name { get; set; } = "Türkiye · Tek Düzen";
+    public string JurisdictionCode { get; set; } = "TR";
+    public string ReportingStandard { get; set; } = "TDHP";
+    public string BaseCurrencyCode { get; set; } = "TRY";
+    public int FiscalYearStartMonth { get; set; } = 1;
+    public DateOnly EffectiveFrom { get; set; } = new(DateTime.UtcNow.Year, 1, 1);
+    public DateOnly? EffectiveTo { get; set; }
+    public string ParametersJson { get; set; } = "{}";
+    public string OfficialSourceUrl { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public enum TenantBudgetPlanStatus { Draft = 1, Approved = 2 }
@@ -556,6 +599,7 @@ public sealed class JournalEntry
     public string Code { get; set; } = "";
     public DateOnly EntryDate { get; set; }
     public string Description { get; set; } = "";
+    public string AccountingBasis { get; set; } = "TDHP";
     public string SourceType { get; set; } = "";
     public Guid SourceId { get; set; }
     public Guid? CreatedByUserId { get; set; }
@@ -577,6 +621,7 @@ public sealed class JournalEntryLine
 
 public static class LedgerMappingKeys
 {
+    public const string TaxRulePrefix = "tax-rule.";
     public const string FinancialAccountPrefix = "financial-account.";
     public const string CreditFacilityPrincipal = "credit-facility.principal";
     public const string CreditFacilityInterestExpense = "credit-facility.interest-expense";
@@ -586,11 +631,13 @@ public static class LedgerMappingKeys
     public const string SalesRevenue = "sales.revenue";
     public const string SalesCost = "sales.cost";
     public const string SalesTaxPayable = "sales.tax-payable";
+    public const string SalesWithholdingReceivable = "sales.withholding-receivable";
     public const string CustomerCardClearing = "collection.card-clearing";
     public const string CustomerCheckClearing = "collection.check-clearing";
     public const string PurchasePayable = "purchase.payable";
     public const string PurchaseCost = "purchase.cost";
     public const string PurchaseTaxRecoverable = "purchase.tax-recoverable";
+    public const string PurchaseWithholdingPayable = "purchase.withholding-payable";
     public const string PurchaseReceiptAccrual = "purchase.receipt-accrual";
     public const string SupplierCardClearing = "payment.card-clearing";
     public const string SupplierCheckClearing = "payment.check-clearing";
@@ -619,7 +666,7 @@ public static class LedgerMappingKeys
     public const string PayrollNetPayPayable = "payroll.net-pay-payable";
 }
 
-public enum CounterpartyType { Customer = 1, Supplier = 2, Both = 3 }
+public enum CounterpartyType { Customer = 1, Supplier = 2, Both = 3, Dealer = 4, Employee = 5 }
 public enum CustomerAddressKind { General = 1, Billing = 2, Delivery = 3 }
 public enum CrmOpportunityStage { Prospecting = 1, Qualified = 2, Proposal = 3, Negotiation = 4, Won = 5, Lost = 6 }
 
@@ -645,6 +692,20 @@ public sealed class CustomerAccount
     public string? TaxNumber { get; set; }
     public string? IdentityNumber { get; set; }
     public string? TaxOffice { get; set; }
+    public bool IsEInvoiceRegistered { get; set; }
+    public string? EInvoiceRecipientAlias { get; set; }
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    public string? Website { get; set; }
+    public string? ContactName { get; set; }
+    public string? ContactPhone { get; set; }
+    public string? ContactEmail { get; set; }
+    public string? PriceListCode { get; set; }
+    public string? ReceivableAccountCode { get; set; }
+    public string? PayableAccountCode { get; set; }
+    public string? BankName { get; set; }
+    public string? BankBranchCode { get; set; }
+    public string? Iban { get; set; }
     public Guid? GroupId { get; set; }
     public CustomerGroup? Group { get; set; }
     public Guid? ParentCompanyId { get; set; }
@@ -739,8 +800,8 @@ public sealed class CustomerAddress
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; }
-    public Guid CustomerId { get; set; }
-    public CustomerAccount Customer { get; set; } = null!;
+    public Guid? CustomerId { get; set; }
+    public CustomerAccount? Customer { get; set; }
     public CustomerAddressKind Kind { get; set; }
     public string Label { get; set; } = "";
     public string AddressLine { get; set; } = "";
@@ -815,6 +876,35 @@ public sealed class StockItem
     public string UnitCode { get; set; } = "EA";
     public string? Category { get; set; }
     public decimal MinimumStock { get; set; }
+    public decimal? PurchaseListPrice { get; set; }
+    public decimal? SalesListPrice { get; set; }
+    public string PriceCurrencyCode { get; set; } = "TRY";
+    public decimal PurchaseVatPercent { get; set; } = 20m;
+    public decimal SalesVatPercent { get; set; } = 20m;
+    public decimal ExciseTaxPercent { get; set; }
+    public decimal CommunicationTaxPercent { get; set; }
+    public decimal WithholdingTaxPercent { get; set; }
+    public decimal StampTaxPercent { get; set; }
+    public decimal PurchaseDiscountPercent { get; set; }
+    public decimal SalesDiscountPercent { get; set; }
+    public decimal? MaximumStock { get; set; }
+    public decimal? ReorderPoint { get; set; }
+    public decimal SafetyStock { get; set; }
+    public decimal? NetWeight { get; set; }
+    public decimal? GrossWeight { get; set; }
+    public decimal? Length { get; set; }
+    public decimal? Width { get; set; }
+    public decimal? Height { get; set; }
+    public string? ProductImageUrl { get; set; }
+    public string? PurchaseAccountCode { get; set; }
+    public string? SalesAccountCode { get; set; }
+    public string? CostAccountCode { get; set; }
+    public string? MarketplaceProductId { get; set; }
+    public Guid? ParentStockItemId { get; set; }
+    public StockItem? ParentStockItem { get; set; }
+    public string? VariantAttributesJson { get; set; }
+    public bool IsVariantParent { get; set; }
+    public ICollection<StockItem> Variants { get; set; } = new List<StockItem>();
     public int ProcurementLeadTimeDays { get; set; }
     public int ManufacturingLeadTimeDays { get; set; }
     public InventoryTrackingMode TrackingMode { get; set; }
@@ -985,7 +1075,15 @@ public sealed class ManufacturingOrder
     public string Code { get; set; } = "";
     public Guid BillOfMaterialId { get; set; }
     public Guid WarehouseId { get; set; }
+    /// <summary>Optional sales-order demand fulfilled by this make-to-order production.</summary>
+    public Guid? SourceSalesOrderId { get; set; }
+    public int? SourceSalesOrderLineNumber { get; set; }
     public decimal PlannedQuantity { get; set; }
+    /// <summary>Quantity of finished good accepted at production completion; null for orders not yet reported.</summary>
+    public decimal? ActualGoodQuantity { get; set; }
+    /// <summary>Scrap quantity reported at production completion; null for orders not yet reported.</summary>
+    public decimal? ScrapQuantity { get; set; }
+    public string? ScrapReason { get; set; }
     public ManufacturingOrderStatus Status { get; set; } = ManufacturingOrderStatus.Planned;
     public DateOnly PlannedDate { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -1044,6 +1142,8 @@ public sealed class ManufacturingOrderOperation
     public decimal? ActualEnergyCostPerKwhBase { get; set; }
     public decimal? ActualEnergyCostBase { get; set; }
     public decimal? ActualCostBase { get; set; }
+    /// <summary>Tenant employee who reported the actual operation work.</summary>
+    public Guid? PerformedByEmployeeId { get; set; }
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public DateOnly? ScheduledStartDate { get; set; }
@@ -1866,6 +1966,12 @@ public sealed class PurchaseInvoice
     public DateOnly InvoiceDate { get; set; }
     public DateOnly DueDate { get; set; }
     public string CurrencyCode { get; set; } = "TRY";
+    public string? AccountingProfileCode { get; set; }
+    public string TaxBreakdownJson { get; set; } = "[]";
+    public Guid? ProviderInvoiceUuid { get; set; }
+    public string? ProviderScenario { get; set; }
+    public string? ProviderInvoiceTypeCode { get; set; }
+    public string? ProviderSenderAlias { get; set; }
     public PurchaseInvoiceStatus Status { get; set; } = PurchaseInvoiceStatus.Posted;
     public decimal Subtotal { get; set; }
     public decimal DiscountTotal { get; set; }
@@ -1899,6 +2005,7 @@ public sealed class PurchaseInvoiceLine
     public decimal LineSubtotal { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal TaxAmount { get; set; }
+    public string TaxBreakdownJson { get; set; } = "[]";
     public decimal LineTotal { get; set; }
 }
 
@@ -1983,19 +2090,62 @@ public sealed class SupplierPayment
 
 public enum SalesQuoteStatus { Draft = 1, Sent = 2, Accepted = 3, Rejected = 4, Expired = 5 }
 
+public sealed class TenantDocumentNumberTemplate
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string DocumentType { get; set; } = "";
+    public string? ScenarioCode { get; set; }
+    public string Pattern { get; set; } = "";
+    public bool ResetsYearly { get; set; } = true;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TenantDocumentNumberCounter
+{
+    public Guid TenantId { get; set; }
+    public string DocumentType { get; set; } = "";
+    public string ScenarioKey { get; set; } = "";
+    public string PeriodKey { get; set; } = "";
+    public long LastValue { get; set; }
+}
+
+public sealed class SalesQuotePdfTemplate
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Name { get; set; } = "";
+    public string Heading { get; set; } = "Teklif";
+    public string IntroText { get; set; } = "Teklifimizi değerlendirmenize sunarız.";
+    public string FooterText { get; set; } = "İlginiz için teşekkür ederiz.";
+    public string AccentColor { get; set; } = "#1d6f9f";
+    public string FontFamily { get; set; } = "Arial";
+    public string Layout { get; set; } = "classic";
+    public string LogoDataUrl { get; set; } = "";
+    public string LogoPosition { get; set; } = "left";
+    public bool ShowNotes { get; set; } = true;
+    public bool IsDefault { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class SalesQuote
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; }
+    public Guid RevisionGroupId { get; set; }
+    public int RevisionNumber { get; set; } = 1;
     public Tenant Tenant { get; set; } = null!;
-    public Guid CustomerId { get; set; }
-    public CustomerAccount Customer { get; set; } = null!;
+    public Guid? CustomerId { get; set; }
+    public CustomerAccount? Customer { get; set; }
+    public Guid? SalespersonEmployeeId { get; set; }
+    public string? ProspectCustomerName { get; set; }
     public string Code { get; set; } = "";
     public DateOnly QuoteDate { get; set; }
     public DateOnly ValidUntil { get; set; }
     public string CurrencyCode { get; set; } = "TRY";
     public SalesQuoteStatus Status { get; set; } = SalesQuoteStatus.Draft;
     public string? Notes { get; set; }
+    public string? DeliveryTerms { get; set; }
     public decimal Subtotal { get; set; }
     public decimal DiscountTotal { get; set; }
     public decimal TaxTotal { get; set; }
@@ -2045,8 +2195,13 @@ public sealed class SalesQuoteLine
     public string UnitCode { get; set; } = "EA";
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public string EnteredCurrencyCode { get; set; } = "TRY";
+    public decimal EnteredUnitPrice { get; set; }
+    public string EnteredUnitCode { get; set; } = "EA";
+    public decimal ExchangeRateToQuoteCurrency { get; set; } = 1m;
     public decimal DiscountPercent { get; set; }
     public decimal VatPercent { get; set; }
+    public bool IsVatIncluded { get; set; }
     public decimal LineSubtotal { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal TaxAmount { get; set; }
@@ -2118,6 +2273,7 @@ public sealed class SalesOrder
     public SalesQuote? Quote { get; set; }
     public Guid CustomerId { get; set; }
     public CustomerAccount Customer { get; set; } = null!;
+    public Guid? SalespersonEmployeeId { get; set; }
     public string Code { get; set; } = "";
     public DateOnly OrderDate { get; set; }
     public DateOnly? RequestedDeliveryDate { get; set; }
@@ -2252,10 +2408,15 @@ public sealed class SalesOrderLine
     public string StockCode { get; set; } = "";
     public string StockName { get; set; } = "";
     public string UnitCode { get; set; } = "EA";
+    public string EnteredCurrencyCode { get; set; } = "TRY";
+    public decimal EnteredUnitPrice { get; set; }
+    public string EnteredUnitCode { get; set; } = "EA";
+    public decimal ExchangeRateToOrderCurrency { get; set; } = 1m;
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal DiscountPercent { get; set; }
     public decimal VatPercent { get; set; }
+    public bool IsVatIncluded { get; set; }
     public decimal LineSubtotal { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal TaxAmount { get; set; }
@@ -2326,6 +2487,7 @@ public sealed class SalesDeliveryLine
 }
 
 public enum SalesInvoiceStatus { Posted = 1, Voided = 2 }
+public enum SalesInvoiceType { Wholesale = 1, Retail = 2 }
 
 public sealed class SalesInvoice
 {
@@ -2342,6 +2504,30 @@ public sealed class SalesInvoice
     public string Code { get; set; } = "";
     public DateOnly InvoiceDate { get; set; }
     public string CurrencyCode { get; set; } = "TRY";
+    public SalesInvoiceType InvoiceType { get; set; } = SalesInvoiceType.Wholesale;
+    public string? AccountingProfileCode { get; set; }
+    public string TaxBreakdownJson { get; set; } = "[]";
+    public string? EDocumentScenario { get; set; }
+    public string? EDocumentTypeCode { get; set; }
+    public string? EDocumentRecipientAlias { get; set; }
+    public string? ECommercePurchaseUrl { get; set; }
+    public string? ECommercePaymentTaxId { get; set; }
+    public string? ECommercePaymentTitle { get; set; }
+    public string? ECommercePaymentAlias { get; set; }
+    public string? ECommercePaymentAgentName { get; set; }
+    public string? ECommercePaymentType { get; set; }
+    public DateTimeOffset? ECommercePaymentDate { get; set; }
+    public DateTimeOffset? ECommercePaymentDueDate { get; set; }
+    public string? ECommercePaymentMeans { get; set; }
+    public string? ECommercePaymentInstructionNote { get; set; }
+    public string? ECommerceIntermediaryCountry { get; set; }
+    public string? ECommerceIntermediaryCountryCode { get; set; }
+    public string? ECommerceIntermediaryCity { get; set; }
+    public string? ECommerceIntermediaryDistrict { get; set; }
+    public string? DeliveryCarrierTaxId { get; set; }
+    public string? DeliveryCarrierName { get; set; }
+    public string? DeliveryCarrierSurname { get; set; }
+    public DateOnly? DeliverySentAt { get; set; }
     public SalesInvoiceStatus Status { get; set; } = SalesInvoiceStatus.Posted;
     public decimal Subtotal { get; set; }
     public decimal DiscountTotal { get; set; }
@@ -2376,6 +2562,7 @@ public sealed class SalesInvoiceLine
     public decimal LineSubtotal { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal TaxAmount { get; set; }
+    public string TaxBreakdownJson { get; set; } = "[]";
     public decimal LineTotal { get; set; }
 }
 
@@ -2856,6 +3043,73 @@ public sealed class TenantScreenViewRevision
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>A tenant-owned low-code page definition. The JSON contains allowlisted UI metadata only.</summary>
+public sealed class TenantCustomPage
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public string DefinitionJson { get; set; } = "{\"schemaVersion\":1,\"components\":[]}";
+    public int Revision { get; set; } = 1;
+    public bool IsPublished { get; set; }
+    public bool IsArchived { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<TenantCustomPageRevision> Revisions { get; set; } = new List<TenantCustomPageRevision>();
+}
+
+public sealed class TenantCustomPageRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid CustomPageId { get; set; }
+    public TenantCustomPage CustomPage { get; set; } = null!;
+    public int Revision { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public string DefinitionJson { get; set; } = "{\"schemaVersion\":1,\"components\":[]}";
+    public string ChangeKind { get; set; } = "Updated";
+    public Guid ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>A tenant-owned logical table. Its user-defined schema is declarative metadata, never executable SQL.</summary>
+public sealed class TenantCustomDataEntity
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "Draft";
+    public string FieldsJson { get; set; } = "[]";
+    public Guid CreatedByUserId { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>A row in a tenant logical table, with typed values validated against its entity schema.</summary>
+public sealed class TenantCustomDataRecord
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EntityId { get; set; }
+    public TenantCustomDataEntity Entity { get; set; } = null!;
+    public string ValuesJson { get; set; } = "{}";
+    public Guid CreatedByUserId { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class TenantWorkflowDefinition
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -2989,6 +3243,17 @@ public sealed class TenantStandardMenuLayout
     public string LayoutJson { get; set; } = "[]";
     public int Revision { get; set; }
     public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TenantUserPreference
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid UserId { get; set; }
+    public string PreferenceKey { get; set; } = "";
+    public string ValueJson { get; set; } = "{}";
+    public int Revision { get; set; }
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 

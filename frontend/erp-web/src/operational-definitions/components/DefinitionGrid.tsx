@@ -69,7 +69,7 @@ export function DefinitionGrid({
           {!loading && rows.length === 0 && (
             <tr>
               <td colSpan={5} className="table-empty">
-                {tx("Henüz tanım yok.", "No definitions yet.")}
+                {tx("Seçili filtrelerle eşleşen tanım yok.", "No definitions match these filters.")}
               </td>
             </tr>
           )}

@@ -27,10 +27,38 @@ type StockCustomFieldValueRevision = AppTypes.StockCustomFieldValueRevision;
 type StockItem = AppTypes.StockItem;
 type StockItemCategory = AppTypes.StockItemCategory;
 type StockItemUnitConversion = AppTypes.StockItemUnitConversion;
+type StockItemVariant = AppTypes.StockItemVariant;
+type StockRecipe = { id: string; code: string; name: string; productStockItemId: string; outputQuantity: number; isActive: boolean; lines: Array<{ componentName: string; quantity: number; scrapPercent: number }> };
 type Warehouse = AppTypes.Warehouse;
 type WarehouseCustomFieldDefinition = AppTypes.WarehouseCustomFieldDefinition;
 type WarehouseCustomFieldValue = AppTypes.WarehouseCustomFieldValue;
 type WarehouseLocationOption = AppTypes.WarehouseLocationOption;
+
+type VariantDimensionDraft = { name: string; values: string };
+function variantToken(value: string) {
+  return value.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[ıİ]/g, "I").replace(/[ğĞ]/g, "G").replace(/[şŞ]/g, "S")
+    .replace(/[çÇ]/g, "C").replace(/[öÖ]/g, "O").replace(/[üÜ]/g, "U")
+    .toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "") || "SECENEK";
+}
+function makeVariantDrafts(code: string, name: string, dimensions: VariantDimensionDraft[]) {
+  const axes = dimensions.map((dimension) => ({
+    name: dimension.name.trim(),
+    values: [...new Set(dimension.values.split(",").map((value) => value.trim()).filter(Boolean))],
+  })).filter((axis) => axis.name && axis.values.length);
+  if (!axes.length) return [];
+  const rows: Array<Record<string, string>> = [{}];
+  for (const axis of axes) {
+    const prior = [...rows];
+    rows.length = 0;
+    for (const row of prior) for (const value of axis.values) rows.push({ ...row, [axis.name]: value });
+  }
+  return rows.slice(0, 200).map((attributes) => {
+    const suffix = axes.map((axis) => variantToken(attributes[axis.name])).join("-");
+    const details = axes.map((axis) => `${axis.name}: ${attributes[axis.name]}`).join(" · ");
+    return { code: `${code.trim().toUpperCase()}-${suffix}`.slice(0, 64), name: `${name.trim()} · ${details}`.slice(0, 200), barcode: null, attributes };
+  });
+}
 
 export function InventoryPage({
   token,
@@ -99,6 +127,7 @@ export function InventoryPage({
   const [customFieldItem, setCustomFieldItem] = useState<StockItem | null>(
       null,
     ),
+    [customFieldPickerOpen, setCustomFieldPickerOpen] = useState(false),
     [customFieldDefinitions, setCustomFieldDefinitions] = useState<
       StockCustomFieldDefinition[]
     >([]),
@@ -168,14 +197,41 @@ export function InventoryPage({
     [warehouseAdminModal, setWarehouseAdminModal] = useState(false),
     [movementItem, setMovementItem] = useState<InventoryBalance | null>(null);
   const [itemCreateTab, setItemCreateTab] = useState<
-    "basic" | "inventory" | "units"
+    "basic" | "inventory" | "pricing" | "logistics" | "accounting" | "units" | "variants" | "recipes"
   >("basic");
+  const [variantDimensions, setVariantDimensions] = useState<VariantDimensionDraft[]>([{ name: "", values: "" }]);
+  const [existingVariants, setExistingVariants] = useState<StockItemVariant[]>([]);
+  const [itemRecipes, setItemRecipes] = useState<StockRecipe[]>([]);
   const [code, setCode] = useState(""),
     [name, setName] = useState(""),
     [barcode, setBarcode] = useState(""),
     [unitCode, setUnitCode] = useState("EA"),
     [category, setCategory] = useState(""),
     [minimumStock, setMinimumStock] = useState("0"),
+    [purchaseListPrice, setPurchaseListPrice] = useState(""),
+    [salesListPrice, setSalesListPrice] = useState(""),
+    [priceCurrencyCode, setPriceCurrencyCode] = useState("TRY"),
+    [purchaseVatPercent, setPurchaseVatPercent] = useState("20"),
+    [salesVatPercent, setSalesVatPercent] = useState("20"),
+    [exciseTaxPercent, setExciseTaxPercent] = useState("0"),
+    [communicationTaxPercent, setCommunicationTaxPercent] = useState("0"),
+    [withholdingTaxPercent, setWithholdingTaxPercent] = useState("0"),
+    [stampTaxPercent, setStampTaxPercent] = useState("0"),
+    [purchaseDiscountPercent, setPurchaseDiscountPercent] = useState("0"),
+    [salesDiscountPercent, setSalesDiscountPercent] = useState("0"),
+    [maximumStock, setMaximumStock] = useState(""),
+    [reorderPoint, setReorderPoint] = useState(""),
+    [safetyStock, setSafetyStock] = useState("0"),
+    [netWeight, setNetWeight] = useState(""),
+    [grossWeight, setGrossWeight] = useState(""),
+    [length, setLength] = useState(""),
+    [width, setWidth] = useState(""),
+    [height, setHeight] = useState(""),
+    [productImageUrl, setProductImageUrl] = useState(""),
+    [purchaseAccountCode, setPurchaseAccountCode] = useState(""),
+    [salesAccountCode, setSalesAccountCode] = useState(""),
+    [costAccountCode, setCostAccountCode] = useState(""),
+    [marketplaceProductId, setMarketplaceProductId] = useState(""),
     [procurementLeadTimeDays, setProcurementLeadTimeDays] = useState("0"),
     [manufacturingLeadTimeDays, setManufacturingLeadTimeDays] = useState("0"),
     [trackingMode, setTrackingMode] =
@@ -196,8 +252,10 @@ export function InventoryPage({
   );
   const [warehouseCode, setWarehouseCode] = useState(""),
     [warehouseName, setWarehouseName] = useState("");
+  const [warehouseSearch, setWarehouseSearch] = useState("");
   const [transferModal, setTransferModal] = useState(false),
     [transferSelectedItems, setTransferSelectedItems] = useState<string[]>([]),
+    [transferSearch, setTransferSearch] = useState(""),
     [transferItemSearch, setTransferItemSearch] = useState(""),
     [transferItemsLoading, setTransferItemsLoading] = useState(false),
     [transfers, setTransfers] = useState<InventoryTransfer[]>([]),
@@ -783,6 +841,18 @@ export function InventoryPage({
     belowMinimumOnly,
   ]);
   useEffect(() => {
+    if (section !== "inventory-stock") return;
+    const applyWidgetFilter = (event: Event) => {
+      const detail = (event as CustomEvent<{ query?: string; belowMinimumOnly?: boolean }>).detail;
+      if (typeof detail?.query === "string") setStockSearch(detail.query);
+      if (typeof detail?.belowMinimumOnly === "boolean") setBelowMinimumOnly(detail.belowMinimumOnly);
+      setInventoryPage(1);
+      document.querySelector(".inventory-stock-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    window.addEventListener("inventory-stock-widget-filter", applyWidgetFilter);
+    return () => window.removeEventListener("inventory-stock-widget-filter", applyWidgetFilter);
+  }, [section]);
+  useEffect(() => {
     const timer = window.setTimeout(
       () => {
         void loadBalances(
@@ -850,6 +920,7 @@ export function InventoryPage({
   async function openItemModal() {
     setEditingItem(null);
     setItemCreateTab("basic");
+    setVariantDimensions([{ name: "", values: "" }]); setExistingVariants([]); setItemRecipes([]);
     setItemUnitConversions([]);
     setItemUnitRemovals([]);
     setItemUnitCode("");
@@ -861,6 +932,14 @@ export function InventoryPage({
     setUnitCode("EA");
     setCategory("");
     setMinimumStock("0");
+    setPurchaseListPrice("");
+    setSalesListPrice("");
+    setPriceCurrencyCode("TRY");
+    setPurchaseVatPercent("20"); setSalesVatPercent("20"); setExciseTaxPercent("0"); setCommunicationTaxPercent("0");
+    setWithholdingTaxPercent("0"); setStampTaxPercent("0");
+    setPurchaseDiscountPercent("0"); setSalesDiscountPercent("0"); setMaximumStock(""); setReorderPoint(""); setSafetyStock("0");
+    setNetWeight(""); setGrossWeight(""); setLength(""); setWidth(""); setHeight(""); setProductImageUrl("");
+    setPurchaseAccountCode(""); setSalesAccountCode(""); setCostAccountCode(""); setMarketplaceProductId("");
     setProcurementLeadTimeDays("0");
     setManufacturingLeadTimeDays("0");
     setTrackingMode("None");
@@ -890,6 +969,7 @@ export function InventoryPage({
     setError("");
     setItemCreateTab("basic");
     setEditingItem(item);
+    setVariantDimensions([{ name: "", values: "" }]); setExistingVariants([]); setItemRecipes([]);
     setItemUnitConversions([]);
     setItemUnitRemovals([]);
     setItemUnitCode("");
@@ -900,16 +980,48 @@ export function InventoryPage({
     setUnitCode(item.unitCode);
     setCategory(item.category || "");
     setMinimumStock(String(item.minimumStock));
+    setPurchaseListPrice(item.purchaseListPrice == null ? "" : String(item.purchaseListPrice));
+    setSalesListPrice(item.salesListPrice == null ? "" : String(item.salesListPrice));
+    setPriceCurrencyCode(item.priceCurrencyCode || "TRY");
+    setPurchaseVatPercent(String(item.purchaseVatPercent ?? 20)); setSalesVatPercent(String(item.salesVatPercent ?? 20));
+    setExciseTaxPercent(String(item.exciseTaxPercent ?? 0)); setCommunicationTaxPercent(String(item.communicationTaxPercent ?? 0));
+    setWithholdingTaxPercent(String(item.withholdingTaxPercent ?? 0)); setStampTaxPercent(String(item.stampTaxPercent ?? 0));
+    setPurchaseDiscountPercent(String(item.purchaseDiscountPercent ?? 0)); setSalesDiscountPercent(String(item.salesDiscountPercent ?? 0));
+    setMaximumStock(item.maximumStock == null ? "" : String(item.maximumStock)); setReorderPoint(item.reorderPoint == null ? "" : String(item.reorderPoint)); setSafetyStock(String(item.safetyStock ?? 0));
+    setNetWeight(item.netWeight == null ? "" : String(item.netWeight)); setGrossWeight(item.grossWeight == null ? "" : String(item.grossWeight));
+    setLength(item.length == null ? "" : String(item.length)); setWidth(item.width == null ? "" : String(item.width)); setHeight(item.height == null ? "" : String(item.height));
+    setProductImageUrl(item.productImageUrl || ""); setPurchaseAccountCode(item.purchaseAccountCode || ""); setSalesAccountCode(item.salesAccountCode || "");
+    setCostAccountCode(item.costAccountCode || ""); setMarketplaceProductId(item.marketplaceProductId || "");
     setProcurementLeadTimeDays(String(item.procurementLeadTimeDays || 0));
     setManufacturingLeadTimeDays(String(item.manufacturingLeadTimeDays || 0));
     setTrackingMode(item.trackingMode || "None");
+    setItemCustomFieldDefinitions([]);
+    setItemCustomFieldValues({});
     setItemModal(true);
     try {
-      const result = await api<{ conversions: StockItemUnitConversion[] }>(
-        `/api/stock/items/${item.id}/units`,
-        token,
+      const [units, definitions, values, variants, recipes] = await Promise.all([
+        api<{ conversions: StockItemUnitConversion[] }>(
+          `/api/stock/items/${item.id}/units`,
+          token,
+        ),
+        api<StockCustomFieldDefinition[]>(
+          "/api/stock/items/custom-fields",
+          token,
+        ),
+        api<StockCustomFieldValue[]>(
+          `/api/stock/items/${item.id}/custom-fields`,
+          token,
+        ),
+        api<StockItemVariant[]>(`/api/stock/items/${item.id}/variants`, token),
+        api<StockRecipe[]>("/api/manufacturing/boms/", token).catch(() => []),
+      ]);
+      setItemUnitConversions(units.conversions);
+      setItemCustomFieldDefinitions(definitions);
+      setItemCustomFieldValues(
+        Object.fromEntries(values.map((field) => [field.code, field.value])),
       );
-      setItemUnitConversions(result.conversions);
+      setExistingVariants(variants);
+      setItemRecipes(recipes.filter((recipe) => recipe.productStockItemId === item.id));
     } catch (e) {
       setError((e as Error).message);
     }
@@ -1027,7 +1139,7 @@ export function InventoryPage({
         field.isRequired &&
         !String(itemCustomFieldValues[field.code] || "").trim(),
     );
-    if (!editingItem && missingRequiredField) {
+    if (missingRequiredField) {
       setItemCreateTab("units");
       setError(`“${missingRequiredField.label}” alanı zorunludur.`);
       return;
@@ -1044,7 +1156,20 @@ export function InventoryPage({
         minimumStock: Number(minimumStock),
         procurementLeadTimeDays: Number(procurementLeadTimeDays),
         manufacturingLeadTimeDays: Number(manufacturingLeadTimeDays),
+        purchaseListPrice: purchaseListPrice === "" ? null : Number(purchaseListPrice),
+        salesListPrice: salesListPrice === "" ? null : Number(salesListPrice),
+        priceCurrencyCode,
+        purchaseVatPercent: Number(purchaseVatPercent), salesVatPercent: Number(salesVatPercent),
+        exciseTaxPercent: Number(exciseTaxPercent), communicationTaxPercent: Number(communicationTaxPercent),
+        withholdingTaxPercent: Number(withholdingTaxPercent), stampTaxPercent: Number(stampTaxPercent),
+        purchaseDiscountPercent: Number(purchaseDiscountPercent), salesDiscountPercent: Number(salesDiscountPercent),
+        maximumStock: maximumStock === "" ? null : Number(maximumStock), reorderPoint: reorderPoint === "" ? null : Number(reorderPoint), safetyStock: Number(safetyStock),
+        netWeight: netWeight === "" ? null : Number(netWeight), grossWeight: grossWeight === "" ? null : Number(grossWeight),
+        length: length === "" ? null : Number(length), width: width === "" ? null : Number(width), height: height === "" ? null : Number(height),
+        productImageUrl: productImageUrl || null, purchaseAccountCode: purchaseAccountCode || null,
+        salesAccountCode: salesAccountCode || null, costAccountCode: costAccountCode || null, marketplaceProductId: marketplaceProductId || null,
         trackingMode,
+        variants: prior ? undefined : makeVariantDrafts(code, name, variantDimensions),
       };
       const saved = prior
         ? await api<StockItem>(`/api/stock/items/${prior.id}`, token, {
@@ -1059,6 +1184,15 @@ export function InventoryPage({
               customFields: itemCustomFieldValues,
             }),
           });
+      if (prior)
+        await api<StockCustomFieldValue[]>(
+          `/api/stock/items/${prior.id}/custom-fields`,
+          token,
+          {
+            method: "PUT",
+            body: JSON.stringify({ values: itemCustomFieldValues }),
+          },
+        );
       setItems((current) =>
         prior
           ? current.map((row) => (row.id === saved.id ? saved : row))
@@ -1107,6 +1241,12 @@ export function InventoryPage({
       setUnitCode("EA");
       setCategory("");
       setMinimumStock("0");
+      setPurchaseListPrice(""); setSalesListPrice(""); setPriceCurrencyCode("TRY");
+      setPurchaseVatPercent("20"); setSalesVatPercent("20"); setExciseTaxPercent("0"); setCommunicationTaxPercent("0");
+      setWithholdingTaxPercent("0"); setStampTaxPercent("0");
+      setPurchaseDiscountPercent("0"); setSalesDiscountPercent("0"); setMaximumStock(""); setReorderPoint(""); setSafetyStock("0");
+      setNetWeight(""); setGrossWeight(""); setLength(""); setWidth(""); setHeight(""); setProductImageUrl("");
+      setPurchaseAccountCode(""); setSalesAccountCode(""); setCostAccountCode(""); setMarketplaceProductId("");
       setProcurementLeadTimeDays("0");
       setManufacturingLeadTimeDays("0");
       setTrackingMode("None");
@@ -1640,6 +1780,14 @@ export function InventoryPage({
       setError((e as Error).message);
     }
   }
+  async function refreshMovementBalance(item: InventoryBalance) {
+    if (!warehouseId) return item;
+    const latest = await api<InventoryBalance[]>(
+      `/api/warehouses/${warehouseId}/balances`,
+      token,
+    );
+    return latest.find((balance) => balance.stockItemId === item.stockItemId) || item;
+  }
   async function openCostManager(item: InventoryBalance) {
     setCostTarget(item);
     setCostAdjustments([]);
@@ -1897,7 +2045,9 @@ export function InventoryPage({
       setNotice(
         "Stok hareketi kaydedildi ve temel birime çevrildi; çıkış maliyeti mevcut ağırlıklı ortalamadan hesaplandı.",
       );
-      await openMovements(movementItem);
+      const latestMovementItem = await refreshMovementBalance(movementItem);
+      setMovementItem(latestMovementItem);
+      await openMovements(latestMovementItem);
       await loadBalances();
     } catch (e) {
       setError((e as Error).message);
@@ -1918,7 +2068,9 @@ export function InventoryPage({
         { method: "POST", body: JSON.stringify({ reason }) },
       );
       setNotice("Ters stok hareketi oluşturuldu; kaynak kayıt korundu.");
-      await openMovements(movementItem);
+      const latestMovementItem = await refreshMovementBalance(movementItem);
+      setMovementItem(latestMovementItem);
+      await openMovements(latestMovementItem);
       await loadBalances();
     } catch (e) {
       setError((e as Error).message);
@@ -1973,7 +2125,11 @@ export function InventoryPage({
     const stock = itemsById.get(item.stockItemId);
     switch (field.key) {
       case "code":
-        return <span className="customer-code">{item.code}</span>;
+        return (
+          <span className="customer-code" title={item.code} aria-label={item.code}>
+            {item.code}
+          </span>
+        );
       case "name":
         return (
           <>
@@ -2042,30 +2198,6 @@ export function InventoryPage({
       case "actions":
         return (
           <InventoryStockActionsMenu>
-            <button
-              type="button"
-              className="row-action"
-              disabled={customFieldBusy}
-              onClick={() =>
-                void openCustomFields({
-                  id: item.stockItemId,
-                  code: item.code,
-                  name: item.name,
-                  barcode: null,
-                  unitCode: item.unitCode,
-                  category: stock?.category || null,
-                  minimumStock: item.minimumStock,
-                  procurementLeadTimeDays: 0,
-                  manufacturingLeadTimeDays: 0,
-                  isActive: true,
-                  trackingMode: stock?.trackingMode || "None",
-                  createdAt: "",
-                  rowVersion: stock?.rowVersion || "",
-                })
-              }
-            >
-              Özel alanlar
-            </button>
             {stock && (
               <>
                 <button
@@ -2195,6 +2327,11 @@ export function InventoryPage({
                   </button>
                 )}
                 {section === "inventory-stock" && (
+                  <button className="secondary" onClick={() => setCustomFieldPickerOpen(true)}>
+                    Özel alanlar
+                  </button>
+                )}
+                {section === "inventory-stock" && (
                   <button
                     className="primary"
                     onClick={() => onNavigate?.("inventory-stock-create")}
@@ -2220,6 +2357,30 @@ export function InventoryPage({
                 <X size={15} />
               </button>
             </div>
+          )}
+          {section === "inventory-stock" && (
+            <section className="reference-summary-grid inventory-reference-summary" aria-label="Stok özeti">
+              <div className="reference-summary-card violet">
+                <span><IconPack.Boxes size={21} /></span>
+                <div><small>Toplam stok kartı</small><strong>{balancesLoading ? "…" : inventoryTotal.toLocaleString("tr-TR")}</strong></div>
+              </div>
+              <div className="reference-summary-card green">
+                <span><IconPack.CircleCheck size={21} /></span>
+                <div><small>Bu sayfada stokta</small><strong>{balancesLoading ? "…" : balances.filter((balance) => balance.quantityOnHand > 0).length}</strong></div>
+              </div>
+              <div className="reference-summary-card red">
+                <span><IconPack.TriangleAlert size={21} /></span>
+                <div><small>Bu sayfada stoksuz</small><strong>{balancesLoading ? "…" : balances.filter((balance) => balance.quantityOnHand <= 0).length}</strong></div>
+              </div>
+              <div className="reference-summary-card amber">
+                <span><IconPack.ArrowLeftRight size={21} /></span>
+                <div><small>Minimum seviyenin altında</small><strong>{balancesLoading ? "…" : belowMinimumCount.toLocaleString("tr-TR")}</strong></div>
+              </div>
+              <div className="reference-summary-card blue">
+                <span><IconPack.Landmark size={21} /></span>
+                <div><small>Depo sayısı</small><strong>{warehouses.length.toLocaleString("tr-TR")}</strong></div>
+              </div>
+            </section>
           )}
           {section === "inventory-cost" && role !== "TenantAdmin" && (
             <div className="boundary-note">
@@ -2274,6 +2435,7 @@ export function InventoryPage({
                 setBelowMinimumOnly((value) => !value);
                 setInventoryPage(1);
               }}
+              onApplyFilters={() => void loadBalances()}
             />
           )}
           {section === "inventory-cost" && role === "TenantAdmin" && (
@@ -2401,168 +2563,45 @@ export function InventoryPage({
           )}
           {section === "inventory-warehouses" && (
             <div className="warehouse-management">
-              <section className="panel warehouse-panel">
-                <header className="warehouse-panel-heading">
-                  <div>
-                    <p className="eyebrow">STOK & DEPO</p>
-                    <h2>Depolar</h2>
-                    <p>Firma depolarını ve kullanım durumlarını yönetin.</p>
-                  </div>
-                  <div className="warehouse-panel-tools">
-                    <span className="warehouse-count">
-                      <b>{warehouses.filter((x) => x.isActive).length}</b> aktif{" "}
-                      <i /> <b>{warehouses.length}</b> toplam
-                    </span>
-                    <button
-                      className="secondary small-button"
-                      onClick={() => setWarehouseAdminModal(true)}
-                    >
-                      Depoları yönet
-                    </button>
-                  </div>
-                </header>
+              <section className="reference-summary-grid inventory-reference-summary" aria-label="Depo özeti">
+                <div className="reference-summary-card violet"><span><IconPack.Package size={21} /></span><div><small>Toplam depo</small><strong>{warehouses.length.toLocaleString("tr-TR")}</strong></div></div>
+                <div className="reference-summary-card green"><span><IconPack.CircleCheck size={21} /></span><div><small>Aktif</small><strong>{warehouses.filter((row) => row.isActive).length.toLocaleString("tr-TR")}</strong></div></div>
+                <div className="reference-summary-card red"><span><IconPack.CircleX size={21} /></span><div><small>Pasif</small><strong>{warehouses.filter((row) => !row.isActive).length.toLocaleString("tr-TR")}</strong></div></div>
+              </section>
+              <section className="panel inventory-stock-filter-card" aria-label="Depo filtreleri">
+                <div className="inventory-stock-filter-heading"><div><h2>Filtreler</h2><p>Depoları kod veya ada göre daraltın.</p></div></div>
+                <label className="inventory-stock-search"><span>Depo ara</span><input value={warehouseSearch} onChange={(event) => setWarehouseSearch(event.target.value)} placeholder="Depo kodu veya adıyla ara" /></label>
+              </section>
+              <section className="panel inventory-stock-grid-panel warehouse-directory-grid">
+                <header className="inventory-stock-grid-heading"><div><h2>Depo listesi</h2><p>{loading ? "Depolar yükleniyor…" : `${warehouses.filter((row) => `${row.code} ${row.name}`.toLocaleLowerCase("tr-TR").includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR"))).length} kayıt`}</p></div><button className="secondary small-button" onClick={() => setWarehouseAdminModal(true)}>Depoları yönet</button></header>
                 {loading ? (
-                  <div className="warehouse-empty" role="status">
-                    <span className="warehouse-empty-icon">
-                      <IconPack.Package size={19} />
-                    </span>
-                    <div>
-                      <b>Depolar yükleniyor…</b>
-                      <p>Firma depoları ve kullanım durumları alınıyor.</p>
-                    </div>
-                  </div>
-                ) : warehouses.length > 0 ? (
-                  <div className="warehouse-list">
-                    {warehouses.map((warehouse) => (
-                      <article className="warehouse-row" key={warehouse.id}>
-                        <span className="warehouse-row-icon">
-                          <IconPack.Package size={17} />
-                        </span>
-                        <div className="warehouse-row-info">
-                          <b>
-                            {warehouse.code} · {warehouse.name}
-                          </b>
-                          <small>
-                            {warehouse.isActive
-                              ? "Yeni stok hareketlerine açık"
-                              : "Yeni stok hareketlerine kapalı"}
-                          </small>
-                        </div>
-                        <span
-                          className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}
-                        >
-                          {warehouse.isActive ? "Aktif" : "Pasif"}
-                        </span>
-                      </article>
-                    ))}
-                  </div>
+                  <div className="warehouse-empty" role="status"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>Depolar yükleniyor…</b><p>Firma depoları ve kullanım durumları alınıyor.</p></div></div>
+                ) : warehouses.filter((row) => `${row.code} ${row.name}`.toLocaleLowerCase("tr-TR").includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR"))).length > 0 ? (
+                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr><th>Depo kodu</th><th>Depo adı</th><th>Durum</th><th>Açıklama</th></tr></thead><tbody>{warehouses.filter((row) => `${row.code} ${row.name}`.toLocaleLowerCase("tr-TR").includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR"))).map((warehouse) => <tr key={warehouse.id}><td><span className="customer-code">{warehouse.code}</span></td><td>{warehouse.name}</td><td><span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span></td><td>{warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı"}</td></tr>)}</tbody></table></div>
                 ) : (
-                  <div className="warehouse-empty">
-                    <span className="warehouse-empty-icon">
-                      <IconPack.Package size={19} />
-                    </span>
-                    <div>
-                      <b>Henüz depo tanımlanmamış</b>
-                      <p>
-                        Stok hareketlerini kaydetmek için ilk deponuzu
-                        oluşturun.
-                      </p>
-                    </div>
-                    <button
-                      className="primary small-button"
-                      onClick={() => void openWarehouseModal()}
-                    >
-                      <IconPack.Plus size={15} /> Depo ekle
-                    </button>
-                  </div>
+                  <div className="warehouse-empty"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>{warehouses.length ? "Aramayla eşleşen depo yok" : "Henüz depo tanımlanmamış"}</b><p>{warehouses.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Stok hareketlerini kaydetmek için ilk deponuzu oluşturun."}</p></div>{!warehouses.length && <button className="primary small-button" onClick={() => void openWarehouseModal()}><IconPack.Plus size={15} /> Depo ekle</button>}</div>
                 )}
               </section>
             </div>
           )}
           {section === "inventory-transfers" && (
-            <section className="panel warehouse-panel warehouse-transfer-panel">
-              <header className="warehouse-panel-heading">
-                <div>
-                  <p className="eyebrow">STOK HAREKETLERİ</p>
-                  <h2>Transfer geçmişi</h2>
-                  <p>
-                    Transfer iptali iki depodaki hareketleri birlikte ters
-                    kaydeder.
-                  </p>
-                </div>
-                <div className="warehouse-panel-tools">
-                  <span className="warehouse-count">
-                    <b>{transferTotal}</b> transfer
-                  </span>
-                  <button
-                    type="button"
-                    className="secondary small-button"
-                    onClick={() => void loadTransfers()}
-                  >
-                    Yenile
-                  </button>
-                </div>
-              </header>
-              {transfers.length > 0 ? (
-                <div className="warehouse-list">
-                  {transfers.map((transfer) => (
-                    <article
-                      className="warehouse-row warehouse-transfer-row"
-                      key={transfer.id}
-                    >
-                      <span className="warehouse-row-icon transfer">
-                        <IconPack.ArrowLeftRight size={17} />
-                      </span>
-                      <div className="warehouse-row-info">
-                        <b>
-                          {transfer.code} · {transfer.fromWarehouseName}{" "}
-                          <IconPack.ArrowRight size={13} />{" "}
-                          {transfer.toWarehouseName}
-                        </b>
-                        <small>
-                          {transfer.transferDate.split("-").reverse().join(".")}{" "}
-                          · {transfer.lineCount} stok kalemi ·{" "}
-                          {transfer.status === "Posted"
-                            ? "Kaydedildi"
-                            : "İptal edildi"}
-                        </small>
-                      </div>
-                      <div className="warehouse-row-actions">
-                        <button
-                          type="button"
-                          className="row-action"
-                          onClick={() => void openTransfer(transfer)}
-                        >
-                          Kalemler
-                        </button>
-                        {transfer.status === "Posted" && (
-                          <button
-                            type="button"
-                            className="row-action danger-action"
-                            disabled={busy}
-                            onClick={() => void voidTransfer(transfer)}
-                          >
-                            Transferi iptal et
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="warehouse-empty compact">
-                  <span className="warehouse-empty-icon transfer">
-                    <IconPack.ArrowLeftRight size={18} />
-                  </span>
-                  <div>
-                    <b>Henüz transfer kaydı yok</b>
-                    <p>
-                      Bir depodan diğerine stok aktardığınızda geçmiş burada
-                      görünür.
-                    </p>
-                  </div>
-                </div>
-              )}
+            <div className="warehouse-management">
+              <section className="reference-summary-grid inventory-reference-summary" aria-label="Transfer özeti">
+                <div className="reference-summary-card violet"><span><IconPack.ArrowLeftRight size={21} /></span><div><small>Toplam transfer</small><strong>{transferTotal.toLocaleString("tr-TR")}</strong></div></div>
+                <div className="reference-summary-card green"><span><IconPack.CircleCheck size={21} /></span><div><small>Bu sayfada kaydedilen</small><strong>{transfers.filter((row) => row.status === "Posted").length.toLocaleString("tr-TR")}</strong></div></div>
+                <div className="reference-summary-card red"><span><IconPack.CircleX size={21} /></span><div><small>Bu sayfada iptal edilen</small><strong>{transfers.filter((row) => row.status !== "Posted").length.toLocaleString("tr-TR")}</strong></div></div>
+              </section>
+              <section className="panel inventory-stock-filter-card warehouse-transfer-filter" aria-label="Transfer filtreleri">
+                <div className="inventory-stock-filter-heading"><div><h2>Filtreler</h2><p>Transferler bu sayfadaki kayıtlar içinde aranır.</p></div><button type="button" className="secondary small-button" onClick={() => void loadTransfers()}>Yenile</button></div>
+                <label className="inventory-stock-search"><span>Transfer ara</span><input value={transferSearch} onChange={(event) => setTransferSearch(event.target.value)} placeholder="Kod veya depo adıyla ara" /></label>
+              </section>
+              <section className="panel inventory-stock-grid-panel warehouse-transfer-grid">
+                <header className="inventory-stock-grid-heading"><div><h2>Transfer listesi</h2><p>{loading ? "Transferler yükleniyor…" : `${transfers.filter((row) => `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`.toLocaleLowerCase("tr-TR").includes(transferSearch.trim().toLocaleLowerCase("tr-TR"))).length} kayıt · sayfa ${transferPage}`}</p></div></header>
+                {transfers.filter((row) => `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`.toLocaleLowerCase("tr-TR").includes(transferSearch.trim().toLocaleLowerCase("tr-TR"))).length > 0 ? (
+                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr><th>Transfer kodu</th><th>Tarih</th><th>Kaynak depo</th><th>Hedef depo</th><th>Stok kalemi</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>{transfers.filter((row) => `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`.toLocaleLowerCase("tr-TR").includes(transferSearch.trim().toLocaleLowerCase("tr-TR"))).map((transfer) => <tr key={transfer.id}><td><span className="customer-code">{transfer.code}</span></td><td>{transfer.transferDate.split("-").reverse().join(".")}</td><td>{transfer.fromWarehouseName}</td><td>{transfer.toWarehouseName}</td><td>{transfer.lineCount}</td><td><span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span></td><td><div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div></td></tr>)}</tbody></table></div>
+                ) : (
+                  <div className="warehouse-empty compact"><span className="warehouse-empty-icon transfer"><IconPack.ArrowLeftRight size={18} /></span><div><b>{transfers.length ? "Aramayla eşleşen transfer yok" : "Henüz transfer kaydı yok"}</b><p>{transfers.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."}</p></div></div>
+                )}
               {transferTotal > 50 && (
                 <div className="table-pagination">
                   <span>
@@ -2586,7 +2625,8 @@ export function InventoryPage({
                   </div>
                 </div>
               )}
-            </section>
+              </section>
+            </div>
           )}
           {section === "inventory-stock" &&
             items.some((item) => !item.isActive) && (
@@ -2735,6 +2775,36 @@ export function InventoryPage({
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+          {customFieldPickerOpen && (
+            <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCustomFieldPickerOpen(false); }}>
+              <div className="modal stock-custom-field-picker">
+                <div className="modal-head">
+                  <div><p className="eyebrow">STOK KARTI · ÖZEL ALANLAR</p><h2>Stok kartı seçin</h2></div>
+                  <button className="icon-button" onClick={() => setCustomFieldPickerOpen(false)}><X size={18} /></button>
+                </div>
+                <p className="muted">Özel alan değerlerini görüntülemek veya düzenlemek için stok kartı seçin.</p>
+                <SearchableRecordPicker
+                  options={balances.map((row) => ({ id: row.stockItemId, label: `${row.code} · ${row.name}`, description: row.unitCode }))}
+                  selectedId=""
+                  onSelect={(id) => {
+                    const row = balances.find((entry) => entry.stockItemId === id);
+                    if (!row) return;
+                    const stock = itemsById.get(id);
+                    setCustomFieldPickerOpen(false);
+                    void openCustomFields(stock || {
+                      id, code: row.code, name: row.name, barcode: null, unitCode: row.unitCode,
+                      category: null, minimumStock: row.minimumStock, procurementLeadTimeDays: 0,
+                      manufacturingLeadTimeDays: 0, isActive: true, trackingMode: "None", createdAt: "", rowVersion: "",
+                    });
+                  }}
+                  title="Stok kartı seçin"
+                  placeholder="Stok kartı seçin"
+                  searchPlaceholder="Stok kodu veya adıyla ara"
+                  emptyMessage="Bu sayfada stok kartı bulunamadı."
+                />
               </div>
             </div>
           )}
@@ -3196,7 +3266,12 @@ export function InventoryPage({
                   [
                     ["basic", "Genel Bilgiler"],
                     ["inventory", "Stok Yönetimi"],
+                    ["pricing", "Alış / Satış Fiyatları"],
+                    ["logistics", "Lojistik"],
+                    ["accounting", "Muhasebe / Entegrasyon"],
                     ["units", "Birim ve Özel Alanlar"],
+                    ["variants", "Varyantlar"],
+                    ["recipes", "Üretim reçeteleri"],
                   ] as const
                 ).map(([key, label]) => (
                   <button
@@ -3212,6 +3287,43 @@ export function InventoryPage({
               <div
                 className={`customer-create-fields inventory-item-create-fields inventory-item-create-fields--${itemCreateTab}`}
               >
+                {itemCreateTab === "variants" && (
+                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
+                    <legend><IconPack.Layers size={16} /> Stok varyantları</legend>
+                    {editingItem ? (
+                      <>
+                        <p className="muted">Her varyant ayrı stok kodu ve bağımsız depo bakiyesiyle izlenir. Yeni varyant grubu oluşturmak için stok kartını yeni kart olarak tanımlayın.</p>
+                        {existingVariants.length ? <div className="inventory-variant-list">
+                          <div className="inventory-variant-row inventory-variant-row--head"><span>Stok kodu</span><span>Varyant</span><span>Barkod</span><span>Durum</span></div>
+                          {existingVariants.map((variant) => <div className="inventory-variant-row" key={variant.id}><b>{variant.code}</b><span>{variant.name.replace(`${editingItem.name} · `, "")}</span><span>{variant.barcode || "—"}</span><span>{variant.isActive ? "Aktif" : "Pasif"}</span></div>)}
+                        </div> : <div className="inventory-variant-empty">Bu stok kartına bağlı varyant yok.</div>}
+                      </>
+                    ) : (
+                      <>
+                        <p className="muted">Renk, beden veya ölçü gibi seçenekler tanımlayın. Seçeneklerin kombinasyonları ayrı stok kartları oluşturur; her birinin kodu ana stok kodundan türetilir.</p>
+                        <div className="inventory-variant-dimensions">
+                          {variantDimensions.map((dimension, index) => <div className="inventory-variant-dimension" key={index}>
+                            <label>Özellik adı<input value={dimension.name} maxLength={40} placeholder="Renk" onChange={(event) => setVariantDimensions((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, name: event.target.value } : row))} /></label>
+                            <label>Seçenekler (virgülle ayırın)<input value={dimension.values} placeholder="Kırmızı, Mavi" onChange={(event) => setVariantDimensions((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, values: event.target.value } : row))} /></label>
+                            <button type="button" className="secondary small-button" aria-label="Özelliği kaldır" onClick={() => setVariantDimensions((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}><X size={14} /></button>
+                          </div>)}
+                        </div>
+                        <button type="button" className="secondary" onClick={() => setVariantDimensions((rows) => [...rows, { name: "", values: "" }])}><IconPack.Plus size={15} /> Özellik ekle</button>
+                        {(() => { const variants = makeVariantDrafts(code, name, variantDimensions); return variants.length ? <div className="inventory-variant-preview"><div className="inventory-variant-row inventory-variant-row--head"><span>Oluşacak stok kodu</span><span>Varyant adı</span><span>Özellikler</span></div>{variants.map((variant) => <div className="inventory-variant-row" key={variant.code}><b>{variant.code}</b><span>{variant.name}</span><span>{Object.entries(variant.attributes).map(([key, value]) => `${key}: ${value}`).join(" · ")}</span></div>)}{variants.length === 200 && <small>Önizleme en fazla 200 varyant gösterir.</small>}</div> : <div className="inventory-variant-empty">Varyant oluşturmak için özellik adı ve en az bir seçenek girin.</div>; })()}
+                      </>
+                    )}
+                  </fieldset>
+                )}
+                {itemCreateTab === "recipes" && (
+                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
+                    <legend><IconPack.ClipboardList size={16} /> Tanımlı üretim reçeteleri</legend>
+                    {editingItem ? itemRecipes.length ? <div className="inventory-variant-list">
+                      <div className="inventory-recipe-row inventory-recipe-row--head"><span>Reçete</span><span>Çıktı miktarı</span><span>Bileşenler</span><span>Durum</span></div>
+                      {itemRecipes.map((recipe) => <div className="inventory-recipe-row" key={recipe.id}><b>{recipe.code} · {recipe.name}</b><span>{recipe.outputQuantity}</span><span>{recipe.lines.map((line) => `${line.componentName} (${line.quantity}${line.scrapPercent ? ` + %${line.scrapPercent} fire` : ""})`).join(", ") || "Bileşen yok"}</span><span>{recipe.isActive ? "Aktif" : "Pasif"}</span></div>)}
+                    </div> : <div className="inventory-variant-empty">Bu stok kartı için tanımlı reçete bulunamadı.</div> : <div className="inventory-variant-empty">Reçeteler stok kartı kaydedildikten sonra bu bölümde görüntülenir.</div>}
+                    <p className="muted">Reçeteyi düzenlemek için Üretim → Tanımlı Reçeteler bölümünü kullanın.</p>
+                  </fieldset>
+                )}
                 {itemCreateTab === "basic" && (
                   <fieldset className="customer-create-section inventory-create-section erp-form-group">
                     <legend>
@@ -3294,6 +3406,9 @@ export function InventoryPage({
                           onChange={(e) => setMinimumStock(e.target.value)}
                         />
                       </label>
+                      <label>Azami stok<input type="number" min="0" step="0.0001" value={maximumStock} onChange={(event) => setMaximumStock(event.target.value)} placeholder="Sınır yok" /></label>
+                      <label>Yeniden sipariş noktası<input type="number" min="0" step="0.0001" value={reorderPoint} onChange={(event) => setReorderPoint(event.target.value)} placeholder="Tanımsız" /></label>
+                      <label>Güvenli stok<input type="number" min="0" step="0.0001" value={safetyStock} onChange={(event) => setSafetyStock(event.target.value)} /></label>
                       <label>
                         Tedarik süresi (gün)
                         <input
@@ -3338,6 +3453,49 @@ export function InventoryPage({
                           Hareket geçmişi oluşunca takip türü değiştirilemez.
                         </small>
                       </label>
+                    </div>
+                  </fieldset>
+                )}
+                {itemCreateTab === "pricing" && (
+                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
+                    <legend><IconPack.Package size={16} /> Fiyat ve Vergi Bilgileri</legend>
+                    <div className="form-two">
+                      <label>Alış list fiyatı<input type="number" min="0" step="0.0001" value={purchaseListPrice} onChange={(event) => setPurchaseListPrice(event.target.value)} placeholder="Fiyat yok" /></label>
+                      <label>Satış list fiyatı<input type="number" min="0" step="0.0001" value={salesListPrice} onChange={(event) => setSalesListPrice(event.target.value)} placeholder="Fiyat yok" /></label>
+                      <label>Fiyat dövizi<input value={priceCurrencyCode} onChange={(event) => setPriceCurrencyCode(event.target.value.toUpperCase())} required minLength={3} maxLength={3} placeholder="TRY" /></label>
+                      <label>Alış KDV %<input type="number" min="0" max="100" step="0.01" value={purchaseVatPercent} onChange={(event) => setPurchaseVatPercent(event.target.value)} /></label>
+                      <label>Satış KDV %<input type="number" min="0" max="100" step="0.01" value={salesVatPercent} onChange={(event) => setSalesVatPercent(event.target.value)} /></label>
+                      <label>ÖTV %<input type="number" min="0" max="100" step="0.01" value={exciseTaxPercent} onChange={(event) => setExciseTaxPercent(event.target.value)} /></label>
+                      <label>ÖİV %<input type="number" min="0" max="100" step="0.01" value={communicationTaxPercent} onChange={(event) => setCommunicationTaxPercent(event.target.value)} /></label>
+                      <label>Tevkifat %<input type="number" min="0" max="100" step="0.01" value={withholdingTaxPercent} onChange={(event) => setWithholdingTaxPercent(event.target.value)} /></label>
+                      <label>Damga vergisi %<input type="number" min="0" max="100" step="0.01" value={stampTaxPercent} onChange={(event) => setStampTaxPercent(event.target.value)} /></label>
+                      <label>Varsayılan alış indirimi %<input type="number" min="0" max="100" step="0.01" value={purchaseDiscountPercent} onChange={(event) => setPurchaseDiscountPercent(event.target.value)} /></label>
+                      <label>Varsayılan satış indirimi %<input type="number" min="0" max="100" step="0.01" value={salesDiscountPercent} onChange={(event) => setSalesDiscountPercent(event.target.value)} /></label>
+                    </div>
+                    <p className="muted">Bu fiyatlar stok kartının varsayılan alış ve satış fiyatlarıdır.</p>
+                  </fieldset>
+                )}
+                {itemCreateTab === "logistics" && (
+                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
+                    <legend><IconPack.Boxes size={16} /> Lojistik ve Görsel</legend>
+                    <div className="form-two">
+                      <label>Net ağırlık (kg)<input type="number" min="0" step="0.0001" value={netWeight} onChange={(event) => setNetWeight(event.target.value)} /></label>
+                      <label>Brüt ağırlık (kg)<input type="number" min="0" step="0.0001" value={grossWeight} onChange={(event) => setGrossWeight(event.target.value)} /></label>
+                      <label>Uzunluk (cm)<input type="number" min="0" step="0.0001" value={length} onChange={(event) => setLength(event.target.value)} /></label>
+                      <label>Genişlik (cm)<input type="number" min="0" step="0.0001" value={width} onChange={(event) => setWidth(event.target.value)} /></label>
+                      <label>Yükseklik (cm)<input type="number" min="0" step="0.0001" value={height} onChange={(event) => setHeight(event.target.value)} /></label>
+                      <label>Ürün görseli bağlantısı<input type="url" value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} maxLength={1000} placeholder="https://…" /></label>
+                    </div>
+                  </fieldset>
+                )}
+                {itemCreateTab === "accounting" && (
+                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
+                    <legend><IconPack.Landmark size={16} /> Muhasebe ve Pazaryeri</legend>
+                    <div className="form-two">
+                      <label>Alış muhasebe hesap kodu<input value={purchaseAccountCode} onChange={(event) => setPurchaseAccountCode(event.target.value)} maxLength={40} /></label>
+                      <label>Satış muhasebe hesap kodu<input value={salesAccountCode} onChange={(event) => setSalesAccountCode(event.target.value)} maxLength={40} /></label>
+                      <label>Maliyet hesap kodu<input value={costAccountCode} onChange={(event) => setCostAccountCode(event.target.value)} maxLength={40} /></label>
+                      <label>Pazaryeri ürün kimliği<input value={marketplaceProductId} onChange={(event) => setMarketplaceProductId(event.target.value)} maxLength={120} /></label>
                     </div>
                   </fieldset>
                 )}
@@ -3427,14 +3585,13 @@ export function InventoryPage({
                         )}
                       </div>
                     </section>
-                    {!editingItem && itemCustomFieldDefinitions.length > 0 && (
+                    {itemCustomFieldDefinitions.length > 0 && (
                       <section className="panel">
                         <div className="panel-heading">
                           <div>
                             <b>Özel Alanlar</b>
                             <small>
-                              Zorunlu alanlar bu stok kartıyla birlikte
-                              kaydedilir.
+                              Zorunlu alanlar kaydetmeden önce doldurulmalıdır.
                             </small>
                           </div>
                         </div>
@@ -3501,28 +3658,6 @@ export function InventoryPage({
                     )}
                   </div>
                 )}
-              </div>
-              <div className="customer-create-form-footer">
-                <span>
-                  <IconPack.ShieldCheck size={14} />
-                  Seçili firmaya kaydedilir
-                </span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={closeItemForm}
-                  >
-                    Vazgeç
-                  </button>
-                  <button className="primary" disabled={busy}>
-                    {busy
-                      ? "Kaydediliyor…"
-                      : editingItem
-                        ? "Değişiklikleri Kaydet"
-                        : "Stok Kartını Kaydet"}
-                  </button>
-                </div>
               </div>
             </form>
           </div>

@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import type { CSSProperties } from "react";
 import type { TrendMonth } from "../types";
 
 type Props = {
@@ -9,6 +10,7 @@ type Props = {
   canReadPurchases: boolean;
   money: (value: number, code?: string) => string;
   onNavigate: (page: string) => void;
+  style?: CSSProperties;
 };
 const ticks = [1, 0.75, 0.5, 0.25, 0];
 
@@ -89,6 +91,7 @@ export default function DashboardTrendPanel({
   canReadPurchases,
   money,
   onNavigate,
+  style,
 }: Props) {
   const salesTotal = months.reduce((total, month) => total + month.sales, 0);
   const purchaseTotal = months.reduce(
@@ -96,7 +99,7 @@ export default function DashboardTrendPanel({
     0,
   );
   return (
-    <section className="erp-home-panel dashboard-reference-trend">
+    <section className="erp-home-panel dashboard-reference-trend" style={style}>
       <header>
         <div>
           <h2>Satış ve satın alma trendi</h2>

@@ -1,46 +1,36 @@
-import { Search } from "lucide-react";
+import { Filter, Search } from "lucide-react";
 
 type Props = {
-  visibleCount: number;
-  totalCount: number;
   query: string;
-  kind: "Cash" | "Bank";
   status: "all" | "active" | "inactive";
   onQueryChange: (value: string) => void;
   onStatusChange: (value: Props["status"]) => void;
-  onRefresh: () => void;
+  onApply: () => void;
 };
 
 export function FinanceAccountsToolbar({
-  visibleCount,
-  totalCount,
   query,
-  kind,
   status,
   onQueryChange,
   onStatusChange,
-  onRefresh,
+  onApply,
 }: Props) {
   return (
-    <div className="list-toolbar finance-filterbar">
-      <div>
-        <h2>{kind === "Cash" ? "Kasalar" : "Bankalar"}</h2>
-        <p>
-          {visibleCount} / {totalCount} kayıt
-        </p>
+    <section className="finance-filterbar finance-filters" aria-label="Hesap filtreleri">
+      <div className="finance-accounts-filter-heading">
+        <h2>Filtreler</h2>
+        <p>{status === "all" ? "Hesapları kod, ad, döviz veya etkinlik durumuna göre daraltın." : "Hesapları arama ve seçili etkinlik durumuna göre daraltın."}</p>
       </div>
       <div className="finance-filter-controls">
         <label className="finance-search">
           <Search size={16} />
           <input
+            aria-label="Kod, hesap veya dövize göre ara"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder="Kod, hesap veya döviz ara"
           />
         </label>
-        <span className="tenant-scope">
-          {kind === "Cash" ? "Kasa hesapları" : "Banka hesapları"}
-        </span>
         <select
           aria-label="Hesap durumu"
           value={status}
@@ -52,10 +42,11 @@ export function FinanceAccountsToolbar({
           <option value="active">Aktif</option>
           <option value="inactive">Pasif</option>
         </select>
-        <button className="secondary small-button" onClick={onRefresh}>
-          Yenile
+        <button type="button" className="secondary small-button" onClick={onApply}>
+          <Filter size={15} />
+          Filtrele
         </button>
       </div>
-    </div>
+    </section>
   );
 }
