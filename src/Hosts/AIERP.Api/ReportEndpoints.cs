@@ -343,8 +343,8 @@ public static class ReportEndpoints
         var reports = app.MapGroup("/api/reports").WithTags("Tenant Report Builder").RequireAuthorization();
 
         reports.MapGet("/manufacturing-cost-variance", async (DateOnly? from, DateOnly? to, int? page, int? pageSize,
-            ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
-            await GetManufacturingCostVarianceAsync(from, to, page ?? 1, pageSize ?? 100, user, db, platformDb, ct));
+            ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, HttpContext context, CancellationToken ct) =>
+            await GetManufacturingCostVarianceAsync(from, to, page ?? 1, pageSize ?? 100, user, db, platformDb, context, ct));
 
         reports.MapGet("/catalog", (ClaimsPrincipal user) =>
         {
@@ -582,10 +582,11 @@ public static class ReportEndpoints
     }
 
     private static async Task<IResult> GetManufacturingCostVarianceAsync(DateOnly? from, DateOnly? to, int page, int pageSize,
-        ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
+        ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, HttpContext context, CancellationToken ct)
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out var role) || role is not ("TenantAdmin" or "TenantUser"))
             return Results.Forbid();
+        if (!await CanReadReportSourceAsync("manufacturingOrders", tenantId, userId, role, context, ct)) return Results.Forbid();
         if (from is null || to is null || from > to || to.Value.DayNumber - from.Value.DayNumber > 365 || page < 1 || pageSize is < 1 or > 200)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["period"] = ["Başlangıç ve bitiş tarihi zorunludur; dönem en fazla 366 gün, sayfa 1 veya üzeri ve sayfa boyutu 1–200 olmalıdır."] });
 
@@ -684,7 +685,8 @@ public static class ReportEndpoints
         if (normalized!.Source == "customSql") return Results.Problem(
             "SQL raporları, salt okunur veritabanı erişimi sağlanana kadar geçici olarak kullanılamıyor.", statusCode: 503);
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
-        if (normalized!.Source == "salesInvoices") return await RunSalesInvoicesAsync(normalized, user, db, ct);
+        if (!await CanReadReportSourceAsync(normalized.Source, tenantId, userId, role, context, ct)) return Results.Forbid();
+        if (normalized!.Source == "salesInvoices") return await RunSalesInvoicesAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized!.Source == "bankStatements") return await RunBankStatementsAsync(normalized, user, db, ct);
         if (normalized!.Source == "bankStatementLines") return await RunBankStatementLinesAsync(normalized, user, db, ct);
         if (normalized!.Source == "financialAccountTransactions") return await RunFinancialAccountTransactionsAsync(normalized, user, db, ct);
@@ -692,19 +694,19 @@ public static class ReportEndpoints
         if (normalized!.Source == "journalEntryLines") return await RunJournalEntryLinesAsync(normalized, user, db, ct);
         if (normalized!.Source == "fxRevaluationLines") return await RunFxRevaluationLinesAsync(normalized, user, db, ct);
         if (normalized!.Source == "supplierPayments") return await RunSupplierPaymentsAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
-        if (normalized!.Source == "salesQuotes") return await RunSalesQuotesAsync(normalized, user, db, ct);
+        if (normalized!.Source == "salesQuotes") return await RunSalesQuotesAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized!.Source == "purchaseSupplierQuotes") return await RunPurchaseSupplierQuotesAsync(normalized, user, db, ct);
         if (normalized.Source == "purchaseRequests") return await RunPurchaseRequestsAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
-        if (normalized.Source == "purchaseOrders") return await RunPurchaseOrdersAsync(normalized, user, db, ct);
+        if (normalized.Source == "purchaseOrders") return await RunPurchaseOrdersAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized.Source == "purchaseReceipts") return await RunPurchaseReceiptsAsync(normalized, user, db, ct);
-        if (normalized.Source == "purchaseInvoices") return await RunPurchaseInvoicesAsync(normalized, user, db, ct);
+        if (normalized.Source == "purchaseInvoices") return await RunPurchaseInvoicesAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized.Source == "manufacturingOrders") return await RunManufacturingOrdersAsync(normalized, user, db, ct);
         if (normalized.Source == "manufacturingWorkCenters") return await RunManufacturingWorkCentersAsync(normalized, user, db, ct);
         if (normalized.Source == "inventoryTransactions") return await RunInventoryTransactionsAsync(normalized, user, db, ct);
         if (normalized.Source == "inventoryTransfers") return await RunInventoryTransfersAsync(normalized, user, db, ct);
-        if (normalized.Source == "salesOrders") return await RunSalesOrdersAsync(normalized, user, db, ct);
-        if (normalized.Source == "salesOrderFulfillment") return await RunSalesOrderFulfillmentAsync(normalized, user, db, ct);
-        if (normalized.Source == "purchaseOrderFulfillment") return await RunPurchaseOrderFulfillmentAsync(normalized, user, db, ct);
+        if (normalized.Source == "salesOrders") return await RunSalesOrdersAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
+        if (normalized.Source == "salesOrderFulfillment") return await RunSalesOrderFulfillmentAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
+        if (normalized.Source == "purchaseOrderFulfillment") return await RunPurchaseOrderFulfillmentAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized.Source == "salesDeliveries") return await RunSalesDeliveriesAsync(normalized, user, db, ct);
         if (normalized.Source == "salesReturns") return await RunSalesReturnsAsync(normalized, user, db, ct);
         if (normalized.Source == "supplierReturns") return await RunSupplierReturnsAsync(normalized, user, db, ct);
@@ -717,6 +719,9 @@ public static class ReportEndpoints
         if (normalized.Source == "supplierLedgerEntries") return await RunSupplierLedgerEntriesAsync(normalized, user, db,
             context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         IQueryable<CustomerAccount> query = db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId);
+        // Apply the same customer row rules as the /api/customers list endpoint.
+        query = await CustomerCollectionPermissionFilter.ApplyAsync(context.RequestServices.GetRequiredService<PlatformDbContext>(),
+            tenantId, userId, role, query, ct);
         foreach (var filter in normalized!.Filters)
             if (!TryApplyCustomerFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -748,7 +753,8 @@ public static class ReportEndpoints
         if (normalized!.Source == "customSql") return Results.Problem(
             "SQL raporları, salt okunur veritabanı erişimi sağlanana kadar geçici olarak kullanılamıyor.", statusCode: 503);
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
-        if (normalized!.Source == "salesInvoices") return await ExportSalesInvoicesAsync(normalized, user, db, ct);
+        if (!await CanReadReportSourceAsync(normalized.Source, tenantId, userId, role, context, ct)) return Results.Forbid();
+        if (normalized!.Source == "salesInvoices") return await ExportSalesInvoicesAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized!.Source == "bankStatements") return await ExportBankStatementsAsync(normalized, user, db, ct);
         if (normalized!.Source == "bankStatementLines") return await ExportBankStatementLinesAsync(normalized, user, db, ct);
         if (normalized!.Source == "financialAccountTransactions") return await ExportFinancialAccountTransactionsAsync(normalized, user, db, ct);
@@ -756,19 +762,19 @@ public static class ReportEndpoints
         if (normalized!.Source == "journalEntryLines") return await ExportJournalEntryLinesAsync(normalized, user, db, ct);
         if (normalized!.Source == "fxRevaluationLines") return await ExportFxRevaluationLinesAsync(normalized, user, db, ct);
         if (normalized!.Source == "supplierPayments") return await ExportSupplierPaymentsAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
-        if (normalized!.Source == "salesQuotes") return await ExportSalesQuotesAsync(normalized, user, db, ct);
+        if (normalized!.Source == "salesQuotes") return await ExportSalesQuotesAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized!.Source == "purchaseSupplierQuotes") return await ExportPurchaseSupplierQuotesAsync(normalized, user, db, ct);
         if (normalized.Source == "purchaseRequests") return await ExportPurchaseRequestsAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
-        if (normalized.Source == "purchaseOrders") return await ExportPurchaseOrdersAsync(normalized, user, db, ct);
+        if (normalized.Source == "purchaseOrders") return await ExportPurchaseOrdersAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized.Source == "purchaseReceipts") return await ExportPurchaseReceiptsAsync(normalized, user, db, ct);
-        if (normalized.Source == "purchaseInvoices") return await ExportPurchaseInvoicesAsync(normalized, user, db, ct);
+        if (normalized.Source == "purchaseInvoices") return await ExportPurchaseInvoicesAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized.Source == "manufacturingOrders") return await ExportManufacturingOrdersAsync(normalized, user, db, ct);
         if (normalized.Source == "manufacturingWorkCenters") return await ExportManufacturingWorkCentersAsync(normalized, user, db, ct);
         if (normalized.Source == "inventoryTransactions") return await ExportInventoryTransactionsAsync(normalized, user, db, ct);
         if (normalized.Source == "inventoryTransfers") return await ExportInventoryTransfersAsync(normalized, user, db, ct);
-        if (normalized.Source == "salesOrders") return await ExportSalesOrdersAsync(normalized, user, db, ct);
-        if (normalized.Source == "salesOrderFulfillment") return await ExportSalesOrderFulfillmentAsync(normalized, user, db, ct);
-        if (normalized.Source == "purchaseOrderFulfillment") return await ExportPurchaseOrderFulfillmentAsync(normalized, user, db, ct);
+        if (normalized.Source == "salesOrders") return await ExportSalesOrdersAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
+        if (normalized.Source == "salesOrderFulfillment") return await ExportSalesOrderFulfillmentAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
+        if (normalized.Source == "purchaseOrderFulfillment") return await ExportPurchaseOrderFulfillmentAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         if (normalized.Source == "salesDeliveries") return await ExportSalesDeliveriesAsync(normalized, user, db, ct);
         if (normalized.Source == "salesReturns") return await ExportSalesReturnsAsync(normalized, user, db, ct);
         if (normalized.Source == "supplierReturns") return await ExportSupplierReturnsAsync(normalized, user, db, ct);
@@ -781,6 +787,9 @@ public static class ReportEndpoints
         if (normalized.Source == "supplierLedgerEntries") return await ExportSupplierLedgerEntriesAsync(normalized, user, db,
             context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
         IQueryable<CustomerAccount> query = db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId);
+        // Apply the same customer row rules as the /api/customers list endpoint.
+        query = await CustomerCollectionPermissionFilter.ApplyAsync(context.RequestServices.GetRequiredService<PlatformDbContext>(),
+            tenantId, userId, role, query, ct);
         foreach (var filter in normalized!.Filters)
             if (!TryApplyCustomerFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -1489,10 +1498,13 @@ public static class ReportEndpoints
         return "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
     }
 
-    private static async Task<IResult> RunPurchaseOrdersAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> RunPurchaseOrdersAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         IQueryable<PurchaseOrder> query = db.PurchaseOrders.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Supplier);
+        // Apply the same row-level permission rules as the erp.purchase-orders list endpoint.
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.purchase-orders.read", "erp.purchase-orders", query, x => x.Status, null, x => x.SupplierId, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplyPurchaseOrderFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -1517,10 +1529,13 @@ public static class ReportEndpoints
             report.Page, report.PageSize, totalCount));
     }
 
-    private static async Task<IResult> ExportPurchaseOrdersAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> ExportPurchaseOrdersAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         IQueryable<PurchaseOrder> query = db.PurchaseOrders.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Supplier);
+        // Apply the same row-level permission rules as the erp.purchase-orders list endpoint.
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.purchase-orders.read", "erp.purchase-orders", query, x => x.Status, null, x => x.SupplierId, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplyPurchaseOrderFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -1591,10 +1606,13 @@ public static class ReportEndpoints
         return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
     }
 
-    private static async Task<IResult> RunPurchaseInvoicesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> RunPurchaseInvoicesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         IQueryable<PurchaseInvoice> query = db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId);
+        // Apply the same row-level permission rules as the erp.purchase-invoices list endpoint.
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.purchase-invoices.read", "erp.purchase-invoices", query, x => x.Status, null, x => x.SupplierId, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplyPurchaseInvoiceFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -1612,10 +1630,13 @@ public static class ReportEndpoints
             report.Page, report.PageSize, totalCount));
     }
 
-    private static async Task<IResult> ExportPurchaseInvoicesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> ExportPurchaseInvoicesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         IQueryable<PurchaseInvoice> query = db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId);
+        // Apply the same row-level permission rules as the erp.purchase-invoices list endpoint.
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.purchase-invoices.read", "erp.purchase-invoices", query, x => x.Status, null, x => x.SupplierId, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplyPurchaseInvoiceFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -1952,10 +1973,13 @@ public static class ReportEndpoints
         }
     }
 
-    private static async Task<IResult> RunSalesOrdersAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> RunSalesOrdersAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         IQueryable<SalesOrder> query = db.SalesOrders.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Customer);
+        // Apply the same row-level permission rules as the erp.sales-orders list endpoint.
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.sales-orders.read", "erp.sales-orders", query, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplySalesOrderFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -1980,11 +2004,14 @@ public static class ReportEndpoints
             report.Page, report.PageSize, totalCount));
     }
 
-    private static async Task<IResult> RunSalesQuotesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> RunSalesQuotesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         IQueryable<SalesQuote> query = db.SalesQuotes.AsNoTracking().Where(x => x.TenantId == tenantId)
             .Include(x => x.Customer).Include(x => x.Order);
+        // Apply the same row-level permission rules as the erp.sales-quotes list endpoint.
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId ?? Guid.Empty, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplySalesQuoteFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -1999,9 +2026,18 @@ public static class ReportEndpoints
             report.Page, report.PageSize, totalCount));
     }
 
-    private static IQueryable<SalesOrderFulfillmentReportRow> SalesOrderFulfillmentQuery(TenantDbContext db, Guid tenantId) =>
+    // Fulfillment rows inherit the erp.sales-orders list endpoint row rules through their order.
+    private static async Task<IQueryable<SalesOrder>> VisibleSalesOrdersAsync(TenantDbContext db, PlatformDbContext platformDb,
+        Guid tenantId, Guid userId, string role, CancellationToken ct)
+    {
+        IQueryable<SalesOrder> orders = db.SalesOrders.AsNoTracking().Where(x => x.TenantId == tenantId);
+        return await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.sales-orders.read", "erp.sales-orders", orders, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? orders;
+    }
+
+    private static IQueryable<SalesOrderFulfillmentReportRow> SalesOrderFulfillmentQuery(TenantDbContext db, Guid tenantId, IQueryable<SalesOrder> orders) =>
         from line in db.SalesOrderLines.AsNoTracking()
-        join order in db.SalesOrders.AsNoTracking() on new { line.TenantId, Id = line.OrderId } equals new { order.TenantId, Id = order.Id }
+        join order in orders on new { line.TenantId, Id = line.OrderId } equals new { order.TenantId, Id = order.Id }
         join customer in db.CustomerAccounts.AsNoTracking() on new { order.TenantId, order.CustomerId } equals new { customer.TenantId, CustomerId = customer.Id }
         where line.TenantId == tenantId && order.TenantId == tenantId
         let fulfilled = db.SalesOrderReservations.Where(x => x.TenantId == tenantId && x.OrderId == line.OrderId && x.OrderLineNumber == line.LineNumber).Sum(x => (decimal?)x.FulfilledQuantity) ?? 0m
@@ -2012,10 +2048,11 @@ public static class ReportEndpoints
             order.Status, line.LineNumber, line.StockCode, line.StockName, line.UnitCode, line.Quantity, reserved, fulfilled, remaining,
             remaining > reserved ? remaining - reserved : 0m);
 
-    private static async Task<IResult> RunSalesOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> RunSalesOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
-        IQueryable<SalesOrderFulfillmentReportRow> query = SalesOrderFulfillmentQuery(db, tenantId);
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+        IQueryable<SalesOrderFulfillmentReportRow> query = SalesOrderFulfillmentQuery(db, tenantId,
+            await VisibleSalesOrdersAsync(db, platformDb, tenantId, userId, role, ct));
         foreach (var filter in report.Filters)
             if (!TryApplySalesOrderFulfillmentFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -2030,10 +2067,11 @@ public static class ReportEndpoints
             report.Page, report.PageSize, count));
     }
 
-    private static async Task<IResult> ExportSalesOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> ExportSalesOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
-        IQueryable<SalesOrderFulfillmentReportRow> query = SalesOrderFulfillmentQuery(db, tenantId);
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+        IQueryable<SalesOrderFulfillmentReportRow> query = SalesOrderFulfillmentQuery(db, tenantId,
+            await VisibleSalesOrdersAsync(db, platformDb, tenantId, userId, role, ct));
         foreach (var filter in report.Filters)
             if (!TryApplySalesOrderFulfillmentFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -2137,9 +2175,18 @@ public static class ReportEndpoints
     };
     private static ReportColumn SalesOrderFulfillmentColumnByCode(string code) => SalesOrderFulfillmentColumns.First(x => x.Code == code);
 
-    private static IQueryable<PurchaseOrderFulfillmentReportRow> PurchaseOrderFulfillmentQuery(TenantDbContext db, Guid tenantId) =>
+    // Fulfillment rows inherit the erp.purchase-orders list endpoint row rules through their order.
+    private static async Task<IQueryable<PurchaseOrder>> VisiblePurchaseOrdersAsync(TenantDbContext db, PlatformDbContext platformDb,
+        Guid tenantId, Guid userId, string role, CancellationToken ct)
+    {
+        IQueryable<PurchaseOrder> orders = db.PurchaseOrders.AsNoTracking().Where(x => x.TenantId == tenantId);
+        return await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.purchase-orders.read", "erp.purchase-orders", orders, x => x.Status, null, x => x.SupplierId, cancellationToken: ct) ?? orders;
+    }
+
+    private static IQueryable<PurchaseOrderFulfillmentReportRow> PurchaseOrderFulfillmentQuery(TenantDbContext db, Guid tenantId, IQueryable<PurchaseOrder> orders) =>
         from line in db.PurchaseOrderLines.AsNoTracking()
-        join order in db.PurchaseOrders.AsNoTracking() on new { line.TenantId, Id = line.PurchaseOrderId } equals new { order.TenantId, Id = order.Id }
+        join order in orders on new { line.TenantId, Id = line.PurchaseOrderId } equals new { order.TenantId, Id = order.Id }
         join supplier in db.CustomerAccounts.AsNoTracking() on new { order.TenantId, order.SupplierId } equals new { supplier.TenantId, SupplierId = supplier.Id }
         where line.TenantId == tenantId && order.TenantId == tenantId &&
             (order.Status == PurchaseOrderStatus.Open || order.Status == PurchaseOrderStatus.PartiallyReceived)
@@ -2163,10 +2210,11 @@ public static class ReportEndpoints
             OutstandingQuantity = line.Quantity > received ? line.Quantity - received : 0m
         };
 
-    private static async Task<IResult> RunPurchaseOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> RunPurchaseOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
-        IQueryable<PurchaseOrderFulfillmentReportRow> query = PurchaseOrderFulfillmentQuery(db, tenantId);
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+        IQueryable<PurchaseOrderFulfillmentReportRow> query = PurchaseOrderFulfillmentQuery(db, tenantId,
+            await VisiblePurchaseOrdersAsync(db, platformDb, tenantId, userId, role, ct));
         foreach (var filter in report.Filters)
             if (!TryApplyPurchaseOrderFulfillmentFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -2181,10 +2229,11 @@ public static class ReportEndpoints
             report.Page, report.PageSize, count));
     }
 
-    private static async Task<IResult> ExportPurchaseOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> ExportPurchaseOrderFulfillmentAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
-        IQueryable<PurchaseOrderFulfillmentReportRow> query = PurchaseOrderFulfillmentQuery(db, tenantId);
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+        IQueryable<PurchaseOrderFulfillmentReportRow> query = PurchaseOrderFulfillmentQuery(db, tenantId,
+            await VisiblePurchaseOrdersAsync(db, platformDb, tenantId, userId, role, ct));
         foreach (var filter in report.Filters)
             if (!TryApplyPurchaseOrderFulfillmentFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -2270,11 +2319,14 @@ public static class ReportEndpoints
     };
     private static ReportColumn PurchaseOrderFulfillmentColumnByCode(string code) => PurchaseOrderFulfillmentColumns.First(x => x.Code == code);
 
-    private static async Task<IResult> ExportSalesQuotesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> ExportSalesQuotesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         IQueryable<SalesQuote> query = db.SalesQuotes.AsNoTracking().Where(x => x.TenantId == tenantId)
             .Include(x => x.Customer).Include(x => x.Order);
+        // Apply the same row-level permission rules as the erp.sales-quotes list endpoint.
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.sales-quotes.read", "erp.sales-quotes", query, x => x.Status, x => x.CustomerId ?? Guid.Empty, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplySalesQuoteFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -2452,10 +2504,13 @@ public static class ReportEndpoints
         return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "nexora-report.csv");
     }
 
-    private static async Task<IResult> ExportSalesOrdersAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> ExportSalesOrdersAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         IQueryable<SalesOrder> query = db.SalesOrders.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Customer);
+        // Apply the same row-level permission rules as the erp.sales-orders list endpoint.
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.sales-orders.read", "erp.sales-orders", query, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplySalesOrderFilter(ref query, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -3647,10 +3702,13 @@ public static class ReportEndpoints
 
     private static ReportColumn FxRevaluationLineColumnByCode(string code) => FxRevaluationLineColumns.First(x => x.Code == code);
 
-    private static async Task<IResult> RunSalesInvoicesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> RunSalesInvoicesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         IQueryable<SalesInvoice> query = db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Customer);
+        // Apply the same row-level permission rules as the erp.sales-invoices list endpoint.
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.sales-invoices.read", "erp.sales-invoices", query, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplyInvoiceFilter(ref query, db, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -3678,10 +3736,13 @@ public static class ReportEndpoints
             report.Page, report.PageSize, totalCount));
     }
 
-    private static async Task<IResult> ExportSalesInvoicesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct)
+    private static async Task<IResult> ExportSalesInvoicesAsync(NormalizedReport report, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct)
     {
-        if (!TryTenantContext(user, out var tenantId, out var userId, out _)) return Results.Forbid();
+        if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
         IQueryable<SalesInvoice> query = db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId).Include(x => x.Customer);
+        // Apply the same row-level permission rules as the erp.sales-invoices list endpoint.
+        query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId, role,
+            "erp.sales-invoices.read", "erp.sales-invoices", query, x => x.Status, x => x.CustomerId, cancellationToken: ct) ?? query;
         foreach (var filter in report.Filters)
             if (!TryApplyInvoiceFilter(ref query, db, filter, out var error))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"filters.{filter.Field}"] = [error!] });
@@ -5734,6 +5795,66 @@ public static class ReportEndpoints
     }
     private static string SavedAuditAction(string kind, string action) =>
         $"erp.{(kind == "List" ? "list-view" : "report")}.{action}";
+    // The route-level erp.reports permission only grants use of the report builder. Each source must also be
+    // readable under the same resource permission as its list endpoint, or a restricted role could export
+    // every row of a resource it cannot open directly. RowFiltered sources apply PermissionStatusFilter in
+    // their runner, so a row-scoped Allow rule is enough to pass; every other source needs an unconditional read.
+    internal static readonly IReadOnlyDictionary<string, (string ResourceType, bool RowFiltered)> ReportSourcePermissions =
+        new Dictionary<string, (string ResourceType, bool RowFiltered)>(StringComparer.Ordinal)
+        {
+            ["customers"] = ("erp.customers", true),
+            ["customerLedgerEntries"] = ("erp.customers", true),
+            ["crmOpportunities"] = ("erp.crm-opportunities", false),
+            ["salesQuotes"] = ("erp.sales-quotes", true),
+            ["salesOrders"] = ("erp.sales-orders", true),
+            ["salesOrderFulfillment"] = ("erp.sales-orders", true),
+            ["salesDeliveries"] = ("erp.sales-deliveries", false),
+            ["salesInvoices"] = ("erp.sales-invoices", true),
+            ["salesReturns"] = ("erp.sales-returns", false),
+            ["purchaseRequests"] = ("erp.purchase-requests", true),
+            ["purchaseSupplierQuotes"] = ("erp.supplier-quotes", false),
+            ["purchaseOrders"] = ("erp.purchase-orders", true),
+            ["purchaseOrderFulfillment"] = ("erp.purchase-orders", true),
+            ["purchaseReceipts"] = ("erp.purchase-receipts", false),
+            ["purchaseInvoices"] = ("erp.purchase-invoices", true),
+            ["supplierReturns"] = ("erp.supplier-returns", false),
+            ["supplierPayments"] = ("erp.supplier-payments", true),
+            ["supplierLedgerEntries"] = ("erp.supplier-payments", true),
+            ["stockItems"] = ("erp.stock-items", false),
+            ["warehouseStock"] = ("erp.warehouses", false),
+            ["inventoryTransactions"] = ("erp.warehouses", false),
+            ["inventoryTransfers"] = ("erp.inventory-transfers", false),
+            ["manufacturingOrders"] = ("erp.manufacturing", false),
+            ["manufacturingWorkCenters"] = ("erp.manufacturing", false),
+            ["workflowInstances"] = ("erp.workflows", false),
+            ["bankStatements"] = ("erp.bank-statements", false),
+            ["bankStatementLines"] = ("erp.bank-statements", false),
+            ["financialAccountTransactions"] = ("erp.finance-accounts", false),
+            ["financialAccountTransfers"] = ("erp.financial-transfers", false),
+            ["journalEntryLines"] = ("erp.general-ledger", false),
+            ["fxRevaluationLines"] = ("erp.fx-revaluations", false),
+        };
+
+    private static async Task<bool> CanReadReportSourceAsync(string source, Guid tenantId, Guid userId, string role,
+        HttpContext context, CancellationToken ct)
+    {
+        // A source without a mapping must never fall back to tenant-wide access.
+        if (!ReportSourcePermissions.TryGetValue(source, out var mapping)) return false;
+        var permission = AIERP.Platform.Application.PlatformPermissionCatalog.Definitions
+            .FirstOrDefault(x => x.Code == $"{mapping.ResourceType}.read");
+        if (permission is null) return false;
+        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["subject.userId"] = userId.ToString("D"), ["subject.role"] = role,
+            ["resource.type"] = permission.ResourceType, ["resource.tenantId"] = tenantId.ToString("D"),
+            ["request.method"] = "GET", ["request.action"] = "read"
+        };
+        if (mapping.RowFiltered) attributes["resource.collectionRowsFiltered"] = "true";
+        var authorizer = context.RequestServices.GetRequiredService<AIERP.Platform.Application.IPlatformPermissionAuthorizer>();
+        return await authorizer.IsAllowedAsync(tenantId, userId, role,
+            new AIERP.Platform.Application.ResolvedPlatformPermission(permission, attributes), ct);
+    }
+
     private static bool TryTenantContext(ClaimsPrincipal user, out Guid tenantId, out Guid userId, out string role)
     {
         tenantId = Guid.Empty; userId = Guid.Empty; role = "";

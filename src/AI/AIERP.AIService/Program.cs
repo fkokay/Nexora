@@ -30,6 +30,18 @@ builder.Services.AddAierpHttpMetrics();
 builder.Services.AddHostedService<PrometheusBusinessMetricsBridge>();
 var jwtKey = builder.Configuration["Authentication:SigningKey"];
 if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32) throw new InvalidOperationException("Authentication:SigningKey must be configured with at least 32 bytes.");
+// Dedicated service keys, when set, must be strong and distinct: reusing the user-token key would let the
+// Workspace Runner or Release Deployer mint user tokens (and each other's), which is what they exist to prevent.
+var runnerServiceKey = builder.Configuration["WorkspaceRunner:SigningKey"];
+var deployerServiceKey = builder.Configuration["ReleaseDeployer:SigningKey"];
+foreach (var (name, value) in new[] { ("WorkspaceRunner:SigningKey", runnerServiceKey), ("ReleaseDeployer:SigningKey", deployerServiceKey) })
+{
+    if (string.IsNullOrEmpty(value)) continue;
+    if (Encoding.UTF8.GetByteCount(value) < 32) throw new InvalidOperationException($"{name} must contain at least 32 bytes.");
+    if (string.Equals(value, jwtKey, StringComparison.Ordinal)) throw new InvalidOperationException($"{name} must differ from Authentication:SigningKey.");
+}
+if (!string.IsNullOrEmpty(runnerServiceKey) && string.Equals(runnerServiceKey, deployerServiceKey, StringComparison.Ordinal))
+    throw new InvalidOperationException("WorkspaceRunner:SigningKey and ReleaseDeployer:SigningKey must differ.");
 var connectionString = builder.Configuration.GetConnectionString("Platform") ?? throw new InvalidOperationException("ConnectionStrings:Platform is required.");
 DatabaseIsolationConfiguration.RequireEnabled(builder.Configuration, "AI Development Service", "AIStudio");
 DatabaseIsolationConfiguration.RequireTenantCredentialIsolation("AI Development Service", builder.Configuration);
@@ -5849,9 +5861,13 @@ static string CreateRunnerToken(IConfiguration configuration, Guid workspaceId, 
     var token = new JwtSecurityToken(configuration["Authentication:Issuer"] ?? "AIERP", "AIERP.WorkspaceRunner",
         [new Claim(JwtRegisteredClaimNames.Sub, "AIERP.AIService"), new Claim("service", "AIERP.AIService"),
          new Claim("operation", operation), new Claim("workspace_id", workspaceId.ToString("D"))], now, now.AddMinutes(2),
-        new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Authentication:SigningKey"]!)), SecurityAlgorithms.HmacSha256));
+        new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ServiceSigningKey(configuration, "WorkspaceRunner:SigningKey"))), SecurityAlgorithms.HmacSha256));
     return new JwtSecurityTokenHandler().WriteToken(token);
 }
+// Service tokens use a dedicated key per audience when configured, so a service that can verify one kind of
+// token cannot mint another; Authentication:SigningKey remains the fallback for stacks without dedicated keys.
+static string ServiceSigningKey(IConfiguration configuration, string dedicatedKey) =>
+    configuration[dedicatedKey] is { Length: > 0 } key ? key : configuration["Authentication:SigningKey"]!;
 static string CreateReleaseDeployerToken(IConfiguration configuration, StudioReleaseDeploymentRecord deployment, string operation)
 {
     var now = DateTime.UtcNow;
@@ -5859,7 +5875,7 @@ static string CreateReleaseDeployerToken(IConfiguration configuration, StudioRel
         [new Claim(JwtRegisteredClaimNames.Sub, "AIERP.AIService"), new Claim("service", "AIERP.AIService"),
          new Claim("scope", operation), new Claim("deployment_id", deployment.Id.ToString("D")),
          new Claim("tenant_id", deployment.TenantId.ToString("D")), new Claim("project_id", deployment.ProjectId.ToString("D"))],
-        now, now.AddMinutes(2), new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Authentication:SigningKey"]!)), SecurityAlgorithms.HmacSha256));
+        now, now.AddMinutes(2), new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ServiceSigningKey(configuration, "ReleaseDeployer:SigningKey"))), SecurityAlgorithms.HmacSha256));
     return new JwtSecurityTokenHandler().WriteToken(token);
 }
 static string CreateProjectRunnerToken(IConfiguration configuration, Guid projectId, string operation)
@@ -5868,7 +5884,7 @@ static string CreateProjectRunnerToken(IConfiguration configuration, Guid projec
     var token = new JwtSecurityToken(configuration["Authentication:Issuer"] ?? "AIERP", "AIERP.WorkspaceRunner",
         [new Claim(JwtRegisteredClaimNames.Sub, "AIERP.AIService"), new Claim("service", "AIERP.AIService"),
          new Claim("operation", operation), new Claim("project_id", projectId.ToString("D"))], now, now.AddMinutes(2),
-        new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Authentication:SigningKey"]!)), SecurityAlgorithms.HmacSha256));
+        new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ServiceSigningKey(configuration, "WorkspaceRunner:SigningKey"))), SecurityAlgorithms.HmacSha256));
     return new JwtSecurityTokenHandler().WriteToken(token);
 }
 static WorkspaceRequestView ToWorkspaceView(DevelopmentWorkspaceRequest request, bool canReview) => new(request.Id, request.ProjectId,

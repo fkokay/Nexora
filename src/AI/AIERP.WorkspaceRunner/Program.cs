@@ -16,7 +16,10 @@ const string ReleasePackageRootPath = "/release-packages";
 const string TestJobRootPath = "/test-jobs";
 
 var builder = WebApplication.CreateBuilder(args);
-var signingKey = builder.Configuration["Authentication:SigningKey"];
+// Runner tokens are signed with a key shared only with the AI Service, so a peer holding the user-token key
+// cannot mint them. Generated staging/production stacks that predate the dedicated key fall back to it.
+var signingKey = builder.Configuration["WorkspaceRunner:SigningKey"] is { Length: > 0 } runnerSigningKey
+    ? runnerSigningKey : builder.Configuration["Authentication:SigningKey"];
 if (string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32)
     throw new InvalidOperationException("A signing key with at least 32 bytes is required.");
 var issuer = builder.Configuration["Authentication:Issuer"] ?? "AIERP";

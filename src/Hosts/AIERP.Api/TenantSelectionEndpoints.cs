@@ -99,7 +99,7 @@ public static class TenantSelectionEndpoints
                 return Results.Ok(new { accessToken });
             }
             return Results.Ok(new { accessToken, refreshToken = newRefreshToken });
-        }).RequireRateLimiting("login");
+        }).AllowAnonymous().RequireRateLimiting("login");
         return auth;
     }
 
@@ -128,7 +128,7 @@ public static class TenantSelectionEndpoints
             if (cookieTransport) ClearStudioRefreshCookie(context, config, environment);
             context.Response.Headers.CacheControl = "no-store";
             return Results.NoContent();
-        }).RequireRateLimiting("login");
+        }).AllowAnonymous().RequireRateLimiting("login");
         return auth;
     }
 

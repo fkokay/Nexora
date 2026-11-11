@@ -92,6 +92,8 @@ public sealed class SqlServerBankStatementLineReportAcceptanceTests
             builder.Services.AddDbContext<PlatformDbContext>(db => db.UseInMemoryDatabase($"sql-report-platform-{Guid.NewGuid():N}"));
             builder.Services.AddAuthentication("report-test")
                 .AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
+            // Report runs check the source read permission through the platform authorizer.
+            builder.Services.AddSingleton<AIERP.Platform.Application.IPlatformPermissionAuthorizer, CustomizationTestPermissionAuthorizer>();
             builder.Services.AddAuthorization();
 
             await using var app = builder.Build();

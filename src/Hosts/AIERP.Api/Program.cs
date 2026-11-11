@@ -122,6 +122,8 @@ builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler
 builder.Services.AddAuthorization(options =>
 {
     options.DefaultPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().AddRequirements(new PermissionRequirement()).Build();
+    // Endpoints without explicit authorization metadata must not be silently public; anonymous routes opt out with AllowAnonymous().
+    options.FallbackPolicy = options.DefaultPolicy;
     options.AddPolicy("PlatformModuleMaintainer", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
         context.User.FindAll("platform_role").Any(x => x.Value is "PlatformDeveloper" or "PlatformSuperAdmin" or "PlatformReleaseManager")));
     options.AddPolicy("PlatformModulePublisher", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
@@ -131,7 +133,10 @@ builder.Services.AddAuthorization(options =>
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddRateLimiter(o =>
 {
-    o.AddFixedWindowLimiter("login", x => { x.PermitLimit = 10; x.Window = TimeSpan.FromMinutes(1); x.QueueLimit = 0; });
+    // Partition by client address so one caller cannot exhaust the login budget for every user.
+    o.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     o.AddFixedWindowLimiter("module-invoke", x => { x.PermitLimit = 12; x.Window = TimeSpan.FromSeconds(10); x.QueueLimit = 0; });
     o.AddFixedWindowLimiter("integration-execute", x => { x.PermitLimit = 6; x.Window = TimeSpan.FromSeconds(10); x.QueueLimit = 0; });
     o.AddPolicy("ai-assistant", context => RateLimitPartition.GetFixedWindowLimiter(
@@ -195,7 +200,17 @@ if (args.Contains("--legacy-tenant-data-purge-preview", StringComparer.Ordinal) 
         Console.WriteLine($"{table.Schema}.{table.Table}: {table.Rows}");
     return;
 }
-if (app.Environment.IsDevelopment()) app.MapOpenApi();
+if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
+// Honour X-Forwarded-For only from explicitly trusted proxy networks (ReverseProxy:KnownNetworks), so rate limits see the real client.
+var trustedProxyNetworks = builder.Configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? [];
+if (trustedProxyNetworks.Length > 0)
+{
+    var forwardedOptions = new ForwardedHeadersOptions { ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor, ForwardLimit = null };
+    forwardedOptions.KnownIPNetworks.Clear();
+    forwardedOptions.KnownProxies.Clear();
+    foreach (var network in trustedProxyNetworks) forwardedOptions.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+    app.UseForwardedHeaders(forwardedOptions);
+}
 app.UseCors(); app.UseAuthentication(); app.UseRateLimiter();
 app.Use(async (context, next) =>
 {
@@ -286,7 +301,7 @@ app.MapGet("/health", async (PlatformDbContext db, CancellationToken cancellatio
     {
         return Results.Json(new { status = "not_ready", service = "platform-api", scope = "platform-database-only", dependency = "platform-database" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
-});
+}).AllowAnonymous();
 var auth = app.MapGroup("/api/auth").WithTags("Authentication");
 auth.MapPost("/login", async (LoginRequest request, PlatformDbContext db, IConfiguration config) =>
 {
@@ -308,7 +323,7 @@ auth.MapPost("/login", async (LoginRequest request, PlatformDbContext db, IConfi
     await db.SaveChangesAsync();
     return Results.Ok(new { accessToken = token, displayName = user.DisplayName, platformAdminAvailable,
         tenants = user.Memberships.Where(m => m.Tenant.IsActive).Select(m => new TenantSummary(m.TenantId, m.Tenant.Name, m.Tenant.Slug, m.Role)) });
-}).RequireRateLimiting("login");
+}).AllowAnonymous().RequireRateLimiting("login");
 
 auth.MapAccessibleTenantsEndpoint();
 auth.MapSelectTenantEndpoint();

@@ -40,6 +40,7 @@ import { WorkspaceSearchDialog } from "./WorkspaceSearchDialog";
 import { LauncherAssistantWidget } from "./LauncherAssistantWidget";
 import {
   getSavedWeatherLocation,
+  loadSavedWeatherLocation,
   saveWeatherLocation,
   type WeatherLocation,
 } from "./weather-location";
@@ -86,6 +87,7 @@ type WeatherSnapshot = {
 };
 
 type WeatherLocationResult = WeatherLocation & {
+  id?: number;
   country?: string;
   admin1?: string;
 };
@@ -241,6 +243,15 @@ export function ModuleLauncher({
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [weatherLocation, setWeatherLocation] = useState<WeatherLocation>(getSavedWeatherLocation);
+
+  useEffect(() => {
+    // The remembered city is stored without coordinates; look them up once on open.
+    const controller = new AbortController();
+    void loadSavedWeatherLocation(controller.signal).then((location) => {
+      if (location) setWeatherLocation(location);
+    });
+    return () => controller.abort();
+  }, []);
   const [weatherLocationPickerOpen, setWeatherLocationPickerOpen] = useState(false);
   const [weatherLocationQuery, setWeatherLocationQuery] = useState("");
   const [weatherLocationResults, setWeatherLocationResults] = useState<WeatherLocationResult[]>([]);
@@ -359,12 +370,17 @@ export function ModuleLauncher({
       });
     return () => controller.abort();
   }, [weatherLocation]);
-  const selectWeatherLocation = (location: WeatherLocation) => {
+  // Shows a location for this session only. Browser (device) coordinates go through here and never reach storage.
+  const showWeatherLocation = (location: WeatherLocation) => {
     setWeatherLocation(location);
     setWeatherLocationPickerOpen(false);
     setWeatherLocationQuery("");
     setWeatherLocationResults([]);
     setWeatherLocationError("");
+  };
+  // A city the user searched for is remembered across sessions.
+  const selectWeatherLocation = (location: WeatherLocation) => {
+    showWeatherLocation(location);
     saveWeatherLocation(location);
   };
   const toggleDashboardWidget = (widget: string) => {
@@ -599,10 +615,12 @@ export function ModuleLauncher({
     }
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        selectWeatherLocation({
+        // Device coordinates are personal data: keep them for this session only, rounded to
+        // roughly 1 km, which is all a weather forecast needs. Searched cities are still saved.
+        showWeatherLocation({
           name: english ? "Current location" : "Tarayıcı konumu",
-          latitude: coords.latitude,
-          longitude: coords.longitude,
+          latitude: Math.round(coords.latitude * 100) / 100,
+          longitude: Math.round(coords.longitude * 100) / 100,
           timezone: "auto",
         });
         setWeatherLocationBusy(false);
@@ -954,6 +972,7 @@ export function ModuleLauncher({
                             latitude: location.latitude,
                             longitude: location.longitude,
                             timezone: location.timezone || "auto",
+                            geocodingId: location.id,
                           })}
                         >
                           <span>{location.name}</span>
