@@ -3,6 +3,8 @@
 ###############################################################################
 * text=auto
 deploy/linux/*.sh text eol=lf
+# Shell scripts run inside Linux containers and hosts; CRLF breaks their shebang (exec: no such file or directory).
+*.sh text eol=lf
 deploy/docker/sandbox-overrides/patch/*.patch text eol=lf
 deploy/docker/sandbox-overrides/**/APKBUILD text eol=lf
 
