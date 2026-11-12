@@ -1,8 +1,21 @@
-import type { Facility, Security } from "../types";
+import type { Facility, ScreenField, Security } from "../types";
+
+const defaultSecurityFields: ScreenField[] = [
+  { key: "code", label: "Kod / tür", visible: true, position: 0 },
+  { key: "facilityCode", label: "Bağlı kredi", visible: true, position: 1 },
+  { key: "parties", label: "Veren → lehtar", visible: true, position: 2 },
+  { key: "amount", label: "Tutar", visible: true, position: 3 },
+  { key: "commissionAmount", label: "Komisyon", visible: true, position: 4 },
+  { key: "issueDate", label: "Düzenleme", visible: true, position: 5 },
+  { key: "expiryDate", label: "Vade", visible: true, position: 6 },
+  { key: "status", label: "Durum", visible: true, position: 7 },
+  { key: "actions", label: "İşlem", visible: true, position: 9, fixed: true },
+];
 
 type Props = {
   isAdmin: boolean;
   showCreateForm?: boolean;
+  visibleFields?: ScreenField[];
   onNavigate?: (page: string, label?: string) => void;
   facilities: Facility[];
   securities: Security[];
@@ -38,6 +51,81 @@ export function CreditSecuritiesPanel(props: Props) {
   const currency =
     props.facilities.find((facility) => facility.id === props.facilityId)
       ?.currencyCode || "Krediyle aynı";
+  const columns = (props.visibleFields ?? defaultSecurityFields).filter(
+    (field) => field.key !== "actions" || props.isAdmin,
+  );
+  const renderCell = (item: Security, key: string) => {
+    switch (key) {
+      case "code":
+        return (
+          <>
+            {item.code}
+            <small>
+              {item.type === "Guarantee" ? "Teminat mektubu" : "Rehin / ipotek"}
+            </small>
+          </>
+        );
+      case "facilityCode":
+        return item.facilityCode;
+      case "parties":
+        return (
+          <>
+            {item.issuer} → {item.beneficiary}
+          </>
+        );
+      case "amount":
+        return props.formatMoney(item.amount, item.currencyCode);
+      case "commissionAmount":
+        return props.formatMoney(item.commissionAmount, item.currencyCode);
+      case "issueDate":
+        return item.issueDate;
+      case "expiryDate":
+        return item.expiryDate;
+      case "status":
+        return (
+          <span
+            className={`status-badge ${item.alert === "Expired" ? "danger" : item.alert === "Expiring" ? "warning" : ""}`}
+          >
+            {item.status === "Released"
+              ? "Serbest"
+              : item.status === "Called"
+                ? "Çağrıldı"
+                : item.alert === "Expired"
+                  ? "Vadesi geçti"
+                  : item.alert === "Expiring"
+                    ? "Yaklaşıyor"
+                    : "Etkin"}
+          </span>
+        );
+      case "notes":
+        return item.notes || "—";
+      case "actions":
+        return (
+          item.status === "Active" && (
+            <div className="credit-row-actions">
+              <button
+                type="button"
+                className="row-action"
+                disabled={props.busy}
+                onClick={() => props.onClose(item, "Released")}
+              >
+                Serbest bırak
+              </button>
+              <button
+                type="button"
+                className="row-action danger-action"
+                disabled={props.busy}
+                onClick={() => props.onClose(item, "Called")}
+              >
+                Çağır
+              </button>
+            </div>
+          )
+        );
+      default:
+        return null;
+    }
+  };
   return (
     <section
       className={`panel credit-records-panel${props.showCreateForm ? " credit-operation-page" : ""}`}
@@ -261,80 +349,17 @@ export function CreditSecuritiesPanel(props: Props) {
               </caption>
               <thead>
                 <tr>
-                  <th>Kod / tür</th>
-                  <th>Bağlı kredi</th>
-                  <th>Veren → lehtar</th>
-                  <th>Tutar</th>
-                  <th>Komisyon</th>
-                  <th>Düzenleme</th>
-                  <th>Vade</th>
-                  <th>Durum</th>
-                  {props.isAdmin && <th>İşlem</th>}
+                  {columns.map((field) => (
+                    <th key={field.key}>{field.label}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {props.securities.map((item) => (
                   <tr key={item.id}>
-                    <td>
-                      {item.code}
-                      <small>
-                        {item.type === "Guarantee"
-                          ? "Teminat mektubu"
-                          : "Rehin / ipotek"}
-                      </small>
-                    </td>
-                    <td>{item.facilityCode}</td>
-                    <td>
-                      {item.issuer} → {item.beneficiary}
-                    </td>
-                    <td>{props.formatMoney(item.amount, item.currencyCode)}</td>
-                    <td>
-                      {props.formatMoney(
-                        item.commissionAmount,
-                        item.currencyCode,
-                      )}
-                    </td>
-                    <td>{item.issueDate}</td>
-                    <td>{item.expiryDate}</td>
-                    <td>
-                      <span
-                        className={`status-badge ${item.alert === "Expired" ? "danger" : item.alert === "Expiring" ? "warning" : ""}`}
-                      >
-                        {item.status === "Released"
-                          ? "Serbest"
-                          : item.status === "Called"
-                            ? "Çağrıldı"
-                            : item.alert === "Expired"
-                              ? "Vadesi geçti"
-                              : item.alert === "Expiring"
-                                ? "Yaklaşıyor"
-                                : "Etkin"}
-                      </span>
-                    </td>
-                    {props.isAdmin && (
-                      <td>
-                        {item.status === "Active" && (
-                          <div className="credit-row-actions">
-                            <button
-                              type="button"
-                              className="row-action"
-                              disabled={props.busy}
-                              onClick={() => props.onClose(item, "Released")}
-                            >
-                              Serbest bırak
-                            </button>
-                            <button
-                              type="button"
-                              className="row-action danger-action"
-                              disabled={props.busy}
-                              onClick={() => props.onClose(item, "Called")}
-                            >
-                              Çağır
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    )}
+                    {columns.map((field) => (
+                      <td key={field.key}>{renderCell(item, field.key)}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

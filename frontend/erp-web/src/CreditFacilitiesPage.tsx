@@ -156,6 +156,18 @@ export default function CreditFacilitiesPage({
       position: 6,
     },
   ]);
+  const [securityFields, setSecurityFields] = useState<ScreenField[]>([
+    { key: "code", label: "Kod / tür", visible: true, position: 0 },
+    { key: "facilityCode", label: "Bağlı kredi", visible: true, position: 1 },
+    { key: "parties", label: "Veren → lehtar", visible: true, position: 2 },
+    { key: "amount", label: "Tutar", visible: true, position: 3 },
+    { key: "commissionAmount", label: "Komisyon", visible: true, position: 4 },
+    { key: "issueDate", label: "Düzenleme", visible: true, position: 5 },
+    { key: "expiryDate", label: "Vade", visible: true, position: 6 },
+    { key: "status", label: "Durum", visible: true, position: 7 },
+    { key: "notes", label: "Not", visible: false, position: 8 },
+    { key: "actions", label: "İşlem", visible: true, position: 9, fixed: true },
+  ]);
   const [code, setCode] = useState(""),
     [lender, setLender] = useState(""),
     [kind, setKind] = useState("Loan"),
@@ -305,6 +317,28 @@ export default function CreditFacilitiesPage({
       cancelled = true;
     };
   }, [token]);
+  useEffect(() => {
+    if (view !== "list") return;
+    let cancelled = false;
+    request<{ fields: ScreenField[] }>(
+      "/api/screen-views/finance-credit-securities/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length)
+          setSecurityFields(
+            view.fields.map((field, index) => ({
+              ...field,
+              fixed: field.key === "actions",
+              position: field.position ?? index,
+            })),
+          );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token, view]);
   async function submitFacility(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -710,6 +744,15 @@ export default function CreditFacilitiesPage({
   const visibleExposureFields = exposureFields
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
+  const visibleSecurityFields = securityFields
+    .filter((field) => field.key === "actions" || field.visible)
+    .sort((a, b) =>
+      a.key === "actions"
+        ? 1
+        : b.key === "actions"
+          ? -1
+          : a.position - b.position,
+    );
   const currencySummaries = currencies
     .map((code) => {
       const rows = facilities.filter((f) => f.currencyCode === code);
@@ -993,6 +1036,7 @@ export default function CreditFacilitiesPage({
             expiredCount={expiredSecurities}
             busy={busy}
             showCreateForm={false}
+            visibleFields={visibleSecurityFields}
             onNavigate={onNavigate}
             facilityId={securityFacilityId}
             type={securityType}

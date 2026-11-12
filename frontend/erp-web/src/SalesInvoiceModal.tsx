@@ -102,6 +102,23 @@ export function SalesInvoiceModal({
     { key: "status", label: "Durum", visible: true, position: 12 },
     { key: "ledgerEntry", label: "Cari kaydı", visible: true, position: 13 },
   ]);
+  const [paymentScreenFields, setPaymentScreenFields] = useState<
+    BuiltInScreenLayoutField[]
+  >([
+    { key: "code", label: "Fiş no", visible: true, position: 0 },
+    { key: "collectionDate", label: "Tarih", visible: true, position: 1 },
+    { key: "paymentMethod", label: "Yöntem", visible: true, position: 2 },
+    { key: "reference", label: "Referans", visible: true, position: 3 },
+    { key: "amount", label: "Tutar", visible: true, position: 4 },
+    { key: "status", label: "Durum", visible: true, position: 5 },
+    { key: "createdAt", label: "Oluşturulma", visible: false, position: 6 },
+    { key: "actions", label: "İşlemler", visible: true, position: 7, fixed: true },
+  ]);
+  const visiblePaymentFields = paymentScreenFields
+    .filter((field) => field.key === "actions" || field.visible)
+    .sort((a, b) =>
+      a.key === "actions" ? 1 : b.key === "actions" ? -1 : a.position - b.position,
+    );
   const [financeAccounts, setFinanceAccounts] = useState<FinancialAccount[]>(
       [],
     ),
@@ -162,6 +179,21 @@ export function SalesInvoiceModal({
       active = false;
     };
   }, [token]);
+  useEffect(() => {
+    if (detailTab !== "transactions") return;
+    let active = true;
+    void api<{ fields: BuiltInScreenLayoutField[] }>(
+      "/api/screen-views/sales-invoice-payments/active",
+      token,
+    )
+      .then((view) => {
+        if (active && view.fields?.length) setPaymentScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [token, detailTab]);
   function invoiceDetailValue(field: BuiltInScreenLayoutField) {
     if (!invoice) return "";
     const amount = (value: number) =>
@@ -1072,63 +1104,63 @@ export function SalesInvoiceModal({
               <table className="customer-table">
                 <thead>
                   <tr>
-                    <th>Fiş no</th>
-                    <th>Tarih</th>
-                    <th>Yöntem</th>
-                    <th>Referans</th>
-                    <th>Tutar</th>
-                    <th>Durum</th>
-                    <th></th>
+                    {visiblePaymentFields.map((field) => (
+                      <th key={field.key}>{field.label}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {invoice.collections.map((item) => (
                     <tr key={item.id}>
-                      <td>
-                        <span className="customer-code">{item.code}</span>
-                      </td>
-                      <td>
-                        {item.collectionDate.split("-").reverse().join(".")}
-                      </td>
-                      <td>
-                        {item.paymentMethod === "Bank transfer"
-                          ? "Havale"
-                          : item.paymentMethod === "Cash"
-                            ? "Nakit"
-                            : item.paymentMethod === "Card"
-                              ? "Kart"
-                              : "Çek"}
-                      </td>
-                      <td>{item.reference || "—"}</td>
-                      <td>
-                        {item.amount.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}{" "}
-                        {item.currencyCode}
-                      </td>
-                      <td>
-                        <span
-                          className={`quote-status ${item.status === "Posted" ? "accepted" : "rejected"}`}
-                        >
-                          {item.status === "Posted" ? "Alındı" : "İptal"}
-                        </span>
-                      </td>
-                      <td>
-                        {item.status === "Posted" && (
-                          <button
-                            className="row-action danger-action"
-                            disabled={busy}
-                            onClick={() => void voidCollection(item)}
-                          >
-                            İptal et
-                          </button>
-                        )}
-                      </td>
+                      {visiblePaymentFields.map((field) => (
+                        <td key={field.key}>
+                          {field.key === "code" ? (
+                            <span className="customer-code">{item.code}</span>
+                          ) : field.key === "collectionDate" ? (
+                            item.collectionDate.split("-").reverse().join(".")
+                          ) : field.key === "paymentMethod" ? (
+                            item.paymentMethod === "Bank transfer"
+                              ? "Havale"
+                              : item.paymentMethod === "Cash"
+                                ? "Nakit"
+                                : item.paymentMethod === "Card"
+                                  ? "Kart"
+                                  : "Çek"
+                          ) : field.key === "reference" ? (
+                            item.reference || "—"
+                          ) : field.key === "amount" ? (
+                            <>
+                              {item.amount.toLocaleString("tr-TR", {
+                                minimumFractionDigits: 2,
+                              })}{" "}
+                              {item.currencyCode}
+                            </>
+                          ) : field.key === "status" ? (
+                            <span
+                              className={`quote-status ${item.status === "Posted" ? "accepted" : "rejected"}`}
+                            >
+                              {item.status === "Posted" ? "Alındı" : "İptal"}
+                            </span>
+                          ) : field.key === "createdAt" ? (
+                            new Date(item.createdAt).toLocaleString("tr-TR")
+                          ) : field.key === "actions" ? (
+                            item.status === "Posted" && (
+                              <button
+                                className="row-action danger-action"
+                                disabled={busy}
+                                onClick={() => void voidCollection(item)}
+                              >
+                                İptal et
+                              </button>
+                            )
+                          ) : null}
+                        </td>
+                      ))}
                     </tr>
                   ))}
                   {invoice.collections.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="table-empty">
+                      <td colSpan={Math.max(visiblePaymentFields.length, 1)} className="table-empty">
                         Henüz tahsilat kaydı yok.
                       </td>
                     </tr>
