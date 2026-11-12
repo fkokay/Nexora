@@ -1,4 +1,8 @@
 # Master Prompt Phase Status
+### 2026-11-13 Warehouse list screen view
+
+The built-in screen-view allowlist now includes `inventory-warehouses` (Depo tanımları): TenantAdmins can reorder, hide/show and relabel the warehouse code, name, status and availability-description columns. The Stok & Depo warehouse table renders the published layout and falls back to the standard columns; the editor preview has sample rows and an English title. A focused integration test covers the catalog field set, rejection of a layout that omits a catalog field, reordering, publish, TenantUser read and tenant isolation; `CustomFormEndpointsIntegrationTests` passed 67/67 and the ERP Web production build passed. Not verified in a running browser against a live API; no schema migration is required.
+
 ### 2026-11-13 Warehouse-transfer list screen view
 
 The built-in screen-view allowlist now includes `inventory-transfers` (Depolar arası transferler): TenantAdmins can reorder, hide/show and relabel the transfer code, date, source and target warehouse, line count and status columns, and opt in to a created-at column that is hidden by default. The Kalemler/Transferi iptal et actions column is fixed, always visible and kept last; hiding it is rejected. The Stok & Depo transfer table renders the published layout and falls back to the standard columns; the editor preview has sample rows and an English title. A focused integration test covers the catalog field set, fixed-action enforcement, publish, TenantUser read and tenant isolation; `CustomFormEndpointsIntegrationTests` passed 66/66 and the ERP Web production build passed. Not verified in a running browser against a live API; no schema migration is required.

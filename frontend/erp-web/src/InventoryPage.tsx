@@ -323,6 +323,17 @@ export function InventoryPage({
       fixed: true,
     },
   ]);
+  const [warehouseScreenFields, setWarehouseScreenFields] = useState<
+    BuiltInScreenLayoutField[]
+  >([
+    { key: "code", label: "Depo kodu", visible: true, position: 0 },
+    { key: "name", label: "Depo adı", visible: true, position: 1 },
+    { key: "status", label: "Durum", visible: true, position: 2 },
+    { key: "availability", label: "Açıklama", visible: true, position: 3 },
+  ]);
+  const visibleWarehouseFields = warehouseScreenFields
+    .filter((field) => field.visible)
+    .sort((a, b) => a.position - b.position);
   const [transferScreenFields, setTransferScreenFields] = useState<
     BuiltInScreenLayoutField[]
   >([
@@ -898,6 +909,21 @@ export function InventoryPage({
     )
       setInventoryPage(inventoryPageCount);
   }, [section, inventoryPage, inventoryPageCount]);
+  useEffect(() => {
+    if (section !== "inventory-warehouses") return;
+    let cancelled = false;
+    api<{ fields: BuiltInScreenLayoutField[] }>(
+      "/api/screen-views/inventory-warehouses/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length) setWarehouseScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token, section]);
   useEffect(() => {
     if (section !== "inventory-transfers") return;
     let cancelled = false;
@@ -2610,7 +2636,7 @@ export function InventoryPage({
                 {loading ? (
                   <div className="warehouse-empty" role="status"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>Depolar yükleniyor…</b><p>Firma depoları ve kullanım durumları alınıyor.</p></div></div>
                 ) : warehouses.filter((row) => `${row.code} ${row.name}`.toLocaleLowerCase("tr-TR").includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR"))).length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr><th>Depo kodu</th><th>Depo adı</th><th>Durum</th><th>Açıklama</th></tr></thead><tbody>{warehouses.filter((row) => `${row.code} ${row.name}`.toLocaleLowerCase("tr-TR").includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR"))).map((warehouse) => <tr key={warehouse.id}><td><span className="customer-code">{warehouse.code}</span></td><td>{warehouse.name}</td><td><span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span></td><td>{warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı"}</td></tr>)}</tbody></table></div>
+                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr>{visibleWarehouseFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{warehouses.filter((row) => `${row.code} ${row.name}`.toLocaleLowerCase("tr-TR").includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR"))).map((warehouse) => <tr key={warehouse.id}>{visibleWarehouseFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{warehouse.code}</span> : field.key === "name" ? warehouse.name : field.key === "status" ? <span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span> : field.key === "availability" ? (warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı") : null}</td>)}</tr>)}</tbody></table></div>
                 ) : (
                   <div className="warehouse-empty"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>{warehouses.length ? "Aramayla eşleşen depo yok" : "Henüz depo tanımlanmamış"}</b><p>{warehouses.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Stok hareketlerini kaydetmek için ilk deponuzu oluşturun."}</p></div>{!warehouses.length && <button className="primary small-button" onClick={() => void openWarehouseModal()}><IconPack.Plus size={15} /> Depo ekle</button>}</div>
                 )}

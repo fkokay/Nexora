@@ -486,6 +486,45 @@ public sealed class CustomFormEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Warehouse_layout_is_tenant_scoped_and_requires_every_catalog_field()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var warehouses = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "inventory-warehouses");
+        Assert.Equal(["code", "name", "status", "availability"],
+            warehouses.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/inventory-warehouses/draft", new { name = "Depo görünümü" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == "name" ? "Depo" : field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("key").GetString() is not "availability",
+            position = field.GetProperty("key").GetString() switch { "name" => 0, "code" => 1, _ => field.GetProperty("position").GetInt32() }
+        }).ToArray();
+
+        var missingField = fields.Where(field => field.key != "status").ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = missingField })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Depo görünümü", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = (await client.GetFromJsonAsync<JsonElement>("/api/screen-views/inventory-warehouses/active")).GetProperty("fields").EnumerateArray().ToArray();
+        Assert.False(activeA.Single(x => x.GetProperty("key").GetString() == "availability").GetProperty("visible").GetBoolean());
+        Assert.Equal("Depo", activeA.Single(x => x.GetProperty("key").GetString() == "name").GetProperty("label").GetString());
+        Assert.Equal(0, activeA.Single(x => x.GetProperty("key").GetString() == "name").GetProperty("position").GetInt32());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/inventory-warehouses/active");
+        Assert.False(activeB.GetProperty("isPublished").GetBoolean());
+        Assert.Equal("Depo adı", activeB.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "name").GetProperty("label").GetString());
+    }
+
+    [Fact]
     public async Task Built_in_screen_field_sections_are_tenant_scoped_versioned_and_keep_actions_fixed()
     {
         await using var app = await StartApplicationAsync();
