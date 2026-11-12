@@ -38,6 +38,8 @@ import type { ErpDashboardSummary } from "./dashboard/types";
 import type { ExchangeRate } from "./exchange-rates/types";
 import { WorkspaceSearchDialog } from "./WorkspaceSearchDialog";
 import { LauncherAssistantWidget } from "./LauncherAssistantWidget";
+import { LauncherBackgroundPicker } from "./LauncherBackgroundPicker";
+import { launcherBackgroundProps, loadLauncherBackground, saveLauncherBackground, type LauncherBackground } from "./launcher-background";
 import {
   getSavedWeatherLocation,
   loadSavedWeatherLocation,
@@ -284,6 +286,7 @@ export function ModuleLauncher({
   const [dashboardPositions, setDashboardPositions] = useState<Record<DashboardWidgetId, DashboardGridPosition> | null>(savedDashboardLayout.positions);
   const [dashboardDropPosition, setDashboardDropPosition] = useState<DashboardGridPosition | null>(null);
   const [dashboardEditorOpen, setDashboardEditorOpen] = useState(false);
+  const [launcherBackground, setLauncherBackground] = useState<LauncherBackground>(() => loadLauncherBackground(dashboardPreferenceKey));
   const [notificationFocused, setNotificationFocused] = useState(false);
   const [notificationsCollapsed, setNotificationsCollapsed] = useState(false);
   const [quickActionsCollapsed, setQuickActionsCollapsed] = useState(false);
@@ -449,6 +452,12 @@ export function ModuleLauncher({
     setDashboardPositions(saved.positions);
     try { window.localStorage.setItem(dashboardPreferenceKey, JSON.stringify(saved)); } catch { /* Retain the in-memory layout if browser storage is unavailable. */ }
   }, [dashboardPreferenceKey]);
+  useEffect(() => { setLauncherBackground(loadLauncherBackground(dashboardPreferenceKey)); }, [dashboardPreferenceKey]);
+  const changeLauncherBackground = (next: LauncherBackground) => {
+    setLauncherBackground(next);
+    return saveLauncherBackground(dashboardPreferenceKey, next);
+  };
+  const launcherBackgroundStyle = launcherBackgroundProps(launcherBackground);
   useEffect(() => {
     if (!dashboardCustomizing || dashboardPositions) return;
     const positions = { ...DEFAULT_DASHBOARD_POSITIONS };
@@ -718,7 +727,7 @@ export function ModuleLauncher({
   const baseCurrencyAccounts = financialAccounts.filter((item) => item.isActive && item.currencyCode === currency);
   const baseCurrencyBalance = baseCurrencyAccounts.reduce((total, item) => total + item.balance, 0);
   return (
-    <div className="module-launcher">
+    <div className={`module-launcher ${launcherBackgroundStyle.className}`.trim()} style={launcherBackgroundStyle.style}>
       <header className="module-launcher-topbar">
         <div className="module-launcher-brand">
           <span className="brand-mark">
@@ -1004,7 +1013,7 @@ export function ModuleLauncher({
         <section className="launcher-center" aria-label={english ? "ERP workspace" : "ERP çalışma alanı"}>
           {dashboardCustomizing && <div className="launcher-dashboard-edit-toolbar" role="toolbar" aria-label={english ? "Dashboard layout tools" : "Ana ekran düzenleme araçları"}>
             <span><b>{english ? "Layout editing" : "Düzenleme modu"}</b>{selectedWidget ? (english ? `${selectedWidget} · ${dashboardSizes[selectedWidget]} columns · ${dashboardHeights[selectedWidget]} rows` : `${selectedWidget} · ${dashboardSizes[selectedWidget]} sütun · ${dashboardHeights[selectedWidget]} satır`) : (english ? "Drag a card or select one to resize" : "Kartı taşıyın veya boyutlandırmak için seçin")}</span>
-            <div><button type="button" onClick={() => resizeSelectedWidget(-1)} disabled={!selectedWidget || dashboardSizes[selectedWidget] <= 2} aria-label={english ? "Make selected card narrower" : "Seçili kartı daralt"}>−</button><button type="button" onClick={() => resizeSelectedWidget(1)} disabled={!selectedWidget || dashboardSizes[selectedWidget] >= 12} aria-label={english ? "Make selected card wider" : "Seçili kartı genişlet"}>＋</button><button type="button" onClick={() => resizeSelectedWidgetHeight(-1)} disabled={!selectedWidget || dashboardHeights[selectedWidget] <= 3} aria-label={english ? "Make selected card shorter" : "Seçili kartı kısalt"}>↕−</button><button type="button" onClick={() => resizeSelectedWidgetHeight(1)} disabled={!selectedWidget || dashboardHeights[selectedWidget] >= 30} aria-label={english ? "Make selected card taller" : "Seçili kartı uzat"}>↕＋</button><button type="button" className="reset-layout" onClick={resetDashboardLayout} title={english ? "Restore default layout" : "Varsayılan düzene dön"}><RotateCcw size={13} />{english ? "Default" : "Varsayılan"}</button><button type="button" className="finish-editing" onClick={() => { setDashboardCustomizing(false); setSelectedWidget(null); }}>{english ? "Done" : "Bitti"}</button></div>
+            <div><button type="button" onClick={() => resizeSelectedWidget(-1)} disabled={!selectedWidget || dashboardSizes[selectedWidget] <= 2} aria-label={english ? "Make selected card narrower" : "Seçili kartı daralt"}>−</button><button type="button" onClick={() => resizeSelectedWidget(1)} disabled={!selectedWidget || dashboardSizes[selectedWidget] >= 12} aria-label={english ? "Make selected card wider" : "Seçili kartı genişlet"}>＋</button><button type="button" onClick={() => resizeSelectedWidgetHeight(-1)} disabled={!selectedWidget || dashboardHeights[selectedWidget] <= 3} aria-label={english ? "Make selected card shorter" : "Seçili kartı kısalt"}>↕−</button><button type="button" onClick={() => resizeSelectedWidgetHeight(1)} disabled={!selectedWidget || dashboardHeights[selectedWidget] >= 30} aria-label={english ? "Make selected card taller" : "Seçili kartı uzat"}>↕＋</button><LauncherBackgroundPicker english={english} background={launcherBackground} onChange={changeLauncherBackground} /><button type="button" className="reset-layout" onClick={resetDashboardLayout} title={english ? "Restore default layout" : "Varsayılan düzene dön"}><RotateCcw size={13} />{english ? "Default" : "Varsayılan"}</button><button type="button" className="finish-editing" onClick={() => { setDashboardCustomizing(false); setSelectedWidget(null); }}>{english ? "Done" : "Bitti"}</button></div>
           </div>}
           {dashboardCustomizing && dashboardDropPosition && selectedWidget && <div className="launcher-dashboard-drop-preview" aria-hidden="true" style={{ gridColumn: `${dashboardDropPosition.column} / span ${dashboardSizes[selectedWidget]}`, gridRow: `${dashboardDropPosition.row} / span ${dashboardHeights[selectedWidget]}` }} />}
           {visibleWidgets.includes("hero") && <div className="launcher-center-hero" data-dashboard-widget="hero" data-selected={selectedWidget === "hero"} style={dashboardWidgetStyle("hero")}>
