@@ -4072,6 +4072,7 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
     var errors = SalesDeliveryValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     // Reserve this tenant-scoped idempotency key for the whole mutation. The
     // unique index also protects the insert if a competing transaction wins.
     var requestKeyOwner = await db.SalesDeliveries.FromSqlInterpolated(
@@ -4093,6 +4094,9 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
             replay.OrderId, replay.Order?.Code, replay.WarehouseId, replay.Warehouse.Name, replay.DeliveryDate,
             replay.Status, replay.Lines.Count, replay.CreatedAt));
     }
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(
+            await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.DeliveryDate), "satış irsaliyesi") is { } closedDeliveryConflict)
+        return closedDeliveryConflict;
     var order = await db.SalesOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (order is null) return Results.NotFound();
     if (order.Status != SalesOrderStatus.Open) return Results.Conflict(new { error = "Yalnızca açık satış siparişi sevk edilebilir." });
@@ -6455,6 +6459,7 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
     var errors = PurchaseReceiptValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     await using var transaction = await db.Database.BeginTransactionAsync();
+    if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var order = await db.PurchaseOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (order is null) return Results.NotFound();
     var prior = await db.PurchaseReceipts.AsNoTracking().Include(x => x.Warehouse).Where(x => x.TenantId == tenantId && x.RequestId == request.RequestId).SingleOrDefaultAsync();
@@ -6464,6 +6469,9 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
         return Results.Ok(new PurchaseReceiptSummary(prior.Id, prior.Code, prior.PurchaseOrderId, order.Code, prior.WarehouseId,
             prior.Warehouse.Name, prior.ReceiptDate, prior.Status, await db.PurchaseReceiptLines.CountAsync(x => x.TenantId == tenantId && x.ReceiptId == prior.Id), prior.CreatedAt));
     }
+    if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(
+            await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.ReceiptDate), "mal kabul") is { } closedReceiptConflict)
+        return closedReceiptConflict;
     if (!PurchaseOrderWorkflow.CanReceive(order.Status)) return Results.Conflict(new { error = "Bu sipariş için yeni mal kabul yapılamaz." });
     var receiptFieldDefinitions = await db.PurchaseReceiptCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseReceiptCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
     var receiptFieldErrors = new Dictionary<string, string[]>(); var receiptFieldValues = new Dictionary<Guid, string>();
@@ -8722,6 +8730,14 @@ financeAccounts.MapPost("/", async (FinancialAccountWriteRequest request, Claims
     var code = request.Code.Trim().ToUpperInvariant();
     if (await db.FinancialAccounts.AnyAsync(x => x.TenantId == tenantId && x.Code == code))
         return Results.Conflict(new { error = "Bu hesap kodu bu firma için zaten kullanılıyor." });
+    await using var openingTransaction = request.OpeningBalance != 0 ? await db.Database.BeginTransactionAsync() : null;
+    if (request.OpeningBalance != 0)
+    {
+        if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
+        if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId,
+                DateOnly.FromDateTime(DateTime.UtcNow)), "açılış bakiyesi") is { } closedOpeningConflict)
+            return closedOpeningConflict;
+    }
     var account = new FinancialAccount { TenantId = tenantId, Code = code, Name = request.Name.Trim(), Type = request.Type,
         CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant() };
     db.FinancialAccounts.Add(account);
@@ -8733,6 +8749,7 @@ financeAccounts.MapPost("/", async (FinancialAccountWriteRequest request, Claims
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "financial-account.created", Resource = code });
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu hesap kodu bu firma için zaten kullanılıyor." }); }
+    if (openingTransaction is not null) await openingTransaction.CommitAsync();
     return Results.Created($"/api/finance/accounts/{account.Id}", new FinancialAccountSummary(account.Id, account.Code,
         account.Name, account.Type, account.CurrencyCode, account.IsActive, request.OpeningBalance,
         request.OpeningBalance == 0 ? 0 : 1, account.CreatedAt));

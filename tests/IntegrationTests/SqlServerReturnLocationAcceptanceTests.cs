@@ -313,7 +313,7 @@ public sealed class SqlServerReturnLocationAcceptanceTests
         var inactiveLocation = new WarehouseLocation { TenantId = TenantId, WarehouseId = warehouse.Id, Warehouse = warehouse, Code = "INACTIVE", Name = "Inactive bin", IsActive = false };
         var item = new StockItem { TenantId = TenantId, Tenant = tenant, Code = "SKU-RETURN", Name = "Synthetic item", UnitCode = "EA" };
 
-        var quote = new SalesQuote { TenantId = TenantId, Tenant = tenant, CustomerId = customer.Id, Customer = customer,
+        var quote = new SalesQuote { TenantId = TenantId, Tenant = tenant, RevisionGroupId = Guid.NewGuid(), CustomerId = customer.Id, Customer = customer,
             Code = "Q-RETURN", QuoteDate = new DateOnly(2026, 10, 1), ValidUntil = new DateOnly(2026, 11, 1), Status = SalesQuoteStatus.Accepted,
             Subtotal = 20m, GrandTotal = 20m };
         var salesOrder = new SalesOrder { TenantId = TenantId, Tenant = tenant, QuoteId = quote.Id, Quote = quote, CustomerId = customer.Id,
@@ -336,7 +336,7 @@ public sealed class SqlServerReturnLocationAcceptanceTests
             LineSubtotal = 20m, LineTotal = 20m };
         salesInvoice.Lines.Add(salesInvoiceLine);
 
-        var unbilledQuote = new SalesQuote { TenantId = TenantId, Tenant = tenant, CustomerId = customer.Id, Customer = customer,
+        var unbilledQuote = new SalesQuote { TenantId = TenantId, Tenant = tenant, RevisionGroupId = Guid.NewGuid(), CustomerId = customer.Id, Customer = customer,
             Code = "Q-RETURN-CLOSED", QuoteDate = new DateOnly(2026, 10, 1), ValidUntil = new DateOnly(2026, 11, 1), Status = SalesQuoteStatus.Accepted,
             Subtotal = 10m, GrandTotal = 10m };
         var unbilledOrder = new SalesOrder { TenantId = TenantId, Tenant = tenant, QuoteId = unbilledQuote.Id, Quote = unbilledQuote, CustomerId = customer.Id,
