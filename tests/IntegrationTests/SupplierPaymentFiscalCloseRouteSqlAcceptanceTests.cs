@@ -163,7 +163,7 @@ public sealed class SupplierPaymentFiscalCloseRouteSqlAcceptanceTests
 
             var raceRequestId = Guid.NewGuid();
             var paymentTask = client.PostAsJsonAsync($"/api/purchasing/invoices/{invoice.Id}/payments", Payment(raceRequestId, new DateOnly(2025, 4, 15)));
-            await Task.Delay(TimeSpan.FromMilliseconds(600));
+            await WaitForPostingTriggerAsync(tenantConnection);
             Assert.False(paymentTask.IsCompleted, "The SQL trigger did not hold the real supplier-payment transaction.");
 
             var closeTask = client.PostAsJsonAsync("/api/finance/general-ledger/fiscal-year-close", new
@@ -236,6 +236,33 @@ public sealed class SupplierPaymentFiscalCloseRouteSqlAcceptanceTests
             UnitPrice = 100m, LineSubtotal = 100m, LineTotal = 100m
         });
         return invoice;
+    }
+
+    private static async Task WaitForPostingTriggerAsync(string tenantConnection)
+    {
+        // Wait until the held payment transaction is inside its trigger (and so owns the tenant posting lock) before
+        // starting the close; a fixed delay let the close win the lock first on a loaded test host.
+        var tenantDatabase = new SqlConnectionStringBuilder(tenantConnection).InitialCatalog;
+        var masterConnection = new SqlConnectionStringBuilder(tenantConnection) { InitialCatalog = "master", ConnectTimeout = 15 }.ConnectionString;
+        await using var connection = new SqlConnection(masterConnection);
+        await connection.OpenAsync();
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COUNT(*)
+                FROM sys.dm_exec_requests AS requests
+                CROSS APPLY sys.dm_exec_sql_text(requests.sql_handle) AS sql_text
+                WHERE requests.database_id = DB_ID(@tenantDatabase)
+                  AND requests.wait_type = N'WAITFOR'
+                  AND sql_text.[text] LIKE N'%TR_TestSupplierPaymentCloseAcceptance_HoldPosting%';
+                """;
+            command.Parameters.AddWithValue("@tenantDatabase", tenantDatabase);
+            if (Convert.ToInt32(await command.ExecuteScalarAsync()) > 0) return;
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
+        }
+        throw new TimeoutException("The supplier-payment SQL trigger did not enter its WAITFOR barrier.");
     }
 
     private static object Payment(Guid requestId, DateOnly paymentDate) => new
