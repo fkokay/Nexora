@@ -4,6 +4,8 @@ import { authenticatedFetch } from "./authApi";
 import { FilePlus2, PackageCheck, Search, ShieldCheck, X } from "lucide-react";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import "./purchase-invoice-entry.css";
+import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
+import "./purchasing-record-forms.css";
 
 type ReceiptOption = {
   id: string;
@@ -515,73 +517,68 @@ export default function PurchaseInvoiceEntryPage({
             className="pie-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="pie-modal-title"
+            aria-label={`${selected.receiptCode} için fatura gir`}
           >
-            <header>
-              <div>
-                <p className="pie-eyebrow">ALIŞ FATURASI</p>
-                <h2 id="pie-modal-title">
-                  {selected.receiptCode} için fatura gir
-                </h2>
-                <p>
-                  {selected.supplierName} · {selected.purchaseOrderCode} ·{" "}
-                  {selected.warehouseName}
-                </p>
-              </div>
-              <button
-                aria-label="Kapat"
-                disabled={busy}
-                onClick={() => setSelected(null)}
-              >
-                ×
-              </button>
-            </header>
-            <form onSubmit={createInvoice}>
-              <label>
-                Tedarikçi fatura numarası
-                <input
-                  value={invoiceCode}
-                  onChange={(e) => setInvoiceCode(e.target.value)}
-                  maxLength={64}
-                  required
-                  autoFocus
-                />
-              </label>
-              <label>
-                Fatura tarihi
-                <input
-                  type="date"
-                  value={invoiceDate}
-                  onChange={(e) => setInvoiceDate(e.target.value)}
-                  required
-                />
-              </label>
-              {accountingProfiles.length > 0 && <label>Vergi mevzuatı profili<select value={accountingProfileCode} onChange={(e) => setAccountingProfileCode(e.target.value)} required><option value="">Profil seçin</option>{accountingProfiles.map((profile) => <option key={profile.profileCode} value={profile.profileCode}>{profile.name} · {profile.jurisdictionCode} · {profile.reportingStandard}</option>)}</select></label>}
-              <details className="pie-hint">
-                <summary>Gelen e-belge bilgileri</summary>
-                <label>Belge UUID<input value={providerInvoiceUuid} onChange={(e) => setProviderInvoiceUuid(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></label>
-                <label>Belge senaryosu<input value={providerScenario} onChange={(e) => setProviderScenario(e.target.value)} placeholder="TEMELFATURA / TICARIFATURA / EARSIVFATURA" /></label>
-                <label>Belge tür kodu<input value={providerTypeCode} onChange={(e) => setProviderTypeCode(e.target.value)} placeholder="SATIS / IADE / TEVKIFAT" /></label>
-                <label>Gönderen e-Fatura etiketi<input value={providerSenderAlias} onChange={(e) => setProviderSenderAlias(e.target.value)} /></label>
-              </details>
-              <p className="pie-hint">
-                Vade, tedarikçinin kayıtlı ödeme koşulundan hesaplanır.
-                Kaydetme, mal kabul satırlarını ve cari borç kaydını birlikte
-                oluşturur.
-              </p>
-              <footer>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setSelected(null)}
-                >
-                  Vazgeç
-                </button>
-                <button className="pie-primary" disabled={busy}>
-                  {busy ? "Kaydediliyor…" : "Faturayı kaydet"}
-                </button>
-              </footer>
-            </form>
+            <RecordFormPage
+              variant="dialog"
+              className="prf-pie-form"
+              title={`${selected.receiptCode} için fatura gir`}
+              mode="create"
+              busy={busy}
+              saveLabel="Faturayı kaydet"
+              onSubmit={createInvoice}
+              onCancel={() => {
+                if (!busy) setSelected(null);
+              }}
+              status={
+                <>
+                  <span>
+                    {selected.supplierName} · {selected.purchaseOrderCode} ·{" "}
+                    {selected.warehouseName}
+                  </span>
+                  <span>
+                    Vade, tedarikçinin kayıtlı ödeme koşulundan hesaplanır.
+                    Kaydetme, mal kabul satırlarını ve cari borç kaydını birlikte
+                    oluşturur.
+                  </span>
+                </>
+              }
+            >
+              <RecordFormGroup title="Fatura Kimliği" bodyClassName={`rf-identity ${accountingProfiles.length > 0 ? "prf-identity-3" : "prf-identity-2"}`}>
+                <label>
+                  <span>Tedarikçi fatura numarası <RequiredMark /></span>
+                  <input
+                    className="rf-must rf-mono"
+                    value={invoiceCode}
+                    onChange={(e) => setInvoiceCode(e.target.value)}
+                    maxLength={64}
+                    required
+                    autoFocus
+                  />
+                </label>
+                <label>
+                  <span>Fatura tarihi <RequiredMark /></span>
+                  <input
+                    className="rf-must"
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                    required
+                  />
+                </label>
+                {accountingProfiles.length > 0 && <label><span>Vergi mevzuatı profili <RequiredMark /></span><select className="rf-must" value={accountingProfileCode} onChange={(e) => setAccountingProfileCode(e.target.value)} required><option value="">Profil seçin</option>{accountingProfiles.map((profile) => <option key={profile.profileCode} value={profile.profileCode}>{profile.name} · {profile.jurisdictionCode} · {profile.reportingStandard}</option>)}</select></label>}
+              </RecordFormGroup>
+              <RecordFormGroup title="Gelen E-Belge Bilgileri">
+                <div className="rf-pair">
+                  <label>Belge UUID<input className="rf-mono" value={providerInvoiceUuid} onChange={(e) => setProviderInvoiceUuid(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></label>
+                  <label>Belge senaryosu<input value={providerScenario} onChange={(e) => setProviderScenario(e.target.value)} placeholder="TEMELFATURA / TICARIFATURA / EARSIVFATURA" /></label>
+                </div>
+                <div className="rf-pair">
+                  <label>Belge tür kodu<input value={providerTypeCode} onChange={(e) => setProviderTypeCode(e.target.value)} placeholder="SATIS / IADE / TEVKIFAT" /></label>
+                  <label>Gönderen e-Fatura etiketi<input className="rf-mono" value={providerSenderAlias} onChange={(e) => setProviderSenderAlias(e.target.value)} /></label>
+                </div>
+              </RecordFormGroup>
+            </RecordFormPage>
           </section>
         </div>
       )}

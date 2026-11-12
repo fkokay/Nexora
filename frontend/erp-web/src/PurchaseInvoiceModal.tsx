@@ -4,6 +4,9 @@ import { api, localDateString } from "./erpApi";
 import { Plus, X } from "lucide-react";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { confirmLocalized } from "./locale";
+import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
+import { useRecordFormShortcutScope } from "./customers/components/useRecordFormShortcutScope";
+import "./purchasing-record-forms.css";
 type FinancialAccount = AppTypes.FinancialAccount;
 type PurchaseInvoiceDetail = AppTypes.PurchaseInvoiceDetail;
 type AccountingTaxBreakdownLine = AppTypes.AccountingTaxBreakdownLine;
@@ -34,6 +37,8 @@ export function PurchaseInvoiceModal({
   onChanged: () => Promise<void>;
 }) {
   const today = localDateString();
+  // The return and payment forms can be open together; F2 goes to the focused one.
+  useRecordFormShortcutScope();
   const [invoice, setInvoice] = useState<PurchaseInvoiceDetail | null>(null),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false);
@@ -529,14 +534,29 @@ export function PurchaseInvoiceModal({
                 </table>
               </div>
               {returnEditor && (
-                <form
+                <RecordFormPage
+                  variant="dialog"
+                  className={`prf-embedded prf-return-form${
+                    !returnWarehouseId ||
+                    !invoice.lines.some(
+                      (line) => Number(returnQuantities[line.id] || 0) > 0,
+                    )
+                      ? " prf-save-blocked"
+                      : ""
+                  }`}
+                  title="Alış İadesi"
+                  mode="create"
+                  busy={busy}
+                  saveLabel="İadeyi kaydet"
                   onSubmit={createReturn}
-                  className="collection-form invoice-return-form"
+                  onCancel={() => setReturnEditor(false)}
+                  status={<span>İade, tedarikçi cari borcunu azaltır.</span>}
                 >
-                  <div className="form-two">
+                  <RecordFormGroup title="İade Kimliği" bodyClassName="rf-identity prf-identity-2">
                     <label>
-                      İade tarihi
+                      <span>İade tarihi <RequiredMark /></span>
                       <input
+                        className="rf-must"
                         type="date"
                         value={returnDate}
                         onChange={(e) => setReturnDate(e.target.value)}
@@ -544,7 +564,7 @@ export function PurchaseInvoiceModal({
                       />
                     </label>
                     <label>
-                      Çıkış deposu
+                      <span>Çıkış deposu <RequiredMark /></span>
                       <SearchableRecordPicker
                         options={warehouses
                           .filter((x) => x.isActive)
@@ -564,7 +584,8 @@ export function PurchaseInvoiceModal({
                         required
                       />
                     </label>
-                  </div>
+                  </RecordFormGroup>
+                  <RecordFormGroup title="İade Satırları">
                   <div className="ledger-list">
                     <table className="customer-table">
                       <thead>
@@ -606,6 +627,7 @@ export function PurchaseInvoiceModal({
                                 })}
                               </td>
                               <td>
+                                <div className="prf-line-controls">
                                 <select
                                   aria-label={`${line.stockCode} alış iade birimi`}
                                   value={
@@ -634,6 +656,7 @@ export function PurchaseInvoiceModal({
                                     ))}
                                 </select>
                                 <input
+                                  className="rf-num"
                                   aria-label={`${line.stockCode} alış iade miktarı`}
                                   type="number"
                                   min="0"
@@ -666,6 +689,7 @@ export function PurchaseInvoiceModal({
                                     </option>
                                   ))}
                                 </select>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -673,32 +697,8 @@ export function PurchaseInvoiceModal({
                       </tbody>
                     </table>
                   </div>
-                  <div className="modal-foot">
-                    <span>İade, tedarikçi cari borcunu azaltır.</span>
-                    <div>
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => setReturnEditor(false)}
-                      >
-                        Vazgeç
-                      </button>
-                      <button
-                        className="primary"
-                        disabled={
-                          busy ||
-                          !returnWarehouseId ||
-                          !invoice.lines.some(
-                            (line) =>
-                              Number(returnQuantities[line.id] || 0) > 0,
-                          )
-                        }
-                      >
-                        {busy ? "Kaydediliyor…" : "İadeyi kaydet"}
-                      </button>
-                    </div>
-                  </div>
-                </form>
+                  </RecordFormGroup>
+                </RecordFormPage>
               )}
               <div className="list-toolbar">
                 <div>
@@ -780,11 +780,35 @@ export function PurchaseInvoiceModal({
                 </table>
               </div>
               {invoice.status === "Posted" && invoice.outstandingAmount > 0 && (
-                <form onSubmit={createPayment} className="collection-form">
-                  <div className="form-two">
+                <RecordFormPage
+                  variant="dialog"
+                  className={`prf-embedded prf-no-cancel${
+                    (method === "Cash" || method === "Bank transfer") &&
+                    !eligibleAccounts.length
+                      ? " prf-save-blocked"
+                      : ""
+                  }`}
+                  title="Tedarikçi Ödemesi"
+                  mode="create"
+                  busy={busy}
+                  saveLabel="Ödeme kaydet"
+                  onSubmit={createPayment}
+                  onCancel={() => undefined}
+                  status={
+                    <span>
+                      En fazla{" "}
+                      {invoice.outstandingAmount.toLocaleString("tr-TR", {
+                        minimumFractionDigits: 2,
+                      })}{" "}
+                      {invoice.currencyCode} ödenebilir.
+                    </span>
+                  }
+                >
+                  <RecordFormGroup title="Ödeme Kimliği" bodyClassName="rf-identity prf-identity-4">
                     <label>
-                      Ödeme tarihi
+                      <span>Ödeme tarihi <RequiredMark /></span>
                       <input
+                        className="rf-must"
                         type="date"
                         value={paymentDate}
                         onChange={(e) => setPaymentDate(e.target.value)}
@@ -792,8 +816,9 @@ export function PurchaseInvoiceModal({
                       />
                     </label>
                     <label>
-                      Tutar ({invoice.currencyCode})
+                      <span>Tutar ({invoice.currencyCode}) <RequiredMark /></span>
                       <input
+                        className="rf-must rf-num"
                         type="number"
                         min="0.01"
                         max={invoice.outstandingAmount}
@@ -803,8 +828,6 @@ export function PurchaseInvoiceModal({
                         required
                       />
                     </label>
-                  </div>
-                  <div className="form-two">
                     <label>
                       Ödeme yöntemi
                       <select
@@ -823,8 +846,10 @@ export function PurchaseInvoiceModal({
                       </select>
                     </label>
                     <label>
-                      Referans{" "}
-                      <span className="optional-label">İsteğe bağlı</span>
+                      <span>
+                        Referans{" "}
+                        <span className="optional-label">İsteğe bağlı</span>
+                      </span>
                       <input
                         value={reference}
                         onChange={(e) => setReference(e.target.value)}
@@ -832,12 +857,16 @@ export function PurchaseInvoiceModal({
                         placeholder="Dekont veya işlem numarası"
                       />
                     </label>
-                  </div>
+                  </RecordFormGroup>
                   {(method === "Cash" || method === "Bank transfer") && (
-                    <div className="form-two">
+                    <RecordFormGroup title="Kasa / Banka Hesabı" bodyClassName="rf-pair">
                       <label>
-                        {method === "Cash" ? "Kasa hesabı" : "Banka hesabı"}
+                        <span>
+                          {method === "Cash" ? "Kasa hesabı" : "Banka hesabı"}
+                          <RequiredMark />
+                        </span>
                         <select
+                          className="rf-must"
                           value={financialAccountId}
                           onChange={(e) =>
                             setFinancialAccountId(e.target.value)
@@ -862,28 +891,9 @@ export function PurchaseInvoiceModal({
                           hesap açın.
                         </span>
                       )}
-                    </div>
+                    </RecordFormGroup>
                   )}
-                  <div className="modal-foot">
-                    <span>
-                      En fazla{" "}
-                      {invoice.outstandingAmount.toLocaleString("tr-TR", {
-                        minimumFractionDigits: 2,
-                      })}{" "}
-                      {invoice.currencyCode} ödenebilir.
-                    </span>
-                    <button
-                      className="primary"
-                      disabled={
-                        busy ||
-                        ((method === "Cash" || method === "Bank transfer") &&
-                          !eligibleAccounts.length)
-                      }
-                    >
-                      {busy ? "Kaydediliyor…" : "Ödeme kaydet"}
-                    </button>
-                  </div>
-                </form>
+                </RecordFormPage>
               )}
               <div className="modal-foot">
                 <span>Fatura iptali için önce bağlı ödemeleri iptal edin.</span>
