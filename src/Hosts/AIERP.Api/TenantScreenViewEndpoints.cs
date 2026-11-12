@@ -36,6 +36,12 @@ internal static class TenantScreenViewEndpoints
         new("currencyCode", "Para birimi", true, Section: "Finans"), new("paymentTermDays", "Vade", true, Section: "Finans"),
         new("riskLimit", "Risk limiti", true, Section: "Finans")
     ];
+    private static readonly ScreenViewField[] CustomerLedgerEntryFields =
+    [
+        new("entryDate", "Tarih", true), new("description", "Açıklama", true), new("direction", "Yön", true),
+        new("debit", "Borç", true), new("credit", "Alacak", true), new("balance", "Bakiye", true),
+        new("currencyCode", "Döviz", false)
+    ];
     private static readonly ScreenViewField[] AuditEventFields =
     [
         new("occurredAt", "Tarih / saat", true), new("user", "Kullanıcı", true),
@@ -529,6 +535,7 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("hr-employee-calendar-overrides", "Kişi takvim istisnaları", HrEmployeeCalendarOverrideFields),
             new ScreenViewCatalog("customers", "Cari listesi", CustomerFields),
             new ScreenViewCatalog("customer-details", "Cari detay kartı", CustomerDetailFields),
+            new ScreenViewCatalog("customer-ledger-entries", "Cari hesap hareketleri", CustomerLedgerEntryFields),
             new ScreenViewCatalog("audit-events", "İşlem kayıtları", AuditEventFields),
             new ScreenViewCatalog("inventory-stock", "Stok kartları", StockItemFields),
             new ScreenViewCatalog("inventory-stock-movements", "Stok hareket geçmişi", InventoryMovementFields),
@@ -814,6 +821,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "customer-details", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("customer-details", "Cari detay kartı", CustomerDetailFields);
+            return true;
+        }
+        if (string.Equals(key, "customer-ledger-entries", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("customer-ledger-entries", "Cari hesap hareketleri", CustomerLedgerEntryFields);
             return true;
         }
         if (string.Equals(key, "audit-events", StringComparison.OrdinalIgnoreCase))

@@ -137,6 +137,8 @@ export default function BuiltInScreenViewsPage({
                                                         ? "Supplier quotes"
                                                         : en && screenKey === "manufacturing-work-centers"
                                                         ? "Work centers"
+                                                        : en && screenKey === "customer-ledger-entries"
+                                                        ? "Account ledger movements"
                                                         : en &&
                                                             screenKey ===
                                                               "purchase-receipts"
@@ -647,6 +649,8 @@ export default function BuiltInScreenViewsPage({
                                                               ? "Supplier quotes"
                                                               : en && catalog.key === "manufacturing-work-centers"
                                                               ? "Work centers"
+                                                              : en && catalog.key === "customer-ledger-entries"
+                                                              ? "Account ledger movements"
                                                               : en &&
                                                                   catalog.key ===
                                                                     "purchase-receipts"

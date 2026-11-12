@@ -1,10 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownUp, BookOpenText, CalendarDays, ChevronDown, CircleDollarSign, Users } from "lucide-react";
 import { api } from "./erpApi";
-import type { CustomerItem, CustomerStatement } from "./erp-types";
+import type { CustomerItem, CustomerStatement, CustomerStatementLine } from "./erp-types";
 import "./customer-ledger-page.css";
 
 type CustomerPage = { items: CustomerItem[]; totalCount: number };
+type ScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean };
+
+const defaultLedgerFields: ScreenField[] = [
+  { key: "entryDate", label: "Tarih", visible: true, position: 0 },
+  { key: "description", label: "Açıklama", visible: true, position: 1 },
+  { key: "direction", label: "Yön", visible: true, position: 2 },
+  { key: "debit", label: "Borç", visible: true, position: 3 },
+  { key: "credit", label: "Alacak", visible: true, position: 4 },
+  { key: "balance", label: "Bakiye", visible: true, position: 5 },
+  { key: "currencyCode", label: "Döviz", visible: false, position: 6 },
+];
+const numericLedgerFields = new Set(["debit", "credit", "balance"]);
 
 function currentYearStart() {
   return `${new Date().getFullYear()}-01-01`;
@@ -23,6 +35,33 @@ function money(value: number, currency: string) {
   }).format(value);
 }
 
+function renderLedgerCell(item: CustomerStatementLine, key: string) {
+  switch (key) {
+    case "entryDate":
+      return new Date(`${item.entryDate}T00:00:00`).toLocaleDateString("tr-TR");
+    case "description":
+      return (
+        <>
+          {item.description || "—"}
+          {item.isReversal && <span className="customer-ledger-tag">Ters kayıt</span>}
+          {item.hasReversal && <span className="customer-ledger-tag">Ters çevrildi</span>}
+        </>
+      );
+    case "direction":
+      return item.direction === "Debit" ? "Borç" : "Alacak";
+    case "debit":
+      return item.direction === "Debit" ? money(item.amount, item.currencyCode) : "—";
+    case "credit":
+      return item.direction === "Credit" ? money(item.amount, item.currencyCode) : "—";
+    case "balance":
+      return money(item.balance, item.currencyCode);
+    case "currencyCode":
+      return item.currencyCode;
+    default:
+      return null;
+  }
+}
+
 export default function CustomerLedgerPage({ token }: { token: string }) {
   const [search, setSearch] = useState("");
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
@@ -36,6 +75,23 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
   const [error, setError] = useState("");
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
   const customerPickerRef = useRef<HTMLDivElement>(null);
+  const [screenFields, setScreenFields] = useState<ScreenField[]>(defaultLedgerFields);
+  const visibleFields = useMemo(
+    () => screenFields.filter((field) => field.visible).sort((a, b) => a.position - b.position),
+    [screenFields],
+  );
+
+  useEffect(() => {
+    let active = true;
+    api<{ fields: ScreenField[] }>("/api/screen-views/customer-ledger-entries/active", token)
+      .then((view) => {
+        if (active && view.fields?.length) setScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   useEffect(() => {
     if (!customerPickerOpen) return;
@@ -212,18 +268,21 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
             </div>
             <div className="customer-ledger-table-scroll">
               <table className="customer-table">
-                <thead><tr><th>Tarih</th><th>Açıklama</th><th>Yön</th><th>Borç</th><th>Alacak</th><th>Bakiye</th></tr></thead>
+                <thead><tr>{visibleFields.map((field) => <th key={field.key} className={numericLedgerFields.has(field.key) ? "numeric" : undefined}>{field.label}</th>)}</tr></thead>
                 <tbody>
                   {statement.items.length ? statement.items.map((item) => (
                     <tr key={item.id}>
-                      <td>{new Date(`${item.entryDate}T00:00:00`).toLocaleDateString("tr-TR")}</td>
-                      <td title={item.description}>{item.description || "—"}{item.isReversal && <span className="customer-ledger-tag">Ters kayıt</span>}{item.hasReversal && <span className="customer-ledger-tag">Ters çevrildi</span>}</td>
-                      <td>{item.direction === "Debit" ? "Borç" : "Alacak"}</td>
-                      <td className="numeric">{item.direction === "Debit" ? money(item.amount, item.currencyCode) : "—"}</td>
-                      <td className="numeric">{item.direction === "Credit" ? money(item.amount, item.currencyCode) : "—"}</td>
-                      <td className="numeric">{money(item.balance, item.currencyCode)}</td>
+                      {visibleFields.map((field) => (
+                        <td
+                          key={field.key}
+                          className={numericLedgerFields.has(field.key) ? "numeric" : undefined}
+                          title={field.key === "description" ? item.description : undefined}
+                        >
+                          {renderLedgerCell(item, field.key)}
+                        </td>
+                      ))}
                     </tr>
-                  )) : <tr><td colSpan={6} className="customer-ledger-empty">Seçilen tarih aralığında hareket bulunmuyor.</td></tr>}
+                  )) : <tr><td colSpan={Math.max(visibleFields.length, 1)} className="customer-ledger-empty">Seçilen tarih aralığında hareket bulunmuyor.</td></tr>}
                 </tbody>
               </table>
             </div>

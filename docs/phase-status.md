@@ -1,4 +1,8 @@
 # Master Prompt Phase Status
+### 2026-11-12 Customer-ledger statement screen view
+
+The built-in screen-view allowlist now includes `customer-ledger-entries` (Cari hesap hareketleri): TenantAdmins can reorder, hide/show and relabel the date, description, direction, debit, credit and running-balance columns of the account statement, and opt in to a currency column that is hidden by default. Reversal tags stay attached to the description column. The statement table renders the published layout and falls back to the standard columns; the editor preview has sample rows and an English title. A focused integration test covers the catalog field set, duplicate-field rejection, publish, TenantUser read and tenant isolation; the full API integration suite passed 406 with 37 SQL acceptance tests skipped, and the ERP Web production build passed. Not verified in a running browser against a live API; no schema migration is required.
+
 ### 2026-11-12 Work-center list screen view
 
 The built-in screen-view allowlist now includes `manufacturing-work-centers` (İş merkezleri): TenantAdmins can reorder, hide/show and relabel the code, name, daily capacity, labor and overhead cost-per-hour and status columns, and opt in to a shift-hours column that is hidden by default. The Üretim work-center table renders the published layout and falls back to the standard columns; the editor preview has sample rows and an English title. A focused integration test covers the catalog field set, publish, TenantUser read and tenant isolation; `CustomFormEndpointsIntegrationTests` passed 64/64 and the ERP Web production build passed. Not verified in a running browser against a live API; no schema migration is required.
