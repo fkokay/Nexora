@@ -245,6 +245,7 @@ app.MapCustomMenuEndpoints();
 app.MapTenantCustomizationPackageEndpoints();
 app.MapCrmEndpoints();
 app.MapTenantUserPreferenceEndpoints();
+app.MapAgendaEndpoints();
 app.MapManufacturingEndpoints();
 app.MapHumanResourcesEndpoints();
 app.MapPayrollVoucherDraftEndpoints();

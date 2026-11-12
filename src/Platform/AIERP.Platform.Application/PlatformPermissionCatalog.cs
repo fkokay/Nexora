@@ -18,6 +18,7 @@ public static class PlatformPermissionCatalog
     [
         new("system.session", "/api/auth/me", "User session information"),
         new("erp.dashboard", "/api/dashboard", "ERP dashboard"),
+        new("erp.agenda", "/api/agenda", "Personal agenda entries on the ERP home screen"),
         new("erp.audit-events", "/api/audit-events", "Tenant audit history"),
         new("erp.audit-retention", "/api/audit-retention", "Tenant audit retention policy"),
         new("erp.crm-opportunities", "/api/crm/opportunities", "CRM sales opportunities"),
