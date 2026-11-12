@@ -56,12 +56,29 @@ const tms7Labels: Record<string, string> = {
   InvestingLoss: "Yatırım zararı (ekle)",
   FinancingGain: "Finansman kazancı (çıkar)",
   FinancingLoss: "Finansman zararı (ekle)",
+  InvestingAsset: "Yatırım faaliyeti varlığı",
+  InvestingLiability: "Yatırım faaliyeti yükümlülüğü",
+  FinancingLiability: "Finansman yükümlülüğü",
+  FinancingEquity: "Finansman özkaynağı",
+  ExchangeDifference: "Nakit kur farkı",
 };
 const tms7Allowed = (section: string): readonly string[] =>
   section === "Asset"
-    ? ["Unclassified", "CashEquivalent", "WorkingCapitalAsset", "Excluded"]
+    ? [
+        "Unclassified",
+        "CashEquivalent",
+        "WorkingCapitalAsset",
+        "InvestingAsset",
+        "Excluded",
+      ]
     : section === "Liability"
-      ? ["Unclassified", "WorkingCapitalLiability", "Excluded"]
+      ? [
+          "Unclassified",
+          "WorkingCapitalLiability",
+          "InvestingLiability",
+          "FinancingLiability",
+          "Excluded",
+        ]
       : section === "Revenue"
         ? [
             "Unclassified",
@@ -69,6 +86,7 @@ const tms7Allowed = (section: string): readonly string[] =>
             "NonCashIncome",
             "InvestingGain",
             "FinancingGain",
+            "ExchangeDifference",
           ]
         : section === "Expense"
           ? [
@@ -77,8 +95,11 @@ const tms7Allowed = (section: string): readonly string[] =>
               "NonCashExpense",
               "InvestingLoss",
               "FinancingLoss",
+              "ExchangeDifference",
             ]
-          : ["Unclassified", "Excluded"];
+          : section === "Equity"
+            ? ["Unclassified", "FinancingEquity", "Excluded"]
+            : ["Unclassified", "Excluded"];
 
 export default function Tms7CashFlowPage({
   token,
