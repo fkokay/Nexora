@@ -3302,7 +3302,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         Assert.Equal(320, active!.GetProperty("fields").EnumerateArray()
             .Single(field => field.GetProperty("key").GetString() == "name").GetProperty("width").GetInt32());
 
-        var unsupported = await client.PostAsJsonAsync("/api/screen-views/purchase-orders/draft", new { name = "Satın alma siparişleri" });
+        var unsupported = await client.PostAsJsonAsync("/api/screen-views/exchange-rates/draft", new { name = "Döviz kurları" });
         Assert.Equal(HttpStatusCode.Created, unsupported.StatusCode);
         using var unsupportedDraft = JsonDocument.Parse(await unsupported.Content.ReadAsStringAsync());
         var stockDraftId = unsupportedDraft.RootElement.GetProperty("id").GetGuid();
@@ -3313,11 +3313,11 @@ public sealed class CustomFormEndpointsIntegrationTests
                 label = field.GetProperty("label").GetString()!,
                 visible = field.GetProperty("visible").GetBoolean(),
                 position = field.GetProperty("position").GetInt32(),
-                width = field.GetProperty("key").GetString() == "supplierName" ? 320 : (int?)null
+                width = field.GetProperty("key").GetString() == "currencyCode" ? 320 : (int?)null
             }).ToArray();
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{stockDraftId}", new
         {
-            expectedRevision = 1, name = "Satın alma siparişleri", fields = stockFields
+            expectedRevision = 1, name = "Döviz kurları", fields = stockFields
         })).StatusCode);
 
         SetIdentity(client, TenantB, UserB, "TenantAdmin");
@@ -3339,7 +3339,11 @@ public sealed class CustomFormEndpointsIntegrationTests
         Assert.True(salesOrders.GetProperty("supportsColumnWidth").GetBoolean());
         Assert.True(salesOrders.GetProperty("supportsColumnPinning").GetBoolean());
         var purchaseOrders = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "purchase-orders");
-        Assert.False(purchaseOrders.GetProperty("supportsColumnPinning").GetBoolean());
+        Assert.True(purchaseOrders.GetProperty("supportsColumnPinning").GetBoolean());
+        Assert.True(purchaseOrders.GetProperty("supportsColumnWidth").GetBoolean());
+        var exchangeRates = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "exchange-rates");
+        Assert.False(exchangeRates.GetProperty("supportsColumnPinning").GetBoolean());
+        Assert.False(exchangeRates.GetProperty("supportsColumnWidth").GetBoolean());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/sales-orders/draft", new { name = "Sipariş listesi" });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
@@ -3398,7 +3402,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         using var restoredDraft = JsonDocument.Parse(await restored.Content.ReadAsStringAsync());
         Assert.Equal("right", PinOf(restoredDraft.RootElement, "actions"));
 
-        var unsupported = await client.PostAsJsonAsync("/api/screen-views/purchase-orders/draft", new { name = "Satın alma siparişleri" });
+        var unsupported = await client.PostAsJsonAsync("/api/screen-views/exchange-rates/draft", new { name = "Döviz kurları" });
         Assert.Equal(HttpStatusCode.Created, unsupported.StatusCode);
         using var unsupportedDraft = JsonDocument.Parse(await unsupported.Content.ReadAsStringAsync());
         var unsupportedFields = unsupportedDraft.RootElement.GetProperty("fields").EnumerateArray()
@@ -3408,10 +3412,29 @@ public sealed class CustomFormEndpointsIntegrationTests
                 label = field.GetProperty("label").GetString()!,
                 visible = field.GetProperty("visible").GetBoolean(),
                 position = field.GetProperty("position").GetInt32(),
-                pinned = field.GetProperty("key").GetString() == "code" ? "left" : null
+                pinned = field.GetProperty("key").GetString() == "currencyCode" ? "left" : null
             }).ToArray();
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{unsupportedDraft.RootElement.GetProperty("id").GetGuid()}",
-            new { expectedRevision = 1, name = "Satın alma siparişleri", fields = unsupportedFields })).StatusCode);
+            new { expectedRevision = 1, name = "Döviz kurları", fields = unsupportedFields })).StatusCode);
+
+        var purchaseInvoice = await client.PostAsJsonAsync("/api/screen-views/purchase-invoices/draft", new { name = "Alış faturaları" });
+        Assert.Equal(HttpStatusCode.Created, purchaseInvoice.StatusCode);
+        using var purchaseInvoiceDraft = JsonDocument.Parse(await purchaseInvoice.Content.ReadAsStringAsync());
+        var purchaseInvoiceFields = purchaseInvoiceDraft.RootElement.GetProperty("fields").EnumerateArray()
+            .Select(field => new
+            {
+                key = field.GetProperty("key").GetString()!,
+                label = field.GetProperty("label").GetString()!,
+                visible = field.GetProperty("visible").GetBoolean(),
+                position = field.GetProperty("position").GetInt32(),
+                width = field.GetProperty("key").GetString() == "supplierName" ? 240 : (int?)null,
+                pinned = field.GetProperty("key").GetString() == "code" ? "left" : null
+            }).ToArray();
+        var purchaseInvoiceUpdate = await client.PutAsJsonAsync($"/api/screen-views/{purchaseInvoiceDraft.RootElement.GetProperty("id").GetGuid()}",
+            new { expectedRevision = 1, name = "Alış faturaları", fields = purchaseInvoiceFields });
+        Assert.Equal(HttpStatusCode.OK, purchaseInvoiceUpdate.StatusCode);
+        using var purchaseInvoiceSaved = JsonDocument.Parse(await purchaseInvoiceUpdate.Content.ReadAsStringAsync());
+        Assert.Equal("left", PinOf(purchaseInvoiceSaved.RootElement, "code"));
 
         SetIdentity(client, TenantB, UserB, "TenantAdmin");
         var otherTenant = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/sales-orders/active");

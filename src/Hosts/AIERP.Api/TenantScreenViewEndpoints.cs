@@ -18,12 +18,14 @@ internal static class TenantScreenViewEndpoints
         "finance-statements", "finance-transfer-sources", "finance-trial-balance",
         "hr-attendance", "hr-employee-calendar-overrides", "hr-employees", "hr-leave-requests",
         "hr-workplace-assignments", "hr-workplace-calendars",
-        "sales-quotes", "sales-orders", "sales-invoices", "inventory-stock", "crm-opportunities", "fixed-assets"
+        "sales-quotes", "sales-orders", "sales-invoices", "inventory-stock", "crm-opportunities", "fixed-assets",
+        "purchase-orders", "purchase-invoices"
     };
     // Screens whose runtime grid honours tenant-level frozen (sticky) columns.
     internal static readonly HashSet<string> PinnableColumnScreenKeys = new(StringComparer.Ordinal)
     {
-        "sales-quotes", "sales-orders", "sales-invoices", "sales-returns", "inventory-stock", "crm-opportunities",
+        "sales-quotes", "sales-orders", "sales-invoices", "sales-returns", "purchase-orders", "purchase-invoices",
+        "inventory-stock", "crm-opportunities",
         "fixed-assets", "hr-employees", "audit-events", "finance-accounts", "finance-account-transactions",
         "finance-balance-sheet", "finance-cash-flow-report", "finance-fx-exposure", "finance-fx-revaluation-lines",
         "finance-fx-revaluations", "finance-income-statement", "finance-journals", "finance-ledger-accounts",
