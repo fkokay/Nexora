@@ -4009,6 +4009,78 @@ html[data-theme="dark"] #root .module-launcher-main.launcher-dashboard.is-custom
 #root .launcher-quick-actions.is-collapsed { min-height: 0; height: auto; align-self: start; overflow: hidden; padding-block: 10px; }
 #root .launcher-quick-actions.is-collapsed > header { padding-bottom: 0; border-bottom: 0; }
 #root .launcher-quick-actions.is-collapsed .launcher-quick-actions-collapse { margin: -2px; }
+/* Ajanda paneli: başlıktaki "yeni kayıt" düğmesi, kayıt listesi ve oluşturma penceresi */
+#root .launcher-agenda { display: flex; flex-direction: column; gap: 8px; }
+#root .launcher-agenda-actions { display: flex; align-items: center; gap: 6px; }
+#root .launcher-agenda-add { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border: 0; border-radius: 8px; background: transparent; color: #7b849a; cursor: pointer; }
+#root .launcher-agenda-add:hover { background: #f0edff; color: #6550df; }
+#root .launcher-agenda-add:focus-visible, #root .launcher-agenda-empty-add:focus-visible, #root .launcher-agenda-check:focus-visible, #root .launcher-agenda-delete:focus-visible { outline: 2px solid #7867e8; outline-offset: 2px; }
+#root .launcher-agenda > .launcher-empty-state { flex: 1; gap: 8px; }
+#root .launcher-agenda-empty-add { display: inline-flex; align-items: center; justify-self: center; gap: 4px; padding: 5px 10px; border: 1px solid #ddd8fb; border-radius: 8px; background: #f7f5ff; color: #5b47d6; font-size: 11px; font-weight: 700; cursor: pointer; }
+#root .launcher-agenda-empty-add:hover { background: #efebff; }
+#root .launcher-agenda-error { margin: 0; color: #b54747; font-size: 11px; line-height: 1.4; }
+#root .launcher-agenda-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; min-height: 0; overflow: auto; }
+#root .launcher-agenda-list > li { display: flex; align-items: center; gap: 9px; padding: 6px 4px; border-radius: 9px; }
+#root .launcher-agenda-list > li:hover { background: #f6f5fd; }
+#root .launcher-agenda-check { display: grid; width: 18px; height: 18px; flex: none; place-items: center; padding: 0; border: 1.5px solid #b9b2ee; border-radius: 6px; background: #fff; color: #fff; cursor: pointer; }
+#root .launcher-agenda-list > li.is-completed .launcher-agenda-check { border-color: #6550e5; background: #6550e5; }
+#root .launcher-agenda-text { display: grid; min-width: 0; flex: 1; gap: 1px; }
+#root .launcher-agenda-text > b { overflow: hidden; color: #1f2a44; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+#root .launcher-agenda-text > small { color: #78839e; font-size: 10px; }
+#root .launcher-agenda-list > li.is-completed .launcher-agenda-text > b { color: #8e97ab; text-decoration: line-through; }
+#root .launcher-agenda-delete { display: grid; width: 26px; height: 26px; flex: none; place-items: center; border: 0; border-radius: 7px; background: transparent; color: #98a1b5; cursor: pointer; opacity: 0; }
+#root .launcher-agenda-list > li:hover .launcher-agenda-delete, #root .launcher-agenda-delete:focus-visible { opacity: 1; }
+#root .launcher-agenda-delete:hover { background: #fdeeee; color: #b54747; }
+@media (hover: none) { #root .launcher-agenda-delete { opacity: 1; } }
+.launcher-agenda-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 16px; background: #1b213a59; }
+.launcher-agenda-dialog { display: grid; width: min(420px, 100%); box-sizing: border-box; gap: 12px; padding: 18px; border: 1px solid #e2e4f1; border-radius: 16px; background: #fff; box-shadow: 0 20px 50px #1b213a33; color: #1f2a44; font-family: inherit; }
+.launcher-agenda-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.launcher-agenda-dialog h2 { display: flex; align-items: center; gap: 8px; margin: 0; color: #172341; font-size: 16px; font-weight: 750; }
+.launcher-agenda-dialog h2 > svg { color: #6550e5; }
+.launcher-agenda-dialog label { display: grid; gap: 5px; }
+.launcher-agenda-dialog label > span { color: #5f6a85; font-size: 12px; font-weight: 650; }
+.launcher-agenda-dialog input, .launcher-agenda-dialog textarea { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid #d9ddea; border-radius: 10px; background: #fff; color: #1f2a44; font: inherit; font-size: 13px; }
+.launcher-agenda-dialog textarea { resize: vertical; }
+.launcher-agenda-dialog input:focus, .launcher-agenda-dialog textarea:focus { border-color: #7867e8; outline: 2px solid #7867e833; }
+.launcher-agenda-dialog .launcher-agenda-error { margin: 0; color: #b54747; font-size: 12px; line-height: 1.4; }
+.launcher-agenda-dialog > footer { display: flex; justify-content: flex-end; gap: 8px; }
+.launcher-agenda-close { display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 8px; background: transparent; color: #7b849a; cursor: pointer; }
+.launcher-agenda-close:hover { background: #f0edff; color: #6550df; }
+.launcher-agenda-primary, .launcher-agenda-secondary { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.launcher-agenda-primary { border: 0; background: #6550e5; color: #fff; }
+.launcher-agenda-primary:hover:not(:disabled) { background: #5641d6; }
+.launcher-agenda-secondary { border: 1px solid #d9ddea; background: #fff; color: #3d4862; }
+.launcher-agenda-secondary:hover:not(:disabled) { background: #f5f6fb; }
+.launcher-agenda-primary:disabled, .launcher-agenda-secondary:disabled, .launcher-agenda-close:disabled { cursor: default; opacity: .6; }
+.launcher-agenda-dialog button:focus-visible { outline: 2px solid #7867e8; outline-offset: 2px; }
+.launcher-agenda-spin { animation: launcher-agenda-spin .8s linear infinite; }
+@keyframes launcher-agenda-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .launcher-agenda-spin { animation: none; } }
+html[data-theme="dark"] #root .launcher-agenda-add { color: #a6b5ca; }
+html[data-theme="dark"] #root .launcher-agenda-add:hover { background: #2a2a4a; color: #c9c0ff; }
+html[data-theme="dark"] #root .launcher-agenda-empty-add { border-color: #3d3a6b; background: #24233f; color: #c9c0ff; }
+html[data-theme="dark"] #root .launcher-agenda-empty-add:hover { background: #2e2c52; }
+html[data-theme="dark"] #root .launcher-agenda-list > li:hover { background: #1d2a3d; }
+html[data-theme="dark"] #root .launcher-agenda-check { border-color: #5d5a99; background: #142033; }
+html[data-theme="dark"] #root .launcher-agenda-list > li.is-completed .launcher-agenda-check { border-color: #7b68f0; background: #7b68f0; }
+html[data-theme="dark"] #root .launcher-agenda-text > b { color: #e4eaf3; }
+html[data-theme="dark"] #root .launcher-agenda-text > small { color: #abb8ca; }
+html[data-theme="dark"] #root .launcher-agenda-list > li.is-completed .launcher-agenda-text > b { color: #7d8aa0; }
+html[data-theme="dark"] #root .launcher-agenda-delete { color: #8d9ab0; }
+html[data-theme="dark"] #root .launcher-agenda-delete:hover { background: #3a2128; color: #f0a0a0; }
+html[data-theme="dark"] #root .launcher-agenda-error, html[data-theme="dark"] .launcher-agenda-dialog .launcher-agenda-error { color: #f0a0a0; }
+html[data-theme="dark"] .launcher-agenda-backdrop { background: #02060d99; }
+html[data-theme="dark"] .launcher-agenda-dialog { border-color: #2b3a52; background: #141f30; box-shadow: 0 20px 50px #0009; color: #e4eaf3; }
+html[data-theme="dark"] .launcher-agenda-dialog h2 { color: #e4eaf3; }
+html[data-theme="dark"] .launcher-agenda-dialog h2 > svg { color: #a99cff; }
+html[data-theme="dark"] .launcher-agenda-dialog label > span { color: #abb8ca; }
+html[data-theme="dark"] .launcher-agenda-dialog input, html[data-theme="dark"] .launcher-agenda-dialog textarea { border-color: #2f3f58; background: #0f1826; color: #e4eaf3; color-scheme: dark; }
+html[data-theme="dark"] .launcher-agenda-close { color: #a6b5ca; }
+html[data-theme="dark"] .launcher-agenda-close:hover { background: #2a2a4a; color: #c9c0ff; }
+html[data-theme="dark"] .launcher-agenda-secondary { border-color: #2f3f58; background: #18243a; color: #d5deea; }
+html[data-theme="dark"] .launcher-agenda-secondary:hover:not(:disabled) { background: #1f2d45; }
+html[data-theme="dark"] .launcher-agenda-primary { background: #6f5cf0; }
+html[data-theme="dark"] .launcher-agenda-primary:hover:not(:disabled) { background: #7d6cf5; }
 .launcher-action-error{width:min(900px,calc(100% - 32px));margin:12px auto 0;padding:11px 14px;border:1px solid #f0c7c5;border-radius:10px;background:#fff6f5;color:#a52c28;font-size:12px;line-height:1.5}
 .launcher-assistant-widget{display:flex;min-width:0;min-height:0;flex-direction:column;gap:10px;overflow:hidden}
 .launcher-assistant-widget>header{padding-bottom:9px;border-bottom:1px solid #e9eaf4}

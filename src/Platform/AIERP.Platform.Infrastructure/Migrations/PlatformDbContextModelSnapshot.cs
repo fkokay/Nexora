@@ -11524,6 +11524,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         },
                         new
                         {
+                            Code = "erp.agenda.read",
+                            Action = "read",
+                            Description = "read · Personal agenda entries on the ERP home screen",
+                            ResourceType = "erp.agenda"
+                        },
+                        new
+                        {
+                            Code = "erp.agenda.create",
+                            Action = "create",
+                            Description = "create · Personal agenda entries on the ERP home screen",
+                            ResourceType = "erp.agenda"
+                        },
+                        new
+                        {
+                            Code = "erp.agenda.update",
+                            Action = "update",
+                            Description = "update · Personal agenda entries on the ERP home screen",
+                            ResourceType = "erp.agenda"
+                        },
+                        new
+                        {
+                            Code = "erp.agenda.delete",
+                            Action = "delete",
+                            Description = "delete · Personal agenda entries on the ERP home screen",
+                            ResourceType = "erp.agenda"
+                        },
+                        new
+                        {
+                            Code = "erp.agenda.execute",
+                            Action = "execute",
+                            Description = "execute · Personal agenda entries on the ERP home screen",
+                            ResourceType = "erp.agenda"
+                        },
+                        new
+                        {
                             Code = "erp.audit-events.read",
                             Action = "read",
                             Description = "read · Tenant audit history",
