@@ -1043,6 +1043,34 @@ function CustomersPage({
       });
     return () => { active = false; };
   }, [initialEdit, token]);
+  /** Set by the form's "Kaydet ve Yeni" action; read once by the next successful create. */
+  const stayAfterSave = useRef(false);
+  /** Returns every field of the new-card form to its default, including the address. */
+  function resetCustomerForm() {
+    setCode("");
+    setName("");
+    setTaxNumber("");
+    setIdentityNumber("");
+    setTaxOffice("");
+    setIsEInvoiceRegistered(false);
+    setEInvoiceRecipientAlias("");
+    setPhone(""); setEmail(""); setWebsite(""); setContactName(""); setContactPhone(""); setContactEmail("");
+    setPriceListCode(""); setReceivableAccountCode(""); setPayableAccountCode(""); setBankName(""); setBankBranchCode(""); setIban("");
+    setType("Customer");
+    setGroupId("");
+    setParentCompanyId("");
+    setCurrencyCode("TRY");
+    setRiskLimit("");
+    setPaymentTermDays("0");
+    setAddressLine("");
+    setAddressCity("");
+    setAddressDistrict("");
+    setAddressPostalCode("");
+    setAddressCountry("TR");
+    setAddressLatitude(null);
+    setAddressLongitude(null);
+    setCustomerCreateValues({});
+  }
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -1091,22 +1119,14 @@ function CustomersPage({
           customFields: customerCreateValues,
         }),
       });
-      setCode("");
-      setName("");
-      setTaxNumber("");
-      setIdentityNumber("");
-      setTaxOffice("");
-      setIsEInvoiceRegistered(false);
-      setEInvoiceRecipientAlias("");
-      setPhone(""); setEmail(""); setWebsite(""); setContactName(""); setContactPhone(""); setContactEmail("");
-      setPriceListCode(""); setReceivableAccountCode(""); setPayableAccountCode(""); setBankName(""); setBankBranchCode(""); setIban("");
-      setType("Customer");
-      setGroupId("");
-      setParentCompanyId("");
-      setCurrencyCode("TRY");
-      setRiskLimit("");
-      setPaymentTermDays("0");
-      setCustomerCreateValues({});
+      const createdCode = code;
+      resetCustomerForm();
+      if (stayAfterSave.current) {
+        setCustomerCreateTab("contact");
+        setNotice(`${createdCode} kaydedildi. Yeni cari kartı girebilirsiniz.`);
+        if (!initialCreate) await load();
+        return;
+      }
       setModal(false);
       setNotice("Cari kartı oluşturuldu.");
       if (initialCreate) onNavigate("customers");
@@ -2083,6 +2103,15 @@ function CustomersPage({
     customerCreateFields,
     customerCreateValues,
     setCustomerCreateValues,
+    notice,
+    setStayAfterSave: (value) => {
+      stayAfterSave.current = value;
+    },
+    onReset: () => {
+      resetCustomerForm();
+      setError("");
+      setNotice("");
+    },
   };
   const customerCreatePage = <CustomerCreatePage {...customerFormProps} />;
   const customerEditPage = <CustomerEditPage {...customerFormProps} />;

@@ -266,11 +266,21 @@ export const english: Record<string, string> = {
   'Belge toplamları': 'Document totals', 'Toplamları tedarikçi belgesinden aynen aktarın.': 'Transfer the totals exactly from the supplier document.',
   'İskonto toplamı *': 'Discount total *', 'Vergi toplamı *': 'Tax total *', 'Genel toplam *': 'Grand total *',
   'Tutarlar kaydedildiği haliyle korunur; bu işlem muhasebe veya stok kaydı oluşturmaz.': 'Amounts are kept as saved; this action does not create an accounting or stock record.',
+  // Record form shell (record-form/RecordForm.tsx) and the customer card built on it
+  'Kaydet ve Yeni': 'Save and new', 'DÜZENLEME': 'EDITING', 'Uyarı var': 'Needs attention',
+  'Zorunlu alanlar:': 'Required fields:', 'Kaydedilmemiş değişiklik var': 'Unsaved changes',
+  'Cari Kimliği': 'Account identity', 'İletişim ve Adres': 'Contact and address', 'Finans ve Muhasebe': 'Finance and accounting',
+  'Vergi ve E-Fatura': 'Tax and e-invoice', 'Yetkili Kişi': 'Contact person', 'Adres': 'Address', 'Muhasebe ve Banka': 'Accounting and bank',
+  'Bağlı Firma': 'Parent company', 'Vergi ve Kimlik': 'Tax and identity', 'E-Fatura': 'E-invoice',
+  'T.C. kimlik no': 'National ID no.', 'Vergi dairesi': 'Tax office', 'Posta kodu': 'Postal code',
+  'E-Fatura mükellefi için vergi no veya T.C. kimlik no girilmedi.': 'No tax number or national ID entered for an e-invoice taxpayer.',
+  'E-Fatura mükellefi için alıcı etiketi girilmedi.': 'No recipient alias entered for an e-invoice taxpayer.',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
 export const englishPatterns: Array<[RegExp, string]> = [
   [/^Sözleşme durumu “(.+?)” olarak güncellendi\.$/, 'Contract status updated to “$1”.'],
+  [/^(.+?) kaydedildi\. Yeni cari kartı girebilirsiniz\.$/, '$1 saved. You can enter a new account card.'],
   [/^(.+?): (.+?) aşamasına taşındı\.$/, '$1: moved to the $2 stage.'],
   [/^Kazanma olasılığı yüzde (.+?)$/, 'Win probability $1 percent'],
   [/^(.+?) fırsatını (.+?) aşamasına ilerlet$/, 'Advance opportunity $1 to the $2 stage'],
