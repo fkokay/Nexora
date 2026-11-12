@@ -2387,7 +2387,7 @@ html[data-theme="dark"] .inventory-stock-actions-menu .row-action:hover:not(:dis
   padding: 0 !important;
   border: 1px solid var(--nexora-border);
   border-radius: 4px;
-  background: #FFFFFF !important;
+  background: var(--erp-color-surface) !important;
   backdrop-filter: none !important;
 }
 .app-shell:not(.standalone-studio) .content .customer-detail-modal {
@@ -2401,7 +2401,7 @@ html[data-theme="dark"] .inventory-stock-actions-menu .row-action:hover:not(:dis
   padding: 16px !important;
   border: 0 !important;
   border-radius: 4px !important;
-  background: #FFFFFF !important;
+  background: var(--erp-color-surface) !important;
   box-shadow: none !important;
 }
 .app-shell:not(.standalone-studio) .content .customer-detail-modal .customer-detail-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2474,7 +2474,7 @@ html[data-theme="dark"] .inventory-stock-actions-menu .row-action:hover:not(:dis
     width: min(600px, 100%) !important; max-width: 600px !important;
     height: auto !important; max-height: calc(100dvh - 36px) !important;
     overflow: auto !important; border: 1px solid #DCE4ED !important;
-    border-radius: 6px !important; background: #FFFFFF !important;
+    border-radius: 6px !important; background: var(--erp-color-surface) !important;
   }
 }
 @media(max-width:700px) {
@@ -3547,6 +3547,10 @@ html[data-theme="dark"] #root .launcher-center-hero{background:#11182770}
 #root .module-launcher-actions { gap: 14px; }
 #root .module-launcher-actions .icon-button { color: #43506e; }
 #root .module-launcher-actions .icon-button:hover { background: #f0effb; color: #6550df; }
+/* The dark icon colour above outranks the light hover, so the icon vanished on #f0effb. */
+html[data-theme="dark"] #root .module-launcher-actions .icon-button:hover,
+html[data-theme="dark"] #root .module-launcher-actions .icon-button:focus-visible { background: #2b2850; color: #c4baff; }
+html[data-theme="dark"] #root .module-launcher-actions .launcher-notification-button > i { box-shadow: 0 0 0 2px #101a31; }
 #root .module-launcher-actions .launcher-notification-button > i { box-shadow: 0 0 0 2px #f8f8ff; }
 #root .module-launcher-profile { position: relative; }
 #root .module-launcher-profile-trigger {

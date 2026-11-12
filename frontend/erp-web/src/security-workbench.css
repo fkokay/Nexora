@@ -118,7 +118,7 @@ html[data-theme="dark"] .audit-detail-pane dl div{background:#202d40}
 .access-control-page .access-members-panel>.panel-heading>svg,.access-control-page>section.panel:not(.access-members-panel)>.panel-heading>svg{display:grid;place-items:center;box-sizing:content-box;width:19px;height:19px;padding:9px;border:1px solid #e1ebf7;border-radius:9px;background:#f2f7fd;color:#2476bd}
 .access-control-page .access-member-search{padding:13px;border-color:#e2eaf3;border-radius:10px;background:linear-gradient(120deg,#f7faff,#fbfcff)}
 .access-control-page .access-member-search label{gap:7px;color:#53647a;font-size:10px}
-.access-control-page .access-member-search input{height:39px!important;border-color:#dbe4ef!important;border-radius:8px!important;background:#fff!important}
+.access-control-page .access-member-search input{height:39px!important;border-color:#dbe4ef!important;border-radius:8px!important;background:var(--erp-color-surface)!important}
 .access-control-page .access-member-search button{min-height:38px;border-radius:8px}
 .access-control-page .access-members-panel form.access-member-create{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;padding:16px;margin-bottom:20px;border:1px solid #e2eaf3;border-radius:10px;background:#f8faff}
 .access-member-form-heading,.access-member-form-footer{grid-column:1/-1}
