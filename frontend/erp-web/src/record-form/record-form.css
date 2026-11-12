@@ -265,6 +265,15 @@ html[data-theme="dark"] .record-form .rf-status-warning { color: #f5c26b; }
 html[data-theme="dark"] .record-form .rf-status-notice { color: #7ddba8; }
 .record-form .rf-status-end { margin-left: auto; }
 
+/* Modal içinde kullanım */
+.record-form--dialog { min-height: 0; }
+.record-form--dialog .rf-toolbar { padding: 12px 20px; }
+.record-form--dialog .rf-form { padding: 16px 20px; gap: 16px; }
+.record-form--dialog .rf-error { margin: 12px 20px 0; }
+.record-form--dialog .rf-status { padding-inline: 20px; }
+.record-form--dialog .rf-tab-panel { padding: 16px; }
+.record-form--dialog .rf-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
 @media (max-width: 1100px) {
   .record-form .rf-columns, .record-form .rf-custom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .record-form .rf-identity { grid-template-columns: repeat(2, minmax(0, 1fr)); }

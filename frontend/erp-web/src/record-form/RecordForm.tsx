@@ -27,6 +27,8 @@ export type RecordFormPageProps = {
   onDismissError?: () => void;
   /** Status bar content; use <span>s. `rf-status-warning`, `rf-status-notice`, `rf-status-end` are available. */
   status?: ReactNode;
+  /** "dialog" fits the same structure inside an existing modal: tighter padding, no full-height stretch. */
+  variant?: "page" | "dialog";
   className?: string;
   children: ReactNode;
 };
@@ -48,6 +50,7 @@ export function RecordFormPage({
   error,
   onDismissError,
   status,
+  variant = "page",
   className,
   children,
 }: RecordFormPageProps) {
@@ -59,8 +62,10 @@ export function RecordFormPage({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "F2" || event.altKey || event.shiftKey) return;
-      // A record picker or confirmation dialog owns the keyboard while it is open.
-      if (document.querySelector(".modal-backdrop")) return;
+      // The topmost dialog owns the keyboard: skip unless this form lives inside it.
+      const backdrops = document.querySelectorAll(".modal-backdrop");
+      const topmost = backdrops[backdrops.length - 1];
+      if (topmost && !topmost.contains(formRef.current)) return;
       event.preventDefault();
       if (busy) return;
       onSaveIntent?.(event.ctrlKey && canSaveAndNew);
@@ -71,7 +76,9 @@ export function RecordFormPage({
   }, [busy, canSaveAndNew, onSaveIntent]);
 
   return (
-    <div className={`record-form${className ? ` ${className}` : ""}`}>
+    <div
+      className={`record-form${variant === "dialog" ? " record-form--dialog" : ""}${className ? ` ${className}` : ""}`}
+    >
       <header className="rf-toolbar">
         <div className="rf-title">
           <h1>{title}</h1>
