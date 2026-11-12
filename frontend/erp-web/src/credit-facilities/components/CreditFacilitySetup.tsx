@@ -1,4 +1,11 @@
 import type { Facility } from "../types";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../../finance-record-forms.css";
+
 
 type Props = {
   isAdmin: boolean;
@@ -48,26 +55,35 @@ export function CreditFacilitySetup(props: Props) {
   const view = props.view || "list";
   const showFacility = view === "facility",
     showSchedule = view === "schedule";
+  const backToList = () =>
+    props.onNavigate?.("finance-credit-facilities", "Krediler & Finansman");
   return (
     <div className="credit-setup-grid">
       {showFacility && (
-        <section
-          className="panel credit-operation-page"
-          aria-labelledby="credit-create-title"
-        >
-          <div className="panel-heading">
-            <div>
-              <h2 id="credit-create-title">Yeni kredi / limit</h2>
-              <p>
-                Finansman sözleşmesini ve onaylı limit bilgilerini tanımlayın.
-              </p>
-            </div>
-          </div>
-          <form className="collection-form" onSubmit={props.onSubmitFacility}>
-            <div className="form-two">
+        <section className="panel credit-operation-page fin-rf-host">
+          <RecordFormPage
+            variant="dialog"
+            title="Yeni kredi / limit"
+            mode="create"
+            busy={busy}
+            saveLabel="Krediyi oluştur"
+            onSubmit={props.onSubmitFacility as (event: React.FormEvent) => void}
+            onCancel={backToList}
+            status={
+              <span>Limit bilgisi; kullandırım/bakiye mutabakatı değildir.</span>
+            }
+          >
+            <p className="fin-rf-hint">
+              Finansman sözleşmesini ve onaylı limit bilgilerini tanımlayın.
+            </p>
+            <RecordFormGroup title="Kredi Kimliği" bodyClassName="rf-identity">
               <label>
-                Kod
+                <span>
+                  Kod
+                  <RequiredMark />
+                </span>
                 <input
+                  className="rf-must rf-mono"
                   value={props.code}
                   onChange={(event) => props.onCodeChange(event.target.value)}
                   maxLength={40}
@@ -76,16 +92,18 @@ export function CreditFacilitySetup(props: Props) {
                 />
               </label>
               <label>
-                Banka / finansman kurumu
+                <span>
+                  Banka / finansman kurumu
+                  <RequiredMark />
+                </span>
                 <input
+                  className="rf-must"
                   value={props.lender}
                   onChange={(event) => props.onLenderChange(event.target.value)}
                   maxLength={160}
                   required
                 />
               </label>
-            </div>
-            <div className="form-two">
               <label>
                 Ürün türü
                 <select
@@ -99,8 +117,12 @@ export function CreditFacilitySetup(props: Props) {
                 </select>
               </label>
               <label>
-                Para birimi
+                <span>
+                  Para birimi
+                  <RequiredMark />
+                </span>
                 <input
+                  className="rf-must rf-mono"
                   value={props.currency}
                   onChange={(event) =>
                     props.onCurrencyChange(event.target.value.toUpperCase())
@@ -110,121 +132,142 @@ export function CreditFacilitySetup(props: Props) {
                   required
                 />
               </label>
-            </div>
-            <div className="form-two">
-              <label>
-                Onaylı limit
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={props.limit}
-                  onChange={(event) => props.onLimitChange(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Yıllık faiz (%)
-                <input
-                  type="number"
-                  min="0"
-                  max="1000"
-                  step="0.0001"
-                  value={props.rate}
-                  onChange={(event) => props.onRateChange(event.target.value)}
-                />
-              </label>
-            </div>
-            <div className="form-two">
-              <label>
-                Başlangıç tarihi
-                <input
-                  type="date"
-                  value={props.startDate}
-                  onChange={(event) =>
-                    props.onStartDateChange(event.target.value)
-                  }
-                  required
-                />
-              </label>
-              <label>
-                Vade sonu
-                <input
-                  type="date"
-                  min={props.startDate}
-                  value={props.maturityDate}
-                  onChange={(event) =>
-                    props.onMaturityDateChange(event.target.value)
-                  }
-                />
-              </label>
-            </div>
-            <label>
-              Not
-              <textarea
-                value={props.notes}
-                onChange={(event) => props.onNotesChange(event.target.value)}
-                maxLength={1000}
-              />
-            </label>
-            <div className="modal-foot">
-              <span>
-                Limit bilgisi; kullandırım/bakiye mutabakatı değildir.
-              </span>
-              <div className="credit-operation-actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() =>
-                    props.onNavigate?.(
-                      "finance-credit-facilities",
-                      "Krediler & Finansman",
-                    )
-                  }
-                >
-                  Vazgeç
-                </button>
-                <button className="primary" disabled={busy}>
-                  {busy ? "Kaydediliyor…" : "Krediyi oluştur"}
-                </button>
+            </RecordFormGroup>
+            <div className="rf-columns">
+              <RecordFormGroup title="Limit ve Faiz">
+                <div className="rf-pair">
+                  <label>
+                    <span>
+                      Onaylı limit
+                      <RequiredMark />
+                    </span>
+                    <input
+                      className="rf-must rf-num"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={props.limit}
+                      onChange={(event) =>
+                        props.onLimitChange(event.target.value)
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    Yıllık faiz (%)
+                    <input
+                      className="rf-num"
+                      type="number"
+                      min="0"
+                      max="1000"
+                      step="0.0001"
+                      value={props.rate}
+                      onChange={(event) =>
+                        props.onRateChange(event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+              </RecordFormGroup>
+              <RecordFormGroup title="Vade">
+                <div className="rf-pair">
+                  <label>
+                    <span>
+                      Başlangıç tarihi
+                      <RequiredMark />
+                    </span>
+                    <input
+                      className="rf-must"
+                      type="date"
+                      value={props.startDate}
+                      onChange={(event) =>
+                        props.onStartDateChange(event.target.value)
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    Vade sonu
+                    <input
+                      type="date"
+                      min={props.startDate}
+                      value={props.maturityDate}
+                      onChange={(event) =>
+                        props.onMaturityDateChange(event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+              </RecordFormGroup>
+              <div className="rf-columns-wide">
+                <RecordFormGroup title="Not">
+                  <label>
+                    Not
+                    <textarea
+                      value={props.notes}
+                      onChange={(event) =>
+                        props.onNotesChange(event.target.value)
+                      }
+                      maxLength={1000}
+                    />
+                  </label>
+                </RecordFormGroup>
               </div>
             </div>
-          </form>
+          </RecordFormPage>
         </section>
       )}
       {showSchedule && (
-        <section className="panel credit-operation-page">
-          <div className="panel-heading">
-            <div>
-              <h2>Ödeme planına taksit ekle</h2>
-              <p>
-                Planlanan anapara, faiz ve ücretler nakit tahmininde ödeme
-                olarak görünür.
-              </p>
-            </div>
-          </div>
-          <form className="collection-form" onSubmit={props.onSubmitSchedule}>
-            <label>
-              Kredi / limit
-              <select
-                value={props.facilityId}
-                onChange={(event) =>
-                  props.onFacilityIdChange(event.target.value)
-                }
-                required
-              >
-                <option value="">Aktif kredi seçin</option>
-                {activeFacilities.map((facility) => (
-                  <option key={facility.id} value={facility.id}>
-                    {facility.code} · {facility.lenderName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="form-two">
+        <section className="panel credit-operation-page fin-rf-host">
+          <RecordFormPage
+            variant="dialog"
+            title="Ödeme planına taksit ekle"
+            mode="create"
+            busy={busy}
+            saveLabel="Taksiti ekle"
+            onSubmit={(event) => {
+              if (!props.facilityId) {
+                event.preventDefault();
+                return;
+              }
+              props.onSubmitSchedule(event as React.FormEvent<HTMLFormElement>);
+            }}
+            onCancel={backToList}
+            status={<span>Plan satırı muhasebe kaydı oluşturmaz.</span>}
+          >
+            <p className="fin-rf-hint">
+              Planlanan anapara, faiz ve ücretler nakit tahmininde ödeme olarak
+              görünür.
+            </p>
+            <RecordFormGroup title="Taksit Kimliği" bodyClassName="fin-rf-grid-2">
               <label>
-                Vade tarihi
+                <span>
+                  Kredi / limit
+                  <RequiredMark />
+                </span>
+                <select
+                  className="rf-must"
+                  value={props.facilityId}
+                  onChange={(event) =>
+                    props.onFacilityIdChange(event.target.value)
+                  }
+                  required
+                >
+                  <option value="">Aktif kredi seçin</option>
+                  {activeFacilities.map((facility) => (
+                    <option key={facility.id} value={facility.id}>
+                      {facility.code} · {facility.lenderName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>
+                  Vade tarihi
+                  <RequiredMark />
+                </span>
                 <input
+                  className="rf-must"
                   type="date"
                   value={props.dueDate}
                   onChange={(event) =>
@@ -233,9 +276,15 @@ export function CreditFacilitySetup(props: Props) {
                   required
                 />
               </label>
+            </RecordFormGroup>
+            <RecordFormGroup title="Tutarlar" bodyClassName="rf-custom-grid">
               <label>
-                Anapara
+                <span>
+                  Anapara
+                  <RequiredMark />
+                </span>
                 <input
+                  className="rf-must rf-num"
                   type="number"
                   min="0"
                   step="0.01"
@@ -246,11 +295,10 @@ export function CreditFacilitySetup(props: Props) {
                   required
                 />
               </label>
-            </div>
-            <div className="form-two">
               <label>
                 Faiz
                 <input
+                  className="rf-num"
                   type="number"
                   min="0"
                   step="0.01"
@@ -263,6 +311,7 @@ export function CreditFacilitySetup(props: Props) {
               <label>
                 Ücret / komisyon
                 <input
+                  className="rf-num"
                   type="number"
                   min="0"
                   step="0.01"
@@ -270,41 +319,18 @@ export function CreditFacilitySetup(props: Props) {
                   onChange={(event) => props.onFeeChange(event.target.value)}
                 />
               </label>
-            </div>
-            <label>
-              Not
-              <input
-                value={props.scheduleNotes}
-                onChange={(event) =>
-                  props.onScheduleNotesChange(event.target.value)
-                }
-                maxLength={500}
-              />
-            </label>
-            <div className="modal-foot">
-              <span>Plan satırı muhasebe kaydı oluşturmaz.</span>
-              <div className="credit-operation-actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() =>
-                    props.onNavigate?.(
-                      "finance-credit-facilities",
-                      "Krediler & Finansman",
-                    )
+              <label className="fin-rf-span-all">
+                Not
+                <input
+                  value={props.scheduleNotes}
+                  onChange={(event) =>
+                    props.onScheduleNotesChange(event.target.value)
                   }
-                >
-                  Vazgeç
-                </button>
-                <button
-                  className="primary"
-                  disabled={busy || !props.facilityId}
-                >
-                  {busy ? "Kaydediliyor…" : "Taksiti ekle"}
-                </button>
-              </div>
-            </div>
-          </form>
+                  maxLength={500}
+                />
+              </label>
+            </RecordFormGroup>
+          </RecordFormPage>
         </section>
       )}
     </div>

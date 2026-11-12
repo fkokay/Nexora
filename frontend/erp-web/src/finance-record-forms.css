@@ -1,0 +1,153 @@
+/* Finans ve muhasebe kayıt formlarının RecordForm düzenine özel eklemeleri. Ortak yapı: record-form/record-form.css */
+
+/* Eski panel / kart kabuğu yalnızca RecordFormPage'i sarıyorsa kendi iç boşluğunu bırakır. */
+#root .app-shell .fin-rf-host,
+.fin-rf-host {
+  display: block;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.fin-rf-host > .record-form { border-radius: inherit; }
+
+/* Her zaman açık duran (kapatılamayan) formlarda Vazgeç düğmesi anlamsızdır. */
+.record-form.fin-rf-no-cancel .rf-actions > .rf-btn:last-child { display: none; }
+
+/* Form içi yardımcı metin ve bilgi kutusu */
+.record-form .rf-form .fin-rf-hint {
+  margin: 0;
+  color: var(--rf-muted);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.record-form .rf-form .fin-rf-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--rf-border-soft);
+  border-left: 3px solid #4b8fda;
+  border-radius: 6px;
+  background: var(--rf-band);
+  color: var(--rf-label);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.record-form .rf-form .fin-rf-note svg { flex: none; }
+.record-form .rf-form .fin-rf-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.record-form .rf-form .fin-rf-bar > p { flex: 1; min-width: 200px; }
+.record-form .rf-form .fin-rf-span-2 { grid-column: span 2; }
+.record-form .rf-form .fin-rf-span-all { grid-column: 1 / -1; }
+.record-form .rf-form .fin-rf-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 20px; }
+.record-form .rf-form .fin-rf-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
+.record-form .rf-form input[type="file"] { padding: 8px 12px; height: 40px; }
+.record-form .rf-form input[readonly] { background: var(--rf-band); }
+.record-form .rf-form :is(input, select, textarea):disabled { background: var(--rf-band); color: var(--rf-muted); }
+.record-form .rf-form textarea.fin-rf-code {
+  height: auto;
+  min-height: 150px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+/* Satır kalemleri (yevmiye, bütçe, nakit bütçesi, vergi kuralları) */
+.record-form .rf-form .fin-rf-lines { display: flex; flex-direction: column; gap: 12px; }
+.record-form .rf-form .fin-rf-line {
+  display: grid;
+  gap: 12px 14px;
+  align-items: end;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--rf-border-soft);
+  border-radius: 6px;
+  background: var(--rf-surface);
+}
+.record-form .rf-form fieldset.fin-rf-line > legend {
+  padding: 0 6px;
+  color: var(--rf-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.record-form .rf-form .fin-rf-line-title {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--rf-muted);
+  font-size: 12px;
+}
+.record-form .rf-form .fin-rf-line--journal { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.6fr) minmax(0, .8fr) minmax(0, .8fr); }
+.record-form .rf-form .fin-rf-line--budget { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr) auto; }
+.record-form .rf-form .fin-rf-line--cash { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.8fr) minmax(0, 1fr) auto; }
+.record-form .rf-form .fin-rf-line--tax { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.record-form .rf-form .fin-rf-line > button { height: 40px; white-space: nowrap; }
+.record-form .rf-form .fin-rf-empty {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--rf-border);
+  border-radius: 6px;
+  color: var(--rf-muted);
+  font-size: 13px;
+  text-align: center;
+}
+.record-form .rf-form .fin-rf-code-help {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--rf-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.record-form .rf-form .fin-rf-code-help code {
+  padding: 8px 10px;
+  border: 1px solid var(--rf-border-soft);
+  border-radius: 6px;
+  background: var(--rf-band);
+  color: var(--rf-text);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.record-form .rf-form .fin-rf-preview {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+.record-form .rf-form .fin-rf-preview > label { flex: 0 1 180px; }
+.record-form .rf-form .fin-rf-preview > button { height: 40px; }
+.record-form .rf-form .fin-rf-preview-result { display: flex; flex-wrap: wrap; gap: 6px 16px; flex-basis: 100%; font-size: 13px; }
+
+/* Modal ve <dialog> içinde: RecordFormPage kendi başlığını ve boşluğunu getirir. */
+dialog.finance-form-dialog.fin-rf-dialog { padding: 0; }
+.foreign-trade-create.fin-rf-host { padding: 0; }
+.account-transactions-modal .fin-rf-inline { border-top: 1px solid #d5dfeb; border-bottom: 1px solid #d5dfeb; }
+html[data-theme="dark"] .account-transactions-modal .fin-rf-inline { border-color: #30394d; }
+
+@media (max-width: 1100px) {
+  .record-form .rf-form .fin-rf-grid-4,
+  .record-form .rf-form .fin-rf-line--tax,
+  .record-form .rf-form .fin-rf-line--journal { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .record-form .rf-form .fin-rf-line--budget,
+  .record-form .rf-form .fin-rf-line--cash { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .record-form .rf-form .fin-rf-grid-4,
+  .record-form .rf-form .fin-rf-grid-2,
+  .record-form .rf-form .fin-rf-line--tax,
+  .record-form .rf-form .fin-rf-line--journal,
+  .record-form .rf-form .fin-rf-line--budget,
+  .record-form .rf-form .fin-rf-line--cash { grid-template-columns: minmax(0, 1fr); }
+  .record-form .rf-form .fin-rf-span-2 { grid-column: auto; }
+}

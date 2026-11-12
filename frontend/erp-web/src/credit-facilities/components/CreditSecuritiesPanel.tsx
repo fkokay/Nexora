@@ -1,4 +1,10 @@
 import type { Facility, Security } from "../types";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../../finance-record-forms.css";
 
 type Props = {
   isAdmin: boolean;
@@ -83,11 +89,49 @@ export function CreditSecuritiesPanel(props: Props) {
         </div>
       </div>
       {props.isAdmin && props.showCreateForm && (
-        <form className="collection-form" onSubmit={props.onSubmit}>
-          <div className="form-two">
+        <RecordFormPage
+          variant="dialog"
+          title="Teminat kaydı"
+          mode="create"
+          busy={props.busy}
+          saveLabel="Teminatı kaydet"
+          onSubmit={(event) => {
+            if (!props.facilityId) {
+              event.preventDefault();
+              return;
+            }
+            props.onSubmit(event as React.FormEvent<HTMLFormElement>);
+          }}
+          onCancel={() =>
+            props.onNavigate?.(
+              "finance-credit-facilities",
+              "Krediler & Finansman",
+            )
+          }
+          status={<span>Vade uyarısı 30 gün kala gösterilir.</span>}
+        >
+          <RecordFormGroup title="Teminat Kimliği" bodyClassName="rf-identity">
             <label>
-              Bağlı kredi
+              <span>
+                Kod
+                <RequiredMark />
+              </span>
+              <input
+                className="rf-must rf-mono"
+                value={props.code}
+                onChange={(event) => props.onCodeChange(event.target.value)}
+                maxLength={40}
+                required
+                placeholder="TMN-001"
+              />
+            </label>
+            <label>
+              <span>
+                Bağlı kredi
+                <RequiredMark />
+              </span>
               <select
+                className="rf-must"
                 value={props.facilityId}
                 onChange={(event) => props.onFacilityChange(event.target.value)}
                 required
@@ -115,127 +159,123 @@ export function CreditSecuritiesPanel(props: Props) {
                 <option value="Collateral">Rehin / ipotek</option>
               </select>
             </label>
-          </div>
-          <div className="form-two">
-            <label>
-              Kod
-              <input
-                value={props.code}
-                onChange={(event) => props.onCodeChange(event.target.value)}
-                maxLength={40}
-                required
-                placeholder="TMN-001"
-              />
-            </label>
-            <label>
-              Veren kurum / taraf
-              <input
-                value={props.issuer}
-                onChange={(event) => props.onIssuerChange(event.target.value)}
-                maxLength={160}
-                required
-              />
-            </label>
-          </div>
-          <div className="form-two">
-            <label>
-              Lehtar
-              <input
-                value={props.beneficiary}
-                onChange={(event) =>
-                  props.onBeneficiaryChange(event.target.value)
-                }
-                maxLength={160}
-                required
-              />
-            </label>
-            <label>
-              Tutar
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={props.amount}
-                onChange={(event) => props.onAmountChange(event.target.value)}
-                required
-              />
-            </label>
-          </div>
-          <div className="form-two">
-            <label>
-              Komisyon tutarı
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={props.commission}
-                onChange={(event) =>
-                  props.onCommissionChange(event.target.value)
-                }
-              />
-            </label>
-            <label>
-              Komisyon/vade para birimi
-              <input value={currency} readOnly />
-            </label>
-          </div>
-          <div className="form-two">
-            <label>
-              Düzenleme tarihi
-              <input
-                type="date"
-                value={props.issueDate}
-                onChange={(event) =>
-                  props.onIssueDateChange(event.target.value)
-                }
-                required
-              />
-            </label>
-            <label>
-              Vade tarihi
-              <input
-                type="date"
-                min={props.issueDate}
-                value={props.expiryDate}
-                onChange={(event) =>
-                  props.onExpiryDateChange(event.target.value)
-                }
-                required
-              />
-            </label>
-          </div>
-          <label>
-            Not
-            <input
-              value={props.notes}
-              onChange={(event) => props.onNotesChange(event.target.value)}
-              maxLength={500}
-            />
-          </label>
-          <div className="modal-foot">
-            <span>Vade uyarısı 30 gün kala gösterilir.</span>
-            <div className="credit-operation-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() =>
-                  props.onNavigate?.(
-                    "finance-credit-facilities",
-                    "Krediler & Finansman",
-                  )
-                }
-              >
-                Vazgeç
-              </button>
-              <button
-                className="primary"
-                disabled={props.busy || !props.facilityId}
-              >
-                {props.busy ? "Kaydediliyor…" : "Teminatı kaydet"}
-              </button>
+          </RecordFormGroup>
+          <div className="rf-columns">
+            <RecordFormGroup title="Taraflar">
+              <label>
+                <span>
+                  Veren kurum / taraf
+                  <RequiredMark />
+                </span>
+                <input
+                  className="rf-must"
+                  value={props.issuer}
+                  onChange={(event) => props.onIssuerChange(event.target.value)}
+                  maxLength={160}
+                  required
+                />
+              </label>
+              <label>
+                <span>
+                  Lehtar
+                  <RequiredMark />
+                </span>
+                <input
+                  className="rf-must"
+                  value={props.beneficiary}
+                  onChange={(event) =>
+                    props.onBeneficiaryChange(event.target.value)
+                  }
+                  maxLength={160}
+                  required
+                />
+              </label>
+            </RecordFormGroup>
+            <RecordFormGroup title="Tutar ve Vade">
+              <div className="rf-pair">
+                <label>
+                  <span>
+                    Tutar
+                    <RequiredMark />
+                  </span>
+                  <input
+                    className="rf-must rf-num"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={props.amount}
+                    onChange={(event) =>
+                      props.onAmountChange(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  Komisyon tutarı
+                  <input
+                    className="rf-num"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={props.commission}
+                    onChange={(event) =>
+                      props.onCommissionChange(event.target.value)
+                    }
+                  />
+                </label>
+              </div>
+              <label>
+                Komisyon/vade para birimi
+                <input value={currency} readOnly />
+              </label>
+              <div className="rf-pair">
+                <label>
+                  <span>
+                    Düzenleme tarihi
+                    <RequiredMark />
+                  </span>
+                  <input
+                    className="rf-must"
+                    type="date"
+                    value={props.issueDate}
+                    onChange={(event) =>
+                      props.onIssueDateChange(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  <span>
+                    Vade tarihi
+                    <RequiredMark />
+                  </span>
+                  <input
+                    className="rf-must"
+                    type="date"
+                    min={props.issueDate}
+                    value={props.expiryDate}
+                    onChange={(event) =>
+                      props.onExpiryDateChange(event.target.value)
+                    }
+                    required
+                  />
+                </label>
+              </div>
+            </RecordFormGroup>
+            <div className="rf-columns-wide">
+              <RecordFormGroup title="Not">
+                <label>
+                  Not
+                  <input
+                    value={props.notes}
+                    onChange={(event) => props.onNotesChange(event.target.value)}
+                    maxLength={500}
+                  />
+                </label>
+              </RecordFormGroup>
             </div>
           </div>
-        </form>
+        </RecordFormPage>
       )}
       {!props.showCreateForm &&
         (props.securities.length === 0 ? (

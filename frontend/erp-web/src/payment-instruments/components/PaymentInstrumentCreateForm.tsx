@@ -1,6 +1,11 @@
 import type { FormEvent } from "react";
-import { Plus } from "lucide-react";
 import type { Draft, Direction, Kind } from "../paymentInstrumentTypes";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../../finance-record-forms.css";
 
 type Props = {
   draft: Draft;
@@ -18,19 +23,53 @@ export function PaymentInstrumentCreateForm({
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     onDraftChange({ ...draft, [key]: value });
   return (
-    <section className="panel payment-instrument-create">
-      <div className="panel-heading">
-        <div>
-          <h3>
-            <Plus size={17} /> Portföye kayıt ekle
-          </h3>
-          <p>
-            Firma kapsamındaki çek veya senedi alınan/verilen yönüyle kaydedin.
-          </p>
-        </div>
-      </div>
-      <form onSubmit={onSubmit}>
-        <div className="payment-instrument-form-grid">
+    <section className="panel payment-instrument-create fin-rf-host">
+      <RecordFormPage
+        variant="dialog"
+        className="fin-rf-no-cancel"
+        title="Portföye kayıt ekle"
+        mode="create"
+        busy={busy}
+        saveLabel="Portföye ekle"
+        onSubmit={onSubmit}
+        onCancel={() => {}}
+        status={
+          <span>
+            Kaydetmek finans hesabı bakiyesini değiştirmez; tahsil/ödeme ayrıca
+            işlenir.
+          </span>
+        }
+      >
+        <p className="fin-rf-hint">
+          Firma kapsamındaki çek veya senedi alınan/verilen yönüyle kaydedin.
+        </p>
+        <RecordFormGroup title="Çek / Senet Kimliği" bodyClassName="rf-identity">
+          <label>
+            <span>
+              Çek/senet numarası
+              <RequiredMark />
+            </span>
+            <input
+              className="rf-must rf-mono"
+              required
+              maxLength={80}
+              value={draft.instrumentNumber}
+              onChange={(event) => set("instrumentNumber", event.target.value)}
+            />
+          </label>
+          <label>
+            <span>
+              Cari unvanı
+              <RequiredMark />
+            </span>
+            <input
+              className="rf-must"
+              required
+              maxLength={160}
+              value={draft.counterpartyName}
+              onChange={(event) => set("counterpartyName", event.target.value)}
+            />
+          </label>
           <label>
             Tür
             <select
@@ -53,103 +92,112 @@ export function PaymentInstrumentCreateForm({
               <option value="Payable">Borç · verilen</option>
             </select>
           </label>
-          <label>
-            Çek/senet numarası
-            <input
-              required
-              maxLength={80}
-              value={draft.instrumentNumber}
-              onChange={(event) => set("instrumentNumber", event.target.value)}
-            />
-          </label>
-          <label>
-            Cari unvanı
-            <input
-              required
-              maxLength={160}
-              value={draft.counterpartyName}
-              onChange={(event) => set("counterpartyName", event.target.value)}
-            />
-          </label>
-          <label>
-            Banka
-            <input
-              required
-              maxLength={120}
-              value={draft.bankName}
-              onChange={(event) => set("bankName", event.target.value)}
-            />
-          </label>
-          <label>
-            Tutar
-            <input
-              required
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={draft.amount}
-              onChange={(event) => set("amount", event.target.value)}
-            />
-          </label>
-          <label>
-            Para birimi
-            <input
-              required
-              minLength={3}
-              maxLength={3}
-              value={draft.currencyCode}
-              onChange={(event) =>
-                set("currencyCode", event.target.value.toUpperCase())
-              }
-            />
-          </label>
-          <label>
-            Düzenleme tarihi
-            <input
-              required
-              type="date"
-              value={draft.issueDate}
-              onChange={(event) => set("issueDate", event.target.value)}
-            />
-          </label>
-          <label>
-            Vade tarihi
-            <input
-              required
-              type="date"
-              value={draft.dueDate}
-              onChange={(event) => set("dueDate", event.target.value)}
-            />
-          </label>
-          <label>
-            Portföye giriş tarihi
-            <input
-              required
-              type="date"
-              value={draft.portfolioDate}
-              onChange={(event) => set("portfolioDate", event.target.value)}
-            />
-          </label>
-          <label className="payment-instrument-wide">
-            Açıklama
-            <textarea
-              maxLength={500}
-              rows={2}
-              value={draft.notes}
-              onChange={(event) => set("notes", event.target.value)}
-            />
-          </label>
+        </RecordFormGroup>
+        <div className="rf-columns">
+          <RecordFormGroup title="Banka ve Tutar">
+            <label>
+              <span>
+                Banka
+                <RequiredMark />
+              </span>
+              <input
+                className="rf-must"
+                required
+                maxLength={120}
+                value={draft.bankName}
+                onChange={(event) => set("bankName", event.target.value)}
+              />
+            </label>
+            <div className="rf-pair">
+              <label>
+                <span>
+                  Tutar
+                  <RequiredMark />
+                </span>
+                <input
+                  className="rf-must rf-num"
+                  required
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={draft.amount}
+                  onChange={(event) => set("amount", event.target.value)}
+                />
+              </label>
+              <label>
+                <span>
+                  Para birimi
+                  <RequiredMark />
+                </span>
+                <input
+                  className="rf-must rf-mono"
+                  required
+                  minLength={3}
+                  maxLength={3}
+                  value={draft.currencyCode}
+                  onChange={(event) =>
+                    set("currencyCode", event.target.value.toUpperCase())
+                  }
+                />
+              </label>
+            </div>
+          </RecordFormGroup>
+          <RecordFormGroup title="Tarihler">
+            <div className="rf-pair">
+              <label>
+                <span>
+                  Düzenleme tarihi
+                  <RequiredMark />
+                </span>
+                <input
+                  className="rf-must"
+                  required
+                  type="date"
+                  value={draft.issueDate}
+                  onChange={(event) => set("issueDate", event.target.value)}
+                />
+              </label>
+              <label>
+                <span>
+                  Vade tarihi
+                  <RequiredMark />
+                </span>
+                <input
+                  className="rf-must"
+                  required
+                  type="date"
+                  value={draft.dueDate}
+                  onChange={(event) => set("dueDate", event.target.value)}
+                />
+              </label>
+            </div>
+            <label>
+              <span>
+                Portföye giriş tarihi
+                <RequiredMark />
+              </span>
+              <input
+                className="rf-must"
+                required
+                type="date"
+                value={draft.portfolioDate}
+                onChange={(event) => set("portfolioDate", event.target.value)}
+              />
+            </label>
+          </RecordFormGroup>
+          <RecordFormGroup title="Not">
+            <label>
+              Açıklama
+              <textarea
+                maxLength={500}
+                rows={2}
+                value={draft.notes}
+                onChange={(event) => set("notes", event.target.value)}
+              />
+            </label>
+          </RecordFormGroup>
         </div>
-        <div className="payment-instrument-form-actions">
-          <span>
-            Kaydetmek finans hesabı bakiyesini değiştirmez; tahsil/ödeme ayrıca
-            işlenir.
-          </span>
-          <button className="primary" disabled={busy}>
-            {busy ? "Kaydediliyor…" : "Portföye ekle"}
-          </button>
-        </div>
-      </form>
+      </RecordFormPage>
     </section>
   );
 }
