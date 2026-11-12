@@ -329,6 +329,50 @@ public sealed class CustomFormEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Supplier_quote_layout_is_tenant_scoped_and_hides_optional_columns_by_default()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var quotes = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "purchase-supplier-quotes");
+        var catalogKeys = quotes.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray();
+        Assert.Equal(["code", "requestCode", "supplierName", "quoteDate", "validUntil", "status", "grandTotal", "lineCount", "createdAt"], catalogKeys);
+
+        var standard = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/purchase-supplier-quotes/active");
+        Assert.False(standard.GetProperty("isPublished").GetBoolean());
+        Assert.False(standard.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "lineCount").GetProperty("visible").GetBoolean());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/purchase-supplier-quotes/draft", new { name = "Teklif karşılaştırma" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == "grandTotal" ? "Teklif tutarı" : field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("key").GetString() is "lineCount" ? true : field.GetProperty("key").GetString() is "requestCode" ? false : field.GetProperty("visible").GetBoolean(),
+            position = field.GetProperty("position").GetInt32()
+        }).ToArray();
+
+        var unknownField = fields.Append(new { key = "supplierTaxNumber", label = "Vergi no", visible = true, position = fields.Length }).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = unknownField })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Teklif karşılaştırma", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/purchase-supplier-quotes/active");
+        var activeFields = activeA.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal("Teklif tutarı", activeFields.Single(x => x.GetProperty("key").GetString() == "grandTotal").GetProperty("label").GetString());
+        Assert.False(activeFields.Single(x => x.GetProperty("key").GetString() == "requestCode").GetProperty("visible").GetBoolean());
+        Assert.True(activeFields.Single(x => x.GetProperty("key").GetString() == "lineCount").GetProperty("visible").GetBoolean());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/purchase-supplier-quotes/active");
+        Assert.False(activeB.GetProperty("isPublished").GetBoolean());
+        Assert.Equal("Toplam", activeB.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "grandTotal").GetProperty("label").GetString());
+    }
+
+    [Fact]
     public async Task Built_in_screen_field_sections_are_tenant_scoped_versioned_and_keep_actions_fixed()
     {
         await using var app = await StartApplicationAsync();

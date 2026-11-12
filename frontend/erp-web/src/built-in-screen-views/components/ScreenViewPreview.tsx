@@ -133,6 +133,8 @@ export default function ScreenViewPreview({
                                   ? ["ALF-T-001", "ALF-T-002"]
                                   : screenKey === "purchase-orders"
                                     ? ["SAT-001", "SAT-002"]
+                                    : screenKey === "purchase-supplier-quotes"
+                                    ? ["TKL-2026-001", "TKL-2026-002"]
                                     : screenKey === "purchase-receipts"
                                       ? ["MKB-2026-001", "MKB-2026-002"]
                                       : screenKey ===

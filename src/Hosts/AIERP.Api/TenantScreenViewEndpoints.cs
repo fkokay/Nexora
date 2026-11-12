@@ -224,6 +224,12 @@ internal static class TenantScreenViewEndpoints
         new("lineCount", "Satır", true), new("createdAt", "Kaydedilme", true),
         new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] PurchaseSupplierQuoteFields =
+    [
+        new("code", "Teklif no", true), new("requestCode", "Talep", true), new("supplierName", "Tedarikçi", true),
+        new("quoteDate", "Tarih", true), new("validUntil", "Geçerlilik", true), new("status", "Durum", true),
+        new("grandTotal", "Toplam", true), new("lineCount", "Satır", false), new("createdAt", "Oluşturulma", false)
+    ];
     private static readonly ScreenViewField[] PurchaseOrderFields =
     [
         new("code", "Sipariş no", true), new("supplierName", "Tedarikçi", true),
@@ -540,6 +546,7 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("purchase-invoice-receipt-selection", "Alış faturası girişi · mal kabul seçimi", PurchaseInvoiceReceiptSelectionFields),
             new ScreenViewCatalog("standalone-invoice-drafts", "Bağımsız alış faturası taslakları", StandalonePurchaseInvoiceDraftFields),
             new ScreenViewCatalog("purchase-orders", "Satın alma siparişleri", PurchaseOrderFields),
+            new ScreenViewCatalog("purchase-supplier-quotes", "Tedarikçi teklifleri", PurchaseSupplierQuoteFields),
             new ScreenViewCatalog("purchase-receipts", "Mal kabulleri", PurchaseReceiptFields),
             new ScreenViewCatalog("purchase-delivery-notes", "Tedarikçi irsaliyeleri", PurchaseDeliveryNoteFields),
             new ScreenViewCatalog("purchase-delivery-order-lines", "İrsaliye girişi · sipariş satırları", PurchaseDeliveryOrderLineFields),
@@ -910,6 +917,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "standalone-invoice-drafts", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("standalone-invoice-drafts", "Bağımsız alış faturası taslakları", StandalonePurchaseInvoiceDraftFields);
+            return true;
+        }
+        if (string.Equals(key, "purchase-supplier-quotes", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("purchase-supplier-quotes", "Tedarikçi teklifleri", PurchaseSupplierQuoteFields);
             return true;
         }
         if (string.Equals(key, "purchase-orders", StringComparison.OrdinalIgnoreCase))

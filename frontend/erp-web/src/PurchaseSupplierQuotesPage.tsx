@@ -5,11 +5,14 @@ import SupplierQuotesFilters from "./purchase-supplier-quotes/components/Supplie
 import SupplierQuotesHeader from "./purchase-supplier-quotes/components/SupplierQuotesHeader";
 import SupplierQuotesPagination from "./purchase-supplier-quotes/components/SupplierQuotesPagination";
 import SupplierQuotesSummary from "./purchase-supplier-quotes/components/SupplierQuotesSummary";
-import SupplierQuotesTable from "./purchase-supplier-quotes/components/SupplierQuotesTable";
+import SupplierQuotesTable, {
+  defaultSupplierQuoteFields,
+} from "./purchase-supplier-quotes/components/SupplierQuotesTable";
 import type {
   Quote,
   QuoteDetail,
   QuotePage,
+  ScreenField,
 } from "./purchase-supplier-quotes/types";
 
 type Props = { token: string; onOpenRequests: () => void };
@@ -43,6 +46,24 @@ export default function PurchaseSupplierQuotesPage({
   const [detail, setDetail] = useState<QuoteDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [screenFields, setScreenFields] = useState<ScreenField[]>(
+    defaultSupplierQuoteFields,
+  );
+
+  useEffect(() => {
+    let active = true;
+    request<{ fields: ScreenField[] }>(
+      "/api/screen-views/purchase-supplier-quotes/active",
+      token,
+    )
+      .then((view) => {
+        if (active && view.fields?.length) setScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +163,7 @@ export default function PurchaseSupplierQuotesPage({
           </div>
           <SupplierQuotesTable
             items={data?.items ?? []}
+            fields={screenFields}
             loading={loading}
             selectedId={selected?.id}
             onSelect={setSelected}
