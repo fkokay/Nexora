@@ -367,6 +367,20 @@ export const english: Record<string, string> = {
   'Etiketleri, görünürlüğü ve sıralamayı değiştirin. Sistem işlemleri erişilebilir kalır.': 'Change labels, visibility, and order. System actions remain accessible.',
   'Taslak adı': 'Draft name',
   'Sütun ayarları': 'Column settings',
+  'Sabitle': 'Freeze',
+  'Sol': 'Left',
+  'Yok': 'None',
+  'Sabit ←': 'Frozen ←',
+  'Sabit →': 'Frozen →',
+  'Sola sabitlendi': 'Frozen left',
+  'Sağa sabitlendi': 'Frozen right',
+  'Sabitlemek için önce sütunu gösterin.': 'Show the column before freezing it.',
+  ' Sabitlenen sütunlar liste yana kaydırılırken görünür kalır.': ' Frozen columns stay visible while the list scrolls sideways.',
+  'Sabitlenen sütunlar liste yana kaydırılırken görünür kalır.': 'Frozen columns stay visible while the list scrolls sideways.',
+  'Sütun sabitleme yalnız desteklenen listelerde sol veya sağ olarak ayarlanabilir.': 'Columns can be frozen left or right only on supported lists.',
+  'Gizli sütunlar sabitlenemez.': 'Hidden columns cannot be frozen.',
+  'Her iki yanda en fazla 3 sütun sabitlenebilir.': 'At most 3 columns can be frozen on each side.',
+  'Sütun genişliği yalnız desteklenen listelerde 80–640 piksel aralığında ayarlanabilir; sistem işlem sütunu sabit kalır.': 'Column width can be set between 80 and 640 pixels only on supported lists; the system action column stays fixed.',
   'Alanları gösterin, gizleyin veya sıralayın': 'Show, hide, or reorder fields',
   'görünür': 'visible',
   'Kullanılabilir alanlarda ara': 'Search available fields',
@@ -752,6 +766,7 @@ export const english: Record<string, string> = {
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
 export const englishPatterns: Array<[RegExp, string]> = [
+  [/^(.+?) sütununu sabitle$/, 'Freeze $1'],
   [/^(.+?) rolü$/, '$1 role'],
   [/^(.+?) · üye$/, '$1 · member'],
   [/^İzin kataloğu: (.+?)$/, 'Permission catalog: $1'],

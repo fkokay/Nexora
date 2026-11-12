@@ -13,38 +13,7 @@ import {
 import type { EditorState, LayoutField } from "../types";
 import { useMemo, useState } from "react";
 
-const screensWithResizableColumns = new Set([
-  "customers",
-  "sales-returns",
-  "finance-accounts",
-  "finance-account-transactions",
-  "finance-balance-sheet",
-  "finance-cash-flow-report",
-  "finance-fx-exposure",
-  "finance-fx-revaluation-lines",
-  "finance-fx-revaluations",
-  "finance-income-statement",
-  "finance-journals",
-  "finance-ledger-accounts",
-  "finance-ledger-mappings",
-  "finance-maturities",
-  "finance-maturity-aging",
-  "finance-statement-lines",
-  "finance-statement-unmatched-book",
-  "finance-statements",
-  "finance-transfer-sources",
-  "finance-trial-balance",
-  "hr-attendance",
-  "hr-employee-calendar-overrides",
-  "hr-employees",
-  "hr-leave-requests",
-  "hr-workplace-assignments",
-  "hr-workplace-calendars",
-]);
-
-function supportsColumnWidth(screenKey: string) {
-  return screensWithResizableColumns.has(screenKey);
-}
+const maxPinnedPerSide = 3;
 
 type Props = {
   en: boolean;
@@ -77,7 +46,6 @@ export default function ScreenViewEditor({
   fields,
   name,
   visibleCount,
-  screenKey,
   onNameChange,
   onCreateDraft,
   onSaveDraft,
@@ -95,6 +63,10 @@ export default function ScreenViewEditor({
       .filter((field) => !query || `${field.label} ${field.key}`.toLocaleLowerCase(en ? "en" : "tr").includes(query))
       .sort((a, b) => a.label.localeCompare(b.label, en ? "en" : "tr"));
   }, [en, fieldSearch, fields]);
+  const widthEnabled = state.catalog.supportsColumnWidth === true;
+  const pinEnabled = state.catalog.supportsColumnPinning === true;
+  const pinnedCount = (side: "left" | "right") =>
+    fields.filter((field) => field.pinned === side).length;
   const [selectedFieldKey, setSelectedFieldKey] = useState("");
   const selectedKey = addableFields.some((field) => field.key === selectedFieldKey)
     ? selectedFieldKey
@@ -109,6 +81,10 @@ export default function ScreenViewEditor({
             {en
               ? "Change labels, visibility, and order. System actions stay available."
               : "Etiketleri, görünürlüğü ve sıralamayı değiştirin. Sistem işlemleri erişilebilir kalır."}
+            {pinEnabled &&
+              (en
+                ? " Frozen columns stay visible while the list scrolls sideways."
+                : " Sabitlenen sütunlar liste yana kaydırılırken görünür kalır.")}
           </p>
         </div>
         {state.draft ? (
@@ -182,9 +158,12 @@ export default function ScreenViewEditor({
           <div className="screen-view-fields">
             {[...fields]
               .sort((a, b) => a.position - b.position)
-              .map((field, index) => (
+              .map((field, index) => {
+                const showWidth = widthEnabled && !field.fixed;
+                const showTools = showWidth || pinEnabled;
+                return (
                 <article
-                  className={`screen-view-field${field.fixed ? " fixed" : ""}${!field.visible ? " is-hidden" : ""}${supportsColumnWidth(screenKey) && !field.fixed ? " screen-view-field-width" : ""}`}
+                  className={`screen-view-field${field.fixed ? " fixed" : ""}${!field.visible ? " is-hidden" : ""}${showTools ? " screen-view-field-width" : ""}${pinEnabled ? " has-pin" : ""}`}
                   key={field.key}
                   draggable={!field.fixed}
                   onDragStart={(event) =>
@@ -214,6 +193,8 @@ export default function ScreenViewEditor({
                       onChange={(event) =>
                         onUpdateField(field.key, {
                           visible: event.target.checked,
+                          // Hidden columns cannot stay frozen; the API rejects that combination.
+                          ...(event.target.checked ? {} : { pinned: null }),
                         })
                       }
                     />
@@ -250,30 +231,78 @@ export default function ScreenViewEditor({
                       }
                     />
                   </label>
-                  {supportsColumnWidth(screenKey) && !field.fixed && (
-                    <label className="screen-view-width-label">
-                      {en ? "Width (px)" : "Genişlik (px)"}
-                      <input
-                        aria-label={
-                          en
-                            ? `Width for ${field.label}`
-                            : `${field.label} genişliği`
-                        }
-                        type="number"
-                        min={80}
-                        max={640}
-                        step={10}
-                        value={field.width ?? ""}
-                        placeholder={en ? "Auto" : "Otomatik"}
-                        onChange={(event) =>
-                          onUpdateField(field.key, {
-                            width: event.target.value
-                              ? Number(event.target.value)
-                              : null,
-                          })
-                        }
-                      />
-                    </label>
+                  {showTools && (
+                    <div className="screen-view-width-label screen-view-layout-tools">
+                      {showWidth && (
+                        <label>
+                          {en ? "Width (px)" : "Genişlik (px)"}
+                          <input
+                            aria-label={
+                              en
+                                ? `Width for ${field.label}`
+                                : `${field.label} genişliği`
+                            }
+                            type="number"
+                            min={80}
+                            max={640}
+                            step={10}
+                            value={field.width ?? ""}
+                            placeholder={en ? "Auto" : "Otomatik"}
+                            onChange={(event) =>
+                              onUpdateField(field.key, {
+                                width: event.target.value
+                                  ? Number(event.target.value)
+                                  : null,
+                              })
+                            }
+                          />
+                        </label>
+                      )}
+                      {pinEnabled && (
+                        <label>
+                          {en ? "Freeze" : "Sabitle"}
+                          <select
+                            aria-label={
+                              en
+                                ? `Freeze ${field.label}`
+                                : `${field.label} sütununu sabitle`
+                            }
+                            value={field.pinned ?? ""}
+                            disabled={!field.visible}
+                            title={
+                              !field.visible
+                                ? en
+                                  ? "Show the column before freezing it."
+                                  : "Sabitlemek için önce sütunu gösterin."
+                                : undefined
+                            }
+                            onChange={(event) =>
+                              onUpdateField(field.key, {
+                                pinned:
+                                  (event.target.value || null) as
+                                    | "left"
+                                    | "right"
+                                    | null,
+                              })
+                            }
+                          >
+                            <option value="">{en ? "None" : "Yok"}</option>
+                            <option
+                              value="left"
+                              disabled={field.pinned !== "left" && pinnedCount("left") >= maxPinnedPerSide}
+                            >
+                              {en ? "Left" : "Sol"}
+                            </option>
+                            <option
+                              value="right"
+                              disabled={field.pinned !== "right" && pinnedCount("right") >= maxPinnedPerSide}
+                            >
+                              {en ? "Right" : "Sağ"}
+                            </option>
+                          </select>
+                        </label>
+                      )}
+                    </div>
                   )}
                   <div className="screen-view-order" aria-label={en ? "Column order" : "Sütun sırası"}>
                     {field.fixed && <small>{en ? "Required" : "Zorunlu"}</small>}
@@ -301,7 +330,8 @@ export default function ScreenViewEditor({
                     </button>
                   </div>
                 </article>
-              ))}
+                );
+              })}
           </div>
           <div className="screen-view-actions">
             <span>
